@@ -298,9 +298,7 @@ export async function sendPlanWelcomeEmail(subscription: any): Promise<void> {
         .limit(1)
 
       if (users.length > 0 && users[0].email) {
-        const { getEmailSubject, renderPlanWelcomeEmail } = await import(
-          '@/components/emails/render-email'
-        )
+        const { getEmailSubject, renderPlanWelcomeEmail } = await import('@/components/emails')
         const { sendEmail } = await import('@/lib/messaging/email/mailer')
 
         const baseUrl = getBaseUrl()

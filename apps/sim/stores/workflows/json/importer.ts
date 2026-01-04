@@ -5,9 +5,14 @@ import type { WorkflowState } from '../workflow/types'
 const logger = createLogger('WorkflowJsonImporter')
 
 /**
- * Normalize subblock values by converting empty strings to null.
+ * Normalize subblock values by converting empty strings to null and filtering out invalid subblocks.
  * This provides backwards compatibility for workflows exported before the null sanitization fix,
  * preventing Zod validation errors like "Expected array, received string".
+ *
+ * Also filters out malformed subBlocks that may have been created by bugs in previous exports:
+ * - SubBlocks with key "undefined" (caused by assigning to undefined key)
+ * - SubBlocks missing required fields like `id`
+ * - SubBlocks with `type: "unknown"` (indicates malformed data)
  */
 function normalizeSubblockValues(blocks: Record<string, any>): Record<string, any> {
   const normalizedBlocks: Record<string, any> = {}
@@ -19,6 +24,34 @@ function normalizeSubblockValues(blocks: Record<string, any>): Record<string, an
       const normalizedSubBlocks: Record<string, any> = {}
 
       Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]: [string, any]) => {
+        // Skip subBlocks with invalid keys (literal "undefined" string)
+        if (subBlockId === 'undefined') {
+          logger.warn(`Skipping malformed subBlock with key "undefined" in block ${blockId}`)
+          return
+        }
+
+        // Skip subBlocks that are null or not objects
+        if (!subBlock || typeof subBlock !== 'object') {
+          logger.warn(`Skipping invalid subBlock ${subBlockId} in block ${blockId}: not an object`)
+          return
+        }
+
+        // Skip subBlocks with type "unknown" (malformed data)
+        if (subBlock.type === 'unknown') {
+          logger.warn(
+            `Skipping malformed subBlock ${subBlockId} in block ${blockId}: type is "unknown"`
+          )
+          return
+        }
+
+        // Skip subBlocks missing required id field
+        if (!subBlock.id) {
+          logger.warn(
+            `Skipping malformed subBlock ${subBlockId} in block ${blockId}: missing id field`
+          )
+          return
+        }
+
         const normalizedSubBlock = { ...subBlock }
 
         // Convert empty strings to null for consistency

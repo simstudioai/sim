@@ -74,6 +74,7 @@ import {
   TableHeader,
   TableRow,
   Textarea,
+  TimePicker,
   Tooltip,
   Trash,
   Trash2,
@@ -125,6 +126,7 @@ export default function PlaygroundPage() {
   const [switchValue, setSwitchValue] = useState(false)
   const [checkboxValue, setCheckboxValue] = useState(false)
   const [sliderValue, setSliderValue] = useState([50])
+  const [timeValue, setTimeValue] = useState('09:30')
   const [activeTab, setActiveTab] = useState('profile')
   const [isDarkMode, setIsDarkMode] = useState(false)
 
@@ -487,6 +489,31 @@ export default function PlaygroundPage() {
                   multiSelect
                   searchable
                 />
+              </div>
+            </VariantRow>
+          </Section>
+
+          {/* TimePicker */}
+          <Section title='TimePicker'>
+            <VariantRow label='default'>
+              <div className='w-48'>
+                <TimePicker value={timeValue} onChange={setTimeValue} placeholder='Select time' />
+              </div>
+              <span className='text-[var(--text-secondary)] text-sm'>{timeValue}</span>
+            </VariantRow>
+            <VariantRow label='size sm'>
+              <div className='w-48'>
+                <TimePicker value='14:00' onChange={() => {}} placeholder='Small size' size='sm' />
+              </div>
+            </VariantRow>
+            <VariantRow label='no value'>
+              <div className='w-48'>
+                <TimePicker placeholder='Select time...' onChange={() => {}} />
+              </div>
+            </VariantRow>
+            <VariantRow label='disabled'>
+              <div className='w-48'>
+                <TimePicker value='09:00' disabled />
               </div>
             </VariantRow>
           </Section>

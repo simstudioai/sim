@@ -16,7 +16,7 @@ import {
   getEmailSubject,
   renderBatchInvitationEmail,
   renderInvitationEmail,
-} from '@/components/emails/render-email'
+} from '@/components/emails'
 import { getSession } from '@/lib/auth'
 import {
   validateBulkInvitations,
@@ -376,8 +376,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const emailHtml = await renderInvitationEmail(
           inviter[0]?.name || 'Someone',
           organizationEntry[0]?.name || 'organization',
-          `${getBaseUrl()}/invite/${orgInvitation.id}`,
-          email
+          `${getBaseUrl()}/invite/${orgInvitation.id}`
         )
 
         emailResult = await sendEmail({

@@ -1,18 +1,30 @@
 import { render } from '@react-email/components'
+import { OTPVerificationEmail, ResetPasswordEmail, WelcomeEmail } from '@/components/emails/auth'
+import {
+  CreditPurchaseEmail,
+  EnterpriseSubscriptionEmail,
+  FreeTierUpgradeEmail,
+  PaymentFailedEmail,
+  PlanWelcomeEmail,
+  UsageThresholdEmail,
+} from '@/components/emails/billing'
+import { CareersConfirmationEmail, CareersSubmissionEmail } from '@/components/emails/careers'
 import {
   BatchInvitationEmail,
-  EnterpriseSubscriptionEmail,
-  HelpConfirmationEmail,
   InvitationEmail,
-  OTPVerificationEmail,
-  PlanWelcomeEmail,
-  ResetPasswordEmail,
-  UsageThresholdEmail,
-} from '@/components/emails'
-import CreditPurchaseEmail from '@/components/emails/billing/credit-purchase-email'
-import FreeTierUpgradeEmail from '@/components/emails/billing/free-tier-upgrade-email'
-import { getBrandConfig } from '@/lib/branding/branding'
+  WorkspaceInvitationEmail,
+} from '@/components/emails/invitations'
+import { HelpConfirmationEmail } from '@/components/emails/support'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+
+export type { EmailSubjectType } from './subjects'
+export { getEmailSubject } from './subjects'
+
+interface WorkspaceInvitation {
+  workspaceId: string
+  workspaceName: string
+  permission: 'admin' | 'write' | 'read'
+}
 
 export async function renderOTPEmail(
   otp: string,
@@ -27,32 +39,21 @@ export async function renderPasswordResetEmail(
   username: string,
   resetLink: string
 ): Promise<string> {
-  return await render(
-    ResetPasswordEmail({ username, resetLink: resetLink, updatedDate: new Date() })
-  )
+  return await render(ResetPasswordEmail({ username, resetLink }))
 }
 
 export async function renderInvitationEmail(
   inviterName: string,
   organizationName: string,
-  invitationUrl: string,
-  email: string
+  invitationUrl: string
 ): Promise<string> {
   return await render(
     InvitationEmail({
       inviterName,
       organizationName,
       inviteLink: invitationUrl,
-      invitedEmail: email,
-      updatedDate: new Date(),
     })
   )
-}
-
-interface WorkspaceInvitation {
-  workspaceId: string
-  workspaceName: string
-  permission: 'admin' | 'write' | 'read'
 }
 
 export async function renderBatchInvitationEmail(
@@ -74,13 +75,11 @@ export async function renderBatchInvitationEmail(
 }
 
 export async function renderHelpConfirmationEmail(
-  userEmail: string,
   type: 'bug' | 'feedback' | 'feature_request' | 'other',
   attachmentCount = 0
 ): Promise<string> {
   return await render(
     HelpConfirmationEmail({
-      userEmail,
       type,
       attachmentCount,
       submittedDate: new Date(),
@@ -88,19 +87,14 @@ export async function renderHelpConfirmationEmail(
   )
 }
 
-export async function renderEnterpriseSubscriptionEmail(
-  userName: string,
-  userEmail: string
-): Promise<string> {
+export async function renderEnterpriseSubscriptionEmail(userName: string): Promise<string> {
   const baseUrl = getBaseUrl()
   const loginLink = `${baseUrl}/login`
 
   return await render(
     EnterpriseSubscriptionEmail({
       userName,
-      userEmail,
       loginLink,
-      createdDate: new Date(),
     })
   )
 }
@@ -121,7 +115,6 @@ export async function renderUsageThresholdEmail(params: {
       currentUsage: params.currentUsage,
       limit: params.limit,
       ctaLink: params.ctaLink,
-      updatedDate: new Date(),
     })
   )
 }
@@ -140,59 +133,8 @@ export async function renderFreeTierUpgradeEmail(params: {
       currentUsage: params.currentUsage,
       limit: params.limit,
       upgradeLink: params.upgradeLink,
-      updatedDate: new Date(),
     })
   )
-}
-
-export function getEmailSubject(
-  type:
-    | 'sign-in'
-    | 'email-verification'
-    | 'forget-password'
-    | 'reset-password'
-    | 'invitation'
-    | 'batch-invitation'
-    | 'help-confirmation'
-    | 'enterprise-subscription'
-    | 'usage-threshold'
-    | 'free-tier-upgrade'
-    | 'plan-welcome-pro'
-    | 'plan-welcome-team'
-    | 'credit-purchase'
-): string {
-  const brandName = getBrandConfig().name
-
-  switch (type) {
-    case 'sign-in':
-      return `Sign in to ${brandName}`
-    case 'email-verification':
-      return `Verify your email for ${brandName}`
-    case 'forget-password':
-      return `Reset your ${brandName} password`
-    case 'reset-password':
-      return `Reset your ${brandName} password`
-    case 'invitation':
-      return `You've been invited to join a team on ${brandName}`
-    case 'batch-invitation':
-      return `You've been invited to join a team and workspaces on ${brandName}`
-    case 'help-confirmation':
-      return 'Your request has been received'
-    case 'enterprise-subscription':
-      return `Your Enterprise Plan is now active on ${brandName}`
-    case 'usage-threshold':
-      return `You're nearing your monthly budget on ${brandName}`
-    case 'free-tier-upgrade':
-      return `You're at 90% of your free credits on ${brandName}`
-    case 'plan-welcome-pro':
-      return `Your Pro plan is now active on ${brandName}`
-    case 'plan-welcome-team':
-      return `Your Team plan is now active on ${brandName}`
-    case 'credit-purchase':
-      return `Credits added to your ${brandName} account`
-    default:
-      return brandName
-  }
 }
 
 export async function renderPlanWelcomeEmail(params: {
@@ -205,9 +147,12 @@ export async function renderPlanWelcomeEmail(params: {
       planName: params.planName,
       userName: params.userName,
       loginLink: params.loginLink,
-      createdDate: new Date(),
     })
   )
+}
+
+export async function renderWelcomeEmail(userName?: string): Promise<string> {
+  return await render(WelcomeEmail({ userName }))
 }
 
 export async function renderCreditPurchaseEmail(params: {
@@ -221,6 +166,76 @@ export async function renderCreditPurchaseEmail(params: {
       amount: params.amount,
       newBalance: params.newBalance,
       purchaseDate: new Date(),
+    })
+  )
+}
+
+export async function renderWorkspaceInvitationEmail(
+  inviterName: string,
+  workspaceName: string,
+  invitationLink: string
+): Promise<string> {
+  return await render(
+    WorkspaceInvitationEmail({
+      inviterName,
+      workspaceName,
+      invitationLink,
+    })
+  )
+}
+
+export async function renderPaymentFailedEmail(params: {
+  userName?: string
+  amountDue: number
+  lastFourDigits?: string
+  billingPortalUrl: string
+  failureReason?: string
+}): Promise<string> {
+  return await render(
+    PaymentFailedEmail({
+      userName: params.userName,
+      amountDue: params.amountDue,
+      lastFourDigits: params.lastFourDigits,
+      billingPortalUrl: params.billingPortalUrl,
+      failureReason: params.failureReason,
+    })
+  )
+}
+
+export async function renderCareersConfirmationEmail(
+  name: string,
+  position: string
+): Promise<string> {
+  return await render(
+    CareersConfirmationEmail({
+      name,
+      position,
+    })
+  )
+}
+
+export async function renderCareersSubmissionEmail(params: {
+  name: string
+  email: string
+  phone?: string
+  position: string
+  linkedin?: string
+  portfolio?: string
+  experience: string
+  location: string
+  message: string
+}): Promise<string> {
+  return await render(
+    CareersSubmissionEmail({
+      name: params.name,
+      email: params.email,
+      phone: params.phone,
+      position: params.position,
+      linkedin: params.linkedin,
+      portfolio: params.portfolio,
+      experience: params.experience,
+      location: params.location,
+      message: params.message,
     })
   )
 }

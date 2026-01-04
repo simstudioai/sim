@@ -155,11 +155,6 @@ export class PauseResumeManager {
         },
       })
 
-    await db
-      .update(workflowExecutionLogs)
-      .set({ status: 'pending' })
-      .where(eq(workflowExecutionLogs.executionId, executionId))
-
     await PauseResumeManager.processQueuedResumes(executionId)
   }
 
@@ -302,18 +297,34 @@ export class PauseResumeManager {
       })
 
       if (result.status === 'paused') {
+        const effectiveExecutionId = result.metadata?.executionId ?? resumeExecutionId
         if (!result.snapshotSeed) {
           logger.error('Missing snapshot seed for paused resume execution', {
             resumeExecutionId,
           })
+          await LoggingSession.markExecutionAsFailed(
+            effectiveExecutionId,
+            'Missing snapshot seed for paused execution'
+          )
         } else {
-          await PauseResumeManager.persistPauseResult({
-            workflowId: pausedExecution.workflowId,
-            executionId: result.metadata?.executionId ?? resumeExecutionId,
-            pausePoints: result.pausePoints || [],
-            snapshotSeed: result.snapshotSeed,
-            executorUserId: result.metadata?.userId,
-          })
+          try {
+            await PauseResumeManager.persistPauseResult({
+              workflowId: pausedExecution.workflowId,
+              executionId: effectiveExecutionId,
+              pausePoints: result.pausePoints || [],
+              snapshotSeed: result.snapshotSeed,
+              executorUserId: result.metadata?.userId,
+            })
+          } catch (pauseError) {
+            logger.error('Failed to persist pause result for resumed execution', {
+              resumeExecutionId,
+              error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+            })
+            await LoggingSession.markExecutionAsFailed(
+              effectiveExecutionId,
+              `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
+            )
+          }
         }
       } else {
         await PauseResumeManager.updateSnapshotAfterResume({

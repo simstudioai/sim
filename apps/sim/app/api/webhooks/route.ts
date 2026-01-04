@@ -581,6 +581,56 @@ export async function POST(request: NextRequest) {
     }
     // --- End RSS specific logic ---
 
+    if (savedWebhook && provider === 'grain') {
+      logger.info(`[${requestId}] Grain provider detected. Creating Grain webhook subscription.`)
+      try {
+        const grainHookId = await createGrainWebhookSubscription(
+          request,
+          {
+            id: savedWebhook.id,
+            path: savedWebhook.path,
+            providerConfig: savedWebhook.providerConfig,
+          },
+          requestId
+        )
+
+        if (grainHookId) {
+          // Update the webhook record with the external Grain hook ID
+          const updatedConfig = {
+            ...(savedWebhook.providerConfig as Record<string, any>),
+            externalId: grainHookId,
+          }
+          await db
+            .update(webhook)
+            .set({
+              providerConfig: updatedConfig,
+              updatedAt: new Date(),
+            })
+            .where(eq(webhook.id, savedWebhook.id))
+
+          savedWebhook.providerConfig = updatedConfig
+          logger.info(`[${requestId}] Successfully created Grain webhook`, {
+            grainHookId,
+            webhookId: savedWebhook.id,
+          })
+        }
+      } catch (err) {
+        logger.error(
+          `[${requestId}] Error creating Grain webhook subscription, rolling back webhook`,
+          err
+        )
+        await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
+        return NextResponse.json(
+          {
+            error: 'Failed to create webhook in Grain',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+    // --- End Grain specific logic ---
+
     const status = targetWebhookId ? 200 : 201
     return NextResponse.json({ webhook: savedWebhook }, { status })
   } catch (error: any) {
@@ -939,6 +989,106 @@ async function createWebflowWebhookSubscription(
   } catch (error: any) {
     logger.error(
       `[${requestId}] Exception during Webflow webhook creation for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+    throw error
+  }
+}
+
+// Helper function to create the webhook subscription in Grain
+async function createGrainWebhookSubscription(
+  request: NextRequest,
+  webhookData: any,
+  requestId: string
+): Promise<string | undefined> {
+  try {
+    const { path, providerConfig } = webhookData
+    const { apiKey, includeHighlights, includeParticipants, includeAiSummary } =
+      providerConfig || {}
+
+    if (!apiKey) {
+      logger.warn(`[${requestId}] Missing apiKey for Grain webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error(
+        'Grain API Key is required. Please provide your Grain Personal Access Token in the trigger configuration.'
+      )
+    }
+
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+
+    const grainApiUrl = 'https://api.grain.com/_/public-api/v2/hooks/create'
+
+    const requestBody: Record<string, any> = {
+      hook_url: notificationUrl,
+    }
+
+    // Build include object based on configuration
+    const include: Record<string, boolean> = {}
+    if (includeHighlights) {
+      include.highlights = true
+    }
+    if (includeParticipants) {
+      include.participants = true
+    }
+    if (includeAiSummary) {
+      include.ai_summary = true
+    }
+    if (Object.keys(include).length > 0) {
+      requestBody.include = include
+    }
+
+    const grainResponse = await fetch(grainApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Public-Api-Version': '2025-10-31',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    const responseBody = await grainResponse.json()
+
+    if (!grainResponse.ok || responseBody.error) {
+      const errorMessage =
+        responseBody.error?.message ||
+        responseBody.error ||
+        responseBody.message ||
+        'Unknown Grain API error'
+      logger.error(
+        `[${requestId}] Failed to create webhook in Grain for webhook ${webhookData.id}. Status: ${grainResponse.status}`,
+        { message: errorMessage, response: responseBody }
+      )
+
+      let userFriendlyMessage = 'Failed to create webhook subscription in Grain'
+      if (grainResponse.status === 401) {
+        userFriendlyMessage =
+          'Invalid Grain API Key. Please verify your Personal Access Token is correct.'
+      } else if (grainResponse.status === 403) {
+        userFriendlyMessage =
+          'Access denied. Please ensure your Grain API Key has appropriate permissions.'
+      } else if (errorMessage && errorMessage !== 'Unknown Grain API error') {
+        userFriendlyMessage = `Grain error: ${errorMessage}`
+      }
+
+      throw new Error(userFriendlyMessage)
+    }
+
+    logger.info(
+      `[${requestId}] Successfully created webhook in Grain for webhook ${webhookData.id}.`,
+      {
+        grainWebhookId: responseBody.id,
+      }
+    )
+
+    return responseBody.id
+  } catch (error: any) {
+    logger.error(
+      `[${requestId}] Exception during Grain webhook creation for webhook ${webhookData.id}.`,
       {
         message: error.message,
         stack: error.stack,

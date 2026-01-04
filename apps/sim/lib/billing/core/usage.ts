@@ -6,7 +6,7 @@ import {
   getEmailSubject,
   renderFreeTierUpgradeEmail,
   renderUsageThresholdEmail,
-} from '@/components/emails/render-email'
+} from '@/components/emails'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import {
   canEditUsageLimit,

@@ -8,35 +8,156 @@ import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 
 const logger = createLogger('InviteById')
 
-function getErrorMessage(reason: string): string {
-  switch (reason) {
-    case 'missing-token':
-      return 'The invitation link is invalid or missing a required parameter.'
-    case 'invalid-token':
-      return 'The invitation link is invalid or has already been used.'
-    case 'expired':
-      return 'This invitation has expired. Please ask for a new invitation.'
-    case 'already-processed':
-      return 'This invitation has already been accepted or declined.'
-    case 'email-mismatch':
-      return 'This invitation was sent to a different email address. Please log in with the correct account.'
-    case 'workspace-not-found':
-      return 'The workspace associated with this invitation could not be found.'
-    case 'user-not-found':
-      return 'Your user account could not be found. Please try logging out and logging back in.'
-    case 'already-member':
-      return 'You are already a member of this organization or workspace.'
-    case 'already-in-organization':
-      return 'You are already a member of an organization. Leave your current organization before accepting a new invitation.'
-    case 'invalid-invitation':
-      return 'This invitation is invalid or no longer exists.'
-    case 'missing-invitation-id':
-      return 'The invitation link is missing required information. Please use the original invitation link.'
-    case 'server-error':
-      return 'An unexpected error occurred while processing your invitation. Please try again later.'
-    default:
-      return 'An unknown error occurred while processing your invitation.'
+/** Error codes that can occur during invitation processing */
+type InviteErrorCode =
+  | 'missing-token'
+  | 'invalid-token'
+  | 'expired'
+  | 'already-processed'
+  | 'email-mismatch'
+  | 'workspace-not-found'
+  | 'user-not-found'
+  | 'already-member'
+  | 'already-in-organization'
+  | 'invalid-invitation'
+  | 'missing-invitation-id'
+  | 'server-error'
+  | 'unauthorized'
+  | 'forbidden'
+  | 'network-error'
+  | 'unknown'
+
+interface InviteError {
+  code: InviteErrorCode
+  message: string
+  requiresAuth?: boolean
+  canRetry?: boolean
+}
+
+/**
+ * Maps error codes to user-friendly error objects with contextual information
+ */
+function getInviteError(reason: string): InviteError {
+  const errorMap: Record<string, InviteError> = {
+    'missing-token': {
+      code: 'missing-token',
+      message: 'The invitation link is invalid or missing a required parameter.',
+    },
+    'invalid-token': {
+      code: 'invalid-token',
+      message: 'The invitation link is invalid or has already been used.',
+    },
+    expired: {
+      code: 'expired',
+      message: 'This invitation has expired. Please ask for a new invitation.',
+    },
+    'already-processed': {
+      code: 'already-processed',
+      message: 'This invitation has already been accepted or declined.',
+    },
+    'email-mismatch': {
+      code: 'email-mismatch',
+      message:
+        'This invitation was sent to a different email address. Please sign in with the correct account.',
+      requiresAuth: true,
+    },
+    'workspace-not-found': {
+      code: 'workspace-not-found',
+      message: 'The workspace associated with this invitation could not be found.',
+    },
+    'user-not-found': {
+      code: 'user-not-found',
+      message: 'Your user account could not be found. Please try signing out and signing back in.',
+      requiresAuth: true,
+    },
+    'already-member': {
+      code: 'already-member',
+      message: 'You are already a member of this organization or workspace.',
+    },
+    'already-in-organization': {
+      code: 'already-in-organization',
+      message:
+        'You are already a member of an organization. Leave your current organization before accepting a new invitation.',
+    },
+    'invalid-invitation': {
+      code: 'invalid-invitation',
+      message: 'This invitation is invalid or no longer exists.',
+    },
+    'missing-invitation-id': {
+      code: 'missing-invitation-id',
+      message:
+        'The invitation link is missing required information. Please use the original invitation link.',
+    },
+    'server-error': {
+      code: 'server-error',
+      message:
+        'An unexpected error occurred while processing your invitation. Please try again later.',
+      canRetry: true,
+    },
+    unauthorized: {
+      code: 'unauthorized',
+      message: 'You need to sign in to accept this invitation.',
+      requiresAuth: true,
+    },
+    forbidden: {
+      code: 'forbidden',
+      message:
+        'You do not have permission to accept this invitation. Please check you are signed in with the correct account.',
+      requiresAuth: true,
+    },
+    'network-error': {
+      code: 'network-error',
+      message:
+        'Unable to connect to the server. Please check your internet connection and try again.',
+      canRetry: true,
+    },
   }
+
+  return (
+    errorMap[reason] || {
+      code: 'unknown',
+      message:
+        'An unexpected error occurred while processing your invitation. Please try again or contact support.',
+      canRetry: true,
+    }
+  )
+}
+
+/**
+ * Parses API error responses and extracts a standardized error code
+ */
+function parseApiError(error: unknown, statusCode?: number): InviteErrorCode {
+  // Handle network/fetch errors
+  if (error instanceof TypeError && error.message.includes('fetch')) {
+    return 'network-error'
+  }
+
+  // Handle error message patterns first (more specific matching)
+  const errorMessage =
+    typeof error === 'string' ? error.toLowerCase() : (error as Error)?.message?.toLowerCase() || ''
+
+  // Check specific patterns before falling back to status codes
+  // Order matters: more specific patterns must come first
+  if (errorMessage.includes('already a member of an organization')) return 'already-in-organization'
+  if (errorMessage.includes('already a member')) return 'already-member'
+  if (errorMessage.includes('email mismatch') || errorMessage.includes('different email'))
+    return 'email-mismatch'
+  if (errorMessage.includes('already processed')) return 'already-processed'
+  if (errorMessage.includes('unauthorized')) return 'unauthorized'
+  if (errorMessage.includes('forbidden') || errorMessage.includes('permission')) return 'forbidden'
+  if (errorMessage.includes('not found') || errorMessage.includes('expired'))
+    return 'invalid-invitation'
+
+  // Handle HTTP status codes as fallback
+  if (statusCode) {
+    if (statusCode === 401) return 'unauthorized'
+    if (statusCode === 403) return 'forbidden'
+    if (statusCode === 404) return 'invalid-invitation'
+    if (statusCode === 409) return 'already-in-organization'
+    if (statusCode >= 500) return 'server-error'
+  }
+
+  return 'unknown'
 }
 
 export default function Invite() {
@@ -47,7 +168,7 @@ export default function Invite() {
   const { data: session, isPending } = useSession()
   const [invitationDetails, setInvitationDetails] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<InviteError | null>(null)
   const [isAccepting, setIsAccepting] = useState(false)
   const [accepted, setAccepted] = useState(false)
   const [isNewUser, setIsNewUser] = useState(false)
@@ -59,7 +180,7 @@ export default function Invite() {
     const errorReason = searchParams.get('error')
 
     if (errorReason) {
-      setError(getErrorMessage(errorReason))
+      setError(getInviteError(errorReason))
       setIsLoading(false)
       return
     }
@@ -99,10 +220,36 @@ export default function Invite() {
           return
         }
 
+        // Handle workspace invitation errors with specific status codes
+        if (!workspaceInviteResponse.ok && workspaceInviteResponse.status !== 404) {
+          const errorCode = parseApiError(null, workspaceInviteResponse.status)
+          const errorData = await workspaceInviteResponse.json().catch(() => ({}))
+          logger.error('Workspace invitation fetch failed:', {
+            status: workspaceInviteResponse.status,
+            error: errorData,
+          })
+
+          // Refine error code based on response body if available
+          if (errorData.error) {
+            const refinedCode = parseApiError(errorData.error, workspaceInviteResponse.status)
+            setError(getInviteError(refinedCode))
+          } else {
+            setError(getInviteError(errorCode))
+          }
+          setIsLoading(false)
+          return
+        }
+
         try {
-          const { data } = await client.organization.getInvitation({
+          const { data, error: orgError } = await client.organization.getInvitation({
             query: { id: inviteId },
           })
+
+          if (orgError) {
+            logger.error('Organization invitation fetch error:', orgError)
+            const errorCode = parseApiError(orgError.message || orgError)
+            throw { code: errorCode, original: orgError }
+          }
 
           if (data) {
             setInvitationType('organization')
@@ -115,7 +262,7 @@ export default function Invite() {
             if (activeOrgResponse?.data) {
               // User is already in an organization
               setCurrentOrgName(activeOrgResponse.data.name)
-              setError('already-in-organization')
+              setError(getInviteError('already-in-organization'))
               setIsLoading(false)
               return
             }
@@ -139,14 +286,19 @@ export default function Invite() {
               }
             }
           } else {
-            throw new Error('Invitation not found or has expired')
+            throw { code: 'invalid-invitation' }
           }
-        } catch (_err) {
-          throw new Error('Invitation not found or has expired')
+        } catch (orgErr: any) {
+          // If this is our structured error, use it directly
+          if (orgErr.code) {
+            throw orgErr
+          }
+          throw { code: parseApiError(orgErr) }
         }
       } catch (err: any) {
         logger.error('Error fetching invitation:', err)
-        setError(err.message || 'Failed to load invitation details')
+        const errorCode = err.code || parseApiError(err)
+        setError(getInviteError(errorCode))
       } finally {
         setIsLoading(false)
       }
@@ -168,7 +320,9 @@ export default function Invite() {
         const orgId = invitationDetails?.data?.organizationId
 
         if (!orgId) {
-          throw new Error('Organization ID not found')
+          setError(getInviteError('invalid-invitation'))
+          setIsAccepting(false)
+          return
         }
 
         // Use our custom API endpoint that handles Pro usage snapshot
@@ -182,8 +336,15 @@ export default function Invite() {
         })
 
         if (!response.ok) {
-          const data = await response.json().catch(() => ({ error: 'Failed to accept invitation' }))
-          throw new Error(data.error || 'Failed to accept invitation')
+          const data = await response.json().catch(() => ({}))
+          const errorCode = parseApiError(data.error || '', response.status)
+          logger.error('Failed to accept organization invitation:', {
+            status: response.status,
+            error: data,
+          })
+          setError(getInviteError(errorCode))
+          setIsAccepting(false)
+          return
         }
 
         // Set the organization as active
@@ -202,13 +363,8 @@ export default function Invite() {
         // Reset accepted state on error
         setAccepted(false)
 
-        // Check if it's a 409 conflict (already in an organization)
-        if (err.status === 409 || err.message?.includes('already a member of an organization')) {
-          setError('already-in-organization')
-        } else {
-          setError(err.message || 'Failed to accept invitation')
-        }
-
+        const errorCode = parseApiError(err)
+        setError(getInviteError(errorCode))
         setIsAccepting(false)
       }
     }
@@ -279,12 +435,10 @@ export default function Invite() {
   }
 
   if (error) {
-    const errorReason = searchParams.get('error')
-    const isExpiredError = errorReason === 'expired'
-    const isAlreadyInOrg = error === 'already-in-organization'
+    const callbackUrl = encodeURIComponent(getCallbackUrl())
 
     // Special handling for already in organization
-    if (isAlreadyInOrg) {
+    if (error.code === 'already-in-organization') {
       return (
         <InviteLayout>
           <InviteStatusCard
@@ -293,7 +447,7 @@ export default function Invite() {
             description={
               currentOrgName
                 ? `You are currently a member of "${currentOrgName}". You must leave your current organization before accepting a new invitation.`
-                : 'You are already a member of an organization. Leave your current organization before accepting a new invitation.'
+                : error.message
             }
             icon='users'
             actions={[
@@ -313,24 +467,96 @@ export default function Invite() {
       )
     }
 
-    // Use getErrorMessage for consistent error messages
-    const errorMessage = error.startsWith('You are already') ? error : getErrorMessage(error)
+    // Handle email mismatch - user needs to sign in with a different account
+    if (error.code === 'email-mismatch') {
+      return (
+        <InviteLayout>
+          <InviteStatusCard
+            type='warning'
+            title='Wrong Account'
+            description={error.message}
+            icon='userPlus'
+            actions={[
+              {
+                label: 'Sign in with a different account',
+                onClick: async () => {
+                  await client.signOut()
+                  router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`)
+                },
+                variant: 'default' as const,
+              },
+              {
+                label: 'Return to Home',
+                onClick: () => router.push('/'),
+                variant: 'ghost' as const,
+              },
+            ]}
+          />
+        </InviteLayout>
+      )
+    }
+
+    // Handle auth-related errors - prompt user to sign in
+    if (error.requiresAuth) {
+      return (
+        <InviteLayout>
+          <InviteStatusCard
+            type='warning'
+            title='Authentication Required'
+            description={error.message}
+            icon='userPlus'
+            actions={[
+              {
+                label: 'Sign in to continue',
+                onClick: () => router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`),
+                variant: 'default' as const,
+              },
+              {
+                label: 'Create an account',
+                onClick: () => router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true`),
+                variant: 'outline' as const,
+              },
+              {
+                label: 'Return to Home',
+                onClick: () => router.push('/'),
+                variant: 'ghost' as const,
+              },
+            ]}
+          />
+        </InviteLayout>
+      )
+    }
+
+    // Handle retryable errors
+    const actions: Array<{
+      label: string
+      onClick: () => void
+      variant?: 'default' | 'outline' | 'ghost'
+    }> = []
+
+    if (error.canRetry) {
+      actions.push({
+        label: 'Try Again',
+        onClick: () => window.location.reload(),
+        variant: 'default' as const,
+      })
+    }
+
+    actions.push({
+      label: 'Return to Home',
+      onClick: () => router.push('/'),
+      variant: error.canRetry ? ('ghost' as const) : ('default' as const),
+    })
 
     return (
       <InviteLayout>
         <InviteStatusCard
           type='error'
           title='Invitation Error'
-          description={errorMessage}
+          description={error.message}
           icon='error'
-          isExpiredError={isExpiredError}
-          actions={[
-            {
-              label: 'Return to Home',
-              onClick: () => router.push('/'),
-              variant: 'default' as const,
-            },
-          ]}
+          isExpiredError={error.code === 'expired'}
+          actions={actions}
         />
       </InviteLayout>
     )

@@ -8,6 +8,7 @@ const telegramLogger = createLogger('TelegramWebhook')
 const airtableLogger = createLogger('AirtableWebhook')
 const typeformLogger = createLogger('TypeformWebhook')
 const calendlyLogger = createLogger('CalendlyWebhook')
+const grainLogger = createLogger('GrainWebhook')
 
 function getProviderConfig(webhook: any): Record<string, any> {
   return (webhook.providerConfig as Record<string, any>) || {}
@@ -662,8 +663,57 @@ export async function deleteCalendlyWebhook(webhook: any, requestId: string): Pr
 }
 
 /**
+ * Delete a Grain webhook
+ * Don't fail webhook deletion if cleanup fails
+ */
+export async function deleteGrainWebhook(webhook: any, requestId: string): Promise<void> {
+  try {
+    const config = getProviderConfig(webhook)
+    const apiKey = config.apiKey as string | undefined
+    const externalId = config.externalId as string | undefined
+
+    if (!apiKey) {
+      grainLogger.warn(
+        `[${requestId}] Missing apiKey for Grain webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    if (!externalId) {
+      grainLogger.warn(
+        `[${requestId}] Missing externalId for Grain webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    const grainApiUrl = `https://api.grain.com/_/public-api/v2/hooks/${externalId}`
+
+    const grainResponse = await fetch(grainApiUrl, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Public-Api-Version': '2025-10-31',
+      },
+    })
+
+    if (!grainResponse.ok && grainResponse.status !== 404) {
+      const responseBody = await grainResponse.json().catch(() => ({}))
+      grainLogger.warn(
+        `[${requestId}] Failed to delete Grain webhook (non-fatal): ${grainResponse.status}`,
+        { response: responseBody }
+      )
+    } else {
+      grainLogger.info(`[${requestId}] Successfully deleted Grain webhook ${externalId}`)
+    }
+  } catch (error) {
+    grainLogger.warn(`[${requestId}] Error deleting Grain webhook (non-fatal)`, error)
+  }
+}
+
+/**
  * Clean up external webhook subscriptions for a webhook
- * Handles Airtable, Teams, Telegram, Typeform, and Calendly cleanup
+ * Handles Airtable, Teams, Telegram, Typeform, Calendly, and Grain cleanup
  * Don't fail deletion if cleanup fails
  */
 export async function cleanupExternalWebhook(
@@ -681,5 +731,7 @@ export async function cleanupExternalWebhook(
     await deleteTypeformWebhook(webhook, requestId)
   } else if (webhook.provider === 'calendly') {
     await deleteCalendlyWebhook(webhook, requestId)
+  } else if (webhook.provider === 'grain') {
+    await deleteGrainWebhook(webhook, requestId)
   }
 }

@@ -1,26 +1,11 @@
-import { type db, workflowSchedule } from '@sim/db'
-import type * as schema from '@sim/db/schema'
+import { workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import type { ExtractTablesWithRelations } from 'drizzle-orm'
 import { eq } from 'drizzle-orm'
-import type { PgTransaction } from 'drizzle-orm/pg-core'
-import type { PostgresJsQueryResultHKT } from 'drizzle-orm/postgres-js'
+import type { DbOrTx } from '@/lib/db/types'
 import type { BlockState } from '@/lib/workflows/schedules/utils'
 import { findScheduleBlocks, validateScheduleBlock } from '@/lib/workflows/schedules/validation'
 
 const logger = createLogger('ScheduleDeployUtils')
-
-/**
- * Type for database or transaction context
- * This allows the functions to work with either the db instance or a transaction
- */
-type DbOrTx =
-  | typeof db
-  | PgTransaction<
-      PostgresJsQueryResultHKT,
-      typeof schema,
-      ExtractTablesWithRelations<typeof schema>
-    >
 
 /**
  * Result of schedule creation during deploy

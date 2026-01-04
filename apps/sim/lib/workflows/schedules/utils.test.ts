@@ -390,13 +390,9 @@ describe('Schedule Utilities', () => {
           cronExpression: null,
         }
 
-        // Last ran 10 minutes ago
-        const lastRanAt = new Date()
-        lastRanAt.setMinutes(lastRanAt.getMinutes() - 10)
+        const nextRun = calculateNextRunTime('minutes', scheduleValues)
 
-        const nextRun = calculateNextRunTime('minutes', scheduleValues, lastRanAt)
-
-        // With Croner, it calculates based on cron expression, not lastRanAt
+        // Croner calculates based on cron expression
         // Just verify we get a future date
         expect(nextRun instanceof Date).toBe(true)
         expect(nextRun > new Date()).toBe(true)
@@ -523,11 +519,13 @@ describe('Schedule Utilities', () => {
 
     it.concurrent('should include timezone information when provided', () => {
       const resultPT = parseCronToHumanReadable('0 9 * * *', 'America/Los_Angeles')
-      expect(resultPT).toContain('(PT)')
+      // Intl.DateTimeFormat returns PST or PDT depending on DST
+      expect(resultPT).toMatch(/\(P[SD]T\)/)
       expect(resultPT).toContain('09:00 AM')
 
       const resultET = parseCronToHumanReadable('30 14 * * *', 'America/New_York')
-      expect(resultET).toContain('(ET)')
+      // Intl.DateTimeFormat returns EST or EDT depending on DST
+      expect(resultET).toMatch(/\(E[SD]T\)/)
       expect(resultET).toContain('02:30 PM')
 
       const resultUTC = parseCronToHumanReadable('0 12 * * *', 'UTC')

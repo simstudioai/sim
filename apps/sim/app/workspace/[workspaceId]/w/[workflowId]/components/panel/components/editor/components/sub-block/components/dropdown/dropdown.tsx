@@ -46,6 +46,8 @@ interface DropdownProps {
   ) => Promise<Array<{ label: string; id: string }>>
   /** Field dependencies that trigger option refetch when changed */
   dependsOn?: SubBlockConfig['dependsOn']
+  /** Enable search input in dropdown */
+  searchable?: boolean
 }
 
 /**
@@ -70,6 +72,7 @@ export function Dropdown({
   multiSelect = false,
   fetchOptions,
   dependsOn,
+  searchable = false,
 }: DropdownProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string | string[]>(blockId, subBlockId) as [
     string | string[] | null | undefined,
@@ -113,7 +116,13 @@ export function Dropdown({
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   const singleValue = multiSelect ? null : (value as string | null | undefined)
-  const multiValues = multiSelect ? (value as string[] | null | undefined) || [] : null
+  const multiValues = multiSelect
+    ? Array.isArray(value)
+      ? value
+      : value
+        ? [value as string]
+        : []
+    : null
 
   const fetchOptionsIfNeeded = useCallback(async () => {
     if (!fetchOptions || isPreview || disabled) return
@@ -363,7 +372,7 @@ export function Dropdown({
     )
   }, [multiSelect, multiValues, optionMap])
 
-  const isSearchable = subBlockId === 'operation'
+  const isSearchable = searchable || (subBlockId === 'operation' && comboboxOptions.length > 5)
 
   return (
     <Combobox
@@ -385,7 +394,7 @@ export function Dropdown({
       isLoading={isLoadingOptions}
       error={fetchError}
       searchable={isSearchable}
-      searchPlaceholder='Search operations...'
+      searchPlaceholder='Search...'
     />
   )
 }

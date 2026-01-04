@@ -17,19 +17,17 @@ export const grainTriggerOptions = [
  */
 export function grainSetupInstructions(eventType: string): string {
   const instructions = [
-    '<strong>Note:</strong> You need admin permissions in your Grain workspace to create webhooks.',
-    'In Grain, navigate to <strong>Settings > Integrations > Webhooks</strong>.',
-    'Click <strong>"Create webhook"</strong> or <strong>"Add webhook"</strong>.',
-    'Paste the <strong>Webhook URL</strong> from above into the URL field.',
-    'Optionally, enter the <strong>Webhook Secret</strong> from above for signature validation.',
-    `Select the event types this webhook should listen to. For this trigger, select <strong>${eventType}</strong>.`,
-    'Click <strong>"Save"</strong> to activate the webhook.',
+    'Enter your Grain API Key (Personal Access Token) above.',
+    'You can find or create your API key in Grain at <strong>Settings > Integrations > API</strong>.',
+    'Optionally configure filters to narrow which recordings trigger the webhook.',
+    `Click <strong>"Save Configuration"</strong> to automatically create the webhook in Grain for <strong>${eventType}</strong> events.`,
+    'The webhook will be automatically deleted when you remove this trigger.',
   ]
 
   return instructions
     .map(
       (instruction, index) =>
-        `<div class="mb-3">${index === 0 ? instruction : `<strong>${index}.</strong> ${instruction}`}</div>`
+        `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
     )
     .join('')
 }

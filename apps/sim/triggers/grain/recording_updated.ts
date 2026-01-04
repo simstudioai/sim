@@ -12,13 +12,13 @@ export const grainRecordingUpdatedTrigger: TriggerConfig = {
 
   subBlocks: [
     {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
+      id: 'apiKey',
+      title: 'API Key',
       type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
+      placeholder: 'Enter your Grain API key (Personal Access Token)',
+      description: 'Required to create the webhook in Grain.',
+      password: true,
+      required: true,
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
@@ -26,13 +26,35 @@ export const grainRecordingUpdatedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'webhookSecret',
-      title: 'Webhook Secret',
-      type: 'short-input',
-      placeholder: 'Enter a strong secret',
-      description: 'Validates that webhook deliveries originate from Grain.',
-      password: true,
-      required: false,
+      id: 'includeHighlights',
+      title: 'Include Highlights',
+      type: 'switch',
+      description: 'Include highlights/clips in webhook payload.',
+      defaultValue: false,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'grain_recording_updated',
+      },
+    },
+    {
+      id: 'includeParticipants',
+      title: 'Include Participants',
+      type: 'switch',
+      description: 'Include participant list in webhook payload.',
+      defaultValue: false,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'grain_recording_updated',
+      },
+    },
+    {
+      id: 'includeAiSummary',
+      title: 'Include AI Summary',
+      type: 'switch',
+      description: 'Include AI-generated summary in webhook payload.',
+      defaultValue: false,
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',

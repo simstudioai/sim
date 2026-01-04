@@ -3,7 +3,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
-import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
+import { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { ExecutionMetadata } from '@/executor/execution/types'
 
 const logger = createLogger('WorkflowExecution')
 
@@ -83,14 +84,25 @@ export async function executeWorkflow(
         logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
           executionId,
         })
+        await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
       } else {
-        await PauseResumeManager.persistPauseResult({
-          workflowId,
-          executionId,
-          pausePoints: result.pausePoints || [],
-          snapshotSeed: result.snapshotSeed,
-          executorUserId: result.metadata?.userId,
-        })
+        try {
+          await PauseResumeManager.persistPauseResult({
+            workflowId,
+            executionId,
+            pausePoints: result.pausePoints || [],
+            snapshotSeed: result.snapshotSeed,
+            executorUserId: result.metadata?.userId,
+          })
+        } catch (pauseError) {
+          logger.error(`[${requestId}] Failed to persist pause result`, {
+            executionId,
+            error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+          })
+          await loggingSession.markAsFailed(
+            `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
+          )
+        }
       }
     } else {
       await PauseResumeManager.processQueuedResumes(executionId)
