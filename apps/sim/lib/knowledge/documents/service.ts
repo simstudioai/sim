@@ -212,7 +212,6 @@ export async function processDocumentTags(
     return result
   }
 
-  // Fetch existing tag definitions
   const existingDefinitions = await db
     .select()
     .from(knowledgeBaseTagDefinitions)
@@ -220,18 +219,15 @@ export async function processDocumentTags(
 
   const existingByName = new Map(existingDefinitions.map((def) => [def.displayName, def]))
 
-  // First pass: collect all validation errors
   const undefinedTags: string[] = []
   const typeErrors: string[] = []
 
   for (const tag of tagData) {
-    // Skip if no tag name
     if (!tag.tagName?.trim()) continue
 
     const tagName = tag.tagName.trim()
     const fieldType = tag.fieldType || 'text'
 
-    // For boolean, check if value is defined; for others, check if value is non-empty
     const hasValue =
       fieldType === 'boolean'
         ? tag.value !== undefined && tag.value !== null && tag.value !== ''
@@ -239,14 +235,12 @@ export async function processDocumentTags(
 
     if (!hasValue) continue
 
-    // Check if tag exists
     const existingDef = existingByName.get(tagName)
     if (!existingDef) {
       undefinedTags.push(tagName)
       continue
     }
 
-    // Validate value type using shared validation
     const rawValue = typeof tag.value === 'string' ? tag.value.trim() : tag.value
     const actualFieldType = existingDef.fieldType || fieldType
     const validationError = validateTagValue(tagName, String(rawValue), actualFieldType)
@@ -255,7 +249,6 @@ export async function processDocumentTags(
     }
   }
 
-  // Throw combined error if there are any validation issues
   if (undefinedTags.length > 0 || typeErrors.length > 0) {
     const errorParts: string[] = []
 
@@ -270,7 +263,6 @@ export async function processDocumentTags(
     throw new Error(errorParts.join('\n'))
   }
 
-  // Second pass: process valid tags
   for (const tag of tagData) {
     if (!tag.tagName?.trim()) continue
 
@@ -285,14 +277,13 @@ export async function processDocumentTags(
     if (!hasValue) continue
 
     const existingDef = existingByName.get(tagName)
-    if (!existingDef) continue // Already validated above
+    if (!existingDef) continue
 
     const targetSlot = existingDef.tagSlot
     const actualFieldType = existingDef.fieldType || fieldType
     const rawValue = typeof tag.value === 'string' ? tag.value.trim() : tag.value
     const stringValue = String(rawValue).trim()
 
-    // Assign value to the slot with proper type conversion (values already validated)
     if (actualFieldType === 'boolean') {
       setTagValue(result, targetSlot, parseBooleanValue(stringValue) ?? false)
     } else if (actualFieldType === 'number') {
@@ -440,7 +431,6 @@ export async function processDocumentAsync(
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
-    // Use KB's chunkingConfig as fallback if processingOptions not provided
     const kbConfig = kb[0].chunkingConfig as { maxSize: number; minSize: number; overlap: number }
 
     await withTimeout(
@@ -469,7 +459,6 @@ export async function processDocumentAsync(
           `[${documentId}] Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`
         )
 
-        // Generate embeddings in batches for large documents
         const chunkTexts = processed.chunks.map((chunk) => chunk.text)
         const embeddings: number[][] = []
 
@@ -485,7 +474,9 @@ export async function processDocumentAsync(
 
             logger.info(`[${documentId}] Processing embedding batch ${batchNum}/${totalBatches}`)
             const batchEmbeddings = await generateEmbeddings(batch, undefined, kb[0].workspaceId)
-            embeddings.push(...batchEmbeddings)
+            for (const emb of batchEmbeddings) {
+              embeddings.push(emb)
+            }
           }
         }
 
@@ -561,39 +552,30 @@ export async function processDocumentAsync(
           updatedAt: now,
         }))
 
-        await db.transaction(async (tx) => {
-          // Insert embeddings in batches for large documents
-          if (embeddingRecords.length > 0) {
-            const batchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
-            const totalBatches = Math.ceil(embeddingRecords.length / batchSize)
+        if (embeddingRecords.length > 0) {
+          await db.delete(embedding).where(eq(embedding.documentId, documentId))
 
-            logger.info(
-              `[${documentId}] Inserting ${embeddingRecords.length} embeddings in ${totalBatches} batches`
-            )
-
-            for (let i = 0; i < embeddingRecords.length; i += batchSize) {
-              const batch = embeddingRecords.slice(i, i + batchSize)
-              const batchNum = Math.floor(i / batchSize) + 1
-
-              await tx.insert(embedding).values(batch)
-              logger.info(
-                `[${documentId}] Inserted batch ${batchNum}/${totalBatches} (${batch.length} records)`
-              )
-            }
+          const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
+          const batches: (typeof embeddingRecords)[] = []
+          for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
+            batches.push(embeddingRecords.slice(i, i + insertBatchSize))
           }
 
-          await tx
-            .update(document)
-            .set({
-              chunkCount: processed.metadata.chunkCount,
-              tokenCount: processed.metadata.tokenCount,
-              characterCount: processed.metadata.characterCount,
-              processingStatus: 'completed',
-              processingCompletedAt: now,
-              processingError: null,
-            })
-            .where(eq(document.id, documentId))
-        })
+          logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
+          await Promise.all(batches.map((batch) => db.insert(embedding).values(batch)))
+        }
+
+        await db
+          .update(document)
+          .set({
+            chunkCount: processed.metadata.chunkCount,
+            tokenCount: processed.metadata.tokenCount,
+            characterCount: processed.metadata.characterCount,
+            processingStatus: 'completed',
+            processingCompletedAt: now,
+            processingError: null,
+          })
+          .where(eq(document.id, documentId))
       })(),
       TIMEOUTS.OVERALL_PROCESSING,
       'Document processing'
@@ -689,11 +671,9 @@ export async function createDocumentRecords(
   requestId: string,
   userId?: string
 ): Promise<DocumentData[]> {
-  // Check storage limits before creating documents
   if (userId) {
     const totalSize = documents.reduce((sum, doc) => sum + doc.fileSize, 0)
 
-    // Get knowledge base owner
     const kb = await db
       .select({ userId: knowledgeBase.userId })
       .from(knowledgeBase)
@@ -722,7 +702,6 @@ export async function createDocumentRecords(
             processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
           }
         } catch (error) {
-          // Re-throw validation errors, only catch JSON parse errors
           if (error instanceof SyntaxError) {
             logger.warn(`[${requestId}] Failed to parse documentTagsData for bulk document:`, error)
           } else {
@@ -791,7 +770,6 @@ export async function createDocumentRecords(
       if (userId) {
         const totalSize = documents.reduce((sum, doc) => sum + doc.fileSize, 0)
 
-        // Get knowledge base owner
         const kb = await db
           .select({ userId: knowledgeBase.userId })
           .from(knowledgeBase)
