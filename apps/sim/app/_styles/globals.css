@@ -50,8 +50,8 @@
 @layer base {
   :root,
   .light {
-    --bg: #fdfdfd; /* main canvas - neutral near-white */
-    --surface-1: #fcfcfc; /* sidebar, panels */
+    --bg: #fefefe; /* main canvas - neutral near-white */
+    --surface-1: #fefefe; /* sidebar, panels */
     --surface-2: #ffffff; /* blocks, cards, modals - pure white */
     --surface-3: #f7f7f7; /* popovers, headers */
     --surface-4: #f5f5f5; /* buttons base */
@@ -70,6 +70,7 @@
     --text-muted: #737373;
     --text-subtle: #8c8c8c;
     --text-inverse: #ffffff;
+    --text-muted-inverse: #a0a0a0;
     --text-error: #ef4444;
 
     /* Borders / dividers */
@@ -186,6 +187,7 @@
     --text-muted: #787878;
     --text-subtle: #7d7d7d;
     --text-inverse: #1b1b1b;
+    --text-muted-inverse: #b3b3b3;
     --text-error: #ef4444;
 
     /* --border-strong: #303030; */
@@ -331,38 +333,38 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: var(--surface-1);
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: var(--surface-7);
+    background-color: #c0c0c0;
     border-radius: var(--radius);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: var(--surface-7);
+    background-color: #a8a8a8;
   }
 
   /* Dark Mode Global Scrollbar */
   .dark ::-webkit-scrollbar-track {
-    background: var(--surface-4);
+    background: transparent;
   }
 
   .dark ::-webkit-scrollbar-thumb {
-    background-color: var(--surface-7);
+    background-color: #5a5a5a;
   }
 
   .dark ::-webkit-scrollbar-thumb:hover {
-    background-color: var(--surface-7);
+    background-color: #6a6a6a;
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--surface-7) var(--surface-1);
+    scrollbar-color: #c0c0c0 transparent;
   }
 
   .dark * {
-    scrollbar-color: var(--surface-7) var(--surface-4);
+    scrollbar-color: #5a5a5a transparent;
   }
 
   .copilot-scrollable {

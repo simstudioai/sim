@@ -57,6 +57,8 @@ export {
   type PopoverBackButtonProps,
   PopoverContent,
   type PopoverContentProps,
+  PopoverDivider,
+  type PopoverDividerProps,
   PopoverFolder,
   type PopoverFolderProps,
   PopoverItem,

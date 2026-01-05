@@ -1,6 +1,12 @@
 'use client'
 
-import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverDivider,
+  PopoverItem,
+} from '@/components/emcn'
 import type { PaneContextMenuProps } from './types'
 
 /**
@@ -28,7 +34,13 @@ export function PaneContextMenu({
   canRedo = false,
 }: PaneContextMenuProps) {
   return (
-    <Popover open={isOpen} onOpenChange={onClose} variant='secondary' size='sm'>
+    <Popover
+      open={isOpen}
+      onOpenChange={onClose}
+      variant='secondary'
+      size='sm'
+      colorScheme='inverted'
+    >
       <PopoverAnchor
         style={{
           position: 'fixed',
@@ -39,7 +51,7 @@ export function PaneContextMenu({
         }}
       />
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-        {/* Undo */}
+        {/* History actions */}
         <PopoverItem
           className='group'
           disabled={disableEdit || !canUndo}
@@ -51,8 +63,6 @@ export function PaneContextMenu({
           <span>Undo</span>
           <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘Z</span>
         </PopoverItem>
-
-        {/* Redo */}
         <PopoverItem
           className='group'
           disabled={disableEdit || !canRedo}
@@ -65,7 +75,8 @@ export function PaneContextMenu({
           <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘⇧Z</span>
         </PopoverItem>
 
-        {/* Paste */}
+        {/* Edit and creation actions */}
+        <PopoverDivider />
         <PopoverItem
           className='group'
           disabled={disableEdit || !hasClipboard}
@@ -77,8 +88,6 @@ export function PaneContextMenu({
           <span>Paste</span>
           <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘V</span>
         </PopoverItem>
-
-        {/* Add Block */}
         <PopoverItem
           className='group'
           disabled={disableEdit}
@@ -90,8 +99,6 @@ export function PaneContextMenu({
           <span>Add Block</span>
           <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘K</span>
         </PopoverItem>
-
-        {/* Auto-layout */}
         <PopoverItem
           className='group'
           disabled={disableEdit}
@@ -104,7 +111,8 @@ export function PaneContextMenu({
           <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⇧L</span>
         </PopoverItem>
 
-        {/* Open Logs */}
+        {/* Navigation actions */}
+        <PopoverDivider />
         <PopoverItem
           className='group'
           onClick={() => {
@@ -115,8 +123,6 @@ export function PaneContextMenu({
           <span>Open Logs</span>
           <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘L</span>
         </PopoverItem>
-
-        {/* Open Variables */}
         <PopoverItem
           onClick={() => {
             onOpenVariables()
@@ -125,8 +131,6 @@ export function PaneContextMenu({
         >
           Variables
         </PopoverItem>
-
-        {/* Open Chat */}
         <PopoverItem
           onClick={() => {
             onOpenChat()
@@ -136,7 +140,8 @@ export function PaneContextMenu({
           Open Chat
         </PopoverItem>
 
-        {/* Invite to Workspace - admin only */}
+        {/* Admin action */}
+        <PopoverDivider />
         <PopoverItem
           disabled={disableAdmin}
           onClick={() => {

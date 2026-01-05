@@ -5,6 +5,7 @@ import {
   checkWebhookPreprocessing,
   findWebhookAndWorkflow,
   handleProviderChallenges,
+  handleProviderReachabilityTest,
   parseWebhookBody,
   queueWebhookExecution,
   verifyProviderAuth,
@@ -121,6 +122,11 @@ export async function POST(
   )
   if (authError) {
     return authError
+  }
+
+  const reachabilityResponse = handleProviderReachabilityTest(foundWebhook, body, requestId)
+  if (reachabilityResponse) {
+    return reachabilityResponse
   }
 
   let preprocessError: NextResponse | null = null

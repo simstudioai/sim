@@ -1,6 +1,12 @@
 'use client'
 
-import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverDivider,
+  PopoverItem,
+} from '@/components/emcn'
 import type { BlockContextMenuProps } from './types'
 
 /**
@@ -48,7 +54,13 @@ export function BlockContextMenu({
   }
 
   return (
-    <Popover open={isOpen} onOpenChange={onClose} variant='secondary' size='sm'>
+    <Popover
+      open={isOpen}
+      onOpenChange={onClose}
+      variant='secondary'
+      size='sm'
+      colorScheme='inverted'
+    >
       <PopoverAnchor
         style={{
           position: 'fixed',
@@ -59,7 +71,7 @@ export function BlockContextMenu({
         }}
       />
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-        {/* Copy */}
+        {/* Clipboard actions */}
         <PopoverItem
           className='group'
           onClick={() => {
@@ -70,8 +82,6 @@ export function BlockContextMenu({
           <span>Copy</span>
           <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘C</span>
         </PopoverItem>
-
-        {/* Paste */}
         <PopoverItem
           className='group'
           disabled={disableEdit || !hasClipboard}
@@ -83,8 +93,6 @@ export function BlockContextMenu({
           <span>Paste</span>
           <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘V</span>
         </PopoverItem>
-
-        {/* Duplicate - hide for starter blocks */}
         {!hasStarterBlock && (
           <PopoverItem
             disabled={disableEdit}
@@ -97,20 +105,8 @@ export function BlockContextMenu({
           </PopoverItem>
         )}
 
-        {/* Delete */}
-        <PopoverItem
-          className='group'
-          disabled={disableEdit}
-          onClick={() => {
-            onDelete()
-            onClose()
-          }}
-        >
-          <span>Delete</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌫</span>
-        </PopoverItem>
-
-        {/* Enable/Disable - hide if all blocks are notes */}
+        {/* Toggle and edit actions */}
+        {!allNoteBlocks && <PopoverDivider />}
         {!allNoteBlocks && (
           <PopoverItem
             disabled={disableEdit}
@@ -122,8 +118,6 @@ export function BlockContextMenu({
             {getToggleEnabledLabel()}
           </PopoverItem>
         )}
-
-        {/* Flip Handles - hide if all blocks are notes */}
         {!allNoteBlocks && (
           <PopoverItem
             disabled={disableEdit}
@@ -135,8 +129,6 @@ export function BlockContextMenu({
             Flip Handles
           </PopoverItem>
         )}
-
-        {/* Remove from Subflow - only show when applicable */}
         {canRemoveFromSubflow && (
           <PopoverItem
             disabled={disableEdit}
@@ -149,7 +141,8 @@ export function BlockContextMenu({
           </PopoverItem>
         )}
 
-        {/* Rename - only for single block, not subflows */}
+        {/* Single block actions */}
+        {isSingleBlock && <PopoverDivider />}
         {isSingleBlock && !isSubflow && (
           <PopoverItem
             disabled={disableEdit}
@@ -161,8 +154,6 @@ export function BlockContextMenu({
             Rename
           </PopoverItem>
         )}
-
-        {/* Open Editor - only for single block */}
         {isSingleBlock && (
           <PopoverItem
             onClick={() => {
@@ -173,6 +164,20 @@ export function BlockContextMenu({
             Open Editor
           </PopoverItem>
         )}
+
+        {/* Destructive action */}
+        <PopoverDivider />
+        <PopoverItem
+          className='group'
+          disabled={disableEdit}
+          onClick={() => {
+            onDelete()
+            onClose()
+          }}
+        >
+          <span>Delete</span>
+          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌫</span>
+        </PopoverItem>
       </PopoverContent>
     </Popover>
   )

@@ -29,10 +29,10 @@ const TIMEOUTS = {
 
 // Configuration for handling large documents
 const LARGE_DOC_CONFIG = {
-  MAX_CHUNKS_PER_BATCH: 500, // Insert embeddings in batches of 500
-  MAX_EMBEDDING_BATCH: 500, // Generate embeddings in batches of 500
-  MAX_FILE_SIZE: 100 * 1024 * 1024, // 100MB max file size
-  MAX_CHUNKS_PER_DOCUMENT: 100000, // Maximum chunks allowed per document
+  MAX_CHUNKS_PER_BATCH: 500,
+  MAX_EMBEDDING_BATCH: env.KB_CONFIG_BATCH_SIZE || 2000,
+  MAX_FILE_SIZE: 100 * 1024 * 1024,
+  MAX_CHUNKS_PER_DOCUMENT: 100000,
 }
 
 /**
