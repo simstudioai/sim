@@ -830,25 +830,106 @@ export function ConditionInput({
               </Tooltip.Root>
             </div>
           </div>
-          {/* Router mode: show description textarea styled like code editor */}
+          {/* Router mode: show description textarea with tag/env var support */}
           {isRouterMode && (
-            <Textarea
-              value={block.value}
-              onChange={(e) => {
-                if (!isPreview && !disabled) {
-                  shouldPersistRef.current = true
-                  setConditionalBlocks((blocks) =>
-                    blocks.map((b) =>
-                      b.id === block.id ? { ...b, value: e.target.value } : b
+            <div
+              className='relative'
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => handleDrop(block.id, e)}
+            >
+              <Textarea
+                data-router-block-id={block.id}
+                value={block.value}
+                onChange={(e) => {
+                  if (!isPreview && !disabled) {
+                    const newValue = e.target.value
+                    const pos = e.target.selectionStart ?? 0
+
+                    const tagTrigger = checkTagTrigger(newValue, pos)
+                    const envVarTrigger = checkEnvVarTrigger(newValue, pos)
+
+                    shouldPersistRef.current = true
+                    setConditionalBlocks((blocks) =>
+                      blocks.map((b) =>
+                        b.id === block.id
+                          ? {
+                              ...b,
+                              value: newValue,
+                              showTags: tagTrigger.show,
+                              showEnvVars: envVarTrigger.show,
+                              searchTerm: envVarTrigger.show ? envVarTrigger.searchTerm : '',
+                              cursorPosition: pos,
+                            }
+                          : b
+                      )
                     )
-                  )
-                }
-              }}
-              placeholder='Describe when this route should be taken...'
-              disabled={disabled || isPreview}
-              className='min-h-[60px] resize-none rounded-none border-0 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
-              rows={2}
-            />
+                  }
+                }}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setConditionalBlocks((blocks) =>
+                      blocks.map((b) =>
+                        b.id === block.id
+                          ? { ...b, showTags: false, showEnvVars: false }
+                          : b
+                      )
+                    )
+                  }, 150)
+                }}
+                placeholder='Describe when this route should be taken...'
+                disabled={disabled || isPreview}
+                className='min-h-[60px] resize-none rounded-none border-0 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+                rows={2}
+              />
+
+              {block.showEnvVars && (
+                <EnvVarDropdown
+                  visible={block.showEnvVars}
+                  onSelect={(newValue) => handleEnvVarSelectImmediate(block.id, newValue)}
+                  searchTerm={block.searchTerm}
+                  inputValue={block.value}
+                  cursorPosition={block.cursorPosition}
+                  workspaceId={workspaceId}
+                  onClose={() => {
+                    setConditionalBlocks((blocks) =>
+                      blocks.map((b) =>
+                        b.id === block.id
+                          ? {
+                              ...b,
+                              showEnvVars: false,
+                              searchTerm: '',
+                            }
+                          : b
+                      )
+                    )
+                  }}
+                />
+              )}
+
+              {block.showTags && (
+                <TagDropdown
+                  visible={block.showTags}
+                  onSelect={(newValue) => handleTagSelectImmediate(block.id, newValue)}
+                  blockId={blockId}
+                  activeSourceBlockId={block.activeSourceBlockId}
+                  inputValue={block.value}
+                  cursorPosition={block.cursorPosition}
+                  onClose={() => {
+                    setConditionalBlocks((blocks) =>
+                      blocks.map((b) =>
+                        b.id === block.id
+                          ? {
+                              ...b,
+                              showTags: false,
+                              activeSourceBlockId: null,
+                            }
+                          : b
+                      )
+                    )
+                  }}
+                />
+              )}
+            </div>
           )}
 
           {/* Condition mode: show code editor */}
