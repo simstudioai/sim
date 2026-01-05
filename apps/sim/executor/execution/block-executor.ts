@@ -331,6 +331,22 @@ export class BlockExecutor {
       }
       return filtered
     }
+
+    const isTrigger =
+      block.metadata?.category === 'triggers' ||
+      block.config?.params?.triggerMode === true ||
+      block.metadata?.id === BlockType.STARTER
+
+    if (isTrigger) {
+      const filtered: NormalizedBlockOutput = {}
+      const internalKeys = ['webhook', 'workflowId', 'input']
+      for (const [key, value] of Object.entries(output)) {
+        if (internalKeys.includes(key)) continue
+        filtered[key] = value
+      }
+      return filtered
+    }
+
     return output
   }
 
