@@ -8,6 +8,7 @@ import { useUpdateNodeInternals } from 'reactflow'
 import {
   Button,
   Code,
+  Textarea,
   calculateGutterWidth,
   getCodeEditorProps,
   highlight,
@@ -74,6 +75,8 @@ interface ConditionInputProps {
   previewValue?: string | null
   /** Whether the component is disabled */
   disabled?: boolean
+  /** Mode: 'condition' for code editor, 'router' for text input */
+  mode?: 'condition' | 'router'
 }
 
 /**
@@ -101,7 +104,9 @@ export function ConditionInput({
   isPreview = false,
   previewValue,
   disabled = false,
+  mode = 'condition',
 }: ConditionInputProps) {
+  const isRouterMode = mode === 'router'
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
@@ -161,32 +166,50 @@ export function ConditionInput({
   const shouldPersistRef = useRef<boolean>(false)
 
   /**
-   * Creates default if/else conditional blocks with stable IDs.
+   * Creates default blocks with stable IDs.
+   * For conditions: if/else blocks. For router: one route block.
    *
-   * @returns Array of two default blocks (if and else)
+   * @returns Array of default blocks
    */
-  const createDefaultBlocks = (): ConditionalBlock[] => [
-    {
-      id: generateStableId(blockId, 'if'),
-      title: 'if',
-      value: '',
-      showTags: false,
-      showEnvVars: false,
-      searchTerm: '',
-      cursorPosition: 0,
-      activeSourceBlockId: null,
-    },
-    {
-      id: generateStableId(blockId, 'else'),
-      title: 'else',
-      value: '',
-      showTags: false,
-      showEnvVars: false,
-      searchTerm: '',
-      cursorPosition: 0,
-      activeSourceBlockId: null,
-    },
-  ]
+  const createDefaultBlocks = (): ConditionalBlock[] => {
+    if (isRouterMode) {
+      return [
+        {
+          id: generateStableId(blockId, 'route1'),
+          title: 'route1',
+          value: '',
+          showTags: false,
+          showEnvVars: false,
+          searchTerm: '',
+          cursorPosition: 0,
+          activeSourceBlockId: null,
+        },
+      ]
+    }
+
+    return [
+      {
+        id: generateStableId(blockId, 'if'),
+        title: 'if',
+        value: '',
+        showTags: false,
+        showEnvVars: false,
+        searchTerm: '',
+        cursorPosition: 0,
+        activeSourceBlockId: null,
+      },
+      {
+        id: generateStableId(blockId, 'else'),
+        title: 'else',
+        value: '',
+        showTags: false,
+        showEnvVars: false,
+        searchTerm: '',
+        cursorPosition: 0,
+        activeSourceBlockId: null,
+      },
+    ]
+  }
 
   // Initialize with a loading state instead of default blocks
   const [conditionalBlocks, setConditionalBlocks] = useState<ConditionalBlock[]>([])
@@ -270,10 +293,13 @@ export function ConditionInput({
       const parsedBlocks = safeParseJSON(effectiveValueStr)
 
       if (parsedBlocks) {
-        const blocksWithCorrectTitles = parsedBlocks.map((block, index) => ({
-          ...block,
-          title: index === 0 ? 'if' : index === parsedBlocks.length - 1 ? 'else' : 'else if',
-        }))
+        // For router mode, keep original titles. For condition mode, assign if/else if/else
+        const blocksWithCorrectTitles = isRouterMode
+          ? parsedBlocks
+          : parsedBlocks.map((block, index) => ({
+              ...block,
+              title: index === 0 ? 'if' : index === parsedBlocks.length - 1 ? 'else' : 'else if',
+            }))
 
         setConditionalBlocks(blocksWithCorrectTitles)
         hasInitializedRef.current = true
@@ -573,12 +599,17 @@ export function ConditionInput({
 
   /**
    * Updates block titles based on their position in the array.
-   * First block is always 'if', last is 'else', middle ones are 'else if'.
+   * For conditions: First block is 'if', last is 'else', middle ones are 'else if'.
+   * For router: Titles are user-editable and not auto-updated.
    *
    * @param blocks - Array of conditional blocks
    * @returns Updated blocks with correct titles
    */
   const updateBlockTitles = (blocks: ConditionalBlock[]): ConditionalBlock[] => {
+    if (isRouterMode) {
+      // For router mode, don't change titles - they're user-editable
+      return blocks
+    }
     return blocks.map((block, index) => ({
       ...block,
       title: index === 0 ? 'if' : index === blocks.length - 1 ? 'else' : 'else if',
@@ -590,13 +621,15 @@ export function ConditionInput({
     if (isPreview || disabled) return
 
     const blockIndex = conditionalBlocks.findIndex((block) => block.id === afterId)
-    if (conditionalBlocks[blockIndex]?.title === 'else') return
+    if (!isRouterMode && conditionalBlocks[blockIndex]?.title === 'else') return
 
-    const newBlockId = generateStableId(blockId, `else-if-${Date.now()}`)
+    const newBlockId = isRouterMode
+      ? generateStableId(blockId, `route-${Date.now()}`)
+      : generateStableId(blockId, `else-if-${Date.now()}`)
 
     const newBlock: ConditionalBlock = {
       id: newBlockId,
-      title: '',
+      title: isRouterMode ? `route-${Date.now()}` : '',
       value: '',
       showTags: false,
       showEnvVars: false,
@@ -710,13 +743,15 @@ export function ConditionInput({
           <div
             className={cn(
               'flex items-center justify-between overflow-hidden bg-transparent px-[10px] py-[5px]',
-              block.title === 'else'
-                ? 'rounded-[4px] border-0'
-                : 'rounded-t-[4px] border-[var(--border-1)] border-b'
+              isRouterMode
+                ? 'rounded-t-[4px] border-[var(--border-1)] border-b'
+                : block.title === 'else'
+                  ? 'rounded-[4px] border-0'
+                  : 'rounded-t-[4px] border-[var(--border-1)] border-b'
             )}
           >
             <span className='font-medium text-[14px] text-[var(--text-tertiary)]'>
-              {block.title}
+              {isRouterMode ? `Route ${index + 1}` : block.title}
             </span>
             <div className='flex items-center gap-[8px]'>
               <Tooltip.Root>
@@ -724,7 +759,7 @@ export function ConditionInput({
                   <Button
                     variant='ghost'
                     onClick={() => addBlock(block.id)}
-                    disabled={isPreview || disabled || block.title === 'else'}
+                    disabled={isPreview || disabled || (!isRouterMode && block.title === 'else')}
                     className='h-auto p-0'
                   >
                     <Plus className='h-[14px] w-[14px]' />
@@ -739,7 +774,12 @@ export function ConditionInput({
                   <Button
                     variant='ghost'
                     onClick={() => moveBlock(block.id, 'up')}
-                    disabled={isPreview || index === 0 || disabled || block.title === 'else'}
+                    disabled={
+                      isPreview ||
+                      index === 0 ||
+                      disabled ||
+                      (!isRouterMode && block.title === 'else')
+                    }
                     className='h-auto p-0'
                   >
                     <ChevronUp className='h-[14px] w-[14px]' />
@@ -758,8 +798,8 @@ export function ConditionInput({
                       isPreview ||
                       disabled ||
                       index === conditionalBlocks.length - 1 ||
-                      conditionalBlocks[index + 1]?.title === 'else' ||
-                      block.title === 'else'
+                      (!isRouterMode && conditionalBlocks[index + 1]?.title === 'else') ||
+                      (!isRouterMode && block.title === 'else')
                     }
                     className='h-auto p-0'
                   >
@@ -775,18 +815,45 @@ export function ConditionInput({
                   <Button
                     variant='ghost'
                     onClick={() => removeBlock(block.id)}
-                    disabled={isPreview || conditionalBlocks.length === 1 || disabled}
+                    disabled={
+                      isPreview ||
+                      disabled ||
+                      conditionalBlocks.length === 1
+                    }
                     className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
                   >
                     <Trash className='h-[14px] w-[14px]' />
                     <span className='sr-only'>Delete Block</span>
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content>Delete Condition</Tooltip.Content>
+                <Tooltip.Content>{isRouterMode ? 'Delete Route' : 'Delete Condition'}</Tooltip.Content>
               </Tooltip.Root>
             </div>
           </div>
-          {block.title !== 'else' &&
+          {/* Router mode: show description textarea styled like code editor */}
+          {isRouterMode && (
+            <Textarea
+              value={block.value}
+              onChange={(e) => {
+                if (!isPreview && !disabled) {
+                  shouldPersistRef.current = true
+                  setConditionalBlocks((blocks) =>
+                    blocks.map((b) =>
+                      b.id === block.id ? { ...b, value: e.target.value } : b
+                    )
+                  )
+                }
+              }}
+              placeholder='Describe when this route should be taken...'
+              disabled={disabled || isPreview}
+              className='min-h-[60px] resize-none rounded-none border-0 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+              rows={2}
+            />
+          )}
+
+          {/* Condition mode: show code editor */}
+          {!isRouterMode &&
+            block.title !== 'else' &&
             (() => {
               const blockLineCount = block.value.split('\n').length
               const blockGutterWidth = calculateGutterWidth(blockLineCount)

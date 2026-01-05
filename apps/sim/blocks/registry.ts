@@ -92,7 +92,7 @@ import { RDSBlock } from '@/blocks/blocks/rds'
 import { RedditBlock } from '@/blocks/blocks/reddit'
 import { ResendBlock } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
-import { RouterBlock } from '@/blocks/blocks/router'
+import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
 import { RssBlock } from '@/blocks/blocks/rss'
 import { S3Block } from '@/blocks/blocks/s3'
 import { SalesforceBlock } from '@/blocks/blocks/salesforce'
@@ -243,6 +243,7 @@ export const registry: Record<string, BlockConfig> = {
   response: ResponseBlock,
   rss: RssBlock,
   router: RouterBlock,
+  router_v2: RouterV2Block,
   s3: S3Block,
   salesforce: SalesforceBlock,
   schedule: ScheduleBlock,

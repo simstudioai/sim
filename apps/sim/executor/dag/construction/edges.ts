@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { EDGE, isConditionBlockType, isRouterBlockType } from '@/executor/constants'
+import { EDGE, isConditionBlockType, isRouterBlockType, isRouterV2BlockType } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import {
   buildBranchNodeId,
@@ -19,10 +19,17 @@ interface ConditionConfig {
   condition: string
 }
 
+interface RouterV2RouteConfig {
+  id: string
+  title: string
+  description: string
+}
+
 interface EdgeMetadata {
   blockTypeMap: Map<string, string>
   conditionConfigMap: Map<string, ConditionConfig[]>
   routerBlockIds: Set<string>
+  routerV2ConfigMap: Map<string, RouterV2RouteConfig[]>
 }
 
 export class EdgeConstructor {
@@ -58,6 +65,7 @@ export class EdgeConstructor {
     const blockTypeMap = new Map<string, string>()
     const conditionConfigMap = new Map<string, ConditionConfig[]>()
     const routerBlockIds = new Set<string>()
+    const routerV2ConfigMap = new Map<string, RouterV2RouteConfig[]>()
 
     for (const block of workflow.blocks) {
       const blockType = block.metadata?.id ?? ''
@@ -69,12 +77,19 @@ export class EdgeConstructor {
         if (conditions) {
           conditionConfigMap.set(block.id, conditions)
         }
+      } else if (isRouterV2BlockType(blockType)) {
+        // Router V2 uses port-based routing with route configs
+        const routes = this.parseRouterV2Config(block)
+        if (routes) {
+          routerV2ConfigMap.set(block.id, routes)
+        }
       } else if (isRouterBlockType(blockType)) {
+        // Legacy router uses target block IDs
         routerBlockIds.add(block.id)
       }
     }
 
-    return { blockTypeMap, conditionConfigMap, routerBlockIds }
+    return { blockTypeMap, conditionConfigMap, routerBlockIds, routerV2ConfigMap }
   }
 
   private parseConditionConfig(block: any): ConditionConfig[] | null {
@@ -92,6 +107,29 @@ export class EdgeConstructor {
       return null
     } catch (error) {
       logger.warn('Failed to parse condition config', {
+        blockId: block.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+
+      return null
+    }
+  }
+
+  private parseRouterV2Config(block: any): RouterV2RouteConfig[] | null {
+    try {
+      const routesJson = block.config.params?.routes
+
+      if (typeof routesJson === 'string') {
+        return JSON.parse(routesJson)
+      }
+
+      if (Array.isArray(routesJson)) {
+        return routesJson
+      }
+
+      return null
+    } catch (error) {
+      logger.warn('Failed to parse router v2 config', {
         blockId: block.id,
         error: error instanceof Error ? error.message : String(error),
       })
@@ -123,6 +161,26 @@ export class EdgeConstructor {
       }
     }
 
+    // Router V2 uses port-based routing - handle is already set from UI (router-{routeId})
+    // We don't modify it here, just validate it exists
+    if (metadata.routerV2ConfigMap.has(source)) {
+      // For router_v2, the sourceHandle should already be set from the UI
+      // If not set and not an error handle, generate based on route index
+      if (!handle || (!handle.startsWith(EDGE.ROUTER_PREFIX) && handle !== EDGE.ERROR)) {
+        const routes = metadata.routerV2ConfigMap.get(source)
+        if (routes && routes.length > 0) {
+          const edgesFromRouter = workflow.connections.filter((c) => c.source === source)
+          const edgeIndex = edgesFromRouter.findIndex((e) => e.target === target)
+
+          if (edgeIndex >= 0 && edgeIndex < routes.length) {
+            const correspondingRoute = routes[edgeIndex]
+            handle = `${EDGE.ROUTER_PREFIX}${correspondingRoute.id}`
+          }
+        }
+      }
+    }
+
+    // Legacy router uses target block ID
     if (metadata.routerBlockIds.has(source) && handle !== EDGE.ERROR) {
       handle = `${EDGE.ROUTER_PREFIX}${target}`
     }
