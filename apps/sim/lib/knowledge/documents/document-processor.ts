@@ -4,6 +4,7 @@ import { getBYOKKey } from '@/lib/api-key/byok'
 import { type Chunk, JsonYamlChunker, StructuredDataChunker, TextChunker } from '@/lib/chunkers'
 import { env } from '@/lib/core/config/env'
 import { parseBuffer, parseFile } from '@/lib/file-parsers'
+import type { FileParseMetadata } from '@/lib/file-parsers/types'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { StorageService } from '@/lib/uploads'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
@@ -35,7 +36,6 @@ type OCRRequestBody = {
     document_url: string
   }
   include_image_base64: boolean
-  pages?: number[]
 }
 
 const MISTRAL_MAX_PAGES = 1000
@@ -138,7 +138,7 @@ export async function processDocument(
     const cloudUrl = 'cloudUrl' in parseResult ? parseResult.cloudUrl : undefined
 
     let chunks: Chunk[]
-    const metadata = 'metadata' in parseResult ? parseResult.metadata : {}
+    const metadata: FileParseMetadata = parseResult.metadata ?? {}
 
     const isJsonYaml =
       metadata.type === 'json' ||
@@ -154,10 +154,11 @@ export async function processDocument(
       })
     } else if (StructuredDataChunker.isStructuredData(content, mimeType)) {
       logger.info('Using structured data chunker for spreadsheet/CSV content')
+      const rowCount = metadata.totalRows ?? metadata.rowCount
       chunks = await StructuredDataChunker.chunkStructuredData(content, {
         chunkSize,
         headers: metadata.headers,
-        totalRows: metadata.totalRows || metadata.rowCount,
+        totalRows: typeof rowCount === 'number' ? rowCount : undefined,
         sheetName: metadata.sheetNames?.[0],
       })
     } else {
@@ -210,7 +211,7 @@ async function parseDocument(
   content: string
   processingMethod: 'file-parser' | 'mistral-ocr'
   cloudUrl?: string
-  metadata?: any
+  metadata?: FileParseMetadata
 }> {
   const isPDF = mimeType === 'application/pdf'
   const hasAzureMistralOCR =
@@ -663,7 +664,7 @@ async function processChunk(
 }
 
 // Maximum concurrent chunk processing to avoid overwhelming APIs
-const MAX_CONCURRENT_CHUNKS = env.KB_CONFIG_CHUNK_CONCURRENCY || 5
+const MAX_CONCURRENT_CHUNKS = env.KB_CONFIG_CHUNK_CONCURRENCY
 
 async function processMistralOCRInBatches(
   filename: string,
@@ -736,7 +737,7 @@ async function processMistralOCRInBatches(
 async function parseWithFileParser(fileUrl: string, filename: string, mimeType: string) {
   try {
     let content: string
-    let metadata: any = {}
+    let metadata: FileParseMetadata = {}
 
     if (fileUrl.startsWith('data:')) {
       content = await parseDataURI(fileUrl, filename, mimeType)
@@ -782,7 +783,7 @@ async function parseDataURI(fileUrl: string, filename: string, mimeType: string)
 async function parseHttpFile(
   fileUrl: string,
   filename: string
-): Promise<{ content: string; metadata?: any }> {
+): Promise<{ content: string; metadata?: FileParseMetadata }> {
   const buffer = await downloadFileWithTimeout(fileUrl)
 
   const extension = filename.split('.').pop()?.toLowerCase()

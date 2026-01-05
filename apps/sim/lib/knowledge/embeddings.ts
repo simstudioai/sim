@@ -26,6 +26,20 @@ interface EmbeddingConfig {
   modelName: string
 }
 
+interface EmbeddingResponseItem {
+  embedding: number[]
+  index: number
+}
+
+interface EmbeddingAPIResponse {
+  data: EmbeddingResponseItem[]
+  model: string
+  usage: {
+    prompt_tokens: number
+    total_tokens: number
+  }
+}
+
 async function getEmbeddingConfig(
   embeddingModel = 'text-embedding-3-small',
   workspaceId?: string | null
@@ -104,14 +118,14 @@ async function callEmbeddingAPI(inputs: string[], config: EmbeddingConfig): Prom
         )
       }
 
-      const data = await response.json()
-      return data.data.map((item: any) => item.embedding)
+      const data: EmbeddingAPIResponse = await response.json()
+      return data.data.map((item) => item.embedding)
     },
     {
       maxRetries: 3,
       initialDelayMs: 1000,
       maxDelayMs: 10000,
-      retryCondition: (error: any) => {
+      retryCondition: (error: unknown) => {
         if (error instanceof EmbeddingAPIError) {
           return error.status === 429 || error.status >= 500
         }

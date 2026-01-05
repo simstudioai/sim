@@ -6,9 +6,14 @@ import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 
 const logger = createLogger('DocxParser')
 
+interface MammothMessage {
+  type: 'warning' | 'error'
+  message: string
+}
+
 interface MammothResult {
   value: string
-  messages: any[]
+  messages: MammothMessage[]
 }
 
 export class DocxParser implements FileParser {

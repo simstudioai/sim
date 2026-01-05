@@ -693,7 +693,7 @@ export async function createDocumentRecords(
     for (const docData of documents) {
       const documentId = randomUUID()
 
-      let processedTags: Record<string, any> = {}
+      let processedTags: Partial<ProcessedDocumentTags> = {}
 
       if (docData.documentTagsData) {
         try {
@@ -1057,7 +1057,7 @@ export async function createSingleDocument(
   const now = new Date()
 
   // Process structured tag data if provided
-  let processedTags: Record<string, any> = {
+  let processedTags: ProcessedDocumentTags = {
     // Text tags (7 slots)
     tag1: documentData.tag1 ?? null,
     tag2: documentData.tag2 ?? null,
@@ -1533,23 +1533,30 @@ export async function updateDocument(
     return value || null
   }
 
+  // Type-safe access to tag slots in updateData
+  type UpdateDataWithTags = typeof updateData & Record<TagSlot, string | undefined>
+  const typedUpdateData = updateData as UpdateDataWithTags
+
   ALL_TAG_SLOTS.forEach((slot: TagSlot) => {
-    const updateValue = (updateData as any)[slot]
+    const updateValue = typedUpdateData[slot]
     if (updateValue !== undefined) {
-      ;(dbUpdateData as any)[slot] = convertTagValue(slot, updateValue)
+      ;(dbUpdateData as Record<TagSlot, string | number | Date | boolean | null>)[slot] =
+        convertTagValue(slot, updateValue)
     }
   })
 
   await db.transaction(async (tx) => {
     await tx.update(document).set(dbUpdateData).where(eq(document.id, documentId))
 
-    const hasTagUpdates = ALL_TAG_SLOTS.some((field) => (updateData as any)[field] !== undefined)
+    const hasTagUpdates = ALL_TAG_SLOTS.some((field) => typedUpdateData[field] !== undefined)
 
     if (hasTagUpdates) {
-      const embeddingUpdateData: Record<string, any> = {}
+      const embeddingUpdateData: Partial<ProcessedDocumentTags> = {}
       ALL_TAG_SLOTS.forEach((field) => {
-        if ((updateData as any)[field] !== undefined) {
-          embeddingUpdateData[field] = convertTagValue(field, (updateData as any)[field])
+        if (typedUpdateData[field] !== undefined) {
+          ;(embeddingUpdateData as Record<TagSlot, string | number | Date | boolean | null>)[
+            field
+          ] = convertTagValue(field, typedUpdateData[field])
         }
       })
 
