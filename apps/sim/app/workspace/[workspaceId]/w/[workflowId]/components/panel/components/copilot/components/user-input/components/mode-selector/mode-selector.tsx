@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ListTree, MessageSquare, Package } from 'lucide-react'
+import { ListTree, MessageSquare, Package, Zap } from 'lucide-react'
 import {
   Badge,
   Popover,
@@ -13,10 +13,10 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 
 interface ModeSelectorProps {
-  /** Current mode - 'ask', 'build', or 'plan' */
-  mode: 'ask' | 'build' | 'plan'
+  /** Current mode - 'ask', 'build', 'plan', or 'superagent' */
+  mode: 'ask' | 'build' | 'plan' | 'superagent'
   /** Callback when mode changes */
-  onModeChange?: (mode: 'ask' | 'build' | 'plan') => void
+  onModeChange?: (mode: 'ask' | 'build' | 'plan' | 'superagent') => void
   /** Whether the input is near the top of viewport (affects dropdown direction) */
   isNearTop: boolean
   /** Whether the selector is disabled */
@@ -42,6 +42,9 @@ export function ModeSelector({ mode, onModeChange, isNearTop, disabled }: ModeSe
     if (mode === 'plan') {
       return <ListTree className='h-3 w-3' />
     }
+    if (mode === 'superagent') {
+      return <Zap className='h-3 w-3' />
+    }
     return <Package className='h-3 w-3' />
   }
 
@@ -52,10 +55,13 @@ export function ModeSelector({ mode, onModeChange, isNearTop, disabled }: ModeSe
     if (mode === 'plan') {
       return 'Plan'
     }
+    if (mode === 'superagent') {
+      return 'Superagent'
+    }
     return 'Build'
   }
 
-  const handleSelect = (selectedMode: 'ask' | 'build' | 'plan') => {
+  const handleSelect = (selectedMode: 'ask' | 'build' | 'plan' | 'superagent') => {
     onModeChange?.(selectedMode)
     setOpen(false)
   }

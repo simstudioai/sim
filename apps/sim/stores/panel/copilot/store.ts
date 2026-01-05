@@ -1073,16 +1073,16 @@ const sseHandlers: Record<string, SSEHandler> = {
 
     // Integration tools: Check if auto-allowed, otherwise wait for user confirmation
     // This handles tools like google_calendar_*, exa_*, etc. that aren't in the client registry
-    // Only relevant if mode is 'build' (agent)
+    // Relevant in 'build' mode (with workflow) or 'superagent' mode (standalone)
     const { mode, workflowId, autoAllowedTools } = get()
-    if (mode === 'build' && workflowId) {
+    if ((mode === 'build' && workflowId) || mode === 'superagent') {
       // Check if tool was NOT found in client registry (def is undefined from above)
       const def = name ? getTool(name) : undefined
       const inst = getClientTool(id) as any
       if (!def && !inst && name) {
         // Check if this tool is auto-allowed
         if (autoAllowedTools.includes(name)) {
-          logger.info('[build mode] Integration tool auto-allowed, executing', { id, name })
+          logger.info('[copilot] Integration tool auto-allowed, executing', { id, name, mode })
 
           // Auto-execute the tool
           setTimeout(() => {
@@ -1090,9 +1090,10 @@ const sseHandlers: Record<string, SSEHandler> = {
           }, 0)
         } else {
           // Integration tools stay in pending state until user confirms
-          logger.info('[build mode] Integration tool awaiting user confirmation', {
+          logger.info('[copilot] Integration tool awaiting user confirmation', {
             id,
             name,
+            mode,
           })
         }
       }
@@ -1982,7 +1983,8 @@ export const useCopilotStore = create<CopilotStore>()(
         messageId?: string
       }
 
-      if (!workflowId) return
+      // Allow sending without workflowId in superagent mode
+      if (!workflowId && mode !== 'superagent') return
 
       const abortController = new AbortController()
       set({ isSendingMessage: true, error: null, abortController })
@@ -2053,8 +2055,8 @@ export const useCopilotStore = create<CopilotStore>()(
         }
 
         // Call copilot API
-        const apiMode: 'ask' | 'agent' | 'plan' =
-          mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
+        const apiMode: 'ask' | 'agent' | 'plan' | 'superagent' =
+          mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : mode === 'superagent' ? 'superagent' : 'agent'
         const result = await sendStreamingMessage({
           message: messageToSend,
           userMessageId: userMessage.id,
@@ -2916,9 +2918,10 @@ export const useCopilotStore = create<CopilotStore>()(
     },
 
     executeIntegrationTool: async (toolCallId: string) => {
-      const { toolCallsById, workflowId } = get()
+      const { toolCallsById, workflowId, mode } = get()
       const toolCall = toolCallsById[toolCallId]
-      if (!toolCall || !workflowId) return
+      // In superagent mode, workflowId is optional
+      if (!toolCall || (!workflowId && mode !== 'superagent')) return
 
       const { id, name, params } = toolCall
 

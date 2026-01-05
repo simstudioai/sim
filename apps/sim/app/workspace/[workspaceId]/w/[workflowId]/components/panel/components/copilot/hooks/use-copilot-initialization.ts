@@ -15,6 +15,8 @@ interface UseCopilotInitializationProps {
   loadAutoAllowedTools: () => Promise<void>
   currentChat: any
   isSendingMessage: boolean
+  /** If true, initializes without requiring a workflowId (for standalone agent mode) */
+  standalone?: boolean
 }
 
 /**
@@ -34,6 +36,7 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
     loadAutoAllowedTools,
     currentChat,
     isSendingMessage,
+    standalone = false,
   } = props
 
   const [isInitialized, setIsInitialized] = useState(false)
@@ -46,6 +49,14 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
    * Never loads during message streaming to prevent interrupting active conversations
    */
   useEffect(() => {
+    // Standalone mode: initialize immediately without workflow
+    if (standalone && !hasMountedRef.current && !isSendingMessage) {
+      hasMountedRef.current = true
+      setIsInitialized(true)
+      logger.info('Standalone mode initialized')
+      return
+    }
+
     if (activeWorkflowId && !hasMountedRef.current && !isSendingMessage) {
       hasMountedRef.current = true
       setIsInitialized(false)
@@ -55,7 +66,7 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
       // Use false to let the store decide if a reload is needed based on cache
       loadChats(false)
     }
-  }, [activeWorkflowId, setCopilotWorkflowId, loadChats, isSendingMessage])
+  }, [activeWorkflowId, setCopilotWorkflowId, loadChats, isSendingMessage, standalone])
 
   /**
    * Initialize the component - only on mount and genuine workflow changes
@@ -63,6 +74,9 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
    * Never reloads during message streaming to preserve active conversations
    */
   useEffect(() => {
+    // Skip workflow tracking in standalone mode
+    if (standalone) return
+
     // Handle genuine workflow changes (not initial mount, not same workflow)
     // Only reload if not currently streaming to avoid interrupting conversations
     if (
@@ -100,19 +114,23 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
     setCopilotWorkflowId,
     loadChats,
     isSendingMessage,
+    standalone,
   ])
 
   /**
    * Fetch context usage when component is initialized and has a current chat
    */
   useEffect(() => {
+    // In standalone mode, skip context usage fetch (no workflow context)
+    if (standalone) return
+
     if (isInitialized && currentChat?.id && activeWorkflowId) {
       logger.info('[Copilot] Component initialized, fetching context usage')
       fetchContextUsage().catch((err) => {
         logger.warn('[Copilot] Failed to fetch context usage on mount', err)
       })
     }
-  }, [isInitialized, currentChat?.id, activeWorkflowId, fetchContextUsage])
+  }, [isInitialized, currentChat?.id, activeWorkflowId, fetchContextUsage, standalone])
 
   /**
    * Load auto-allowed tools once on mount

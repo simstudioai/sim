@@ -38,7 +38,7 @@ const ChatMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
   userMessageId: z.string().optional(), // ID from frontend for the user message
   chatId: z.string().optional(),
-  workflowId: z.string().min(1, 'Workflow ID is required'),
+  workflowId: z.string().optional(),
   model: z
     .enum([
       'gpt-5-fast',
@@ -63,7 +63,7 @@ const ChatMessageSchema = z.object({
     ])
     .optional()
     .default('claude-4.5-opus'),
-  mode: z.enum(['ask', 'agent', 'plan']).optional().default('agent'),
+  mode: z.enum(['ask', 'agent', 'plan', 'superagent']).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
@@ -339,7 +339,7 @@ export async function POST(req: NextRequest) {
       }
     } | null = null
 
-    if (mode === 'agent') {
+    if (mode === 'agent' || mode === 'superagent') {
       // Build base tools (executed locally, not deferred)
       // Include function_execute for code execution capability
       baseTools = [

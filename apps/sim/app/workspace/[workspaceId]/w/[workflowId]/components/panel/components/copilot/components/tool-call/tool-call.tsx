@@ -276,7 +276,7 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
   const mode = useCopilotStore.getState().mode
   const isAutoAllowed = useCopilotStore.getState().isToolAutoAllowed(toolCall.name)
   if (
-    mode === 'build' &&
+    (mode === 'build' || mode === 'superagent') &&
     isIntegrationTool(toolCall.name) &&
     toolCall.state === 'pending' &&
     !isAutoAllowed
@@ -564,11 +564,11 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
 
   // Allow rendering if:
   // 1. Tool is in CLASS_TOOL_METADATA (client tools), OR
-  // 2. We're in build mode (integration tools are executed server-side)
+  // 2. We're in build or superagent mode (integration tools are executed server-side)
   const isClientTool = !!CLASS_TOOL_METADATA[toolCall.name]
-  const isIntegrationToolInBuildMode = mode === 'build' && !isClientTool
+  const isIntegrationToolInAgentMode = (mode === 'build' || mode === 'superagent') && !isClientTool
 
-  if (!isClientTool && !isIntegrationToolInBuildMode) {
+  if (!isClientTool && !isIntegrationToolInAgentMode) {
     return null
   }
   const isExpandableTool =

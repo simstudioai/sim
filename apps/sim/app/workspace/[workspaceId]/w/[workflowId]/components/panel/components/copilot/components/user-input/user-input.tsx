@@ -51,8 +51,8 @@ interface UserInputProps {
   isAborting?: boolean
   placeholder?: string
   className?: string
-  mode?: 'ask' | 'build' | 'plan'
-  onModeChange?: (mode: 'ask' | 'build' | 'plan') => void
+  mode?: 'ask' | 'build' | 'plan' | 'superagent'
+  onModeChange?: (mode: 'ask' | 'build' | 'plan' | 'superagent') => void
   value?: string
   onChange?: (value: string) => void
   panelWidth?: number

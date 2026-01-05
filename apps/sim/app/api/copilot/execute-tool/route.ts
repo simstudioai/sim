@@ -25,7 +25,7 @@ const ExecuteToolSchema = z.object({
   toolCallId: z.string(),
   toolName: z.string(),
   arguments: z.record(z.any()).optional().default({}),
-  workflowId: z.string().optional(),
+  workflowId: z.string().nullish(), // Accept undefined or null for superagent mode
 })
 
 /**

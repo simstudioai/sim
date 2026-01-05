@@ -58,7 +58,7 @@ import type { CopilotChat as ApiCopilotChat } from '@/lib/copilot/api'
 
 export type CopilotChat = ApiCopilotChat
 
-export type CopilotMode = 'ask' | 'build' | 'plan'
+export type CopilotMode = 'ask' | 'build' | 'plan' | 'superagent'
 
 export interface CopilotState {
   mode: CopilotMode

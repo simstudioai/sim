@@ -49,6 +49,8 @@ const logger = createLogger('Copilot')
 interface CopilotProps {
   /** Width of the copilot panel in pixels */
   panelWidth: number
+  /** If true, runs in standalone mode without workflow context (for superagent) */
+  standalone?: boolean
 }
 
 /**
@@ -67,7 +69,7 @@ interface CopilotRef {
  * Copilot component - AI-powered assistant for workflow management
  * Provides chat interface, message history, and intelligent workflow suggestions
  */
-export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref) => {
+export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth, standalone = false }, ref) => {
   const userInputRef = useRef<UserInputRef>(null)
   const copilotContainerRef = useRef<HTMLDivElement>(null)
   const cancelEditCallbackRef = useRef<(() => void) | null>(null)
@@ -122,6 +124,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     loadAutoAllowedTools,
     currentChat,
     isSendingMessage,
+    standalone,
   })
 
   // Handle scroll management
@@ -298,7 +301,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
    */
   const handleSubmit = useCallback(
     async (query: string, fileAttachments?: MessageFileAttachment[], contexts?: any[]) => {
-      if (!query || isSendingMessage || !activeWorkflowId) return
+      if (!query || isSendingMessage || (!activeWorkflowId && !standalone)) return
 
       if (showPlanTodos) {
         const store = useCopilotStore.getState()
@@ -316,7 +319,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
         logger.error('Failed to send message:', error)
       }
     },
-    [isSendingMessage, activeWorkflowId, sendMessage, showPlanTodos]
+    [isSendingMessage, activeWorkflowId, sendMessage, showPlanTodos, standalone]
   )
 
   /**
@@ -487,11 +490,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     ref={userInputRef}
                     onSubmit={handleSubmit}
                     onAbort={handleAbort}
-                    disabled={!activeWorkflowId}
+                    disabled={!activeWorkflowId && !standalone}
                     isLoading={isSendingMessage}
                     isAborting={isAborting}
                     mode={mode}
-                    onModeChange={setMode}
+                    onModeChange={standalone ? undefined : setMode}
                     value={inputValue}
                     onChange={setInputValue}
                     panelWidth={panelWidth}
@@ -594,11 +597,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     ref={userInputRef}
                     onSubmit={handleSubmit}
                     onAbort={handleAbort}
-                    disabled={!activeWorkflowId}
+                    disabled={!activeWorkflowId && !standalone}
                     isLoading={isSendingMessage}
                     isAborting={isAborting}
                     mode={mode}
-                    onModeChange={setMode}
+                    onModeChange={standalone ? undefined : setMode}
                     value={inputValue}
                     onChange={setInputValue}
                     panelWidth={panelWidth}

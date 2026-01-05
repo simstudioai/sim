@@ -27,7 +27,7 @@ export interface CopilotMessage {
  * Chat config stored in database
  */
 export interface CopilotChatConfig {
-  mode?: 'ask' | 'build' | 'plan'
+  mode?: 'ask' | 'build' | 'plan' | 'superagent'
   model?: string
 }
 
@@ -65,7 +65,7 @@ export interface SendMessageRequest {
   userMessageId?: string // ID from frontend for the user message
   chatId?: string
   workflowId?: string
-  mode?: 'ask' | 'agent' | 'plan'
+  mode?: 'ask' | 'agent' | 'plan' | 'superagent'
   model?:
     | 'gpt-5-fast'
     | 'gpt-5'
