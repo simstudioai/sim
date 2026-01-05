@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { getSession } from '@/lib/auth'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('FormValidateAPI')
@@ -21,6 +22,10 @@ const validateQuerySchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return createErrorResponse('Unauthorized', 401)
+    }
     const { searchParams } = new URL(request.url)
     const identifier = searchParams.get('identifier')
 

@@ -19,8 +19,6 @@ const logger = createLogger('EmailAuth')
 interface EmailAuthProps {
   identifier: string
   onAuthSuccess: () => void
-  title?: string
-  primaryColor?: string
 }
 
 const validateEmailField = (emailValue: string): string[] => {
@@ -39,12 +37,7 @@ const validateEmailField = (emailValue: string): string[] => {
   return errors
 }
 
-export default function EmailAuth({
-  identifier,
-  onAuthSuccess,
-  title: _title = 'chat',
-  primaryColor: _primaryColor = 'var(--brand-primary-hover-hex)',
-}: EmailAuthProps) {
+export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps) {
   const [email, setEmail] = useState('')
   const [authError, setAuthError] = useState<string | null>(null)
   const [isSendingOtp, setIsSendingOtp] = useState(false)

@@ -5,16 +5,12 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { addCorsHeaders, validateAuthToken } from '@/lib/core/security/deployment'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
-import {
-  addCorsHeaders,
-  setFormAuthCookie,
-  validateAuthToken,
-  validateFormAuth,
-} from '@/app/api/form/utils'
+import { setFormAuthCookie, validateFormAuth } from '@/app/api/form/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('FormIdentifierAPI')

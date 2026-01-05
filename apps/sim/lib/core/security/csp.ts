@@ -206,7 +206,6 @@ export function getWorkflowExecutionCSPPolicy(): string {
 export function getFormEmbedCSPPolicy(): string {
   const basePolicy = buildCSPString({
     ...buildTimeCSPDirectives,
-    // Allow embedding from any origin
     'frame-ancestors': ['*'],
   })
   return basePolicy

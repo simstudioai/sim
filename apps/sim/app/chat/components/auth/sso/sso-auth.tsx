@@ -18,9 +18,6 @@ const logger = createLogger('SSOAuth')
 
 interface SSOAuthProps {
   identifier: string
-  onAuthSuccess: () => void
-  title?: string
-  primaryColor?: string
 }
 
 const validateEmailField = (emailValue: string): string[] => {
@@ -39,12 +36,7 @@ const validateEmailField = (emailValue: string): string[] => {
   return errors
 }
 
-export default function SSOAuth({
-  identifier,
-  onAuthSuccess: _onAuthSuccess,
-  title: _title = 'chat',
-  primaryColor: _primaryColor = 'var(--brand-primary-hover-hex)',
-}: SSOAuthProps) {
+export default function SSOAuth({ identifier }: SSOAuthProps) {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])

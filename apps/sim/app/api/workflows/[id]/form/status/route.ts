@@ -18,7 +18,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const { id: workflowId } = await params
 
-    // Find active form for this workflow
     const formResult = await db
       .select({
         id: form.id,

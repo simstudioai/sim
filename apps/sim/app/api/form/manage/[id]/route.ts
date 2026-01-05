@@ -11,13 +11,6 @@ import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/
 
 const logger = createLogger('FormManageAPI')
 
-// Hex color validation regex
-const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/
-
-// Email or domain pattern (e.g., user@example.com or @example.com)
-const emailOrDomainPattern =
-  /^(@[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/
-
 const fieldConfigSchema = z.object({
   name: z.string(),
   type: z.string(),
@@ -41,10 +34,7 @@ const updateFormSchema = z.object({
   description: z.string().max(1000, 'Description must be 1000 characters or less').optional(),
   customizations: z
     .object({
-      primaryColor: z
-        .string()
-        .regex(hexColorRegex, 'Primary color must be a valid hex color (e.g., #3972F6)')
-        .optional(),
+      primaryColor: z.string().optional(),
       welcomeMessage: z
         .string()
         .max(500, 'Welcome message must be 500 characters or less')
@@ -67,16 +57,7 @@ const updateFormSchema = z.object({
     .min(6, 'Password must be at least 6 characters')
     .optional()
     .or(z.literal('')),
-  allowedEmails: z
-    .array(
-      z
-        .string()
-        .regex(
-          emailOrDomainPattern,
-          'Each entry must be a valid email or domain (e.g., @example.com)'
-        )
-    )
-    .optional(),
+  allowedEmails: z.array(z.string()).optional(),
   showBranding: z.boolean().optional(),
   isActive: z.boolean().optional(),
 })
@@ -97,7 +78,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return createErrorResponse('Form not found or access denied', 404)
     }
 
-    // Don't return the encrypted password
     const { password: _password, ...formWithoutPassword } = formRecord
 
     return createSuccessResponse({
@@ -145,7 +125,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         isActive,
       } = validatedData
 
-      // If identifier is being changed, check for uniqueness
       if (identifier && identifier !== formRecord.identifier) {
         const existingIdentifier = await db
           .select()
@@ -158,7 +137,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
       }
 
-      // Validate auth type requirements
       if (authType === 'password' && !password && !formRecord.password) {
         return createErrorResponse('Password is required when using password protection', 400)
       }
@@ -174,7 +152,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         )
       }
 
-      // Build update object
       const updateData: Record<string, any> = {
         updatedAt: new Date(),
       }
@@ -187,7 +164,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (authType !== undefined) updateData.authType = authType
       if (allowedEmails !== undefined) updateData.allowedEmails = allowedEmails
 
-      // Handle customizations merge
       if (customizations !== undefined) {
         const existingCustomizations = (formRecord.customizations as Record<string, any>) || {}
         updateData.customizations = {
@@ -197,12 +173,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
       }
 
-      // Handle password update
       if (password) {
         const { encrypted } = await encryptSecret(password)
         updateData.password = encrypted
       } else if (authType && authType !== 'password') {
-        // Clear password if auth type is changed away from password
         updateData.password = null
       }
 
@@ -245,7 +219,6 @@ export async function DELETE(
       return createErrorResponse('Form not found or access denied', 404)
     }
 
-    // Soft delete by setting isActive to false
     await db.update(form).set({ isActive: false, updatedAt: new Date() }).where(eq(form.id, id))
 
     logger.info(`Form ${id} deleted (soft delete)`)

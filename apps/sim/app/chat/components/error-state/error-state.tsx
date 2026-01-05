@@ -6,10 +6,9 @@ import { StatusPageLayout } from '@/app/(auth)/components/status-page-layout'
 
 interface ChatErrorStateProps {
   error: string
-  starCount: string
 }
 
-export function ChatErrorState({ error, starCount: _starCount }: ChatErrorStateProps) {
+export function ChatErrorState({ error }: ChatErrorStateProps) {
   const router = useRouter()
 
   return (

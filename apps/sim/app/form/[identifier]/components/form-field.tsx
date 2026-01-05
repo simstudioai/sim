@@ -108,7 +108,7 @@ export function FormField({
               className={`min-h-[100px] font-mono ${jsonError ? 'border-red-300' : ''}`}
             />
             {jsonError && (
-              <p className={`${inter.className} mt-1 text-[12px] text-red-500`}>{jsonError}</p>
+              <p className={`${inter.className} mt-1 text-[14px] text-red-500`}>{jsonError}</p>
             )}
           </div>
         )

@@ -1,17 +1,25 @@
-import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { form, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
-import { isDev } from '@/lib/core/config/feature-flags'
+import {
+  isEmailAllowed,
+  setDeploymentAuthCookie,
+  validateAuthToken,
+} from '@/lib/core/security/deployment'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { hasAdminPermission } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FormAuthUtils')
 
-function hashPassword(encryptedPassword: string): string {
-  return createHash('sha256').update(encryptedPassword).digest('hex').substring(0, 8)
+export function setFormAuthCookie(
+  response: NextResponse,
+  formId: string,
+  type: string,
+  encryptedPassword?: string | null
+): void {
+  setDeploymentAuthCookie(response, 'form', formId, type, encryptedPassword)
 }
 
 /**
@@ -80,79 +88,6 @@ export async function checkFormAccess(
   }
 
   return { hasAccess: false }
-}
-
-function encryptAuthToken(formId: string, type: string, encryptedPassword?: string | null): string {
-  const pwHash = encryptedPassword ? hashPassword(encryptedPassword) : ''
-  return Buffer.from(`${formId}:${type}:${Date.now()}:${pwHash}`).toString('base64')
-}
-
-export function validateAuthToken(
-  token: string,
-  formId: string,
-  encryptedPassword?: string | null
-): boolean {
-  try {
-    const decoded = Buffer.from(token, 'base64').toString()
-    const parts = decoded.split(':')
-    const [storedId, _type, timestamp, storedPwHash] = parts
-
-    if (storedId !== formId) {
-      return false
-    }
-
-    const createdAt = Number.parseInt(timestamp)
-    const now = Date.now()
-    const expireTime = 24 * 60 * 60 * 1000
-
-    if (now - createdAt > expireTime) {
-      return false
-    }
-
-    if (encryptedPassword) {
-      const currentPwHash = hashPassword(encryptedPassword)
-      if (storedPwHash !== currentPwHash) {
-        return false
-      }
-    }
-
-    return true
-  } catch (_e) {
-    return false
-  }
-}
-
-export function setFormAuthCookie(
-  response: NextResponse,
-  formId: string,
-  type: string,
-  encryptedPassword?: string | null
-): void {
-  const token = encryptAuthToken(formId, type, encryptedPassword)
-  response.cookies.set({
-    name: `form_auth_${formId}`,
-    value: token,
-    httpOnly: true,
-    secure: !isDev,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 60 * 60 * 24,
-  })
-}
-
-export function addCorsHeaders(response: NextResponse, request: NextRequest) {
-  const origin = request.headers.get('origin') || ''
-
-  // Forms are public-facing and can be embedded anywhere
-  // Allow CORS from any origin for form submissions
-  if (origin) {
-    response.headers.set('Access-Control-Allow-Origin', origin)
-    response.headers.set('Access-Control-Allow-Credentials', 'true')
-    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With')
-  }
-
-  return response
 }
 
 export async function validateFormAuth(
@@ -233,18 +168,8 @@ export async function validateFormAuth(
 
       const allowedEmails: string[] = deployment.allowedEmails || []
 
-      // Check if exact email is in the allowed list
-      if (allowedEmails.includes(email)) {
+      if (isEmailAllowed(email, allowedEmails)) {
         return { authorized: true }
-      }
-
-      // Check if email domain is allowed (e.g., @example.com)
-      const atIndex = email.indexOf('@')
-      if (atIndex > 0) {
-        const domain = email.substring(atIndex + 1)
-        if (domain && allowedEmails.some((allowed: string) => allowed === `@${domain}`)) {
-          return { authorized: true }
-        }
       }
 
       return { authorized: false, error: 'Email not authorized for this form' }

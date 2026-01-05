@@ -18,16 +18,9 @@ const logger = createLogger('PasswordAuth')
 interface PasswordAuthProps {
   identifier: string
   onAuthSuccess: () => void
-  title?: string
-  primaryColor?: string
 }
 
-export default function PasswordAuth({
-  identifier,
-  onAuthSuccess,
-  title: _title = 'chat',
-  primaryColor: _primaryColor = 'var(--brand-primary-hover-hex)',
-}: PasswordAuthProps) {
+export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuthProps) {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showValidationError, setShowValidationError] = useState(false)
