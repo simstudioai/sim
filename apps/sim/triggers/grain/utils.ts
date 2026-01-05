@@ -19,9 +19,9 @@ export function grainSetupInstructions(eventType: string): string {
   const instructions = [
     'Enter your Grain API Key (Personal Access Token) above.',
     'You can find or create your API key in Grain at <strong>Settings > Integrations > API</strong>.',
-    'Optionally configure filters to narrow which recordings trigger the webhook.',
     `Click <strong>"Save Configuration"</strong> to automatically create the webhook in Grain for <strong>${eventType}</strong> events.`,
     'The webhook will be automatically deleted when you remove this trigger.',
+    'To access additional data like AI summaries, highlights, or participants, use the <strong>"Grain Get Recording"</strong> tool with the recording ID from this trigger.',
   ]
 
   return instructions
@@ -40,11 +40,11 @@ export function buildRecordingOutputs(): Record<string, TriggerOutput> {
   return {
     type: {
       type: 'string',
-      description: 'Event type (recording_added)',
+      description: 'Event type (recording_added or recording_updated)',
     },
     user_id: {
       type: 'string',
-      description: 'User UUID who triggered the event',
+      description: 'User UUID who triggered the event (nullable)',
     },
     data: {
       type: 'object',
@@ -76,7 +76,7 @@ export function buildRecordingOutputs(): Record<string, TriggerOutput> {
     },
     'data.source': {
       type: 'string',
-      description: 'Recording source (zoom, meet, teams, etc.)',
+      description: 'Recording source (zoom, meet, local_capture, etc.)',
     },
     'data.url': {
       type: 'string',
@@ -92,23 +92,11 @@ export function buildRecordingOutputs(): Record<string, TriggerOutput> {
     },
     'data.teams': {
       type: 'array',
-      description: 'Teams the recording belongs to',
+      description: 'Array of team objects',
     },
     'data.meeting_type': {
       type: 'object',
-      description: 'Meeting type info (nullable)',
-    },
-    'data.highlights': {
-      type: 'array',
-      description: 'Highlights (if configured in hook)',
-    },
-    'data.participants': {
-      type: 'array',
-      description: 'Participants (if configured in hook)',
-    },
-    'data.ai_summary': {
-      type: 'object',
-      description: 'AI summary (if configured in hook)',
+      description: 'Meeting type info with id, name, scope (nullable)',
     },
   } as Record<string, TriggerOutput>
 }
