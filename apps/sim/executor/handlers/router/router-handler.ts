@@ -34,9 +34,7 @@ export class RouterBlockHandler implements BlockHandler {
   constructor(private pathTracker?: any) {}
 
   canHandle(block: SerializedBlock): boolean {
-    return (
-      block.metadata?.id === BlockType.ROUTER || block.metadata?.id === BlockType.ROUTER_V2
-    )
+    return block.metadata?.id === BlockType.ROUTER || block.metadata?.id === BlockType.ROUTER_V2
   }
 
   async execute(

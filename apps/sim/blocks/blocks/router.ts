@@ -180,11 +180,7 @@ const getApiKeyCondition = () => {
       }
     : () => ({
         field: 'model',
-        value: [
-          ...getCurrentOllamaModels(),
-          ...getCurrentVLLMModels(),
-          ...providers.vertex.models,
-        ],
+        value: [...getCurrentOllamaModels(), ...getCurrentVLLMModels(), ...providers.vertex.models],
         not: true,
       })
 }

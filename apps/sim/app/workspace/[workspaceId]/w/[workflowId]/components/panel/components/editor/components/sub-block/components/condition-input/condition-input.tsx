@@ -8,11 +8,11 @@ import { useUpdateNodeInternals } from 'reactflow'
 import {
   Button,
   Code,
-  Textarea,
   calculateGutterWidth,
   getCodeEditorProps,
   highlight,
   languages,
+  Textarea,
   Tooltip,
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
@@ -815,18 +815,16 @@ export function ConditionInput({
                   <Button
                     variant='ghost'
                     onClick={() => removeBlock(block.id)}
-                    disabled={
-                      isPreview ||
-                      disabled ||
-                      conditionalBlocks.length === 1
-                    }
+                    disabled={isPreview || disabled || conditionalBlocks.length === 1}
                     className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
                   >
                     <Trash className='h-[14px] w-[14px]' />
                     <span className='sr-only'>Delete Block</span>
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content>{isRouterMode ? 'Delete Route' : 'Delete Condition'}</Tooltip.Content>
+                <Tooltip.Content>
+                  {isRouterMode ? 'Delete Route' : 'Delete Condition'}
+                </Tooltip.Content>
               </Tooltip.Root>
             </div>
           </div>
@@ -869,9 +867,7 @@ export function ConditionInput({
                   setTimeout(() => {
                     setConditionalBlocks((blocks) =>
                       blocks.map((b) =>
-                        b.id === block.id
-                          ? { ...b, showTags: false, showEnvVars: false }
-                          : b
+                        b.id === block.id ? { ...b, showTags: false, showEnvVars: false } : b
                       )
                     )
                   }, 150)

@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
-import { EDGE, isConditionBlockType, isRouterBlockType, isRouterV2BlockType } from '@/executor/constants'
+import {
+  EDGE,
+  isConditionBlockType,
+  isRouterBlockType,
+  isRouterV2BlockType,
+} from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import {
   buildBranchNodeId,
