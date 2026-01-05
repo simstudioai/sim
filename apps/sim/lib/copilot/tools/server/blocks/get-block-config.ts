@@ -63,7 +63,7 @@ function callOptionsWithFallback(optionsFn: () => any[]): any[] | undefined {
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    store = require('@/stores/providers/store')
+    store = require('@/stores/providers')
     if (store?.useProvidersStore?.getState) {
       originalGetState = store.useProvidersStore.getState
       store.useProvidersStore.getState = () => mockProvidersState

@@ -317,7 +317,7 @@ export class AgentBlockHandler implements BlockHandler {
   ): Promise<{ schema: any; code: string; title: string } | null> {
     if (typeof window !== 'undefined') {
       try {
-        const { useCustomToolsStore } = await import('@/stores/custom-tools/store')
+        const { useCustomToolsStore } = await import('@/stores/custom-tools')
         const tool = useCustomToolsStore.getState().getTool(customToolId)
         if (tool) {
           return {

@@ -11,8 +11,8 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import type { Variable } from '@/stores/panel/variables/types'
+import type { Variable } from '@/stores/panel'
+import { useVariablesStore } from '@/stores/panel'
 
 interface VariableAssignment {
   id: string

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
-import { useGeneralStore } from '@/stores/settings/general/store'
+import { useGeneralStore } from '@/stores/settings/general'
 
 const logger = createLogger('GeneralSettingsQuery')
 

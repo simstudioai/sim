@@ -2,7 +2,7 @@
 
 import { X } from 'lucide-react'
 import { Badge } from '@/components/emcn'
-import type { ChatContext } from '@/stores/panel/copilot/types'
+import type { ChatContext } from '@/stores/panel'
 
 interface ContextPillsProps {
   /** Selected contexts to display as pills */

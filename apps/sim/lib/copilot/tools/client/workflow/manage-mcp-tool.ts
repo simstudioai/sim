@@ -5,7 +5,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
+import { useCopilotStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface McpServerConfig {

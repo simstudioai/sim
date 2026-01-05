@@ -11,7 +11,8 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks/use-import-workflow'
 import { useFolders } from '@/hooks/queries/folders'
-import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
+import { useFolderStore } from '@/stores/folders/store'
+import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 /**

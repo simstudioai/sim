@@ -1,5 +1,3 @@
-import { create } from 'zustand'
-
 /**
  * Global state for the universal search modal.
  *
@@ -7,7 +5,7 @@ import { create } from 'zustand'
  * workflow command list, keyboard shortcuts) to open or close the modal
  * without relying on DOM events or prop drilling.
  */
-interface SearchModalState {
+export interface SearchModalState {
   /** Whether the search modal is currently open. */
   isOpen: boolean
   /**
@@ -25,16 +23,3 @@ interface SearchModalState {
    */
   close: () => void
 }
-
-export const useSearchModalStore = create<SearchModalState>((set) => ({
-  isOpen: false,
-  setOpen: (open: boolean) => {
-    set({ isOpen: open })
-  },
-  open: () => {
-    set({ isOpen: true })
-  },
-  close: () => {
-    set({ isOpen: false })
-  },
-}))

@@ -4,7 +4,7 @@ import { devtools } from 'zustand/middleware'
 import { withOptimisticUpdate } from '@/lib/core/utils/optimistic-update'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
-import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useVariablesStore } from '@/stores/panel'
 import type {
   DeploymentStatus,
   HydrationState,

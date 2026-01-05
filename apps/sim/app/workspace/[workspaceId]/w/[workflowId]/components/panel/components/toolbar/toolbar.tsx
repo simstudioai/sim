@@ -25,7 +25,7 @@ import {
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import type { BlockConfig } from '@/blocks/types'
-import { useToolbarStore } from '@/stores/panel/toolbar/store'
+import { useToolbarStore } from '@/stores/panel'
 
 interface BlockItem {
   name: string

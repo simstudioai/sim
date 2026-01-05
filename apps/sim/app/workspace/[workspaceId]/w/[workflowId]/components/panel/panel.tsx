@@ -23,6 +23,7 @@ import {
   Trash,
 } from '@/components/emcn'
 import { VariableIcon } from '@/components/icons'
+import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -41,10 +42,10 @@ import { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hook
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useChatStore } from '@/stores/chat/store'
-import { usePanelStore } from '@/stores/panel/store'
-import type { PanelTab } from '@/stores/panel/types'
+import type { PanelTab } from '@/stores/panel'
+import { usePanelStore, useVariablesStore as usePanelVariablesStore } from '@/stores/panel'
 import { useVariablesStore } from '@/stores/variables/store'
-import { useWorkflowJsonStore } from '@/stores/workflows/json/store'
+import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -98,7 +99,6 @@ export function Panel() {
     hydration.phase === 'idle' ||
     hydration.phase === 'metadata-loading' ||
     hydration.phase === 'state-loading'
-  const { getJson } = useWorkflowJsonStore()
   const { blocks } = useWorkflowStore()
   const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null)
 
@@ -220,12 +220,27 @@ export function Panel() {
 
     setIsExporting(true)
     try {
-      // Get the JSON from the store
-      const jsonContent = await getJson()
+      const workflow = getWorkflowWithValues(activeWorkflowId)
 
-      if (!jsonContent) {
-        throw new Error('Failed to generate JSON')
+      if (!workflow || !workflow.state) {
+        throw new Error('No workflow state found')
       }
+
+      const workflowVariables = usePanelVariablesStore
+        .getState()
+        .getVariablesByWorkflowId(activeWorkflowId)
+
+      const jsonContent = generateWorkflowJson(workflow.state, {
+        workflowId: activeWorkflowId,
+        name: currentWorkflow.name,
+        description: currentWorkflow.description,
+        variables: workflowVariables.map((v) => ({
+          id: v.id,
+          name: v.name,
+          type: v.type,
+          value: v.value,
+        })),
+      })
 
       const filename = `${currentWorkflow.name.replace(/[^a-z0-9]/gi, '-')}.json`
       downloadFile(jsonContent, filename, 'application/json')
@@ -236,7 +251,7 @@ export function Panel() {
       setIsExporting(false)
       setIsMenuOpen(false)
     }
-  }, [currentWorkflow, activeWorkflowId, getJson, downloadFile])
+  }, [currentWorkflow, activeWorkflowId, downloadFile])
 
   /**
    * Handles duplicating the current workflow

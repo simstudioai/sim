@@ -28,8 +28,8 @@ import {
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { useProvidersStore } from '@/stores/providers/store'
+import { useCustomToolsStore } from '@/stores/custom-tools'
+import { useProvidersStore } from '@/stores/providers'
 
 const logger = createLogger('ProviderUtils')
 

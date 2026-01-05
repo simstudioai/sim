@@ -7,7 +7,7 @@ import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { usePanelEditorStore } from '@/stores/panel/editor/store'
+import { usePanelEditorStore } from '@/stores/panel'
 
 /**
  * Global styles for subflow nodes (loop and parallel containers).

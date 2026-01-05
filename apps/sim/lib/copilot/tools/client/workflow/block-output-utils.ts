@@ -5,8 +5,8 @@ import {
 import { getBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { getBlock } from '@/blocks'
 import { normalizeName } from '@/executor/constants'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import type { Variable } from '@/stores/panel/variables/types'
+import type { Variable } from '@/stores/panel'
+import { useVariablesStore } from '@/stores/panel'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 

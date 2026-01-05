@@ -9,7 +9,7 @@ import {
   ExecuteResponseSuccessSchema,
   type KnowledgeBaseArgs,
 } from '@/lib/copilot/tools/shared/schemas'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
+import { useCopilotStore } from '@/stores/panel'
 
 /**
  * Client tool for knowledge base operations

@@ -720,7 +720,7 @@ function callOptionsWithFallback(
   try {
     // Try to get the providers store module
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    store = require('@/stores/providers/store')
+    store = require('@/stores/providers')
     if (store?.useProvidersStore?.getState) {
       originalGetState = store.useProvidersStore.getState
       // Temporarily replace getState with our mock

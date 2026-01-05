@@ -19,7 +19,7 @@ import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowI
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { getBlock } from '@/blocks/registry'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { usePanelEditorStore } from '@/stores/panel/editor/store'
+import { usePanelEditorStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 

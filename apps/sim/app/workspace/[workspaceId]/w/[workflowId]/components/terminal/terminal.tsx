@@ -46,7 +46,7 @@ import {
 import { getBlock } from '@/blocks'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
-import { useGeneralStore } from '@/stores/settings/general/store'
+import { useGeneralStore } from '@/stores/settings/general'
 import type { ConsoleEntry } from '@/stores/terminal'
 import { useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'

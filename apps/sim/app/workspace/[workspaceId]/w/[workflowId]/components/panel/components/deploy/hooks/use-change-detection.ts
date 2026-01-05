@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import { useDebounce } from '@/hooks/use-debounce'
-import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useVariablesStore } from '@/stores/panel'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'

@@ -2,7 +2,7 @@ import { ShieldCheckIcon } from '@/components/icons'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import type { BlockConfig } from '@/blocks/types'
 import { getHostedModels, getProviderIcon } from '@/providers/utils'
-import { useProvidersStore } from '@/stores/providers/store'
+import { useProvidersStore } from '@/stores/providers'
 import type { ToolResponse } from '@/tools/types'
 
 const getCurrentOllamaModels = () => {

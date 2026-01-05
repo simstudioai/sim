@@ -8,7 +8,7 @@ import {
   getProviderIcon,
   providers,
 } from '@/providers/utils'
-import { useProvidersStore } from '@/stores/providers/store'
+import { useProvidersStore } from '@/stores/providers'
 import type { ToolResponse } from '@/tools/types'
 
 const getCurrentOllamaModels = () => {

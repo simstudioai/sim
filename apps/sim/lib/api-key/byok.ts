@@ -52,7 +52,7 @@ export async function getApiKeyWithBYOK(
   userProvidedKey?: string
 ): Promise<{ apiKey: string; isBYOK: boolean }> {
   const { isHosted } = await import('@/lib/core/config/feature-flags')
-  const { useProvidersStore } = await import('@/stores/providers/store')
+  const { useProvidersStore } = await import('@/stores/providers')
 
   const isOllamaModel =
     provider === 'ollama' || useProvidersStore.getState().providers.ollama.models.includes(model)

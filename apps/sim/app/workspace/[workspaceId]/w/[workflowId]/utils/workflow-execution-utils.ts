@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
-import { useExecutionStore } from '@/stores/execution/store'
+import { useExecutionStore } from '@/stores/execution'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { PANEL_WIDTH } from '@/stores/constants'
-import { usePanelStore } from '@/stores/panel/store'
+import { usePanelStore } from '@/stores/panel'
 
 /**
  * Custom hook to handle panel resize functionality.
