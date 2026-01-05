@@ -39,11 +39,24 @@ interface ChunkContextMenuProps {
    * Whether add chunk is disabled
    */
   disableAddChunk?: boolean
+  /**
+   * Number of selected chunks (for batch operations)
+   */
+  selectedCount?: number
+  /**
+   * Number of enabled chunks in selection
+   */
+  enabledCount?: number
+  /**
+   * Number of disabled chunks in selection
+   */
+  disabledCount?: number
 }
 
 /**
  * Context menu for chunks table.
  * Shows chunk actions when right-clicking a row, or "Create chunk" when right-clicking empty space.
+ * Supports batch operations when multiple chunks are selected.
  */
 export function ChunkContextMenu({
   isOpen,
@@ -61,7 +74,20 @@ export function ChunkContextMenu({
   disableToggleEnabled = false,
   disableDelete = false,
   disableAddChunk = false,
+  selectedCount = 1,
+  enabledCount = 0,
+  disabledCount = 0,
 }: ChunkContextMenuProps) {
+  const isMultiSelect = selectedCount > 1
+
+  const getToggleLabel = () => {
+    if (isMultiSelect) {
+      if (disabledCount > 0) return 'Enable'
+      return 'Disable'
+    }
+    return isChunkEnabled ? 'Disable' : 'Enable'
+  }
+
   return (
     <Popover open={isOpen} onOpenChange={onClose} variant='secondary' size='sm'>
       <PopoverAnchor
@@ -76,7 +102,7 @@ export function ChunkContextMenu({
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
         {hasChunk ? (
           <>
-            {onOpenInNewTab && (
+            {!isMultiSelect && onOpenInNewTab && (
               <PopoverItem
                 onClick={() => {
                   onOpenInNewTab()
@@ -86,7 +112,7 @@ export function ChunkContextMenu({
                 Open in new tab
               </PopoverItem>
             )}
-            {onEdit && (
+            {!isMultiSelect && onEdit && (
               <PopoverItem
                 onClick={() => {
                   onEdit()
@@ -96,7 +122,7 @@ export function ChunkContextMenu({
                 Edit
               </PopoverItem>
             )}
-            {onCopyContent && (
+            {!isMultiSelect && onCopyContent && (
               <PopoverItem
                 onClick={() => {
                   onCopyContent()
@@ -114,7 +140,7 @@ export function ChunkContextMenu({
                   onClose()
                 }}
               >
-                {isChunkEnabled ? 'Disable' : 'Enable'}
+                {getToggleLabel()}
               </PopoverItem>
             )}
             {onDelete && (

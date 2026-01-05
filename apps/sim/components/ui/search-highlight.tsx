@@ -11,7 +11,6 @@ export function SearchHighlight({ text, searchQuery, className = '' }: SearchHig
     return <span className={className}>{text}</span>
   }
 
-  // Create regex pattern for all search terms
   const searchTerms = searchQuery
     .trim()
     .split(/\s+/)
@@ -35,7 +34,7 @@ export function SearchHighlight({ text, searchQuery, className = '' }: SearchHig
         return isMatch ? (
           <span
             key={index}
-            className='bg-yellow-200 text-yellow-900 dark:bg-yellow-900/50 dark:text-yellow-200'
+            className='bg-[#bae6fd] text-[#0369a1] dark:bg-[rgba(51,180,255,0.2)] dark:text-[var(--brand-secondary)]'
           >
             {part}
           </span>

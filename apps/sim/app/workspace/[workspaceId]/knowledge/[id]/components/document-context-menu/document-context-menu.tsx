@@ -11,6 +11,7 @@ interface DocumentContextMenuProps {
    * Document-specific actions (shown when right-clicking on a document)
    */
   onOpenInNewTab?: () => void
+  onRename?: () => void
   onToggleEnabled?: () => void
   onViewTags?: () => void
   onDelete?: () => void
@@ -42,11 +43,24 @@ interface DocumentContextMenuProps {
    * Whether add document is disabled
    */
   disableAddDocument?: boolean
+  /**
+   * Number of selected documents (for batch operations)
+   */
+  selectedCount?: number
+  /**
+   * Number of enabled documents in selection
+   */
+  enabledCount?: number
+  /**
+   * Number of disabled documents in selection
+   */
+  disabledCount?: number
 }
 
 /**
  * Context menu for documents table.
  * Shows document actions when right-clicking a row, or "Add Document" when right-clicking empty space.
+ * Supports batch operations when multiple documents are selected.
  */
 export function DocumentContextMenu({
   isOpen,
@@ -54,6 +68,7 @@ export function DocumentContextMenu({
   menuRef,
   onClose,
   onOpenInNewTab,
+  onRename,
   onToggleEnabled,
   onViewTags,
   onDelete,
@@ -64,7 +79,20 @@ export function DocumentContextMenu({
   disableToggleEnabled = false,
   disableDelete = false,
   disableAddDocument = false,
+  selectedCount = 1,
+  enabledCount = 0,
+  disabledCount = 0,
 }: DocumentContextMenuProps) {
+  const isMultiSelect = selectedCount > 1
+
+  const getToggleLabel = () => {
+    if (isMultiSelect) {
+      if (disabledCount > 0) return 'Enable'
+      return 'Disable'
+    }
+    return isDocumentEnabled ? 'Disable' : 'Enable'
+  }
+
   return (
     <Popover open={isOpen} onOpenChange={onClose} variant='secondary' size='sm'>
       <PopoverAnchor
@@ -79,7 +107,7 @@ export function DocumentContextMenu({
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
         {hasDocument ? (
           <>
-            {onOpenInNewTab && (
+            {!isMultiSelect && onOpenInNewTab && (
               <PopoverItem
                 onClick={() => {
                   onOpenInNewTab()
@@ -89,7 +117,17 @@ export function DocumentContextMenu({
                 Open in new tab
               </PopoverItem>
             )}
-            {hasTags && onViewTags && (
+            {!isMultiSelect && onRename && (
+              <PopoverItem
+                onClick={() => {
+                  onRename()
+                  onClose()
+                }}
+              >
+                Rename
+              </PopoverItem>
+            )}
+            {!isMultiSelect && hasTags && onViewTags && (
               <PopoverItem
                 onClick={() => {
                   onViewTags()
@@ -107,7 +145,7 @@ export function DocumentContextMenu({
                   onClose()
                 }}
               >
-                {isDocumentEnabled ? 'Disable' : 'Enable'}
+                {getToggleLabel()}
               </PopoverItem>
             )}
             {onDelete && (
