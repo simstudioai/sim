@@ -17,6 +17,8 @@ const TIMEOUTS = {
   MISTRAL_OCR_API: 120000,
 } as const
 
+const MAX_CONCURRENT_CHUNKS = env.KB_CONFIG_CHUNK_CONCURRENCY
+
 type OCRResult = {
   success: boolean
   error?: string
@@ -245,10 +247,6 @@ async function handleFileForOCR(
 ) {
   const isExternalHttps = fileUrl.startsWith('https://') && !fileUrl.includes('/api/files/serve/')
 
-  logger.info(
-    `handleFileForOCR: fileUrl=${fileUrl.substring(0, 100)}..., isExternalHttps=${isExternalHttps}`
-  )
-
   if (isExternalHttps) {
     if (mimeType === 'application/pdf') {
       logger.info(`handleFileForOCR: Downloading external PDF to check page count`)
@@ -417,16 +415,14 @@ async function parseWithAzureMistralOCR(
 
   const fileBuffer = await downloadFileForBase64(fileUrl)
 
-  // Check page count for PDFs - Azure OCR with base64 doesn't support efficient batching
-  // so we skip it for large files and let regular Mistral OCR handle them
   if (mimeType === 'application/pdf') {
     const pageCount = await getPdfPageCount(fileBuffer)
     if (pageCount > MISTRAL_MAX_PAGES) {
       logger.info(
-        `PDF has ${pageCount} pages, exceeds limit of ${MISTRAL_MAX_PAGES}. ` +
-          `Skipping Azure OCR (base64 doesn't batch efficiently), will use regular Mistral OCR.`
+        `PDF has ${pageCount} pages, exceeds Azure OCR limit of ${MISTRAL_MAX_PAGES}. ` +
+          `Falling back to file parser.`
       )
-      throw new Error(`PDF too large for Azure OCR: ${pageCount} pages`)
+      return parseWithFileParser(fileUrl, filename, mimeType)
     }
     logger.info(`Azure Mistral OCR: PDF page count for ${filename}: ${pageCount}`)
   }
@@ -501,7 +497,6 @@ async function parseWithMistralOCR(
 
   logger.info(`Mistral OCR: Using presigned URL for ${filename}: ${httpsUrl.substring(0, 120)}...`)
 
-  // Check page count for PDFs and batch if necessary
   let pageCount = 0
   if (mimeType === 'application/pdf' && buffer) {
     pageCount = await getPdfPageCount(buffer)
@@ -517,7 +512,6 @@ async function parseWithMistralOCR(
     return processMistralOCRInBatches(filename, apiKey, buffer, userId, cloudUrl, fileUrl, mimeType)
   }
 
-  // Single request for smaller PDFs
   const params = { filePath: httpsUrl, apiKey, resultType: 'text' as const }
 
   try {
@@ -662,9 +656,6 @@ async function processChunk(
     }
   }
 }
-
-// Maximum concurrent chunk processing to avoid overwhelming APIs
-const MAX_CONCURRENT_CHUNKS = env.KB_CONFIG_CHUNK_CONCURRENCY
 
 async function processMistralOCRInBatches(
   filename: string,
