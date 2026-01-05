@@ -1,3 +1,4 @@
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EmailType } from '@/lib/messaging/email/mailer'
 
@@ -34,14 +35,7 @@ vi.mock('@/lib/core/config/env', () => ({
   getEnv: (variable: string) => process.env[variable],
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 import {
   generateUnsubscribeToken,

@@ -1,3 +1,4 @@
+import { databaseMock, loggerMock } from '@sim/testing'
 import type { NextResponse } from 'next/server'
 /**
  * Tests for form API utils
@@ -6,11 +7,8 @@ import type { NextResponse } from 'next/server'
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(),
-  },
-}))
+vi.mock('@sim/db', () => databaseMock)
+vi.mock('@sim/logger', () => loggerMock)
 
 const mockDecryptSecret = vi.fn()
 
@@ -29,17 +27,6 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 describe('Form API Utils', () => {
-  beforeEach(() => {
-    vi.doMock('@sim/logger', () => ({
-      createLogger: vi.fn().mockReturnValue({
-        info: vi.fn(),
-        error: vi.fn(),
-        warn: vi.fn(),
-        debug: vi.fn(),
-      }),
-    }))
-  })
-
   afterEach(() => {
     vi.clearAllMocks()
   })

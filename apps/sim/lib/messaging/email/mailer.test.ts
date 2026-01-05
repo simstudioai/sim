@@ -1,3 +1,4 @@
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 /**
@@ -66,15 +67,7 @@ vi.mock('@/lib/messaging/email/utils', () => ({
   getFromEmailAddress: vi.fn().mockReturnValue('Sim <noreply@sim.ai>'),
 }))
 
-// Mock the logger
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 // Import after mocks are set up
 import {

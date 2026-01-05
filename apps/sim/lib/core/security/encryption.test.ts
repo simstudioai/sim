@@ -1,3 +1,4 @@
+import { loggerMock } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mockEnv = vi.hoisted(() => ({
@@ -8,14 +9,7 @@ vi.mock('@/lib/core/config/env', () => ({
   env: mockEnv,
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 import { decryptSecret, encryptSecret, generatePassword } from './encryption'
 

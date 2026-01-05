@@ -60,6 +60,29 @@ vi.mock('@/providers', () => ({
   }),
 }))
 
+vi.mock('@sim/db', () => ({
+  db: {
+    select: vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([
+          { id: 'mcp-search-server', connectionStatus: 'connected' },
+          { id: 'same-server', connectionStatus: 'connected' },
+          { id: 'mcp-legacy-server', connectionStatus: 'connected' },
+        ]),
+      }),
+    }),
+  },
+}))
+
+vi.mock('@sim/db/schema', () => ({
+  mcpServers: {
+    id: 'id',
+    workspaceId: 'workspaceId',
+    connectionStatus: 'connectionStatus',
+    deletedAt: 'deletedAt',
+  },
+}))
+
 global.fetch = Object.assign(vi.fn(), { preconnect: vi.fn() }) as typeof fetch
 
 const mockGetAllBlocks = getAllBlocks as Mock
