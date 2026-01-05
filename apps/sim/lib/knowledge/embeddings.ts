@@ -7,6 +7,7 @@ import { batchByTokenLimit, getTotalTokenCount } from '@/lib/tokenization'
 const logger = createLogger('EmbeddingUtils')
 
 const MAX_TOKENS_PER_REQUEST = 8000
+const MAX_CONCURRENT_BATCHES = env.KB_CONFIG_CONCURRENCY_LIMIT || 50
 
 export class EmbeddingAPIError extends Error {
   public status: number
@@ -121,8 +122,29 @@ async function callEmbeddingAPI(inputs: string[], config: EmbeddingConfig): Prom
 }
 
 /**
- * Generate embeddings for multiple texts with token-aware batching
- * Uses tiktoken for token counting
+ * Process batches with controlled concurrency
+ */
+async function processWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  processor: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let currentIndex = 0
+
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (currentIndex < items.length) {
+      const index = currentIndex++
+      results[index] = await processor(items[index], index)
+    }
+  })
+
+  await Promise.all(workers)
+  return results
+}
+
+/**
+ * Generate embeddings for multiple texts with token-aware batching and parallel processing
  */
 export async function generateEmbeddings(
   texts: string[],
@@ -138,35 +160,35 @@ export async function generateEmbeddings(
   const batches = batchByTokenLimit(texts, MAX_TOKENS_PER_REQUEST, embeddingModel)
 
   logger.info(
-    `Split ${texts.length} texts into ${batches.length} batches (max ${MAX_TOKENS_PER_REQUEST} tokens per batch)`
+    `Split ${texts.length} texts into ${batches.length} batches (max ${MAX_TOKENS_PER_REQUEST} tokens per batch, ${MAX_CONCURRENT_BATCHES} concurrent)`
   )
 
-  const allEmbeddings: number[][] = []
-
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i]
-    const batchTokenCount = getTotalTokenCount(batch, embeddingModel)
-
-    logger.info(
-      `Processing batch ${i + 1}/${batches.length}: ${batch.length} texts, ${batchTokenCount} tokens`
-    )
-
-    try {
-      const batchEmbeddings = await callEmbeddingAPI(batch, config)
-      allEmbeddings.push(...batchEmbeddings)
+  const batchResults = await processWithConcurrency(
+    batches,
+    MAX_CONCURRENT_BATCHES,
+    async (batch, i) => {
+      const batchTokenCount = getTotalTokenCount(batch, embeddingModel)
 
       logger.info(
-        `Generated ${batchEmbeddings.length} embeddings for batch ${i + 1}/${batches.length}`
+        `Processing batch ${i + 1}/${batches.length}: ${batch.length} texts, ${batchTokenCount} tokens`
       )
-    } catch (error) {
-      logger.error(`Failed to generate embeddings for batch ${i + 1}:`, error)
-      throw error
-    }
 
-    if (i + 1 < batches.length) {
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      try {
+        const batchEmbeddings = await callEmbeddingAPI(batch, config)
+
+        logger.info(
+          `Generated ${batchEmbeddings.length} embeddings for batch ${i + 1}/${batches.length}`
+        )
+
+        return batchEmbeddings
+      } catch (error) {
+        logger.error(`Failed to generate embeddings for batch ${i + 1}:`, error)
+        throw error
+      }
     }
-  }
+  )
+
+  const allEmbeddings = batchResults.flat()
 
   logger.info(`Successfully generated ${allEmbeddings.length} embeddings total`)
 
