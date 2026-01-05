@@ -225,7 +225,7 @@ async function parseDocument(
   if (isPDF && (hasAzureMistralOCR || hasMistralOCR)) {
     if (hasAzureMistralOCR) {
       logger.info(`Using Azure Mistral OCR: ${filename}`)
-      return parseWithAzureMistralOCR(fileUrl, filename, mimeType, userId, workspaceId)
+      return parseWithAzureMistralOCR(fileUrl, filename, mimeType)
     }
 
     if (hasMistralOCR) {
@@ -399,13 +399,7 @@ async function makeOCRRequest(
   }
 }
 
-async function parseWithAzureMistralOCR(
-  fileUrl: string,
-  filename: string,
-  mimeType: string,
-  userId?: string,
-  workspaceId?: string | null
-) {
+async function parseWithAzureMistralOCR(fileUrl: string, filename: string, mimeType: string) {
   validateOCRConfig(
     env.OCR_AZURE_API_KEY,
     env.OCR_AZURE_ENDPOINT,
@@ -509,7 +503,7 @@ async function parseWithMistralOCR(
     logger.info(
       `PDF has ${pageCount} pages, exceeds limit of ${MISTRAL_MAX_PAGES}. Splitting and processing in chunks.`
     )
-    return processMistralOCRInBatches(filename, apiKey, buffer, userId, cloudUrl, fileUrl, mimeType)
+    return processMistralOCRInBatches(filename, apiKey, buffer, userId, cloudUrl)
   }
 
   const params = { filePath: httpsUrl, apiKey, resultType: 'text' as const }
@@ -662,12 +656,10 @@ async function processMistralOCRInBatches(
   apiKey: string,
   pdfBuffer: Buffer,
   userId?: string,
-  cloudUrl?: string,
-  fileUrl?: string,
-  mimeType?: string
+  cloudUrl?: string
 ): Promise<{
   content: string
-  processingMethod: 'mistral-ocr' | 'file-parser'
+  processingMethod: 'mistral-ocr'
   cloudUrl?: string
 }> {
   const totalPages = await getPdfPageCount(pdfBuffer)
@@ -706,11 +698,12 @@ async function processMistralOCRInBatches(
     .map((r) => r.content as string)
 
   if (sortedResults.length === 0) {
-    logger.error(`All OCR chunks failed for ${filename}, falling back to file parser`)
-    if (fileUrl && mimeType) {
-      return parseWithFileParser(fileUrl, filename, mimeType)
-    }
-    throw new Error('All OCR chunks failed and no fallback available')
+    // Don't fall back to file parser for large PDFs - it produces poor results
+    // Better to fail clearly than return low-quality extraction
+    throw new Error(
+      `OCR failed for all ${pdfChunks.length} chunks of ${filename}. ` +
+        `Large PDFs require OCR - file parser fallback would produce poor results.`
+    )
   }
 
   const combinedContent = sortedResults.join('\n\n')
