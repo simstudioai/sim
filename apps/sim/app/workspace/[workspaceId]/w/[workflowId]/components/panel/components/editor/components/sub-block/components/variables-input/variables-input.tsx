@@ -38,6 +38,27 @@ const DEFAULT_ASSIGNMENT: Omit<VariableAssignment, 'id'> = {
   isExisting: false,
 }
 
+/**
+ * Parses a value that might be a JSON string or already an array of VariableAssignment.
+ * This handles the case where workflows are imported with stringified values.
+ */
+function parseVariableAssignments(value: unknown): VariableAssignment[] {
+  if (!value) return []
+  if (Array.isArray(value)) return value as VariableAssignment[]
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (Array.isArray(parsed)) return parsed as VariableAssignment[]
+      } catch {
+        // Not valid JSON, return empty array
+      }
+    }
+  }
+  return []
+}
+
 export function VariablesInput({
   blockId,
   subBlockId,
@@ -64,8 +85,8 @@ export function VariablesInput({
     (v: Variable) => v.workflowId === workflowId
   )
 
-  const value = isPreview ? previewValue : storeValue
-  const assignments: VariableAssignment[] = value || []
+  const rawValue = isPreview ? previewValue : storeValue
+  const assignments: VariableAssignment[] = parseVariableAssignments(rawValue)
   const isReadOnly = isPreview || disabled
 
   const getAvailableVariablesFor = (currentAssignmentId: string) => {

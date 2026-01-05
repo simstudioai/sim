@@ -8,9 +8,7 @@ export interface KalshiGetBalanceResponse {
   success: boolean
   output: {
     balance: number // In cents
-    portfolioValue?: number // In cents
-    balanceDollars: number // Converted to dollars
-    portfolioValueDollars?: number // Converted to dollars
+    portfolioValue: number // In cents
   }
 }
 
@@ -51,16 +49,14 @@ export const kalshiGetBalanceTool: ToolConfig<KalshiGetBalanceParams, KalshiGetB
       handleKalshiError(data, response.status, 'get_balance')
     }
 
-    const balance = data.balance || 0
-    const portfolioValue = data.portfolio_value
+    const balance = data.balance ?? 0
+    const portfolioValue = data.portfolio_value ?? 0
 
     return {
       success: true,
       output: {
         balance,
         portfolioValue,
-        balanceDollars: balance / 100,
-        portfolioValueDollars: portfolioValue ? portfolioValue / 100 : undefined,
       },
     }
   },
@@ -68,7 +64,5 @@ export const kalshiGetBalanceTool: ToolConfig<KalshiGetBalanceParams, KalshiGetB
   outputs: {
     balance: { type: 'number', description: 'Account balance in cents' },
     portfolioValue: { type: 'number', description: 'Portfolio value in cents' },
-    balanceDollars: { type: 'number', description: 'Account balance in dollars' },
-    portfolioValueDollars: { type: 'number', description: 'Portfolio value in dollars' },
   },
 }

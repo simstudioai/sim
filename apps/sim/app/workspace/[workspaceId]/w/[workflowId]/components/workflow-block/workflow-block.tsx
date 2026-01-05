@@ -1025,7 +1025,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                     Webhook
                   </Badge>
                 </Tooltip.Trigger>
-                <Tooltip.Content side='top' className='max-w-[300px] p-4'>
+                <Tooltip.Content side='top' className='max-w-[300px]'>
                   {webhookProvider && webhookPath ? (
                     <>
                       <p className='text-sm'>{getProviderName(webhookProvider)} Webhook</p>

@@ -16,7 +16,7 @@ export function LinkWithPreview({ href, children }: { href: string; children: Re
           {children}
         </a>
       </Tooltip.Trigger>
-      <Tooltip.Content side='top' align='center' sideOffset={5} className='max-w-sm p-3'>
+      <Tooltip.Content side='top' align='center' sideOffset={5} className='max-w-sm'>
         <span className='truncate font-medium text-xs'>{href}</span>
       </Tooltip.Content>
     </Tooltip.Root>

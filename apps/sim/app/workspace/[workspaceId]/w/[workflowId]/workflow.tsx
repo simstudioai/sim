@@ -165,7 +165,7 @@ const reactFlowStyles = [
   '[&_.react-flow__renderer]:!bg-transparent',
   '[&_.react-flow__background]:hidden',
 ].join(' ')
-const reactFlowFitViewOptions = { padding: 0.6 } as const
+const reactFlowFitViewOptions = { padding: 0.6, maxZoom: 1.0 } as const
 const reactFlowProOptions = { hideAttribution: true } as const
 
 interface SelectedEdgeInfo {
@@ -478,7 +478,7 @@ const WorkflowContent = React.memo(() => {
   /** Connection line style - red for error handles, default otherwise. */
   const connectionLineStyle = useMemo(
     () => ({
-      stroke: isErrorConnectionDrag ? 'var(--text-error)' : 'var(--surface-7)',
+      stroke: isErrorConnectionDrag ? 'var(--text-error)' : 'var(--workflow-edge)',
       strokeWidth: 2,
     }),
     [isErrorConnectionDrag]

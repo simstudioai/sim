@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
+  Badge,
   Breadcrumb,
   Button,
   Checkbox,
@@ -107,14 +108,31 @@ interface DocumentProps {
   documentName?: string
 }
 
-function getStatusBadgeStyles(enabled: boolean) {
-  return enabled
-    ? 'inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400'
-    : 'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-}
-
-function truncateContent(content: string, maxLength = 150): string {
+function truncateContent(content: string, maxLength = 150, searchQuery = ''): string {
   if (content.length <= maxLength) return content
+
+  if (searchQuery.trim()) {
+    const searchTerms = searchQuery
+      .trim()
+      .split(/\s+/)
+      .filter((term) => term.length > 0)
+      .map((term) => term.toLowerCase())
+
+    for (const term of searchTerms) {
+      const matchIndex = content.toLowerCase().indexOf(term)
+      if (matchIndex !== -1) {
+        const contextBefore = 30
+        const start = Math.max(0, matchIndex - contextBefore)
+        const end = Math.min(content.length, start + maxLength)
+
+        let result = content.substring(start, end)
+        if (start > 0) result = `...${result}`
+        if (end < content.length) result = `${result}...`
+        return result
+      }
+    }
+  }
+
   return `${content.substring(0, maxLength)}...`
 }
 
@@ -655,13 +673,21 @@ export function Document({
 
   /**
    * Handle right-click on a chunk row
+   * If right-clicking on an unselected chunk, select only that chunk
+   * If right-clicking on a selected chunk with multiple selections, keep all selections
    */
   const handleChunkContextMenu = useCallback(
     (e: React.MouseEvent, chunk: ChunkData) => {
+      const isCurrentlySelected = selectedChunks.has(chunk.id)
+
+      if (!isCurrentlySelected) {
+        setSelectedChunks(new Set([chunk.id]))
+      }
+
       setContextMenuChunk(chunk)
       baseHandleContextMenu(e)
     },
-    [baseHandleContextMenu]
+    [selectedChunks, baseHandleContextMenu]
   )
 
   /**
@@ -946,106 +972,114 @@ export function Document({
                       </TableCell>
                     </TableRow>
                   ) : (
-                    displayChunks.map((chunk: ChunkData) => (
-                      <TableRow
-                        key={chunk.id}
-                        className='cursor-pointer hover:bg-[var(--surface-2)]'
-                        onClick={() => handleChunkClick(chunk)}
-                        onContextMenu={(e) => handleChunkContextMenu(e, chunk)}
-                      >
-                        <TableCell
-                          className='w-[52px] py-[8px]'
-                          style={{ paddingLeft: '20.5px', paddingRight: 0 }}
+                    displayChunks.map((chunk: ChunkData) => {
+                      const isSelected = selectedChunks.has(chunk.id)
+
+                      return (
+                        <TableRow
+                          key={chunk.id}
+                          className={`${
+                            isSelected
+                              ? 'bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'
+                              : 'hover:bg-[var(--surface-3)] dark:hover:bg-[var(--surface-4)]'
+                          } cursor-pointer`}
+                          onClick={() => handleChunkClick(chunk)}
+                          onContextMenu={(e) => handleChunkContextMenu(e, chunk)}
                         >
-                          <div className='flex items-center'>
-                            <Checkbox
-                              size='sm'
-                              checked={selectedChunks.has(chunk.id)}
-                              onCheckedChange={(checked) =>
-                                handleSelectChunk(chunk.id, checked as boolean)
-                              }
-                              disabled={!userPermissions.canEdit}
-                              aria-label={`Select chunk ${chunk.chunkIndex}`}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </div>
-                        </TableCell>
-                        <TableCell className='w-[60px] py-[8px] pr-[12px] pl-[15px] font-mono text-[14px] text-[var(--text-primary)]'>
-                          {chunk.chunkIndex}
-                        </TableCell>
-                        <TableCell className='px-[12px] py-[8px]'>
-                          <span
-                            className='block min-w-0 truncate text-[14px] text-[var(--text-primary)]'
-                            title={chunk.content}
+                          <TableCell
+                            className='w-[52px] py-[8px]'
+                            style={{ paddingLeft: '20.5px', paddingRight: 0 }}
                           >
-                            <SearchHighlight
-                              text={truncateContent(chunk.content)}
-                              searchQuery={searchQuery}
-                            />
-                          </span>
-                        </TableCell>
-                        <TableCell className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
-                          {chunk.tokenCount > 1000
-                            ? `${(chunk.tokenCount / 1000).toFixed(1)}k`
-                            : chunk.tokenCount}
-                        </TableCell>
-                        <TableCell className='w-[12%] px-[12px] py-[8px]'>
-                          <div className={getStatusBadgeStyles(chunk.enabled)}>
-                            {chunk.enabled ? 'Enabled' : 'Disabled'}
-                          </div>
-                        </TableCell>
-                        <TableCell className='w-[14%] py-[8px] pr-[4px] pl-[12px]'>
-                          <div className='flex items-center gap-[4px]'>
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <Button
-                                  variant='ghost'
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleToggleEnabled(chunk.id)
-                                  }}
-                                  disabled={!userPermissions.canEdit}
-                                  className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50'
-                                >
-                                  {chunk.enabled ? (
-                                    <Circle className='h-[14px] w-[14px]' />
-                                  ) : (
-                                    <CircleOff className='h-[14px] w-[14px]' />
-                                  )}
-                                </Button>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content side='top'>
-                                {!userPermissions.canEdit
-                                  ? 'Write permission required to modify chunks'
-                                  : chunk.enabled
-                                    ? 'Disable Chunk'
-                                    : 'Enable Chunk'}
-                              </Tooltip.Content>
-                            </Tooltip.Root>
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <Button
-                                  variant='ghost'
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleDeleteChunk(chunk.id)
-                                  }}
-                                  disabled={!userPermissions.canEdit}
-                                  className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-error)] disabled:opacity-50'
-                                >
-                                  <Trash className='h-[14px] w-[14px]' />
-                                </Button>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content side='top'>
-                                {!userPermissions.canEdit
-                                  ? 'Write permission required to delete chunks'
-                                  : 'Delete Chunk'}
-                              </Tooltip.Content>
-                            </Tooltip.Root>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                            <div className='flex items-center'>
+                              <Checkbox
+                                size='sm'
+                                checked={selectedChunks.has(chunk.id)}
+                                onCheckedChange={(checked) =>
+                                  handleSelectChunk(chunk.id, checked as boolean)
+                                }
+                                disabled={!userPermissions.canEdit}
+                                aria-label={`Select chunk ${chunk.chunkIndex}`}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell className='w-[60px] py-[8px] pr-[12px] pl-[15px] font-mono text-[14px] text-[var(--text-primary)]'>
+                            {chunk.chunkIndex}
+                          </TableCell>
+                          <TableCell className='px-[12px] py-[8px]'>
+                            <span
+                              className='block min-w-0 truncate text-[14px] text-[var(--text-primary)]'
+                              title={chunk.content}
+                            >
+                              <SearchHighlight
+                                text={truncateContent(chunk.content, 150, searchQuery)}
+                                searchQuery={searchQuery}
+                              />
+                            </span>
+                          </TableCell>
+                          <TableCell className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
+                            {chunk.tokenCount > 1000
+                              ? `${(chunk.tokenCount / 1000).toFixed(1)}k`
+                              : chunk.tokenCount.toLocaleString()}
+                          </TableCell>
+                          <TableCell className='w-[12%] px-[12px] py-[8px]'>
+                            <Badge variant={chunk.enabled ? 'green' : 'gray'} size='sm'>
+                              {chunk.enabled ? 'Enabled' : 'Disabled'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className='w-[14%] py-[8px] pr-[4px] pl-[12px]'>
+                            <div className='flex items-center gap-[4px]'>
+                              <Tooltip.Root>
+                                <Tooltip.Trigger asChild>
+                                  <Button
+                                    variant='ghost'
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleToggleEnabled(chunk.id)
+                                    }}
+                                    disabled={!userPermissions.canEdit}
+                                    className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50'
+                                  >
+                                    {chunk.enabled ? (
+                                      <Circle className='h-[14px] w-[14px]' />
+                                    ) : (
+                                      <CircleOff className='h-[14px] w-[14px]' />
+                                    )}
+                                  </Button>
+                                </Tooltip.Trigger>
+                                <Tooltip.Content side='top'>
+                                  {!userPermissions.canEdit
+                                    ? 'Write permission required to modify chunks'
+                                    : chunk.enabled
+                                      ? 'Disable Chunk'
+                                      : 'Enable Chunk'}
+                                </Tooltip.Content>
+                              </Tooltip.Root>
+                              <Tooltip.Root>
+                                <Tooltip.Trigger asChild>
+                                  <Button
+                                    variant='ghost'
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDeleteChunk(chunk.id)
+                                    }}
+                                    disabled={!userPermissions.canEdit}
+                                    className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-error)] disabled:opacity-50'
+                                  >
+                                    <Trash className='h-[14px] w-[14px]' />
+                                  </Button>
+                                </Tooltip.Trigger>
+                                <Tooltip.Content side='top'>
+                                  {!userPermissions.canEdit
+                                    ? 'Write permission required to delete chunks'
+                                    : 'Delete Chunk'}
+                                </Tooltip.Content>
+                              </Tooltip.Root>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -1206,8 +1240,11 @@ export function Document({
         onClose={handleContextMenuClose}
         hasChunk={contextMenuChunk !== null}
         isChunkEnabled={contextMenuChunk?.enabled ?? true}
+        selectedCount={selectedChunks.size}
+        enabledCount={enabledCount}
+        disabledCount={disabledCount}
         onOpenInNewTab={
-          contextMenuChunk
+          contextMenuChunk && selectedChunks.size === 1
             ? () => {
                 const url = `/workspace/${workspaceId}/knowledge/${knowledgeBaseId}/${documentId}?chunk=${contextMenuChunk.id}`
                 window.open(url, '_blank')
@@ -1215,7 +1252,7 @@ export function Document({
             : undefined
         }
         onEdit={
-          contextMenuChunk
+          contextMenuChunk && selectedChunks.size === 1
             ? () => {
                 setSelectedChunk(contextMenuChunk)
                 setIsModalOpen(true)
@@ -1223,7 +1260,7 @@ export function Document({
             : undefined
         }
         onCopyContent={
-          contextMenuChunk
+          contextMenuChunk && selectedChunks.size === 1
             ? () => {
                 navigator.clipboard.writeText(contextMenuChunk.content)
               }
@@ -1231,12 +1268,22 @@ export function Document({
         }
         onToggleEnabled={
           contextMenuChunk && userPermissions.canEdit
-            ? () => handleToggleEnabled(contextMenuChunk.id)
+            ? selectedChunks.size > 1
+              ? () => {
+                  if (disabledCount > 0) {
+                    handleBulkEnable()
+                  } else {
+                    handleBulkDisable()
+                  }
+                }
+              : () => handleToggleEnabled(contextMenuChunk.id)
             : undefined
         }
         onDelete={
           contextMenuChunk && userPermissions.canEdit
-            ? () => handleDeleteChunk(contextMenuChunk.id)
+            ? selectedChunks.size > 1
+              ? handleBulkDelete
+              : () => handleDeleteChunk(contextMenuChunk.id)
             : undefined
         }
         onAddChunk={

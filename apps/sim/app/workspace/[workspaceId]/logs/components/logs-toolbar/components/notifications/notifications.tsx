@@ -185,18 +185,16 @@ export function NotificationSettings({
 
   const hasSubscriptions = filteredSubscriptions.length > 0
 
+  // Compute form visibility synchronously to avoid empty state flash
+  // Show form if user explicitly opened it OR if loading is complete with no subscriptions
+  const displayForm = showForm || (!isLoading && !hasSubscriptions && !editingId)
+
   const getSubscriptionsForTab = useCallback(
     (tab: NotificationType) => {
       return subscriptions.filter((s) => s.notificationType === tab)
     },
     [subscriptions]
   )
-
-  useEffect(() => {
-    if (!isLoading && !hasSubscriptions && !editingId) {
-      setShowForm(true)
-    }
-  }, [isLoading, hasSubscriptions, editingId, activeTab])
 
   const resetForm = useCallback(() => {
     setFormData({
@@ -1210,7 +1208,7 @@ export function NotificationSettings({
   )
 
   const renderTabContent = () => {
-    if (showForm) {
+    if (displayForm) {
       return renderForm()
     }
 
@@ -1279,7 +1277,7 @@ export function NotificationSettings({
           </ModalTabs>
 
           <ModalFooter>
-            {showForm ? (
+            {displayForm ? (
               <>
                 {hasSubscriptions && (
                   <Button
