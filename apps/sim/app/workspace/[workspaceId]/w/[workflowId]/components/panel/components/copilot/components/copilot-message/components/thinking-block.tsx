@@ -5,72 +5,19 @@ import clsx from 'clsx'
 import { ChevronUp } from 'lucide-react'
 
 /**
+ * Max height for thinking content before internal scrolling kicks in
+ */
+const THINKING_MAX_HEIGHT = 125
+
+/**
+ * Interval for auto-scroll during streaming (ms)
+ */
+const SCROLL_INTERVAL = 100
+
+/**
  * Timer update interval in milliseconds
  */
 const TIMER_UPDATE_INTERVAL = 100
-
-/**
- * Milliseconds threshold for displaying as seconds
- */
-const SECONDS_THRESHOLD = 1000
-
-/**
- * Props for the ShimmerOverlayText component
- */
-interface ShimmerOverlayTextProps {
-  /** Label text to display */
-  label: string
-  /** Value text to display */
-  value: string
-  /** Whether the shimmer animation is active */
-  active?: boolean
-}
-
-/**
- * ShimmerOverlayText component for thinking block
- * Applies shimmer effect to the "Thought for X.Xs" text during streaming
- *
- * @param props - Component props
- * @returns Text with optional shimmer overlay effect
- */
-function ShimmerOverlayText({ label, value, active = false }: ShimmerOverlayTextProps) {
-  return (
-    <span className='relative inline-block'>
-      <span className='text-[var(--text-tertiary)]'>{label}</span>
-      <span className='text-[var(--text-muted)]'>{value}</span>
-      {active ? (
-        <span
-          aria-hidden='true'
-          className='pointer-events-none absolute inset-0 select-none overflow-hidden'
-        >
-          <span
-            className='block text-transparent'
-            style={{
-              backgroundImage:
-                'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0) 100%)',
-              backgroundSize: '200% 100%',
-              backgroundRepeat: 'no-repeat',
-              WebkitBackgroundClip: 'text',
-              backgroundClip: 'text',
-              animation: 'thinking-shimmer 1.4s ease-in-out infinite',
-              mixBlendMode: 'screen',
-            }}
-          >
-            {label}
-            {value}
-          </span>
-        </span>
-      ) : null}
-      <style>{`
-        @keyframes thinking-shimmer {
-          0% { background-position: 150% 0; }
-          50% { background-position: 0% 0; }
-          100% { background-position: -150% 0; }
-        }
-      `}</style>
-    </span>
-  )
-}
 
 /**
  * Props for the ThinkingBlock component
@@ -80,16 +27,15 @@ interface ThinkingBlockProps {
   content: string
   /** Whether the block is currently streaming */
   isStreaming?: boolean
-  /** Persisted duration from content block */
-  duration?: number
-  /** Persisted start time from content block */
-  startTime?: number
+  /** Whether there are more content blocks after this one (e.g., tool calls) */
+  hasFollowingContent?: boolean
 }
 
 /**
  * ThinkingBlock component displays AI reasoning/thinking process
  * Shows collapsible content with duration timer
  * Auto-expands during streaming and collapses when complete
+ * Auto-collapses when a tool call or other content comes in after it
  *
  * @param props - Component props
  * @returns Thinking block with expandable content and timer
@@ -97,29 +43,21 @@ interface ThinkingBlockProps {
 export function ThinkingBlock({
   content,
   isStreaming = false,
-  duration: persistedDuration,
-  startTime: persistedStartTime,
+  hasFollowingContent = false,
 }: ThinkingBlockProps) {
   const [isExpanded, setIsExpanded] = useState(false)
-  const [duration, setDuration] = useState(persistedDuration ?? 0)
+  const [duration, setDuration] = useState(0)
   const userCollapsedRef = useRef<boolean>(false)
-  const startTimeRef = useRef<number>(persistedStartTime ?? Date.now())
-
-  /**
-   * Updates start time reference when persisted start time changes
-   */
-  useEffect(() => {
-    if (typeof persistedStartTime === 'number') {
-      startTimeRef.current = persistedStartTime
-    }
-  }, [persistedStartTime])
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const startTimeRef = useRef<number>(Date.now())
 
   /**
    * Auto-expands block when streaming with content
-   * Auto-collapses when streaming ends
+   * Auto-collapses when streaming ends OR when following content arrives
    */
   useEffect(() => {
-    if (!isStreaming) {
+    // Collapse if streaming ended or if there's following content (like a tool call)
+    if (!isStreaming || hasFollowingContent) {
       setIsExpanded(false)
       userCollapsedRef.current = false
       return
@@ -128,42 +66,57 @@ export function ThinkingBlock({
     if (!userCollapsedRef.current && content && content.trim().length > 0) {
       setIsExpanded(true)
     }
-  }, [isStreaming, content])
+  }, [isStreaming, content, hasFollowingContent])
 
-  /**
-   * Updates duration timer during streaming
-   * Uses persisted duration when available
-   */
+  // Reset start time when streaming begins
   useEffect(() => {
-    if (typeof persistedDuration === 'number') {
-      setDuration(persistedDuration)
-      return
+    if (isStreaming && !hasFollowingContent) {
+      startTimeRef.current = Date.now()
+      setDuration(0)
     }
+  }, [isStreaming, hasFollowingContent])
 
-    if (isStreaming) {
-      const interval = setInterval(() => {
-        setDuration(Date.now() - startTimeRef.current)
-      }, TIMER_UPDATE_INTERVAL)
-      return () => clearInterval(interval)
-    }
+  // Update duration timer during streaming (stop when following content arrives)
+  useEffect(() => {
+    // Stop timer if not streaming or if there's following content (thinking is done)
+    if (!isStreaming || hasFollowingContent) return
 
-    setDuration(Date.now() - startTimeRef.current)
-  }, [isStreaming, persistedDuration])
+    const interval = setInterval(() => {
+      setDuration(Date.now() - startTimeRef.current)
+    }, TIMER_UPDATE_INTERVAL)
+
+    return () => clearInterval(interval)
+  }, [isStreaming, hasFollowingContent])
+
+  // Auto-scroll to bottom during streaming using interval (same as copilot chat)
+  useEffect(() => {
+    if (!isStreaming || !isExpanded) return
+
+    const intervalId = window.setInterval(() => {
+      const container = scrollContainerRef.current
+      if (!container) return
+
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth',
+      })
+    }, SCROLL_INTERVAL)
+
+    return () => window.clearInterval(intervalId)
+  }, [isStreaming, isExpanded])
 
   /**
-   * Formats duration in milliseconds to human-readable format
-   * @param ms - Duration in milliseconds
-   * @returns Formatted string (e.g., "150ms" or "2.5s")
+   * Formats duration in milliseconds to seconds
+   * Always shows seconds, rounded to nearest whole second, minimum 1s
    */
   const formatDuration = (ms: number) => {
-    if (ms < SECONDS_THRESHOLD) {
-      return `${ms}ms`
-    }
-    const seconds = (ms / SECONDS_THRESHOLD).toFixed(1)
+    const seconds = Math.max(1, Math.round(ms / 1000))
     return `${seconds}s`
   }
 
   const hasContent = content && content.trim().length > 0
+  const label = isStreaming ? 'Thinking' : 'Thought'
+  const durationText = ` for ${formatDuration(duration)}`
 
   return (
     <div className='mt-1 mb-0'>
@@ -180,21 +133,54 @@ export function ThinkingBlock({
         type='button'
         disabled={!hasContent}
       >
-        <ShimmerOverlayText
-          label='Thought'
-          value={` for ${formatDuration(duration)}`}
-          active={isStreaming}
-        />
+        <span className='relative inline-block'>
+          <span className='text-[var(--text-tertiary)]'>{label}</span>
+          <span className='text-[var(--text-muted)]'>{durationText}</span>
+          {isStreaming && (
+            <span
+              aria-hidden='true'
+              className='pointer-events-none absolute inset-0 select-none overflow-hidden'
+            >
+              <span
+                className='block text-transparent'
+                style={{
+                  backgroundImage:
+                    'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0) 100%)',
+                  backgroundSize: '200% 100%',
+                  backgroundRepeat: 'no-repeat',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  animation: 'thinking-shimmer 1.4s ease-in-out infinite',
+                  mixBlendMode: 'screen',
+                }}
+              >
+                {label}
+                {durationText}
+              </span>
+            </span>
+          )}
+          <style>{`
+            @keyframes thinking-shimmer {
+              0% { background-position: 150% 0; }
+              50% { background-position: 0% 0; }
+              100% { background-position: -150% 0; }
+            }
+          `}</style>
+        </span>
         {hasContent && (
           <ChevronUp
-            className={clsx('h-3 w-3 transition-transform', isExpanded && 'rotate-180')}
+            className={clsx('h-3 w-3 transition-transform', isExpanded ? 'rotate-180' : 'rotate-90')}
             aria-hidden='true'
           />
         )}
       </button>
 
       {isExpanded && (
-        <div className='ml-1 border-[var(--border-1)] border-l-2 pl-2'>
+        <div
+          ref={scrollContainerRef}
+          className='ml-1 overflow-y-auto border-[var(--border-1)] border-l-2 pl-2'
+          style={{ maxHeight: THINKING_MAX_HEIGHT }}
+        >
           <pre className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-tertiary)] leading-[1.15rem]'>
             {content}
             {isStreaming && (

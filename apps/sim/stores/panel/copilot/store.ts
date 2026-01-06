@@ -33,6 +33,7 @@ import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
 import { RememberDebugClientTool } from '@/lib/copilot/tools/client/other/remember-debug'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
 import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
+import { DebugClientTool } from '@/lib/copilot/tools/client/other/debug'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
 import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
 import { SleepClientTool } from '@/lib/copilot/tools/client/other/sleep'
@@ -78,6 +79,7 @@ try {
 
 // Known class-based client tools: map tool name -> instantiator
 const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
+  debug: (id) => new DebugClientTool(id),
   run_workflow: (id) => new RunWorkflowClientTool(id),
   get_workflow_console: (id) => new GetWorkflowConsoleClientTool(id),
   get_blocks_and_tools: (id) => new GetBlocksAndToolsClientTool(id),
@@ -120,6 +122,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
 
 // Read-only static metadata for class-based tools (no instances)
 export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefined> = {
+  debug: (DebugClientTool as any)?.metadata,
   run_workflow: (RunWorkflowClientTool as any)?.metadata,
   get_workflow_console: (GetWorkflowConsoleClientTool as any)?.metadata,
   get_blocks_and_tools: (GetBlocksAndToolsClientTool as any)?.metadata,
@@ -650,6 +653,14 @@ interface StreamingContext {
   newChatId?: string
   doneEventCount: number
   streamComplete?: boolean
+  /** Track active subagent sessions by parent tool call ID */
+  subAgentParentToolCallId?: string
+  /** Track subagent content per parent tool call */
+  subAgentContent: Record<string, string>
+  /** Track subagent tool calls per parent tool call */
+  subAgentToolCalls: Record<string, CopilotToolCall[]>
+  /** Track subagent streaming blocks per parent tool call */
+  subAgentBlocks: Record<string, any[]>
 }
 
 type SSEHandler = (
@@ -1472,6 +1483,304 @@ const sseHandlers: Record<string, SSEHandler> = {
     updateStreamingMessage(set, context)
   },
   default: () => {},
+}
+
+/**
+ * Helper to update a tool call with subagent data in both toolCallsById and contentBlocks
+ */
+function updateToolCallWithSubAgentData(
+  context: StreamingContext,
+  get: () => CopilotStore,
+  set: any,
+  parentToolCallId: string
+) {
+  const { toolCallsById } = get()
+  const parentToolCall = toolCallsById[parentToolCallId]
+  if (!parentToolCall) {
+    logger.warn('[SubAgent] updateToolCallWithSubAgentData: parent tool call not found', {
+      parentToolCallId,
+      availableToolCallIds: Object.keys(toolCallsById),
+    })
+    return
+  }
+
+  // Prepare subagent blocks array for ordered display
+  const blocks = context.subAgentBlocks[parentToolCallId] || []
+
+  const updatedToolCall: CopilotToolCall = {
+    ...parentToolCall,
+    subAgentContent: context.subAgentContent[parentToolCallId] || '',
+    subAgentToolCalls: context.subAgentToolCalls[parentToolCallId] || [],
+    subAgentBlocks: blocks,
+    subAgentStreaming: true,
+  }
+
+  logger.info('[SubAgent] Updating tool call with subagent data', {
+    parentToolCallId,
+    parentToolName: parentToolCall.name,
+    subAgentContentLength: updatedToolCall.subAgentContent?.length,
+    subAgentBlocksCount: updatedToolCall.subAgentBlocks?.length,
+    subAgentToolCallsCount: updatedToolCall.subAgentToolCalls?.length,
+  })
+
+  // Update in toolCallsById
+  const updatedMap = { ...toolCallsById, [parentToolCallId]: updatedToolCall }
+  set({ toolCallsById: updatedMap })
+
+  // Update in contentBlocks
+  let foundInContentBlocks = false
+  for (let i = 0; i < context.contentBlocks.length; i++) {
+    const b = context.contentBlocks[i] as any
+    if (b.type === 'tool_call' && b.toolCall?.id === parentToolCallId) {
+      context.contentBlocks[i] = { ...b, toolCall: updatedToolCall }
+      foundInContentBlocks = true
+      break
+    }
+  }
+
+  if (!foundInContentBlocks) {
+    logger.warn('[SubAgent] Parent tool call not found in contentBlocks', {
+      parentToolCallId,
+      contentBlocksCount: context.contentBlocks.length,
+      toolCallBlockIds: context.contentBlocks
+        .filter((b: any) => b.type === 'tool_call')
+        .map((b: any) => b.toolCall?.id),
+    })
+  }
+
+  updateStreamingMessage(set, context)
+}
+
+/**
+ * SSE handlers for subagent events (events with subagent field set)
+ * These handle content and tool calls from subagents like debug
+ */
+const subAgentSSEHandlers: Record<string, SSEHandler> = {
+  // Handle subagent response start (ignore - just a marker)
+  start: () => {
+    // Subagent start event - no action needed, parent is already tracked from subagent_start
+  },
+
+  // Handle subagent text content (reasoning/thinking)
+  content: (data, context, get, set) => {
+    const parentToolCallId = context.subAgentParentToolCallId
+    logger.info('[SubAgent] content event', {
+      parentToolCallId,
+      hasData: !!data.data,
+      dataPreview: typeof data.data === 'string' ? data.data.substring(0, 50) : null,
+    })
+    if (!parentToolCallId || !data.data) {
+      logger.warn('[SubAgent] content missing parentToolCallId or data', {
+        parentToolCallId,
+        hasData: !!data.data,
+      })
+      return
+    }
+
+    // Initialize if needed
+    if (!context.subAgentContent[parentToolCallId]) {
+      context.subAgentContent[parentToolCallId] = ''
+    }
+    if (!context.subAgentBlocks[parentToolCallId]) {
+      context.subAgentBlocks[parentToolCallId] = []
+    }
+
+    // Append content
+    context.subAgentContent[parentToolCallId] += data.data
+
+    // Update or create the last text block in subAgentBlocks
+    const blocks = context.subAgentBlocks[parentToolCallId]
+    const lastBlock = blocks[blocks.length - 1]
+    if (lastBlock && lastBlock.type === 'subagent_text') {
+      lastBlock.content = (lastBlock.content || '') + data.data
+    } else {
+      blocks.push({
+        type: 'subagent_text',
+        content: data.data,
+        timestamp: Date.now(),
+      })
+    }
+
+    updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
+  },
+
+  // Handle subagent reasoning (same as content for subagent display purposes)
+  reasoning: (data, context, get, set) => {
+    const parentToolCallId = context.subAgentParentToolCallId
+    const phase = data?.phase || data?.data?.phase
+    if (!parentToolCallId) return
+
+    // Initialize if needed
+    if (!context.subAgentContent[parentToolCallId]) {
+      context.subAgentContent[parentToolCallId] = ''
+    }
+    if (!context.subAgentBlocks[parentToolCallId]) {
+      context.subAgentBlocks[parentToolCallId] = []
+    }
+
+    // For reasoning, we just append the content (treating start/end as markers)
+    if (phase === 'start' || phase === 'end') return
+
+    const chunk = typeof data?.data === 'string' ? data.data : data?.content || ''
+    if (!chunk) return
+
+    context.subAgentContent[parentToolCallId] += chunk
+
+    // Update or create the last text block in subAgentBlocks
+    const blocks = context.subAgentBlocks[parentToolCallId]
+    const lastBlock = blocks[blocks.length - 1]
+    if (lastBlock && lastBlock.type === 'subagent_text') {
+      lastBlock.content = (lastBlock.content || '') + chunk
+    } else {
+      blocks.push({
+        type: 'subagent_text',
+        content: chunk,
+        timestamp: Date.now(),
+      })
+    }
+
+    updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
+  },
+
+  // Handle subagent tool_generating (tool is being generated)
+  tool_generating: () => {
+    // Tool generating event - no action needed, we'll handle the actual tool_call
+  },
+
+  // Handle subagent tool calls - also execute client tools
+  tool_call: async (data, context, get, set) => {
+    const parentToolCallId = context.subAgentParentToolCallId
+    if (!parentToolCallId) return
+
+    const toolData = data?.data || {}
+    const id: string | undefined = toolData.id || data?.toolCallId
+    const name: string | undefined = toolData.name || data?.toolName
+    if (!id || !name) return
+
+    const args = toolData.arguments
+
+    // Initialize if needed
+    if (!context.subAgentToolCalls[parentToolCallId]) {
+      context.subAgentToolCalls[parentToolCallId] = []
+    }
+    if (!context.subAgentBlocks[parentToolCallId]) {
+      context.subAgentBlocks[parentToolCallId] = []
+    }
+
+    // Ensure client tool instance is registered (for execution)
+    ensureClientToolInstance(name, id)
+
+    // Create or update the subagent tool call
+    const existingIndex = context.subAgentToolCalls[parentToolCallId].findIndex((tc) => tc.id === id)
+    const subAgentToolCall: CopilotToolCall = {
+      id,
+      name,
+      state: ClientToolCallState.pending,
+      ...(args ? { params: args } : {}),
+      display: resolveToolDisplay(name, ClientToolCallState.pending, id, args),
+    }
+
+    if (existingIndex >= 0) {
+      context.subAgentToolCalls[parentToolCallId][existingIndex] = subAgentToolCall
+    } else {
+      context.subAgentToolCalls[parentToolCallId].push(subAgentToolCall)
+
+      // Also add to ordered blocks
+      context.subAgentBlocks[parentToolCallId].push({
+        type: 'subagent_tool_call',
+        toolCall: subAgentToolCall,
+        timestamp: Date.now(),
+      })
+    }
+
+    // Also add to main toolCallsById for proper tool execution
+    const { toolCallsById } = get()
+    const updated = { ...toolCallsById, [id]: subAgentToolCall }
+    set({ toolCallsById: updated })
+
+    updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
+
+    // Execute client tools (same logic as main tool_call handler)
+    try {
+      const def = getTool(name)
+      if (def) {
+        const hasInterrupt =
+          typeof def.hasInterrupt === 'function' ? !!def.hasInterrupt(args || {}) : !!def.hasInterrupt
+        if (!hasInterrupt) {
+          // Auto-execute tools without interrupts
+          const ctx = createExecutionContext({ toolCallId: id, toolName: name })
+          try {
+            await def.execute(args || {}, ctx)
+          } catch (execErr: any) {
+            logger.error('[SubAgent] Tool execution failed', { id, name, error: execErr?.message })
+          }
+        }
+      } else {
+        // Fallback to class-based tools
+        const instance = getClientTool(id)
+        if (instance) {
+          const hasInterruptDisplays = !!instance.getInterruptDisplays?.()
+          if (!hasInterruptDisplays) {
+            try {
+              await instance.execute(args)
+            } catch (execErr: any) {
+              logger.error('[SubAgent] Class tool execution failed', { id, name, error: execErr?.message })
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      logger.error('[SubAgent] Tool registry/execution error', { id, name, error: e?.message })
+    }
+  },
+
+  // Handle subagent tool results
+  tool_result: (data, context, get, set) => {
+    const parentToolCallId = context.subAgentParentToolCallId
+    if (!parentToolCallId) return
+
+    const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
+    const success: boolean | undefined = data?.success !== false // Default to true if not specified
+    if (!toolCallId) return
+
+    // Initialize if needed
+    if (!context.subAgentToolCalls[parentToolCallId]) return
+    if (!context.subAgentBlocks[parentToolCallId]) return
+
+    // Update the subagent tool call state
+    const targetState = success ? ClientToolCallState.success : ClientToolCallState.error
+    const existingIndex = context.subAgentToolCalls[parentToolCallId].findIndex(
+      (tc) => tc.id === toolCallId
+    )
+
+    if (existingIndex >= 0) {
+      const existing = context.subAgentToolCalls[parentToolCallId][existingIndex]
+      context.subAgentToolCalls[parentToolCallId][existingIndex] = {
+        ...existing,
+        state: targetState,
+        display: resolveToolDisplay(existing.name, targetState, toolCallId, existing.params),
+      }
+
+      // Also update in ordered blocks
+      for (const block of context.subAgentBlocks[parentToolCallId]) {
+        if (block.type === 'subagent_tool_call' && block.toolCall?.id === toolCallId) {
+          block.toolCall = context.subAgentToolCalls[parentToolCallId][existingIndex]
+          break
+        }
+      }
+    }
+
+    updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
+  },
+
+  // Handle subagent stream done - just update the streaming state
+  done: (data, context, get, set) => {
+    const parentToolCallId = context.subAgentParentToolCallId
+    if (!parentToolCallId) return
+
+    // Update the tool call with final content but keep streaming true until subagent_end
+    updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
+  },
 }
 
 // Debounced UI update queue for smoother streaming
@@ -2540,6 +2849,9 @@ export const useCopilotStore = create<CopilotStore>()(
         designWorkflowContent: '',
         pendingContent: '',
         doneEventCount: 0,
+        subAgentContent: {},
+        subAgentToolCalls: {},
+        subAgentBlocks: {},
       }
 
       if (isContinuation) {
@@ -2562,6 +2874,99 @@ export const useCopilotStore = create<CopilotStore>()(
         for await (const data of parseSSEStream(reader, decoder)) {
           const { abortController } = get()
           if (abortController?.signal.aborted) break
+
+          // Log SSE events for debugging
+          logger.info('[SSE] Received event', {
+            type: data.type,
+            hasSubAgent: !!data.subagent,
+            subagent: data.subagent,
+            dataPreview:
+              typeof data.data === 'string'
+                ? data.data.substring(0, 100)
+                : JSON.stringify(data.data)?.substring(0, 100),
+          })
+
+          // Handle subagent_start to track parent tool call
+          if (data.type === 'subagent_start') {
+            const toolCallId = data.data?.tool_call_id
+            if (toolCallId) {
+              context.subAgentParentToolCallId = toolCallId
+              // Mark the parent tool call as streaming
+              const { toolCallsById } = get()
+              const parentToolCall = toolCallsById[toolCallId]
+              if (parentToolCall) {
+                const updatedToolCall: CopilotToolCall = {
+                  ...parentToolCall,
+                  subAgentStreaming: true,
+                }
+                const updatedMap = { ...toolCallsById, [toolCallId]: updatedToolCall }
+                set({ toolCallsById: updatedMap })
+              }
+              logger.info('[SSE] Subagent session started', {
+                subagent: data.subagent,
+                parentToolCallId: toolCallId,
+              })
+            }
+            continue
+          }
+
+          // Handle subagent_end to finalize subagent content
+          if (data.type === 'subagent_end') {
+            const parentToolCallId = context.subAgentParentToolCallId
+            if (parentToolCallId) {
+              // Mark subagent streaming as complete
+              const { toolCallsById } = get()
+              const parentToolCall = toolCallsById[parentToolCallId]
+              if (parentToolCall) {
+                const updatedToolCall: CopilotToolCall = {
+                  ...parentToolCall,
+                  subAgentContent: context.subAgentContent[parentToolCallId] || '',
+                  subAgentToolCalls: context.subAgentToolCalls[parentToolCallId] || [],
+                  subAgentBlocks: context.subAgentBlocks[parentToolCallId] || [],
+                  subAgentStreaming: false, // Done streaming
+                }
+                const updatedMap = { ...toolCallsById, [parentToolCallId]: updatedToolCall }
+                set({ toolCallsById: updatedMap })
+                logger.info('[SSE] Subagent session ended', {
+                  subagent: data.subagent,
+                  parentToolCallId,
+                  contentLength: context.subAgentContent[parentToolCallId]?.length || 0,
+                  toolCallCount: context.subAgentToolCalls[parentToolCallId]?.length || 0,
+                })
+              }
+            }
+            context.subAgentParentToolCallId = undefined
+            continue
+          }
+
+          // Check if this is a subagent event (has subagent field)
+          if (data.subagent) {
+            const parentToolCallId = context.subAgentParentToolCallId
+            if (!parentToolCallId) {
+              logger.warn('[SSE] Subagent event without parent tool call ID', {
+                type: data.type,
+                subagent: data.subagent,
+              })
+              continue
+            }
+            
+            logger.info('[SSE] Processing subagent event', {
+              type: data.type,
+              subagent: data.subagent,
+              parentToolCallId,
+              hasHandler: !!subAgentSSEHandlers[data.type],
+            })
+            
+            const subAgentHandler = subAgentSSEHandlers[data.type]
+            if (subAgentHandler) {
+              await subAgentHandler(data, context, get, set)
+            } else {
+              logger.warn('[SSE] No handler for subagent event type', { type: data.type })
+            }
+            // Skip regular handlers for subagent events
+            if (context.streamComplete) break
+            continue
+          }
 
           const handler = sseHandlers[data.type] || sseHandlers.default
           await handler(data, context, get, set)

@@ -2,12 +2,30 @@ import type { ClientToolCallState, ClientToolDisplay } from '@/lib/copilot/tools
 
 export type ToolState = ClientToolCallState
 
+/**
+ * Subagent content block for nested thinking/reasoning inside a tool call
+ */
+export interface SubAgentContentBlock {
+  type: 'subagent_text' | 'subagent_tool_call'
+  content?: string
+  toolCall?: CopilotToolCall
+  timestamp: number
+}
+
 export interface CopilotToolCall {
   id: string
   name: string
   state: ClientToolCallState
   params?: Record<string, any>
   display?: ClientToolDisplay
+  /** Content streamed from a subagent (e.g., debug agent) */
+  subAgentContent?: string
+  /** Tool calls made by the subagent */
+  subAgentToolCalls?: CopilotToolCall[]
+  /** Structured content blocks for subagent (thinking + tool calls in order) */
+  subAgentBlocks?: SubAgentContentBlock[]
+  /** Whether subagent is currently streaming */
+  subAgentStreaming?: boolean
 }
 
 export interface MessageFileAttachment {

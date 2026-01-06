@@ -201,19 +201,14 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           )
         }
         if (block.type === 'thinking') {
-          const isLastBlock = index === message.contentBlocks!.length - 1
-          // Consider the thinking block streaming if the overall message is streaming
-          // and the block has not been finalized with a duration yet. This avoids
-          // freezing the timer when new blocks are appended after the thinking block.
-          const isStreamingThinking = isStreaming && (block as any).duration == null
-
+          // Check if there are any blocks after this one (tool calls, text, etc.)
+          const hasFollowingContent = index < message.contentBlocks!.length - 1
           return (
             <div key={`thinking-${index}-${block.timestamp || index}`} className='w-full'>
               <ThinkingBlock
                 content={block.content}
-                isStreaming={isStreamingThinking}
-                duration={block.duration}
-                startTime={block.startTime}
+                isStreaming={isStreaming}
+                hasFollowingContent={hasFollowingContent}
               />
             </div>
           )

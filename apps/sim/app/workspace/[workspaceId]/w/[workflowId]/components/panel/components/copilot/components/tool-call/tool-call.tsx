@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import clsx from 'clsx'
+import { ChevronUp } from 'lucide-react'
 import { Button, Code } from '@/components/emcn'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
 import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/panel/copilot/store'
-import type { CopilotToolCall } from '@/stores/panel/copilot/types'
+import type { CopilotToolCall, SubAgentContentBlock } from '@/stores/panel/copilot/types'
 
 interface ToolCallProps {
   toolCall?: CopilotToolCall
@@ -223,6 +225,213 @@ function ShimmerOverlayText({
         }
       `}</style>
     </span>
+  )
+}
+
+/**
+ * SubAgentToolCall renders a nested tool call from a subagent in a muted/thinking style.
+ */
+function SubAgentToolCall({ toolCall }: { toolCall: CopilotToolCall }) {
+  const displayName = getDisplayNameForSubAgent(toolCall)
+
+  const isLoading =
+    toolCall.state === ClientToolCallState.pending ||
+    toolCall.state === ClientToolCallState.executing
+
+  return (
+    <div className='py-0.5'>
+      <span className='relative inline-block font-[470] font-season text-[12px] text-[var(--text-tertiary)]'>
+        {displayName}
+        {isLoading && (
+          <span
+            aria-hidden='true'
+            className='pointer-events-none absolute inset-0 select-none overflow-hidden'
+          >
+            <span
+              className='block text-transparent'
+              style={{
+                backgroundImage:
+                  'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0) 100%)',
+                backgroundSize: '200% 100%',
+                backgroundRepeat: 'no-repeat',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                animation: 'subagent-shimmer 1.4s ease-in-out infinite',
+                mixBlendMode: 'screen',
+              }}
+            >
+              {displayName}
+            </span>
+          </span>
+        )}
+      </span>
+      <style>{`
+        @keyframes subagent-shimmer {
+          0% { background-position: 150% 0; }
+          50% { background-position: 0% 0; }
+          100% { background-position: -150% 0; }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+/**
+ * Get display name for subagent tool calls
+ */
+function getDisplayNameForSubAgent(toolCall: CopilotToolCall): string {
+  const fromStore = toolCall.display?.text
+  if (fromStore) return fromStore
+
+  const stateVerb = getStateVerb(toolCall.state)
+  const formattedName = formatToolName(toolCall.name)
+  return `${stateVerb} ${formattedName}`
+}
+
+/**
+ * Max height for subagent content before internal scrolling kicks in
+ */
+const SUBAGENT_MAX_HEIGHT = 125
+
+/**
+ * Interval for auto-scroll during streaming (ms)
+ */
+const SUBAGENT_SCROLL_INTERVAL = 100
+
+/**
+ * SubAgentContent renders the streamed content and tool calls from a subagent
+ * with thinking-style styling (same as ThinkingBlock).
+ * Auto-collapses when streaming ends and has internal scrolling for long content.
+ */
+function SubAgentContent({
+  blocks,
+  isStreaming = false,
+}: {
+  blocks?: SubAgentContentBlock[]
+  isStreaming?: boolean
+}) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const userCollapsedRef = useRef<boolean>(false)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // Auto-expand when streaming with content, auto-collapse when done
+  useEffect(() => {
+    if (!isStreaming) {
+      setIsExpanded(false)
+      userCollapsedRef.current = false
+      return
+    }
+
+    if (!userCollapsedRef.current && blocks && blocks.length > 0) {
+      setIsExpanded(true)
+    }
+  }, [isStreaming, blocks])
+
+  // Auto-scroll to bottom during streaming using interval (same as copilot chat)
+  useEffect(() => {
+    if (!isStreaming || !isExpanded) return
+
+    const intervalId = window.setInterval(() => {
+      const container = scrollContainerRef.current
+      if (!container) return
+
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth',
+      })
+    }, SUBAGENT_SCROLL_INTERVAL)
+
+    return () => window.clearInterval(intervalId)
+  }, [isStreaming, isExpanded])
+
+  if (!blocks || blocks.length === 0) return null
+
+  const hasContent = blocks.length > 0
+  const label = isStreaming ? 'Debugging' : 'Debugged'
+
+  return (
+    <div className='mt-1 mb-0'>
+      <button
+        onClick={() => {
+          setIsExpanded((v) => {
+            const next = !v
+            if (!next && isStreaming) userCollapsedRef.current = true
+            return next
+          })
+        }}
+        className='mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
+        type='button'
+        disabled={!hasContent}
+      >
+        <span className='relative inline-block'>
+          <span className='text-[var(--text-tertiary)]'>{label}</span>
+          {isStreaming && (
+            <span
+              aria-hidden='true'
+              className='pointer-events-none absolute inset-0 select-none overflow-hidden'
+            >
+              <span
+                className='block text-transparent'
+                style={{
+                  backgroundImage:
+                    'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0) 100%)',
+                  backgroundSize: '200% 100%',
+                  backgroundRepeat: 'no-repeat',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  animation: 'thinking-shimmer 1.4s ease-in-out infinite',
+                  mixBlendMode: 'screen',
+                }}
+              >
+                {label}
+              </span>
+            </span>
+          )}
+        </span>
+        {hasContent && (
+          <ChevronUp
+            className={clsx('h-3 w-3 transition-transform', isExpanded ? 'rotate-180' : 'rotate-90')}
+            aria-hidden='true'
+          />
+        )}
+      </button>
+
+      {isExpanded && (
+        <div
+          ref={scrollContainerRef}
+          className='ml-1 overflow-y-auto border-[var(--border-1)] border-l-2 pl-2'
+          style={{ maxHeight: SUBAGENT_MAX_HEIGHT }}
+        >
+          {blocks.map((block, index) => {
+            if (block.type === 'subagent_text' && block.content) {
+              const isLastBlock = index === blocks.length - 1
+              return (
+                <pre
+                  key={`subagent-text-${index}`}
+                  className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-tertiary)] leading-[1.15rem]'
+                >
+                  {block.content}
+                  {isStreaming && isLastBlock && (
+                    <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[var(--text-tertiary)]' />
+                  )}
+                </pre>
+              )
+            }
+
+            if (block.type === 'subagent_tool_call' && block.toolCall) {
+              return (
+                <SubAgentToolCall
+                  key={`subagent-tool-${block.toolCall.id || index}`}
+                  toolCall={block.toolCall}
+                />
+              )
+            }
+
+            return null
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -559,6 +768,18 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   // Skip rendering some internal tools
   if (toolCall.name === 'checkoff_todo' || toolCall.name === 'mark_todo_in_progress') return null
 
+  // Special rendering for debug tool with subagent content - only show the collapsible SubAgentContent
+  if (toolCall.name === 'debug' && toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0) {
+    return (
+      <div className='w-full'>
+        <SubAgentContent
+          blocks={toolCall.subAgentBlocks}
+          isStreaming={toolCall.subAgentStreaming}
+        />
+      </div>
+    )
+  }
+
   // Get current mode from store to determine if we should render integration tools
   const mode = useCopilotStore.getState().mode
 
@@ -862,6 +1083,11 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
       const safeInputs = inputs && typeof inputs === 'object' ? inputs : {}
       const inputEntries = Object.entries(safeInputs)
 
+      // Don't show the table if there are no inputs
+      if (inputEntries.length === 0) {
+        return null
+      }
+
       return (
         <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)]'>
           <table className='w-full table-fixed bg-transparent'>
@@ -876,14 +1102,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
               </tr>
             </thead>
             <tbody className='bg-transparent'>
-              {inputEntries.length === 0 ? (
-                <tr className='border-[var(--border-1)] border-t bg-transparent'>
-                  <td colSpan={2} className='px-[10px] py-[8px] text-[var(--text-muted)] text-xs'>
-                    No inputs provided
-                  </td>
-                </tr>
-              ) : (
-                inputEntries.map(([key, value]) => (
+              {inputEntries.map(([key, value]) => (
                   <tr
                     key={key}
                     className='group relative border-[var(--border-1)] border-t bg-transparent'
@@ -932,8 +1151,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
+                ))}
             </tbody>
           </table>
         </div>
@@ -984,6 +1202,13 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             toolCall={toolCall}
             onStateChange={handleStateChange}
             editedParams={editedParams}
+          />
+        )}
+        {/* Render subagent content */}
+        {toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0 && (
+          <SubAgentContent
+            blocks={toolCall.subAgentBlocks}
+            isStreaming={toolCall.subAgentStreaming}
           />
         )}
       </div>
@@ -1039,6 +1264,13 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             toolCall={toolCall}
             onStateChange={handleStateChange}
             editedParams={editedParams}
+          />
+        )}
+        {/* Render subagent content */}
+        {toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0 && (
+          <SubAgentContent
+            blocks={toolCall.subAgentBlocks}
+            isStreaming={toolCall.subAgentStreaming}
           />
         )}
       </div>
@@ -1143,6 +1375,13 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           </Button>
         </div>
       ) : null}
+      {/* Render subagent content (from debug tool or other subagents) */}
+      {toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0 && (
+        <SubAgentContent
+          blocks={toolCall.subAgentBlocks}
+          isStreaming={toolCall.subAgentStreaming}
+        />
+      )}
     </div>
   )
 }
