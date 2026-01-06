@@ -1,11 +1,12 @@
 import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
+import { account, credentialSet, credentialSetMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, like, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,6 +73,50 @@ export async function POST(request: NextRequest) {
             or(eq(account.providerId, provider), like(account.providerId, `${provider}-%`))
           )
         )
+    }
+
+    // Sync webhooks for all credential sets the user is a member of
+    // This removes webhooks that were using the disconnected credential
+    const userMemberships = await db
+      .select({
+        id: credentialSetMember.id,
+        credentialSetId: credentialSetMember.credentialSetId,
+        providerId: credentialSet.providerId,
+        type: credentialSet.type,
+      })
+      .from(credentialSetMember)
+      .innerJoin(credentialSet, eq(credentialSetMember.credentialSetId, credentialSet.id))
+      .where(
+        and(
+          eq(credentialSetMember.userId, session.user.id),
+          eq(credentialSetMember.status, 'active')
+        )
+      )
+
+    for (const membership of userMemberships) {
+      // Only sync if the credential set matches this provider or is 'all' type
+      const matchesProvider =
+        membership.type === 'all' ||
+        membership.providerId === provider ||
+        membership.providerId === providerId ||
+        (membership.providerId && provider.startsWith(membership.providerId))
+
+      if (matchesProvider) {
+        try {
+          await syncAllWebhooksForCredentialSet(membership.credentialSetId, requestId)
+          logger.info(`[${requestId}] Synced webhooks after credential disconnect`, {
+            credentialSetId: membership.credentialSetId,
+            provider,
+          })
+        } catch (error) {
+          // Log but don't fail the disconnect - credential is already removed
+          logger.error(`[${requestId}] Failed to sync webhooks after credential disconnect`, {
+            credentialSetId: membership.credentialSetId,
+            provider,
+            error,
+          })
+        }
+      }
     }
 
     return NextResponse.json({ success: true }, { status: 200 })

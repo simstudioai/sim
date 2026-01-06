@@ -55,6 +55,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
 import { SSO_TRUSTED_PROVIDERS } from './sso/constants'
 
@@ -188,6 +189,53 @@ export const auth = betterAuth({
               })
               .where(eq(schema.account.id, existing.id))
 
+            // Sync webhooks for credential sets after reconnecting
+            const requestId = crypto.randomUUID().slice(0, 8)
+            const userMemberships = await db
+              .select({
+                credentialSetId: schema.credentialSetMember.credentialSetId,
+                providerId: schema.credentialSet.providerId,
+                type: schema.credentialSet.type,
+              })
+              .from(schema.credentialSetMember)
+              .innerJoin(
+                schema.credentialSet,
+                eq(schema.credentialSetMember.credentialSetId, schema.credentialSet.id)
+              )
+              .where(
+                and(
+                  eq(schema.credentialSetMember.userId, account.userId),
+                  eq(schema.credentialSetMember.status, 'active')
+                )
+              )
+
+            for (const membership of userMemberships) {
+              const matchesProvider =
+                membership.type === 'all' || membership.providerId === account.providerId
+
+              if (matchesProvider) {
+                try {
+                  await syncAllWebhooksForCredentialSet(membership.credentialSetId, requestId)
+                  logger.info(
+                    '[account.create.before] Synced webhooks after credential reconnect',
+                    {
+                      credentialSetId: membership.credentialSetId,
+                      providerId: account.providerId,
+                    }
+                  )
+                } catch (error) {
+                  logger.error(
+                    '[account.create.before] Failed to sync webhooks after credential reconnect',
+                    {
+                      credentialSetId: membership.credentialSetId,
+                      providerId: account.providerId,
+                      error,
+                    }
+                  )
+                }
+              }
+            }
+
             return false
           }
 
@@ -233,6 +281,50 @@ export const auth = betterAuth({
 
             if (Object.keys(updates).length > 0) {
               await db.update(schema.account).set(updates).where(eq(schema.account.id, account.id))
+            }
+          }
+
+          // Sync webhooks for credential sets after connecting a new credential
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const userMemberships = await db
+            .select({
+              credentialSetId: schema.credentialSetMember.credentialSetId,
+              providerId: schema.credentialSet.providerId,
+              type: schema.credentialSet.type,
+            })
+            .from(schema.credentialSetMember)
+            .innerJoin(
+              schema.credentialSet,
+              eq(schema.credentialSetMember.credentialSetId, schema.credentialSet.id)
+            )
+            .where(
+              and(
+                eq(schema.credentialSetMember.userId, account.userId),
+                eq(schema.credentialSetMember.status, 'active')
+              )
+            )
+
+          for (const membership of userMemberships) {
+            const matchesProvider =
+              membership.type === 'all' || membership.providerId === account.providerId
+
+            if (matchesProvider) {
+              try {
+                await syncAllWebhooksForCredentialSet(membership.credentialSetId, requestId)
+                logger.info('[account.create.after] Synced webhooks after credential connect', {
+                  credentialSetId: membership.credentialSetId,
+                  providerId: account.providerId,
+                })
+              } catch (error) {
+                logger.error(
+                  '[account.create.after] Failed to sync webhooks after credential connect',
+                  {
+                    credentialSetId: membership.credentialSetId,
+                    providerId: account.providerId,
+                    error,
+                  }
+                )
+              }
             }
           }
         },

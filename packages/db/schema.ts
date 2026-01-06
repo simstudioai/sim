@@ -527,6 +527,9 @@ export const webhook = pgTable(
     isActive: boolean('is_active').notNull().default(true),
     failedCount: integer('failed_count').default(0), // Track consecutive failures
     lastFailedAt: timestamp('last_failed_at'), // When the webhook last failed
+    credentialSetId: text('credential_set_id').references(() => credentialSet.id, {
+      onDelete: 'set null',
+    }), // For credential set webhooks - enables efficient queries
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -539,6 +542,8 @@ export const webhook = pgTable(
         table.workflowId,
         table.blockId
       ),
+      // Optimize queries for credential set webhooks
+      credentialSetIdIdx: index('webhook_credential_set_id_idx').on(table.credentialSetId),
     }
   }
 )
@@ -1811,6 +1816,7 @@ export const credentialSet = pgTable(
 export const credentialSetMemberStatusEnum = pgEnum('credential_set_member_status', [
   'active',
   'pending',
+  'revoked',
 ])
 
 export const credentialSetMember = pgTable(

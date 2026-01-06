@@ -430,6 +430,7 @@ export async function saveWorkflowToNormalizedTables(
               path: wh.path,
               provider: wh.provider,
               providerConfig: wh.providerConfig,
+              credentialSetId: wh.credentialSetId,
               isActive: wh.isActive,
               createdAt: wh.createdAt,
               updatedAt: new Date(),

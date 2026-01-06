@@ -1,14 +1,13 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowLeft, Check, Copy, Loader2, Plus, Trash2, User } from 'lucide-react'
+import { ArrowLeft, Loader2, LogOut, Plus, Trash2, User } from 'lucide-react'
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
   Button,
-  Combobox,
   Input,
   Label,
   Modal,
@@ -16,11 +15,12 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Textarea,
 } from '@/components/emcn'
+import { GmailIcon, OutlookIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client'
-import { OAUTH_PROVIDERS } from '@/lib/oauth'
 import { getUserRole } from '@/lib/workspaces/organization'
 import {
   type CredentialSet,
@@ -32,12 +32,13 @@ import {
   useCredentialSetMembers,
   useCredentialSetMemberships,
   useCredentialSets,
+  useLeaveCredentialSet,
   useRemoveCredentialSetMember,
 } from '@/hooks/queries/credential-sets'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 
-const logger = createLogger('CredentialSets')
+const logger = createLogger('EmailPolling')
 
 function CredentialSetsSkeleton() {
   return (
@@ -78,42 +79,88 @@ export function CredentialSets() {
   const [viewingSet, setViewingSet] = useState<CredentialSet | null>(null)
   const [newSetName, setNewSetName] = useState('')
   const [newSetDescription, setNewSetDescription] = useState('')
-  const [newSetType, setNewSetType] = useState<CredentialSetType>('all')
-  const [newSetProviderId, setNewSetProviderId] = useState('')
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [copiedLink, setCopiedLink] = useState(false)
-  const [generatedInviteUrl, setGeneratedInviteUrl] = useState<string | null>(null)
+  const [newSetProvider, setNewSetProvider] = useState<'gmail' | 'outlook'>('gmail')
+  const [inviteEmails, setInviteEmails] = useState('')
+  const [isDragging, setIsDragging] = useState(false)
+  const [leavingMembership, setLeavingMembership] = useState<{
+    credentialSetId: string
+    name: string
+  } | null>(null)
 
   const { data: members = [], isPending: membersLoading } = useCredentialSetMembers(viewingSet?.id)
   const removeMember = useRemoveCredentialSetMember()
-
-  const providerOptions = useMemo(() => {
-    const options: { label: string; value: string }[] = []
-    for (const [, provider] of Object.entries(OAUTH_PROVIDERS)) {
-      if (provider.services) {
-        for (const [, service] of Object.entries(provider.services)) {
-          options.push({
-            label: service.name,
-            value: service.providerId,
-          })
-        }
-      }
-    }
-    return options.sort((a, b) => a.label.localeCompare(b.label))
-  }, [])
+  const leaveCredentialSet = useLeaveCredentialSet()
 
   const getProviderName = useCallback((providerId: string) => {
-    for (const [, provider] of Object.entries(OAUTH_PROVIDERS)) {
-      if (provider.services) {
-        for (const [, service] of Object.entries(provider.services)) {
-          if (service.providerId === providerId) {
-            return service.name
-          }
-        }
-      }
-    }
+    if (providerId === 'gmail') return 'Gmail'
+    if (providerId === 'outlook') return 'Outlook'
     return providerId
   }, [])
+
+  const extractEmailsFromText = useCallback((text: string): string[] => {
+    // Match email patterns in text
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
+    const matches = text.match(emailRegex) || []
+    // Deduplicate and return
+    return [...new Set(matches.map((e) => e.toLowerCase()))]
+  }, [])
+
+  const handleFileDrop = useCallback(
+    async (file: File) => {
+      try {
+        const text = await file.text()
+        const emails = extractEmailsFromText(text)
+        if (emails.length > 0) {
+          setInviteEmails((prev) => {
+            const existing = prev
+              .split(/[,\n]/)
+              .map((e) => e.trim())
+              .filter((e) => e.length > 0)
+            const combined = [...new Set([...existing, ...emails])]
+            return combined.join('\n')
+          })
+        }
+      } catch (error) {
+        logger.error('Error reading dropped file', error)
+      }
+    },
+    [extractEmailsFromText]
+  )
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'copy'
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }, [])
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDragging(false)
+
+      const files = Array.from(e.dataTransfer.files)
+      const validFiles = files.filter(
+        (f) =>
+          f.type === 'text/csv' ||
+          f.type === 'text/plain' ||
+          f.name.endsWith('.csv') ||
+          f.name.endsWith('.txt')
+      )
+
+      for (const file of validFiles) {
+        await handleFileDrop(file)
+      }
+    },
+    [handleFileDrop]
+  )
 
   const handleRemoveMember = useCallback(
     async (memberId: string) => {
@@ -130,6 +177,20 @@ export function CredentialSets() {
     [viewingSet, removeMember]
   )
 
+  const handleLeave = useCallback((credentialSetId: string, name: string) => {
+    setLeavingMembership({ credentialSetId, name })
+  }, [])
+
+  const confirmLeave = useCallback(async () => {
+    if (!leavingMembership) return
+    try {
+      await leaveCredentialSet.mutateAsync(leavingMembership.credentialSetId)
+      setLeavingMembership(null)
+    } catch (error) {
+      logger.error('Failed to leave polling group', error)
+    }
+  }, [leavingMembership, leaveCredentialSet])
+
   const handleAcceptInvitation = useCallback(
     async (token: string) => {
       try {
@@ -143,73 +204,53 @@ export function CredentialSets() {
 
   const handleCreateCredentialSet = useCallback(async () => {
     if (!newSetName.trim() || !activeOrganization?.id) return
-    if (newSetType === 'specific' && !newSetProviderId) return
     try {
       await createCredentialSet.mutateAsync({
         organizationId: activeOrganization.id,
         name: newSetName.trim(),
         description: newSetDescription.trim() || undefined,
-        type: newSetType,
-        providerId: newSetType === 'specific' ? newSetProviderId : undefined,
+        type: 'specific' as CredentialSetType,
+        providerId: newSetProvider,
       })
       setShowCreateModal(false)
       setNewSetName('')
       setNewSetDescription('')
-      setNewSetType('all')
-      setNewSetProviderId('')
+      setNewSetProvider('gmail')
     } catch (error) {
-      logger.error('Failed to create credential set', error)
+      logger.error('Failed to create polling group', error)
     }
-  }, [
-    newSetName,
-    newSetDescription,
-    newSetType,
-    newSetProviderId,
-    activeOrganization?.id,
-    createCredentialSet,
-  ])
+  }, [newSetName, newSetDescription, newSetProvider, activeOrganization?.id, createCredentialSet])
 
   const handleCreateInvite = useCallback(async () => {
     if (!selectedSetId) return
-    try {
-      const result = await createInvitation.mutateAsync({
-        credentialSetId: selectedSetId,
-        email: inviteEmail.trim() || undefined,
-      })
-      const inviteUrl = result.invitation?.inviteUrl
-      if (inviteUrl) {
-        setGeneratedInviteUrl(inviteUrl)
-        try {
-          await navigator.clipboard.writeText(inviteUrl)
-          setCopiedLink(true)
-          setTimeout(() => setCopiedLink(false), 2000)
-        } catch {
-          // Clipboard failed, URL is shown in modal for manual copy
-        }
-      }
-      setInviteEmail('')
-    } catch (error) {
-      logger.error('Failed to create invitation', error)
-    }
-  }, [selectedSetId, inviteEmail, createInvitation])
 
-  const handleCopyInviteUrl = useCallback(async () => {
-    if (!generatedInviteUrl) return
+    // Parse comma-separated or newline-separated emails
+    const emails = inviteEmails
+      .split(/[,\n]/)
+      .map((e) => e.trim())
+      .filter((e) => e.length > 0 && e.includes('@'))
+
+    if (emails.length === 0) return
+
     try {
-      await navigator.clipboard.writeText(generatedInviteUrl)
-      setCopiedLink(true)
-      setTimeout(() => setCopiedLink(false), 2000)
-    } catch {
-      // Fallback: select the input text
+      for (const email of emails) {
+        await createInvitation.mutateAsync({
+          credentialSetId: selectedSetId,
+          email,
+        })
+      }
+      setInviteEmails('')
+      setShowInviteModal(false)
+      setSelectedSetId(null)
+    } catch (error) {
+      logger.error('Failed to create invitations', error)
     }
-  }, [generatedInviteUrl])
+  }, [selectedSetId, inviteEmails, createInvitation])
 
   const handleCloseInviteModal = useCallback(() => {
     setShowInviteModal(false)
-    setInviteEmail('')
+    setInviteEmails('')
     setSelectedSetId(null)
-    setGeneratedInviteUrl(null)
-    setCopiedLink(false)
   }, [])
 
   if (membershipsLoading || invitationsLoading) {
@@ -220,7 +261,7 @@ export function CredentialSets() {
   const hasNoContent =
     invitations.length === 0 && activeMemberships.length === 0 && ownedSets.length === 0
 
-  // Detail view for a credential set
+  // Detail view for a polling group
   if (viewingSet) {
     const activeMembers = members.filter((m) => m.status === 'active')
     const pendingMembers = members.filter((m) => m.status === 'pending')
@@ -236,9 +277,7 @@ export function CredentialSets() {
               {viewingSet.name}
             </span>
             <span className='text-[12px] text-[var(--text-secondary)]'>
-              {viewingSet.type === 'all'
-                ? 'All Integrations'
-                : `${getProviderName(viewingSet.providerId || '')} Only`}
+              {getProviderName(viewingSet.providerId || '')}
             </span>
           </div>
         </div>
@@ -325,7 +364,7 @@ export function CredentialSets() {
               <div className='flex flex-col items-center justify-center gap-[8px] py-[32px] text-center'>
                 <p className='text-[13px] text-[var(--text-secondary)]'>No members yet</p>
                 <p className='text-[12px] text-[var(--text-tertiary)]'>
-                  Invite people to join this credential set
+                  Invite people to join this polling group
                 </p>
               </div>
             )}
@@ -341,79 +380,58 @@ export function CredentialSets() {
             }}
           >
             <Plus className='mr-[4px] h-[14px] w-[14px]' />
-            Invite Member
+            Add Member
           </Button>
         </div>
 
         <Modal open={showInviteModal} onOpenChange={handleCloseInviteModal}>
           <ModalContent size='sm'>
-            <ModalHeader>Invite to Credential Set</ModalHeader>
+            <ModalHeader>Add Members</ModalHeader>
             <ModalBody>
               <div className='flex flex-col gap-[16px]'>
-                {generatedInviteUrl ? (
-                  <>
-                    <div className='flex flex-col gap-[4px]'>
-                      <Label>Invite Link</Label>
-                      <div className='flex gap-[8px]'>
-                        <Input
-                          value={generatedInviteUrl}
-                          readOnly
-                          onClick={(e) => (e.target as HTMLInputElement).select()}
-                        />
-                        <Button variant='ghost' onClick={handleCopyInviteUrl}>
-                          {copiedLink ? (
-                            <Check className='h-[14px] w-[14px]' />
-                          ) : (
-                            <Copy className='h-[14px] w-[14px]' />
-                          )}
-                        </Button>
+                <div className='flex flex-col gap-[4px]'>
+                  <Label>Email Addresses</Label>
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`relative rounded-[8px] transition-colors ${isDragging ? 'ring-2 ring-[var(--accent)]' : ''}`}
+                  >
+                    <Textarea
+                      value={inviteEmails}
+                      onChange={(e) => setInviteEmails(e.target.value)}
+                      placeholder='Enter emails separated by commas or newlines, or drag and drop a CSV file'
+                      rows={4}
+                    />
+                    {isDragging && (
+                      <div className='pointer-events-none absolute inset-0 flex items-center justify-center rounded-[8px] bg-[var(--accent)]/10'>
+                        <span className='text-[13px] font-medium text-[var(--accent)]'>
+                          Drop CSV or text file
+                        </span>
                       </div>
-                    </div>
-                    <p className='text-[12px] text-[var(--text-secondary)]'>
-                      Share this link with the person you want to invite.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <div className='flex flex-col gap-[4px]'>
-                      <Label>Email (optional)</Label>
-                      <Input
-                        type='email'
-                        value={inviteEmail}
-                        onChange={(e) => setInviteEmail(e.target.value)}
-                        placeholder='Leave empty for a shareable link'
-                      />
-                    </div>
-                    <p className='text-[12px] text-[var(--text-secondary)]'>
-                      Generate an invite link to share.
-                    </p>
-                  </>
-                )}
+                    )}
+                  </div>
+                </div>
+                <p className='text-[12px] text-[var(--text-secondary)]'>
+                  Invitees will receive an email with a link to connect their account.
+                </p>
               </div>
             </ModalBody>
             <ModalFooter>
-              {generatedInviteUrl ? (
-                <Button variant='default' onClick={handleCloseInviteModal}>
-                  Done
-                </Button>
-              ) : (
-                <>
-                  <Button variant='default' onClick={handleCloseInviteModal}>
-                    Cancel
-                  </Button>
-                  <Button
-                    variant='tertiary'
-                    onClick={handleCreateInvite}
-                    disabled={createInvitation.isPending}
-                  >
-                    {createInvitation.isPending ? (
-                      <Loader2 className='h-[14px] w-[14px] animate-spin' />
-                    ) : (
-                      'Generate Link'
-                    )}
-                  </Button>
-                </>
-              )}
+              <Button variant='default' onClick={handleCloseInviteModal}>
+                Cancel
+              </Button>
+              <Button
+                variant='tertiary'
+                onClick={handleCreateInvite}
+                disabled={createInvitation.isPending || !inviteEmails.trim()}
+              >
+                {createInvitation.isPending ? (
+                  <Loader2 className='h-[14px] w-[14px] animate-spin' />
+                ) : (
+                  'Send Invites'
+                )}
+              </Button>
             </ModalFooter>
           </ModalContent>
         </Modal>
@@ -426,10 +444,10 @@ export function CredentialSets() {
       {hasNoContent && !canManageCredentialSets && (
         <div className='flex flex-1 flex-col items-center justify-center gap-[8px] text-center'>
           <p className='text-[13px] text-[var(--text-secondary)]'>
-            You're not a member of any credential sets yet.
+            You're not a member of any polling groups yet.
           </p>
           <p className='text-[12px] text-[var(--text-tertiary)]'>
-            When someone invites you to a credential set, it will appear here.
+            When someone invites you to a polling group, it will appear here.
           </p>
         </div>
       )}
@@ -482,6 +500,21 @@ export function CredentialSets() {
                   {membership.organizationName}
                 </span>
               </div>
+              <Button
+                variant='ghost'
+                size='sm'
+                onClick={() =>
+                  handleLeave(membership.credentialSetId, membership.credentialSetName)
+                }
+                disabled={leaveCredentialSet.isPending}
+                className='text-[var(--text-secondary)] hover:text-[var(--text-error)]'
+              >
+                {leaveCredentialSet.isPending ? (
+                  <Loader2 className='h-[14px] w-[14px] animate-spin' />
+                ) : (
+                  <LogOut className='h-[14px] w-[14px]' />
+                )}
+              </Button>
             </div>
           ))}
         </div>
@@ -505,7 +538,7 @@ export function CredentialSets() {
           ) : ownedSets.length === 0 ? (
             <div className='rounded-[8px] border border-dashed border-[var(--border)] px-[12px] py-[16px] text-center'>
               <p className='text-[12px] text-[var(--text-tertiary)]'>
-                No credential sets created yet
+                No polling groups created yet
               </p>
             </div>
           ) : (
@@ -521,9 +554,7 @@ export function CredentialSets() {
                   </span>
                   <span className='text-[12px] text-[var(--text-secondary)]'>
                     {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
-                    {set.type === 'specific' && set.providerId && (
-                      <> · {getProviderName(set.providerId)}</>
-                    )}
+                    {set.providerId && <> · {getProviderName(set.providerId)}</>}
                   </span>
                 </div>
                 <Button
@@ -534,7 +565,7 @@ export function CredentialSets() {
                     setShowInviteModal(true)
                   }}
                 >
-                  Invite
+                  Add Members
                 </Button>
               </div>
             ))
@@ -544,7 +575,7 @@ export function CredentialSets() {
 
       <Modal open={showCreateModal} onOpenChange={setShowCreateModal}>
         <ModalContent size='sm'>
-          <ModalHeader>Create Credential Set</ModalHeader>
+          <ModalHeader>Create Polling Group</ModalHeader>
           <ModalBody>
             <div className='flex flex-col gap-[16px]'>
               <div className='flex flex-col gap-[4px]'>
@@ -560,52 +591,34 @@ export function CredentialSets() {
                 <Input
                   value={newSetDescription}
                   onChange={(e) => setNewSetDescription(e.target.value)}
-                  placeholder='e.g., Credentials for marketing automations'
+                  placeholder='e.g., Poll emails for marketing automations'
                 />
               </div>
               <div className='flex flex-col gap-[4px]'>
-                <Label>Type</Label>
+                <Label>Email Provider</Label>
                 <div className='flex gap-[8px]'>
                   <Button
-                    variant={newSetType === 'all' ? 'active' : 'default'}
-                    onClick={() => {
-                      setNewSetType('all')
-                      setNewSetProviderId('')
-                    }}
+                    variant={newSetProvider === 'gmail' ? 'active' : 'default'}
+                    onClick={() => setNewSetProvider('gmail')}
                     className='flex-1'
                   >
-                    All Integrations
+                    <GmailIcon className='mr-[6px] h-[16px] w-[16px]' />
+                    Gmail
                   </Button>
                   <Button
-                    variant={newSetType === 'specific' ? 'active' : 'default'}
-                    onClick={() => setNewSetType('specific')}
+                    variant={newSetProvider === 'outlook' ? 'active' : 'default'}
+                    onClick={() => setNewSetProvider('outlook')}
                     className='flex-1'
                   >
-                    Specific Integration
+                    <OutlookIcon className='mr-[6px] h-[16px] w-[16px]' />
+                    Outlook
                   </Button>
                 </div>
                 <p className='mt-[4px] text-[11px] text-[var(--text-tertiary)]'>
-                  {newSetType === 'all'
-                    ? 'Members share all their connected credentials'
-                    : 'Members share only credentials for a specific integration'}
+                  Members will connect their {newSetProvider === 'gmail' ? 'Gmail' : 'Outlook'}{' '}
+                  account for email polling
                 </p>
               </div>
-              {newSetType === 'specific' && (
-                <div className='flex flex-col gap-[4px]'>
-                  <Label>Integration</Label>
-                  <Combobox
-                    options={providerOptions}
-                    value={
-                      providerOptions.find((p) => p.value === newSetProviderId)?.label ||
-                      newSetProviderId
-                    }
-                    selectedValue={newSetProviderId}
-                    onChange={(value) => setNewSetProviderId(value)}
-                    placeholder='Select an integration'
-                    filterOptions
-                  />
-                </div>
-              )}
             </div>
           </ModalBody>
           <ModalFooter>
@@ -615,11 +628,7 @@ export function CredentialSets() {
             <Button
               variant='tertiary'
               onClick={handleCreateCredentialSet}
-              disabled={
-                !newSetName.trim() ||
-                (newSetType === 'specific' && !newSetProviderId) ||
-                createCredentialSet.isPending
-              }
+              disabled={!newSetName.trim() || createCredentialSet.isPending}
             >
               {createCredentialSet.isPending ? (
                 <Loader2 className='h-[14px] w-[14px] animate-spin' />
@@ -633,73 +642,79 @@ export function CredentialSets() {
 
       <Modal open={showInviteModal} onOpenChange={handleCloseInviteModal}>
         <ModalContent size='sm'>
-          <ModalHeader>Invite to Credential Set</ModalHeader>
+          <ModalHeader>Add Members</ModalHeader>
           <ModalBody>
             <div className='flex flex-col gap-[16px]'>
-              {generatedInviteUrl ? (
-                <>
-                  <div className='flex flex-col gap-[4px]'>
-                    <Label>Invite Link</Label>
-                    <div className='flex gap-[8px]'>
-                      <Input
-                        value={generatedInviteUrl}
-                        readOnly
-                        onClick={(e) => (e.target as HTMLInputElement).select()}
-                      />
-                      <Button variant='ghost' onClick={handleCopyInviteUrl}>
-                        {copiedLink ? (
-                          <Check className='h-[14px] w-[14px]' />
-                        ) : (
-                          <Copy className='h-[14px] w-[14px]' />
-                        )}
-                      </Button>
+              <div className='flex flex-col gap-[4px]'>
+                <Label>Email Addresses</Label>
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`relative rounded-[8px] transition-colors ${isDragging ? 'ring-2 ring-[var(--accent)]' : ''}`}
+                >
+                  <Textarea
+                    value={inviteEmails}
+                    onChange={(e) => setInviteEmails(e.target.value)}
+                    placeholder='Enter emails separated by commas or newlines, or drag and drop a CSV file'
+                    rows={4}
+                  />
+                  {isDragging && (
+                    <div className='pointer-events-none absolute inset-0 flex items-center justify-center rounded-[8px] bg-[var(--accent)]/10'>
+                      <span className='text-[13px] font-medium text-[var(--accent)]'>
+                        Drop CSV or text file
+                      </span>
                     </div>
-                  </div>
-                  <p className='text-[12px] text-[var(--text-secondary)]'>
-                    Share this link with the person you want to invite.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <div className='flex flex-col gap-[4px]'>
-                    <Label>Email (optional)</Label>
-                    <Input
-                      type='email'
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder='Leave empty for a shareable link'
-                    />
-                  </div>
-                  <p className='text-[12px] text-[var(--text-secondary)]'>
-                    Generate an invite link to share.
-                  </p>
-                </>
-              )}
+                  )}
+                </div>
+              </div>
+              <p className='text-[12px] text-[var(--text-secondary)]'>
+                Invitees will receive an email with a link to connect their account.
+              </p>
             </div>
           </ModalBody>
           <ModalFooter>
-            {generatedInviteUrl ? (
-              <Button variant='default' onClick={handleCloseInviteModal}>
-                Done
-              </Button>
-            ) : (
-              <>
-                <Button variant='default' onClick={handleCloseInviteModal}>
-                  Cancel
-                </Button>
-                <Button
-                  variant='tertiary'
-                  onClick={handleCreateInvite}
-                  disabled={createInvitation.isPending}
-                >
-                  {createInvitation.isPending ? (
-                    <Loader2 className='h-[14px] w-[14px] animate-spin' />
-                  ) : (
-                    'Generate Link'
-                  )}
-                </Button>
-              </>
-            )}
+            <Button variant='default' onClick={handleCloseInviteModal}>
+              Cancel
+            </Button>
+            <Button
+              variant='tertiary'
+              onClick={handleCreateInvite}
+              disabled={createInvitation.isPending || !inviteEmails.trim()}
+            >
+              {createInvitation.isPending ? (
+                <Loader2 className='h-[14px] w-[14px] animate-spin' />
+              ) : (
+                'Send Invites'
+              )}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal open={!!leavingMembership} onOpenChange={() => setLeavingMembership(null)}>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Leave Polling Group</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
+              Are you sure you want to leave{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {leavingMembership?.name}
+              </span>
+              ? Your email account will no longer be polled in workflows using this group.
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='active' onClick={() => setLeavingMembership(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant='destructive'
+              onClick={confirmLeave}
+              disabled={leaveCredentialSet.isPending}
+            >
+              {leaveCredentialSet.isPending ? 'Leaving...' : 'Leave'}
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

@@ -227,3 +227,24 @@ export function useRemoveCredentialSetMember() {
     },
   })
 }
+
+export function useLeaveCredentialSet() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (credentialSetId: string) => {
+      const response = await fetch(
+        `/api/credential-sets/memberships?credentialSetId=${credentialSetId}`,
+        { method: 'DELETE' }
+      )
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to leave credential set')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() })
+    },
+  })
+}

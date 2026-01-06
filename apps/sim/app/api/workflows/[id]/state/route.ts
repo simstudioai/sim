@@ -374,6 +374,7 @@ async function upsertWebhookRecord(
     return
   }
 
+  const providerConfig = metadata.providerConfig as Record<string, unknown>
   await db.insert(webhook).values({
     id: webhookId,
     workflowId,
@@ -381,6 +382,7 @@ async function upsertWebhookRecord(
     path: metadata.triggerPath,
     provider: metadata.provider,
     providerConfig: metadata.providerConfig,
+    credentialSetId: (providerConfig?.credentialSetId as string | null) || null,
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),

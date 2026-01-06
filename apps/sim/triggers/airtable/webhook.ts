@@ -20,7 +20,6 @@ export const airtableWebhookTrigger: TriggerConfig = {
       requiredScopes: [],
       required: true,
       mode: 'trigger',
-      supportsCredentialSets: true,
     },
     {
       id: 'baseId',

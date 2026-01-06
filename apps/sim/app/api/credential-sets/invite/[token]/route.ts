@@ -91,10 +91,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       return NextResponse.json({ error: 'Invitation has expired' }, { status: 410 })
     }
 
-    if (invitation.email && invitation.email !== session.user.email) {
-      return NextResponse.json({ error: 'Email does not match invitation' }, { status: 400 })
-    }
-
     const existingMember = await db
       .select()
       .from(credentialSetMember)
@@ -114,64 +110,66 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     }
 
     const now = new Date()
-    await db.insert(credentialSetMember).values({
-      id: crypto.randomUUID(),
-      credentialSetId: invitation.credentialSetId,
-      userId: session.user.id,
-      status: 'active',
-      joinedAt: now,
-      invitedBy: invitation.invitedBy,
-      createdAt: now,
-      updatedAt: now,
-    })
+    const requestId = crypto.randomUUID().slice(0, 8)
 
-    await db
-      .update(credentialSetInvitation)
-      .set({
-        status: 'accepted',
-        acceptedAt: now,
-        acceptedByUserId: session.user.id,
+    // Use transaction to ensure membership + invitation update + webhook sync are atomic
+    await db.transaction(async (tx) => {
+      await tx.insert(credentialSetMember).values({
+        id: crypto.randomUUID(),
+        credentialSetId: invitation.credentialSetId,
+        userId: session.user.id,
+        status: 'active',
+        joinedAt: now,
+        invitedBy: invitation.invitedBy,
+        createdAt: now,
+        updatedAt: now,
       })
-      .where(eq(credentialSetInvitation.id, invitation.id))
 
-    // Clean up all other pending invitations for the same credential set and email
-    // This prevents duplicate invites from showing up after accepting one
-    if (invitation.email) {
-      await db
+      await tx
         .update(credentialSetInvitation)
         .set({
           status: 'accepted',
           acceptedAt: now,
           acceptedByUserId: session.user.id,
         })
-        .where(
-          and(
-            eq(credentialSetInvitation.credentialSetId, invitation.credentialSetId),
-            eq(credentialSetInvitation.email, invitation.email),
-            eq(credentialSetInvitation.status, 'pending')
+        .where(eq(credentialSetInvitation.id, invitation.id))
+
+      // Clean up all other pending invitations for the same credential set and email
+      // This prevents duplicate invites from showing up after accepting one
+      if (invitation.email) {
+        await tx
+          .update(credentialSetInvitation)
+          .set({
+            status: 'accepted',
+            acceptedAt: now,
+            acceptedByUserId: session.user.id,
+          })
+          .where(
+            and(
+              eq(credentialSetInvitation.credentialSetId, invitation.credentialSetId),
+              eq(credentialSetInvitation.email, invitation.email),
+              eq(credentialSetInvitation.status, 'pending')
+            )
           )
-        )
-    }
+      }
+
+      // Sync webhooks within the transaction
+      const syncResult = await syncAllWebhooksForCredentialSet(
+        invitation.credentialSetId,
+        requestId,
+        tx
+      )
+      logger.info('Synced webhooks after member joined', {
+        credentialSetId: invitation.credentialSetId,
+        ...syncResult,
+      })
+    })
 
     logger.info('Accepted credential set invitation', {
       invitationId: invitation.id,
       credentialSetId: invitation.credentialSetId,
       userId: session.user.id,
     })
-
-    try {
-      const requestId = crypto.randomUUID().slice(0, 8)
-      const syncResult = await syncAllWebhooksForCredentialSet(
-        invitation.credentialSetId,
-        requestId
-      )
-      logger.info('Synced webhooks after member joined', {
-        credentialSetId: invitation.credentialSetId,
-        ...syncResult,
-      })
-    } catch (syncError) {
-      logger.error('Error syncing webhooks after member joined', syncError)
-    }
 
     return NextResponse.json({
       success: true,

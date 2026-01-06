@@ -20,7 +20,6 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       requiredScopes: [],
       required: true,
       mode: 'trigger',
-      supportsCredentialSets: true,
     },
     {
       id: 'siteId',

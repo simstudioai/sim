@@ -152,24 +152,24 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Member not found' }, { status: 404 })
     }
 
-    await db.delete(credentialSetMember).where(eq(credentialSetMember.id, memberId))
+    const requestId = crypto.randomUUID().slice(0, 8)
+
+    // Use transaction to ensure member deletion + webhook sync are atomic
+    await db.transaction(async (tx) => {
+      await tx.delete(credentialSetMember).where(eq(credentialSetMember.id, memberId))
+
+      const syncResult = await syncAllWebhooksForCredentialSet(id, requestId, tx)
+      logger.info('Synced webhooks after member removed', {
+        credentialSetId: id,
+        ...syncResult,
+      })
+    })
 
     logger.info('Removed member from credential set', {
       credentialSetId: id,
       memberId,
       userId: session.user.id,
     })
-
-    try {
-      const requestId = crypto.randomUUID().slice(0, 8)
-      const syncResult = await syncAllWebhooksForCredentialSet(id, requestId)
-      logger.info('Synced webhooks after member removed', {
-        credentialSetId: id,
-        ...syncResult,
-      })
-    } catch (syncError) {
-      logger.error('Error syncing webhooks after member removed', syncError)
-    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

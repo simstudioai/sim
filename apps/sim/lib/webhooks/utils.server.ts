@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createPinnedUrl, validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import type { DbOrTx } from '@/lib/db/types'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookUtils')
@@ -2436,6 +2437,7 @@ export async function syncWebhooksForCredentialSet(params: {
   oauthProviderId: string
   providerConfig: Record<string, any>
   requestId: string
+  tx?: DbOrTx
 }): Promise<CredentialSetWebhookSyncResult> {
   const {
     workflowId,
@@ -2446,7 +2448,10 @@ export async function syncWebhooksForCredentialSet(params: {
     oauthProviderId,
     providerConfig,
     requestId,
+    tx,
   } = params
+
+  const dbCtx = tx ?? db
 
   const syncLogger = createLogger('CredentialSetWebhookSync')
   syncLogger.info(
@@ -2476,7 +2481,7 @@ export async function syncWebhooksForCredentialSet(params: {
   )
 
   // Get existing webhooks for this workflow+block that belong to this credential set
-  const existingWebhooks = await db
+  const existingWebhooks = await dbCtx
     .select()
     .from(webhook)
     .where(and(eq(webhook.workflowId, workflowId), eq(webhook.blockId, blockId)))
@@ -2519,6 +2524,7 @@ export async function syncWebhooksForCredentialSet(params: {
 
       const updatedConfig = {
         ...providerConfig,
+        basePath, // Store basePath for reliable reconstruction during membership sync
         credentialId: cred.credentialId,
         credentialSetId: credentialSetId,
         // Preserve state fields from existing config
@@ -2529,7 +2535,7 @@ export async function syncWebhooksForCredentialSet(params: {
         userId: cred.userId,
       }
 
-      await db
+      await dbCtx
         .update(webhook)
         .set({
           providerConfig: updatedConfig,
@@ -2555,18 +2561,20 @@ export async function syncWebhooksForCredentialSet(params: {
 
       const newConfig = {
         ...providerConfig,
+        basePath, // Store basePath for reliable reconstruction during membership sync
         credentialId: cred.credentialId,
         credentialSetId: credentialSetId,
         userId: cred.userId,
       }
 
-      await db.insert(webhook).values({
+      await dbCtx.insert(webhook).values({
         id: webhookId,
         workflowId,
         blockId,
         path: webhookPath,
         provider,
         providerConfig: newConfig,
+        credentialSetId, // Indexed column for efficient credential set queries
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -2588,7 +2596,7 @@ export async function syncWebhooksForCredentialSet(params: {
   // Delete webhooks for credentials no longer in the set
   for (const [credentialId, existingWebhook] of existingByCredentialId) {
     if (!credentialIdsInSet.has(credentialId)) {
-      await db.delete(webhook).where(eq(webhook.id, existingWebhook.id))
+      await dbCtx.delete(webhook).where(eq(webhook.id, existingWebhook.id))
       result.deleted++
 
       syncLogger.debug(
@@ -2612,21 +2620,20 @@ export async function syncWebhooksForCredentialSet(params: {
  */
 export async function syncAllWebhooksForCredentialSet(
   credentialSetId: string,
-  requestId: string
+  requestId: string,
+  tx?: DbOrTx
 ): Promise<{ workflowsUpdated: number; totalCreated: number; totalDeleted: number }> {
+  const dbCtx = tx ?? db
   const syncLogger = createLogger('CredentialSetMembershipSync')
   syncLogger.info(`[${requestId}] Syncing all webhooks for credential set ${credentialSetId}`)
 
   const { getProviderIdFromServiceId } = await import('@/lib/oauth')
 
-  // Find all webhooks that use this credential set
-  const allWebhooks = await db.select().from(webhook)
-
-  // Filter to webhooks with this credentialSetId in their providerConfig
-  const webhooksForSet = allWebhooks.filter((wh) => {
-    const config = wh.providerConfig as Record<string, any>
-    return config?.credentialSetId === credentialSetId
-  })
+  // Find all webhooks that use this credential set using the indexed column
+  const webhooksForSet = await dbCtx
+    .select()
+    .from(webhook)
+    .where(eq(webhook.credentialSetId, credentialSetId))
 
   if (webhooksForSet.length === 0) {
     syncLogger.info(`[${requestId}] No webhooks found using credential set ${credentialSetId}`)
@@ -2660,9 +2667,9 @@ export async function syncAllWebhooksForCredentialSet(
     const config = representativeWebhook.providerConfig as Record<string, any>
     const oauthProviderId = getProviderIdFromServiceId(representativeWebhook.provider)
 
-    const { credentialId: _cId, userId: _uId, ...baseConfig } = config
-    const pathParts = representativeWebhook.path.split('-')
-    const basePath = `${pathParts[0]}-${pathParts[1]}`
+    const { credentialId: _cId, userId: _uId, basePath: _bp, ...baseConfig } = config
+    // Use stored basePath if available, otherwise fall back to blockId (for legacy webhooks)
+    const basePath = config.basePath || representativeWebhook.blockId || representativeWebhook.path
 
     try {
       const result = await syncWebhooksForCredentialSet({
@@ -2674,6 +2681,7 @@ export async function syncAllWebhooksForCredentialSet(
         oauthProviderId,
         providerConfig: baseConfig,
         requestId,
+        tx: dbCtx,
       })
 
       workflowsUpdated++

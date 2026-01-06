@@ -573,6 +573,10 @@ export async function POST(request: NextRequest) {
             blockId,
             provider,
             providerConfig: resolvedProviderConfig,
+            credentialSetId:
+              ((resolvedProviderConfig as Record<string, unknown>)?.credentialSetId as
+                | string
+                | null) || null,
             isActive: true,
             updatedAt: new Date(),
           })
@@ -596,6 +600,10 @@ export async function POST(request: NextRequest) {
             path: finalPath,
             provider,
             providerConfig: resolvedProviderConfig,
+            credentialSetId:
+              ((resolvedProviderConfig as Record<string, unknown>)?.credentialSetId as
+                | string
+                | null) || null,
             isActive: true,
             createdAt: new Date(),
             updatedAt: new Date(),

@@ -252,10 +252,6 @@ async function executeWebhookJobInternal(
           },
         }
 
-        if (payload.credentialId && typeof airtableInput === 'object') {
-          airtableInput.currentUser = payload.credentialId
-        }
-
         const snapshot = new ExecutionSnapshot(
           metadata,
           workflow,
@@ -516,9 +512,6 @@ async function executeWebhookJobInternal(
     }
 
     const triggerInput = input || {}
-    if (payload.credentialId && typeof triggerInput === 'object') {
-      triggerInput.currentUser = payload.credentialId
-    }
 
     const snapshot = new ExecutionSnapshot(metadata, workflow, triggerInput, workflowVariables, [])
 

@@ -1,10 +1,13 @@
 import { db } from '@sim/db'
-import { credentialSet, credentialSetInvitation, member } from '@sim/db/schema'
+import { credentialSet, credentialSetInvitation, member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getEmailSubject, renderPollingGroupInvitationEmail } from '@/components/emails'
 import { getSession } from '@/lib/auth'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import { sendEmail } from '@/lib/messaging/email/mailer'
 
 const logger = createLogger('CredentialSetInvite')
 
@@ -18,6 +21,7 @@ async function getCredentialSetWithAccess(credentialSetId: string, userId: strin
       id: credentialSet.id,
       organizationId: credentialSet.organizationId,
       name: credentialSet.name,
+      providerId: credentialSet.providerId,
     })
     .from(credentialSet)
     .where(eq(credentialSet.id, credentialSetId))
@@ -98,12 +102,58 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     await db.insert(credentialSetInvitation).values(invitation)
 
-    const inviteUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/credential-account/${token}`
+    const inviteUrl = `${getBaseUrl()}/credential-account/${token}`
+
+    // Send email if email address was provided
+    if (email) {
+      try {
+        // Get inviter name
+        const [inviter] = await db
+          .select({ name: user.name })
+          .from(user)
+          .where(eq(user.id, session.user.id))
+          .limit(1)
+
+        // Get organization name
+        const [org] = await db
+          .select({ name: organization.name })
+          .from(organization)
+          .where(eq(organization.id, result.set.organizationId))
+          .limit(1)
+
+        const provider = (result.set.providerId as 'gmail' | 'outlook') || 'gmail'
+        const emailHtml = await renderPollingGroupInvitationEmail({
+          inviterName: inviter?.name || 'A team member',
+          organizationName: org?.name || 'your organization',
+          pollingGroupName: result.set.name,
+          provider,
+          inviteLink: inviteUrl,
+        })
+
+        const emailResult = await sendEmail({
+          to: email,
+          subject: getEmailSubject('polling-group-invitation'),
+          html: emailHtml,
+          emailType: 'transactional',
+        })
+
+        if (!emailResult.success) {
+          logger.warn('Failed to send invitation email', {
+            email,
+            error: emailResult.message,
+          })
+        }
+      } catch (emailError) {
+        logger.error('Error sending invitation email', emailError)
+        // Don't fail the invitation creation if email fails
+      }
+    }
 
     logger.info('Created credential set invitation', {
       credentialSetId: id,
       invitationId: invitation.id,
       userId: session.user.id,
+      emailSent: !!email,
     })
 
     return NextResponse.json({
