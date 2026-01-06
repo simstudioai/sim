@@ -9,6 +9,7 @@ import { registry as blockRegistry } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { tools as toolsRegistry } from '@/tools/registry'
+import { getTrigger, isTriggerValid } from '@/triggers'
 
 interface InputFieldSchema {
   type: string
@@ -145,13 +146,20 @@ function matchesOperation(condition: any, operation: string): boolean {
  */
 function extractInputsFromSubBlocks(
   subBlocks: SubBlockConfig[],
-  operation?: string
+  operation?: string,
+  triggerMode?: boolean
 ): Record<string, InputFieldSchema> {
   const inputs: Record<string, InputFieldSchema> = {}
 
   for (const sb of subBlocks) {
-    // Skip trigger-mode subBlocks
-    if (sb.mode === 'trigger') continue
+    // Handle trigger vs non-trigger mode filtering
+    if (triggerMode) {
+      // In trigger mode, only include subBlocks with mode: 'trigger'
+      if (sb.mode !== 'trigger') continue
+    } else {
+      // In non-trigger mode, skip trigger-mode subBlocks
+      if (sb.mode === 'trigger') continue
+    }
 
     // Skip hidden subBlocks
     if (sb.hidden) continue
@@ -248,10 +256,51 @@ function mapSubBlockTypeToSchemaType(type: string): string {
 }
 
 /**
+ * Extracts trigger outputs from the first available trigger
+ */
+function extractTriggerOutputs(blockConfig: any): Record<string, OutputFieldSchema> {
+  const outputs: Record<string, OutputFieldSchema> = {}
+
+  if (!blockConfig.triggers?.enabled || !blockConfig.triggers?.available?.length) {
+    return outputs
+  }
+
+  // Get the first available trigger's outputs as a baseline
+  const triggerId = blockConfig.triggers.available[0]
+  if (triggerId && isTriggerValid(triggerId)) {
+    const trigger = getTrigger(triggerId)
+    if (trigger.outputs) {
+      for (const [key, def] of Object.entries(trigger.outputs)) {
+        if (typeof def === 'string') {
+          outputs[key] = { type: def }
+        } else if (typeof def === 'object' && def !== null) {
+          const typedDef = def as { type?: string; description?: string }
+          outputs[key] = {
+            type: typedDef.type || 'any',
+            description: typedDef.description,
+          }
+        }
+      }
+    }
+  }
+
+  return outputs
+}
+
+/**
  * Extracts output schema from block config or tool
  */
-function extractOutputs(blockConfig: any, operation?: string): Record<string, OutputFieldSchema> {
+function extractOutputs(
+  blockConfig: any,
+  operation?: string,
+  triggerMode?: boolean
+): Record<string, OutputFieldSchema> {
   const outputs: Record<string, OutputFieldSchema> = {}
+
+  // In trigger mode, return trigger outputs
+  if (triggerMode && blockConfig.triggers?.enabled) {
+    return extractTriggerOutputs(blockConfig)
+  }
 
   // If operation is specified, try to get outputs from the specific tool
   if (operation) {
@@ -302,13 +351,21 @@ export const getBlockConfigServerTool: BaseServerTool<
   async execute({
     blockType,
     operation,
+    trigger,
   }: GetBlockConfigInputType): Promise<GetBlockConfigResultType> {
     const logger = createLogger('GetBlockConfigServerTool')
-    logger.debug('Executing get_block_config', { blockType, operation })
+    logger.debug('Executing get_block_config', { blockType, operation, trigger })
 
     const blockConfig = blockRegistry[blockType]
     if (!blockConfig) {
       throw new Error(`Block not found: ${blockType}`)
+    }
+
+    // Validate trigger mode is supported for this block
+    if (trigger && !blockConfig.triggers?.enabled && !blockConfig.triggerAllowed) {
+      throw new Error(
+        `Block "${blockType}" does not support trigger mode. Only blocks with triggers.enabled or triggerAllowed can be used in trigger mode.`
+      )
     }
 
     // If operation is specified, validate it exists
@@ -327,13 +384,14 @@ export const getBlockConfigServerTool: BaseServerTool<
     }
 
     const subBlocks = Array.isArray(blockConfig.subBlocks) ? blockConfig.subBlocks : []
-    const inputs = extractInputsFromSubBlocks(subBlocks, operation)
-    const outputs = extractOutputs(blockConfig, operation)
+    const inputs = extractInputsFromSubBlocks(subBlocks, operation, trigger)
+    const outputs = extractOutputs(blockConfig, operation, trigger)
 
     const result = {
       blockType,
       blockName: blockConfig.name,
       operation,
+      trigger,
       inputs,
       outputs,
     }

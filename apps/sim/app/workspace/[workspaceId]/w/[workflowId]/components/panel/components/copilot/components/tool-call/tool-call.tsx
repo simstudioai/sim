@@ -235,6 +235,7 @@ function SubAgentToolCall({ toolCall }: { toolCall: CopilotToolCall }) {
   const displayName = getDisplayNameForSubAgent(toolCall)
 
   const isLoading =
+    toolCall.state === ClientToolCallState.generating ||
     toolCall.state === ClientToolCallState.pending ||
     toolCall.state === ClientToolCallState.executing
 
@@ -858,6 +859,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   const displayName = getDisplayName(toolCall)
 
   const isLoadingState =
+    toolCall.state === ClientToolCallState.generating ||
     toolCall.state === ClientToolCallState.pending ||
     toolCall.state === ClientToolCallState.executing
 

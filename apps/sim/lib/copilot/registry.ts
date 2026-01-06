@@ -131,6 +131,12 @@ export const ToolArgSchemas = {
       .describe(
         'Optional operation ID (e.g., "read", "write"). If not provided, returns full block schema.'
       ),
+    trigger: z
+      .boolean()
+      .optional()
+      .describe(
+        'If true, returns only the trigger-mode configuration (inputs with mode: "trigger" and trigger outputs). Only applicable for blocks that support triggers.'
+      ),
   }),
 
   get_trigger_blocks: z.object({}),
@@ -480,6 +486,7 @@ export const ToolResultSchemas = {
     blockType: z.string(),
     blockName: z.string(),
     operation: z.string().optional(),
+    trigger: z.boolean().optional(),
     inputs: z.record(z.any()),
     outputs: z.record(z.any()),
   }),
@@ -622,6 +629,7 @@ export const ToolResultSchemas = {
         blockId: z.string(),
         blockName: z.string(),
         blockType: z.string(),
+        triggerMode: z.boolean().optional(),
         outputs: z.array(z.string()),
         insideSubflowOutputs: z.array(z.string()).optional(),
         outsideSubflowOutputs: z.array(z.string()).optional(),
@@ -655,6 +663,7 @@ export const ToolResultSchemas = {
             blockId: z.string(),
             blockName: z.string(),
             blockType: z.string(),
+            triggerMode: z.boolean().optional(),
             outputs: z.array(z.string()),
             accessContext: z.enum(['inside', 'outside']).optional(),
           })

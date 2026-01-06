@@ -115,7 +115,9 @@ export function ThinkingBlock({
   }
 
   const hasContent = content && content.trim().length > 0
-  const label = isStreaming ? 'Thinking' : 'Thought'
+  // Thinking is "done" when streaming ends OR when there's following content (like a tool call)
+  const isThinkingDone = !isStreaming || hasFollowingContent
+  const label = isThinkingDone ? 'Thought' : 'Thinking'
   const durationText = ` for ${formatDuration(duration)}`
 
   return (
@@ -136,7 +138,7 @@ export function ThinkingBlock({
         <span className='relative inline-block'>
           <span className='text-[var(--text-tertiary)]'>{label}</span>
           <span className='text-[var(--text-muted)]'>{durationText}</span>
-          {isStreaming && (
+          {!isThinkingDone && (
             <span
               aria-hidden='true'
               className='pointer-events-none absolute inset-0 select-none overflow-hidden'
@@ -183,7 +185,7 @@ export function ThinkingBlock({
         >
           <pre className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-tertiary)] leading-[1.15rem]'>
             {content}
-            {isStreaming && (
+            {!isThinkingDone && (
               <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[var(--text-tertiary)]' />
             )}
           </pre>

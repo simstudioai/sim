@@ -14,6 +14,7 @@ import {
 interface GetBlockConfigArgs {
   blockType: string
   operation?: string
+  trigger?: boolean
 }
 
 export class GetBlockConfigClientTool extends BaseClientTool {
@@ -65,12 +66,15 @@ export class GetBlockConfigClientTool extends BaseClientTool {
     try {
       this.setState(ClientToolCallState.executing)
 
-      const { blockType, operation } = GetBlockConfigInput.parse(args || {})
+      const { blockType, operation, trigger } = GetBlockConfigInput.parse(args || {})
 
       const res = await fetch('/api/copilot/execute-copilot-server-tool', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName: 'get_block_config', payload: { blockType, operation } }),
+        body: JSON.stringify({
+          toolName: 'get_block_config',
+          payload: { blockType, operation, trigger },
+        }),
       })
       if (!res.ok) {
         const errorText = await res.text().catch(() => '')
