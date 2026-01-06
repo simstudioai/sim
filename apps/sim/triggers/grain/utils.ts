@@ -21,7 +21,6 @@ export function grainSetupInstructions(eventType: string): string {
     'You can find or create your API key in Grain at <strong>Settings > Integrations > API</strong>.',
     `Click <strong>"Save Configuration"</strong> to automatically create the webhook in Grain for <strong>${eventType}</strong> events.`,
     'The webhook will be automatically deleted when you remove this trigger.',
-    'To access additional data like AI summaries, highlights, or participants, use the <strong>"Grain Get Recording"</strong> tool with the recording ID from this trigger.',
   ]
 
   return instructions
@@ -40,11 +39,11 @@ export function buildRecordingOutputs(): Record<string, TriggerOutput> {
   return {
     type: {
       type: 'string',
-      description: 'Event type (recording_added or recording_updated)',
+      description: 'Event type',
     },
     user_id: {
       type: 'string',
-      description: 'User UUID who triggered the event (nullable)',
+      description: 'User UUID who triggered the event',
     },
     data: {
       id: {
