@@ -328,6 +328,8 @@ function getSubagentLabels(toolName: string, isStreaming: boolean): string {
       return isStreaming ? 'Touring' : 'Tour complete'
     case 'info':
       return isStreaming ? 'Getting info' : 'Info retrieved'
+    case 'workflow':
+      return isStreaming ? 'Managing workflow' : 'Workflow managed'
     default:
       return isStreaming ? 'Processing' : 'Processed'
   }
@@ -806,7 +808,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   if (toolCall.name === 'checkoff_todo' || toolCall.name === 'mark_todo_in_progress') return null
 
   // Special rendering for subagent tools - only show the collapsible SubAgentContent
-  const SUBAGENT_TOOLS = ['plan', 'edit', 'debug', 'test', 'deploy', 'auth', 'research', 'knowledge', 'custom_tool', 'tour', 'info']
+  const SUBAGENT_TOOLS = ['plan', 'edit', 'debug', 'test', 'deploy', 'auth', 'research', 'knowledge', 'custom_tool', 'tour', 'info', 'workflow']
   const isSubagentTool = SUBAGENT_TOOLS.includes(toolCall.name)
   if (isSubagentTool && toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0) {
     return (

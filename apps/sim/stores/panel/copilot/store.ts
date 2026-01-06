@@ -46,6 +46,7 @@ import { KnowledgeClientTool } from '@/lib/copilot/tools/client/other/knowledge'
 import { CustomToolClientTool } from '@/lib/copilot/tools/client/other/custom-tool'
 import { TourClientTool } from '@/lib/copilot/tools/client/other/tour'
 import { InfoClientTool } from '@/lib/copilot/tools/client/other/info'
+import { WorkflowClientTool } from '@/lib/copilot/tools/client/other/workflow'
 import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
 import { GetCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-credentials'
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
@@ -99,6 +100,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   custom_tool: (id) => new CustomToolClientTool(id),
   tour: (id) => new TourClientTool(id),
   info: (id) => new InfoClientTool(id),
+  workflow: (id) => new WorkflowClientTool(id),
   run_workflow: (id) => new RunWorkflowClientTool(id),
   get_workflow_console: (id) => new GetWorkflowConsoleClientTool(id),
   get_blocks_and_tools: (id) => new GetBlocksAndToolsClientTool(id),
@@ -151,6 +153,7 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   custom_tool: (CustomToolClientTool as any)?.metadata,
   tour: (TourClientTool as any)?.metadata,
   info: (InfoClientTool as any)?.metadata,
+  workflow: (WorkflowClientTool as any)?.metadata,
   run_workflow: (RunWorkflowClientTool as any)?.metadata,
   get_workflow_console: (GetWorkflowConsoleClientTool as any)?.metadata,
   get_blocks_and_tools: (GetBlocksAndToolsClientTool as any)?.metadata,
