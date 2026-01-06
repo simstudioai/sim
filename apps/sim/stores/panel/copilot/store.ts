@@ -1660,7 +1660,27 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
     const name: string | undefined = toolData.name || data?.toolName
     if (!id || !name) return
 
-    const args = toolData.arguments
+    // Arguments can come in different locations depending on SSE format
+    // Check multiple possible locations
+    let args = toolData.arguments || toolData.input || data?.arguments || data?.input
+    
+    // If arguments is a string, try to parse it as JSON
+    if (typeof args === 'string') {
+      try {
+        args = JSON.parse(args)
+      } catch {
+        logger.warn('[SubAgent] Failed to parse arguments string', { args })
+      }
+    }
+
+    logger.info('[SubAgent] tool_call received', {
+      id,
+      name,
+      hasArgs: !!args,
+      argsKeys: args ? Object.keys(args) : [],
+      toolDataKeys: Object.keys(toolData),
+      dataKeys: Object.keys(data || {}),
+    })
 
     // Initialize if needed
     if (!context.subAgentToolCalls[parentToolCallId]) {
@@ -1713,7 +1733,7 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
           // Auto-execute tools without interrupts
           const ctx = createExecutionContext({ toolCallId: id, toolName: name })
           try {
-            await def.execute(args || {}, ctx)
+            await def.execute(ctx, args || {})
           } catch (execErr: any) {
             logger.error('[SubAgent] Tool execution failed', { id, name, error: execErr?.message })
           }
@@ -1725,7 +1745,7 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
           const hasInterruptDisplays = !!instance.getInterruptDisplays?.()
           if (!hasInterruptDisplays) {
             try {
-              await instance.execute(args)
+              await instance.execute(args || {})
             } catch (execErr: any) {
               logger.error('[SubAgent] Class tool execution failed', { id, name, error: execErr?.message })
             }
