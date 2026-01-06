@@ -39,10 +39,15 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
+  LogRowContextMenu,
+  OutputContextMenu,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components'
+import {
   useOutputPanelResize,
   useTerminalFilters,
   useTerminalResize,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/hooks'
+import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getBlock } from '@/blocks'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
@@ -365,6 +370,28 @@ export function Terminal() {
     hasActiveFilters,
   } = useTerminalFilters()
 
+  // Context menu state
+  const [hasSelection, setHasSelection] = useState(false)
+  const [contextMenuEntry, setContextMenuEntry] = useState<ConsoleEntry | null>(null)
+  const [storedSelectionText, setStoredSelectionText] = useState('')
+
+  // Context menu hooks
+  const {
+    isOpen: isLogRowMenuOpen,
+    position: logRowMenuPosition,
+    menuRef: logRowMenuRef,
+    handleContextMenu: handleLogRowContextMenu,
+    closeMenu: closeLogRowMenu,
+  } = useContextMenu()
+
+  const {
+    isOpen: isOutputMenuOpen,
+    position: outputMenuPosition,
+    menuRef: outputMenuRef,
+    handleContextMenu: handleOutputContextMenu,
+    closeMenu: closeOutputMenu,
+  } = useContextMenu()
+
   /**
    * Expands the terminal to its last meaningful height, with safeguards:
    * - Never expands below {@link DEFAULT_EXPANDED_HEIGHT}.
@@ -511,15 +538,11 @@ export function Terminal() {
   const handleRowClick = useCallback((entry: ConsoleEntry) => {
     setSelectedEntry((prev) => {
       const isDeselecting = prev?.id === entry.id
-      // Re-enable auto-select when deselecting, disable when selecting
       setAutoSelectEnabled(isDeselecting)
       return isDeselecting ? null : entry
     })
   }, [])
 
-  /**
-   * Handle header click - toggle between expanded and collapsed
-   */
   const handleHeaderClick = useCallback(() => {
     if (isExpanded) {
       setIsToggling(true)
@@ -529,16 +552,10 @@ export function Terminal() {
     }
   }, [expandToLastHeight, isExpanded, setTerminalHeight])
 
-  /**
-   * Handle transition end - reset toggling state
-   */
   const handleTransitionEnd = useCallback(() => {
     setIsToggling(false)
   }, [])
 
-  /**
-   * Handle copy output to clipboard
-   */
   const handleCopy = useCallback(() => {
     if (!selectedEntry) return
 
@@ -560,9 +577,6 @@ export function Terminal() {
     }
   }, [activeWorkflowId, clearWorkflowConsole])
 
-  /**
-   * Activates output search and focuses the search input.
-   */
   const activateOutputSearch = useCallback(() => {
     setIsOutputSearchActive(true)
     setTimeout(() => {
@@ -570,9 +584,6 @@ export function Terminal() {
     }, 0)
   }, [])
 
-  /**
-   * Closes output search and clears the query.
-   */
   const closeOutputSearch = useCallback(() => {
     setIsOutputSearchActive(false)
     setOutputSearchQuery('')
@@ -604,9 +615,6 @@ export function Terminal() {
     setCurrentMatchIndex(0)
   }, [])
 
-  /**
-   * Handle clear console for current workflow via mouse interaction.
-   */
   const handleClearConsole = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -615,10 +623,6 @@ export function Terminal() {
     [clearCurrentWorkflowConsole]
   )
 
-  /**
-   * Handle export of console entries for the current workflow via mouse interaction.
-   * Mirrors the visibility and interaction behavior of the clear console action.
-   */
   const handleExportConsole = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -629,9 +633,60 @@ export function Terminal() {
     [activeWorkflowId, exportConsoleCSV]
   )
 
-  /**
-   * Handle training button click - toggle training state or open modal
-   */
+  const handleCopySelection = useCallback(() => {
+    if (storedSelectionText) {
+      navigator.clipboard.writeText(storedSelectionText)
+      setShowCopySuccess(true)
+    }
+  }, [storedSelectionText])
+
+  const handleOutputPanelContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      const selection = window.getSelection()
+      const selectionText = selection?.toString() || ''
+      setStoredSelectionText(selectionText)
+      setHasSelection(selectionText.length > 0)
+      handleOutputContextMenu(e)
+    },
+    [handleOutputContextMenu]
+  )
+
+  const handleRowContextMenu = useCallback(
+    (e: React.MouseEvent, entry: ConsoleEntry) => {
+      setContextMenuEntry(entry)
+      handleLogRowContextMenu(e)
+    },
+    [handleLogRowContextMenu]
+  )
+
+  const handleFilterByBlock = useCallback(
+    (blockId: string) => {
+      toggleBlock(blockId)
+      closeLogRowMenu()
+    },
+    [toggleBlock, closeLogRowMenu]
+  )
+
+  const handleFilterByStatus = useCallback(
+    (status: 'error' | 'info') => {
+      toggleStatus(status)
+      closeLogRowMenu()
+    },
+    [toggleStatus, closeLogRowMenu]
+  )
+
+  const handleFilterByRunId = useCallback(
+    (runId: string) => {
+      toggleRunId(runId)
+      closeLogRowMenu()
+    },
+    [toggleRunId, closeLogRowMenu]
+  )
+
+  const handleClearConsoleFromMenu = useCallback(() => {
+    clearCurrentWorkflowConsole()
+  }, [clearCurrentWorkflowConsole])
+
   const handleTrainingClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -644,9 +699,6 @@ export function Terminal() {
     [isTraining, stopTraining, toggleTrainingModal]
   )
 
-  /**
-   * Whether training controls should be visible
-   */
   const shouldShowTrainingButton = isTrainingEnvEnabled && showTrainingControls
 
   /**
@@ -720,6 +772,23 @@ export function Terminal() {
       return () => clearTimeout(timer)
     }
   }, [showCopySuccess])
+
+  /**
+   * Track text selection state for context menu.
+   * Skip updates when the context menu is open to prevent the selection
+   * state from changing mid-click (which would disable the copy button).
+   */
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      if (isOutputMenuOpen) return
+
+      const selection = window.getSelection()
+      setHasSelection(Boolean(selection && selection.toString().length > 0))
+    }
+
+    document.addEventListener('selectionchange', handleSelectionChange)
+    return () => document.removeEventListener('selectionchange', handleSelectionChange)
+  }, [isOutputMenuOpen])
 
   /**
    * Auto-select the latest entry when new logs arrive
@@ -1311,6 +1380,7 @@ export function Terminal() {
                         isSelected && 'bg-[var(--surface-6)] dark:bg-[var(--surface-4)]'
                       )}
                       onClick={() => handleRowClick(entry)}
+                      onContextMenu={(e) => handleRowContextMenu(e, entry)}
                     >
                       {/* Block */}
                       <div
@@ -1327,7 +1397,13 @@ export function Terminal() {
                       </div>
 
                       {/* Status */}
-                      <div className={clsx(COLUMN_WIDTHS.STATUS, COLUMN_BASE_CLASS)}>
+                      <div
+                        className={clsx(
+                          COLUMN_WIDTHS.STATUS,
+                          COLUMN_BASE_CLASS,
+                          'flex items-center'
+                        )}
+                      >
                         {statusInfo ? (
                           <Badge variant={statusInfo.isError ? 'red' : 'gray'} dot>
                             {statusInfo.label}
@@ -1719,7 +1795,10 @@ export function Terminal() {
               )}
 
               {/* Content */}
-              <div className={clsx('flex-1 overflow-y-auto', !wrapText && 'overflow-x-auto')}>
+              <div
+                className={clsx('flex-1 overflow-y-auto', !wrapText && 'overflow-x-auto')}
+                onContextMenu={handleOutputPanelContextMenu}
+              >
                 {shouldShowCodeDisplay ? (
                   <OutputCodeContent
                     code={selectedEntry.input.code}
@@ -1748,6 +1827,42 @@ export function Terminal() {
           )}
         </div>
       </aside>
+
+      {/* Log Row Context Menu */}
+      <LogRowContextMenu
+        isOpen={isLogRowMenuOpen}
+        position={logRowMenuPosition}
+        menuRef={logRowMenuRef}
+        onClose={closeLogRowMenu}
+        entry={contextMenuEntry}
+        filters={filters}
+        onFilterByBlock={handleFilterByBlock}
+        onFilterByStatus={handleFilterByStatus}
+        onFilterByRunId={handleFilterByRunId}
+        onClearFilters={() => {
+          clearFilters()
+          closeLogRowMenu()
+        }}
+        onClearConsole={handleClearConsoleFromMenu}
+        hasActiveFilters={hasActiveFilters}
+      />
+
+      {/* Output Panel Context Menu */}
+      <OutputContextMenu
+        isOpen={isOutputMenuOpen}
+        position={outputMenuPosition}
+        menuRef={outputMenuRef}
+        onClose={closeOutputMenu}
+        onCopySelection={handleCopySelection}
+        onCopyAll={handleCopy}
+        onSearch={activateOutputSearch}
+        wrapText={wrapText}
+        onToggleWrap={() => setWrapText(!wrapText)}
+        openOnRun={openOnRun}
+        onToggleOpenOnRun={() => setOpenOnRun(!openOnRun)}
+        onClearConsole={handleClearConsoleFromMenu}
+        hasSelection={hasSelection}
+      />
     </>
   )
 }

@@ -1,6 +1,12 @@
 'use client'
 
-import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverDivider,
+  PopoverItem,
+} from '@/components/emcn'
 
 interface DocumentContextMenuProps {
   isOpen: boolean
@@ -107,6 +113,7 @@ export function DocumentContextMenu({
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
         {hasDocument ? (
           <>
+            {/* Navigation */}
             {!isMultiSelect && onOpenInNewTab && (
               <PopoverItem
                 onClick={() => {
@@ -117,6 +124,9 @@ export function DocumentContextMenu({
                 Open in new tab
               </PopoverItem>
             )}
+            {!isMultiSelect && onOpenInNewTab && <PopoverDivider />}
+
+            {/* Edit and view actions */}
             {!isMultiSelect && onRename && (
               <PopoverItem
                 onClick={() => {
@@ -137,6 +147,9 @@ export function DocumentContextMenu({
                 View tags
               </PopoverItem>
             )}
+            {!isMultiSelect && (onRename || (hasTags && onViewTags)) && <PopoverDivider />}
+
+            {/* State toggle */}
             {onToggleEnabled && (
               <PopoverItem
                 disabled={disableToggleEnabled}
@@ -148,6 +161,9 @@ export function DocumentContextMenu({
                 {getToggleLabel()}
               </PopoverItem>
             )}
+
+            {/* Destructive action */}
+            {onToggleEnabled && onDelete && <PopoverDivider />}
             {onDelete && (
               <PopoverItem
                 disabled={disableDelete}

@@ -1,6 +1,12 @@
 'use client'
 
-import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverDivider,
+  PopoverItem,
+} from '@/components/emcn'
 
 interface KnowledgeBaseContextMenuProps {
   /**
@@ -104,6 +110,7 @@ export function KnowledgeBaseContextMenu({
         }}
       />
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
+        {/* Navigation */}
         {showOpenInNewTab && onOpenInNewTab && (
           <PopoverItem
             onClick={() => {
@@ -114,6 +121,9 @@ export function KnowledgeBaseContextMenu({
             Open in new tab
           </PopoverItem>
         )}
+        {showOpenInNewTab && onOpenInNewTab && <PopoverDivider />}
+
+        {/* View and copy actions */}
         {showViewTags && onViewTags && (
           <PopoverItem
             onClick={() => {
@@ -134,6 +144,9 @@ export function KnowledgeBaseContextMenu({
             Copy ID
           </PopoverItem>
         )}
+        {((showViewTags && onViewTags) || onCopyId) && <PopoverDivider />}
+
+        {/* Edit action */}
         {showEdit && onEdit && (
           <PopoverItem
             disabled={disableEdit}
@@ -145,6 +158,9 @@ export function KnowledgeBaseContextMenu({
             Edit
           </PopoverItem>
         )}
+
+        {/* Destructive action */}
+        {showEdit && onEdit && showDelete && onDelete && <PopoverDivider />}
         {showDelete && onDelete && (
           <PopoverItem
             disabled={disableDelete}
