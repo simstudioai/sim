@@ -563,7 +563,9 @@ export async function processDocumentAsync(
             }
 
             logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
-            await Promise.all(batches.map((batch) => tx.insert(embedding).values(batch)))
+            for (const batch of batches) {
+              await tx.insert(embedding).values(batch)
+            }
           }
 
           await tx
