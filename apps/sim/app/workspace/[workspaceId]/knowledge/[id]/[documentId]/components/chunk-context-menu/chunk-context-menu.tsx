@@ -1,6 +1,12 @@
 'use client'
 
-import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverDivider,
+  PopoverItem,
+} from '@/components/emcn'
 
 interface ChunkContextMenuProps {
   isOpen: boolean
@@ -102,6 +108,7 @@ export function ChunkContextMenu({
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
         {hasChunk ? (
           <>
+            {/* Navigation */}
             {!isMultiSelect && onOpenInNewTab && (
               <PopoverItem
                 onClick={() => {
@@ -112,6 +119,9 @@ export function ChunkContextMenu({
                 Open in new tab
               </PopoverItem>
             )}
+            {!isMultiSelect && onOpenInNewTab && <PopoverDivider />}
+
+            {/* Edit and copy actions */}
             {!isMultiSelect && onEdit && (
               <PopoverItem
                 onClick={() => {
@@ -132,6 +142,9 @@ export function ChunkContextMenu({
                 Copy content
               </PopoverItem>
             )}
+            {!isMultiSelect && (onEdit || onCopyContent) && <PopoverDivider />}
+
+            {/* State toggle */}
             {onToggleEnabled && (
               <PopoverItem
                 disabled={disableToggleEnabled}
@@ -143,6 +156,9 @@ export function ChunkContextMenu({
                 {getToggleLabel()}
               </PopoverItem>
             )}
+
+            {/* Destructive action */}
+            {onToggleEnabled && onDelete && <PopoverDivider />}
             {onDelete && (
               <PopoverItem
                 disabled={disableDelete}

@@ -119,10 +119,8 @@ const STYLES = {
         'hover:bg-[var(--border-1)] hover:text-[var(--text-primary)] hover:[&_svg]:text-[var(--text-primary)]',
     },
     secondary: {
-      active:
-        'bg-[var(--brand-secondary)] text-[var(--text-inverse)] [&_svg]:text-[var(--text-inverse)]',
-      hover:
-        'hover:bg-[var(--brand-secondary)] hover:text-[var(--text-inverse)] dark:hover:text-[var(--text-inverse)] hover:[&_svg]:text-[var(--text-inverse)] dark:hover:[&_svg]:text-[var(--text-inverse)]',
+      active: 'bg-[var(--brand-secondary)] text-white [&_svg]:text-white',
+      hover: 'hover:bg-[var(--brand-secondary)] hover:text-white hover:[&_svg]:text-white',
     },
     inverted: {
       active:
@@ -474,14 +472,20 @@ const PopoverScrollArea = React.forwardRef<HTMLDivElement, PopoverScrollAreaProp
 PopoverScrollArea.displayName = 'PopoverScrollArea'
 
 export interface PopoverItemProps extends React.HTMLAttributes<HTMLDivElement> {
-  /** Whether this item is currently active/selected */
+  /**
+   * Whether this item has active/highlighted background styling.
+   * Use for keyboard navigation focus or persistent highlight states.
+   */
   active?: boolean
   /** Only show when not inside any folder */
   rootOnly?: boolean
   /** Whether this item is disabled */
   disabled?: boolean
   /**
-   * Show checkmark when active
+   * Show a checkmark to indicate selection/checked state.
+   * Unlike `active`, this only shows the checkmark without background highlight,
+   * following the pattern where hover provides interaction feedback
+   * and checkmarks indicate current value.
    * @default false
    */
   showCheck?: boolean
@@ -528,7 +532,7 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
         {...props}
       >
         {children}
-        {showCheck && active && <Check className={cn('ml-auto', STYLES.size[size].icon)} />}
+        {showCheck && <Check className={cn('ml-auto', STYLES.size[size].icon)} />}
       </div>
     )
   }
