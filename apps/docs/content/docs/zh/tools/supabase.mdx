@@ -50,8 +50,9 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
 | `table` | string | 是 | 要查询的 Supabase 表名 |
 | `schema` | string | 否 | 要查询的数据库 schema \(默认：public\)。用于访问其他 schema 下的表。|
+| `select` | string | 否 | 要返回的列（逗号分隔）。默认为 *（所有列）|
 | `filter` | string | 否 | PostgREST 过滤条件 \(例如："id=eq.123"\) |
-| `orderBy` | string | 否 | 排序的列名 \(添加 DESC 表示降序\) |
+| `orderBy` | string | 否 | 排序的列（添加 DESC 表示降序）|
 | `limit` | number | 否 | 返回的最大行数 |
 | `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
 
@@ -94,7 +95,8 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
 | `table` | string | 是 | 要查询的 Supabase 表名 |
 | `schema` | string | 否 | 要查询的数据库 schema \(默认：public\)。用于访问其他 schema 下的表。|
-| `filter` | string | 是 | 用于查找特定行的 PostgREST 过滤条件 \(例如："id=eq.123"\) |
+| `select` | string | 否 | 要返回的列（逗号分隔）。默认为 *（所有列）|
+| `filter` | string | 是 | PostgREST 过滤条件，用于查找特定行 \(例如："id=eq.123"\) |
 | `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
 
 #### 输出

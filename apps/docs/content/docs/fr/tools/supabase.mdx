@@ -49,7 +49,8 @@ Interroger des données d'une table Supabase
 | --------- | ---- | ----------- | ----------- |
 | `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
 | `table` | string | Oui | Le nom de la table Supabase à interroger |
-| `schema` | string | Non | Schéma de base de données à interroger \(par défaut : public\). Utilisez ceci pour accéder aux tables dans d'autres schémas. |
+| `schema` | string | Non | Schéma de base de données à partir duquel interroger \(par défaut : public\). Utilisez ceci pour accéder aux tables dans d'autres schémas. |
+| `select` | string | Non | Colonnes à retourner \(séparées par des virgules\). Par défaut * \(toutes les colonnes\) |
 | `filter` | string | Non | Filtre PostgREST \(ex. : "id=eq.123"\) |
 | `orderBy` | string | Non | Colonne pour le tri \(ajoutez DESC pour l'ordre décroissant\) |
 | `limit` | number | Non | Nombre maximum de lignes à retourner |
@@ -93,7 +94,8 @@ Obtenir une seule ligne d'une table Supabase selon des critères de filtrage
 | --------- | ---- | ----------- | ----------- |
 | `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
 | `table` | string | Oui | Le nom de la table Supabase à interroger |
-| `schema` | string | Non | Schéma de base de données à interroger \(par défaut : public\). Utilisez ceci pour accéder aux tables dans d'autres schémas. |
+| `schema` | string | Non | Schéma de base de données à partir duquel interroger \(par défaut : public\). Utilisez ceci pour accéder aux tables dans d'autres schémas. |
+| `select` | string | Non | Colonnes à retourner \(séparées par des virgules\). Par défaut * \(toutes les colonnes\) |
 | `filter` | string | Oui | Filtre PostgREST pour trouver la ligne spécifique \(ex. : "id=eq.123"\) |
 | `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
 

@@ -47,10 +47,11 @@ Daten aus einer Supabase-Tabelle abfragen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z. B. jdrkgepadsdopsntdlom\) |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
 | `table` | string | Ja | Der Name der abzufragenden Supabase-Tabelle |
 | `schema` | string | Nein | Datenbankschema für die Abfrage \(Standard: public\). Verwenden Sie dies, um auf Tabellen in anderen Schemas zuzugreifen. |
-| `filter` | string | Nein | PostgREST-Filter \(z. B. "id=eq.123"\) |
+| `select` | string | Nein | Zurückzugebende Spalten \(durch Komma getrennt\). Standard ist * \(alle Spalten\) |
+| `filter` | string | Nein | PostgREST-Filter \(z.B. "id=eq.123"\) |
 | `orderBy` | string | Nein | Spalte zum Sortieren \(fügen Sie DESC für absteigende Sortierung hinzu\) |
 | `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Zeilen |
 | `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
@@ -91,10 +92,11 @@ Eine einzelne Zeile aus einer Supabase-Tabelle basierend auf Filterkriterien abr
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z. B. jdrkgepadsdopsntdlom\) |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
 | `table` | string | Ja | Der Name der abzufragenden Supabase-Tabelle |
 | `schema` | string | Nein | Datenbankschema für die Abfrage \(Standard: public\). Verwenden Sie dies, um auf Tabellen in anderen Schemas zuzugreifen. |
-| `filter` | string | Ja | PostgREST-Filter zum Auffinden der spezifischen Zeile \(z. B. "id=eq.123"\) |
+| `select` | string | Nein | Zurückzugebende Spalten \(durch Komma getrennt\). Standard ist * \(alle Spalten\) |
+| `filter` | string | Ja | PostgREST-Filter zum Finden der spezifischen Zeile \(z.B. "id=eq.123"\) |
 | `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
 
 #### Ausgabe
