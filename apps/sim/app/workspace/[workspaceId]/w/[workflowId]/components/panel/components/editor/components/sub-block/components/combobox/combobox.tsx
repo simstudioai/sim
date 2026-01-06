@@ -271,15 +271,8 @@ export function ComboBox({
     ) {
       fetchOptionsIfNeeded()
     }
-  }, [
-    fetchOptions,
-    isPreview,
-    disabled,
-    fetchedOptions.length,
-    isLoadingOptions,
-    fetchOptionsIfNeeded,
-    dependencyValues, // Refetch when dependencies change
-  ])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchOptionsIfNeeded deps already covered above
+  }, [fetchOptions, isPreview, disabled, fetchedOptions.length, isLoadingOptions, dependencyValues])
 
   // Hydrate the stored value's label by fetching it individually
   useEffect(() => {
