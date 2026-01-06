@@ -51,7 +51,7 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
     url: (params) => {
       // Construct the URL for the Supabase REST API
       const selectColumns = params.select?.trim() || '*'
-      let url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=${selectColumns}`
+      let url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=${encodeURIComponent(selectColumns)}`
 
       // Add filters (required for get_row) - using PostgREST syntax
       if (params.filter?.trim()) {
