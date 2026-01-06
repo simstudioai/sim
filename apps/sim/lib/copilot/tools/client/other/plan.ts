@@ -23,7 +23,7 @@ export class PlanClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Preparing plan', icon: Loader2 },
+      [ClientToolCallState.generating]: { text: 'Planning', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Planning', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Planning', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Planned', icon: ListTodo },

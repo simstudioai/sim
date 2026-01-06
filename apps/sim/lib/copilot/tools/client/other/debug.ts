@@ -24,7 +24,7 @@ export class DebugClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Preparing debug session', icon: Loader2 },
+      [ClientToolCallState.generating]: { text: 'Debugging', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Debugging', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Debugging', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Debugged', icon: Bug },

@@ -54,7 +54,7 @@ export function QueuedMessages() {
       {/* Message list */}
       {isExpanded && (
         <div>
-          {messageQueue.map((msg, index) => (
+          {messageQueue.map((msg) => (
             <div
               key={msg.id}
               className='group flex items-center gap-2 border-t border-black/[0.04] px-2.5 py-1.5 hover:bg-[var(--bg-tertiary)] dark:border-white/[0.04]'
@@ -71,31 +71,29 @@ export function QueuedMessages() {
                 </p>
               </div>
 
-              {/* Actions */}
-              <div className='flex shrink-0 items-center gap-1'>
-                {/* Send immediately button */}
+              {/* Actions - always visible */}
+              <div className='flex shrink-0 items-center gap-0.5'>
                 <button
                   type='button'
                   onClick={(e) => {
                     e.stopPropagation()
                     handleSendNow(msg.id)
                   }}
-                  className='rounded p-1 text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
-                  title='Send immediately (stops current)'
+                  className='rounded p-0.5 text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-quaternary)] hover:text-[var(--text-primary)]'
+                  title='Send now (aborts current stream)'
                 >
-                  <ArrowUp className='h-3.5 w-3.5' />
+                  <ArrowUp className='h-3 w-3' />
                 </button>
-                {/* Delete button */}
                 <button
                   type='button'
                   onClick={(e) => {
                     e.stopPropagation()
                     handleRemove(msg.id)
                   }}
-                  className='rounded p-1 text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-red-400'
+                  className='rounded p-0.5 text-[var(--text-tertiary)] transition-colors hover:bg-red-500/10 hover:text-red-400'
                   title='Remove from queue'
                 >
-                  <Trash2 className='h-3.5 w-3.5' />
+                  <Trash2 className='h-3 w-3' />
                 </button>
               </div>
             </div>

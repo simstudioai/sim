@@ -206,8 +206,8 @@ export const ToolArgSchemas = {
 
   manage_custom_tool: z.object({
     operation: z
-      .enum(['add', 'edit', 'delete'])
-      .describe('The operation to perform: add (create new), edit (update existing), or delete'),
+      .enum(['add', 'edit', 'delete', 'list'])
+      .describe('The operation to perform: add (create new), edit (update existing), delete, or list (get all tools)'),
     toolId: z
       .string()
       .optional()
@@ -599,7 +599,7 @@ export const ToolResultSchemas = {
   knowledge_base: KnowledgeBaseResultSchema,
   manage_custom_tool: z.object({
     success: z.boolean(),
-    operation: z.enum(['add', 'edit', 'delete']),
+    operation: z.enum(['add', 'edit', 'delete', 'list']),
     toolId: z.string().optional(),
     title: z.string().optional(),
     message: z.string().optional(),

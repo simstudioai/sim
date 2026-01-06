@@ -238,11 +238,13 @@ function SubAgentToolCall({ toolCall }: { toolCall: CopilotToolCall }) {
     toolCall.state === ClientToolCallState.pending ||
     toolCall.state === ClientToolCallState.executing
 
+  const showButtons = shouldShowRunSkipButtons(toolCall)
+
   return (
     <div className='py-0.5'>
       <span className='relative inline-block font-[470] font-season text-[12px] text-[var(--text-tertiary)]'>
         {displayName}
-        {isLoading && (
+        {isLoading && !showButtons && (
           <span
             aria-hidden='true'
             className='pointer-events-none absolute inset-0 select-none overflow-hidden'
@@ -265,6 +267,7 @@ function SubAgentToolCall({ toolCall }: { toolCall: CopilotToolCall }) {
           </span>
         )}
       </span>
+      {showButtons && <RunSkipButtons toolCall={toolCall} />}
       <style>{`
         @keyframes subagent-shimmer {
           0% { background-position: 150% 0; }
@@ -303,12 +306,28 @@ const SUBAGENT_SCROLL_INTERVAL = 100
  */
 function getSubagentLabels(toolName: string, isStreaming: boolean): string {
   switch (toolName) {
-    case 'debug':
-      return isStreaming ? 'Debugging' : 'Debugged'
-    case 'apply_edit':
-      return isStreaming ? 'Applying edit' : 'Applied edit'
     case 'plan':
       return isStreaming ? 'Planning' : 'Planned'
+    case 'edit':
+      return isStreaming ? 'Editing' : 'Edited'
+    case 'debug':
+      return isStreaming ? 'Debugging' : 'Debugged'
+    case 'test':
+      return isStreaming ? 'Testing' : 'Tested'
+    case 'deploy':
+      return isStreaming ? 'Deploying' : 'Deployed'
+    case 'auth':
+      return isStreaming ? 'Authenticating' : 'Authenticated'
+    case 'research':
+      return isStreaming ? 'Researching' : 'Researched'
+    case 'knowledge':
+      return isStreaming ? 'Managing knowledge' : 'Knowledge managed'
+    case 'custom_tool':
+      return isStreaming ? 'Managing custom tool' : 'Custom tool managed'
+    case 'tour':
+      return isStreaming ? 'Touring' : 'Tour complete'
+    case 'info':
+      return isStreaming ? 'Getting info' : 'Info retrieved'
     default:
       return isStreaming ? 'Processing' : 'Processed'
   }
@@ -786,8 +805,9 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   // Skip rendering some internal tools
   if (toolCall.name === 'checkoff_todo' || toolCall.name === 'mark_todo_in_progress') return null
 
-  // Special rendering for subagent tools (debug, apply_edit, plan) - only show the collapsible SubAgentContent
-  const isSubagentTool = toolCall.name === 'debug' || toolCall.name === 'apply_edit' || toolCall.name === 'plan'
+  // Special rendering for subagent tools - only show the collapsible SubAgentContent
+  const SUBAGENT_TOOLS = ['plan', 'edit', 'debug', 'test', 'deploy', 'auth', 'research', 'knowledge', 'custom_tool', 'tour', 'info']
+  const isSubagentTool = SUBAGENT_TOOLS.includes(toolCall.name)
   if (isSubagentTool && toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0) {
     return (
       <div className='w-full'>

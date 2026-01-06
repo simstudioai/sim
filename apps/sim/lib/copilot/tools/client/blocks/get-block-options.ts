@@ -63,7 +63,16 @@ export class GetBlockOptionsClientTool extends BaseClientTool {
     try {
       this.setState(ClientToolCallState.executing)
 
-      const { blockId } = GetBlockOptionsInput.parse(args || {})
+      // Handle both camelCase and snake_case parameter names, plus blockType as an alias
+      const normalizedArgs = args
+        ? {
+            blockId: args.blockId || (args as any).block_id || (args as any).blockType || (args as any).block_type,
+          }
+        : {}
+
+      logger.info('execute called', { originalArgs: args, normalizedArgs })
+
+      const { blockId } = GetBlockOptionsInput.parse(normalizedArgs)
 
       const res = await fetch('/api/copilot/execute-copilot-server-tool', {
         method: 'POST',

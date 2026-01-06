@@ -33,11 +33,19 @@ import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
 import { RememberDebugClientTool } from '@/lib/copilot/tools/client/other/remember-debug'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
 import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
-import { ApplyEditClientTool } from '@/lib/copilot/tools/client/other/apply-edit'
+import { EditClientTool } from '@/lib/copilot/tools/client/other/edit'
 import { DebugClientTool } from '@/lib/copilot/tools/client/other/debug'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
 import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
 import { SleepClientTool } from '@/lib/copilot/tools/client/other/sleep'
+import { TestClientTool } from '@/lib/copilot/tools/client/other/test'
+import { DeployClientTool } from '@/lib/copilot/tools/client/other/deploy'
+import { AuthClientTool } from '@/lib/copilot/tools/client/other/auth'
+import { ResearchClientTool } from '@/lib/copilot/tools/client/other/research'
+import { KnowledgeClientTool } from '@/lib/copilot/tools/client/other/knowledge'
+import { CustomToolClientTool } from '@/lib/copilot/tools/client/other/custom-tool'
+import { TourClientTool } from '@/lib/copilot/tools/client/other/tour'
+import { InfoClientTool } from '@/lib/copilot/tools/client/other/info'
 import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
 import { GetCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-credentials'
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
@@ -80,8 +88,17 @@ try {
 
 // Known class-based client tools: map tool name -> instantiator
 const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
-  apply_edit: (id) => new ApplyEditClientTool(id),
+  plan: (id) => new PlanClientTool(id),
+  edit: (id) => new EditClientTool(id),
   debug: (id) => new DebugClientTool(id),
+  test: (id) => new TestClientTool(id),
+  deploy: (id) => new DeployClientTool(id),
+  auth: (id) => new AuthClientTool(id),
+  research: (id) => new ResearchClientTool(id),
+  knowledge: (id) => new KnowledgeClientTool(id),
+  custom_tool: (id) => new CustomToolClientTool(id),
+  tour: (id) => new TourClientTool(id),
+  info: (id) => new InfoClientTool(id),
   run_workflow: (id) => new RunWorkflowClientTool(id),
   get_workflow_console: (id) => new GetWorkflowConsoleClientTool(id),
   get_blocks_and_tools: (id) => new GetBlocksAndToolsClientTool(id),
@@ -98,7 +115,6 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   get_credentials: (id) => new GetCredentialsClientTool(id),
   knowledge_base: (id) => new KnowledgeBaseClientTool(id),
   make_api_request: (id) => new MakeApiRequestClientTool(id),
-  plan: (id) => new PlanClientTool(id),
   checkoff_todo: (id) => new CheckoffTodoClientTool(id),
   mark_todo_in_progress: (id) => new MarkTodoInProgressClientTool(id),
   oauth_request_access: (id) => new OAuthRequestAccessClientTool(id),
@@ -124,8 +140,17 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
 
 // Read-only static metadata for class-based tools (no instances)
 export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefined> = {
-  apply_edit: (ApplyEditClientTool as any)?.metadata,
+  plan: (PlanClientTool as any)?.metadata,
+  edit: (EditClientTool as any)?.metadata,
   debug: (DebugClientTool as any)?.metadata,
+  test: (TestClientTool as any)?.metadata,
+  deploy: (DeployClientTool as any)?.metadata,
+  auth: (AuthClientTool as any)?.metadata,
+  research: (ResearchClientTool as any)?.metadata,
+  knowledge: (KnowledgeClientTool as any)?.metadata,
+  custom_tool: (CustomToolClientTool as any)?.metadata,
+  tour: (TourClientTool as any)?.metadata,
+  info: (InfoClientTool as any)?.metadata,
   run_workflow: (RunWorkflowClientTool as any)?.metadata,
   get_workflow_console: (GetWorkflowConsoleClientTool as any)?.metadata,
   get_blocks_and_tools: (GetBlocksAndToolsClientTool as any)?.metadata,
@@ -142,7 +167,6 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   get_credentials: (GetCredentialsClientTool as any)?.metadata,
   knowledge_base: (KnowledgeBaseClientTool as any)?.metadata,
   make_api_request: (MakeApiRequestClientTool as any)?.metadata,
-  plan: (PlanClientTool as any)?.metadata,
   checkoff_todo: (CheckoffTodoClientTool as any)?.metadata,
   mark_todo_in_progress: (MarkTodoInProgressClientTool as any)?.metadata,
   edit_workflow: (EditWorkflowClientTool as any)?.metadata,
