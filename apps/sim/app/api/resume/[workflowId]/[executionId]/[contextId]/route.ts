@@ -29,7 +29,7 @@ export async function POST(
 
   const workflow = access.workflow
 
-  let payload: any = {}
+  let payload: Record<string, unknown> = {}
   try {
     payload = await request.json()
   } catch {
