@@ -49,7 +49,8 @@ Supabaseテーブルからデータを照会する
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
 | `table` | string | はい | クエリするSupabaseテーブルの名前 |
-| `schema` | string | いいえ | クエリするデータベーススキーマ（デフォルト：public）。他のスキーマのテーブルにアクセスする場合に使用します。 |
+| `schema` | string | いいえ | クエリ元のデータベーススキーマ（デフォルト：public）。他のスキーマのテーブルにアクセスする場合に使用します。 |
+| `select` | string | いいえ | 返す列（カンマ区切り）。デフォルトは*（すべての列） |
 | `filter` | string | いいえ | PostgRESTフィルター（例："id=eq.123"） |
 | `orderBy` | string | いいえ | 並べ替える列（降順の場合はDESCを追加） |
 | `limit` | number | いいえ | 返す最大行数 |
@@ -93,7 +94,8 @@ Supabaseテーブルにデータを挿入する
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
 | `table` | string | はい | クエリするSupabaseテーブルの名前 |
-| `schema` | string | いいえ | クエリするデータベーススキーマ（デフォルト：public）。他のスキーマのテーブルにアクセスする場合に使用します。 |
+| `schema` | string | いいえ | クエリ元のデータベーススキーマ（デフォルト：public）。他のスキーマのテーブルにアクセスする場合に使用します。 |
+| `select` | string | いいえ | 返す列（カンマ区切り）。デフォルトは*（すべての列） |
 | `filter` | string | はい | 特定の行を見つけるためのPostgRESTフィルター（例："id=eq.123"） |
 | `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
 
