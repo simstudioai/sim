@@ -102,7 +102,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       }
 
       return undefined
-    }) as (params: RequestParams) => Record<string, any> | string,
+    }) as (params: RequestParams) => Record<string, any> | string | FormData | undefined,
   },
 
   transformResponse: async (response: Response) => {
