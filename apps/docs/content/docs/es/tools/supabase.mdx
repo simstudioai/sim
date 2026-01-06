@@ -46,12 +46,13 @@ Consultar datos de una tabla de Supabase
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
 | `table` | string | Sí | Nombre de la tabla Supabase a consultar |
-| `schema` | string | No | Esquema de base de datos desde donde consultar \(predeterminado: public\). Usa esto para acceder a tablas en otros esquemas. |
+| `schema` | string | No | Esquema de base de datos desde el que consultar \(predeterminado: public\). Usa esto para acceder a tablas en otros esquemas. |
+| `select` | string | No | Columnas a devolver \(separadas por comas\). Predeterminado: * \(todas las columnas\) |
 | `filter` | string | No | Filtro PostgREST \(p. ej., "id=eq.123"\) |
-| `orderBy` | string | No | Columna para ordenar \(añade DESC para descendente\) |
+| `orderBy` | string | No | Columna por la que ordenar \(añade DESC para orden descendente\) |
 | `limit` | number | No | Número máximo de filas a devolver |
 | `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
 
@@ -90,10 +91,11 @@ Obtener una sola fila de una tabla de Supabase basada en criterios de filtro
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
 | `table` | string | Sí | Nombre de la tabla Supabase a consultar |
-| `schema` | string | No | Esquema de base de datos desde donde consultar \(predeterminado: public\). Usa esto para acceder a tablas en otros esquemas. |
+| `schema` | string | No | Esquema de base de datos desde el que consultar \(predeterminado: public\). Usa esto para acceder a tablas en otros esquemas. |
+| `select` | string | No | Columnas a devolver \(separadas por comas\). Predeterminado: * \(todas las columnas\) |
 | `filter` | string | Sí | Filtro PostgREST para encontrar la fila específica \(p. ej., "id=eq.123"\) |
 | `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
 

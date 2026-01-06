@@ -538,15 +538,15 @@ export class PauseResumeManager {
 
       mergedOutput.resume = mergedOutput.resume ?? mergedResponse.resume
 
-      // Preserve url from resume links (apiUrl hidden from output)
+      // Preserve url and resumeEndpoint from resume links
       const resumeLinks = mergedOutput.resume ?? mergedResponse.resume
       if (resumeLinks && typeof resumeLinks === 'object') {
         if (resumeLinks.uiUrl) {
           mergedOutput.url = resumeLinks.uiUrl
         }
-        // if (resumeLinks.apiUrl) {
-        //   mergedOutput.apiUrl = resumeLinks.apiUrl
-        // } // Hidden from output
+        if (resumeLinks.apiUrl) {
+          mergedOutput.resumeEndpoint = resumeLinks.apiUrl
+        }
       }
 
       for (const [key, value] of Object.entries(submissionPayload)) {

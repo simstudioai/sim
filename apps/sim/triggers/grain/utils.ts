@@ -19,7 +19,6 @@ export function grainSetupInstructions(eventType: string): string {
   const instructions = [
     'Enter your Grain API Key (Personal Access Token) above.',
     'You can find or create your API key in Grain at <strong>Settings > Integrations > API</strong>.',
-    'Optionally configure filters to narrow which recordings trigger the webhook.',
     `Click <strong>"Save Configuration"</strong> to automatically create the webhook in Grain for <strong>${eventType}</strong> events.`,
     'The webhook will be automatically deleted when you remove this trigger.',
   ]
@@ -40,75 +39,61 @@ export function buildRecordingOutputs(): Record<string, TriggerOutput> {
   return {
     type: {
       type: 'string',
-      description: 'Event type (recording_added)',
+      description: 'Event type',
     },
     user_id: {
       type: 'string',
       description: 'User UUID who triggered the event',
     },
     data: {
-      type: 'object',
-      description: 'Recording data object',
-    },
-    'data.id': {
-      type: 'string',
-      description: 'Recording UUID',
-    },
-    'data.title': {
-      type: 'string',
-      description: 'Recording title',
-    },
-    'data.start_datetime': {
-      type: 'string',
-      description: 'ISO8601 start timestamp',
-    },
-    'data.end_datetime': {
-      type: 'string',
-      description: 'ISO8601 end timestamp',
-    },
-    'data.duration_ms': {
-      type: 'number',
-      description: 'Duration in milliseconds',
-    },
-    'data.media_type': {
-      type: 'string',
-      description: 'audio, transcript, or video',
-    },
-    'data.source': {
-      type: 'string',
-      description: 'Recording source (zoom, meet, teams, etc.)',
-    },
-    'data.url': {
-      type: 'string',
-      description: 'URL to view in Grain',
-    },
-    'data.thumbnail_url': {
-      type: 'string',
-      description: 'Thumbnail URL (nullable)',
-    },
-    'data.tags': {
-      type: 'array',
-      description: 'Array of tag strings',
-    },
-    'data.teams': {
-      type: 'array',
-      description: 'Teams the recording belongs to',
-    },
-    'data.meeting_type': {
-      type: 'object',
-      description: 'Meeting type info (nullable)',
-    },
-    'data.highlights': {
-      type: 'array',
-      description: 'Highlights (if configured in hook)',
-    },
-    'data.participants': {
-      type: 'array',
-      description: 'Participants (if configured in hook)',
-    },
-    'data.ai_summary': {
-      type: 'object',
-      description: 'AI summary (if configured in hook)',
+      id: {
+        type: 'string',
+        description: 'Recording UUID',
+      },
+      title: {
+        type: 'string',
+        description: 'Recording title',
+      },
+      start_datetime: {
+        type: 'string',
+        description: 'ISO8601 start timestamp',
+      },
+      end_datetime: {
+        type: 'string',
+        description: 'ISO8601 end timestamp',
+      },
+      duration_ms: {
+        type: 'number',
+        description: 'Duration in milliseconds',
+      },
+      media_type: {
+        type: 'string',
+        description: 'audio, transcript, or video',
+      },
+      source: {
+        type: 'string',
+        description: 'Recording source (zoom, meet, local_capture, etc.)',
+      },
+      url: {
+        type: 'string',
+        description: 'URL to view in Grain',
+      },
+      thumbnail_url: {
+        type: 'string',
+        description: 'Thumbnail URL (nullable)',
+      },
+      tags: {
+        type: 'array',
+        description: 'Array of tag strings',
+      },
+      teams: {
+        type: 'array',
+        description: 'Array of team objects',
+      },
+      meeting_type: {
+        type: 'object',
+        description: 'Meeting type info with id, name, scope (nullable)',
+      },
     },
   } as Record<string, TriggerOutput>
 }
@@ -128,52 +113,50 @@ export function buildHighlightOutputs(): Record<string, TriggerOutput> {
       description: 'User UUID who triggered the event',
     },
     data: {
-      type: 'object',
-      description: 'Highlight data object',
-    },
-    'data.id': {
-      type: 'string',
-      description: 'Highlight UUID',
-    },
-    'data.recording_id': {
-      type: 'string',
-      description: 'Parent recording UUID',
-    },
-    'data.text': {
-      type: 'string',
-      description: 'Highlight title/description',
-    },
-    'data.transcript': {
-      type: 'string',
-      description: 'Transcript text of the clip',
-    },
-    'data.speakers': {
-      type: 'array',
-      description: 'Array of speaker names',
-    },
-    'data.timestamp': {
-      type: 'number',
-      description: 'Start timestamp in ms',
-    },
-    'data.duration': {
-      type: 'number',
-      description: 'Duration in ms',
-    },
-    'data.tags': {
-      type: 'array',
-      description: 'Array of tag strings',
-    },
-    'data.url': {
-      type: 'string',
-      description: 'URL to view in Grain',
-    },
-    'data.thumbnail_url': {
-      type: 'string',
-      description: 'Thumbnail URL',
-    },
-    'data.created_datetime': {
-      type: 'string',
-      description: 'ISO8601 creation timestamp',
+      id: {
+        type: 'string',
+        description: 'Highlight UUID',
+      },
+      recording_id: {
+        type: 'string',
+        description: 'Parent recording UUID',
+      },
+      text: {
+        type: 'string',
+        description: 'Highlight title/description',
+      },
+      transcript: {
+        type: 'string',
+        description: 'Transcript text of the clip',
+      },
+      speakers: {
+        type: 'array',
+        description: 'Array of speaker names',
+      },
+      timestamp: {
+        type: 'number',
+        description: 'Start timestamp in ms',
+      },
+      duration: {
+        type: 'number',
+        description: 'Duration in ms',
+      },
+      tags: {
+        type: 'array',
+        description: 'Array of tag strings',
+      },
+      url: {
+        type: 'string',
+        description: 'URL to view in Grain',
+      },
+      thumbnail_url: {
+        type: 'string',
+        description: 'Thumbnail URL',
+      },
+      created_datetime: {
+        type: 'string',
+        description: 'ISO8601 creation timestamp',
+      },
     },
   } as Record<string, TriggerOutput>
 }
@@ -193,24 +176,22 @@ export function buildStoryOutputs(): Record<string, TriggerOutput> {
       description: 'User UUID who triggered the event',
     },
     data: {
-      type: 'object',
-      description: 'Story data object',
-    },
-    'data.id': {
-      type: 'string',
-      description: 'Story UUID',
-    },
-    'data.title': {
-      type: 'string',
-      description: 'Story title',
-    },
-    'data.url': {
-      type: 'string',
-      description: 'URL to view in Grain',
-    },
-    'data.created_datetime': {
-      type: 'string',
-      description: 'ISO8601 creation timestamp',
+      id: {
+        type: 'string',
+        description: 'Story UUID',
+      },
+      title: {
+        type: 'string',
+        description: 'Story title',
+      },
+      url: {
+        type: 'string',
+        description: 'URL to view in Grain',
+      },
+      created_datetime: {
+        type: 'string',
+        description: 'ISO8601 creation timestamp',
+      },
     },
   } as Record<string, TriggerOutput>
 }

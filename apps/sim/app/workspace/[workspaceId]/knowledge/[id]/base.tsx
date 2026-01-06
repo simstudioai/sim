@@ -453,6 +453,8 @@ export function KnowledgeBase({
     error: knowledgeBaseError,
     refresh: refreshKnowledgeBase,
   } = useKnowledgeBase(id)
+  const [hasProcessingDocuments, setHasProcessingDocuments] = useState(false)
+
   const {
     documents,
     pagination,
@@ -468,6 +470,7 @@ export function KnowledgeBase({
     offset: (currentPage - 1) * DOCUMENTS_PER_PAGE,
     sortBy,
     sortOrder,
+    refetchInterval: hasProcessingDocuments && !isDeleting ? 3000 : false,
   })
 
   const { tagDefinitions } = useKnowledgeBaseTagDefinitions(id)
@@ -534,25 +537,15 @@ export function KnowledgeBase({
   )
 
   useEffect(() => {
-    const hasProcessingDocuments = documents.some(
+    const processing = documents.some(
       (doc) => doc.processingStatus === 'pending' || doc.processingStatus === 'processing'
     )
+    setHasProcessingDocuments(processing)
 
-    if (!hasProcessingDocuments) return
-
-    const refreshInterval = setInterval(async () => {
-      try {
-        if (!isDeleting) {
-          await checkForDeadProcesses()
-          await refreshDocuments()
-        }
-      } catch (error) {
-        logger.error('Error refreshing documents:', error)
-      }
-    }, 3000)
-
-    return () => clearInterval(refreshInterval)
-  }, [documents, refreshDocuments, isDeleting])
+    if (processing) {
+      checkForDeadProcesses()
+    }
+  }, [documents])
 
   /**
    * Checks for documents with stale processing states and marks them as failed
@@ -671,25 +664,6 @@ export function KnowledgeBase({
       }
 
       await refreshDocuments()
-
-      let refreshAttempts = 0
-      const maxRefreshAttempts = 3
-      const refreshInterval = setInterval(async () => {
-        try {
-          refreshAttempts++
-          await refreshDocuments()
-          if (refreshAttempts >= maxRefreshAttempts) {
-            clearInterval(refreshInterval)
-          }
-        } catch (error) {
-          logger.error('Error refreshing documents after retry:', error)
-          clearInterval(refreshInterval)
-        }
-      }, 1000)
-
-      setTimeout(() => {
-        clearInterval(refreshInterval)
-      }, 4000)
 
       logger.info(`Document retry initiated successfully for: ${docId}`)
     } catch (err) {

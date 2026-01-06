@@ -17,7 +17,7 @@ export default defineConfig({
   build: {
     extensions: [
       additionalPackages({
-        packages: ['unpdf'],
+        packages: ['unpdf', 'pdf-lib'],
       }),
     ],
   },

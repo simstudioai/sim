@@ -21,6 +21,7 @@ import { signOut, useSession } from '@/lib/auth/auth-client'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/hooks/use-profile-picture-upload'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
@@ -565,13 +566,15 @@ export function General({ onOpenChange }: GeneralProps) {
             </Button>
           </>
         )}
-        <Button
-          onClick={() => window.open('/?from=settings', '_blank', 'noopener,noreferrer')}
-          variant='active'
-          className='ml-auto'
-        >
-          Home Page
-        </Button>
+        {isHosted && (
+          <Button
+            onClick={() => window.open('/?from=settings', '_blank', 'noopener,noreferrer')}
+            variant='active'
+            className='ml-auto'
+          >
+            Home Page
+          </Button>
+        )}
       </div>
 
       {/* Password Reset Confirmation Modal */}

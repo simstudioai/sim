@@ -749,7 +749,6 @@ export async function formatWebhookInput(
       }
     }
 
-    // Fallback for unknown Telegram update types
     logger.warn('Unknown Telegram update type', {
       updateId: body.update_id,
       bodyKeys: Object.keys(body || {}),
@@ -778,7 +777,6 @@ export async function formatWebhookInput(
 
   if (foundWebhook.provider === 'twilio_voice') {
     return {
-      // Root-level properties matching trigger outputs for easy access
       callSid: body.CallSid,
       accountSid: body.AccountSid,
       from: body.From,
@@ -792,8 +790,6 @@ export async function formatWebhookInput(
       speechResult: body.SpeechResult,
       recordingUrl: body.RecordingUrl,
       recordingSid: body.RecordingSid,
-
-      // Additional fields from Twilio payload
       called: body.Called,
       caller: body.Caller,
       toCity: body.ToCity,
@@ -830,14 +826,48 @@ export async function formatWebhookInput(
 
   if (foundWebhook.provider === 'gmail') {
     if (body && typeof body === 'object' && 'email' in body) {
-      return body
+      const email = body.email as Record<string, any>
+      const timestamp = body.timestamp
+      return {
+        ...email,
+        email,
+        ...(timestamp !== undefined && { timestamp }),
+        webhook: {
+          data: {
+            provider: 'gmail',
+            path: foundWebhook.path,
+            providerConfig: foundWebhook.providerConfig,
+            payload: body,
+            headers: Object.fromEntries(request.headers.entries()),
+            method: request.method,
+          },
+        },
+        workflowId: foundWorkflow.id,
+      }
     }
     return body
   }
 
   if (foundWebhook.provider === 'outlook') {
     if (body && typeof body === 'object' && 'email' in body) {
-      return body
+      const email = body.email as Record<string, any>
+      const timestamp = body.timestamp
+      return {
+        ...email,
+        email,
+        ...(timestamp !== undefined && { timestamp }),
+        webhook: {
+          data: {
+            provider: 'outlook',
+            path: foundWebhook.path,
+            providerConfig: foundWebhook.providerConfig,
+            payload: body,
+            headers: Object.fromEntries(request.headers.entries()),
+            method: request.method,
+          },
+        },
+        workflowId: foundWorkflow.id,
+      }
     }
     return body
   }
@@ -926,19 +956,16 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'microsoft-teams') {
-    // Check if this is a Microsoft Graph change notification
     if (body?.value && Array.isArray(body.value) && body.value.length > 0) {
       return await formatTeamsGraphNotification(body, foundWebhook, foundWorkflow, request)
     }
 
-    // Microsoft Teams outgoing webhook - Teams sending data to us
     const messageText = body?.text || ''
     const messageId = body?.id || ''
     const timestamp = body?.timestamp || body?.localTimestamp || ''
     const from = body?.from || {}
     const conversation = body?.conversation || {}
 
-    // Construct the message object
     const messageObj = {
       raw: {
         attachments: body?.attachments || [],
@@ -951,14 +978,12 @@ export async function formatWebhookInput(
       },
     }
 
-    // Construct the from object
     const fromObj = {
       id: from.id || '',
       name: from.name || '',
       aadObjectId: from.aadObjectId || '',
     }
 
-    // Construct the conversation object
     const conversationObj = {
       id: conversation.id || '',
       name: conversation.name || '',
@@ -968,13 +993,11 @@ export async function formatWebhookInput(
       conversationType: conversation.conversationType || '',
     }
 
-    // Construct the activity object
     const activityObj = body || {}
 
     return {
-      input: messageText, // Primary workflow input - the message text
+      input: messageText,
 
-      // Top-level properties for direct access with <microsoftteams.from.name> syntax
       from: fromObj,
       message: messageObj,
       activity: activityObj,
@@ -995,11 +1018,9 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'slack') {
-    // Slack input formatting logic - check for valid event
     const event = body?.event
 
     if (event && body?.type === 'event_callback') {
-      // Extract event text with fallbacks for different event types
       let input = ''
 
       if (event.text) {
@@ -1010,13 +1031,12 @@ export async function formatWebhookInput(
         input = 'Slack event received'
       }
 
-      // Create the event object for easier access
       const eventObj = {
         event_type: event.type || '',
         channel: event.channel || '',
-        channel_name: '', // Could be resolved via additional API calls if needed
+        channel_name: '',
         user: event.user || '',
-        user_name: '', // Could be resolved via additional API calls if needed
+        user_name: '',
         text: event.text || '',
         timestamp: event.ts || event.event_ts || '',
         team_id: body.team_id || event.team || '',
@@ -1024,12 +1044,9 @@ export async function formatWebhookInput(
       }
 
       return {
-        input, // Primary workflow input - the event content
+        input,
 
-        // // // Top-level properties for backward compatibility with <blockName.event> syntax
         event: eventObj,
-
-        // Keep the nested structure for the new slack.event.text syntax
         slack: {
           event: eventObj,
         },
@@ -1047,7 +1064,6 @@ export async function formatWebhookInput(
       }
     }
 
-    // Fallback for unknown Slack event types
     logger.warn('Unknown Slack event type', {
       type: body?.type,
       hasEvent: !!body?.event,
@@ -1283,9 +1299,7 @@ export async function formatWebhookInput(
     }
 
     return {
-      // Expose raw GitHub payload at the root
       ...body,
-      // Include webhook metadata alongside
       webhook: {
         data: {
           provider: 'github',
@@ -1364,10 +1378,7 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'linear') {
-    // Linear webhook payload structure:
-    // { action, type, webhookId, webhookTimestamp, organizationId, createdAt, actor, data, updatedFrom? }
     return {
-      // Extract top-level fields from Linear payload
       action: body.action || '',
       type: body.type || '',
       webhookId: body.webhookId || '',
@@ -1377,8 +1388,6 @@ export async function formatWebhookInput(
       actor: body.actor || null,
       data: body.data || null,
       updatedFrom: body.updatedFrom || null,
-
-      // Keep webhook metadata
       webhook: {
         data: {
           provider: 'linear',
@@ -1393,7 +1402,6 @@ export async function formatWebhookInput(
     }
   }
 
-  // Jira webhook format
   if (foundWebhook.provider === 'jira') {
     const { extractIssueData, extractCommentData, extractWorklogData } = await import(
       '@/triggers/jira/utils'
@@ -1445,7 +1453,6 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'calendly') {
-    // Calendly webhook payload format matches the trigger outputs
     return {
       event: body.event,
       created_at: body.created_at,
@@ -1466,9 +1473,7 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'circleback') {
-    // Circleback webhook payload - meeting notes, action items, transcript
     return {
-      // Top-level fields from Circleback payload
       id: body.id,
       name: body.name,
       createdAt: body.createdAt,
@@ -1482,10 +1487,7 @@ export async function formatWebhookInput(
       actionItems: body.actionItems || [],
       transcript: body.transcript || [],
       insights: body.insights || {},
-
-      // Full meeting object for convenience
       meeting: body,
-
       webhook: {
         data: {
           provider: 'circleback',
@@ -1501,9 +1503,7 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'grain') {
-    // Grain webhook payload structure: { type, user_id, data: {...} }
     return {
-      // Top-level fields from Grain payload
       type: body.type,
       user_id: body.user_id,
       data: body.data || {},

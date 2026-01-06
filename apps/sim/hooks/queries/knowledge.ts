@@ -228,6 +228,7 @@ export function useKnowledgeDocumentsQuery(
   params: KnowledgeDocumentsParams,
   options?: {
     enabled?: boolean
+    refetchInterval?: number | false
   }
 ) {
   const paramsKey = serializeDocumentParams(params)
@@ -237,6 +238,7 @@ export function useKnowledgeDocumentsQuery(
     enabled: (options?.enabled ?? true) && Boolean(params.knowledgeBaseId),
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
+    refetchInterval: options?.refetchInterval ?? false,
   })
 }
 

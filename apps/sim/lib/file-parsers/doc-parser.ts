@@ -17,8 +17,6 @@ export class DocParser implements FileParser {
         throw new Error(`File not found: ${filePath}`)
       }
 
-      logger.info(`Parsing DOC file: ${filePath}`)
-
       const buffer = await readFile(filePath)
       return this.parseBuffer(buffer)
     } catch (error) {
@@ -29,53 +27,80 @@ export class DocParser implements FileParser {
 
   async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
     try {
-      logger.info('Parsing DOC buffer, size:', buffer.length)
-
       if (!buffer || buffer.length === 0) {
         throw new Error('Empty buffer provided')
       }
 
-      let parseOfficeAsync
       try {
         const officeParser = await import('officeparser')
-        parseOfficeAsync = officeParser.parseOfficeAsync
-      } catch (importError) {
-        logger.warn('officeparser not available, using fallback extraction')
-        return this.fallbackExtraction(buffer)
+        const result = await officeParser.parseOfficeAsync(buffer)
+
+        if (result) {
+          const resultString = typeof result === 'string' ? result : String(result)
+          const content = sanitizeTextForUTF8(resultString.trim())
+
+          if (content.length > 0) {
+            return {
+              content,
+              metadata: {
+                characterCount: content.length,
+                extractionMethod: 'officeparser',
+              },
+            }
+          }
+        }
+      } catch (officeError) {
+        logger.warn('officeparser failed, trying mammoth:', officeError)
       }
 
       try {
-        const result = await parseOfficeAsync(buffer)
+        const mammoth = await import('mammoth')
+        const result = await mammoth.extractRawText({ buffer })
 
-        if (!result) {
-          throw new Error('officeparser returned no result')
+        if (result.value && result.value.trim().length > 0) {
+          const content = sanitizeTextForUTF8(result.value.trim())
+          return {
+            content,
+            metadata: {
+              characterCount: content.length,
+              extractionMethod: 'mammoth',
+              messages: result.messages,
+            },
+          }
         }
-
-        const resultString = typeof result === 'string' ? result : String(result)
-
-        const content = sanitizeTextForUTF8(resultString.trim())
-
-        logger.info('DOC parsing completed successfully with officeparser')
-
-        return {
-          content: content,
-          metadata: {
-            characterCount: content.length,
-            extractionMethod: 'officeparser',
-          },
-        }
-      } catch (extractError) {
-        logger.warn('officeparser failed, using fallback:', extractError)
-        return this.fallbackExtraction(buffer)
+      } catch (mammothError) {
+        logger.warn('mammoth failed:', mammothError)
       }
+
+      return this.fallbackExtraction(buffer)
     } catch (error) {
-      logger.error('DOC buffer parsing error:', error)
+      logger.error('DOC parsing error:', error)
       throw new Error(`Failed to parse DOC buffer: ${(error as Error).message}`)
     }
   }
 
   private fallbackExtraction(buffer: Buffer): FileParseResult {
-    logger.info('Using fallback text extraction for DOC file')
+    const isBinaryDoc = buffer.length >= 2 && buffer[0] === 0xd0 && buffer[1] === 0xcf
+
+    if (!isBinaryDoc) {
+      const textContent = buffer.toString('utf8').trim()
+
+      if (textContent.length > 0) {
+        const printableChars = textContent.match(/[\x20-\x7E\n\r\t]/g)?.length || 0
+        const isProbablyText = printableChars / textContent.length > 0.9
+
+        if (isProbablyText) {
+          return {
+            content: sanitizeTextForUTF8(textContent),
+            metadata: {
+              extractionMethod: 'plaintext-fallback',
+              characterCount: textContent.length,
+              warning: 'File is not a valid DOC format, extracted as plain text',
+            },
+          }
+        }
+      }
+    }
 
     const text = buffer.toString('utf8', 0, Math.min(buffer.length, 100000))
 

@@ -205,7 +205,6 @@ describe('TriggerBlockHandler', () => {
 
       const result = await handler.execute(mockContext, scheduleBlock, {})
 
-      // Schedule triggers typically don't have input data, just trigger the workflow
       expect(result).toEqual({})
     })
 

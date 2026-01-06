@@ -2,6 +2,7 @@ import { GrainIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
+import { grainTriggerOptions } from '@/triggers/grain/utils'
 
 export const GrainBlock: BlockConfig = {
   type: 'grain',
@@ -207,13 +208,21 @@ export const GrainBlock: BlockConfig = {
         value: ['grain_delete_hook'],
       },
     },
-    // Trigger SubBlocks
-    ...getTrigger('grain_recording_created').subBlocks,
-    ...getTrigger('grain_recording_updated').subBlocks,
-    ...getTrigger('grain_highlight_created').subBlocks,
-    ...getTrigger('grain_highlight_updated').subBlocks,
-    ...getTrigger('grain_story_created').subBlocks,
-    ...getTrigger('grain_webhook').subBlocks,
+    {
+      id: 'selectedTriggerId',
+      title: 'Trigger Type',
+      type: 'dropdown',
+      mode: 'trigger',
+      options: grainTriggerOptions,
+      value: () => 'grain_webhook',
+      required: true,
+    },
+    ...getTrigger('grain_recording_created').subBlocks.slice(1),
+    ...getTrigger('grain_recording_updated').subBlocks.slice(1),
+    ...getTrigger('grain_highlight_created').subBlocks.slice(1),
+    ...getTrigger('grain_highlight_updated').subBlocks.slice(1),
+    ...getTrigger('grain_story_created').subBlocks.slice(1),
+    ...getTrigger('grain_webhook').subBlocks.slice(1),
   ],
   tools: {
     access: [

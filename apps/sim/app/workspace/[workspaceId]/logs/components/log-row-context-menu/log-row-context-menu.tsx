@@ -1,7 +1,13 @@
 'use client'
 
 import type { RefObject } from 'react'
-import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverDivider,
+  PopoverItem,
+} from '@/components/emcn'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 
 interface LogRowContextMenuProps {
@@ -50,7 +56,7 @@ export function LogRowContextMenu({
         }}
       />
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-        {/* Copy Execution ID */}
+        {/* Copy action */}
         <PopoverItem
           disabled={!hasExecutionId}
           onClick={() => {
@@ -61,7 +67,8 @@ export function LogRowContextMenu({
           Copy Execution ID
         </PopoverItem>
 
-        {/* Open Workflow */}
+        {/* Navigation */}
+        <PopoverDivider />
         <PopoverItem
           disabled={!hasWorkflow}
           onClick={() => {
@@ -72,7 +79,8 @@ export function LogRowContextMenu({
           Open Workflow
         </PopoverItem>
 
-        {/* Filter by Workflow - only show when not already filtered by this workflow */}
+        {/* Filter actions */}
+        <PopoverDivider />
         {!isFilteredByThisWorkflow && (
           <PopoverItem
             disabled={!hasWorkflow}
@@ -84,8 +92,6 @@ export function LogRowContextMenu({
             Filter by Workflow
           </PopoverItem>
         )}
-
-        {/* Clear All Filters - show when any filters are active */}
         {hasActiveFilters && (
           <PopoverItem
             onClick={() => {

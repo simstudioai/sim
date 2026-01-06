@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { env } from '@/lib/core/config/env'
 import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
-import { batchByTokenLimit, getTotalTokenCount } from '@/lib/tokenization'
+import { batchByTokenLimit } from '@/lib/tokenization'
 
 const logger = createLogger('EmbeddingUtils')
 
@@ -24,6 +24,20 @@ interface EmbeddingConfig {
   apiUrl: string
   headers: Record<string, string>
   modelName: string
+}
+
+interface EmbeddingResponseItem {
+  embedding: number[]
+  index: number
+}
+
+interface EmbeddingAPIResponse {
+  data: EmbeddingResponseItem[]
+  model: string
+  usage: {
+    prompt_tokens: number
+    total_tokens: number
+  }
 }
 
 async function getEmbeddingConfig(
@@ -104,14 +118,14 @@ async function callEmbeddingAPI(inputs: string[], config: EmbeddingConfig): Prom
         )
       }
 
-      const data = await response.json()
-      return data.data.map((item: any) => item.embedding)
+      const data: EmbeddingAPIResponse = await response.json()
+      return data.data.map((item) => item.embedding)
     },
     {
       maxRetries: 3,
       initialDelayMs: 1000,
       maxDelayMs: 10000,
-      retryCondition: (error: any) => {
+      retryCondition: (error: unknown) => {
         if (error instanceof EmbeddingAPIError) {
           return error.status === 429 || error.status >= 500
         }
@@ -153,44 +167,27 @@ export async function generateEmbeddings(
 ): Promise<number[][]> {
   const config = await getEmbeddingConfig(embeddingModel, workspaceId)
 
-  logger.info(
-    `Using ${config.useAzure ? 'Azure OpenAI' : 'OpenAI'} for embeddings generation (${texts.length} texts)`
-  )
-
   const batches = batchByTokenLimit(texts, MAX_TOKENS_PER_REQUEST, embeddingModel)
-
-  logger.info(
-    `Split ${texts.length} texts into ${batches.length} batches (max ${MAX_TOKENS_PER_REQUEST} tokens per batch, ${MAX_CONCURRENT_BATCHES} concurrent)`
-  )
 
   const batchResults = await processWithConcurrency(
     batches,
     MAX_CONCURRENT_BATCHES,
     async (batch, i) => {
-      const batchTokenCount = getTotalTokenCount(batch, embeddingModel)
-
-      logger.info(
-        `Processing batch ${i + 1}/${batches.length}: ${batch.length} texts, ${batchTokenCount} tokens`
-      )
-
       try {
-        const batchEmbeddings = await callEmbeddingAPI(batch, config)
-
-        logger.info(
-          `Generated ${batchEmbeddings.length} embeddings for batch ${i + 1}/${batches.length}`
-        )
-
-        return batchEmbeddings
+        return await callEmbeddingAPI(batch, config)
       } catch (error) {
-        logger.error(`Failed to generate embeddings for batch ${i + 1}:`, error)
+        logger.error(`Failed to generate embeddings for batch ${i + 1}/${batches.length}:`, error)
         throw error
       }
     }
   )
 
-  const allEmbeddings = batchResults.flat()
-
-  logger.info(`Successfully generated ${allEmbeddings.length} embeddings total`)
+  const allEmbeddings: number[][] = []
+  for (const batch of batchResults) {
+    for (const emb of batch) {
+      allEmbeddings.push(emb)
+    }
+  }
 
   return allEmbeddings
 }

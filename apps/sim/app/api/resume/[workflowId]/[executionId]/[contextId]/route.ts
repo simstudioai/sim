@@ -21,14 +21,15 @@ export async function POST(
 ) {
   const { workflowId, executionId, contextId } = await params
 
+  // Allow resume from dashboard without requiring deployment
   const access = await validateWorkflowAccess(request, workflowId, false)
   if (access.error) {
     return NextResponse.json({ error: access.error.message }, { status: access.error.status })
   }
 
-  const workflow = access.workflow!
+  const workflow = access.workflow
 
-  let payload: any = {}
+  let payload: Record<string, unknown> = {}
   try {
     payload = await request.json()
   } catch {
@@ -148,6 +149,7 @@ export async function GET(
 ) {
   const { workflowId, executionId, contextId } = await params
 
+  // Allow access without API key for browser-based UI (same as parent execution endpoint)
   const access = await validateWorkflowAccess(request, workflowId, false)
   if (access.error) {
     return NextResponse.json({ error: access.error.message }, { status: access.error.status })
