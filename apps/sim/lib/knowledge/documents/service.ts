@@ -552,8 +552,8 @@ export async function processDocumentAsync(
           updatedAt: now,
         }))
 
-        if (embeddingRecords.length > 0) {
-          await db.transaction(async (tx) => {
+        await db.transaction(async (tx) => {
+          if (embeddingRecords.length > 0) {
             await tx.delete(embedding).where(eq(embedding.documentId, documentId))
 
             const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
@@ -564,20 +564,20 @@ export async function processDocumentAsync(
 
             logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
             await Promise.all(batches.map((batch) => tx.insert(embedding).values(batch)))
-          })
-        }
+          }
 
-        await db
-          .update(document)
-          .set({
-            chunkCount: processed.metadata.chunkCount,
-            tokenCount: processed.metadata.tokenCount,
-            characterCount: processed.metadata.characterCount,
-            processingStatus: 'completed',
-            processingCompletedAt: now,
-            processingError: null,
-          })
-          .where(eq(document.id, documentId))
+          await tx
+            .update(document)
+            .set({
+              chunkCount: processed.metadata.chunkCount,
+              tokenCount: processed.metadata.tokenCount,
+              characterCount: processed.metadata.characterCount,
+              processingStatus: 'completed',
+              processingCompletedAt: now,
+              processingError: null,
+            })
+            .where(eq(document.id, documentId))
+        })
       })(),
       TIMEOUTS.OVERALL_PROCESSING,
       'Document processing'

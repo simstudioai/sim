@@ -139,7 +139,7 @@ vi.mock('@sim/db', () => {
       delete: () => ({
         where: () => Promise.resolve(),
       }),
-      insert: (table: any) => ({
+      insert: () => ({
         values: (records: any) => {
           dbOps.order.push('insert')
           dbOps.insertRecords.push(records)
@@ -151,14 +151,14 @@ vi.mock('@sim/db', () => {
           delete: () => ({
             where: () => Promise.resolve(),
           }),
-          insert: (table: any) => ({
+          insert: () => ({
             values: (records: any) => {
               dbOps.order.push('insert')
               dbOps.insertRecords.push(records)
               return Promise.resolve()
             },
           }),
-          update: (table: any) => ({
+          update: () => ({
             set: (payload: any) => ({
               where: () => {
                 dbOps.updatePayloads.push(payload)
