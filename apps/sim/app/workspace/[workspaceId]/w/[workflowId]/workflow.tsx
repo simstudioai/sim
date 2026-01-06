@@ -795,6 +795,13 @@ const WorkflowContent = React.memo(() => {
         event.preventDefault()
         redo()
       } else if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
+        const selection = window.getSelection()
+        const hasTextSelection = selection && selection.toString().length > 0
+
+        if (hasTextSelection) {
+          return
+        }
+
         const selectedNodes = getNodes().filter((node) => node.selected)
         if (selectedNodes.length > 0) {
           event.preventDefault()
