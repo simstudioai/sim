@@ -109,6 +109,9 @@ export class WorkflowBlockHandler implements BlockHandler {
         contextExtensions: {
           isChildExecution: true,
           isDeployedContext: ctx.isDeployedContext === true,
+          workspaceId: ctx.workspaceId,
+          userId: ctx.userId,
+          executionId: ctx.executionId,
         },
       })
 
