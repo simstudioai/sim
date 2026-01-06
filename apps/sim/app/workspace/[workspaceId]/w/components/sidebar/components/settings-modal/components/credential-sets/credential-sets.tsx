@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowLeft, Loader2, LogOut, Plus, Trash2, User } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, User } from 'lucide-react'
 import {
   Avatar,
   AvatarFallback,
@@ -21,6 +21,7 @@ import { GmailIcon, OutlookIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client'
+import { cn } from '@/lib/core/utils/cn'
 import { getProviderDisplayName, type PollingProvider } from '@/lib/credential-sets/providers'
 import { getUserRole } from '@/lib/workspaces/organization'
 import {
@@ -43,9 +44,32 @@ const logger = createLogger('EmailPolling')
 function CredentialSetsSkeleton() {
   return (
     <div className='flex h-full flex-col gap-[16px]'>
-      <Skeleton className='h-[48px] w-full rounded-[8px]' />
-      <Skeleton className='h-[48px] w-full rounded-[8px]' />
-      <Skeleton className='h-[48px] w-full rounded-[8px]' />
+      <div className='flex flex-col gap-[8px]'>
+        <Skeleton className='h-[14px] w-[100px]' />
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-[12px]'>
+            <Skeleton className='h-9 w-9 rounded-[6px]' />
+            <div className='flex flex-col gap-[4px]'>
+              <Skeleton className='h-[14px] w-[120px]' />
+              <Skeleton className='h-[12px] w-[80px]' />
+            </div>
+          </div>
+          <Skeleton className='h-[32px] w-[60px] rounded-[6px]' />
+        </div>
+      </div>
+      <div className='flex flex-col gap-[8px]'>
+        <Skeleton className='h-[14px] w-[60px]' />
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-[12px]'>
+            <Skeleton className='h-9 w-9 rounded-[6px]' />
+            <div className='flex flex-col gap-[4px]'>
+              <Skeleton className='h-[14px] w-[140px]' />
+              <Skeleton className='h-[12px] w-[100px]' />
+            </div>
+          </div>
+          <Skeleton className='h-[32px] w-[80px] rounded-[6px]' />
+        </div>
+      </div>
     </div>
   )
 }
@@ -93,10 +117,8 @@ export function CredentialSets() {
   const leaveCredentialSet = useLeaveCredentialSet()
 
   const extractEmailsFromText = useCallback((text: string): string[] => {
-    // Match email patterns in text
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
     const matches = text.match(emailRegex) || []
-    // Deduplicate and return
     return [...new Set(matches.map((e) => e.toLowerCase()))]
   }, [])
 
@@ -201,7 +223,7 @@ export function CredentialSets() {
     if (!newSetName.trim() || !activeOrganization?.id) return
     setCreateError(null)
     try {
-      await createCredentialSet.mutateAsync({
+      const result = await createCredentialSet.mutateAsync({
         organizationId: activeOrganization.id,
         name: newSetName.trim(),
         description: newSetDescription.trim() || undefined,
@@ -211,6 +233,12 @@ export function CredentialSets() {
       setNewSetName('')
       setNewSetDescription('')
       setNewSetProvider('google-email')
+
+      // Open invite modal for the newly created group
+      if (result?.credentialSet?.id) {
+        setSelectedSetId(result.credentialSet.id)
+        setShowInviteModal(true)
+      }
     } catch (error) {
       logger.error('Failed to create polling group', error)
       if (error instanceof Error) {
@@ -224,7 +252,6 @@ export function CredentialSets() {
   const handleCreateInvite = useCallback(async () => {
     if (!selectedSetId) return
 
-    // Parse comma-separated or newline-separated emails
     const emails = inviteEmails
       .split(/[,\n]/)
       .map((e) => e.trim())
@@ -261,6 +288,11 @@ export function CredentialSets() {
     setSelectedSetId(null)
   }, [])
 
+  const getProviderIcon = (providerId: string | null) => {
+    if (providerId === 'outlook') return <OutlookIcon className='h-4 w-4' />
+    return <GmailIcon className='h-4 w-4' />
+  }
+
   if (membershipsLoading || invitationsLoading) {
     return <CredentialSetsSkeleton />
   }
@@ -275,152 +307,157 @@ export function CredentialSets() {
     const pendingMembers = members.filter((m) => m.status === 'pending')
 
     return (
-      <div className='flex h-full flex-col gap-[16px] overflow-y-auto'>
-        <div className='flex items-center gap-[8px]'>
-          <Button variant='ghost' onClick={() => setViewingSet(null)} className='p-[4px]'>
-            <ArrowLeft className='h-[16px] w-[16px]' />
-          </Button>
-          <div className='flex flex-col'>
-            <span className='font-medium text-[14px] text-[var(--text-primary)]'>
-              {viewingSet.name}
-            </span>
-            <span className='text-[12px] text-[var(--text-secondary)]'>
-              {getProviderDisplayName(viewingSet.providerId || '')}
-            </span>
+      <>
+        <div className='flex h-full flex-col gap-[16px]'>
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-[8px]'>
+              <Button variant='ghost' onClick={() => setViewingSet(null)} className='h-9 w-9 p-0'>
+                <ArrowLeft className='h-4 w-4' />
+              </Button>
+              <div className='flex items-center gap-[12px]'>
+                <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                  {getProviderIcon(viewingSet.providerId)}
+                </div>
+                <div className='flex flex-col'>
+                  <span className='font-medium text-[14px]'>{viewingSet.name}</span>
+                  <span className='text-[13px] text-[var(--text-muted)]'>
+                    {getProviderDisplayName(viewingSet.providerId || '')}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <Button
+              variant='tertiary'
+              onClick={() => {
+                setSelectedSetId(viewingSet.id)
+                setShowInviteModal(true)
+              }}
+            >
+              <Plus className='mr-[6px] h-[13px] w-[13px]' />
+              Add Members
+            </Button>
           </div>
-        </div>
 
-        {membersLoading ? (
-          <div className='flex flex-col gap-[8px]'>
-            <Skeleton className='h-[60px] w-full rounded-[8px]' />
-            <Skeleton className='h-[60px] w-full rounded-[8px]' />
+          <div className='min-h-0 flex-1 overflow-y-auto'>
+            <div className='flex flex-col gap-[16px]'>
+              {membersLoading ? (
+                <div className='flex flex-col gap-[8px]'>
+                  <Skeleton className='h-[14px] w-[100px]' />
+                  {[1, 2].map((i) => (
+                    <div key={i} className='flex items-center justify-between'>
+                      <div className='flex items-center gap-[12px]'>
+                        <Skeleton className='h-9 w-9 rounded-full' />
+                        <div className='flex flex-col gap-[4px]'>
+                          <Skeleton className='h-[14px] w-[100px]' />
+                          <Skeleton className='h-[12px] w-[150px]' />
+                        </div>
+                      </div>
+                      <Skeleton className='h-[32px] w-[32px] rounded-[6px]' />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  {activeMembers.length > 0 && (
+                    <div className='flex flex-col gap-[8px]'>
+                      <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                        Active Members ({activeMembers.length})
+                      </div>
+                      {activeMembers.map((member) => (
+                        <div key={member.id} className='flex items-center justify-between'>
+                          <div className='flex items-center gap-[12px]'>
+                            <Avatar className='h-9 w-9'>
+                              <AvatarImage src={member.userImage || undefined} />
+                              <AvatarFallback>
+                                <User className='h-4 w-4' />
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className='flex flex-col'>
+                              <span className='font-medium text-[14px]'>
+                                {member.userName || 'Unknown'}
+                              </span>
+                              <span className='text-[13px] text-[var(--text-muted)]'>
+                                {member.userEmail}
+                              </span>
+                            </div>
+                          </div>
+                          <Button
+                            variant='ghost'
+                            onClick={() => handleRemoveMember(member.id)}
+                            disabled={removeMember.isPending}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {pendingMembers.length > 0 && (
+                    <div className='flex flex-col gap-[8px]'>
+                      <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                        Pending ({pendingMembers.length})
+                      </div>
+                      {pendingMembers.map((member) => (
+                        <div key={member.id} className='flex items-center justify-between'>
+                          <div className='flex items-center gap-[12px]'>
+                            <Avatar className='h-9 w-9'>
+                              <AvatarImage src={member.userImage || undefined} />
+                              <AvatarFallback>
+                                <User className='h-4 w-4' />
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className='flex flex-col'>
+                              <span className='font-medium text-[14px]'>
+                                {member.userName || 'Unknown'}
+                              </span>
+                              <span className='text-[13px] text-[var(--text-muted)]'>
+                                {member.userEmail}
+                              </span>
+                            </div>
+                          </div>
+                          <span className='text-[13px] text-[var(--text-muted)]'>Pending</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {members.length === 0 && (
+                    <div className='text-[13px] text-[var(--text-muted)]'>No members yet</div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
-        ) : (
-          <>
-            {activeMembers.length > 0 && (
-              <div className='flex flex-col gap-[8px]'>
-                <Label className='text-[12px] text-[var(--text-tertiary)]'>
-                  Active Members ({activeMembers.length})
-                </Label>
-                {activeMembers.map((member) => (
-                  <div
-                    key={member.id}
-                    className='flex items-center justify-between rounded-[8px] border border-[var(--border)] px-[12px] py-[10px]'
-                  >
-                    <div className='flex items-center gap-[10px]'>
-                      <Avatar className='h-[32px] w-[32px]'>
-                        <AvatarImage src={member.userImage || undefined} />
-                        <AvatarFallback>
-                          <User className='h-[14px] w-[14px]' />
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className='flex flex-col'>
-                        <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                          {member.userName || 'Unknown'}
-                        </span>
-                        <span className='text-[11px] text-[var(--text-secondary)]'>
-                          {member.userEmail}
-                        </span>
-                      </div>
-                    </div>
-                    <Button
-                      variant='ghost'
-                      onClick={() => handleRemoveMember(member.id)}
-                      disabled={removeMember.isPending}
-                      className='p-[6px] text-[var(--text-muted)] hover:text-[var(--text-error)]'
-                    >
-                      <Trash2 className='h-[14px] w-[14px]' />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {pendingMembers.length > 0 && (
-              <div className='flex flex-col gap-[8px]'>
-                <Label className='text-[12px] text-[var(--text-tertiary)]'>
-                  Pending ({pendingMembers.length})
-                </Label>
-                {pendingMembers.map((member) => (
-                  <div
-                    key={member.id}
-                    className='flex items-center justify-between rounded-[8px] border border-dashed border-[var(--border)] px-[12px] py-[10px]'
-                  >
-                    <div className='flex items-center gap-[10px]'>
-                      <Avatar className='h-[32px] w-[32px]'>
-                        <AvatarImage src={member.userImage || undefined} />
-                        <AvatarFallback>
-                          <User className='h-[14px] w-[14px]' />
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className='flex flex-col'>
-                        <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                          {member.userName || 'Unknown'}
-                        </span>
-                        <span className='text-[11px] text-[var(--text-secondary)]'>
-                          {member.userEmail}
-                        </span>
-                      </div>
-                    </div>
-                    <span className='text-[11px] text-[var(--text-muted)]'>Pending</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {members.length === 0 && (
-              <div className='flex flex-col items-center justify-center gap-[8px] py-[32px] text-center'>
-                <p className='text-[13px] text-[var(--text-secondary)]'>No members yet</p>
-                <p className='text-[12px] text-[var(--text-tertiary)]'>
-                  Invite people to join this polling group
-                </p>
-              </div>
-            )}
-          </>
-        )}
-
-        <div className='pt-[8px]'>
-          <Button
-            variant='tertiary'
-            onClick={() => {
-              setSelectedSetId(viewingSet.id)
-              setShowInviteModal(true)
-            }}
-          >
-            <Plus className='mr-[4px] h-[14px] w-[14px]' />
-            Add Member
-          </Button>
         </div>
 
         <Modal open={showInviteModal} onOpenChange={handleCloseInviteModal}>
-          <ModalContent size='sm'>
+          <ModalContent className='w-[400px]'>
             <ModalHeader>Add Members</ModalHeader>
             <ModalBody>
-              <div className='flex flex-col gap-[16px]'>
-                <div className='flex flex-col gap-[4px]'>
-                  <Label>Email Addresses</Label>
-                  <div
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    className={`relative rounded-[8px] transition-colors ${isDragging ? 'ring-2 ring-[var(--accent)]' : ''}`}
-                  >
-                    <Textarea
-                      value={inviteEmails}
-                      onChange={(e) => setInviteEmails(e.target.value)}
-                      placeholder='Enter emails separated by commas or newlines, or drag and drop a CSV file'
-                      rows={4}
-                    />
-                    {isDragging && (
-                      <div className='pointer-events-none absolute inset-0 flex items-center justify-center rounded-[8px] bg-[var(--accent)]/10'>
-                        <span className='text-[13px] font-medium text-[var(--accent)]'>
-                          Drop CSV or text file
-                        </span>
-                      </div>
-                    )}
-                  </div>
+              <div className='flex flex-col gap-[12px]'>
+                <Label>Email Addresses</Label>
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`relative ${isDragging ? 'ring-2 ring-[var(--accent)]' : ''}`}
+                >
+                  <Textarea
+                    value={inviteEmails}
+                    onChange={(e) => setInviteEmails(e.target.value)}
+                    placeholder='Enter emails separated by commas or newlines'
+                    rows={4}
+                  />
+                  {isDragging && (
+                    <div className='pointer-events-none absolute inset-0 flex items-center justify-center rounded-[6px] bg-[var(--accent)]/10'>
+                      <span className='font-medium text-[13px] text-[var(--accent)]'>
+                        Drop CSV or text file
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <p className='text-[12px] text-[var(--text-secondary)]'>
+                <p className='text-[12px] text-[var(--text-tertiary)]'>
                   Invitees will receive an email with a link to connect their account.
                 </p>
               </div>
@@ -435,7 +472,7 @@ export function CredentialSets() {
                 disabled={createInvitation.isPending || !inviteEmails.trim()}
               >
                 {createInvitation.isPending ? (
-                  <Loader2 className='h-[14px] w-[14px] animate-spin' />
+                  <Loader2 className='h-4 w-4 animate-spin' />
                 ) : (
                   'Send Invites'
                 )}
@@ -443,149 +480,162 @@ export function CredentialSets() {
             </ModalFooter>
           </ModalContent>
         </Modal>
-      </div>
+      </>
     )
   }
 
   return (
-    <div className='flex h-full flex-col gap-[16px] overflow-y-auto'>
-      {hasNoContent && !canManageCredentialSets && (
-        <div className='flex flex-1 flex-col items-center justify-center gap-[8px] text-center'>
-          <p className='text-[13px] text-[var(--text-secondary)]'>
-            You're not a member of any polling groups yet.
-          </p>
-          <p className='text-[12px] text-[var(--text-tertiary)]'>
-            When someone invites you to a polling group, it will appear here.
-          </p>
-        </div>
-      )}
-
-      {invitations.length > 0 && (
-        <div className='flex flex-col gap-[8px]'>
-          <Label className='text-[12px] text-[var(--text-tertiary)]'>Pending Invitations</Label>
-          {invitations.map((invitation) => (
-            <div
-              key={invitation.invitationId}
-              className='flex items-center justify-between rounded-[8px] border border-[var(--border)] px-[12px] py-[10px]'
-            >
-              <div className='flex flex-col'>
-                <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                  {invitation.credentialSetName}
-                </span>
-                <span className='text-[12px] text-[var(--text-secondary)]'>
-                  {invitation.organizationName}
-                </span>
+    <>
+      <div className='flex h-full flex-col gap-[16px]'>
+        <div className='min-h-0 flex-1 overflow-y-auto'>
+          <div className='flex flex-col gap-[16px]'>
+            {hasNoContent && !canManageCredentialSets && (
+              <div className='text-[13px] text-[var(--text-muted)]'>
+                You're not a member of any polling groups yet. When someone invites you, it will
+                appear here.
               </div>
-              <Button
-                variant='tertiary'
-                onClick={() => handleAcceptInvitation(invitation.token)}
-                disabled={acceptInvitation.isPending}
-              >
-                {acceptInvitation.isPending ? (
-                  <Loader2 className='h-[14px] w-[14px] animate-spin' />
-                ) : (
-                  'Accept'
-                )}
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
+            )}
 
-      {activeMemberships.length > 0 && (
-        <div className='flex flex-col gap-[8px]'>
-          <Label className='text-[12px] text-[var(--text-tertiary)]'>My Memberships</Label>
-          {activeMemberships.map((membership) => (
-            <div
-              key={membership.membershipId}
-              className='flex items-center justify-between rounded-[8px] border border-[var(--border)] px-[12px] py-[10px]'
-            >
-              <div className='flex flex-col'>
-                <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                  {membership.credentialSetName}
-                </span>
-                <span className='text-[12px] text-[var(--text-secondary)]'>
-                  {membership.organizationName}
-                </span>
-              </div>
-              <Button
-                variant='ghost'
-                size='sm'
-                onClick={() =>
-                  handleLeave(membership.credentialSetId, membership.credentialSetName)
-                }
-                disabled={leaveCredentialSet.isPending}
-                className='text-[var(--text-secondary)] hover:text-[var(--text-error)]'
-              >
-                {leaveCredentialSet.isPending ? (
-                  <Loader2 className='h-[14px] w-[14px] animate-spin' />
-                ) : (
-                  <LogOut className='h-[14px] w-[14px]' />
-                )}
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {canManageCredentialSets && (
-        <div className='flex flex-col gap-[8px]'>
-          <div className='flex items-center justify-between'>
-            <Label className='text-[12px] text-[var(--text-tertiary)]'>Manage</Label>
-            <Button variant='tertiary' onClick={() => setShowCreateModal(true)}>
-              <Plus className='mr-[4px] h-[14px] w-[14px]' />
-              Create
-            </Button>
-          </div>
-
-          {ownedSetsLoading ? (
-            <>
-              <Skeleton className='h-[48px] w-full rounded-[8px]' />
-              <Skeleton className='h-[48px] w-full rounded-[8px]' />
-            </>
-          ) : ownedSets.length === 0 ? (
-            <div className='rounded-[8px] border border-dashed border-[var(--border)] px-[12px] py-[16px] text-center'>
-              <p className='text-[12px] text-[var(--text-tertiary)]'>
-                No polling groups created yet
-              </p>
-            </div>
-          ) : (
-            ownedSets.map((set) => (
-              <div
-                key={set.id}
-                className='flex cursor-pointer items-center justify-between rounded-[8px] border border-[var(--border)] px-[12px] py-[10px] transition-colors hover:bg-[var(--bg-surface)]'
-                onClick={() => setViewingSet(set)}
-              >
-                <div className='flex flex-col'>
-                  <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                    {set.name}
-                  </span>
-                  <span className='text-[12px] text-[var(--text-secondary)]'>
-                    {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
-                    {set.providerId && <> · {getProviderDisplayName(set.providerId)}</>}
-                  </span>
+            {invitations.length > 0 && (
+              <div className='flex flex-col gap-[8px]'>
+                <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                  Pending Invitations
                 </div>
-                <Button
-                  variant='tertiary'
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setSelectedSetId(set.id)
-                    setShowInviteModal(true)
-                  }}
-                >
-                  Add Members
-                </Button>
+                {invitations.map((invitation) => (
+                  <div key={invitation.invitationId} className='flex items-center justify-between'>
+                    <div className='flex items-center gap-[12px]'>
+                      <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                        <GmailIcon className='h-4 w-4' />
+                      </div>
+                      <div className='flex flex-col'>
+                        <span className='font-medium text-[14px]'>
+                          {invitation.credentialSetName}
+                        </span>
+                        <span className='text-[13px] text-[var(--text-muted)]'>
+                          {invitation.organizationName}
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      variant='tertiary'
+                      onClick={() => handleAcceptInvitation(invitation.token)}
+                      disabled={acceptInvitation.isPending}
+                    >
+                      {acceptInvitation.isPending ? (
+                        <Loader2 className='h-4 w-4 animate-spin' />
+                      ) : (
+                        'Accept'
+                      )}
+                    </Button>
+                  </div>
+                ))}
               </div>
-            ))
-          )}
+            )}
+
+            {activeMemberships.length > 0 && (
+              <div className='flex flex-col gap-[8px]'>
+                <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                  My Memberships
+                </div>
+                {activeMemberships.map((membership) => (
+                  <div key={membership.membershipId} className='flex items-center justify-between'>
+                    <div className='flex items-center gap-[12px]'>
+                      <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                        <GmailIcon className='h-4 w-4' />
+                      </div>
+                      <div className='flex flex-col'>
+                        <span className='font-medium text-[14px]'>
+                          {membership.credentialSetName}
+                        </span>
+                        <span className='text-[13px] text-[var(--text-muted)]'>
+                          {membership.organizationName}
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      variant='ghost'
+                      onClick={() =>
+                        handleLeave(membership.credentialSetId, membership.credentialSetName)
+                      }
+                      disabled={leaveCredentialSet.isPending}
+                    >
+                      Leave
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {canManageCredentialSets && (
+              <div className='flex flex-col gap-[8px]'>
+                <div className='flex items-center justify-between'>
+                  <div className='font-medium text-[13px] text-[var(--text-secondary)]'>Manage</div>
+                  <Button variant='tertiary' onClick={() => setShowCreateModal(true)}>
+                    <Plus className='mr-[6px] h-[13px] w-[13px]' />
+                    Create
+                  </Button>
+                </div>
+                {ownedSetsLoading ? (
+                  <>
+                    {[1, 2].map((i) => (
+                      <div key={i} className='flex items-center justify-between'>
+                        <div className='flex items-center gap-[12px]'>
+                          <Skeleton className='h-9 w-9 rounded-[6px]' />
+                          <div className='flex flex-col gap-[4px]'>
+                            <Skeleton className='h-[14px] w-[120px]' />
+                            <Skeleton className='h-[12px] w-[80px]' />
+                          </div>
+                        </div>
+                        <Skeleton className='h-[32px] w-[100px] rounded-[6px]' />
+                      </div>
+                    ))}
+                  </>
+                ) : ownedSets.length === 0 ? (
+                  <div className='text-[13px] text-[var(--text-muted)]'>
+                    No polling groups created yet
+                  </div>
+                ) : (
+                  ownedSets.map((set) => (
+                    <div
+                      key={set.id}
+                      className='flex cursor-pointer items-center justify-between'
+                      onClick={() => setViewingSet(set)}
+                    >
+                      <div className='flex items-center gap-[12px]'>
+                        <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                          {getProviderIcon(set.providerId)}
+                        </div>
+                        <div className='flex flex-col'>
+                          <span className='font-medium text-[14px]'>{set.name}</span>
+                          <span className='text-[13px] text-[var(--text-muted)]'>
+                            {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+                      <Button
+                        variant='tertiary'
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedSetId(set.id)
+                          setShowInviteModal(true)
+                        }}
+                      >
+                        Add Members
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </div>
 
       <Modal open={showCreateModal} onOpenChange={handleCloseCreateModal}>
-        <ModalContent size='sm'>
+        <ModalContent className='w-[400px]'>
           <ModalHeader>Create Polling Group</ModalHeader>
           <ModalBody>
-            <div className='flex flex-col gap-[16px]'>
+            <div className='flex flex-col gap-[12px]'>
               <div className='flex flex-col gap-[4px]'>
                 <Label>Name</Label>
                 <Input
@@ -607,27 +657,32 @@ export function CredentialSets() {
               </div>
               <div className='flex flex-col gap-[4px]'>
                 <Label>Email Provider</Label>
-                <div className='flex gap-[8px]'>
+                <div className='inline-flex gap-[2px]'>
                   <Button
                     variant={newSetProvider === 'google-email' ? 'active' : 'default'}
                     onClick={() => setNewSetProvider('google-email')}
-                    className='flex-1'
+                    className={cn(
+                      'rounded-r-none px-[8px] py-[4px] text-[12px]',
+                      newSetProvider === 'google-email' &&
+                        'bg-[var(--border-1)] hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]'
+                    )}
                   >
-                    <GmailIcon className='mr-[6px] h-[16px] w-[16px]' />
                     Gmail
                   </Button>
                   <Button
                     variant={newSetProvider === 'outlook' ? 'active' : 'default'}
                     onClick={() => setNewSetProvider('outlook')}
-                    className='flex-1'
+                    className={cn(
+                      'rounded-l-none px-[8px] py-[4px] text-[12px]',
+                      newSetProvider === 'outlook' &&
+                        'bg-[var(--border-1)] hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]'
+                    )}
                   >
-                    <OutlookIcon className='mr-[6px] h-[16px] w-[16px]' />
                     Outlook
                   </Button>
                 </div>
                 <p className='mt-[4px] text-[11px] text-[var(--text-tertiary)]'>
-                  Members will connect their {getProviderDisplayName(newSetProvider)} account for
-                  email polling
+                  Members will connect their {getProviderDisplayName(newSetProvider)} account
                 </p>
               </div>
               {createError && <p className='text-[12px] text-[var(--text-error)]'>{createError}</p>}
@@ -643,7 +698,7 @@ export function CredentialSets() {
               disabled={!newSetName.trim() || createCredentialSet.isPending}
             >
               {createCredentialSet.isPending ? (
-                <Loader2 className='h-[14px] w-[14px] animate-spin' />
+                <Loader2 className='h-4 w-4 animate-spin' />
               ) : (
                 'Create'
               )}
@@ -653,34 +708,32 @@ export function CredentialSets() {
       </Modal>
 
       <Modal open={showInviteModal} onOpenChange={handleCloseInviteModal}>
-        <ModalContent size='sm'>
+        <ModalContent className='w-[400px]'>
           <ModalHeader>Add Members</ModalHeader>
           <ModalBody>
-            <div className='flex flex-col gap-[16px]'>
-              <div className='flex flex-col gap-[4px]'>
-                <Label>Email Addresses</Label>
-                <div
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  className={`relative rounded-[8px] transition-colors ${isDragging ? 'ring-2 ring-[var(--accent)]' : ''}`}
-                >
-                  <Textarea
-                    value={inviteEmails}
-                    onChange={(e) => setInviteEmails(e.target.value)}
-                    placeholder='Enter emails separated by commas or newlines, or drag and drop a CSV file'
-                    rows={4}
-                  />
-                  {isDragging && (
-                    <div className='pointer-events-none absolute inset-0 flex items-center justify-center rounded-[8px] bg-[var(--accent)]/10'>
-                      <span className='text-[13px] font-medium text-[var(--accent)]'>
-                        Drop CSV or text file
-                      </span>
-                    </div>
-                  )}
-                </div>
+            <div className='flex flex-col gap-[12px]'>
+              <Label>Email Addresses</Label>
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`relative ${isDragging ? 'ring-2 ring-[var(--accent)]' : ''}`}
+              >
+                <Textarea
+                  value={inviteEmails}
+                  onChange={(e) => setInviteEmails(e.target.value)}
+                  placeholder='Enter emails separated by commas or newlines'
+                  rows={4}
+                />
+                {isDragging && (
+                  <div className='pointer-events-none absolute inset-0 flex items-center justify-center rounded-[6px] bg-[var(--accent)]/10'>
+                    <span className='font-medium text-[13px] text-[var(--accent)]'>
+                      Drop CSV or text file
+                    </span>
+                  </div>
+                )}
               </div>
-              <p className='text-[12px] text-[var(--text-secondary)]'>
+              <p className='text-[12px] text-[var(--text-tertiary)]'>
                 Invitees will receive an email with a link to connect their account.
               </p>
             </div>
@@ -695,7 +748,7 @@ export function CredentialSets() {
               disabled={createInvitation.isPending || !inviteEmails.trim()}
             >
               {createInvitation.isPending ? (
-                <Loader2 className='h-[14px] w-[14px] animate-spin' />
+                <Loader2 className='h-4 w-4 animate-spin' />
               ) : (
                 'Send Invites'
               )}
@@ -717,7 +770,7 @@ export function CredentialSets() {
             </p>
           </ModalBody>
           <ModalFooter>
-            <Button variant='active' onClick={() => setLeavingMembership(null)}>
+            <Button variant='default' onClick={() => setLeavingMembership(null)}>
               Cancel
             </Button>
             <Button
@@ -730,6 +783,6 @@ export function CredentialSets() {
           </ModalFooter>
         </ModalContent>
       </Modal>
-    </div>
+    </>
   )
 }

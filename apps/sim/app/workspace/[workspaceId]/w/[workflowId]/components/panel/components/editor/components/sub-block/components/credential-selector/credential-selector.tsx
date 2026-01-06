@@ -217,15 +217,23 @@ export function CredentialSelector({
 
   const { comboboxOptions, comboboxGroups } = useMemo(() => {
     const pollingProviderId = getPollingProviderFromOAuth(effectiveProviderId)
+    // Handle both old ('gmail') and new ('google-email') provider IDs for backwards compatibility
+    const matchesProvider = (csProviderId: string | null) => {
+      if (!csProviderId || !pollingProviderId) return false
+      if (csProviderId === pollingProviderId) return true
+      // Handle legacy 'gmail' mapping to 'google-email'
+      if (pollingProviderId === 'google-email' && csProviderId === 'gmail') return true
+      return false
+    }
     const filteredCredentialSets = pollingProviderId
-      ? credentialSets.filter((cs) => cs.providerId === pollingProviderId)
+      ? credentialSets.filter((cs) => matchesProvider(cs.providerId))
       : []
 
     if (canUseCredentialSets && filteredCredentialSets.length > 0) {
       const groups = []
 
       groups.push({
-        section: 'Credential Sets',
+        section: 'Polling Groups',
         items: filteredCredentialSets.map((cs) => ({
           label: cs.name,
           value: `${CREDENTIAL_SET.PREFIX}${cs.id}`,
@@ -239,12 +247,12 @@ export function CredentialSelector({
 
       if (credentialItems.length > 0) {
         groups.push({
-          section: 'My Credentials',
+          section: 'Personal Credential',
           items: credentialItems,
         })
       } else {
         groups.push({
-          section: 'My Credentials',
+          section: 'Personal Credential',
           items: [
             {
               label: `Connect ${getProviderName(provider)} account`,
