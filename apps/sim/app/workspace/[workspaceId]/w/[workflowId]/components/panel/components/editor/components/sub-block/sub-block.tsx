@@ -605,6 +605,18 @@ function SubBlockComponent({
           />
         )
 
+      case 'router-input':
+        return (
+          <ConditionInput
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue as any}
+            disabled={isDisabled}
+            mode='router'
+          />
+        )
+
       case 'eval-input':
         return (
           <EvalInput
