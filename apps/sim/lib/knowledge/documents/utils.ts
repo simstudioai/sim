@@ -14,7 +14,7 @@ export interface RetryOptions {
   initialDelayMs?: number
   maxDelayMs?: number
   backoffMultiplier?: number
-  retryCondition?: (error: RetryableError) => boolean
+  retryCondition?: (error: unknown) => boolean
 }
 
 export interface RetryResult<T> {
@@ -30,11 +30,18 @@ function hasStatus(
   return typeof error === 'object' && error !== null && 'status' in error
 }
 
+function isRetryableErrorType(error: unknown): error is RetryableError {
+  if (!error) return false
+  if (error instanceof Error) return true
+  if (typeof error === 'object' && ('status' in error || 'message' in error)) return true
+  return false
+}
+
 /**
  * Default retry condition for rate limiting errors
  */
-export function isRetryableError(error: RetryableError): boolean {
-  if (!error) return false
+export function isRetryableError(error: unknown): boolean {
+  if (!isRetryableErrorType(error)) return false
 
   // Check for rate limiting status codes
   if (
@@ -45,7 +52,7 @@ export function isRetryableError(error: RetryableError): boolean {
   }
 
   // Check for rate limiting in error messages
-  const errorMessage = error.message || error.toString()
+  const errorMessage = error instanceof Error ? error.message : String(error)
   const rateLimitKeywords = [
     'rate limit',
     'rate_limit',

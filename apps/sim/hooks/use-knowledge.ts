@@ -67,6 +67,7 @@ export function useKnowledgeBaseDocuments(
     sortBy?: string
     sortOrder?: string
     enabled?: boolean
+    refetchInterval?: number | false
   }
 ) {
   const queryClient = useQueryClient()
@@ -92,6 +93,7 @@ export function useKnowledgeBaseDocuments(
     },
     {
       enabled: (options?.enabled ?? true) && Boolean(knowledgeBaseId),
+      refetchInterval: options?.refetchInterval,
     }
   )
 

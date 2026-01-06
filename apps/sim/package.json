@@ -127,6 +127,7 @@
     "onedollarstats": "0.0.10",
     "openai": "^4.91.1",
     "papaparse": "5.5.3",
+    "pdf-lib": "1.17.1",
     "postgres": "^3.4.5",
     "posthog-js": "1.268.9",
     "posthog-node": "5.9.2",
