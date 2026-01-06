@@ -359,12 +359,21 @@ export function Dropdown({
       !isPreview &&
       !disabled &&
       fetchedOptions.length === 0 &&
-      !isLoadingOptions
+      !isLoadingOptions &&
+      !fetchError
     ) {
       fetchOptionsIfNeeded()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchOptionsIfNeeded deps already covered above
-  }, [fetchOptions, isPreview, disabled, fetchedOptions.length, isLoadingOptions, dependencyValues])
+  }, [
+    fetchOptions,
+    isPreview,
+    disabled,
+    fetchedOptions.length,
+    isLoadingOptions,
+    fetchError,
+    dependencyValues,
+  ])
 
   /**
    * Effect to hydrate the stored value's label by fetching it individually
