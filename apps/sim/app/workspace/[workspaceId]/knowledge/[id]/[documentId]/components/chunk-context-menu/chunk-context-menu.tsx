@@ -158,7 +158,11 @@ export function ChunkContextMenu({
             )}
 
             {/* Destructive action */}
-            {onToggleEnabled && onDelete && <PopoverDivider />}
+            {onDelete &&
+              ((!isMultiSelect && onOpenInNewTab) ||
+                (!isMultiSelect && onEdit) ||
+                (!isMultiSelect && onCopyContent) ||
+                onToggleEnabled) && <PopoverDivider />}
             {onDelete && (
               <PopoverItem
                 disabled={disableDelete}

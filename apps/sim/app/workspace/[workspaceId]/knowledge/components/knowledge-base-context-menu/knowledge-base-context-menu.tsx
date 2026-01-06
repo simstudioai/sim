@@ -160,7 +160,12 @@ export function KnowledgeBaseContextMenu({
         )}
 
         {/* Destructive action */}
-        {showEdit && onEdit && showDelete && onDelete && <PopoverDivider />}
+        {showDelete &&
+          onDelete &&
+          ((showOpenInNewTab && onOpenInNewTab) ||
+            (showViewTags && onViewTags) ||
+            onCopyId ||
+            (showEdit && onEdit)) && <PopoverDivider />}
         {showDelete && onDelete && (
           <PopoverItem
             disabled={disableDelete}

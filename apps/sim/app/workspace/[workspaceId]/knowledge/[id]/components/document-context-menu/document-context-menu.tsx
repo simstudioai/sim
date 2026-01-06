@@ -163,7 +163,11 @@ export function DocumentContextMenu({
             )}
 
             {/* Destructive action */}
-            {onToggleEnabled && onDelete && <PopoverDivider />}
+            {onDelete &&
+              ((!isMultiSelect && onOpenInNewTab) ||
+                (!isMultiSelect && onRename) ||
+                (!isMultiSelect && hasTags && onViewTags) ||
+                onToggleEnabled) && <PopoverDivider />}
             {onDelete && (
               <PopoverItem
                 disabled={disableDelete}
