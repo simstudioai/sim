@@ -299,6 +299,22 @@ const SUBAGENT_MAX_HEIGHT = 125
 const SUBAGENT_SCROLL_INTERVAL = 100
 
 /**
+ * Get display labels for subagent tools
+ */
+function getSubagentLabels(toolName: string, isStreaming: boolean): string {
+  switch (toolName) {
+    case 'debug':
+      return isStreaming ? 'Debugging' : 'Debugged'
+    case 'apply_edit':
+      return isStreaming ? 'Applying edit' : 'Applied edit'
+    case 'plan':
+      return isStreaming ? 'Planning' : 'Planned'
+    default:
+      return isStreaming ? 'Processing' : 'Processed'
+  }
+}
+
+/**
  * SubAgentContent renders the streamed content and tool calls from a subagent
  * with thinking-style styling (same as ThinkingBlock).
  * Auto-collapses when streaming ends and has internal scrolling for long content.
@@ -306,9 +322,11 @@ const SUBAGENT_SCROLL_INTERVAL = 100
 function SubAgentContent({
   blocks,
   isStreaming = false,
+  toolName = 'debug',
 }: {
   blocks?: SubAgentContentBlock[]
   isStreaming?: boolean
+  toolName?: string
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const userCollapsedRef = useRef<boolean>(false)
@@ -347,7 +365,7 @@ function SubAgentContent({
   if (!blocks || blocks.length === 0) return null
 
   const hasContent = blocks.length > 0
-  const label = isStreaming ? 'Debugging' : 'Debugged'
+  const label = getSubagentLabels(toolName, isStreaming)
 
   return (
     <div className='mt-1 mb-0'>
@@ -768,13 +786,15 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   // Skip rendering some internal tools
   if (toolCall.name === 'checkoff_todo' || toolCall.name === 'mark_todo_in_progress') return null
 
-  // Special rendering for debug tool with subagent content - only show the collapsible SubAgentContent
-  if (toolCall.name === 'debug' && toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0) {
+  // Special rendering for subagent tools (debug, apply_edit, plan) - only show the collapsible SubAgentContent
+  const isSubagentTool = toolCall.name === 'debug' || toolCall.name === 'apply_edit' || toolCall.name === 'plan'
+  if (isSubagentTool && toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0) {
     return (
       <div className='w-full'>
         <SubAgentContent
           blocks={toolCall.subAgentBlocks}
           isStreaming={toolCall.subAgentStreaming}
+          toolName={toolCall.name}
         />
       </div>
     )
@@ -1209,6 +1229,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           <SubAgentContent
             blocks={toolCall.subAgentBlocks}
             isStreaming={toolCall.subAgentStreaming}
+            toolName={toolCall.name}
           />
         )}
       </div>
@@ -1271,6 +1292,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           <SubAgentContent
             blocks={toolCall.subAgentBlocks}
             isStreaming={toolCall.subAgentStreaming}
+            toolName={toolCall.name}
           />
         )}
       </div>
@@ -1380,6 +1402,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
         <SubAgentContent
           blocks={toolCall.subAgentBlocks}
           isStreaming={toolCall.subAgentStreaming}
+          toolName={toolCall.name}
         />
       )}
     </div>

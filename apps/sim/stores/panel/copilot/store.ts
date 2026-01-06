@@ -33,6 +33,7 @@ import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
 import { RememberDebugClientTool } from '@/lib/copilot/tools/client/other/remember-debug'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
 import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
+import { ApplyEditClientTool } from '@/lib/copilot/tools/client/other/apply-edit'
 import { DebugClientTool } from '@/lib/copilot/tools/client/other/debug'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
 import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
@@ -79,6 +80,7 @@ try {
 
 // Known class-based client tools: map tool name -> instantiator
 const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
+  apply_edit: (id) => new ApplyEditClientTool(id),
   debug: (id) => new DebugClientTool(id),
   run_workflow: (id) => new RunWorkflowClientTool(id),
   get_workflow_console: (id) => new GetWorkflowConsoleClientTool(id),
@@ -122,6 +124,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
 
 // Read-only static metadata for class-based tools (no instances)
 export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefined> = {
+  apply_edit: (ApplyEditClientTool as any)?.metadata,
   debug: (DebugClientTool as any)?.metadata,
   run_workflow: (RunWorkflowClientTool as any)?.metadata,
   get_workflow_console: (GetWorkflowConsoleClientTool as any)?.metadata,
