@@ -80,6 +80,7 @@ export function CredentialSets() {
   const [newSetName, setNewSetName] = useState('')
   const [newSetDescription, setNewSetDescription] = useState('')
   const [newSetProvider, setNewSetProvider] = useState<'gmail' | 'outlook'>('gmail')
+  const [createError, setCreateError] = useState<string | null>(null)
   const [inviteEmails, setInviteEmails] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [leavingMembership, setLeavingMembership] = useState<{
@@ -204,6 +205,7 @@ export function CredentialSets() {
 
   const handleCreateCredentialSet = useCallback(async () => {
     if (!newSetName.trim() || !activeOrganization?.id) return
+    setCreateError(null)
     try {
       await createCredentialSet.mutateAsync({
         organizationId: activeOrganization.id,
@@ -218,6 +220,11 @@ export function CredentialSets() {
       setNewSetProvider('gmail')
     } catch (error) {
       logger.error('Failed to create polling group', error)
+      if (error instanceof Error) {
+        setCreateError(error.message)
+      } else {
+        setCreateError('Failed to create polling group')
+      }
     }
   }, [newSetName, newSetDescription, newSetProvider, activeOrganization?.id, createCredentialSet])
 
@@ -246,6 +253,14 @@ export function CredentialSets() {
       logger.error('Failed to create invitations', error)
     }
   }, [selectedSetId, inviteEmails, createInvitation])
+
+  const handleCloseCreateModal = useCallback(() => {
+    setShowCreateModal(false)
+    setNewSetName('')
+    setNewSetDescription('')
+    setNewSetProvider('gmail')
+    setCreateError(null)
+  }, [])
 
   const handleCloseInviteModal = useCallback(() => {
     setShowInviteModal(false)
@@ -573,7 +588,7 @@ export function CredentialSets() {
         </div>
       )}
 
-      <Modal open={showCreateModal} onOpenChange={setShowCreateModal}>
+      <Modal open={showCreateModal} onOpenChange={handleCloseCreateModal}>
         <ModalContent size='sm'>
           <ModalHeader>Create Polling Group</ModalHeader>
           <ModalBody>
@@ -582,7 +597,10 @@ export function CredentialSets() {
                 <Label>Name</Label>
                 <Input
                   value={newSetName}
-                  onChange={(e) => setNewSetName(e.target.value)}
+                  onChange={(e) => {
+                    setNewSetName(e.target.value)
+                    if (createError) setCreateError(null)
+                  }}
                   placeholder='e.g., Marketing Team'
                 />
               </div>
@@ -619,10 +637,11 @@ export function CredentialSets() {
                   account for email polling
                 </p>
               </div>
+              {createError && <p className='text-[12px] text-[var(--text-error)]'>{createError}</p>}
             </div>
           </ModalBody>
           <ModalFooter>
-            <Button variant='default' onClick={() => setShowCreateModal(false)}>
+            <Button variant='default' onClick={handleCloseCreateModal}>
               Cancel
             </Button>
             <Button

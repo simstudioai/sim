@@ -1,15 +1,31 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle2, Loader2, Shield } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Loader2, Mail } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/emcn'
-import { useSession } from '@/lib/auth/auth-client'
+import { GmailIcon, OutlookIcon } from '@/components/icons'
+import { client, useSession } from '@/lib/auth/auth-client'
 
 interface InvitationInfo {
   credentialSetName: string
   organizationName: string
+  providerId: string | null
   email: string | null
+}
+
+type AcceptedState = 'connecting' | 'already-connected'
+
+/**
+ * Maps credential set provider IDs to OAuth provider IDs
+ * The credential set stores 'gmail' but the OAuth provider is 'google-email'
+ */
+function getOAuthProviderId(credentialSetProviderId: string): string {
+  if (credentialSetProviderId === 'gmail') {
+    return 'google-email'
+  }
+  // outlook is the same in both
+  return credentialSetProviderId
 }
 
 export default function CredentialAccountInvitePage() {
@@ -23,7 +39,7 @@ export default function CredentialAccountInvitePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [accepting, setAccepting] = useState(false)
-  const [accepted, setAccepted] = useState(false)
+  const [acceptedState, setAcceptedState] = useState<AcceptedState | null>(null)
 
   useEffect(() => {
     async function fetchInvitation() {
@@ -48,7 +64,9 @@ export default function CredentialAccountInvitePage() {
 
   const handleAccept = useCallback(async () => {
     if (!session?.user?.id) {
-      router.push(`/login?callbackUrl=${encodeURIComponent(`/credential-account/${token}`)}`)
+      // Include invite_flow=true so the login page preserves callbackUrl when linking to signup
+      const callbackUrl = encodeURIComponent(`/credential-account/${token}`)
+      router.push(`/login?invite_flow=true&callbackUrl=${callbackUrl}`)
       return
     }
 
@@ -64,13 +82,63 @@ export default function CredentialAccountInvitePage() {
         return
       }
 
-      setAccepted(true)
+      const data = await res.json()
+      const credentialSetProviderId = data.providerId || invitation?.providerId
+
+      // Check if user already has this provider connected
+      let isAlreadyConnected = false
+      if (credentialSetProviderId) {
+        const oauthProviderId = getOAuthProviderId(credentialSetProviderId)
+        try {
+          const connectionsRes = await fetch('/api/auth/oauth/connections')
+          if (connectionsRes.ok) {
+            const connectionsData = await connectionsRes.json()
+            const connections = connectionsData.connections || []
+            isAlreadyConnected = connections.some(
+              (conn: { provider: string; accounts?: { id: string }[] }) =>
+                conn.provider === oauthProviderId && conn.accounts && conn.accounts.length > 0
+            )
+          }
+        } catch {
+          // If we can't check connections, proceed with OAuth flow
+        }
+      }
+
+      if (isAlreadyConnected) {
+        // Already connected - redirect to workspace
+        setAcceptedState('already-connected')
+        setTimeout(() => {
+          router.push('/workspace')
+        }, 2000)
+      } else if (credentialSetProviderId === 'gmail' || credentialSetProviderId === 'outlook') {
+        // Not connected - start OAuth flow
+        setAcceptedState('connecting')
+
+        // Small delay to show success message before redirect
+        setTimeout(async () => {
+          try {
+            const oauthProviderId = getOAuthProviderId(credentialSetProviderId)
+            await client.oauth2.link({
+              providerId: oauthProviderId,
+              callbackURL: `${window.location.origin}/workspace`,
+            })
+          } catch (oauthError) {
+            // OAuth redirect will happen, this catch is for any pre-redirect errors
+            console.error('OAuth initiation error:', oauthError)
+            // If OAuth fails, redirect to workspace where they can connect manually
+            router.push('/workspace')
+          }
+        }, 1500)
+      } else {
+        // No provider specified - just redirect to workspace
+        router.push('/workspace')
+      }
     } catch {
       setError('Failed to accept invitation')
     } finally {
       setAccepting(false)
     }
-  }, [session?.user?.id, token, router])
+  }, [session?.user?.id, token, router, invitation?.providerId])
 
   if (loading || sessionLoading) {
     return (
@@ -94,19 +162,49 @@ export default function CredentialAccountInvitePage() {
     )
   }
 
-  if (accepted) {
+  const ProviderIcon =
+    invitation?.providerId === 'outlook'
+      ? OutlookIcon
+      : invitation?.providerId === 'gmail'
+        ? GmailIcon
+        : Mail
+  const providerName =
+    invitation?.providerId === 'outlook'
+      ? 'Outlook'
+      : invitation?.providerId === 'gmail'
+        ? 'Gmail'
+        : 'email'
+
+  if (acceptedState === 'already-connected') {
     return (
       <div className='flex min-h-screen items-center justify-center bg-[var(--bg)]'>
         <div className='flex max-w-[400px] flex-col items-center gap-[24px] p-[32px]'>
           <CheckCircle2 className='h-[48px] w-[48px] text-green-500' />
-          <p className='font-medium text-[20px] text-[var(--text-primary)]'>Welcome!</p>
+          <p className='font-medium text-[20px] text-[var(--text-primary)]'>You're all set!</p>
           <p className='text-center text-[13px] text-[var(--text-secondary)]'>
-            You've successfully joined {invitation?.credentialSetName}. Connect your OAuth
-            credentials in Settings → Integrations.
+            You've joined {invitation?.credentialSetName}. Your {providerName} account is already
+            connected.
           </p>
-          <Button variant='tertiary' onClick={() => router.push('/workspace')}>
-            Go to Dashboard
-          </Button>
+          <p className='text-[12px] text-[var(--text-tertiary)]'>Redirecting to workspace...</p>
+          <Loader2 className='h-[24px] w-[24px] animate-spin text-[var(--text-muted)]' />
+        </div>
+      </div>
+    )
+  }
+
+  if (acceptedState === 'connecting') {
+    return (
+      <div className='flex min-h-screen items-center justify-center bg-[var(--bg)]'>
+        <div className='flex max-w-[400px] flex-col items-center gap-[24px] p-[32px]'>
+          <ProviderIcon className='h-[48px] w-[48px]' />
+          <p className='font-medium text-[20px] text-[var(--text-primary)]'>
+            Connecting to {providerName}...
+          </p>
+          <p className='text-center text-[13px] text-[var(--text-secondary)]'>
+            You've joined {invitation?.credentialSetName}. You'll be redirected to connect your{' '}
+            {providerName} account.
+          </p>
+          <Loader2 className='h-[24px] w-[24px] animate-spin text-[var(--text-muted)]' />
         </div>
       </div>
     )
@@ -116,8 +214,10 @@ export default function CredentialAccountInvitePage() {
     <div className='flex min-h-screen items-center justify-center bg-[var(--bg)]'>
       <div className='w-full max-w-[400px] p-[32px]'>
         <div className='flex flex-col items-center gap-[8px]'>
-          <Shield className='h-[48px] w-[48px] text-[var(--brand-400)]' />
-          <p className='font-medium text-[20px] text-[var(--text-primary)]'>Join Credential Set</p>
+          <ProviderIcon className='h-[48px] w-[48px]' />
+          <p className='font-medium text-[20px] text-[var(--text-primary)]'>
+            Join Email Polling Group
+          </p>
           <p className='text-center text-[13px] text-[var(--text-secondary)]'>
             You've been invited to join{' '}
             <span className='font-medium text-[var(--text-primary)]'>
@@ -125,6 +225,11 @@ export default function CredentialAccountInvitePage() {
             </span>{' '}
             by {invitation?.organizationName}
           </p>
+          {invitation?.providerId && (
+            <p className='mt-[8px] text-center text-[12px] text-[var(--text-tertiary)]'>
+              You'll be asked to connect your {providerName} account after accepting.
+            </p>
+          )}
         </div>
 
         <div className='mt-[32px] flex flex-col gap-[16px]'>
@@ -141,7 +246,10 @@ export default function CredentialAccountInvitePage() {
                     Joining...
                   </>
                 ) : (
-                  'Accept Invitation'
+                  <>
+                    <ProviderIcon className='mr-[8px] h-[16px] w-[16px]' />
+                    Accept & Connect {providerName}
+                  </>
                 )}
               </Button>
             </>
@@ -158,8 +266,8 @@ export default function CredentialAccountInvitePage() {
         </div>
 
         <p className='mt-[24px] text-center text-[11px] text-[var(--text-muted)]'>
-          By joining, you agree to share your OAuth credentials with this credential set for use in
-          automated workflows.
+          By joining, you agree to share your {providerName} credentials with this polling group for
+          use in automated email workflows.
         </p>
       </div>
     </div>

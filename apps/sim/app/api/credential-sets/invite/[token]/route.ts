@@ -24,6 +24,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
       status: credentialSetInvitation.status,
       expiresAt: credentialSetInvitation.expiresAt,
       credentialSetName: credentialSet.name,
+      providerId: credentialSet.providerId,
       organizationId: credentialSet.organizationId,
       organizationName: organization.name,
     })
@@ -54,6 +55,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     invitation: {
       credentialSetName: invitation.credentialSetName,
       organizationName: invitation.organizationName,
+      providerId: invitation.providerId,
       email: invitation.email,
     },
   })
@@ -68,15 +70,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   }
 
   try {
-    const [invitation] = await db
-      .select()
+    const [invitationData] = await db
+      .select({
+        id: credentialSetInvitation.id,
+        credentialSetId: credentialSetInvitation.credentialSetId,
+        email: credentialSetInvitation.email,
+        status: credentialSetInvitation.status,
+        expiresAt: credentialSetInvitation.expiresAt,
+        invitedBy: credentialSetInvitation.invitedBy,
+        providerId: credentialSet.providerId,
+      })
       .from(credentialSetInvitation)
+      .innerJoin(credentialSet, eq(credentialSetInvitation.credentialSetId, credentialSet.id))
       .where(eq(credentialSetInvitation.token, token))
       .limit(1)
 
-    if (!invitation) {
+    if (!invitationData) {
       return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
     }
+
+    const invitation = invitationData
 
     if (invitation.status !== 'pending') {
       return NextResponse.json({ error: 'Invitation is no longer valid' }, { status: 410 })
@@ -174,6 +187,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.json({
       success: true,
       credentialSetId: invitation.credentialSetId,
+      providerId: invitation.providerId,
     })
   } catch (error) {
     logger.error('Error accepting invitation', error)
