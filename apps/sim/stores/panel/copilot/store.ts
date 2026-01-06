@@ -1944,6 +1944,7 @@ const initialState = {
   suppressAutoSelect: false,
   contextUsage: null,
   autoAllowedTools: [] as string[],
+  messageQueue: [] as import('./types').QueuedMessage[],
 }
 
 export const useCopilotStore = create<CopilotStore>()(
@@ -2301,7 +2302,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
     // Send a message (streaming only)
     sendMessage: async (message: string, options = {}) => {
-      const { workflowId, currentChat, mode, revertState } = get()
+      const { workflowId, currentChat, mode, revertState, isSendingMessage } = get()
       const {
         stream = true,
         fileAttachments,
@@ -2315,6 +2316,13 @@ export const useCopilotStore = create<CopilotStore>()(
       }
 
       if (!workflowId) return
+
+      // If already sending a message, queue this one instead
+      if (isSendingMessage) {
+        get().addToQueue(message, { fileAttachments, contexts })
+        logger.info('[Copilot] Message queued (already sending)', { queueLength: get().messageQueue.length + 1 })
+        return
+      }
 
       const abortController = new AbortController()
       set({ isSendingMessage: true, error: null, abortController })
@@ -3042,6 +3050,23 @@ export const useCopilotStore = create<CopilotStore>()(
           await get().handleNewChatCreation(context.newChatId)
         }
 
+        // Process next message in queue if any
+        const nextInQueue = get().messageQueue[0]
+        if (nextInQueue) {
+          logger.info('[Queue] Processing next queued message', { id: nextInQueue.id, queueLength: get().messageQueue.length })
+          // Remove from queue and send
+          get().removeFromQueue(nextInQueue.id)
+          // Use setTimeout to avoid blocking the current execution
+          setTimeout(() => {
+            get().sendMessage(nextInQueue.content, {
+              stream: true,
+              fileAttachments: nextInQueue.fileAttachments,
+              contexts: nextInQueue.contexts,
+              messageId: nextInQueue.id,
+            })
+          }, 100)
+        }
+
         // Persist full message state (including contentBlocks), plan artifact, and config to database
         const { currentChat, streamingPlanContent, mode, selectedModel } = get()
         if (currentChat) {
@@ -3523,6 +3548,66 @@ export const useCopilotStore = create<CopilotStore>()(
     isToolAutoAllowed: (toolId: string) => {
       const { autoAllowedTools } = get()
       return autoAllowedTools.includes(toolId)
+    },
+
+    // Message queue actions
+    addToQueue: (message, options) => {
+      const queuedMessage: import('./types').QueuedMessage = {
+        id: crypto.randomUUID(),
+        content: message,
+        fileAttachments: options?.fileAttachments,
+        contexts: options?.contexts,
+        queuedAt: Date.now(),
+      }
+      set({ messageQueue: [...get().messageQueue, queuedMessage] })
+      logger.info('[Queue] Message added to queue', { id: queuedMessage.id, queueLength: get().messageQueue.length })
+    },
+
+    removeFromQueue: (id) => {
+      set({ messageQueue: get().messageQueue.filter((m) => m.id !== id) })
+      logger.info('[Queue] Message removed from queue', { id, queueLength: get().messageQueue.length })
+    },
+
+    moveUpInQueue: (id) => {
+      const queue = [...get().messageQueue]
+      const index = queue.findIndex((m) => m.id === id)
+      if (index > 0) {
+        const item = queue[index]
+        queue.splice(index, 1)
+        queue.splice(index - 1, 0, item)
+        set({ messageQueue: queue })
+        logger.info('[Queue] Message moved up in queue', { id, newIndex: index - 1 })
+      }
+    },
+
+    sendNow: async (id) => {
+      const queue = get().messageQueue
+      const message = queue.find((m) => m.id === id)
+      if (!message) return
+
+      // Remove from queue first
+      get().removeFromQueue(id)
+
+      // If currently sending, abort and send this one
+      const { isSendingMessage } = get()
+      if (isSendingMessage) {
+        get().abortMessage()
+        // Wait a tick for abort to complete
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+
+      // Send the message
+      await get().sendMessage(message.content, {
+        stream: true,
+        fileAttachments: message.fileAttachments,
+        contexts: message.contexts,
+        messageId: message.id,
+      })
+    },
+
+    clearQueue: () => {
+      set({ messageQueue: [] })
+      logger.info('[Queue] Queue cleared')
     },
   }))
 )

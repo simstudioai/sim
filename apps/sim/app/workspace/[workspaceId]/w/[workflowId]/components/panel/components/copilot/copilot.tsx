@@ -25,6 +25,7 @@ import { Trash } from '@/components/emcn/icons/trash'
 import {
   CopilotMessage,
   PlanModeSection,
+  QueuedMessages,
   TodoList,
   UserInput,
   Welcome,
@@ -298,7 +299,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
    */
   const handleSubmit = useCallback(
     async (query: string, fileAttachments?: MessageFileAttachment[], contexts?: any[]) => {
-      if (!query || isSendingMessage || !activeWorkflowId) return
+      // Allow submission even when isSendingMessage - store will queue the message
+      if (!query || !activeWorkflowId) return
 
       if (showPlanTodos) {
         const store = useCopilotStore.getState()
@@ -316,7 +318,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
         logger.error('Failed to send message:', error)
       }
     },
-    [isSendingMessage, activeWorkflowId, sendMessage, showPlanTodos]
+    [activeWorkflowId, sendMessage, showPlanTodos]
   )
 
   /**
@@ -587,6 +589,9 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     </div>
                   )}
                 </div>
+
+                {/* Queued messages (shown when messages are waiting) */}
+                <QueuedMessages />
 
                 {/* Input area with integrated mode selector */}
                 <div className='flex-shrink-0 px-[8px] pb-[8px]'>

@@ -60,6 +60,18 @@ export interface CopilotMessage {
   errorType?: 'usage_limit' | 'unauthorized' | 'forbidden' | 'rate_limit' | 'upgrade_required'
 }
 
+/**
+ * A message queued for sending while another message is in progress.
+ * Like Cursor's queued message feature.
+ */
+export interface QueuedMessage {
+  id: string
+  content: string
+  fileAttachments?: MessageFileAttachment[]
+  contexts?: ChatContext[]
+  queuedAt: number
+}
+
 // Contexts attached to a user message
 export type ChatContext =
   | { kind: 'past_chat'; chatId: string; label: string }
@@ -161,6 +173,9 @@ export interface CopilotState {
 
   // Auto-allowed integration tools (tools that can run without confirmation)
   autoAllowedTools: string[]
+
+  // Message queue for messages sent while another is in progress
+  messageQueue: QueuedMessage[]
 }
 
 export interface CopilotActions {
@@ -238,6 +253,19 @@ export interface CopilotActions {
   addAutoAllowedTool: (toolId: string) => Promise<void>
   removeAutoAllowedTool: (toolId: string) => Promise<void>
   isToolAutoAllowed: (toolId: string) => boolean
+
+  // Message queue actions
+  addToQueue: (
+    message: string,
+    options?: {
+      fileAttachments?: MessageFileAttachment[]
+      contexts?: ChatContext[]
+    }
+  ) => void
+  removeFromQueue: (id: string) => void
+  moveUpInQueue: (id: string) => void
+  sendNow: (id: string) => Promise<void>
+  clearQueue: () => void
 }
 
 export type CopilotStore = CopilotState & CopilotActions

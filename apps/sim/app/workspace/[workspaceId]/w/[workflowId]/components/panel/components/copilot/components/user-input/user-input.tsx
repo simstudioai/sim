@@ -300,7 +300,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       async (overrideMessage?: string, options: { preserveInput?: boolean } = {}) => {
         const targetMessage = overrideMessage ?? message
         const trimmedMessage = targetMessage.trim()
-        if (!trimmedMessage || disabled || isLoading) return
+        // Allow submission even when isLoading - store will queue the message
+        if (!trimmedMessage || disabled) return
 
         const failedUploads = fileAttachments.attachedFiles.filter((f) => !f.uploading && !f.key)
         if (failedUploads.length > 0) {
