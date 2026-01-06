@@ -1,5 +1,4 @@
 import { Link, Text } from '@react-email/components'
-import { createLogger } from '@sim/logger'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailLayout } from '@/components/emails/components'
 import { getBrandConfig } from '@/lib/branding/branding'
@@ -8,21 +7,19 @@ interface PollingGroupInvitationEmailProps {
   inviterName?: string
   organizationName?: string
   pollingGroupName?: string
-  provider?: 'gmail' | 'outlook'
+  provider?: 'google-email' | 'outlook'
   inviteLink?: string
 }
-
-const logger = createLogger('PollingGroupInvitationEmail')
 
 export function PollingGroupInvitationEmail({
   inviterName = 'A team member',
   organizationName = 'an organization',
   pollingGroupName = 'a polling group',
-  provider = 'gmail',
+  provider = 'google-email',
   inviteLink = '',
 }: PollingGroupInvitationEmailProps) {
   const brand = getBrandConfig()
-  const providerName = provider === 'gmail' ? 'Gmail' : 'Outlook'
+  const providerName = provider === 'google-email' ? 'Gmail' : 'Outlook'
 
   return (
     <EmailLayout preview={`You've been invited to join ${pollingGroupName} on ${brand.name}`}>

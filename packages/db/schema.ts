@@ -1783,8 +1783,6 @@ export const usageLog = pgTable(
   })
 )
 
-export const credentialSetTypeEnum = pgEnum('credential_set_type', ['all', 'specific'])
-
 export const credentialSet = pgTable(
   'credential_set',
   {
@@ -1794,8 +1792,7 @@ export const credentialSet = pgTable(
       .references(() => organization.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     description: text('description'),
-    type: credentialSetTypeEnum('type').notNull().default('all'),
-    providerId: text('provider_id'),
+    providerId: text('provider_id').notNull(),
     createdBy: text('created_by')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -1809,7 +1806,7 @@ export const credentialSet = pgTable(
       table.organizationId,
       table.name
     ),
-    typeIdx: index('credential_set_type_idx').on(table.type),
+    providerIdIdx: index('credential_set_provider_id_idx').on(table.providerId),
   })
 )
 

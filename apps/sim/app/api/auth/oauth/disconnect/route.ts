@@ -82,7 +82,6 @@ export async function POST(request: NextRequest) {
         id: credentialSetMember.id,
         credentialSetId: credentialSetMember.credentialSetId,
         providerId: credentialSet.providerId,
-        type: credentialSet.type,
       })
       .from(credentialSetMember)
       .innerJoin(credentialSet, eq(credentialSetMember.credentialSetId, credentialSet.id))
@@ -94,12 +93,12 @@ export async function POST(request: NextRequest) {
       )
 
     for (const membership of userMemberships) {
-      // Only sync if the credential set matches this provider or is 'all' type
+      // Only sync if the credential set matches this provider
+      // Credential sets store OAuth provider IDs like 'google-email' or 'outlook'
       const matchesProvider =
-        membership.type === 'all' ||
         membership.providerId === provider ||
         membership.providerId === providerId ||
-        (membership.providerId && provider.startsWith(membership.providerId))
+        membership.providerId?.startsWith(`${provider}-`)
 
       if (matchesProvider) {
         try {

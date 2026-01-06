@@ -13,7 +13,6 @@ async function getCredentialSetWithAccess(credentialSetId: string, userId: strin
     .select({
       id: credentialSet.id,
       organizationId: credentialSet.organizationId,
-      type: credentialSet.type,
       providerId: credentialSet.providerId,
     })
     .from(credentialSet)
@@ -62,34 +61,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .leftJoin(user, eq(credentialSetMember.userId, user.id))
     .where(eq(credentialSetMember.credentialSetId, id))
 
-  // Get credentials for all active members
+  // Get credentials for all active members filtered by the polling group's provider
   const activeMembers = members.filter((m) => m.status === 'active')
   const memberUserIds = activeMembers.map((m) => m.userId)
 
   let credentials: { userId: string; providerId: string; accountId: string }[] = []
-  if (memberUserIds.length > 0) {
-    // If credential set is for a specific provider, filter by that provider
-    if (result.set.type === 'specific' && result.set.providerId) {
-      credentials = await db
-        .select({
-          userId: account.userId,
-          providerId: account.providerId,
-          accountId: account.accountId,
-        })
-        .from(account)
-        .where(
-          and(inArray(account.userId, memberUserIds), eq(account.providerId, result.set.providerId))
-        )
-    } else {
-      credentials = await db
-        .select({
-          userId: account.userId,
-          providerId: account.providerId,
-          accountId: account.accountId,
-        })
-        .from(account)
-        .where(inArray(account.userId, memberUserIds))
-    }
+  if (memberUserIds.length > 0 && result.set.providerId) {
+    credentials = await db
+      .select({
+        userId: account.userId,
+        providerId: account.providerId,
+        accountId: account.accountId,
+      })
+      .from(account)
+      .where(
+        and(inArray(account.userId, memberUserIds), eq(account.providerId, result.set.providerId))
+      )
   }
 
   // Group credentials by userId

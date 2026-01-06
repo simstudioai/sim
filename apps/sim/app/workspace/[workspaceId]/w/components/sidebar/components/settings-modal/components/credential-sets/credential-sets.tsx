@@ -21,10 +21,10 @@ import { GmailIcon, OutlookIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client'
+import { getProviderDisplayName, type PollingProvider } from '@/lib/credential-sets/providers'
 import { getUserRole } from '@/lib/workspaces/organization'
 import {
   type CredentialSet,
-  type CredentialSetType,
   useAcceptCredentialSetInvitation,
   useCreateCredentialSet,
   useCreateCredentialSetInvitation,
@@ -79,7 +79,7 @@ export function CredentialSets() {
   const [viewingSet, setViewingSet] = useState<CredentialSet | null>(null)
   const [newSetName, setNewSetName] = useState('')
   const [newSetDescription, setNewSetDescription] = useState('')
-  const [newSetProvider, setNewSetProvider] = useState<'gmail' | 'outlook'>('gmail')
+  const [newSetProvider, setNewSetProvider] = useState<PollingProvider>('google-email')
   const [createError, setCreateError] = useState<string | null>(null)
   const [inviteEmails, setInviteEmails] = useState('')
   const [isDragging, setIsDragging] = useState(false)
@@ -91,12 +91,6 @@ export function CredentialSets() {
   const { data: members = [], isPending: membersLoading } = useCredentialSetMembers(viewingSet?.id)
   const removeMember = useRemoveCredentialSetMember()
   const leaveCredentialSet = useLeaveCredentialSet()
-
-  const getProviderName = useCallback((providerId: string) => {
-    if (providerId === 'gmail') return 'Gmail'
-    if (providerId === 'outlook') return 'Outlook'
-    return providerId
-  }, [])
 
   const extractEmailsFromText = useCallback((text: string): string[] => {
     // Match email patterns in text
@@ -211,13 +205,12 @@ export function CredentialSets() {
         organizationId: activeOrganization.id,
         name: newSetName.trim(),
         description: newSetDescription.trim() || undefined,
-        type: 'specific' as CredentialSetType,
         providerId: newSetProvider,
       })
       setShowCreateModal(false)
       setNewSetName('')
       setNewSetDescription('')
-      setNewSetProvider('gmail')
+      setNewSetProvider('google-email')
     } catch (error) {
       logger.error('Failed to create polling group', error)
       if (error instanceof Error) {
@@ -258,7 +251,7 @@ export function CredentialSets() {
     setShowCreateModal(false)
     setNewSetName('')
     setNewSetDescription('')
-    setNewSetProvider('gmail')
+    setNewSetProvider('google-email')
     setCreateError(null)
   }, [])
 
@@ -292,7 +285,7 @@ export function CredentialSets() {
               {viewingSet.name}
             </span>
             <span className='text-[12px] text-[var(--text-secondary)]'>
-              {getProviderName(viewingSet.providerId || '')}
+              {getProviderDisplayName(viewingSet.providerId || '')}
             </span>
           </div>
         </div>
@@ -569,7 +562,7 @@ export function CredentialSets() {
                   </span>
                   <span className='text-[12px] text-[var(--text-secondary)]'>
                     {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
-                    {set.providerId && <> · {getProviderName(set.providerId)}</>}
+                    {set.providerId && <> · {getProviderDisplayName(set.providerId)}</>}
                   </span>
                 </div>
                 <Button
@@ -616,8 +609,8 @@ export function CredentialSets() {
                 <Label>Email Provider</Label>
                 <div className='flex gap-[8px]'>
                   <Button
-                    variant={newSetProvider === 'gmail' ? 'active' : 'default'}
-                    onClick={() => setNewSetProvider('gmail')}
+                    variant={newSetProvider === 'google-email' ? 'active' : 'default'}
+                    onClick={() => setNewSetProvider('google-email')}
                     className='flex-1'
                   >
                     <GmailIcon className='mr-[6px] h-[16px] w-[16px]' />
@@ -633,8 +626,8 @@ export function CredentialSets() {
                   </Button>
                 </div>
                 <p className='mt-[4px] text-[11px] text-[var(--text-tertiary)]'>
-                  Members will connect their {newSetProvider === 'gmail' ? 'Gmail' : 'Outlook'}{' '}
-                  account for email polling
+                  Members will connect their {getProviderDisplayName(newSetProvider)} account for
+                  email polling
                 </p>
               </div>
               {createError && <p className='text-[12px] text-[var(--text-error)]'>{createError}</p>}

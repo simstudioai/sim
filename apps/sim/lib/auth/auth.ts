@@ -195,7 +195,6 @@ export const auth = betterAuth({
               .select({
                 credentialSetId: schema.credentialSetMember.credentialSetId,
                 providerId: schema.credentialSet.providerId,
-                type: schema.credentialSet.type,
               })
               .from(schema.credentialSetMember)
               .innerJoin(
@@ -210,10 +209,7 @@ export const auth = betterAuth({
               )
 
             for (const membership of userMemberships) {
-              const matchesProvider =
-                membership.type === 'all' || membership.providerId === account.providerId
-
-              if (matchesProvider) {
+              if (membership.providerId === account.providerId) {
                 try {
                   await syncAllWebhooksForCredentialSet(membership.credentialSetId, requestId)
                   logger.info(
@@ -290,7 +286,6 @@ export const auth = betterAuth({
             .select({
               credentialSetId: schema.credentialSetMember.credentialSetId,
               providerId: schema.credentialSet.providerId,
-              type: schema.credentialSet.type,
             })
             .from(schema.credentialSetMember)
             .innerJoin(
@@ -305,10 +300,7 @@ export const auth = betterAuth({
             )
 
           for (const membership of userMemberships) {
-            const matchesProvider =
-              membership.type === 'all' || membership.providerId === account.providerId
-
-            if (matchesProvider) {
+            if (membership.providerId === account.providerId) {
               try {
                 await syncAllWebhooksForCredentialSet(membership.credentialSetId, requestId)
                 logger.info('[account.create.after] Synced webhooks after credential connect', {

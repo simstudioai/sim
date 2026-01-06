@@ -20,7 +20,6 @@ async function getCredentialSetWithAccess(credentialSetId: string, userId: strin
       organizationId: credentialSet.organizationId,
       name: credentialSet.name,
       description: credentialSet.description,
-      type: credentialSet.type,
       providerId: credentialSet.providerId,
       createdBy: credentialSet.createdBy,
       createdAt: credentialSet.createdAt,

@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { ExternalLink, Users } from 'lucide-react'
 import { Button, Combobox } from '@/components/emcn/components'
 import { getSubscriptionStatus } from '@/lib/billing/client'
+import { getPollingProviderFromOAuth } from '@/lib/credential-sets/providers'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -215,9 +216,10 @@ export function CredentialSelector({
   }, [])
 
   const { comboboxOptions, comboboxGroups } = useMemo(() => {
-    const filteredCredentialSets = credentialSets.filter(
-      (cs) => cs.type === 'all' || cs.providerId === effectiveProviderId
-    )
+    const pollingProviderId = getPollingProviderFromOAuth(effectiveProviderId)
+    const filteredCredentialSets = pollingProviderId
+      ? credentialSets.filter((cs) => cs.providerId === pollingProviderId)
+      : []
 
     if (canUseCredentialSets && filteredCredentialSets.length > 0) {
       const groups = []

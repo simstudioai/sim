@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { GmailIcon, OutlookIcon } from '@/components/icons'
 import { client, useSession } from '@/lib/auth/auth-client'
+import { getProviderDisplayName, isPollingProvider } from '@/lib/credential-sets/providers'
 
 interface InvitationInfo {
   credentialSetName: string
@@ -15,18 +16,6 @@ interface InvitationInfo {
 }
 
 type AcceptedState = 'connecting' | 'already-connected'
-
-/**
- * Maps credential set provider IDs to OAuth provider IDs
- * The credential set stores 'gmail' but the OAuth provider is 'google-email'
- */
-function getOAuthProviderId(credentialSetProviderId: string): string {
-  if (credentialSetProviderId === 'gmail') {
-    return 'google-email'
-  }
-  // outlook is the same in both
-  return credentialSetProviderId
-}
 
 export default function CredentialAccountInvitePage() {
   const params = useParams()
@@ -87,8 +76,7 @@ export default function CredentialAccountInvitePage() {
 
       // Check if user already has this provider connected
       let isAlreadyConnected = false
-      if (credentialSetProviderId) {
-        const oauthProviderId = getOAuthProviderId(credentialSetProviderId)
+      if (credentialSetProviderId && isPollingProvider(credentialSetProviderId)) {
         try {
           const connectionsRes = await fetch('/api/auth/oauth/connections')
           if (connectionsRes.ok) {
@@ -96,7 +84,9 @@ export default function CredentialAccountInvitePage() {
             const connections = connectionsData.connections || []
             isAlreadyConnected = connections.some(
               (conn: { provider: string; accounts?: { id: string }[] }) =>
-                conn.provider === oauthProviderId && conn.accounts && conn.accounts.length > 0
+                conn.provider === credentialSetProviderId &&
+                conn.accounts &&
+                conn.accounts.length > 0
             )
           }
         } catch {
@@ -110,16 +100,15 @@ export default function CredentialAccountInvitePage() {
         setTimeout(() => {
           router.push('/workspace')
         }, 2000)
-      } else if (credentialSetProviderId === 'gmail' || credentialSetProviderId === 'outlook') {
+      } else if (credentialSetProviderId && isPollingProvider(credentialSetProviderId)) {
         // Not connected - start OAuth flow
         setAcceptedState('connecting')
 
         // Small delay to show success message before redirect
         setTimeout(async () => {
           try {
-            const oauthProviderId = getOAuthProviderId(credentialSetProviderId)
             await client.oauth2.link({
-              providerId: oauthProviderId,
+              providerId: credentialSetProviderId,
               callbackURL: `${window.location.origin}/workspace`,
             })
           } catch (oauthError) {
@@ -165,15 +154,12 @@ export default function CredentialAccountInvitePage() {
   const ProviderIcon =
     invitation?.providerId === 'outlook'
       ? OutlookIcon
-      : invitation?.providerId === 'gmail'
+      : invitation?.providerId === 'google-email'
         ? GmailIcon
         : Mail
-  const providerName =
-    invitation?.providerId === 'outlook'
-      ? 'Outlook'
-      : invitation?.providerId === 'gmail'
-        ? 'Gmail'
-        : 'email'
+  const providerName = invitation?.providerId
+    ? getProviderDisplayName(invitation.providerId)
+    : 'email'
 
   if (acceptedState === 'already-connected') {
     return (

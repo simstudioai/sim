@@ -1,13 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchJson } from '@/hooks/selectors/helpers'
 
-export type CredentialSetType = 'all' | 'specific'
-
 export interface CredentialSet {
   id: string
   name: string
   description: string | null
-  type: CredentialSetType
   providerId: string | null
   createdBy: string
   createdAt: string
@@ -126,7 +123,6 @@ export interface CreateCredentialSetData {
   organizationId: string
   name: string
   description?: string
-  type?: CredentialSetType
   providerId?: string
 }
 

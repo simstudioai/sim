@@ -121,7 +121,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           .where(eq(organization.id, result.set.organizationId))
           .limit(1)
 
-        const provider = (result.set.providerId as 'gmail' | 'outlook') || 'gmail'
+        const provider = (result.set.providerId as 'google-email' | 'outlook') || 'google-email'
         const emailHtml = await renderPollingGroupInvitationEmail({
           inviterName: inviter?.name || 'A team member',
           organizationName: org?.name || 'your organization',

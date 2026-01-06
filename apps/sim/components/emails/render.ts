@@ -189,7 +189,7 @@ export async function renderPollingGroupInvitationEmail(params: {
   inviterName: string
   organizationName: string
   pollingGroupName: string
-  provider: 'gmail' | 'outlook'
+  provider: 'google-email' | 'outlook'
   inviteLink: string
 }): Promise<string> {
   return await render(
