@@ -889,7 +889,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       if (type === 'condition') {
         rowsCount = conditionRows.length + defaultHandlesRow
       } else if (type === 'router_v2') {
-        rowsCount = routerRows.length + defaultHandlesRow
+        // +1 for context row, plus route rows
+        rowsCount = 1 + routerRows.length + defaultHandlesRow
       } else {
         const subblockRowCount = subBlockRows.reduce((acc, row) => acc + row.length, 0)
         rowsCount = subblockRowCount + defaultHandlesRow
@@ -1107,40 +1108,45 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
         {hasContentBelowHeader && (
           <div className='flex flex-col gap-[8px] p-[8px]'>
-            {type === 'condition'
-              ? conditionRows.map((cond) => (
+            {type === 'condition' ? (
+              conditionRows.map((cond) => (
+                <SubBlockRow key={cond.id} title={cond.title} value={getDisplayValue(cond.value)} />
+              ))
+            ) : type === 'router_v2' ? (
+              <>
+                <SubBlockRow
+                  key='context'
+                  title='Context'
+                  value={getDisplayValue(subBlockState.context?.value)}
+                />
+                {routerRows.map((route, index) => (
                   <SubBlockRow
-                    key={cond.id}
-                    title={cond.title}
-                    value={getDisplayValue(cond.value)}
+                    key={route.id}
+                    title={`Route ${index + 1}`}
+                    value={getDisplayValue(route.value)}
                   />
-                ))
-              : type === 'router_v2'
-                ? routerRows.map((route, index) => (
+                ))}
+              </>
+            ) : (
+              subBlockRows.map((row, rowIndex) =>
+                row.map((subBlock) => {
+                  const rawValue = subBlockState[subBlock.id]?.value
+                  return (
                     <SubBlockRow
-                      key={route.id}
-                      title={`Route ${index + 1}`}
-                      value={getDisplayValue(route.value)}
+                      key={`${subBlock.id}-${rowIndex}`}
+                      title={subBlock.title ?? subBlock.id}
+                      value={getDisplayValue(rawValue)}
+                      subBlock={subBlock}
+                      rawValue={rawValue}
+                      workspaceId={workspaceId}
+                      workflowId={currentWorkflowId}
+                      blockId={id}
+                      allSubBlockValues={subBlockState}
                     />
-                  ))
-                : subBlockRows.map((row, rowIndex) =>
-                    row.map((subBlock) => {
-                      const rawValue = subBlockState[subBlock.id]?.value
-                      return (
-                        <SubBlockRow
-                          key={`${subBlock.id}-${rowIndex}`}
-                          title={subBlock.title ?? subBlock.id}
-                          value={getDisplayValue(rawValue)}
-                          subBlock={subBlock}
-                          rawValue={rawValue}
-                          workspaceId={workspaceId}
-                          workflowId={currentWorkflowId}
-                          blockId={id}
-                          allSubBlockValues={subBlockState}
-                        />
-                      )
-                    })
-                  )}
+                  )
+                })
+              )
+            )}
             {shouldShowDefaultHandles && <SubBlockRow title='error' />}
           </div>
         )}
@@ -1198,9 +1204,10 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         {type === 'router_v2' && (
           <>
             {routerRows.map((route, routeIndex) => {
+              // +1 row offset for context row at the top
               const topOffset =
                 HANDLE_POSITIONS.CONDITION_START_Y +
-                routeIndex * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
+                (routeIndex + 1) * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
               return (
                 <Handle
                   key={`handle-${route.id}`}

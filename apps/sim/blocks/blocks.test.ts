@@ -321,7 +321,7 @@ describe('Blocks Module', () => {
 
       it('should have correct metadata', () => {
         expect(block?.type).toBe('router')
-        expect(block?.name).toBe('Router')
+        expect(block?.name).toBe('Router (Legacy)')
         expect(block?.category).toBe('blocks')
         expect(block?.authMode).toBe(AuthMode.ApiKey)
       })
@@ -454,6 +454,7 @@ describe('Blocks Module', () => {
         'workflow-selector',
         'workflow-input-mapper',
         'text',
+        'router-input',
       ]
 
       const blocks = getAllBlocks()
