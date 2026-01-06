@@ -553,16 +553,18 @@ export async function processDocumentAsync(
         }))
 
         if (embeddingRecords.length > 0) {
-          await db.delete(embedding).where(eq(embedding.documentId, documentId))
+          await db.transaction(async (tx) => {
+            await tx.delete(embedding).where(eq(embedding.documentId, documentId))
 
-          const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
-          const batches: (typeof embeddingRecords)[] = []
-          for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
-            batches.push(embeddingRecords.slice(i, i + insertBatchSize))
-          }
+            const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
+            const batches: (typeof embeddingRecords)[] = []
+            for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
+              batches.push(embeddingRecords.slice(i, i + insertBatchSize))
+            }
 
-          logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
-          await Promise.all(batches.map((batch) => db.insert(embedding).values(batch)))
+            logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
+            await Promise.all(batches.map((batch) => tx.insert(embedding).values(batch)))
+          })
         }
 
         await db
