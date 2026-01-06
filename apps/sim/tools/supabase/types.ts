@@ -5,6 +5,7 @@ export interface SupabaseQueryParams {
   projectId: string
   table: string
   schema?: string
+  select?: string
   filter?: string
   orderBy?: string
   limit?: number
@@ -23,6 +24,7 @@ export interface SupabaseGetRowParams {
   projectId: string
   table: string
   schema?: string
+  select?: string
   filter: string
 }
 

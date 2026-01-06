@@ -90,6 +90,17 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
   transformResponse: async (response: Response): Promise<CodeExecutionOutput> => {
     const result = await response.json()
 
+    if (!result.success) {
+      return {
+        success: false,
+        output: {
+          result: null,
+          stdout: result.output?.stdout || '',
+        },
+        error: result.error,
+      }
+    }
+
     return {
       success: true,
       output: {

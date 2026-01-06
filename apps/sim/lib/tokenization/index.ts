@@ -12,8 +12,6 @@ export {
   estimateOutputTokens,
   estimateTokenCount,
   getAccurateTokenCount,
-  getTokenCountsForBatch,
-  getTotalTokenCount,
   truncateToTokenLimit,
 } from '@/lib/tokenization/estimators'
 export { processStreamingBlockLog, processStreamingBlockLogs } from '@/lib/tokenization/streaming'
