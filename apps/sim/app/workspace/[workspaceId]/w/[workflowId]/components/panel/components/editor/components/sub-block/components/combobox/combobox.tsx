@@ -287,9 +287,12 @@ export function ComboBox({
     // Skip if already hydrated with the same value
     if (hydratedOption?.id === valueToHydrate) return
 
-    // Skip if value is already in fetched options
-    const alreadyInOptions = fetchedOptions.some((opt) => opt.id === valueToHydrate)
-    if (alreadyInOptions) return
+    // Skip if value is already in fetched options or static options
+    const alreadyInFetchedOptions = fetchedOptions.some((opt) => opt.id === valueToHydrate)
+    const alreadyInStaticOptions = staticOptions.some((opt) =>
+      typeof opt === 'string' ? opt === valueToHydrate : opt.id === valueToHydrate
+    )
+    if (alreadyInFetchedOptions || alreadyInStaticOptions) return
 
     // Track if effect is still active (cleanup on unmount or value change)
     let isActive = true
@@ -314,6 +317,7 @@ export function ComboBox({
     isPreview,
     disabled,
     fetchedOptions,
+    staticOptions,
     hydratedOption?.id,
   ])
 
