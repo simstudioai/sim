@@ -226,10 +226,27 @@ export function getBlockOutputs(
   }
 
   if (blockType === 'human_in_the_loop') {
-    // For human_in_the_loop, only expose url (inputFormat fields are only available after resume)
-    return {
+    const hitlOutputs: Record<string, any> = {
       url: { type: 'string', description: 'Resume UI URL' },
+      resumeEndpoint: {
+        type: 'string',
+        description: 'Resume API endpoint URL for direct curl requests',
+      },
     }
+
+    const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
+
+    for (const field of normalizedInputFormat) {
+      const fieldName = field?.name?.trim()
+      if (!fieldName) continue
+
+      hitlOutputs[fieldName] = {
+        type: (field?.type || 'any') as any,
+        description: `Field from resume form`,
+      }
+    }
+
+    return hitlOutputs
   }
 
   if (blockType === 'approval') {

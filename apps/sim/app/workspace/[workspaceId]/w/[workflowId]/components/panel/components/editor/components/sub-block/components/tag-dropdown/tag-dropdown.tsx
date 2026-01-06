@@ -755,6 +755,24 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
             blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
           }
+        } else if (sourceBlock.type === 'human_in_the_loop') {
+          const dynamicOutputs = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
+
+          const isSelfReference = activeSourceBlockId === blockId
+
+          if (dynamicOutputs.length > 0) {
+            const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
+            // For self-reference, only show url and resumeEndpoint (not response format fields)
+            blockTags = isSelfReference
+              ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
+              : allTags
+          } else {
+            const outputPaths = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
+            const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+            blockTags = isSelfReference
+              ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
+              : allTags
+          }
         } else {
           const operationValue =
             mergedSubBlocks?.operation?.value ?? getSubBlockValue(activeSourceBlockId, 'operation')
@@ -1074,7 +1092,19 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
           }
         } else if (accessibleBlock.type === 'human_in_the_loop') {
-          blockTags = [`${normalizedBlockName}.url`]
+          const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
+
+          const isSelfReference = accessibleBlockId === blockId
+
+          if (dynamicOutputs.length > 0) {
+            const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
+            // For self-reference, only show url and resumeEndpoint (not response format fields)
+            blockTags = isSelfReference
+              ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
+              : allTags
+          } else {
+            blockTags = [`${normalizedBlockName}.url`, `${normalizedBlockName}.resumeEndpoint`]
+          }
         } else {
           const operationValue =
             mergedSubBlocks?.operation?.value ?? getSubBlockValue(accessibleBlockId, 'operation')

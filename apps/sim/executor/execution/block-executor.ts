@@ -526,7 +526,7 @@ export class BlockExecutor {
     const placeholderState: BlockState = {
       output: {
         url: resumeLinks.uiUrl,
-        // apiUrl: resumeLinks.apiUrl, // Hidden from output
+        resumeEndpoint: resumeLinks.apiUrl,
       },
       executed: false,
       executionTime: existingState?.executionTime ?? 0,
