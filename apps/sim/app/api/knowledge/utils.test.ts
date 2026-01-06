@@ -148,6 +148,9 @@ vi.mock('@sim/db', () => {
       }),
       transaction: vi.fn(async (fn: any) => {
         await fn({
+          delete: () => ({
+            where: () => Promise.resolve(),
+          }),
           insert: (table: any) => ({
             values: (records: any) => {
               dbOps.order.push('insert')
