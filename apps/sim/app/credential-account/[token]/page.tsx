@@ -104,7 +104,7 @@ export default function CredentialAccountInvitePage() {
             You've successfully joined {invitation?.credentialSetName}. Connect your OAuth
             credentials in Settings → Integrations.
           </p>
-          <Button variant='tertiary' onClick={() => router.push('/w')}>
+          <Button variant='tertiary' onClick={() => router.push('/workspace')}>
             Go to Dashboard
           </Button>
         </div>

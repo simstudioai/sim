@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { webhook, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { validateInteger } from '@/lib/core/security/input-validation'
@@ -184,16 +184,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       hasFailedCountUpdate: failedCount !== undefined,
     })
 
-    // Update the webhook
+    // Merge providerConfig to preserve credential-related fields
+    let finalProviderConfig = webhooks[0].webhook.providerConfig
+    if (providerConfig !== undefined) {
+      const existingConfig = (webhooks[0].webhook.providerConfig as Record<string, unknown>) || {}
+      finalProviderConfig = {
+        ...resolvedProviderConfig,
+        credentialId: existingConfig.credentialId,
+        credentialSetId: existingConfig.credentialSetId,
+        userId: existingConfig.userId,
+        historyId: existingConfig.historyId,
+        lastCheckedTimestamp: existingConfig.lastCheckedTimestamp,
+        setupCompleted: existingConfig.setupCompleted,
+        externalId: existingConfig.externalId,
+      }
+    }
+
     const updatedWebhook = await db
       .update(webhook)
       .set({
         path: path !== undefined ? path : webhooks[0].webhook.path,
         provider: provider !== undefined ? provider : webhooks[0].webhook.provider,
-        providerConfig:
-          providerConfig !== undefined
-            ? resolvedProviderConfig
-            : webhooks[0].webhook.providerConfig,
+        providerConfig: finalProviderConfig,
         isActive: isActive !== undefined ? isActive : webhooks[0].webhook.isActive,
         failedCount: failedCount !== undefined ? failedCount : webhooks[0].webhook.failedCount,
         updatedAt: new Date(),
@@ -276,13 +288,46 @@ export async function DELETE(
     }
 
     const foundWebhook = webhookData.webhook
-
     const { cleanupExternalWebhook } = await import('@/lib/webhooks/provider-subscriptions')
-    await cleanupExternalWebhook(foundWebhook, webhookData.workflow, requestId)
 
-    await db.delete(webhook).where(eq(webhook.id, id))
+    const providerConfig = foundWebhook.providerConfig as Record<string, unknown> | null
+    const credentialSetId = providerConfig?.credentialSetId as string | undefined
+    const blockId = providerConfig?.blockId as string | undefined
 
-    logger.info(`[${requestId}] Successfully deleted webhook: ${id}`)
+    if (credentialSetId && blockId) {
+      const allCredentialSetWebhooks = await db
+        .select()
+        .from(webhook)
+        .where(and(eq(webhook.workflowId, webhookData.workflow.id), eq(webhook.blockId, blockId)))
+
+      const webhooksToDelete = allCredentialSetWebhooks.filter((w) => {
+        const config = w.providerConfig as Record<string, unknown> | null
+        return config?.credentialSetId === credentialSetId
+      })
+
+      for (const w of webhooksToDelete) {
+        await cleanupExternalWebhook(w, webhookData.workflow, requestId)
+      }
+
+      const idsToDelete = webhooksToDelete.map((w) => w.id)
+      for (const wId of idsToDelete) {
+        await db.delete(webhook).where(eq(webhook.id, wId))
+      }
+
+      logger.info(
+        `[${requestId}] Successfully deleted ${idsToDelete.length} webhooks for credential set`,
+        {
+          credentialSetId,
+          blockId,
+          deletedIds: idsToDelete,
+        }
+      )
+    } else {
+      await cleanupExternalWebhook(foundWebhook, webhookData.workflow, requestId)
+      await db.delete(webhook).where(eq(webhook.id, id))
+      logger.info(`[${requestId}] Successfully deleted webhook: ${id}`)
+    }
+
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error: any) {
     logger.error(`[${requestId}] Error deleting webhook`, {

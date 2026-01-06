@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { credentialSet, credentialSetInvitation, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, gt, or } from 'drizzle-orm'
+import { and, eq, gt, isNull, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 
@@ -37,7 +37,7 @@ export async function GET() {
         and(
           or(
             eq(credentialSetInvitation.email, session.user.email),
-            eq(credentialSetInvitation.email, null)
+            isNull(credentialSetInvitation.email)
           ),
           eq(credentialSetInvitation.status, 'pending'),
           gt(credentialSetInvitation.expiresAt, new Date())

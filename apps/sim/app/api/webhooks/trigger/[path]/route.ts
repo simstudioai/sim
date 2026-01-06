@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   checkWebhookPreprocessing,
-  findWebhookAndWorkflow,
+  findAllWebhooksForPath,
   handleProviderChallenges,
   handleProviderReachabilityTest,
   parseWebhookBody,
@@ -86,109 +86,151 @@ export async function POST(
     return challengeResponse
   }
 
-  const findResult = await findWebhookAndWorkflow({ requestId, path })
+  // Find all webhooks for this path (supports credential set fan-out where multiple webhooks share a path)
+  const webhooksForPath = await findAllWebhooksForPath({ requestId, path })
 
-  if (!findResult) {
+  if (webhooksForPath.length === 0) {
     logger.warn(`[${requestId}] Webhook or workflow not found for path: ${path}`)
-
     return new NextResponse('Not Found', { status: 404 })
   }
 
-  const { webhook: foundWebhook, workflow: foundWorkflow } = findResult
+  // Process each webhook
+  // For credential sets with shared paths, each webhook represents a different credential
+  const responses: NextResponse[] = []
 
-  // Log HubSpot webhook details for debugging
-  if (foundWebhook.provider === 'hubspot') {
-    const events = Array.isArray(body) ? body : [body]
-    const firstEvent = events[0]
+  for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooksForPath) {
+    // Log HubSpot webhook details for debugging
+    if (foundWebhook.provider === 'hubspot') {
+      const events = Array.isArray(body) ? body : [body]
+      const firstEvent = events[0]
 
-    logger.info(`[${requestId}] HubSpot webhook received`, {
-      path,
-      subscriptionType: firstEvent?.subscriptionType,
-      objectId: firstEvent?.objectId,
-      portalId: firstEvent?.portalId,
-      webhookId: foundWebhook.id,
-      workflowId: foundWorkflow.id,
-      triggerId: foundWebhook.providerConfig?.triggerId,
-      eventCount: events.length,
-    })
-  }
-
-  const authError = await verifyProviderAuth(
-    foundWebhook,
-    foundWorkflow,
-    request,
-    rawBody,
-    requestId
-  )
-  if (authError) {
-    return authError
-  }
-
-  const reachabilityResponse = handleProviderReachabilityTest(foundWebhook, body, requestId)
-  if (reachabilityResponse) {
-    return reachabilityResponse
-  }
-
-  let preprocessError: NextResponse | null = null
-  try {
-    preprocessError = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
-    if (preprocessError) {
-      return preprocessError
+      logger.info(`[${requestId}] HubSpot webhook received`, {
+        path,
+        subscriptionType: firstEvent?.subscriptionType,
+        objectId: firstEvent?.objectId,
+        portalId: firstEvent?.portalId,
+        webhookId: foundWebhook.id,
+        workflowId: foundWorkflow.id,
+        triggerId: foundWebhook.providerConfig?.triggerId,
+        eventCount: events.length,
+      })
     }
-  } catch (error) {
-    logger.error(`[${requestId}] Unexpected error during webhook preprocessing`, {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      webhookId: foundWebhook.id,
-      workflowId: foundWorkflow.id,
-    })
 
-    if (foundWebhook.provider === 'microsoft-teams') {
+    const authError = await verifyProviderAuth(
+      foundWebhook,
+      foundWorkflow,
+      request,
+      rawBody,
+      requestId
+    )
+    if (authError) {
+      // For multi-webhook, log and continue to next webhook
+      if (webhooksForPath.length > 1) {
+        logger.warn(`[${requestId}] Auth failed for webhook ${foundWebhook.id}, continuing to next`)
+        continue
+      }
+      return authError
+    }
+
+    const reachabilityResponse = handleProviderReachabilityTest(foundWebhook, body, requestId)
+    if (reachabilityResponse) {
+      // Reachability test should return immediately for the first webhook
+      return reachabilityResponse
+    }
+
+    let preprocessError: NextResponse | null = null
+    try {
+      preprocessError = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
+      if (preprocessError) {
+        if (webhooksForPath.length > 1) {
+          logger.warn(
+            `[${requestId}] Preprocessing failed for webhook ${foundWebhook.id}, continuing to next`
+          )
+          continue
+        }
+        return preprocessError
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Unexpected error during webhook preprocessing`, {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        webhookId: foundWebhook.id,
+        workflowId: foundWorkflow.id,
+      })
+
+      if (webhooksForPath.length > 1) {
+        continue
+      }
+
+      if (foundWebhook.provider === 'microsoft-teams') {
+        return NextResponse.json(
+          {
+            type: 'message',
+            text: 'An unexpected error occurred during preprocessing',
+          },
+          { status: 500 }
+        )
+      }
+
       return NextResponse.json(
-        {
-          type: 'message',
-          text: 'An unexpected error occurred during preprocessing',
-        },
+        { error: 'An unexpected error occurred during preprocessing' },
         { status: 500 }
       )
     }
 
-    return NextResponse.json(
-      { error: 'An unexpected error occurred during preprocessing' },
-      { status: 500 }
-    )
-  }
-
-  if (foundWebhook.blockId) {
-    const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
-    if (!blockExists) {
-      logger.info(
-        `[${requestId}] Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`
-      )
-      return new NextResponse('Trigger block not found in deployment', { status: 404 })
-    }
-  }
-
-  if (foundWebhook.provider === 'stripe') {
-    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
-    const eventTypes = providerConfig.eventTypes
-
-    if (eventTypes && Array.isArray(eventTypes) && eventTypes.length > 0) {
-      const eventType = body?.type
-
-      if (eventType && !eventTypes.includes(eventType)) {
+    if (foundWebhook.blockId) {
+      const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
+      if (!blockExists) {
         logger.info(
-          `[${requestId}] Stripe event type '${eventType}' not in allowed list, skipping execution`
+          `[${requestId}] Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`
         )
-        return new NextResponse('Event type filtered', { status: 200 })
+        if (webhooksForPath.length > 1) {
+          continue
+        }
+        return new NextResponse('Trigger block not found in deployment', { status: 404 })
       }
     }
+
+    if (foundWebhook.provider === 'stripe') {
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const eventTypes = providerConfig.eventTypes
+
+      if (eventTypes && Array.isArray(eventTypes) && eventTypes.length > 0) {
+        const eventType = body?.type
+
+        if (eventType && !eventTypes.includes(eventType)) {
+          logger.info(
+            `[${requestId}] Stripe event type '${eventType}' not in allowed list for webhook ${foundWebhook.id}, skipping`
+          )
+          continue
+        }
+      }
+    }
+
+    const response = await queueWebhookExecution(foundWebhook, foundWorkflow, body, request, {
+      requestId,
+      path,
+      testMode: false,
+      executionTarget: 'deployed',
+    })
+    responses.push(response)
   }
 
-  return queueWebhookExecution(foundWebhook, foundWorkflow, body, request, {
-    requestId,
-    path,
-    testMode: false,
-    executionTarget: 'deployed',
+  // Return the last successful response, or a combined response for multiple webhooks
+  if (responses.length === 0) {
+    return new NextResponse('No webhooks processed successfully', { status: 500 })
+  }
+
+  if (responses.length === 1) {
+    return responses[0]
+  }
+
+  // For multiple webhooks, return success if at least one succeeded
+  logger.info(
+    `[${requestId}] Processed ${responses.length} webhooks for path: ${path} (credential set fan-out)`
+  )
+  return NextResponse.json({
+    success: true,
+    webhooksProcessed: responses.length,
   })
 }

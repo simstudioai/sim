@@ -13,6 +13,7 @@ export const SYSTEM_SUBBLOCK_IDS: string[] = [
   'setupScript', // Setup script code (e.g., Apps Script)
   'triggerId', // Stored trigger ID
   'selectedTriggerId', // Selected trigger from dropdown (multi-trigger blocks)
+  'triggerConfig', // Aggregated trigger config (derived from individual fields)
 ]
 
 /**

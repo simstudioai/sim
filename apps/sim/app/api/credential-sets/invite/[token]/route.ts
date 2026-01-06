@@ -9,6 +9,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 
 const logger = createLogger('CredentialSetInviteToken')
 
@@ -133,11 +134,44 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       })
       .where(eq(credentialSetInvitation.id, invitation.id))
 
+    // Clean up all other pending invitations for the same credential set and email
+    // This prevents duplicate invites from showing up after accepting one
+    if (invitation.email) {
+      await db
+        .update(credentialSetInvitation)
+        .set({
+          status: 'accepted',
+          acceptedAt: now,
+          acceptedByUserId: session.user.id,
+        })
+        .where(
+          and(
+            eq(credentialSetInvitation.credentialSetId, invitation.credentialSetId),
+            eq(credentialSetInvitation.email, invitation.email),
+            eq(credentialSetInvitation.status, 'pending')
+          )
+        )
+    }
+
     logger.info('Accepted credential set invitation', {
       invitationId: invitation.id,
       credentialSetId: invitation.credentialSetId,
       userId: session.user.id,
     })
+
+    try {
+      const requestId = crypto.randomUUID().slice(0, 8)
+      const syncResult = await syncAllWebhooksForCredentialSet(
+        invitation.credentialSetId,
+        requestId
+      )
+      logger.info('Synced webhooks after member joined', {
+        credentialSetId: invitation.credentialSetId,
+        ...syncResult,
+      })
+    } catch (syncError) {
+      logger.error('Error syncing webhooks after member joined', syncError)
+    }
 
     return NextResponse.json({
       success: true,

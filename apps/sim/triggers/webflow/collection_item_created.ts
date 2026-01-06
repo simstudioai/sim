@@ -33,6 +33,7 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
       requiredScopes: [],
       required: true,
       mode: 'trigger',
+      supportsCredentialSets: true,
       condition: {
         field: 'selectedTriggerId',
         value: 'webflow_collection_item_created',

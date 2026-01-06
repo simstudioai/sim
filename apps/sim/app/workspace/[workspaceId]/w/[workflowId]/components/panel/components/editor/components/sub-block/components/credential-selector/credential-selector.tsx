@@ -16,6 +16,7 @@ import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
+import { CREDENTIAL_SET } from '@/executor/constants'
 import { useCredentialSets } from '@/hooks/queries/credential-sets'
 import { useOAuthCredentialDetail, useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
 import { useOrganizations } from '@/hooks/queries/organization'
@@ -24,8 +25,6 @@ import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CredentialSelector')
-
-const CREDENTIAL_SET_PREFIX = 'credentialSet:'
 
 interface CredentialSelectorProps {
   blockId: string
@@ -72,10 +71,10 @@ export function CredentialSelector({
 
   const effectiveValue = isPreview && previewValue !== undefined ? previewValue : storeValue
   const rawSelectedId = typeof effectiveValue === 'string' ? effectiveValue : ''
-  const isCredentialSetSelected = rawSelectedId.startsWith(CREDENTIAL_SET_PREFIX)
+  const isCredentialSetSelected = rawSelectedId.startsWith(CREDENTIAL_SET.PREFIX)
   const selectedId = isCredentialSetSelected ? '' : rawSelectedId
   const selectedCredentialSetId = isCredentialSetSelected
-    ? rawSelectedId.slice(CREDENTIAL_SET_PREFIX.length)
+    ? rawSelectedId.slice(CREDENTIAL_SET.PREFIX.length)
     : ''
 
   const effectiveProviderId = useMemo(
@@ -181,7 +180,7 @@ export function CredentialSelector({
   const handleCredentialSetSelect = useCallback(
     (credentialSetId: string) => {
       if (isPreview) return
-      setStoreValue(`${CREDENTIAL_SET_PREFIX}${credentialSetId}`)
+      setStoreValue(`${CREDENTIAL_SET.PREFIX}${credentialSetId}`)
       setIsEditing(false)
     },
     [isPreview, setStoreValue]
@@ -216,14 +215,18 @@ export function CredentialSelector({
   }, [])
 
   const { comboboxOptions, comboboxGroups } = useMemo(() => {
-    if (canUseCredentialSets && credentialSets.length > 0) {
+    const filteredCredentialSets = credentialSets.filter(
+      (cs) => cs.type === 'all' || cs.providerId === effectiveProviderId
+    )
+
+    if (canUseCredentialSets && filteredCredentialSets.length > 0) {
       const groups = []
 
       groups.push({
         section: 'Credential Sets',
-        items: credentialSets.map((cs) => ({
-          label: `${cs.name} (${cs.memberCount} members)`,
-          value: `${CREDENTIAL_SET_PREFIX}${cs.id}`,
+        items: filteredCredentialSets.map((cs) => ({
+          label: cs.name,
+          value: `${CREDENTIAL_SET.PREFIX}${cs.id}`,
         })),
       })
 
@@ -237,7 +240,7 @@ export function CredentialSelector({
           section: 'My Credentials',
           items: credentialItems,
         })
-      } else if (!isCredentialSetSelected) {
+      } else {
         groups.push({
           section: 'My Credentials',
           items: [
@@ -268,10 +271,10 @@ export function CredentialSelector({
   }, [
     credentials,
     provider,
+    effectiveProviderId,
     getProviderName,
     canUseCredentialSets,
     credentialSets,
-    isCredentialSetSelected,
   ])
 
   const selectedCredentialProvider = selectedCredential?.provider ?? provider
@@ -313,8 +316,8 @@ export function CredentialSelector({
         return
       }
 
-      if (value.startsWith(CREDENTIAL_SET_PREFIX)) {
-        const credentialSetId = value.slice(CREDENTIAL_SET_PREFIX.length)
+      if (value.startsWith(CREDENTIAL_SET.PREFIX)) {
+        const credentialSetId = value.slice(CREDENTIAL_SET.PREFIX.length)
         const matchedSet = credentialSets.find((cs) => cs.id === credentialSetId)
         if (matchedSet) {
           setInputValue(matchedSet.name)
@@ -353,7 +356,7 @@ export function CredentialSelector({
         filterOptions={true}
         isLoading={credentialsLoading}
         overlayContent={overlayContent}
-        className={selectedId ? 'pl-[28px]' : ''}
+        className={selectedId || isCredentialSetSelected ? 'pl-[28px]' : ''}
       />
 
       {needsUpdate && (

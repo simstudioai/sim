@@ -105,10 +105,10 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       refreshToken: account.refreshToken,
       accessTokenExpiresAt: account.accessTokenExpiresAt,
       idToken: account.idToken,
+      scope: account.scope,
     })
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, providerId)))
-    // Always use the most recently updated credential for this provider
     .orderBy(desc(account.updatedAt))
     .limit(1)
 
@@ -347,6 +347,8 @@ export async function getCredentialsForCredentialSet(
   credentialSetId: string,
   providerId: string
 ): Promise<CredentialSetCredential[]> {
+  logger.info(`Getting credentials for credential set ${credentialSetId}, provider ${providerId}`)
+
   const members = await db
     .select({ userId: credentialSetMember.userId })
     .from(credentialSetMember)
@@ -357,12 +359,15 @@ export async function getCredentialsForCredentialSet(
       )
     )
 
+  logger.info(`Found ${members.length} active members in credential set ${credentialSetId}`)
+
   if (members.length === 0) {
     logger.warn(`No active members found for credential set ${credentialSetId}`)
     return []
   }
 
   const userIds = members.map((m) => m.userId)
+  logger.debug(`Member user IDs: ${userIds.join(', ')}`)
 
   const credentials = await db
     .select({
@@ -375,6 +380,10 @@ export async function getCredentialsForCredentialSet(
     })
     .from(account)
     .where(and(inArray(account.userId, userIds), eq(account.providerId, providerId)))
+
+  logger.info(
+    `Found ${credentials.length} credentials with provider ${providerId} for ${members.length} members`
+  )
 
   const results: CredentialSetCredential[] = []
 

@@ -71,17 +71,23 @@ export async function POST(request: NextRequest) {
         providerId,
       })
 
-      const accessToken = await getOAuthToken(credentialAccountUserId, providerId)
-      if (!accessToken) {
-        return NextResponse.json(
-          {
-            error: `No credential found for user ${credentialAccountUserId} and provider ${providerId}`,
-          },
-          { status: 404 }
-        )
-      }
+      try {
+        const accessToken = await getOAuthToken(credentialAccountUserId, providerId)
+        if (!accessToken) {
+          return NextResponse.json(
+            {
+              error: `No credential found for user ${credentialAccountUserId} and provider ${providerId}`,
+            },
+            { status: 404 }
+          )
+        }
 
-      return NextResponse.json({ accessToken }, { status: 200 })
+        return NextResponse.json({ accessToken }, { status: 200 })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to get OAuth token'
+        logger.warn(`[${requestId}] OAuth token error: ${message}`)
+        return NextResponse.json({ error: message }, { status: 403 })
+      }
     }
 
     if (!credentialId) {
@@ -170,7 +176,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
-    // Get the credential from the database
     const credential = await getCredential(requestId, credentialId, auth.userId)
 
     if (!credential) {

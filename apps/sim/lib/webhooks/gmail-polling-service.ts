@@ -141,17 +141,19 @@ export async function pollGmailWebhooks() {
 
       try {
         const metadata = webhookData.providerConfig as any
+        // Each webhook now has its own credentialId (credential sets are fanned out at save time)
         const credentialId: string | undefined = metadata?.credentialId
         const userId: string | undefined = metadata?.userId
 
         if (!credentialId && !userId) {
-          logger.error(`[${requestId}] Missing credentialId and userId for webhook ${webhookId}`)
+          logger.error(`[${requestId}] Missing credential info for webhook ${webhookId}`)
           await markWebhookFailed(webhookId)
           failureCount++
           return
         }
 
         let accessToken: string | null = null
+
         if (credentialId) {
           const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
           if (rows.length === 0) {
@@ -165,13 +167,12 @@ export async function pollGmailWebhooks() {
           const ownerUserId = rows[0].userId
           accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
         } else if (userId) {
+          // Legacy fallback for webhooks without credentialId
           accessToken = await getOAuthToken(userId, 'google-email')
         }
 
         if (!accessToken) {
-          logger.error(
-            `[${requestId}] Failed to get Gmail access token for webhook ${webhookId} (cred or fallback)`
-          )
+          logger.error(`[${requestId}] Failed to get Gmail access token for webhook ${webhookId}`)
           await markWebhookFailed(webhookId)
           failureCount++
           return

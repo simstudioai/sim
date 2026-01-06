@@ -1,10 +1,12 @@
 import { db, webhook, workflow } from '@sim/db'
+import { credentialSet, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { checkEnterprisePlan, checkTeamPlan } from '@/lib/billing/subscriptions/utils'
+import { isProd, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
 import {
@@ -13,7 +15,6 @@ import {
   validateMicrosoftTeamsSignature,
   verifyProviderWebhook,
 } from '@/lib/webhooks/utils.server'
-import { getCredentialsForCredentialSet } from '@/app/api/auth/oauth/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { REFERENCE } from '@/executor/constants'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
@@ -39,6 +40,48 @@ function getExternalUrl(request: NextRequest): string {
   }
 
   return request.url
+}
+
+async function verifyCredentialSetBilling(credentialSetId: string): Promise<{
+  valid: boolean
+  error?: string
+}> {
+  if (!isProd) {
+    return { valid: true }
+  }
+
+  const [set] = await db
+    .select({ organizationId: credentialSet.organizationId })
+    .from(credentialSet)
+    .where(eq(credentialSet.id, credentialSetId))
+    .limit(1)
+
+  if (!set) {
+    return { valid: false, error: 'Credential set not found' }
+  }
+
+  const [orgSub] = await db
+    .select()
+    .from(subscription)
+    .where(and(eq(subscription.referenceId, set.organizationId), eq(subscription.status, 'active')))
+    .limit(1)
+
+  if (!orgSub) {
+    return {
+      valid: false,
+      error: 'Credential sets require a Team or Enterprise plan. Please upgrade to continue.',
+    }
+  }
+
+  const hasTeamPlan = checkTeamPlan(orgSub) || checkEnterprisePlan(orgSub)
+  if (!hasTeamPlan) {
+    return {
+      valid: false,
+      error: 'Credential sets require a Team or Enterprise plan. Please upgrade to continue.',
+    }
+  }
+
+  return { valid: true }
 }
 
 export async function parseWebhookBody(
@@ -192,6 +235,37 @@ export async function findWebhookAndWorkflow(
   }
 
   return null
+}
+
+/**
+ * Find ALL webhooks matching a path.
+ * Used for credential sets where multiple webhooks share the same path.
+ */
+export async function findAllWebhooksForPath(
+  options: WebhookProcessorOptions
+): Promise<Array<{ webhook: any; workflow: any }>> {
+  if (!options.path) {
+    return []
+  }
+
+  const results = await db
+    .select({
+      webhook: webhook,
+      workflow: workflow,
+    })
+    .from(webhook)
+    .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+    .where(and(eq(webhook.path, options.path), eq(webhook.isActive, true)))
+
+  if (results.length === 0) {
+    logger.warn(`[${options.requestId}] No active webhooks found for path: ${options.path}`)
+  } else if (results.length > 1) {
+    logger.info(
+      `[${options.requestId}] Found ${results.length} webhooks for path: ${options.path} (credential set fan-out)`
+    )
+  }
+
+  return results
 }
 
 /**
@@ -748,12 +822,24 @@ export async function queueWebhookExecution(
       }
     }
 
-    // Extract credentialId or credentialSetId from webhook config
+    // Extract credentialId from webhook config
+    // Note: Each webhook now has its own credentialId (credential sets are fanned out at save time)
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
     const credentialId = providerConfig.credentialId as string | undefined
     const credentialSetId = providerConfig.credentialSetId as string | undefined
 
-    const basePayload = {
+    // Verify billing for credential sets
+    if (credentialSetId) {
+      const billingCheck = await verifyCredentialSetBilling(credentialSetId)
+      if (!billingCheck.valid) {
+        logger.warn(
+          `[${options.requestId}] Credential set billing check failed: ${billingCheck.error}`
+        )
+        return NextResponse.json({ error: billingCheck.error }, { status: 403 })
+      }
+    }
+
+    const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
       userId: foundWorkflow.userId,
@@ -764,72 +850,25 @@ export async function queueWebhookExecution(
       blockId: foundWebhook.blockId,
       testMode: options.testMode,
       executionTarget: options.executionTarget,
+      ...(credentialId ? { credentialId } : {}),
     }
 
-    if (credentialSetId) {
-      const credentials = await getCredentialsForCredentialSet(
-        credentialSetId,
-        foundWebhook.provider
-      )
-
-      if (credentials.length === 0) {
-        logger.warn(
-          `[${options.requestId}] No valid credentials found for credential set ${credentialSetId}, provider ${foundWebhook.provider}`
-        )
-        return NextResponse.json(
-          { error: 'No valid credentials in credential set' },
-          { status: 400 }
-        )
-      }
-
+    if (isTriggerDevEnabled) {
+      const handle = await tasks.trigger('webhook-execution', payload)
       logger.info(
-        `[${options.requestId}] Fan-out: Queuing ${credentials.length} executions for credential set ${credentialSetId}`
+        `[${options.requestId}] Queued ${options.testMode ? 'TEST ' : ''}webhook execution task ${
+          handle.id
+        } for ${foundWebhook.provider} webhook`
       )
-
-      for (const cred of credentials) {
-        const fanOutPayload = {
-          ...basePayload,
-          credentialId: cred.credentialId,
-          credentialAccountUserId: cred.userId,
-        }
-
-        if (isTriggerDevEnabled) {
-          const handle = await tasks.trigger('webhook-execution', fanOutPayload)
-          logger.info(
-            `[${options.requestId}] Queued fan-out execution ${handle.id} for user ${cred.userId}`
-          )
-        } else {
-          void executeWebhookJob(fanOutPayload).catch((error) => {
-            logger.error(
-              `[${options.requestId}] Direct fan-out execution failed for user ${cred.userId}`,
-              error
-            )
-          })
-        }
-      }
     } else {
-      const payload = {
-        ...basePayload,
-        ...(credentialId ? { credentialId } : {}),
-      }
-
-      if (isTriggerDevEnabled) {
-        const handle = await tasks.trigger('webhook-execution', payload)
-        logger.info(
-          `[${options.requestId}] Queued ${options.testMode ? 'TEST ' : ''}webhook execution task ${
-            handle.id
-          } for ${foundWebhook.provider} webhook`
-        )
-      } else {
-        void executeWebhookJob(payload).catch((error) => {
-          logger.error(`[${options.requestId}] Direct webhook execution failed`, error)
-        })
-        logger.info(
-          `[${options.requestId}] Queued direct ${
-            options.testMode ? 'TEST ' : ''
-          }webhook execution for ${foundWebhook.provider} webhook (Trigger.dev disabled)`
-        )
-      }
+      void executeWebhookJob(payload).catch((error) => {
+        logger.error(`[${options.requestId}] Direct webhook execution failed`, error)
+      })
+      logger.info(
+        `[${options.requestId}] Queued direct ${
+          options.testMode ? 'TEST ' : ''
+        }webhook execution for ${foundWebhook.provider} webhook (Trigger.dev disabled)`
+      )
     }
 
     if (foundWebhook.provider === 'microsoft-teams') {

@@ -262,6 +262,157 @@ export async function POST(request: NextRequest) {
       workflowRecord.workspaceId || undefined
     )
 
+    // --- Credential Set Handling ---
+    // For credential sets, we fan out to create one webhook per credential at save time.
+    // This applies to all OAuth-based triggers, not just polling ones.
+    // Check for credentialSetId directly (frontend may already extract it) or credential set value in credential fields
+    const rawCredentialId = (resolvedProviderConfig?.credentialId ||
+      resolvedProviderConfig?.triggerCredentials) as string | undefined
+    const directCredentialSetId = resolvedProviderConfig?.credentialSetId as string | undefined
+
+    if (directCredentialSetId || rawCredentialId) {
+      const { isCredentialSetValue, extractCredentialSetId } = await import('@/executor/constants')
+
+      const credentialSetId =
+        directCredentialSetId ||
+        (rawCredentialId && isCredentialSetValue(rawCredentialId)
+          ? extractCredentialSetId(rawCredentialId)
+          : null)
+
+      if (credentialSetId) {
+        logger.info(
+          `[${requestId}] Credential set detected for ${provider} trigger. Syncing webhooks for set ${credentialSetId}`
+        )
+
+        const { getProviderIdFromServiceId } = await import('@/lib/oauth')
+        const { syncWebhooksForCredentialSet, configureGmailPolling, configureOutlookPolling } =
+          await import('@/lib/webhooks/utils.server')
+
+        // Map provider to OAuth provider ID
+        const oauthProviderId = getProviderIdFromServiceId(provider)
+
+        const {
+          credentialId: _cId,
+          triggerCredentials: _tCred,
+          credentialSetId: _csId,
+          ...baseProviderConfig
+        } = resolvedProviderConfig
+
+        try {
+          const syncResult = await syncWebhooksForCredentialSet({
+            workflowId,
+            blockId,
+            provider,
+            basePath: finalPath,
+            credentialSetId,
+            oauthProviderId,
+            providerConfig: baseProviderConfig,
+            requestId,
+          })
+
+          if (syncResult.webhooks.length === 0) {
+            logger.error(
+              `[${requestId}] No webhooks created for credential set - no valid credentials found`
+            )
+            return NextResponse.json(
+              {
+                error: `No valid credentials found in credential set for ${provider}`,
+                details: 'Please ensure team members have connected their accounts',
+              },
+              { status: 400 }
+            )
+          }
+
+          // Configure each new webhook (for providers that need configuration)
+          const pollingProviders = ['gmail', 'outlook']
+          const needsConfiguration = pollingProviders.includes(provider)
+
+          if (needsConfiguration) {
+            const configureFunc =
+              provider === 'gmail' ? configureGmailPolling : configureOutlookPolling
+            const configureErrors: string[] = []
+
+            for (const wh of syncResult.webhooks) {
+              if (wh.isNew) {
+                // Fetch the webhook data for configuration
+                const webhookRows = await db
+                  .select()
+                  .from(webhook)
+                  .where(eq(webhook.id, wh.id))
+                  .limit(1)
+
+                if (webhookRows.length > 0) {
+                  const success = await configureFunc(webhookRows[0], requestId)
+                  if (!success) {
+                    configureErrors.push(
+                      `Failed to configure webhook for credential ${wh.credentialId}`
+                    )
+                    logger.warn(
+                      `[${requestId}] Failed to configure ${provider} polling for webhook ${wh.id}`
+                    )
+                  }
+                }
+              }
+            }
+
+            if (
+              configureErrors.length > 0 &&
+              configureErrors.length === syncResult.webhooks.length
+            ) {
+              // All configurations failed - roll back
+              logger.error(`[${requestId}] All webhook configurations failed, rolling back`)
+              for (const wh of syncResult.webhooks) {
+                await db.delete(webhook).where(eq(webhook.id, wh.id))
+              }
+              return NextResponse.json(
+                {
+                  error: `Failed to configure ${provider} polling`,
+                  details: 'Please check account permissions and try again',
+                },
+                { status: 500 }
+              )
+            }
+          }
+
+          logger.info(
+            `[${requestId}] Successfully synced ${syncResult.webhooks.length} webhooks for credential set ${credentialSetId}`
+          )
+
+          // Return the first webhook as the "primary" for the UI
+          // The UI will query by credentialSetId to get all of them
+          const primaryWebhookRows = await db
+            .select()
+            .from(webhook)
+            .where(eq(webhook.id, syncResult.webhooks[0].id))
+            .limit(1)
+
+          return NextResponse.json(
+            {
+              webhook: primaryWebhookRows[0],
+              credentialSetInfo: {
+                credentialSetId,
+                totalWebhooks: syncResult.webhooks.length,
+                created: syncResult.created,
+                updated: syncResult.updated,
+                deleted: syncResult.deleted,
+              },
+            },
+            { status: syncResult.created > 0 ? 201 : 200 }
+          )
+        } catch (err) {
+          logger.error(`[${requestId}] Error syncing webhooks for credential set`, err)
+          return NextResponse.json(
+            {
+              error: `Failed to configure ${provider} webhook`,
+              details: err instanceof Error ? err.message : 'Unknown error',
+            },
+            { status: 500 }
+          )
+        }
+      }
+    }
+    // --- End Credential Set Handling ---
+
     // Create external subscriptions before saving to DB to prevent orphaned records
     let externalSubscriptionId: string | undefined
     let externalSubscriptionCreated = false

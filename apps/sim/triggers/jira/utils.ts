@@ -44,6 +44,7 @@ export const jiraWebhookSubBlocks: SubBlockConfig[] = [
     placeholder: 'Select Jira account',
     required: true,
     mode: 'trigger',
+    supportsCredentialSets: true,
   },
   {
     id: 'webhookUrlDisplay',

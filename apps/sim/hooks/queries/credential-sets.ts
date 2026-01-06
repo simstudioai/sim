@@ -1,10 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchJson } from '@/hooks/selectors/helpers'
 
+export type CredentialSetType = 'all' | 'specific'
+
 export interface CredentialSet {
   id: string
   name: string
   description: string | null
+  type: CredentialSetType
+  providerId: string | null
   createdBy: string
   createdAt: string
   updatedAt: string
@@ -118,11 +122,19 @@ export function useAcceptCredentialSetInvitation() {
   })
 }
 
+export interface CreateCredentialSetData {
+  organizationId: string
+  name: string
+  description?: string
+  type?: CredentialSetType
+  providerId?: string
+}
+
 export function useCreateCredentialSet() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: { organizationId: string; name: string; description?: string }) => {
+    mutationFn: async (data: CreateCredentialSetData) => {
       const response = await fetch('/api/credential-sets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -157,6 +169,60 @@ export function useCreateCredentialSetInvitation() {
       return response.json()
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: credentialSetKeys.all })
+    },
+  })
+}
+
+export interface CredentialSetMember {
+  id: string
+  userId: string
+  status: string
+  joinedAt: string | null
+  createdAt: string
+  userName: string | null
+  userEmail: string | null
+  userImage: string | null
+  credentials: { providerId: string; accountId: string }[]
+}
+
+interface MembersResponse {
+  members?: CredentialSetMember[]
+}
+
+export function useCredentialSetMembers(credentialSetId?: string) {
+  return useQuery<CredentialSetMember[]>({
+    queryKey: [...credentialSetKeys.detail(credentialSetId), 'members'],
+    queryFn: async () => {
+      const data = await fetchJson<MembersResponse>(
+        `/api/credential-sets/${credentialSetId}/members`
+      )
+      return data.members ?? []
+    },
+    enabled: Boolean(credentialSetId),
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useRemoveCredentialSetMember() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (data: { credentialSetId: string; memberId: string }) => {
+      const response = await fetch(
+        `/api/credential-sets/${data.credentialSetId}/members?memberId=${data.memberId}`,
+        { method: 'DELETE' }
+      )
+      if (!response.ok) {
+        const result = await response.json()
+        throw new Error(result.error || 'Failed to remove member')
+      }
+      return response.json()
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [...credentialSetKeys.detail(variables.credentialSetId), 'members'],
+      })
       queryClient.invalidateQueries({ queryKey: credentialSetKeys.all })
     },
   })

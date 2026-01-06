@@ -2397,7 +2397,307 @@ export interface AirtableChange {
 }
 
 /**
- * Configure Gmail polling for a webhook
+ * Result of syncing webhooks for a credential set
+ */
+export interface CredentialSetWebhookSyncResult {
+  webhooks: Array<{
+    id: string
+    credentialId: string
+    isNew: boolean
+  }>
+  created: number
+  updated: number
+  deleted: number
+}
+
+/**
+ * Sync webhooks for a credential set.
+ *
+ * For credential sets, we create one webhook per credential in the set.
+ * Each webhook has its own state and credentialId.
+ *
+ * Path strategy:
+ * - Polling triggers (gmail, outlook): unique paths per credential (for independent polling)
+ * - External triggers (slack, etc.): shared path (external service sends to one URL)
+ *
+ * This function:
+ * 1. Gets all credentials in the credential set
+ * 2. Gets existing webhooks for this workflow+block with this credentialSetId
+ * 3. Creates webhooks for new credentials
+ * 4. Updates config for existing webhooks (preserving state)
+ * 5. Deletes webhooks for credentials no longer in the set
+ */
+export async function syncWebhooksForCredentialSet(params: {
+  workflowId: string
+  blockId: string
+  provider: string
+  basePath: string
+  credentialSetId: string
+  oauthProviderId: string
+  providerConfig: Record<string, any>
+  requestId: string
+}): Promise<CredentialSetWebhookSyncResult> {
+  const {
+    workflowId,
+    blockId,
+    provider,
+    basePath,
+    credentialSetId,
+    oauthProviderId,
+    providerConfig,
+    requestId,
+  } = params
+
+  const syncLogger = createLogger('CredentialSetWebhookSync')
+  syncLogger.info(
+    `[${requestId}] Syncing webhooks for credential set ${credentialSetId}, provider ${provider}`
+  )
+
+  const { getCredentialsForCredentialSet } = await import('@/app/api/auth/oauth/utils')
+  const { nanoid } = await import('nanoid')
+
+  // Polling providers get unique paths per credential (for independent state)
+  // External webhook providers share the same path (external service sends to one URL)
+  const pollingProviders = ['gmail', 'outlook', 'rss', 'imap']
+  const useUniquePaths = pollingProviders.includes(provider)
+
+  // Get all credentials in the set
+  const credentials = await getCredentialsForCredentialSet(credentialSetId, oauthProviderId)
+
+  if (credentials.length === 0) {
+    syncLogger.warn(
+      `[${requestId}] No credentials found in credential set ${credentialSetId} for provider ${oauthProviderId}`
+    )
+    return { webhooks: [], created: 0, updated: 0, deleted: 0 }
+  }
+
+  syncLogger.info(
+    `[${requestId}] Found ${credentials.length} credentials in set ${credentialSetId}`
+  )
+
+  // Get existing webhooks for this workflow+block that belong to this credential set
+  const existingWebhooks = await db
+    .select()
+    .from(webhook)
+    .where(and(eq(webhook.workflowId, workflowId), eq(webhook.blockId, blockId)))
+
+  // Filter to only webhooks belonging to this credential set
+  const credentialSetWebhooks = existingWebhooks.filter((wh) => {
+    const config = wh.providerConfig as Record<string, any>
+    return config?.credentialSetId === credentialSetId
+  })
+
+  syncLogger.info(
+    `[${requestId}] Found ${credentialSetWebhooks.length} existing webhooks for credential set`
+  )
+
+  // Build maps for efficient lookup
+  const existingByCredentialId = new Map<string, (typeof credentialSetWebhooks)[number]>()
+  for (const wh of credentialSetWebhooks) {
+    const config = wh.providerConfig as Record<string, any>
+    if (config?.credentialId) {
+      existingByCredentialId.set(config.credentialId, wh)
+    }
+  }
+
+  const credentialIdsInSet = new Set(credentials.map((c) => c.credentialId))
+
+  const result: CredentialSetWebhookSyncResult = {
+    webhooks: [],
+    created: 0,
+    updated: 0,
+    deleted: 0,
+  }
+
+  // Process each credential in the set
+  for (const cred of credentials) {
+    const existingWebhook = existingByCredentialId.get(cred.credentialId)
+
+    if (existingWebhook) {
+      // Update existing webhook - preserve state fields
+      const existingConfig = existingWebhook.providerConfig as Record<string, any>
+
+      const updatedConfig = {
+        ...providerConfig,
+        credentialId: cred.credentialId,
+        credentialSetId: credentialSetId,
+        // Preserve state fields from existing config
+        historyId: existingConfig.historyId,
+        lastCheckedTimestamp: existingConfig.lastCheckedTimestamp,
+        setupCompleted: existingConfig.setupCompleted,
+        externalId: existingConfig.externalId,
+        userId: cred.userId,
+      }
+
+      await db
+        .update(webhook)
+        .set({
+          providerConfig: updatedConfig,
+          isActive: true,
+          updatedAt: new Date(),
+        })
+        .where(eq(webhook.id, existingWebhook.id))
+
+      result.webhooks.push({
+        id: existingWebhook.id,
+        credentialId: cred.credentialId,
+        isNew: false,
+      })
+      result.updated++
+
+      syncLogger.debug(
+        `[${requestId}] Updated webhook ${existingWebhook.id} for credential ${cred.credentialId}`
+      )
+    } else {
+      // Create new webhook for this credential
+      const webhookId = nanoid()
+      const webhookPath = useUniquePaths ? `${basePath}-${cred.credentialId.slice(0, 8)}` : basePath
+
+      const newConfig = {
+        ...providerConfig,
+        credentialId: cred.credentialId,
+        credentialSetId: credentialSetId,
+        userId: cred.userId,
+      }
+
+      await db.insert(webhook).values({
+        id: webhookId,
+        workflowId,
+        blockId,
+        path: webhookPath,
+        provider,
+        providerConfig: newConfig,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+
+      result.webhooks.push({
+        id: webhookId,
+        credentialId: cred.credentialId,
+        isNew: true,
+      })
+      result.created++
+
+      syncLogger.debug(
+        `[${requestId}] Created webhook ${webhookId} for credential ${cred.credentialId}`
+      )
+    }
+  }
+
+  // Delete webhooks for credentials no longer in the set
+  for (const [credentialId, existingWebhook] of existingByCredentialId) {
+    if (!credentialIdsInSet.has(credentialId)) {
+      await db.delete(webhook).where(eq(webhook.id, existingWebhook.id))
+      result.deleted++
+
+      syncLogger.debug(
+        `[${requestId}] Deleted webhook ${existingWebhook.id} for removed credential ${credentialId}`
+      )
+    }
+  }
+
+  syncLogger.info(
+    `[${requestId}] Credential set webhook sync complete: ${result.created} created, ${result.updated} updated, ${result.deleted} deleted`
+  )
+
+  return result
+}
+
+/**
+ * Sync all webhooks that use a specific credential set.
+ * Called when credential set membership changes (member added/removed).
+ *
+ * This finds all workflows with webhooks using this credential set and resyncs them.
+ */
+export async function syncAllWebhooksForCredentialSet(
+  credentialSetId: string,
+  requestId: string
+): Promise<{ workflowsUpdated: number; totalCreated: number; totalDeleted: number }> {
+  const syncLogger = createLogger('CredentialSetMembershipSync')
+  syncLogger.info(`[${requestId}] Syncing all webhooks for credential set ${credentialSetId}`)
+
+  const { getProviderIdFromServiceId } = await import('@/lib/oauth')
+
+  // Find all webhooks that use this credential set
+  const allWebhooks = await db.select().from(webhook)
+
+  // Filter to webhooks with this credentialSetId in their providerConfig
+  const webhooksForSet = allWebhooks.filter((wh) => {
+    const config = wh.providerConfig as Record<string, any>
+    return config?.credentialSetId === credentialSetId
+  })
+
+  if (webhooksForSet.length === 0) {
+    syncLogger.info(`[${requestId}] No webhooks found using credential set ${credentialSetId}`)
+    return { workflowsUpdated: 0, totalCreated: 0, totalDeleted: 0 }
+  }
+
+  // Group webhooks by workflow+block to find unique triggers
+  const triggerGroups = new Map<string, (typeof webhooksForSet)[number]>()
+  for (const wh of webhooksForSet) {
+    const key = `${wh.workflowId}:${wh.blockId}`
+    // Keep the first webhook as representative (they all have same config)
+    if (!triggerGroups.has(key)) {
+      triggerGroups.set(key, wh)
+    }
+  }
+
+  syncLogger.info(
+    `[${requestId}] Found ${triggerGroups.size} triggers using credential set ${credentialSetId}`
+  )
+
+  let workflowsUpdated = 0
+  let totalCreated = 0
+  let totalDeleted = 0
+
+  for (const [key, representativeWebhook] of triggerGroups) {
+    if (!representativeWebhook.provider) {
+      syncLogger.warn(`[${requestId}] Skipping webhook without provider: ${key}`)
+      continue
+    }
+
+    const config = representativeWebhook.providerConfig as Record<string, any>
+    const oauthProviderId = getProviderIdFromServiceId(representativeWebhook.provider)
+
+    const { credentialId: _cId, userId: _uId, ...baseConfig } = config
+    const pathParts = representativeWebhook.path.split('-')
+    const basePath = `${pathParts[0]}-${pathParts[1]}`
+
+    try {
+      const result = await syncWebhooksForCredentialSet({
+        workflowId: representativeWebhook.workflowId,
+        blockId: representativeWebhook.blockId || '',
+        provider: representativeWebhook.provider,
+        basePath,
+        credentialSetId,
+        oauthProviderId,
+        providerConfig: baseConfig,
+        requestId,
+      })
+
+      workflowsUpdated++
+      totalCreated += result.created
+      totalDeleted += result.deleted
+
+      syncLogger.debug(
+        `[${requestId}] Synced webhooks for ${key}: ${result.created} created, ${result.deleted} deleted`
+      )
+    } catch (error) {
+      syncLogger.error(`[${requestId}] Error syncing webhooks for ${key}`, error)
+    }
+  }
+
+  syncLogger.info(
+    `[${requestId}] Credential set membership sync complete: ${workflowsUpdated} workflows updated, ${totalCreated} webhooks created, ${totalDeleted} webhooks deleted`
+  )
+
+  return { workflowsUpdated, totalCreated, totalDeleted }
+}
+
+/**
+ * Configure Gmail polling for a webhook.
+ * Each webhook has its own credentialId (credential sets are fanned out at save time).
  */
 export async function configureGmailPolling(webhookData: any, requestId: string): Promise<boolean> {
   const logger = createLogger('GmailWebhookSetup')
@@ -2406,46 +2706,30 @@ export async function configureGmailPolling(webhookData: any, requestId: string)
   try {
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
     const credentialId: string | undefined = providerConfig.credentialId
-    const credentialSetId: string | undefined = providerConfig.credentialSetId
 
-    if (!credentialId && !credentialSetId) {
+    if (!credentialId) {
+      logger.error(`[${requestId}] Missing credentialId for Gmail webhook ${webhookData.id}`)
+      return false
+    }
+
+    // Verify credential exists and get userId
+    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    if (rows.length === 0) {
       logger.error(
-        `[${requestId}] Missing credentialId or credentialSetId for Gmail webhook ${webhookData.id}`
+        `[${requestId}] Credential ${credentialId} not found for Gmail webhook ${webhookData.id}`
       )
       return false
     }
 
-    let effectiveUserId: string | undefined
+    const effectiveUserId = rows[0].userId
 
-    if (credentialSetId) {
-      const { getCredentialsForCredentialSet } = await import('@/app/api/auth/oauth/utils')
-      const credentials = await getCredentialsForCredentialSet(credentialSetId, 'google-email')
-      if (credentials.length === 0) {
-        logger.error(
-          `[${requestId}] No Gmail credentials found in credential set ${credentialSetId}`
-        )
-        return false
-      }
-      logger.info(
-        `[${requestId}] Credential set ${credentialSetId} has ${credentials.length} Gmail credentials`
+    // Verify token can be refreshed
+    const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
+    if (!accessToken) {
+      logger.error(
+        `[${requestId}] Failed to refresh/access Gmail token for credential ${credentialId}`
       )
-    } else {
-      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-      if (rows.length === 0) {
-        logger.error(
-          `[${requestId}] Credential ${credentialId} not found for Gmail webhook ${webhookData.id}`
-        )
-        return false
-      }
-
-      effectiveUserId = rows[0].userId
-      const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
-      if (!accessToken) {
-        logger.error(
-          `[${requestId}] Failed to refresh/access Gmail token for credential ${credentialId}`
-        )
-        return false
-      }
+      return false
     }
 
     const maxEmailsPerPoll =
@@ -2465,16 +2749,15 @@ export async function configureGmailPolling(webhookData: any, requestId: string)
       .set({
         providerConfig: {
           ...providerConfig,
-          ...(effectiveUserId ? { userId: effectiveUserId } : {}),
-          ...(credentialId ? { credentialId } : {}),
-          ...(credentialSetId ? { credentialSetId } : {}),
+          userId: effectiveUserId,
+          credentialId,
           maxEmailsPerPoll,
           pollingInterval,
           markAsRead: providerConfig.markAsRead || false,
           includeRawEmail: providerConfig.includeRawEmail || false,
           labelIds: providerConfig.labelIds || ['INBOX'],
           labelFilterBehavior: providerConfig.labelFilterBehavior || 'INCLUDE',
-          lastCheckedTimestamp: now.toISOString(),
+          lastCheckedTimestamp: providerConfig.lastCheckedTimestamp || now.toISOString(),
           setupCompleted: true,
         },
         updatedAt: now,
@@ -2496,7 +2779,8 @@ export async function configureGmailPolling(webhookData: any, requestId: string)
 }
 
 /**
- * Configure Outlook polling for a webhook
+ * Configure Outlook polling for a webhook.
+ * Each webhook has its own credentialId (credential sets are fanned out at save time).
  */
 export async function configureOutlookPolling(
   webhookData: any,
@@ -2508,49 +2792,31 @@ export async function configureOutlookPolling(
   try {
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
     const credentialId: string | undefined = providerConfig.credentialId
-    const credentialSetId: string | undefined = providerConfig.credentialSetId
 
-    if (!credentialId && !credentialSetId) {
+    if (!credentialId) {
+      logger.error(`[${requestId}] Missing credentialId for Outlook webhook ${webhookData.id}`)
+      return false
+    }
+
+    // Verify credential exists and get userId
+    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    if (rows.length === 0) {
       logger.error(
-        `[${requestId}] Missing credentialId or credentialSetId for Outlook webhook ${webhookData.id}`
+        `[${requestId}] Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`
       )
       return false
     }
 
-    let effectiveUserId: string | undefined
+    const effectiveUserId = rows[0].userId
 
-    if (credentialSetId) {
-      const { getCredentialsForCredentialSet } = await import('@/app/api/auth/oauth/utils')
-      const credentials = await getCredentialsForCredentialSet(credentialSetId, 'outlook')
-      if (credentials.length === 0) {
-        logger.error(
-          `[${requestId}] No Outlook credentials found in credential set ${credentialSetId}`
-        )
-        return false
-      }
-      logger.info(
-        `[${requestId}] Credential set ${credentialSetId} has ${credentials.length} Outlook credentials`
+    // Verify token can be refreshed
+    const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
+    if (!accessToken) {
+      logger.error(
+        `[${requestId}] Failed to refresh/access Outlook token for credential ${credentialId}`
       )
-    } else {
-      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-      if (rows.length === 0) {
-        logger.error(
-          `[${requestId}] Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`
-        )
-        return false
-      }
-
-      effectiveUserId = rows[0].userId
-      const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
-      if (!accessToken) {
-        logger.error(
-          `[${requestId}] Failed to refresh/access Outlook token for credential ${credentialId}`
-        )
-        return false
-      }
+      return false
     }
-
-    const providerCfg = (webhookData.providerConfig as Record<string, any>) || {}
 
     const now = new Date()
 
@@ -2558,23 +2824,22 @@ export async function configureOutlookPolling(
       .update(webhook)
       .set({
         providerConfig: {
-          ...providerCfg,
-          ...(effectiveUserId ? { userId: effectiveUserId } : {}),
-          ...(credentialId ? { credentialId } : {}),
-          ...(credentialSetId ? { credentialSetId } : {}),
+          ...providerConfig,
+          userId: effectiveUserId,
+          credentialId,
           maxEmailsPerPoll:
-            typeof providerCfg.maxEmailsPerPoll === 'string'
-              ? Number.parseInt(providerCfg.maxEmailsPerPoll, 10) || 25
-              : providerCfg.maxEmailsPerPoll || 25,
+            typeof providerConfig.maxEmailsPerPoll === 'string'
+              ? Number.parseInt(providerConfig.maxEmailsPerPoll, 10) || 25
+              : providerConfig.maxEmailsPerPoll || 25,
           pollingInterval:
-            typeof providerCfg.pollingInterval === 'string'
-              ? Number.parseInt(providerCfg.pollingInterval, 10) || 5
-              : providerCfg.pollingInterval || 5,
-          markAsRead: providerCfg.markAsRead || false,
-          includeRawEmail: providerCfg.includeRawEmail || false,
-          folderIds: providerCfg.folderIds || ['inbox'],
-          folderFilterBehavior: providerCfg.folderFilterBehavior || 'INCLUDE',
-          lastCheckedTimestamp: now.toISOString(),
+            typeof providerConfig.pollingInterval === 'string'
+              ? Number.parseInt(providerConfig.pollingInterval, 10) || 5
+              : providerConfig.pollingInterval || 5,
+          markAsRead: providerConfig.markAsRead || false,
+          includeRawEmail: providerConfig.includeRawEmail || false,
+          folderIds: providerConfig.folderIds || ['inbox'],
+          folderFilterBehavior: providerConfig.folderFilterBehavior || 'INCLUDE',
+          lastCheckedTimestamp: providerConfig.lastCheckedTimestamp || now.toISOString(),
           setupCompleted: true,
         },
         updatedAt: now,

@@ -20,6 +20,7 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
       requiredScopes: [],
       required: true,
       mode: 'trigger',
+      supportsCredentialSets: true,
       condition: {
         field: 'selectedTriggerId',
         value: 'webflow_collection_item_changed',

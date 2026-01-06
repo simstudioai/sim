@@ -112,7 +112,6 @@ export const REFERENCE = {
     LOOP: 'loop',
     PARALLEL: 'parallel',
     VARIABLE: 'variable',
-    CREDENTIAL_SET: 'credentialSet',
   },
 } as const
 
@@ -120,7 +119,6 @@ export const SPECIAL_REFERENCE_PREFIXES = [
   REFERENCE.PREFIX.LOOP,
   REFERENCE.PREFIX.PARALLEL,
   REFERENCE.PREFIX.VARIABLE,
-  REFERENCE.PREFIX.CREDENTIAL_SET,
 ] as const
 
 export const LOOP_REFERENCE = {
@@ -181,6 +179,18 @@ export const AGENT = {
 export const MCP = {
   TOOL_PREFIX: 'mcp-',
 } as const
+
+export const CREDENTIAL_SET = {
+  PREFIX: 'credentialSet:',
+} as const
+
+export function isCredentialSetValue(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.startsWith(CREDENTIAL_SET.PREFIX)
+}
+
+export function extractCredentialSetId(value: string): string {
+  return value.slice(CREDENTIAL_SET.PREFIX.length)
+}
 
 export const MEMORY = {
   DEFAULT_SLIDING_WINDOW_SIZE: 10,

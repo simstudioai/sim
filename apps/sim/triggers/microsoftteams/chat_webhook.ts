@@ -41,6 +41,7 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
       ],
       required: true,
       mode: 'trigger',
+      supportsCredentialSets: true,
       condition: {
         field: 'selectedTriggerId',
         value: 'microsoftteams_chat_subscription',

@@ -171,7 +171,22 @@ export function useWebhookManagement({
             if (webhook.providerConfig) {
               const effectiveTriggerId = resolveEffectiveTriggerId(blockId, triggerId, webhook)
 
-              useSubBlockStore.getState().setValue(blockId, 'triggerConfig', webhook.providerConfig)
+              // Filter out runtime/system fields from providerConfig before storing as triggerConfig
+              // These fields are managed by the system and should not be included in change detection
+              const {
+                credentialId: _credId,
+                credentialSetId: _credSetId,
+                userId: _userId,
+                historyId: _historyId,
+                lastCheckedTimestamp: _lastChecked,
+                setupCompleted: _setupCompleted,
+                externalId: _externalId,
+                triggerId: _triggerId,
+                blockId: _blockId,
+                ...userConfigurableFields
+              } = webhook.providerConfig as Record<string, unknown>
+
+              useSubBlockStore.getState().setValue(blockId, 'triggerConfig', userConfigurableFields)
 
               if (effectiveTriggerId) {
                 populateTriggerFieldsFromConfig(blockId, webhook.providerConfig, effectiveTriggerId)

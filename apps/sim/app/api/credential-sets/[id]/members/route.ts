@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
-import { credentialSet, credentialSetMember, member, user } from '@sim/db/schema'
+import { account, credentialSet, credentialSetMember, member, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 
 const logger = createLogger('CredentialSetMembers')
 
@@ -12,6 +13,8 @@ async function getCredentialSetWithAccess(credentialSetId: string, userId: strin
     .select({
       id: credentialSet.id,
       organizationId: credentialSet.organizationId,
+      type: credentialSet.type,
+      providerId: credentialSet.providerId,
     })
     .from(credentialSet)
     .where(eq(credentialSet.id, credentialSetId))
@@ -59,7 +62,58 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .leftJoin(user, eq(credentialSetMember.userId, user.id))
     .where(eq(credentialSetMember.credentialSetId, id))
 
-  return NextResponse.json({ members })
+  // Get credentials for all active members
+  const activeMembers = members.filter((m) => m.status === 'active')
+  const memberUserIds = activeMembers.map((m) => m.userId)
+
+  let credentials: { userId: string; providerId: string; accountId: string }[] = []
+  if (memberUserIds.length > 0) {
+    // If credential set is for a specific provider, filter by that provider
+    if (result.set.type === 'specific' && result.set.providerId) {
+      credentials = await db
+        .select({
+          userId: account.userId,
+          providerId: account.providerId,
+          accountId: account.accountId,
+        })
+        .from(account)
+        .where(
+          and(inArray(account.userId, memberUserIds), eq(account.providerId, result.set.providerId))
+        )
+    } else {
+      credentials = await db
+        .select({
+          userId: account.userId,
+          providerId: account.providerId,
+          accountId: account.accountId,
+        })
+        .from(account)
+        .where(inArray(account.userId, memberUserIds))
+    }
+  }
+
+  // Group credentials by userId
+  const credentialsByUser = credentials.reduce(
+    (acc, cred) => {
+      if (!acc[cred.userId]) {
+        acc[cred.userId] = []
+      }
+      acc[cred.userId].push({
+        providerId: cred.providerId,
+        accountId: cred.accountId,
+      })
+      return acc
+    },
+    {} as Record<string, { providerId: string; accountId: string }[]>
+  )
+
+  // Attach credentials to members
+  const membersWithCredentials = members.map((m) => ({
+    ...m,
+    credentials: credentialsByUser[m.userId] || [],
+  }))
+
+  return NextResponse.json({ members: membersWithCredentials })
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -105,6 +159,17 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       memberId,
       userId: session.user.id,
     })
+
+    try {
+      const requestId = crypto.randomUUID().slice(0, 8)
+      const syncResult = await syncAllWebhooksForCredentialSet(id, requestId)
+      logger.info('Synced webhooks after member removed', {
+        credentialSetId: id,
+        ...syncResult,
+      })
+    } catch (syncError) {
+      logger.error('Error syncing webhooks after member removed', syncError)
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

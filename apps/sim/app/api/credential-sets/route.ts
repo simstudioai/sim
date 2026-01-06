@@ -8,11 +8,18 @@ import { getSession } from '@/lib/auth'
 
 const logger = createLogger('CredentialSets')
 
-const createCredentialSetSchema = z.object({
-  organizationId: z.string().min(1),
-  name: z.string().trim().min(1).max(100),
-  description: z.string().max(500).optional(),
-})
+const createCredentialSetSchema = z
+  .object({
+    organizationId: z.string().min(1),
+    name: z.string().trim().min(1).max(100),
+    description: z.string().max(500).optional(),
+    type: z.enum(['all', 'specific']).default('all'),
+    providerId: z.string().min(1).optional(),
+  })
+  .refine((data) => data.type !== 'specific' || data.providerId, {
+    message: 'providerId is required when type is specific',
+    path: ['providerId'],
+  })
 
 export async function GET(req: Request) {
   const session = await getSession()
@@ -43,6 +50,8 @@ export async function GET(req: Request) {
       id: credentialSet.id,
       name: credentialSet.name,
       description: credentialSet.description,
+      type: credentialSet.type,
+      providerId: credentialSet.providerId,
       createdBy: credentialSet.createdBy,
       createdAt: credentialSet.createdAt,
       updatedAt: credentialSet.updatedAt,
@@ -85,7 +94,8 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
-    const { organizationId, name, description } = createCredentialSetSchema.parse(body)
+    const { organizationId, name, description, type, providerId } =
+      createCredentialSetSchema.parse(body)
 
     const membership = await db
       .select({ id: member.id, role: member.role })
@@ -129,6 +139,8 @@ export async function POST(req: Request) {
       organizationId,
       name,
       description: description || null,
+      type,
+      providerId: type === 'specific' ? providerId : null,
       createdBy: session.user.id,
       createdAt: now,
       updatedAt: now,
