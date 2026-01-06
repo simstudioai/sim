@@ -70,7 +70,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       return allHeaders
     },
 
-    body: (params: RequestParams) => {
+    body: ((params: RequestParams) => {
       if (params.formData) {
         const formData = new FormData()
         Object.entries(params.formData).forEach(([key, value]) => {
@@ -90,7 +90,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
         ) {
           // Convert JSON object to URL-encoded string
           const urlencoded = new URLSearchParams()
-          Object.entries(params.body).forEach(([key, value]) => {
+          Object.entries(params.body as Record<string, unknown>).forEach(([key, value]) => {
             if (value !== undefined && value !== null) {
               urlencoded.append(key, String(value))
             }
@@ -98,11 +98,11 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
           return urlencoded.toString()
         }
 
-        return params.body
+        return params.body as Record<string, any>
       }
 
       return undefined
-    },
+    }) as (params: RequestParams) => Record<string, any> | string,
   },
 
   transformResponse: async (response: Response) => {
