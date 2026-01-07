@@ -35,24 +35,24 @@ export const grainRecordingUpdatedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: grainSetupInstructions('Recording (updated)'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'grain_recording_updated',
-      },
-    },
-    {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'grain_recording_updated',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'grain_recording_updated',
+      },
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: grainSetupInstructions('Recording (updated)'),
+      mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'grain_recording_updated',

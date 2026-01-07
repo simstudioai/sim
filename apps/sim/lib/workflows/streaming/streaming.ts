@@ -42,11 +42,7 @@ interface StreamingState {
 }
 
 function extractOutputValue(output: any, path: string): any {
-  let value = traverseObjectPath(output, path)
-  if (value === undefined && output?.response) {
-    value = traverseObjectPath(output.response, path)
-  }
-  return value
+  return traverseObjectPath(output, path)
 }
 
 function isDangerousKey(key: string): boolean {

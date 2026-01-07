@@ -92,7 +92,7 @@ import { RDSBlock } from '@/blocks/blocks/rds'
 import { RedditBlock } from '@/blocks/blocks/reddit'
 import { ResendBlock } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
-import { RouterBlock } from '@/blocks/blocks/router'
+import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
 import { RssBlock } from '@/blocks/blocks/rss'
 import { S3Block } from '@/blocks/blocks/s3'
 import { SalesforceBlock } from '@/blocks/blocks/salesforce'
@@ -130,7 +130,6 @@ import { VisionBlock } from '@/blocks/blocks/vision'
 import { WaitBlock } from '@/blocks/blocks/wait'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
 import { WebflowBlock } from '@/blocks/blocks/webflow'
-import { WebhookBlock } from '@/blocks/blocks/webhook'
 import { WebhookRequestBlock } from '@/blocks/blocks/webhook_request'
 import { WhatsAppBlock } from '@/blocks/blocks/whatsapp'
 import { WikipediaBlock } from '@/blocks/blocks/wikipedia'
@@ -244,6 +243,7 @@ export const registry: Record<string, BlockConfig> = {
   response: ResponseBlock,
   rss: RssBlock,
   router: RouterBlock,
+  router_v2: RouterV2Block,
   s3: S3Block,
   salesforce: SalesforceBlock,
   schedule: ScheduleBlock,
@@ -280,7 +280,6 @@ export const registry: Record<string, BlockConfig> = {
   wait: WaitBlock,
   wealthbox: WealthboxBlock,
   webflow: WebflowBlock,
-  webhook: WebhookBlock,
   webhook_request: WebhookRequestBlock,
   whatsapp: WhatsAppBlock,
   wikipedia: WikipediaBlock,
@@ -295,11 +294,9 @@ export const registry: Record<string, BlockConfig> = {
 }
 
 export const getBlock = (type: string): BlockConfig | undefined => {
-  // Direct lookup first
   if (registry[type]) {
     return registry[type]
   }
-  // Fallback: normalize hyphens to underscores (e.g., 'microsoft-teams' -> 'microsoft_teams')
   const normalized = type.replace(/-/g, '_')
   return registry[normalized]
 }

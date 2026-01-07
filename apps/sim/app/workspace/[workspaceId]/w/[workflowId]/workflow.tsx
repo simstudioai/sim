@@ -1947,11 +1947,26 @@ const WorkflowContent = React.memo(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === 'Shift') setIsShiftPressed(false)
     }
+    const handleFocusLoss = () => {
+      setIsShiftPressed(false)
+      setIsSelectionDragActive(false)
+    }
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        handleFocusLoss()
+      }
+    }
+
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', handleFocusLoss)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', handleFocusLoss)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
 

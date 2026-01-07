@@ -321,7 +321,7 @@ describe('Blocks Module', () => {
 
       it('should have correct metadata', () => {
         expect(block?.type).toBe('router')
-        expect(block?.name).toBe('Router')
+        expect(block?.name).toBe('Router (Legacy)')
         expect(block?.category).toBe('blocks')
         expect(block?.authMode).toBe(AuthMode.ApiKey)
       })
@@ -350,53 +350,6 @@ describe('Blocks Module', () => {
       it('should have tools.config with tool selector function', () => {
         expect(block?.tools.config).toBeDefined()
         expect(typeof block?.tools.config?.tool).toBe('function')
-      })
-    })
-
-    describe('WebhookBlock', () => {
-      const block = getBlock('webhook')
-
-      it('should have correct metadata', () => {
-        expect(block?.type).toBe('webhook')
-        expect(block?.name).toBe('Webhook')
-        expect(block?.category).toBe('triggers')
-        expect(block?.authMode).toBe(AuthMode.OAuth)
-        expect(block?.triggerAllowed).toBe(true)
-        expect(block?.hideFromToolbar).toBe(true)
-      })
-
-      it('should have webhookProvider dropdown with multiple providers', () => {
-        const providerSubBlock = block?.subBlocks.find((sb) => sb.id === 'webhookProvider')
-        expect(providerSubBlock).toBeDefined()
-        expect(providerSubBlock?.type).toBe('dropdown')
-        const options = providerSubBlock?.options as Array<{ label: string; id: string }>
-        expect(options?.map((o) => o.id)).toContain('slack')
-        expect(options?.map((o) => o.id)).toContain('generic')
-        expect(options?.map((o) => o.id)).toContain('github')
-      })
-
-      it('should have conditional OAuth inputs', () => {
-        const gmailCredentialSubBlock = block?.subBlocks.find((sb) => sb.id === 'gmailCredential')
-        expect(gmailCredentialSubBlock).toBeDefined()
-        expect(gmailCredentialSubBlock?.type).toBe('oauth-input')
-        expect(gmailCredentialSubBlock?.condition).toEqual({
-          field: 'webhookProvider',
-          value: 'gmail',
-        })
-
-        const outlookCredentialSubBlock = block?.subBlocks.find(
-          (sb) => sb.id === 'outlookCredential'
-        )
-        expect(outlookCredentialSubBlock).toBeDefined()
-        expect(outlookCredentialSubBlock?.type).toBe('oauth-input')
-        expect(outlookCredentialSubBlock?.condition).toEqual({
-          field: 'webhookProvider',
-          value: 'outlook',
-        })
-      })
-
-      it('should have empty tools access', () => {
-        expect(block?.tools.access).toEqual([])
       })
     })
   })
@@ -454,6 +407,7 @@ describe('Blocks Module', () => {
         'workflow-selector',
         'workflow-input-mapper',
         'text',
+        'router-input',
       ]
 
       const blocks = getAllBlocks()
@@ -544,8 +498,8 @@ describe('Blocks Module', () => {
     })
 
     it('should handle blocks with triggerAllowed flag', () => {
-      const webhookBlock = getBlock('webhook')
-      expect(webhookBlock?.triggerAllowed).toBe(true)
+      const gmailBlock = getBlock('gmail')
+      expect(gmailBlock?.triggerAllowed).toBe(true)
 
       const functionBlock = getBlock('function')
       expect(functionBlock?.triggerAllowed).toBeUndefined()
@@ -661,16 +615,6 @@ describe('Blocks Module', () => {
       expect(temperatureSubBlock?.type).toBe('slider')
       expect(temperatureSubBlock?.min).toBe(0)
       expect(temperatureSubBlock?.max).toBe(2)
-    })
-
-    it('should have required scopes on OAuth inputs', () => {
-      const webhookBlock = getBlock('webhook')
-      const gmailCredentialSubBlock = webhookBlock?.subBlocks.find(
-        (sb) => sb.id === 'gmailCredential'
-      )
-      expect(gmailCredentialSubBlock?.requiredScopes).toBeDefined()
-      expect(Array.isArray(gmailCredentialSubBlock?.requiredScopes)).toBe(true)
-      expect((gmailCredentialSubBlock?.requiredScopes?.length ?? 0) > 0).toBe(true)
     })
   })
 

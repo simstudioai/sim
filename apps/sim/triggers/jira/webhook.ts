@@ -44,24 +44,24 @@ export const jiraWebhookTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: jiraSetupInstructions('All Events'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_webhook',
-      },
-    },
-    {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'jira_webhook',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'jira_webhook',
+      },
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: jiraSetupInstructions('All Events'),
+      mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'jira_webhook',

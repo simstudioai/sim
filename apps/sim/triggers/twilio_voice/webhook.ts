@@ -50,6 +50,14 @@ export const twilioVoiceWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'twilio_voice_webhook',
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -68,14 +76,6 @@ export const twilioVoiceWebhookTrigger: TriggerConfig = {
         .map((instruction, index) => `${index + 1}. ${instruction}`)
         .join('\n\n'),
       mode: 'trigger',
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'twilio_voice_webhook',
     },
   ],
 

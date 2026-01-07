@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useReactFlow } from 'reactflow'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'
@@ -7,6 +7,9 @@ import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workfl
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
+import { getDependsOnFields } from '@/blocks/utils'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 /**
  * Constants for ComboBox component behavior
@@ -48,6 +51,19 @@ interface ComboBoxProps {
   placeholder?: string
   /** Configuration for the sub-block */
   config: SubBlockConfig
+  /** Async function to fetch options dynamically */
+  fetchOptions?: (
+    blockId: string,
+    subBlockId: string
+  ) => Promise<Array<{ label: string; id: string }>>
+  /** Async function to fetch a single option's label by ID (for hydration) */
+  fetchOptionById?: (
+    blockId: string,
+    subBlockId: string,
+    optionId: string
+  ) => Promise<{ label: string; id: string } | null>
+  /** Field dependencies that trigger option refetch when changed */
+  dependsOn?: SubBlockConfig['dependsOn']
 }
 
 export function ComboBox({
@@ -61,22 +77,88 @@ export function ComboBox({
   disabled,
   placeholder = 'Type or select an option...',
   config,
+  fetchOptions,
+  fetchOptionById,
+  dependsOn,
 }: ComboBoxProps) {
   // Hooks and context
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const reactFlowInstance = useReactFlow()
 
+  // Dependency tracking for fetchOptions
+  const dependsOnFields = useMemo(() => getDependsOnFields(dependsOn), [dependsOn])
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const dependencyValues = useSubBlockStore(
+    useCallback(
+      (state) => {
+        if (dependsOnFields.length === 0 || !activeWorkflowId) return []
+        const workflowValues = state.workflowValues[activeWorkflowId] || {}
+        const blockValues = workflowValues[blockId] || {}
+        return dependsOnFields.map((depKey) => blockValues[depKey] ?? null)
+      },
+      [dependsOnFields, activeWorkflowId, blockId]
+    )
+  )
+
   // State management
   const [storeInitialized, setStoreInitialized] = useState(false)
+  const [fetchedOptions, setFetchedOptions] = useState<Array<{ label: string; id: string }>>([])
+  const [isLoadingOptions, setIsLoadingOptions] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [hydratedOption, setHydratedOption] = useState<{ label: string; id: string } | null>(null)
+  const previousDependencyValuesRef = useRef<string>('')
+
+  /**
+   * Fetches options from the async fetchOptions function if provided
+   */
+  const fetchOptionsIfNeeded = useCallback(async () => {
+    if (!fetchOptions || isPreview || disabled) return
+
+    setIsLoadingOptions(true)
+    setFetchError(null)
+    try {
+      const options = await fetchOptions(blockId, subBlockId)
+      setFetchedOptions(options)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
+      setFetchError(errorMessage)
+      setFetchedOptions([])
+    } finally {
+      setIsLoadingOptions(false)
+    }
+  }, [fetchOptions, blockId, subBlockId, isPreview, disabled])
 
   // Determine the active value based on mode (preview vs. controlled vs. store)
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
-  // Evaluate options if provided as a function
-  const evaluatedOptions = useMemo(() => {
+  // Evaluate static options if provided as a function
+  const staticOptions = useMemo(() => {
     return typeof options === 'function' ? options() : options
   }, [options])
+
+  // Normalize fetched options to match ComboBoxOption format
+  const normalizedFetchedOptions = useMemo((): ComboBoxOption[] => {
+    return fetchedOptions.map((opt) => ({ label: opt.label, id: opt.id }))
+  }, [fetchedOptions])
+
+  // Merge static and fetched options - fetched options take priority when available
+  const evaluatedOptions = useMemo((): ComboBoxOption[] => {
+    let opts: ComboBoxOption[] =
+      fetchOptions && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : staticOptions
+
+    // Merge hydrated option if not already present
+    if (hydratedOption) {
+      const alreadyPresent = opts.some((o) =>
+        typeof o === 'string' ? o === hydratedOption.id : o.id === hydratedOption.id
+      )
+      if (!alreadyPresent) {
+        opts = [hydratedOption, ...opts]
+      }
+    }
+
+    return opts
+  }, [fetchOptions, normalizedFetchedOptions, staticOptions, hydratedOption])
 
   // Convert options to Combobox format
   const comboboxOptions = useMemo((): ComboboxOption[] => {
@@ -159,6 +241,94 @@ export function ComboBox({
       setStoreValue(defaultOptionValue)
     }
   }, [storeInitialized, value, defaultOptionValue, setStoreValue])
+
+  // Clear fetched options and hydrated option when dependencies change
+  useEffect(() => {
+    if (fetchOptions && dependsOnFields.length > 0) {
+      const currentDependencyValuesStr = JSON.stringify(dependencyValues)
+      const previousDependencyValuesStr = previousDependencyValuesRef.current
+
+      if (
+        previousDependencyValuesStr &&
+        currentDependencyValuesStr !== previousDependencyValuesStr
+      ) {
+        setFetchedOptions([])
+        setHydratedOption(null)
+      }
+
+      previousDependencyValuesRef.current = currentDependencyValuesStr
+    }
+  }, [dependencyValues, fetchOptions, dependsOnFields.length])
+
+  // Fetch options when needed (on mount, when enabled, or when dependencies change)
+  useEffect(() => {
+    if (
+      fetchOptions &&
+      !isPreview &&
+      !disabled &&
+      fetchedOptions.length === 0 &&
+      !isLoadingOptions &&
+      !fetchError
+    ) {
+      fetchOptionsIfNeeded()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchOptionsIfNeeded deps already covered above
+  }, [
+    fetchOptions,
+    isPreview,
+    disabled,
+    fetchedOptions.length,
+    isLoadingOptions,
+    fetchError,
+    dependencyValues,
+  ])
+
+  // Hydrate the stored value's label by fetching it individually
+  useEffect(() => {
+    if (!fetchOptionById || isPreview || disabled) return
+
+    const valueToHydrate = value as string | null | undefined
+    if (!valueToHydrate) return
+
+    // Skip if value is an expression (not a real ID)
+    if (valueToHydrate.startsWith('<') || valueToHydrate.includes('{{')) return
+
+    // Skip if already hydrated with the same value
+    if (hydratedOption?.id === valueToHydrate) return
+
+    // Skip if value is already in fetched options or static options
+    const alreadyInFetchedOptions = fetchedOptions.some((opt) => opt.id === valueToHydrate)
+    const alreadyInStaticOptions = staticOptions.some((opt) =>
+      typeof opt === 'string' ? opt === valueToHydrate : opt.id === valueToHydrate
+    )
+    if (alreadyInFetchedOptions || alreadyInStaticOptions) return
+
+    // Track if effect is still active (cleanup on unmount or value change)
+    let isActive = true
+
+    // Fetch the hydrated option
+    fetchOptionById(blockId, subBlockId, valueToHydrate)
+      .then((option) => {
+        if (isActive) setHydratedOption(option)
+      })
+      .catch(() => {
+        if (isActive) setHydratedOption(null)
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [
+    fetchOptionById,
+    value,
+    blockId,
+    subBlockId,
+    isPreview,
+    disabled,
+    fetchedOptions,
+    staticOptions,
+    hydratedOption?.id,
+  ])
 
   /**
    * Handles wheel event for ReactFlow zoom control
@@ -247,11 +417,13 @@ export function ComboBox({
             return option.id === newValue
           })
 
-          if (!matchedOption) {
-            return
-          }
-
-          const nextValue = typeof matchedOption === 'string' ? matchedOption : matchedOption.id
+          // If a matching option is found, store its ID; otherwise store the raw value
+          // (allows expressions like <block.output> to be entered directly)
+          const nextValue = matchedOption
+            ? typeof matchedOption === 'string'
+              ? matchedOption
+              : matchedOption.id
+            : newValue
           setStoreValue(nextValue)
         }}
         isPreview={isPreview}
@@ -292,6 +464,13 @@ export function ComboBox({
               onDragOver: onDragOver as (e: React.DragEvent<HTMLInputElement>) => void,
               onWheel: handleWheel,
               autoComplete: 'off',
+            }}
+            isLoading={isLoadingOptions}
+            error={fetchError}
+            onOpenChange={(open) => {
+              if (open) {
+                void fetchOptionsIfNeeded()
+              }
             }}
           />
         )}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
@@ -62,25 +62,12 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
   const canDeploy = userPermissions.canAdmin
   const isDisabled = isDeploying || !canDeploy || isEmpty
 
-  /**
-   * Handle deploy button click
-   */
-  const onDeployClick = useCallback(async () => {
+  const onDeployClick = async () => {
     if (!canDeploy || !activeWorkflowId) return
 
     const result = await handleDeployClick()
     if (result.shouldOpenModal) {
       setIsModalOpen(true)
-    }
-  }, [canDeploy, activeWorkflowId, handleDeployClick])
-
-  const refetchWithErrorHandling = async () => {
-    if (!activeWorkflowId) return
-
-    try {
-      await refetchDeployedState()
-    } catch (error) {
-      // Error already logged in hook
     }
   }
 
@@ -135,7 +122,7 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
         needsRedeployment={changeDetected}
         deployedState={deployedState!}
         isLoadingDeployedState={isLoadingDeployedState}
-        refetchDeployedState={refetchWithErrorHandling}
+        refetchDeployedState={refetchDeployedState}
       />
     </>
   )

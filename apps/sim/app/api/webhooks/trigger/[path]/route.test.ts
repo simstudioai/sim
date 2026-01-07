@@ -14,10 +14,6 @@ import {
 } from '@/app/api/__test-utils__/utils'
 
 const {
-  hasProcessedMessageMock,
-  markMessageAsProcessedMock,
-  closeRedisConnectionMock,
-  acquireLockMock,
   generateRequestHashMock,
   validateSlackSignatureMock,
   handleWhatsAppVerificationMock,
@@ -28,10 +24,6 @@ const {
   processWebhookMock,
   executeMock,
 } = vi.hoisted(() => ({
-  hasProcessedMessageMock: vi.fn().mockResolvedValue(false),
-  markMessageAsProcessedMock: vi.fn().mockResolvedValue(true),
-  closeRedisConnectionMock: vi.fn().mockResolvedValue(undefined),
-  acquireLockMock: vi.fn().mockResolvedValue(true),
   generateRequestHashMock: vi.fn().mockResolvedValue('test-hash-123'),
   validateSlackSignatureMock: vi.fn().mockResolvedValue(true),
   handleWhatsAppVerificationMock: vi.fn().mockResolvedValue(null),
@@ -71,13 +63,6 @@ vi.mock('@/background/webhook-execution', () => ({
 
 vi.mock('@/background/logs-webhook-delivery', () => ({
   logsWebhookDelivery: {},
-}))
-
-vi.mock('@/lib/redis', () => ({
-  hasProcessedMessage: hasProcessedMessageMock,
-  markMessageAsProcessed: markMessageAsProcessedMock,
-  closeRedisConnection: closeRedisConnectionMock,
-  acquireLock: acquireLockMock,
 }))
 
 vi.mock('@/lib/webhooks/utils', () => ({
@@ -305,9 +290,6 @@ describe('Webhook Trigger API Route', () => {
       workspaceId: 'test-workspace-id',
     })
 
-    hasProcessedMessageMock.mockResolvedValue(false)
-    markMessageAsProcessedMock.mockResolvedValue(true)
-    acquireLockMock.mockResolvedValue(true)
     handleWhatsAppVerificationMock.mockResolvedValue(null)
     processGenericDeduplicationMock.mockResolvedValue(null)
     processWebhookMock.mockResolvedValue(new Response('Webhook processed', { status: 200 }))

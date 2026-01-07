@@ -78,6 +78,7 @@ export type SubBlockType =
   | 'workflow-selector' // Workflow selector for agent tools
   | 'workflow-input-mapper' // Dynamic workflow input mapper based on selected workflow
   | 'text' // Read-only text display
+  | 'router-input' // Router route definitions with descriptions
 
 /**
  * Selector types that require display name hydration
@@ -290,11 +291,19 @@ export interface SubBlockConfig {
   useWebhookUrl?: boolean
   // Trigger-save specific: The trigger ID for validation and saving
   triggerId?: string
-  // Dropdown specific: Function to fetch options dynamically (for multi-select or single-select)
+  // Dropdown/Combobox: Function to fetch options dynamically
+  // Works with both 'dropdown' (select-only) and 'combobox' (editable with expression support)
   fetchOptions?: (
     blockId: string,
     subBlockId: string
   ) => Promise<Array<{ label: string; id: string }>>
+  // Dropdown/Combobox: Function to fetch a single option's label by ID (for hydration)
+  // Called when component mounts with a stored value to display the correct label before options load
+  fetchOptionById?: (
+    blockId: string,
+    subBlockId: string,
+    optionId: string
+  ) => Promise<{ label: string; id: string } | null>
 }
 
 export interface BlockConfig<T extends ToolResponse = ToolResponse> {
