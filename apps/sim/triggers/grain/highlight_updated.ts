@@ -1,6 +1,6 @@
 import { GrainIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildHighlightOutputs, grainSetupInstructions, grainTriggerOptions } from './utils'
+import { buildHighlightOutputs, grainSetupInstructions } from './utils'
 
 export const grainHighlightUpdatedTrigger: TriggerConfig = {
   id: 'grain_highlight_updated',
@@ -11,15 +11,6 @@ export const grainHighlightUpdatedTrigger: TriggerConfig = {
   icon: GrainIcon,
 
   subBlocks: [
-    {
-      id: 'selectedTriggerId',
-      title: 'Trigger Type',
-      type: 'dropdown',
-      mode: 'trigger',
-      options: grainTriggerOptions,
-      value: () => 'grain_highlight_updated',
-      required: true,
-    },
     {
       id: 'apiKey',
       title: 'API Key',

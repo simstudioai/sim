@@ -1,6 +1,6 @@
 import { GrainIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildStoryOutputs, grainSetupInstructions, grainTriggerOptions } from './utils'
+import { buildStoryOutputs, grainSetupInstructions } from './utils'
 
 export const grainStoryCreatedTrigger: TriggerConfig = {
   id: 'grain_story_created',
@@ -11,15 +11,6 @@ export const grainStoryCreatedTrigger: TriggerConfig = {
   icon: GrainIcon,
 
   subBlocks: [
-    {
-      id: 'selectedTriggerId',
-      title: 'Trigger Type',
-      type: 'dropdown',
-      mode: 'trigger',
-      options: grainTriggerOptions,
-      value: () => 'grain_story_created',
-      required: true,
-    },
     {
       id: 'apiKey',
       title: 'API Key',
