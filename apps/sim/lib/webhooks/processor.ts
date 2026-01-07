@@ -512,6 +512,33 @@ export async function verifyProviderAuth(
     }
   }
 
+  if (foundWebhook.provider === 'fireflies') {
+    const secret = providerConfig.webhookSecret as string | undefined
+
+    if (secret) {
+      const signature = request.headers.get('x-hub-signature')
+
+      if (!signature) {
+        logger.warn(`[${requestId}] Fireflies webhook missing signature header`)
+        return new NextResponse('Unauthorized - Missing Fireflies signature', { status: 401 })
+      }
+
+      const { validateFirefliesSignature } = await import('@/lib/webhooks/utils.server')
+
+      const isValidSignature = validateFirefliesSignature(secret, signature, rawBody)
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Fireflies signature verification failed`, {
+          signatureLength: signature.length,
+          secretLength: secret.length,
+        })
+        return new NextResponse('Unauthorized - Invalid Fireflies signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] Fireflies signature verified successfully`)
+    }
+  }
+
   if (foundWebhook.provider === 'generic') {
     if (providerConfig.requireAuth) {
       const configToken = providerConfig.token

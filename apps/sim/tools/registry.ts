@@ -194,6 +194,18 @@ import {
   firecrawlScrapeTool,
   firecrawlSearchTool,
 } from '@/tools/firecrawl'
+import {
+  firefliesAddToLiveMeetingTool,
+  firefliesCreateBiteTool,
+  firefliesDeleteTranscriptTool,
+  firefliesGetTranscriptTool,
+  firefliesGetUserTool,
+  firefliesListBitesTool,
+  firefliesListContactsTool,
+  firefliesListTranscriptsTool,
+  firefliesListUsersTool,
+  firefliesUploadAudioTool,
+} from '@/tools/fireflies'
 import { functionExecuteTool } from '@/tools/function'
 import {
   githubAddAssigneesTool,
@@ -1427,6 +1439,16 @@ export const tools: Record<string, ToolConfig> = {
   firecrawl_map: firecrawlMapTool,
   firecrawl_extract: firecrawlExtractTool,
   firecrawl_agent: firecrawlAgentTool,
+  fireflies_list_transcripts: firefliesListTranscriptsTool,
+  fireflies_get_transcript: firefliesGetTranscriptTool,
+  fireflies_get_user: firefliesGetUserTool,
+  fireflies_list_users: firefliesListUsersTool,
+  fireflies_upload_audio: firefliesUploadAudioTool,
+  fireflies_delete_transcript: firefliesDeleteTranscriptTool,
+  fireflies_add_to_live_meeting: firefliesAddToLiveMeetingTool,
+  fireflies_create_bite: firefliesCreateBiteTool,
+  fireflies_list_bites: firefliesListBitesTool,
+  fireflies_list_contacts: firefliesListContactsTool,
   grafana_get_dashboard: grafanaGetDashboardTool,
   grafana_list_dashboards: grafanaListDashboardsTool,
   grafana_create_dashboard: grafanaCreateDashboardTool,

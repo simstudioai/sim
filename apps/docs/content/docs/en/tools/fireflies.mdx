@@ -1,0 +1,236 @@
+---
+title: Fireflies
+description: Interact with Fireflies.ai meeting transcripts and recordings
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="fireflies"
+  color="#100730"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Fireflies.ai](https://fireflies.ai/) is a powerful meeting transcription and conversational intelligence platform that integrates directly with Sim, allowing your agents to access, manage, and analyze meeting transcripts and recordings programmatically. This integration makes it simple to automate workflows involving meetings, voice data, and collaboration insights.
+
+With Fireflies.ai in Sim, you can:
+
+- **List meeting transcripts**: Retrieve a list of meetings and their transcripts for a given user or team
+- **Get detailed transcripts**: Access meeting transcripts with summaries, action items, topics, and participant analytics
+- **Upload audio for transcription**: Programmatically upload audio files and receive accurate transcriptions along with AI-generated meeting notes
+- **Search within transcripts**: Find meetings or content based on keywords, participants, hosts, and more to surface important discussions
+- **Receive real-time updates**: Trigger workflows in Sim when new meetings are transcribed or when transcripts are modified
+- **Automate insights extraction**: Use structured transcript data to further analyze, trigger notifications, or summarize meetings across your organization
+
+This integration empowers your Sim workflows to take advantage of Fireflies.ai's robust meeting intelligence platform, whether you want to automate post-meeting actions, keep track of action items, or extract insights from your team's voice data. To get started, simply configure the Fireflies block with your API key and select the appropriate operation (list transcripts, fetch transcript details, upload audio, etc.). Your agents will immediately be able to interact with meeting data in an intelligent and automated way.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Fireflies.ai into the workflow. Manage meeting transcripts, add bot to live meetings, create soundbites, and more. Can also trigger workflows when transcriptions complete.
+
+
+
+## Tools
+
+### `fireflies_list_transcripts`
+
+List meeting transcripts from Fireflies.ai with optional filtering
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fireflies API key |
+| `keyword` | string | No | Search keyword in meeting title or transcript |
+| `fromDate` | string | No | Filter transcripts from this date \(ISO 8601 format\) |
+| `toDate` | string | No | Filter transcripts until this date \(ISO 8601 format\) |
+| `hostEmail` | string | No | Filter by meeting host email |
+| `participants` | string | No | Filter by participant emails \(comma-separated\) |
+| `limit` | number | No | Maximum number of transcripts to return \(max 50\) |
+| `skip` | number | No | Number of transcripts to skip for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transcripts` | array | List of transcripts |
+| `count` | number | Number of transcripts returned |
+
+### `fireflies_get_transcript`
+
+Get a single transcript with full details including summary, action items, and analytics
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fireflies API key |
+| `transcriptId` | string | Yes | The transcript ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transcript` | object | The transcript with full details |
+
+### `fireflies_get_user`
+
+Get user information from Fireflies.ai. Returns current user if no ID specified.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fireflies API key |
+| `userId` | string | No | User ID to retrieve \(optional, defaults to API key owner\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | User information |
+
+### `fireflies_list_users`
+
+List all users within your Fireflies.ai team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fireflies API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | List of team users |
+
+### `fireflies_upload_audio`
+
+Upload an audio file URL to Fireflies.ai for transcription
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fireflies API key |
+| `audioUrl` | string | Yes | Public HTTPS URL of the audio/video file \(MP3, MP4, WAV, M4A, OGG\) |
+| `title` | string | No | Title for the meeting/transcript |
+| `webhook` | string | No | Webhook URL to notify when transcription is complete |
+| `language` | string | No | Language code for transcription \(e.g., "es" for Spanish, "de" for German\) |
+| `attendees` | string | No | Attendees in JSON format: \[\{"displayName": "Name", "email": "email@example.com"\}\] |
+| `clientReferenceId` | string | No | Custom reference ID for tracking |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the upload was successful |
+| `title` | string | Title of the uploaded meeting |
+| `message` | string | Status message from Fireflies |
+
+### `fireflies_delete_transcript`
+
+Delete a transcript from Fireflies.ai
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fireflies API key |
+| `transcriptId` | string | Yes | The transcript ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the transcript was successfully deleted |
+
+### `fireflies_add_to_live_meeting`
+
+Add the Fireflies.ai bot to an ongoing meeting to record and transcribe
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fireflies API key |
+| `meetingLink` | string | Yes | Valid meeting URL \(Zoom, Google Meet, Microsoft Teams, etc.\) |
+| `title` | string | No | Title for the meeting \(max 256 characters\) |
+| `meetingPassword` | string | No | Password for the meeting if required \(max 32 characters\) |
+| `duration` | number | No | Meeting duration in minutes \(15-120, default: 60\) |
+| `language` | string | No | Language code for transcription \(e.g., "en", "es", "de"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the bot was successfully added to the meeting |
+
+### `fireflies_create_bite`
+
+Create a soundbite/highlight from a specific time range in a transcript
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fireflies API key |
+| `transcriptId` | string | Yes | ID of the transcript to create the bite from |
+| `startTime` | number | Yes | Start time of the bite in seconds |
+| `endTime` | number | Yes | End time of the bite in seconds |
+| `name` | string | No | Name for the bite \(max 256 characters\) |
+| `mediaType` | string | No | Media type: "video" or "audio" |
+| `summary` | string | No | Summary for the bite \(max 500 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `bite` | object | Created bite details |
+
+### `fireflies_list_bites`
+
+List soundbites/highlights from Fireflies.ai
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fireflies API key |
+| `transcriptId` | string | No | Filter bites for a specific transcript |
+| `mine` | boolean | No | Only return bites owned by the API key owner \(default: true\) |
+| `limit` | number | No | Maximum number of bites to return \(max 50\) |
+| `skip` | number | No | Number of bites to skip for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `bites` | array | List of bites/soundbites |
+
+### `fireflies_list_contacts`
+
+List all contacts from your Fireflies.ai meetings
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fireflies API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | array | List of contacts from meetings |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `fireflies`

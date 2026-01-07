@@ -1,0 +1,507 @@
+import { FirefliesIcon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
+import type { FirefliesResponse } from '@/tools/fireflies/types'
+import { getTrigger } from '@/triggers'
+import { firefliesTriggerOptions } from '@/triggers/fireflies/utils'
+
+export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
+  type: 'fireflies',
+  name: 'Fireflies',
+  description: 'Interact with Fireflies.ai meeting transcripts and recordings',
+  authMode: AuthMode.ApiKey,
+  triggerAllowed: true,
+  longDescription:
+    'Integrate Fireflies.ai into the workflow. Manage meeting transcripts, add bot to live meetings, create soundbites, and more. Can also trigger workflows when transcriptions complete.',
+  docsLink: 'https://docs.fireflies.ai',
+  category: 'tools',
+  icon: FirefliesIcon,
+  bgColor: '#100730',
+  subBlocks: [
+    {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      options: [
+        { label: 'List Transcripts', id: 'fireflies_list_transcripts' },
+        { label: 'Get Transcript', id: 'fireflies_get_transcript' },
+        { label: 'Get User', id: 'fireflies_get_user' },
+        { label: 'List Users', id: 'fireflies_list_users' },
+        { label: 'Upload Audio', id: 'fireflies_upload_audio' },
+        { label: 'Delete Transcript', id: 'fireflies_delete_transcript' },
+        { label: 'Add Bot to Live Meeting', id: 'fireflies_add_to_live_meeting' },
+        { label: 'Create Bite', id: 'fireflies_create_bite' },
+        { label: 'List Bites', id: 'fireflies_list_bites' },
+        { label: 'List Contacts', id: 'fireflies_list_contacts' },
+      ],
+      value: () => 'fireflies_list_transcripts',
+    },
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      placeholder: 'Enter your Fireflies API key',
+      password: true,
+      required: true,
+    },
+    // Transcript ID (for get/delete/create_bite/list_bites)
+    {
+      id: 'transcriptId',
+      title: 'Transcript ID',
+      type: 'short-input',
+      placeholder: 'Enter transcript ID',
+      required: {
+        field: 'operation',
+        value: ['fireflies_get_transcript', 'fireflies_delete_transcript', 'fireflies_create_bite'],
+      },
+      condition: {
+        field: 'operation',
+        value: [
+          'fireflies_get_transcript',
+          'fireflies_delete_transcript',
+          'fireflies_create_bite',
+          'fireflies_list_bites',
+        ],
+      },
+    },
+    // User ID (optional for get user)
+    {
+      id: 'userId',
+      title: 'User ID',
+      type: 'short-input',
+      placeholder: 'Leave empty for current user',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_get_user',
+      },
+    },
+    // List Transcripts filters
+    {
+      id: 'keyword',
+      title: 'Keyword',
+      type: 'short-input',
+      placeholder: 'Search in title or transcript',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_list_transcripts',
+      },
+    },
+    {
+      id: 'fromDate',
+      title: 'From Date',
+      type: 'short-input',
+      placeholder: 'e.g., 2024-01-01T00:00:00Z',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_list_transcripts',
+      },
+    },
+    {
+      id: 'toDate',
+      title: 'To Date',
+      type: 'short-input',
+      placeholder: 'e.g., 2024-12-31T23:59:59Z',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_list_transcripts',
+      },
+    },
+    {
+      id: 'hostEmail',
+      title: 'Host Email',
+      type: 'short-input',
+      placeholder: 'Filter by host email',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_list_transcripts',
+      },
+    },
+    {
+      id: 'participants',
+      title: 'Participants',
+      type: 'short-input',
+      placeholder: 'Comma-separated participant emails',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_list_transcripts',
+      },
+    },
+    {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: 'Max 50 (default: 50)',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: ['fireflies_list_transcripts', 'fireflies_list_bites'],
+      },
+    },
+    // Upload Audio fields - File upload (basic mode)
+    {
+      id: 'audioFile',
+      title: 'Audio/Video File',
+      type: 'file-upload',
+      canonicalParamId: 'audioFile',
+      placeholder: 'Upload an audio or video file',
+      mode: 'basic',
+      multiple: false,
+      required: false,
+      acceptedTypes: '.mp3,.m4a,.wav,.webm,.ogg,.flac,.aac,.opus,.mp4,.mov,.avi,.mkv',
+      condition: {
+        field: 'operation',
+        value: 'fireflies_upload_audio',
+      },
+    },
+    // Upload Audio fields - File reference (advanced mode)
+    {
+      id: 'audioFileReference',
+      title: 'Audio/Video File Reference',
+      type: 'short-input',
+      canonicalParamId: 'audioFile',
+      placeholder: 'Reference audio/video from previous blocks',
+      mode: 'advanced',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_upload_audio',
+      },
+    },
+    // Upload Audio fields - URL input
+    {
+      id: 'audioUrl',
+      title: 'Audio/Video URL',
+      type: 'short-input',
+      placeholder: 'Or enter publicly accessible audio/video URL',
+      description: 'Public HTTPS URL to audio file (MP3, MP4, WAV, M4A, OGG)',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_upload_audio',
+      },
+    },
+    {
+      id: 'title',
+      title: 'Title',
+      type: 'short-input',
+      placeholder: 'Meeting title',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: ['fireflies_upload_audio', 'fireflies_add_to_live_meeting'],
+      },
+    },
+    {
+      id: 'language',
+      title: 'Language',
+      type: 'short-input',
+      placeholder: 'e.g., es, de, fr (default: English)',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: ['fireflies_upload_audio', 'fireflies_add_to_live_meeting'],
+      },
+    },
+    {
+      id: 'attendees',
+      title: 'Attendees',
+      type: 'long-input',
+      placeholder: '[{"displayName": "John", "email": "john@example.com"}]',
+      description: 'JSON array of attendees',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_upload_audio',
+      },
+    },
+    {
+      id: 'clientReferenceId',
+      title: 'Reference ID',
+      type: 'short-input',
+      placeholder: 'Custom tracking ID',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_upload_audio',
+      },
+    },
+    // Add to Live Meeting fields
+    {
+      id: 'meetingLink',
+      title: 'Meeting Link',
+      type: 'short-input',
+      placeholder: 'https://zoom.us/j/... or https://meet.google.com/...',
+      description: 'URL for Zoom, Google Meet, or Microsoft Teams meeting',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_add_to_live_meeting',
+      },
+    },
+    {
+      id: 'meetingPassword',
+      title: 'Meeting Password',
+      type: 'short-input',
+      placeholder: 'Optional meeting password',
+      password: true,
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_add_to_live_meeting',
+      },
+    },
+    {
+      id: 'duration',
+      title: 'Duration (minutes)',
+      type: 'short-input',
+      placeholder: '60 (15-120 minutes)',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_add_to_live_meeting',
+      },
+    },
+    // Create Bite fields
+    {
+      id: 'startTime',
+      title: 'Start Time (seconds)',
+      type: 'short-input',
+      placeholder: 'e.g., 30',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_create_bite',
+      },
+    },
+    {
+      id: 'endTime',
+      title: 'End Time (seconds)',
+      type: 'short-input',
+      placeholder: 'e.g., 90',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_create_bite',
+      },
+    },
+    {
+      id: 'biteName',
+      title: 'Bite Name',
+      type: 'short-input',
+      placeholder: 'Name for this highlight',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_create_bite',
+      },
+    },
+    {
+      id: 'biteSummary',
+      title: 'Summary',
+      type: 'long-input',
+      placeholder: 'Brief description of the highlight',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: 'fireflies_create_bite',
+      },
+    },
+    // Trigger SubBlocks
+    {
+      id: 'selectedTriggerId',
+      title: 'Trigger Type',
+      type: 'dropdown',
+      mode: 'trigger',
+      options: firefliesTriggerOptions,
+      value: () => 'fireflies_transcription_complete',
+      required: true,
+    },
+    ...getTrigger('fireflies_transcription_complete').subBlocks.slice(1),
+  ],
+  tools: {
+    access: [
+      'fireflies_list_transcripts',
+      'fireflies_get_transcript',
+      'fireflies_get_user',
+      'fireflies_list_users',
+      'fireflies_upload_audio',
+      'fireflies_delete_transcript',
+      'fireflies_add_to_live_meeting',
+      'fireflies_create_bite',
+      'fireflies_list_bites',
+      'fireflies_list_contacts',
+    ],
+    config: {
+      tool: (params) => {
+        return params.operation || 'fireflies_list_transcripts'
+      },
+      params: (params) => {
+        const baseParams: Record<string, unknown> = {
+          apiKey: params.apiKey,
+        }
+
+        switch (params.operation) {
+          case 'fireflies_list_transcripts':
+            return {
+              ...baseParams,
+              keyword: params.keyword || undefined,
+              fromDate: params.fromDate || undefined,
+              toDate: params.toDate || undefined,
+              hostEmail: params.hostEmail || undefined,
+              participants: params.participants || undefined,
+              limit: params.limit ? Number(params.limit) : undefined,
+            }
+
+          case 'fireflies_get_transcript':
+            if (!params.transcriptId?.trim()) {
+              throw new Error('Transcript ID is required.')
+            }
+            return {
+              ...baseParams,
+              transcriptId: params.transcriptId.trim(),
+            }
+
+          case 'fireflies_get_user':
+            return {
+              ...baseParams,
+              userId: params.userId?.trim() || undefined,
+            }
+
+          case 'fireflies_list_users':
+            return baseParams
+
+          case 'fireflies_upload_audio': {
+            // Support both file upload and URL
+            const audioUrl = params.audioUrl?.trim()
+            const audioFile = params.audioFile
+            const audioFileReference = params.audioFileReference
+
+            if (!audioUrl && !audioFile && !audioFileReference) {
+              throw new Error('Either audio file or audio URL is required.')
+            }
+
+            return {
+              ...baseParams,
+              audioUrl: audioUrl || undefined,
+              audioFile: audioFile || undefined,
+              audioFileReference: audioFileReference || undefined,
+              title: params.title?.trim() || undefined,
+              language: params.language?.trim() || undefined,
+              attendees: params.attendees?.trim() || undefined,
+              clientReferenceId: params.clientReferenceId?.trim() || undefined,
+            }
+          }
+
+          case 'fireflies_delete_transcript':
+            if (!params.transcriptId?.trim()) {
+              throw new Error('Transcript ID is required.')
+            }
+            return {
+              ...baseParams,
+              transcriptId: params.transcriptId.trim(),
+            }
+
+          case 'fireflies_add_to_live_meeting':
+            if (!params.meetingLink?.trim()) {
+              throw new Error('Meeting link is required.')
+            }
+            return {
+              ...baseParams,
+              meetingLink: params.meetingLink.trim(),
+              title: params.title?.trim() || undefined,
+              meetingPassword: params.meetingPassword?.trim() || undefined,
+              duration: params.duration ? Number(params.duration) : undefined,
+              language: params.language?.trim() || undefined,
+            }
+
+          case 'fireflies_create_bite':
+            if (!params.transcriptId?.trim()) {
+              throw new Error('Transcript ID is required.')
+            }
+            if (!params.startTime || !params.endTime) {
+              throw new Error('Start time and end time are required.')
+            }
+            return {
+              ...baseParams,
+              transcriptId: params.transcriptId.trim(),
+              startTime: Number(params.startTime),
+              endTime: Number(params.endTime),
+              name: params.biteName?.trim() || undefined,
+              summary: params.biteSummary?.trim() || undefined,
+            }
+
+          case 'fireflies_list_bites':
+            return {
+              ...baseParams,
+              transcriptId: params.transcriptId?.trim() || undefined,
+              mine: true,
+              limit: params.limit ? Number(params.limit) : undefined,
+            }
+
+          case 'fireflies_list_contacts':
+            return baseParams
+
+          default:
+            return baseParams
+        }
+      },
+    },
+  },
+  inputs: {
+    operation: { type: 'string', description: 'Operation to perform' },
+    apiKey: { type: 'string', description: 'Fireflies API key' },
+    transcriptId: { type: 'string', description: 'Transcript identifier' },
+    userId: { type: 'string', description: 'User identifier' },
+    keyword: { type: 'string', description: 'Search keyword' },
+    fromDate: { type: 'string', description: 'Filter from date (ISO 8601)' },
+    toDate: { type: 'string', description: 'Filter to date (ISO 8601)' },
+    hostEmail: { type: 'string', description: 'Filter by host email' },
+    participants: { type: 'string', description: 'Filter by participants (comma-separated)' },
+    limit: { type: 'number', description: 'Maximum results to return' },
+    audioFile: { type: 'json', description: 'Audio/video file (UserFile)' },
+    audioFileReference: { type: 'json', description: 'Audio/video file reference' },
+    audioUrl: { type: 'string', description: 'Public URL to audio file' },
+    title: { type: 'string', description: 'Meeting title' },
+    language: { type: 'string', description: 'Language code for transcription' },
+    attendees: { type: 'string', description: 'JSON array of attendees' },
+    clientReferenceId: { type: 'string', description: 'Custom reference ID for tracking' },
+    meetingLink: { type: 'string', description: 'Meeting URL (Zoom, Meet, Teams)' },
+    meetingPassword: { type: 'string', description: 'Meeting password if required' },
+    duration: { type: 'number', description: 'Meeting duration in minutes (15-120)' },
+    startTime: { type: 'number', description: 'Bite start time in seconds' },
+    endTime: { type: 'number', description: 'Bite end time in seconds' },
+    biteName: { type: 'string', description: 'Name for the bite/highlight' },
+    biteSummary: { type: 'string', description: 'Summary for the bite' },
+  },
+  outputs: {
+    // List transcripts outputs
+    transcripts: { type: 'json', description: 'List of transcripts' },
+    count: { type: 'number', description: 'Number of transcripts returned' },
+    // Get transcript outputs
+    transcript: { type: 'json', description: 'Full transcript data with summary and analytics' },
+    // User outputs
+    user: { type: 'json', description: 'User information' },
+    users: { type: 'json', description: 'List of team users' },
+    // Bite outputs
+    bite: { type: 'json', description: 'Created bite details' },
+    bites: { type: 'json', description: 'List of bites/soundbites' },
+    // Contact outputs
+    contacts: { type: 'json', description: 'List of contacts from meetings' },
+    // Common outputs
+    success: { type: 'boolean', description: 'Operation success status' },
+    message: { type: 'string', description: 'Status message' },
+    // Trigger outputs
+    meetingId: { type: 'string', description: 'Meeting/transcript ID from webhook' },
+    eventType: { type: 'string', description: 'Webhook event type' },
+  },
+  triggers: {
+    enabled: true,
+    available: ['fireflies_transcription_complete'],
+  },
+}

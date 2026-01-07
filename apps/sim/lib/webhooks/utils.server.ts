@@ -1773,6 +1773,64 @@ export function validateJiraSignature(secret: string, signature: string, body: s
 }
 
 /**
+ * Validates a Fireflies webhook request signature using HMAC SHA-256
+ * @param secret - Fireflies webhook secret (16-32 characters)
+ * @param signature - x-hub-signature header value (format: 'sha256=<hex>')
+ * @param body - Raw request body string
+ * @returns Whether the signature is valid
+ */
+export function validateFirefliesSignature(
+  secret: string,
+  signature: string,
+  body: string
+): boolean {
+  try {
+    if (!secret || !signature || !body) {
+      logger.warn('Fireflies signature validation missing required fields', {
+        hasSecret: !!secret,
+        hasSignature: !!signature,
+        hasBody: !!body,
+      })
+      return false
+    }
+
+    if (!signature.startsWith('sha256=')) {
+      logger.warn('Fireflies signature has invalid format (expected sha256=)', {
+        signaturePrefix: signature.substring(0, 10),
+      })
+      return false
+    }
+
+    const providedSignature = signature.substring(7)
+
+    const crypto = require('crypto')
+    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+
+    logger.debug('Fireflies signature comparison', {
+      computedSignature: `${computedHash.substring(0, 10)}...`,
+      providedSignature: `${providedSignature.substring(0, 10)}...`,
+      computedLength: computedHash.length,
+      providedLength: providedSignature.length,
+      match: computedHash === providedSignature,
+    })
+
+    if (computedHash.length !== providedSignature.length) {
+      return false
+    }
+
+    let result = 0
+    for (let i = 0; i < computedHash.length; i++) {
+      result |= computedHash.charCodeAt(i) ^ providedSignature.charCodeAt(i)
+    }
+
+    return result === 0
+  } catch (error) {
+    logger.error('Error validating Fireflies signature:', error)
+    return false
+  }
+}
+
+/**
  * Validates a GitHub webhook request signature using HMAC SHA-256 or SHA-1
  * @param secret - GitHub webhook secret (plain text)
  * @param signature - X-Hub-Signature-256 or X-Hub-Signature header value (format: 'sha256=<hex>' or 'sha1=<hex>')
