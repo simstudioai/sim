@@ -68,7 +68,7 @@ export const webhookRequestTool: ToolConfig<WebhookRequestParams, RequestRespons
       return { ...webhookHeaders, ...userHeaders }
     },
 
-    body: (params: WebhookRequestParams) => params.body,
+    body: (params: WebhookRequestParams) => params.body as Record<string, any>,
   },
 
   transformResponse: async (response: Response) => {
