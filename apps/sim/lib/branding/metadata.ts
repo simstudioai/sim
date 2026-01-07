@@ -44,7 +44,7 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
     alternates: {
       canonical: '/',
       languages: {
-        'en-US': '/en-US',
+        'en-US': '/',
       },
     },
     robots: {
@@ -79,8 +79,8 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
       title: defaultTitle,
       description: summaryFull,
       images: [brand.logoUrl || '/social/twitter.png'],
-      creator: '@simstudioai',
-      site: '@simstudioai',
+      creator: '@simdotai',
+      site: '@simdotai',
     },
     manifest: '/manifest.webmanifest',
     icons: {

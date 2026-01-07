@@ -42,17 +42,9 @@ export default function StructuredData() {
         publisher: {
           '@id': 'https://sim.ai/#organization',
         },
-        potentialAction: [
-          {
-            '@type': 'SearchAction',
-            '@id': 'https://sim.ai/#searchaction',
-            target: {
-              '@type': 'EntryPoint',
-              urlTemplate: 'https://sim.ai/search?q={search_term_string}',
-            },
-            'query-input': 'required name=search_term_string',
-          },
-        ],
+        // Note: SearchAction removed - no public /search page exists
+        // Add back when search functionality is implemented:
+        // potentialAction: [{ '@type': 'SearchAction', target: { urlTemplate: '...' } }]
         inLanguage: 'en-US',
       },
       {
@@ -110,7 +102,7 @@ export default function StructuredData() {
             name: 'Community Plan',
             price: '0',
             priceCurrency: 'USD',
-            priceValidUntil: '2025-12-31',
+            priceValidUntil: '2026-12-31',
             itemCondition: 'https://schema.org/NewCondition',
             availability: 'https://schema.org/InStock',
             seller: {
@@ -134,7 +126,7 @@ export default function StructuredData() {
               unitText: 'MONTH',
               billingIncrement: 1,
             },
-            priceValidUntil: '2025-12-31',
+            priceValidUntil: '2026-12-31',
             itemCondition: 'https://schema.org/NewCondition',
             availability: 'https://schema.org/InStock',
             seller: {
@@ -154,7 +146,7 @@ export default function StructuredData() {
               unitText: 'MONTH',
               billingIncrement: 1,
             },
-            priceValidUntil: '2025-12-31',
+            priceValidUntil: '2026-12-31',
             itemCondition: 'https://schema.org/NewCondition',
             availability: 'https://schema.org/InStock',
             seller: {
@@ -181,11 +173,12 @@ export default function StructuredData() {
           'Scheduled workflows',
           'Event triggers',
         ],
+        // Screenshot using the social sharing image which exists
         screenshot: [
           {
             '@type': 'ImageObject',
-            url: 'https://sim.ai/screenshots/workflow-builder.png',
-            caption: 'Sim workflow builder interface',
+            url: 'https://sim.ai/social/facebook.png',
+            caption: 'Sim AI agent workflow builder interface',
           },
         ],
       },
@@ -223,16 +216,9 @@ export default function StructuredData() {
   }
 
   return (
-    <>
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-      />
-      {/* LLM-friendly semantic HTML comments */}
-      {/* About: Sim is a visual workflow builder for AI agents and large language models (LLMs) */}
-      {/* Purpose: Enable users to create AI-powered automations without coding */}
-      {/* Features: Drag-and-drop interface, 100+ integrations, multi-model support */}
-      {/* Use cases: Email automation, chatbots, data analysis, content generation */}
-    </>
+    <script
+      type='application/ld+json'
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+    />
   )
 }
