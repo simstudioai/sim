@@ -2,13 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { Button, Code } from '@/components/emcn'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
+import { getBlock } from '@/blocks/registry'
 import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/panel/copilot/store'
 import type { CopilotToolCall, SubAgentContentBlock } from '@/stores/panel/copilot/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface ToolCallProps {
   toolCall?: CopilotToolCall
@@ -231,7 +234,13 @@ function ShimmerOverlayText({
 /**
  * SubAgentToolCall renders a nested tool call from a subagent in a muted/thinking style.
  */
-function SubAgentToolCall({ toolCall }: { toolCall: CopilotToolCall }) {
+function SubAgentToolCall({ toolCall: toolCallProp }: { toolCall: CopilotToolCall }) {
+  // Get live toolCall from store to ensure we have the latest state and params
+  const liveToolCall = useCopilotStore((s) =>
+    toolCallProp.id ? s.toolCallsById[toolCallProp.id] : undefined
+  )
+  const toolCall = liveToolCall || toolCallProp
+
   const displayName = getDisplayNameForSubAgent(toolCall)
 
   const isLoading =
@@ -360,15 +369,23 @@ function SubAgentToolCall({ toolCall }: { toolCall: CopilotToolCall }) {
     return null
   }
 
+  // For edit_workflow, only show the WorkflowEditSummary component (replaces text display)
+  const isEditWorkflow = toolCall.name === 'edit_workflow'
+  const hasOperations = Array.isArray(params.operations) && params.operations.length > 0
+
   return (
     <div className='py-0.5'>
-      <ShimmerOverlayText
-        text={displayName}
-        active={isLoading && !showButtons}
-        isSpecial={isSpecial}
-        className='font-[470] font-season text-[12px] text-[var(--text-tertiary)]'
-      />
+      {/* Hide text display for edit_workflow when we have operations to show in summary */}
+      {!(isEditWorkflow && hasOperations) && (
+        <ShimmerOverlayText
+          text={displayName}
+          active={isLoading && !showButtons}
+          isSpecial={isSpecial}
+          className='font-[470] font-season text-[12px] text-[var(--text-tertiary)]'
+        />
+      )}
       {renderSubAgentTable()}
+      <WorkflowEditSummary toolCall={toolCall} />
       {showButtons && <RunSkipButtons toolCall={toolCall} />}
     </div>
   )
@@ -582,6 +599,177 @@ function isSpecialToolCall(toolCall: CopilotToolCall): boolean {
   ]
 
   return workflowOperationTools.includes(toolCall.name)
+}
+
+/**
+ * WorkflowEditSummary shows a full-width summary of workflow edits (like Cursor's diff).
+ * Displays: workflow name with stats (+N green, N orange, -N red)
+ * Expands inline on click to show individual blocks with their icons.
+ */
+function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  // Get workflow name from registry
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const workflows = useWorkflowRegistry((s) => s.workflows)
+  const workflowName = activeWorkflowId ? workflows[activeWorkflowId]?.name : undefined
+
+  // Get block data from current workflow state
+  const blocks = useWorkflowStore((s) => s.blocks)
+
+  // Show for edit_workflow regardless of state
+  if (toolCall.name !== 'edit_workflow') {
+    return null
+  }
+
+  // Extract operations from tool call params
+  const params = (toolCall as any).parameters || (toolCall as any).input || (toolCall as any).params || {}
+  let operations = Array.isArray(params.operations) ? params.operations : []
+  
+  // Fallback: check if operations are at top level of toolCall
+  if (operations.length === 0 && Array.isArray((toolCall as any).operations)) {
+    operations = (toolCall as any).operations
+  }
+
+  // Group operations by type with block info
+  interface BlockChange {
+    blockId: string
+    blockName: string
+    blockType: string
+  }
+
+  const addedBlocks: BlockChange[] = []
+  const editedBlocks: BlockChange[] = []
+  const deletedBlocks: BlockChange[] = []
+
+  for (const op of operations) {
+    const blockId = op.block_id
+    if (!blockId) continue
+
+    // Get block info from current workflow state or operation params
+    const currentBlock = blocks[blockId]
+    let blockName = currentBlock?.name || ''
+    let blockType = currentBlock?.type || ''
+
+    // For add operations, get info from params (type is stored as params.type)
+    if (op.operation_type === 'add' && op.params) {
+      blockName = blockName || op.params.name || ''
+      blockType = blockType || op.params.type || ''
+    }
+
+    // For edit operations, also check params.type if block not in current state
+    if (op.operation_type === 'edit' && op.params && !blockType) {
+      blockType = op.params.type || ''
+    }
+
+    // Fallback name to type or ID
+    if (!blockName) blockName = blockType || blockId
+
+    const change: BlockChange = { blockId, blockName, blockType }
+
+    switch (op.operation_type) {
+      case 'add':
+        addedBlocks.push(change)
+        break
+      case 'edit':
+        editedBlocks.push(change)
+        break
+      case 'delete':
+        deletedBlocks.push(change)
+        break
+    }
+  }
+
+  const hasChanges = addedBlocks.length > 0 || editedBlocks.length > 0 || deletedBlocks.length > 0
+
+  if (!hasChanges) {
+    return null
+  }
+
+  // Get block config by type (for icon and bgColor)
+  const getBlockConfig = (blockType: string) => {
+    return getBlock(blockType)
+  }
+
+  // Render a single block row (toolbar style: colored square with white icon)
+  const renderBlockRow = (
+    change: BlockChange,
+    type: 'add' | 'edit' | 'delete'
+  ) => {
+    const blockConfig = getBlockConfig(change.blockType)
+    const Icon = blockConfig?.icon
+    const bgColor = blockConfig?.bgColor || '#6B7280'
+
+    const symbols = {
+      add: { symbol: '+', color: 'text-[#22c55e]' },
+      edit: { symbol: '•', color: 'text-[#f97316]' },
+      delete: { symbol: '-', color: 'text-[#ef4444]' },
+    }
+    const { symbol, color } = symbols[type]
+
+    return (
+      <div
+        key={`${type}-${change.blockId}`}
+        className='flex items-center gap-2 px-2.5 py-1.5'
+      >
+        <span className={`font-mono text-[11px] font-medium ${color} w-3`}>{symbol}</span>
+        {/* Toolbar-style icon: colored square with white icon */}
+        <div
+          className='flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-[3px]'
+          style={{ background: bgColor }}
+        >
+          {Icon && <Icon className='h-[10px] w-[10px] text-white' />}
+        </div>
+        <span
+          className={`font-season text-[12px] ${type === 'delete' ? 'text-[var(--text-tertiary)] line-through' : 'text-[var(--text-secondary)]'}`}
+        >
+          {change.blockName}
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div className='mt-2 w-full overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-1)]'>
+      {/* Header row - always visible */}
+      <button
+        type='button'
+        onClick={() => setIsExpanded(!isExpanded)}
+        className='flex w-full items-center justify-between px-2.5 py-2 transition-colors hover:bg-[var(--surface-2)]'
+      >
+        <div className='flex items-center gap-2'>
+          <span className='font-medium font-season text-[12px] text-[var(--text-primary)]'>
+            {workflowName || 'Workflow'}
+          </span>
+          <span className='flex items-center gap-1.5'>
+            {addedBlocks.length > 0 && (
+              <span className='font-mono text-[11px] font-medium text-[#22c55e]'>+{addedBlocks.length}</span>
+            )}
+            {editedBlocks.length > 0 && (
+              <span className='font-mono text-[11px] font-medium text-[#f97316]'>•{editedBlocks.length}</span>
+            )}
+            {deletedBlocks.length > 0 && (
+              <span className='font-mono text-[11px] font-medium text-[#ef4444]'>-{deletedBlocks.length}</span>
+            )}
+          </span>
+        </div>
+        {isExpanded ? (
+          <ChevronUp className='h-3.5 w-3.5 text-[var(--text-tertiary)]' />
+        ) : (
+          <ChevronDown className='h-3.5 w-3.5 text-[var(--text-tertiary)]' />
+        )}
+      </button>
+
+      {/* Expanded block list */}
+      {isExpanded && (
+        <div className='border-t border-[var(--border-1)]'>
+          {addedBlocks.map((change) => renderBlockRow(change, 'add'))}
+          {editedBlocks.map((change) => renderBlockRow(change, 'edit'))}
+          {deletedBlocks.map((change) => renderBlockRow(change, 'delete'))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -1515,6 +1703,9 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           </Button>
         </div>
       ) : null}
+      {/* Workflow edit summary - shows block changes after edit_workflow completes */}
+      <WorkflowEditSummary toolCall={toolCall} />
+
       {/* Render subagent content (from debug tool or other subagents) */}
       {toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0 && (
         <SubAgentContent
