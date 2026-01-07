@@ -60,6 +60,14 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'google_forms_webhook',
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -86,12 +94,12 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
         const script = `function onFormSubmit(e) {
   const WEBHOOK_URL = "{{WEBHOOK_URL}}";
   const SHARED_SECRET = "{{SHARED_SECRET}}";
-  
+
   try {
     const form = FormApp.getActiveForm();
     const formResponse = e.response;
     const itemResponses = formResponse.getItemResponses();
-    
+
     // Build answers object
     const answers = {};
     for (var i = 0; i < itemResponses.length; i++) {
@@ -100,7 +108,7 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       const answer = itemResponse.getResponse();
       answers[question] = answer;
     }
-    
+
     // Build payload
     const payload = {
       provider: "google_forms",
@@ -110,7 +118,7 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       lastSubmittedTime: formResponse.getTimestamp().toISOString(),
       answers: answers
     };
-    
+
     // Send to webhook
     const options = {
       method: "post",
@@ -121,9 +129,9 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     };
-    
+
     const response = UrlFetchApp.fetch(WEBHOOK_URL, options);
-    
+
     if (response.getResponseCode() !== 200) {
       Logger.log("Webhook failed: " + response.getContentText());
     } else {
@@ -144,14 +152,6 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       showCopyButton: true,
       description: 'Copy this code and paste it into your Google Forms Apps Script editor',
       mode: 'trigger',
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'google_forms_webhook',
     },
   ],
 

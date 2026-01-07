@@ -40,24 +40,24 @@ export const circlebackMeetingNotesTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: circlebackSetupInstructions('Meeting notes and action items'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'circleback_meeting_notes',
-      },
-    },
-    {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'circleback_meeting_notes',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'circleback_meeting_notes',
+      },
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: circlebackSetupInstructions('Meeting notes and action items'),
+      mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'circleback_meeting_notes',

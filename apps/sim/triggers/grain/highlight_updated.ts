@@ -35,24 +35,24 @@ export const grainHighlightUpdatedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: grainSetupInstructions('Highlight (updated)'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'grain_highlight_updated',
-      },
-    },
-    {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'grain_highlight_updated',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'grain_highlight_updated',
+      },
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: grainSetupInstructions('Highlight (updated)'),
+      mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'grain_highlight_updated',

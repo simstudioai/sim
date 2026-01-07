@@ -94,6 +94,17 @@ export const hubspotCompanyCreatedTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'hubspot_company_created',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'hubspot_company_created',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
@@ -151,17 +162,6 @@ export const hubspotCompanyCreatedTrigger: TriggerConfig = {
       showCopyButton: true,
       description: 'Run this command to subscribe to company creation events',
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_company_created',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_company_created',
       condition: {
         field: 'selectedTriggerId',
         value: 'hubspot_company_created',

@@ -40,24 +40,24 @@ export const linearIssueRemovedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: linearSetupInstructions('Issue (remove)'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'linear_issue_removed',
-      },
-    },
-    {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'linear_issue_removed',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'linear_issue_removed',
+      },
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: linearSetupInstructions('Issue (remove)'),
+      mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'linear_issue_removed',

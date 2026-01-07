@@ -54,6 +54,18 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'webflow_collection_item_deleted',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_deleted',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -73,18 +85,6 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'webflow_collection_item_deleted',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'webflow_collection_item_deleted',
       condition: {
         field: 'selectedTriggerId',
         value: 'webflow_collection_item_deleted',

@@ -361,9 +361,9 @@ export function TriggerSave({
           onClick={handleSave}
           disabled={disabled || isProcessing}
           className={cn(
-            'h-[32px] flex-1 rounded-[8px] px-[12px] transition-all duration-200',
-            saveStatus === 'saved' && 'bg-green-600 hover:bg-green-700',
-            saveStatus === 'error' && 'bg-red-600 hover:bg-red-700'
+            'flex-1',
+            saveStatus === 'saved' && '!bg-green-600 !text-white hover:!bg-green-700',
+            saveStatus === 'error' && '!bg-red-600 !text-white hover:!bg-red-700'
           )}
         >
           {saveStatus === 'saving' && 'Saving...'}
@@ -373,12 +373,7 @@ export function TriggerSave({
         </Button>
 
         {webhookId && (
-          <Button
-            variant='default'
-            onClick={handleDeleteClick}
-            disabled={disabled || isProcessing}
-            className='h-[32px] rounded-[8px] px-[12px]'
-          >
+          <Button variant='default' onClick={handleDeleteClick} disabled={disabled || isProcessing}>
             <Trash className='h-[14px] w-[14px]' />
           </Button>
         )}

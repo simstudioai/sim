@@ -49,24 +49,24 @@ export const circlebackWebhookTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: circlebackSetupInstructions('All events'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'circleback_webhook',
-      },
-    },
-    {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'circleback_webhook',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'circleback_webhook',
+      },
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: circlebackSetupInstructions('All events'),
+      mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'circleback_webhook',

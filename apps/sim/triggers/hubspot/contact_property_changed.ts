@@ -108,6 +108,17 @@ export const hubspotContactPropertyChangedTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'hubspot_contact_property_changed',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'hubspot_contact_property_changed',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
@@ -165,17 +176,6 @@ export const hubspotContactPropertyChangedTrigger: TriggerConfig = {
       showCopyButton: true,
       description: 'Run this command to subscribe to contact property change events',
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_contact_property_changed',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_contact_property_changed',
       condition: {
         field: 'selectedTriggerId',
         value: 'hubspot_contact_property_changed',

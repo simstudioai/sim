@@ -94,6 +94,17 @@ export const hubspotCompanyDeletedTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'hubspot_company_deleted',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'hubspot_company_deleted',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
@@ -151,17 +162,6 @@ export const hubspotCompanyDeletedTrigger: TriggerConfig = {
       showCopyButton: true,
       description: 'Run this command to subscribe to company deletion events',
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_company_deleted',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_company_deleted',
       condition: {
         field: 'selectedTriggerId',
         value: 'hubspot_company_deleted',

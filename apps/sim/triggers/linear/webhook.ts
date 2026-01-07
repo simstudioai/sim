@@ -40,6 +40,18 @@ export const linearWebhookTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'linear_webhook',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'linear_webhook',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -49,18 +61,6 @@ export const linearWebhookTrigger: TriggerConfig = {
         'This webhook will receive all Linear events. Use the <code>type</code> and <code>action</code> fields in the payload to filter and handle different event types.'
       ),
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'linear_webhook',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'linear_webhook',
       condition: {
         field: 'selectedTriggerId',
         value: 'linear_webhook',
