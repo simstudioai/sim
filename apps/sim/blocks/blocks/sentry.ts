@@ -379,6 +379,20 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
       type: 'short-input',
       placeholder: 'ISO 8601 timestamp (defaults to now)',
       condition: { field: 'operation', value: 'sentry_releases_create' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "yesterday" -> Calculate yesterday's date at 00:00:00Z
+- "last week" -> Calculate 7 days ago at 00:00:00Z
+- "now" -> Current date and time in UTC
+- "beginning of this month" -> First day of current month at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "now", "yesterday", "last Friday")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'commits',
@@ -427,6 +441,20 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
       type: 'short-input',
       placeholder: 'ISO 8601 timestamp (defaults to now)',
       condition: { field: 'operation', value: 'sentry_releases_deploy' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "now" -> Current date and time in UTC
+- "5 minutes ago" -> Calculate 5 minutes before current time
+- "start of deploy" -> Current date and time in UTC
+- "yesterday at 3pm" -> Yesterday at 15:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe when the deploy started (e.g., "now", "5 minutes ago")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'dateFinished',
@@ -434,6 +462,20 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
       type: 'short-input',
       placeholder: 'ISO 8601 timestamp',
       condition: { field: 'operation', value: 'sentry_releases_deploy' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "now" -> Current date and time in UTC
+- "in 10 minutes" -> Calculate 10 minutes after current time
+- "when deploy completes" -> Current date and time in UTC
+- "end of day" -> Current date at 23:59:59Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe when the deploy finished (e.g., "now", "in 10 minutes")...',
+        generationType: 'timestamp',
+      },
     },
 
     // =====================================================================

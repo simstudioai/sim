@@ -509,6 +509,19 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_create_cycle', 'linear_create_project'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "today" -> Today's date
+- "next Monday" -> Calculate the next Monday
+- "start of next month" -> First day of next month
+- "in 2 weeks" -> Calculate 14 days from now
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "next Monday", "start of next month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'endDate',
@@ -518,6 +531,19 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       condition: {
         field: 'operation',
         value: ['linear_create_cycle'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "in 2 weeks" -> Calculate 14 days from now
+- "end of month" -> Last day of current month
+- "next Friday" -> Calculate the next Friday
+- "end of quarter" -> Last day of current quarter
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end date (e.g., "in 2 weeks", "end of month")...',
+        generationType: 'timestamp',
       },
     },
     // Target date (for projects)
@@ -529,6 +555,19 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       condition: {
         field: 'operation',
         value: ['linear_create_project', 'linear_update_project'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "end of quarter" -> Last day of current quarter
+- "in 3 months" -> Calculate 3 months from now
+- "end of year" -> December 31 of current year
+- "next month" -> First day of next month
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the target date (e.g., "end of quarter", "in 3 months")...',
+        generationType: 'timestamp',
       },
     },
     // Attachment URL
@@ -1097,6 +1136,19 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       condition: {
         field: 'operation',
         value: ['linear_create_project_milestone', 'linear_update_project_milestone'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "in 2 weeks" -> Calculate 14 days from now
+- "end of sprint" -> Calculate based on typical 2-week sprint
+- "next milestone" -> Calculate a reasonable next milestone date
+- "end of month" -> Last day of current month
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the milestone target date (e.g., "in 2 weeks", "end of month")...',
+        generationType: 'timestamp',
       },
     },
     // Project status fields

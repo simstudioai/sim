@@ -324,6 +324,19 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
         field: 'operation',
         value: ['grafana_create_annotation', 'grafana_update_annotation'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an epoch timestamp in milliseconds based on the user's description.
+The timestamp should be a Unix epoch time in milliseconds (13 digits).
+Examples:
+- "now" -> Current timestamp in milliseconds
+- "yesterday" -> Yesterday at 00:00:00 in milliseconds
+- "1 hour ago" -> Subtract 3600000 from current time
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the time (e.g., "now", "1 hour ago", "yesterday at noon")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'timeEnd',
@@ -333,6 +346,19 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
       condition: {
         field: 'operation',
         value: ['grafana_create_annotation', 'grafana_update_annotation'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an epoch timestamp in milliseconds based on the user's description.
+The timestamp should be a Unix epoch time in milliseconds (13 digits).
+Examples:
+- "now" -> Current timestamp in milliseconds
+- "in 1 hour" -> Add 3600000 to current time
+- "end of today" -> Today at 23:59:59 in milliseconds
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "in 1 hour", "end of today")...',
+        generationType: 'timestamp',
       },
     },
     {
@@ -352,6 +378,19 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
       type: 'short-input',
       placeholder: 'Filter from time',
       condition: { field: 'operation', value: 'grafana_list_annotations' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an epoch timestamp in milliseconds based on the user's description.
+The timestamp should be a Unix epoch time in milliseconds (13 digits).
+Examples:
+- "last week" -> 7 days ago at 00:00:00 in milliseconds
+- "beginning of this month" -> First day of current month at 00:00:00
+- "24 hours ago" -> Subtract 86400000 from current time
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "last week", "beginning of this month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'to',
@@ -359,6 +398,19 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
       type: 'short-input',
       placeholder: 'Filter to time',
       condition: { field: 'operation', value: 'grafana_list_annotations' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an epoch timestamp in milliseconds based on the user's description.
+The timestamp should be a Unix epoch time in milliseconds (13 digits).
+Examples:
+- "now" -> Current timestamp in milliseconds
+- "end of today" -> Today at 23:59:59 in milliseconds
+- "end of last week" -> Last Sunday at 23:59:59 in milliseconds
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "now", "end of today")...',
+        generationType: 'timestamp',
+      },
     },
 
     // Folder operations

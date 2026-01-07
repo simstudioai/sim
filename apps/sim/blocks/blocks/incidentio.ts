@@ -504,6 +504,19 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       type: 'short-input',
       placeholder: 'ISO 8601 format (e.g., 2024-01-01T00:00:00Z)...',
       condition: { field: 'operation', value: 'incidentio_schedule_entries_list' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "beginning of this week" -> Monday of current week at 00:00:00Z
+- "last month" -> First day of previous month at 00:00:00Z
+- "yesterday" -> Yesterday's date at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "beginning of this week", "last month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'entry_window_end',
@@ -511,6 +524,19 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       type: 'short-input',
       placeholder: 'ISO 8601 format (e.g., 2024-12-31T23:59:59Z)...',
       condition: { field: 'operation', value: 'incidentio_schedule_entries_list' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "end of this week" -> Sunday of current week at 23:59:59Z
+- "end of next month" -> Last day of next month at 23:59:59Z
+- "tomorrow" -> Tomorrow's date at 23:59:59Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end date (e.g., "end of this week", "end of next month")...',
+        generationType: 'timestamp',
+      },
     },
     // Schedule Overrides inputs
     {
@@ -552,6 +578,19 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       placeholder: 'ISO 8601 format (e.g., 2024-01-01T00:00:00Z)...',
       condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "now" -> Current date and time in UTC
+- "tomorrow at 9am" -> Tomorrow at 09:00:00Z
+- "next Monday" -> Next Monday at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "now", "tomorrow at 9am")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'end_at',
@@ -560,6 +599,19 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       placeholder: 'ISO 8601 format (e.g., 2024-12-31T23:59:59Z)...',
       condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "in 4 hours" -> Current time plus 4 hours
+- "tomorrow at 5pm" -> Tomorrow at 17:00:00Z
+- "end of next week" -> Next Sunday at 23:59:59Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "in 4 hours", "tomorrow at 5pm")...',
+        generationType: 'timestamp',
+      },
     },
     // Escalation Paths inputs
     {

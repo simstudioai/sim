@@ -219,6 +219,19 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       type: 'short-input',
       placeholder: '2024-01-01T12:00:00Z',
       condition: { field: 'operation', value: 'posthog_capture_event' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "now" -> Current timestamp in ISO 8601 format
+- "yesterday at 3pm" -> Yesterday's date at 15:00:00Z
+- "last Monday" -> Last Monday's date at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the timestamp (e.g., "now", "yesterday at 3pm")...',
+        generationType: 'timestamp',
+      },
     },
 
     // Evaluate Flags fields
@@ -298,6 +311,19 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       type: 'short-input',
       placeholder: '2024-01-01T12:00:00Z',
       condition: { field: 'operation', value: 'posthog_list_events' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "today" -> Today's date at 00:00:00Z
+- "this week" -> The start of this week at 00:00:00Z
+- "last month" -> The 1st of last month at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the cutoff date (e.g., "today", "this week")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'after',
@@ -305,6 +331,19 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       type: 'short-input',
       placeholder: '2024-01-01T00:00:00Z',
       condition: { field: 'operation', value: 'posthog_list_events' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "yesterday" -> Yesterday's date at 00:00:00Z
+- "last week" -> 7 days ago at 00:00:00Z
+- "beginning of this month" -> The 1st of this month at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "yesterday", "last week")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'distinctIdFilter',
@@ -585,6 +624,19 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       placeholder: '2024-01-01T12:00:00Z',
       condition: { field: 'operation', value: 'posthog_create_annotation' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "today" -> Today's date at 00:00:00Z
+- "when we launched" -> Parse the contextual date if given, otherwise today
+- "January 15th" -> 2024-01-15T00:00:00Z (or next occurrence)
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the annotation date (e.g., "today", "release date")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'scope',
@@ -627,6 +679,19 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       type: 'short-input',
       placeholder: '2024-01-01T00:00:00Z',
       condition: { field: 'operation', value: 'posthog_create_experiment' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "today" -> Today's date at 00:00:00Z
+- "next Monday" -> Next Monday's date at 00:00:00Z
+- "beginning of next month" -> The 1st of next month at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the experiment start date (e.g., "today", "next Monday")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'experimentEndDate',
@@ -634,6 +699,19 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       type: 'short-input',
       placeholder: '2024-12-31T23:59:59Z',
       condition: { field: 'operation', value: 'posthog_create_experiment' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "in 2 weeks" -> 14 days from now at 23:59:59Z
+- "end of month" -> Last day of current month at 23:59:59Z
+- "end of Q1" -> March 31st at 23:59:59Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the experiment end date (e.g., "in 2 weeks", "end of month")...',
+        generationType: 'timestamp',
+      },
     },
 
     // Survey fields
@@ -681,6 +759,19 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         field: 'operation',
         value: ['posthog_create_survey', 'posthog_update_survey'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "now" -> Current timestamp
+- "tomorrow" -> Tomorrow's date at 00:00:00Z
+- "next week" -> 7 days from now at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the survey start date (e.g., "now", "tomorrow")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'surveyEndDate',
@@ -690,6 +781,19 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       condition: {
         field: 'operation',
         value: ['posthog_create_survey', 'posthog_update_survey'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "in 1 month" -> 30 days from now at 23:59:59Z
+- "end of quarter" -> Last day of current quarter at 23:59:59Z
+- "December 31st" -> 2024-12-31T23:59:59Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the survey end date (e.g., "in 1 month", "end of quarter")...',
+        generationType: 'timestamp',
       },
     },
     {

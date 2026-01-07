@@ -227,6 +227,19 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'YYYY-MM-DD (e.g., 2024-12-31)',
       dependsOn: ['projectId'],
       condition: { field: 'operation', value: 'write' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "tomorrow" -> Calculate tomorrow's date
+- "next week" -> Calculate 7 days from now
+- "end of month" -> Calculate the last day of the current month
+- "in 2 weeks" -> Calculate 14 days from now
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the due date (e.g., "next Friday", "end of month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'reporter',
@@ -368,6 +381,20 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'short-input',
       placeholder: 'ISO timestamp (defaults to now)',
       condition: { field: 'operation', value: ['add_worklog', 'update_worklog'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS.sssZ (UTC timezone).
+Examples:
+- "now" -> Current timestamp
+- "yesterday at 9am" -> Yesterday's date at 09:00:00.000Z
+- "last Monday at 2pm" -> Calculate last Monday at 14:00:00.000Z
+- "start of today" -> Today's date at 00:00:00.000Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe when the work started (e.g., "yesterday at 9am")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'worklogId',

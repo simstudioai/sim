@@ -73,6 +73,19 @@ export const GrainBlock: BlockConfig = {
         field: 'operation',
         value: ['grain_list_recordings', 'grain_create_hook'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "yesterday" -> Calculate yesterday's date at 00:00:00Z
+- "last week" -> Calculate 7 days ago at 00:00:00Z
+- "beginning of this month" -> First day of current month at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "yesterday", "last week")...',
+        generationType: 'timestamp',
+      },
     },
     // After datetime filter
     {
@@ -83,6 +96,19 @@ export const GrainBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['grain_list_recordings', 'grain_create_hook'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "today" -> Today's date at 00:00:00Z
+- "last Monday" -> Calculate last Monday's date at 00:00:00Z
+- "beginning of last month" -> First day of previous month at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "today", "last Monday")...',
+        generationType: 'timestamp',
       },
     },
     // Participant scope filter

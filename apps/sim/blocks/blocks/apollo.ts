@@ -421,6 +421,19 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
         field: 'operation',
         value: ['opportunity_create', 'opportunity_update'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "end of this quarter" -> Calculate the last day of the current quarter in YYYY-MM-DD format
+- "next month" -> Calculate 30 days from now in YYYY-MM-DD format
+- "in 2 weeks" -> Calculate 14 days from now in YYYY-MM-DD format
+- "end of year" -> December 31st of the current year in YYYY-MM-DD format
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "end of quarter", "in 2 weeks")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'description',
@@ -517,6 +530,20 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
       type: 'short-input',
       placeholder: 'ISO date (e.g., 2024-12-31T23:59:59Z)',
       condition: { field: 'operation', value: 'task_create' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "tomorrow at 5pm" -> Calculate tomorrow's date at 17:00:00Z
+- "end of day" -> Today's date at 23:59:59Z
+- "next week" -> 7 days from now at 17:00:00Z
+- "in 3 days" -> 3 days from now at 17:00:00Z
+
+Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the due date (e.g., "tomorrow at 5pm", "end of week")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'completed',

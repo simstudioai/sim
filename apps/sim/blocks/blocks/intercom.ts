@@ -130,6 +130,19 @@ export const IntercomBlock: BlockConfig = {
         field: 'operation',
         value: ['create_contact', 'update_contact'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+The timestamp should be a Unix epoch time in seconds (10 digits).
+Examples:
+- "yesterday" -> Yesterday at 00:00:00 as Unix timestamp
+- "last week" -> 7 days ago at 00:00:00 as Unix timestamp
+- "January 1, 2024" -> 1704067200
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the signup date (e.g., "yesterday", "January 1, 2024")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'last_seen_at',
@@ -139,6 +152,19 @@ export const IntercomBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['create_contact', 'update_contact'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+The timestamp should be a Unix epoch time in seconds (10 digits).
+Examples:
+- "now" -> Current Unix timestamp
+- "1 hour ago" -> Current time minus 3600 seconds
+- "today at noon" -> Today at 12:00:00 as Unix timestamp
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the last seen time (e.g., "now", "1 hour ago")...',
+        generationType: 'timestamp',
       },
     },
     {
@@ -310,6 +336,20 @@ export const IntercomBlock: BlockConfig = {
         field: 'operation',
         value: ['create_company'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+The timestamp should be a Unix epoch time in seconds (10 digits).
+Examples:
+- "2 years ago" -> Calculate 2 years ago as Unix timestamp
+- "January 2022" -> January 1, 2022 at 00:00:00 as Unix timestamp
+- "last year" -> 1 year ago at 00:00:00 as Unix timestamp
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder:
+          'Describe when the company was created (e.g., "2 years ago", "January 2022")...',
+        generationType: 'timestamp',
+      },
     },
     // Conversation fields
     {
@@ -427,6 +467,19 @@ export const IntercomBlock: BlockConfig = {
         field: 'operation',
         value: ['reply_conversation'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+The timestamp should be a Unix epoch time in seconds (10 digits).
+Examples:
+- "now" -> Current Unix timestamp
+- "5 minutes ago" -> Current time minus 300 seconds
+- "earlier today" -> Today at 09:00:00 as Unix timestamp
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the reply time (e.g., "now", "5 minutes ago")...',
+        generationType: 'timestamp',
+      },
     },
     // Ticket fields
     {
@@ -491,6 +544,19 @@ export const IntercomBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['create_ticket'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+The timestamp should be a Unix epoch time in seconds (10 digits).
+Examples:
+- "now" -> Current Unix timestamp
+- "when the issue was reported" -> Use current time
+- "yesterday" -> Yesterday at 00:00:00 as Unix timestamp
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the ticket creation time (e.g., "now", "yesterday")...',
+        generationType: 'timestamp',
       },
     },
     {
@@ -607,6 +673,19 @@ export const IntercomBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['create_message'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+The timestamp should be a Unix epoch time in seconds (10 digits).
+Examples:
+- "now" -> Current Unix timestamp
+- "just now" -> Current Unix timestamp
+- "a few minutes ago" -> Current time minus 300 seconds
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the message time (e.g., "now", "just now")...',
+        generationType: 'timestamp',
       },
     },
     // Pagination fields

@@ -74,6 +74,19 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       placeholder: 'e.g., 1701360000',
       condition: { field: 'operation', value: 'datadog_query_timeseries' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp (seconds since epoch) based on the user's description.
+The timestamp should be a number representing seconds since January 1, 1970 UTC.
+Examples:
+- "yesterday" -> Calculate yesterday's date at 00:00:00 UTC as Unix timestamp
+- "last week" -> Calculate 7 days ago at 00:00:00 UTC as Unix timestamp
+- "1 hour ago" -> Calculate current time minus 3600 seconds
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "1 hour ago", "yesterday")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'to',
@@ -82,6 +95,19 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       placeholder: 'e.g., 1701446400',
       condition: { field: 'operation', value: 'datadog_query_timeseries' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp (seconds since epoch) based on the user's description.
+The timestamp should be a number representing seconds since January 1, 1970 UTC.
+Examples:
+- "now" -> Calculate current time as Unix timestamp
+- "end of today" -> Calculate today at 23:59:59 UTC as Unix timestamp
+- "tomorrow" -> Calculate tomorrow's date at 00:00:00 UTC as Unix timestamp
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "now", "end of today")...',
+        generationType: 'timestamp',
+      },
     },
 
     // ========================
@@ -254,6 +280,19 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       type: 'short-input',
       placeholder: 'Leave empty for indefinite',
       condition: { field: 'operation', value: 'datadog_mute_monitor' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp (seconds since epoch) based on the user's description.
+The timestamp should be a number representing seconds since January 1, 1970 UTC.
+Examples:
+- "in 1 hour" -> Calculate current time plus 3600 seconds
+- "tomorrow morning" -> Calculate tomorrow at 09:00:00 UTC as Unix timestamp
+- "end of day" -> Calculate today at 23:59:59 UTC as Unix timestamp
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe when mute should end (e.g., "in 1 hour", "tomorrow")...',
+        generationType: 'timestamp',
+      },
     },
 
     // ========================
@@ -274,6 +313,20 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       placeholder: 'now-1h',
       condition: { field: 'operation', value: 'datadog_query_logs' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Datadog relative time string based on the user's description.
+The format uses relative time syntax like: now-1h, now-15m, now-1d, now-1w
+Examples:
+- "1 hour ago" -> now-1h
+- "15 minutes ago" -> now-15m
+- "yesterday" -> now-1d
+- "last week" -> now-7d
+
+Return ONLY the relative time string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "1 hour ago", "yesterday")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'logTo',
@@ -282,6 +335,19 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       placeholder: 'now',
       condition: { field: 'operation', value: 'datadog_query_logs' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Datadog relative time string based on the user's description.
+The format uses relative time syntax like: now, now-1h, now-15m
+Examples:
+- "now" or "current time" -> now
+- "5 minutes ago" -> now-5m
+- "1 hour ago" -> now-1h
+
+Return ONLY the relative time string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "now", "5 minutes ago")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'logLimit',
@@ -334,6 +400,19 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       type: 'short-input',
       placeholder: 'Leave empty for now',
       condition: { field: 'operation', value: 'datadog_create_downtime' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp (seconds since epoch) based on the user's description.
+The timestamp should be a number representing seconds since January 1, 1970 UTC.
+Examples:
+- "now" -> Calculate current time as Unix timestamp
+- "in 30 minutes" -> Calculate current time plus 1800 seconds
+- "tonight at 10pm" -> Calculate today at 22:00:00 UTC as Unix timestamp
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe when downtime should start (e.g., "now", "in 30 minutes")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'downtimeEnd',
@@ -341,6 +420,19 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       type: 'short-input',
       placeholder: 'e.g., 1701450000',
       condition: { field: 'operation', value: 'datadog_create_downtime' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp (seconds since epoch) based on the user's description.
+The timestamp should be a number representing seconds since January 1, 1970 UTC.
+Examples:
+- "in 2 hours" -> Calculate current time plus 7200 seconds
+- "tomorrow morning" -> Calculate tomorrow at 09:00:00 UTC as Unix timestamp
+- "end of maintenance window" -> Interpret based on context
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe when downtime should end (e.g., "in 2 hours", "tomorrow")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'downtimeMonitorId',

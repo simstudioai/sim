@@ -514,6 +514,21 @@ export const MailchimpBlock: BlockConfig = {
         field: 'operation',
         value: ['schedule_campaign'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp with timezone offset based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS+00:00 (with timezone offset).
+Examples:
+- "tomorrow at 10am" -> Tomorrow's date at 10:00:00+00:00
+- "next Monday at 9am EST" -> Next Monday at 09:00:00-05:00
+- "in 2 hours" -> Current time plus 2 hours with appropriate timezone
+- "next week Tuesday at noon" -> Calculate next Tuesday at 12:00:00+00:00
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder:
+          'Describe when to schedule (e.g., "tomorrow at 10am", "next Monday at 9am")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'html',

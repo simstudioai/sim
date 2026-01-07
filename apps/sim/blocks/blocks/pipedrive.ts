@@ -98,6 +98,19 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       type: 'short-input',
       placeholder: 'Date (2025-01-01T10:20:00Z)',
       condition: { field: 'operation', value: ['get_all_deals'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "yesterday" -> Calculate yesterday's date at 00:00:00Z
+- "last week" -> Calculate 7 days ago at 00:00:00Z
+- "2 hours ago" -> Calculate the timestamp 2 hours before now
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "last week", "yesterday")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'limit',
@@ -182,6 +195,18 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DD ',
       condition: { field: 'operation', value: ['create_deal', 'update_deal'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "next Friday" -> Calculate the next Friday's date
+- "end of month" -> Calculate the last day of the current month
+- "in 2 weeks" -> Calculate the date 14 days from now
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "next Friday", "end of month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'title',
@@ -365,6 +390,18 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DD ',
       condition: { field: 'operation', value: ['create_project'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "today" -> Today's date
+- "next Monday" -> Calculate the next Monday's date
+- "beginning of next month" -> The 1st of next month
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "today", "next Monday")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'end_date',
@@ -372,6 +409,18 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DD ',
       condition: { field: 'operation', value: ['create_project'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "end of month" -> Calculate the last day of the current month
+- "in 3 weeks" -> Calculate the date 21 days from now
+- "December 31st" -> 2024-12-31 (or next occurrence)
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "end of month", "in 3 weeks")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'deal_id',
@@ -460,6 +509,18 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       placeholder: 'YYYY-MM-DD',
       required: true,
       condition: { field: 'operation', value: ['create_activity', 'update_activity'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "tomorrow" -> Calculate tomorrow's date
+- "next week" -> Calculate the date 7 days from now
+- "this Friday" -> Calculate the coming Friday's date
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "tomorrow", "next week")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'due_time',
@@ -467,6 +528,19 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       type: 'short-input',
       placeholder: 'HH:MM ',
       condition: { field: 'operation', value: ['create_activity', 'update_activity'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a time in HH:MM format (24-hour) based on the user's description.
+Examples:
+- "9am" -> 09:00
+- "2:30 PM" -> 14:30
+- "noon" -> 12:00
+- "end of business day" -> 17:00
+
+Return ONLY the time string in HH:MM format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the time (e.g., "9am", "2:30 PM")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'duration',
@@ -575,6 +649,18 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
       condition: { field: 'operation', value: ['create_lead', 'update_lead'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "next quarter" -> Calculate the last day of the next quarter
+- "in 30 days" -> Calculate the date 30 days from now
+- "end of year" -> Calculate December 31st of the current year
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "next quarter", "in 30 days")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'is_archived',
