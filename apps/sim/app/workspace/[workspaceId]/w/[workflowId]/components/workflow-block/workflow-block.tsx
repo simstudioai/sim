@@ -371,8 +371,7 @@ const SubBlockRow = ({
   const { displayName: credentialName } = useCredentialName(
     credentialSourceId,
     credentialProviderId,
-    workflowId,
-    workspaceId
+    workflowId
   )
 
   const credentialId = dependencyValues.credential

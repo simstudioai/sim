@@ -78,6 +78,25 @@ export function useCredentialSets(organizationId?: string, enabled = true) {
   })
 }
 
+interface CredentialSetDetailResponse {
+  credentialSet?: CredentialSet
+}
+
+export async function fetchCredentialSetById(id: string): Promise<CredentialSet | null> {
+  if (!id) return null
+  const data = await fetchJson<CredentialSetDetailResponse>(`/api/credential-sets/${id}`)
+  return data.credentialSet ?? null
+}
+
+export function useCredentialSetDetail(id?: string, enabled = true) {
+  return useQuery<CredentialSet | null>({
+    queryKey: credentialSetKeys.detail(id),
+    queryFn: () => fetchCredentialSetById(id ?? ''),
+    enabled: Boolean(id) && enabled,
+    staleTime: 60 * 1000,
+  })
+}
+
 export function useCredentialSetMemberships() {
   return useQuery<CredentialSetMembership[]>({
     queryKey: credentialSetKeys.memberships(),

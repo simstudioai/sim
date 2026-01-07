@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type { Credential } from '@/lib/oauth'
 import { CREDENTIAL_SET } from '@/executor/constants'
-import { useCredentialSetMemberships, useCredentialSets } from '@/hooks/queries/credential-sets'
+import { useCredentialSetDetail } from '@/hooks/queries/credential-sets'
 import { fetchJson } from '@/hooks/selectors/helpers'
 
 interface CredentialListResponse {
@@ -62,25 +62,17 @@ export function useOAuthCredentialDetail(
   })
 }
 
-export function useCredentialName(
-  credentialId?: string,
-  providerId?: string,
-  workflowId?: string,
-  workspaceId?: string
-) {
+export function useCredentialName(credentialId?: string, providerId?: string, workflowId?: string) {
   // Check if this is a credential set value
   const isCredentialSet = credentialId?.startsWith(CREDENTIAL_SET.PREFIX) ?? false
   const credentialSetId = isCredentialSet
     ? credentialId?.slice(CREDENTIAL_SET.PREFIX.length)
     : undefined
 
-  // Fetch credential set memberships if this is a credential set
-  const { data: memberships = [], isFetching: membershipsLoading } = useCredentialSetMemberships()
-
-  // Also fetch owned credential sets to check there
-  const { data: ownedSets = [], isFetching: ownedSetsLoading } = useCredentialSets(
-    workspaceId,
-    isCredentialSet && Boolean(workspaceId)
+  // Fetch credential set by ID directly
+  const { data: credentialSetData, isFetching: credentialSetLoading } = useCredentialSetDetail(
+    credentialSetId,
+    isCredentialSet
   )
 
   const { data: credentials = [], isFetching: credentialsLoading } = useOAuthCredentials(
@@ -102,23 +94,14 @@ export function useCredentialName(
 
   const hasForeignMeta = foreignCredentials.length > 0
 
-  // For credential sets, find the matching membership or owned set and use its name
-  const credentialSetName = credentialSetId
-    ? (memberships.find((m) => m.credentialSetId === credentialSetId)?.credentialSetName ??
-      ownedSets.find((s) => s.id === credentialSetId)?.name)
-    : undefined
-
   const displayName =
-    credentialSetName ??
+    credentialSetData?.name ??
     selectedCredential?.name ??
     (hasForeignMeta ? 'Saved by collaborator' : null)
 
   return {
     displayName,
-    isLoading:
-      credentialsLoading ||
-      foreignLoading ||
-      (isCredentialSet && (membershipsLoading || ownedSetsLoading)),
+    isLoading: credentialsLoading || foreignLoading || (isCredentialSet && credentialSetLoading),
     hasForeignMeta,
   }
 }
