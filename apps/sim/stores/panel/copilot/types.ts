@@ -161,16 +161,6 @@ export interface CopilotState {
 
   // Per-message metadata captured at send-time for reliable stats
 
-  // Context usage tracking for percentage pill
-  contextUsage: {
-    usage: number
-    percentage: number
-    model: string
-    contextWindow: number
-    when: 'start' | 'end'
-    estimatedTokens?: number
-  } | null
-
   // Auto-allowed integration tools (tools that can run without confirmation)
   autoAllowedTools: string[]
 
@@ -183,7 +173,6 @@ export interface CopilotActions {
   setSelectedModel: (model: CopilotStore['selectedModel']) => Promise<void>
   setAgentPrefetch: (prefetch: boolean) => void
   setEnabledModels: (models: string[] | null) => void
-  fetchContextUsage: () => Promise<void>
 
   setWorkflowId: (workflowId: string | null) => Promise<void>
   validateCurrentChat: () => boolean

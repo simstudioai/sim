@@ -1969,7 +1969,6 @@ const initialState = {
   streamingPlanContent: '',
   toolCallsById: {} as Record<string, CopilotToolCall>,
   suppressAutoSelect: false,
-  contextUsage: null,
   autoAllowedTools: [] as string[],
   messageQueue: [] as import('./types').QueuedMessage[],
 }
@@ -1982,7 +1981,7 @@ export const useCopilotStore = create<CopilotStore>()(
     setMode: (mode) => set({ mode }),
 
     // Clear messages (don't clear streamingPlanContent - let it persist)
-    clearMessages: () => set({ messages: [], contextUsage: null }),
+    clearMessages: () => set({ messages: [] }),
 
     // Workflow selection
     setWorkflowId: async (workflowId: string | null) => {
@@ -2060,7 +2059,6 @@ export const useCopilotStore = create<CopilotStore>()(
         mode: chatMode,
         selectedModel: chatModel as CopilotStore['selectedModel'],
         suppressAutoSelect: false,
-        contextUsage: null,
       })
 
       // Background-save the previous chat's latest messages, plan artifact, and config before switching (optimistic)
@@ -2112,15 +2110,11 @@ export const useCopilotStore = create<CopilotStore>()(
               chats: (get().chats || []).map((c: CopilotChat) =>
                 c.id === chat.id ? latestChat : c
               ),
-              contextUsage: null,
               toolCallsById,
             })
             try {
               await get().loadMessageCheckpoints(latestChat.id)
             } catch {}
-            // Fetch context usage for the selected chat
-            logger.info('[Context Usage] Chat selected, fetching usage')
-            await get().fetchContextUsage()
           }
         }
       } catch {}
@@ -2158,7 +2152,6 @@ export const useCopilotStore = create<CopilotStore>()(
         }
       } catch {}
 
-      logger.info('[Context Usage] New chat created, clearing context usage')
       set({
         currentChat: null,
         messages: [],
@@ -2167,7 +2160,6 @@ export const useCopilotStore = create<CopilotStore>()(
         showPlanTodos: false,
         streamingPlanContent: '',
         suppressAutoSelect: true,
-        contextUsage: null,
       })
     },
 
@@ -2560,13 +2552,6 @@ export const useCopilotStore = create<CopilotStore>()(
           } catch {}
         }
 
-        // Fetch context usage after abort
-        logger.info('[Context Usage] Message aborted, fetching usage')
-        get()
-          .fetchContextUsage()
-          .catch((err) => {
-            logger.warn('[Context Usage] Failed to fetch after abort', err)
-          })
       } catch {
         set({ isSendingMessage: false, isAborting: false, abortController: null })
       }
@@ -3132,10 +3117,6 @@ export const useCopilotStore = create<CopilotStore>()(
           // Removed: stats sending now occurs only on accept/reject with minimal payload
         } catch {}
 
-        // Fetch context usage after response completes
-        logger.info('[Context Usage] Stream completed, fetching usage')
-        await get().fetchContextUsage()
-
         // Invalidate subscription queries to update usage
         setTimeout(() => {
           const queryClient = getQueryClient()
@@ -3313,85 +3294,10 @@ export const useCopilotStore = create<CopilotStore>()(
     },
 
     setSelectedModel: async (model) => {
-      logger.info('[Context Usage] Model changed', { from: get().selectedModel, to: model })
       set({ selectedModel: model })
-      // Fetch context usage after model switch
-      await get().fetchContextUsage()
     },
     setAgentPrefetch: (prefetch) => set({ agentPrefetch: prefetch }),
     setEnabledModels: (models) => set({ enabledModels: models }),
-
-    // Fetch context usage from sim-agent API
-    fetchContextUsage: async () => {
-      try {
-        const { currentChat, selectedModel, workflowId } = get()
-        logger.info('[Context Usage] Starting fetch', {
-          hasChatId: !!currentChat?.id,
-          hasWorkflowId: !!workflowId,
-          chatId: currentChat?.id,
-          workflowId,
-          model: selectedModel,
-        })
-
-        if (!currentChat?.id || !workflowId) {
-          logger.info('[Context Usage] Skipping: missing chat or workflow', {
-            hasChatId: !!currentChat?.id,
-            hasWorkflowId: !!workflowId,
-          })
-          return
-        }
-
-        const requestPayload = {
-          chatId: currentChat.id,
-          model: selectedModel,
-          workflowId,
-        }
-
-        logger.info('[Context Usage] Calling API', requestPayload)
-
-        // Call the backend API route which proxies to sim-agent
-        const response = await fetch('/api/copilot/context-usage', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestPayload),
-        })
-
-        logger.info('[Context Usage] API response', { status: response.status, ok: response.ok })
-
-        if (response.ok) {
-          const data = await response.json()
-          logger.info('[Context Usage] Received data', data)
-
-          // Check for either tokensUsed or usage field
-          if (
-            data.tokensUsed !== undefined ||
-            data.usage !== undefined ||
-            data.percentage !== undefined
-          ) {
-            const contextUsage = {
-              usage: data.tokensUsed || data.usage || 0,
-              percentage: data.percentage || 0,
-              model: data.model || selectedModel,
-              contextWindow: data.contextWindow || data.context_window || 0,
-              when: data.when || 'end',
-              estimatedTokens: data.tokensUsed || data.estimated_tokens || data.estimatedTokens,
-            }
-            set({ contextUsage })
-            logger.info('[Context Usage] Updated store', contextUsage)
-          } else {
-            logger.warn('[Context Usage] No usage data in response', data)
-          }
-        } else {
-          const errorText = await response.text().catch(() => 'Unable to read error')
-          logger.warn('[Context Usage] API call failed', {
-            status: response.status,
-            error: errorText,
-          })
-        }
-      } catch (err) {
-        logger.error('[Context Usage] Error fetching:', err)
-      }
-    },
 
     executeIntegrationTool: async (toolCallId: string) => {
       const { toolCallsById, workflowId } = get()

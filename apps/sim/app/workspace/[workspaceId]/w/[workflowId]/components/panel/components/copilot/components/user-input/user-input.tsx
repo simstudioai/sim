@@ -117,7 +117,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const selectedModel =
       selectedModelOverride !== undefined ? selectedModelOverride : copilotStore.selectedModel
     const setSelectedModel = onModelChangeOverride || copilotStore.setSelectedModel
-    const contextUsage = copilotStore.contextUsage
 
     // Internal state
     const [internalMessage, setInternalMessage] = useState('')
