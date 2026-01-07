@@ -1,6 +1,5 @@
 import { FirefliesIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { firefliesTriggerOptions } from './utils'
 
 export const firefliesTranscriptionCompleteTrigger: TriggerConfig = {
   id: 'fireflies_transcription_complete',
@@ -12,15 +11,6 @@ export const firefliesTranscriptionCompleteTrigger: TriggerConfig = {
 
   subBlocks: [
     {
-      id: 'selectedTriggerId',
-      title: 'Trigger Type',
-      type: 'dropdown',
-      mode: 'trigger',
-      options: firefliesTriggerOptions,
-      value: () => 'fireflies_transcription_complete',
-      required: true,
-    },
-    {
       id: 'webhookUrlDisplay',
       title: 'Webhook URL',
       type: 'short-input',
@@ -29,10 +19,6 @@ export const firefliesTranscriptionCompleteTrigger: TriggerConfig = {
       useWebhookUrl: true,
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'fireflies_transcription_complete',
-      },
     },
     {
       id: 'webhookSecret',
@@ -43,10 +29,6 @@ export const firefliesTranscriptionCompleteTrigger: TriggerConfig = {
       password: true,
       required: false,
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'fireflies_transcription_complete',
-      },
     },
     {
       id: 'triggerSave',
@@ -55,10 +37,6 @@ export const firefliesTranscriptionCompleteTrigger: TriggerConfig = {
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'fireflies_transcription_complete',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'fireflies_transcription_complete',
-      },
     },
     {
       id: 'triggerInstructions',
@@ -79,10 +57,6 @@ export const firefliesTranscriptionCompleteTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'fireflies_transcription_complete',
-      },
     },
   ],
 

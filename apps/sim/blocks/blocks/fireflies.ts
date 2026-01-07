@@ -3,7 +3,6 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { FirefliesResponse } from '@/tools/fireflies/types'
 import { getTrigger } from '@/triggers'
-import { firefliesTriggerOptions } from '@/triggers/fireflies/utils'
 
 export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
   type: 'fireflies',
@@ -341,16 +340,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
     },
     // Trigger SubBlocks
-    {
-      id: 'selectedTriggerId',
-      title: 'Trigger Type',
-      type: 'dropdown',
-      mode: 'trigger',
-      options: firefliesTriggerOptions,
-      value: () => 'fireflies_transcription_complete',
-      required: true,
-    },
-    ...getTrigger('fireflies_transcription_complete').subBlocks.slice(1),
+    ...getTrigger('fireflies_transcription_complete').subBlocks,
   ],
   tools: {
     access: [
