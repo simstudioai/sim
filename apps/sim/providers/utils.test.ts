@@ -3,6 +3,7 @@ import * as environmentModule from '@/lib/core/config/feature-flags'
 import {
   calculateCost,
   extractAndParseJSON,
+  filterBlacklistedModels,
   formatCost,
   generateStructuredOutputInstructions,
   getAllModelProviders,
@@ -17,6 +18,7 @@ import {
   getProviderConfigFromModel,
   getProviderFromModel,
   getProviderModels,
+  isProviderBlacklisted,
   MODELS_TEMP_RANGE_0_1,
   MODELS_TEMP_RANGE_0_2,
   MODELS_WITH_REASONING_EFFORT,
@@ -973,6 +975,49 @@ describe('Tool Management', () => {
       const result = prepareToolsWithUsageControl(tools, providerTools, mockLogger)
 
       expect(result.toolChoice).toBe('auto')
+    })
+  })
+})
+
+describe('Provider/Model Blacklist', () => {
+  describe('isProviderBlacklisted', () => {
+    it.concurrent('should return false when no providers are blacklisted', () => {
+      expect(isProviderBlacklisted('openai')).toBe(false)
+      expect(isProviderBlacklisted('anthropic')).toBe(false)
+    })
+  })
+
+  describe('filterBlacklistedModels', () => {
+    it.concurrent('should return all models when no blacklist is set', () => {
+      const models = ['gpt-4o', 'claude-sonnet-4-5', 'gemini-2.5-pro']
+      const result = filterBlacklistedModels(models)
+      expect(result).toEqual(models)
+    })
+
+    it.concurrent('should return empty array for empty input', () => {
+      const result = filterBlacklistedModels([])
+      expect(result).toEqual([])
+    })
+  })
+
+  describe('getBaseModelProviders blacklist filtering', () => {
+    it.concurrent('should return providers when no blacklist is set', () => {
+      const providers = getBaseModelProviders()
+      expect(Object.keys(providers).length).toBeGreaterThan(0)
+      expect(providers['gpt-4o']).toBe('openai')
+      expect(providers['claude-sonnet-4-5']).toBe('anthropic')
+    })
+  })
+
+  describe('getProviderFromModel execution-time enforcement', () => {
+    it.concurrent('should return provider for non-blacklisted models', () => {
+      expect(getProviderFromModel('gpt-4o')).toBe('openai')
+      expect(getProviderFromModel('claude-sonnet-4-5')).toBe('anthropic')
+    })
+
+    it.concurrent('should be case insensitive', () => {
+      expect(getProviderFromModel('GPT-4O')).toBe('openai')
+      expect(getProviderFromModel('CLAUDE-SONNET-4-5')).toBe('anthropic')
     })
   })
 })
