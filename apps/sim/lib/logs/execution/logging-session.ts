@@ -351,9 +351,6 @@ export class LoggingSession {
 
       const hasProvidedSpans = Array.isArray(traceSpans) && traceSpans.length > 0
 
-      // When skipCost is true (preprocessing errors), don't charge anything
-      // When we have trace spans, calculate actual cost from them
-      // Otherwise, charge the base execution fee for errors that occurred during execution
       const costSummary = skipCost
         ? {
             totalCost: 0,
