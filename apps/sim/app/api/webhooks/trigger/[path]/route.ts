@@ -4,10 +4,13 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import {
   checkWebhookPreprocessing,
   findAllWebhooksForPath,
+  formatProviderErrorResponse,
+  handlePreDeploymentVerification,
   handleProviderChallenges,
   handleProviderReachabilityTest,
   parseWebhookBody,
   queueWebhookExecution,
+  shouldSkipWebhookEvent,
   verifyProviderAuth,
 } from '@/lib/webhooks/processor'
 import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
@@ -22,19 +25,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const requestId = generateRequestId()
   const { path } = await params
 
-  // Handle Microsoft Graph subscription validation
-  const url = new URL(request.url)
-  const validationToken = url.searchParams.get('validationToken')
-
-  if (validationToken) {
-    logger.info(`[${requestId}] Microsoft Graph subscription validation for path: ${path}`)
-    return new NextResponse(validationToken, {
-      status: 200,
-      headers: { 'Content-Type': 'text/plain' },
-    })
-  }
-
-  // Handle other GET-based verifications if needed
+  // Handle provider-specific GET verifications (Microsoft Graph, WhatsApp, etc.)
   const challengeResponse = await handleProviderChallenges({}, request, requestId, path)
   if (challengeResponse) {
     return challengeResponse
@@ -50,26 +41,10 @@ export async function POST(
   const requestId = generateRequestId()
   const { path } = await params
 
-  // Log ALL incoming webhook requests for debugging
-  logger.info(`[${requestId}] Incoming webhook request`, {
-    path,
-    method: request.method,
-    headers: Object.fromEntries(request.headers.entries()),
-  })
-
-  // Handle Microsoft Graph subscription validation (some environments send POST with validationToken)
-  try {
-    const url = new URL(request.url)
-    const validationToken = url.searchParams.get('validationToken')
-    if (validationToken) {
-      logger.info(`[${requestId}] Microsoft Graph subscription validation (POST) for path: ${path}`)
-      return new NextResponse(validationToken, {
-        status: 200,
-        headers: { 'Content-Type': 'text/plain' },
-      })
-    }
-  } catch {
-    // ignore URL parsing errors; proceed to normal handling
+  // Handle provider challenges before body parsing (Microsoft Graph validationToken, etc.)
+  const earlyChallenge = await handleProviderChallenges({}, request, requestId, path)
+  if (earlyChallenge) {
+    return earlyChallenge
   }
 
   const parseResult = await parseWebhookBody(request, requestId)
@@ -99,23 +74,6 @@ export async function POST(
   const responses: NextResponse[] = []
 
   for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooksForPath) {
-    // Log HubSpot webhook details for debugging
-    if (foundWebhook.provider === 'hubspot') {
-      const events = Array.isArray(body) ? body : [body]
-      const firstEvent = events[0]
-
-      logger.info(`[${requestId}] HubSpot webhook received`, {
-        path,
-        subscriptionType: firstEvent?.subscriptionType,
-        objectId: firstEvent?.objectId,
-        portalId: firstEvent?.portalId,
-        webhookId: foundWebhook.id,
-        workflowId: foundWorkflow.id,
-        triggerId: foundWebhook.providerConfig?.triggerId,
-        eventCount: events.length,
-      })
-    }
-
     const authError = await verifyProviderAuth(
       foundWebhook,
       foundWorkflow,
@@ -162,32 +120,19 @@ export async function POST(
         continue
       }
 
-      if (foundWebhook.provider === 'microsoft-teams') {
-        return NextResponse.json(
-          {
-            type: 'message',
-            text: 'An unexpected error occurred during preprocessing',
-          },
-          { status: 500 }
-        )
-      }
-
-      return NextResponse.json(
-        { error: 'An unexpected error occurred during preprocessing' },
-        { status: 500 }
+      return formatProviderErrorResponse(
+        foundWebhook,
+        'An unexpected error occurred during preprocessing',
+        500
       )
     }
 
     if (foundWebhook.blockId) {
       const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
       if (!blockExists) {
-        // For Grain, if block doesn't exist in deployment, treat as verification request
-        // Grain validates webhook URLs during creation, and the block may not be deployed yet
-        if (foundWebhook.provider === 'grain') {
-          logger.info(
-            `[${requestId}] Grain webhook verification - block not in deployment, returning 200 OK`
-          )
-          return NextResponse.json({ status: 'ok', message: 'Webhook endpoint verified' })
+        const preDeploymentResponse = handlePreDeploymentVerification(foundWebhook, requestId)
+        if (preDeploymentResponse) {
+          return preDeploymentResponse
         }
 
         logger.info(
@@ -200,20 +145,8 @@ export async function POST(
       }
     }
 
-    if (foundWebhook.provider === 'stripe') {
-      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
-      const eventTypes = providerConfig.eventTypes
-
-      if (eventTypes && Array.isArray(eventTypes) && eventTypes.length > 0) {
-        const eventType = body?.type
-
-        if (eventType && !eventTypes.includes(eventType)) {
-          logger.info(
-            `[${requestId}] Stripe event type '${eventType}' not in allowed list for webhook ${foundWebhook.id}, skipping`
-          )
-          continue
-        }
-      }
+    if (shouldSkipWebhookEvent(foundWebhook, body, requestId)) {
+      continue
     }
 
     const response = await queueWebhookExecution(foundWebhook, foundWorkflow, body, request, {

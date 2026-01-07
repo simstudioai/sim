@@ -153,6 +153,17 @@ export async function handleProviderChallenges(
   }
 
   const url = new URL(request.url)
+
+  // Microsoft Graph subscription validation (can come as GET or POST)
+  const validationToken = url.searchParams.get('validationToken')
+  if (validationToken) {
+    logger.info(`[${requestId}] Microsoft Graph subscription validation for path: ${path}`)
+    return new NextResponse(validationToken, {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain' },
+    })
+  }
+
   const mode = url.searchParams.get('hub.mode')
   const token = url.searchParams.get('hub.verify_token')
   const challenge = url.searchParams.get('hub.challenge')
@@ -190,6 +201,61 @@ export function handleProviderReachabilityTest(
     }
   }
 
+  return null
+}
+
+/**
+ * Format error response based on provider requirements.
+ * Some providers (like Microsoft Teams) require specific response formats.
+ */
+export function formatProviderErrorResponse(
+  webhook: any,
+  error: string,
+  status: number
+): NextResponse {
+  if (webhook.provider === 'microsoft-teams') {
+    return NextResponse.json({ type: 'message', text: error }, { status })
+  }
+  return NextResponse.json({ error }, { status })
+}
+
+/**
+ * Check if a webhook event should be skipped based on provider-specific filtering.
+ * Returns true if the event should be skipped, false if it should be processed.
+ */
+export function shouldSkipWebhookEvent(webhook: any, body: any, requestId: string): boolean {
+  const providerConfig = (webhook.providerConfig as Record<string, any>) || {}
+
+  if (webhook.provider === 'stripe') {
+    const eventTypes = providerConfig.eventTypes
+    if (eventTypes && Array.isArray(eventTypes) && eventTypes.length > 0) {
+      const eventType = body?.type
+      if (eventType && !eventTypes.includes(eventType)) {
+        logger.info(
+          `[${requestId}] Stripe event type '${eventType}' not in allowed list for webhook ${webhook.id}, skipping`
+        )
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+/** Providers that validate webhook URLs during creation, before workflow deployment */
+const PROVIDERS_WITH_PRE_DEPLOYMENT_VERIFICATION = new Set(['grain'])
+
+/** Returns 200 OK for providers that validate URLs before the workflow is deployed */
+export function handlePreDeploymentVerification(
+  webhook: any,
+  requestId: string
+): NextResponse | null {
+  if (PROVIDERS_WITH_PRE_DEPLOYMENT_VERIFICATION.has(webhook.provider)) {
+    logger.info(
+      `[${requestId}] ${webhook.provider} webhook - block not in deployment, returning 200 OK for URL validation`
+    )
+    return NextResponse.json({ status: 'ok', message: 'Webhook endpoint verified' })
+  }
   return null
 }
 
