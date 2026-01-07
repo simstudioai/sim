@@ -480,7 +480,7 @@ export function General({ onOpenChange }: GeneralProps) {
       </div>
 
       <div className='flex items-center justify-between'>
-        <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
+        <Label htmlFor='auto-connect'>Auto-connect on drag</Label>
         <Switch
           id='auto-connect'
           checked={settings?.autoConnect ?? true}
