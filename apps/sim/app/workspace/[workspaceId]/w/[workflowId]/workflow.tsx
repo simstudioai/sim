@@ -19,7 +19,6 @@ import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import type { OAuthProvider } from '@/lib/oauth'
-import { DEFAULT_HORIZONTAL_SPACING } from '@/lib/workflows/autolayout/constants'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -1312,52 +1311,22 @@ const WorkflowContent = React.memo(() => {
       if (!type) return
       if (type === 'connectionBlock') return
 
-      // Calculate smart position - to the right of existing root-level blocks
-      const calculateSmartPosition = (): { x: number; y: number } => {
-        // Get all root-level blocks (no parentId)
-        const rootBlocks = Object.values(blocks).filter((b) => !b.data?.parentId)
-
-        if (rootBlocks.length === 0) {
-          // No blocks yet, use viewport center
+      const getViewportCenterPosition = (): { x: number; y: number } => {
+        const flowContainer = document.querySelector('.react-flow')
+        if (!flowContainer) {
           return screenToFlowPosition({
             x: window.innerWidth / 2,
             y: window.innerHeight / 2,
           })
         }
-
-        // Find the rightmost block
-        let maxRight = Number.NEGATIVE_INFINITY
-        let rightmostBlockY = 0
-        for (const block of rootBlocks) {
-          const blockWidth =
-            block.type === 'loop' || block.type === 'parallel'
-              ? block.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH
-              : BLOCK_DIMENSIONS.FIXED_WIDTH
-          const blockRight = block.position.x + blockWidth
-          if (blockRight > maxRight) {
-            maxRight = blockRight
-            rightmostBlockY = block.position.y
-          }
-        }
-
-        // Position to the right with autolayout spacing
-        const position = {
-          x: maxRight + DEFAULT_HORIZONTAL_SPACING,
-          y: rightmostBlockY,
-        }
-
-        // Ensure position doesn't overlap any container
-        let container = isPointInLoopNode(position)
-        while (container) {
-          position.x =
-            container.loopPosition.x + container.dimensions.width + DEFAULT_HORIZONTAL_SPACING
-          container = isPointInLoopNode(position)
-        }
-
-        return position
+        const rect = flowContainer.getBoundingClientRect()
+        return screenToFlowPosition({
+          x: rect.width / 2,
+          y: rect.height / 2,
+        })
       }
 
-      const basePosition = calculateSmartPosition()
+      const basePosition = getViewportCenterPosition()
 
       // Special handling for container nodes (loop or parallel)
       if (type === 'loop' || type === 'parallel') {
@@ -1365,12 +1334,7 @@ const WorkflowContent = React.memo(() => {
         const baseName = type === 'loop' ? 'Loop' : 'Parallel'
         const name = getUniqueBlockName(baseName, blocks)
 
-        const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
-          blockType: type,
-          targetParentId: null,
-        })
-
-        // Add the container node with default dimensions and auto-connect edge
+        // No auto-connect edge for click/Cmd+K - only drag-and-drop gets auto-connect
         addBlock(
           id,
           type,
@@ -1383,7 +1347,7 @@ const WorkflowContent = React.memo(() => {
           },
           undefined,
           undefined,
-          autoConnectEdge
+          undefined
         )
 
         return
@@ -1405,13 +1369,7 @@ const WorkflowContent = React.memo(() => {
       const baseName = defaultTriggerName || blockConfig.name
       const name = getUniqueBlockName(baseName, blocks)
 
-      const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
-        blockType: type,
-        enableTriggerMode,
-        targetParentId: null,
-      })
-
-      // Add the block to the workflow with auto-connect edge
+      // No auto-connect edge for click/Cmd+K - only drag-and-drop gets auto-connect
       // Enable trigger mode if this is a trigger-capable block from the triggers tab
       addBlock(
         id,
@@ -1421,7 +1379,7 @@ const WorkflowContent = React.memo(() => {
         undefined,
         undefined,
         undefined,
-        autoConnectEdge,
+        undefined,
         enableTriggerMode
       )
     }
@@ -1438,11 +1396,7 @@ const WorkflowContent = React.memo(() => {
     screenToFlowPosition,
     blocks,
     addBlock,
-    tryCreateAutoConnectEdge,
-    isPointInLoopNode,
     effectivePermissions.canEdit,
-    addNotification,
-    activeWorkflowId,
     checkTriggerConstraints,
   ])
 
