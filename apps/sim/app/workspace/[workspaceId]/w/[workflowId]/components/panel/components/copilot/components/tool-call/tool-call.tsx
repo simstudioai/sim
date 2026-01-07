@@ -240,42 +240,136 @@ function SubAgentToolCall({ toolCall }: { toolCall: CopilotToolCall }) {
     toolCall.state === ClientToolCallState.executing
 
   const showButtons = shouldShowRunSkipButtons(toolCall)
+  const isSpecial = isSpecialToolCall(toolCall)
+
+  // Get params for table rendering
+  const params = (toolCall as any).parameters || (toolCall as any).input || (toolCall as any).params || {}
+
+  // Render table for tools that support it
+  const renderSubAgentTable = () => {
+    if (toolCall.name === 'set_environment_variables') {
+      const variables = params.variables || params.env_vars || {}
+      const entries = Array.isArray(variables)
+        ? variables.map((v: any, i: number) => [v.name || `var_${i}`, v.value || ''])
+        : Object.entries(variables).map(([key, val]) => {
+            if (typeof val === 'object' && val !== null && 'value' in (val as any)) {
+              return [key, (val as any).value]
+            }
+            return [key, val]
+          })
+      if (entries.length === 0) return null
+      return (
+        <div className='mt-1.5 w-full overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)]'>
+          <table className='w-full table-fixed bg-transparent'>
+            <thead className='bg-transparent'>
+              <tr className='border-[var(--border-1)] border-b bg-transparent'>
+                <th className='w-[36%] border-[var(--border-1)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[12px] text-[var(--text-tertiary)]'>Variable</th>
+                <th className='w-[64%] bg-transparent px-[10px] py-[5px] text-left font-medium text-[12px] text-[var(--text-tertiary)]'>Value</th>
+              </tr>
+            </thead>
+            <tbody className='bg-transparent'>
+              {entries.map((entry) => {
+                const [key, value] = entry as [string, any]
+                return (
+                  <tr key={key} className='border-[var(--border-1)] border-t bg-transparent'>
+                    <td className='w-[36%] border-[var(--border-1)] border-r bg-transparent px-[10px] py-[6px]'>
+                      <span className='truncate font-medium text-[var(--text-primary)] text-xs'>{key}</span>
+                    </td>
+                    <td className='w-[64%] bg-transparent px-[10px] py-[6px]'>
+                      <span className='font-mono text-[var(--text-muted)] text-xs'>{String(value)}</span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )
+    }
+
+    if (toolCall.name === 'set_global_workflow_variables') {
+      const ops = Array.isArray(params.operations) ? (params.operations as any[]) : []
+      if (ops.length === 0) return null
+      return (
+        <div className='mt-1.5 w-full overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)]'>
+          <div className='grid grid-cols-3 gap-0 border-[var(--border-1)] border-b bg-[var(--surface-4)] py-1.5'>
+            <div className='self-start px-2 font-medium font-season text-[10px] text-[var(--text-secondary)] uppercase tracking-wide'>Name</div>
+            <div className='self-start px-2 font-medium font-season text-[10px] text-[var(--text-secondary)] uppercase tracking-wide'>Type</div>
+            <div className='self-start px-2 font-medium font-season text-[10px] text-[var(--text-secondary)] uppercase tracking-wide'>Value</div>
+          </div>
+          <div className='divide-y divide-[var(--border-1)]'>
+            {ops.map((op, idx) => (
+              <div key={idx} className='grid grid-cols-3 gap-0 py-1.5'>
+                <div className='min-w-0 self-start px-2'>
+                  <span className='font-season text-[var(--text-primary)] text-xs'>{String(op.name || '')}</span>
+                </div>
+                <div className='self-start px-2'>
+                  <span className='rounded border border-[var(--border-1)] px-1 py-0.5 font-[470] font-season text-[10px] text-[var(--text-primary)]'>{String(op.type || '')}</span>
+                </div>
+                <div className='min-w-0 self-start px-2'>
+                  <span className='font-[470] font-mono text-[var(--text-muted)] text-xs'>{op.value !== undefined ? String(op.value) : '—'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
+    if (toolCall.name === 'run_workflow') {
+      let inputs = params.input || params.inputs || params.workflow_input
+      if (typeof inputs === 'string') {
+        try { inputs = JSON.parse(inputs) } catch { inputs = {} }
+      }
+      if (params.workflow_input && typeof params.workflow_input === 'object') {
+        inputs = params.workflow_input
+      }
+      if (!inputs || typeof inputs !== 'object') {
+        const { workflowId, workflow_input, ...rest } = params
+        inputs = rest
+      }
+      const safeInputs = inputs && typeof inputs === 'object' ? inputs : {}
+      const inputEntries = Object.entries(safeInputs)
+      if (inputEntries.length === 0) return null
+      return (
+        <div className='mt-1.5 w-full overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)]'>
+          <table className='w-full table-fixed bg-transparent'>
+            <thead className='bg-transparent'>
+              <tr className='border-[var(--border-1)] border-b bg-transparent'>
+                <th className='w-[36%] border-[var(--border-1)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[12px] text-[var(--text-tertiary)]'>Input</th>
+                <th className='w-[64%] bg-transparent px-[10px] py-[5px] text-left font-medium text-[12px] text-[var(--text-tertiary)]'>Value</th>
+              </tr>
+            </thead>
+            <tbody className='bg-transparent'>
+              {inputEntries.map(([key, value]) => (
+                <tr key={key} className='border-[var(--border-1)] border-t bg-transparent'>
+                  <td className='w-[36%] border-[var(--border-1)] border-r bg-transparent px-[10px] py-[6px]'>
+                    <span className='truncate font-medium text-[var(--text-primary)] text-xs'>{key}</span>
+                  </td>
+                  <td className='w-[64%] bg-transparent px-[10px] py-[6px]'>
+                    <span className='font-mono text-[var(--text-muted)] text-xs'>{String(value)}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+    }
+
+    return null
+  }
 
   return (
     <div className='py-0.5'>
-      <span className='relative inline-block font-[470] font-season text-[12px] text-[var(--text-tertiary)]'>
-        {displayName}
-        {isLoading && !showButtons && (
-          <span
-            aria-hidden='true'
-            className='pointer-events-none absolute inset-0 select-none overflow-hidden'
-          >
-            <span
-              className='block text-transparent'
-              style={{
-                backgroundImage:
-                  'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0) 100%)',
-                backgroundSize: '200% 100%',
-                backgroundRepeat: 'no-repeat',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                animation: 'subagent-shimmer 1.4s ease-in-out infinite',
-                mixBlendMode: 'screen',
-              }}
-            >
-              {displayName}
-            </span>
-          </span>
-        )}
-      </span>
+      <ShimmerOverlayText
+        text={displayName}
+        active={isLoading && !showButtons}
+        isSpecial={isSpecial}
+        className='font-[470] font-season text-[12px] text-[var(--text-tertiary)]'
+      />
+      {renderSubAgentTable()}
       {showButtons && <RunSkipButtons toolCall={toolCall} />}
-      <style>{`
-        @keyframes subagent-shimmer {
-          0% { background-position: 150% 0; }
-          50% { background-position: 0% 0; }
-          100% { background-position: -150% 0; }
-        }
-      `}</style>
     </div>
   )
 }
