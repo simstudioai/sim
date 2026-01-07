@@ -89,11 +89,7 @@ export async function acquireLock(
 ): Promise<boolean> {
   const redis = getRedisClient()
   if (!redis) {
-    logger.warn(
-      'Redis not available - distributed locking disabled. For multi-replica deployments, configure REDIS_URL.',
-      { lockKey }
-    )
-    return true // Allow operation to proceed; idempotency layer handles duplicates
+    return true // No-op when Redis unavailable; idempotency layer handles duplicates
   }
 
   const result = await redis.set(lockKey, value, 'EX', expirySeconds, 'NX')
