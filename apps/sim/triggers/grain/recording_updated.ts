@@ -1,6 +1,6 @@
 import { GrainIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildRecordingOutputs, grainSetupInstructions } from './utils'
+import { buildRecordingOutputs, grainSetupInstructions, grainTriggerOptions } from './utils'
 
 export const grainRecordingUpdatedTrigger: TriggerConfig = {
   id: 'grain_recording_updated',
@@ -12,6 +12,15 @@ export const grainRecordingUpdatedTrigger: TriggerConfig = {
 
   subBlocks: [
     {
+      id: 'selectedTriggerId',
+      title: 'Trigger Type',
+      type: 'dropdown',
+      mode: 'trigger',
+      options: grainTriggerOptions,
+      value: () => 'grain_recording_updated',
+      required: true,
+    },
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -19,42 +28,6 @@ export const grainRecordingUpdatedTrigger: TriggerConfig = {
       description: 'Required to create the webhook in Grain.',
       password: true,
       required: true,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'grain_recording_updated',
-      },
-    },
-    {
-      id: 'includeHighlights',
-      title: 'Include Highlights',
-      type: 'switch',
-      description: 'Include highlights/clips in webhook payload.',
-      defaultValue: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'grain_recording_updated',
-      },
-    },
-    {
-      id: 'includeParticipants',
-      title: 'Include Participants',
-      type: 'switch',
-      description: 'Include participant list in webhook payload.',
-      defaultValue: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'grain_recording_updated',
-      },
-    },
-    {
-      id: 'includeAiSummary',
-      title: 'Include AI Summary',
-      type: 'switch',
-      description: 'Include AI-generated summary in webhook payload.',
-      defaultValue: false,
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',

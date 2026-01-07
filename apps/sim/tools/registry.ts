@@ -376,7 +376,7 @@ import {
   greptileStatusTool,
 } from '@/tools/greptile'
 import { guardrailsValidateTool } from '@/tools/guardrails'
-import { httpRequestTool } from '@/tools/http'
+import { httpRequestTool, webhookRequestTool } from '@/tools/http'
 import {
   hubspotCreateCompanyTool,
   hubspotCreateContactTool,
@@ -1415,6 +1415,7 @@ export const tools: Record<string, ToolConfig> = {
   browser_use_run_task: browserUseRunTaskTool,
   openai_embeddings: openAIEmbeddingsTool,
   http_request: httpRequestTool,
+  webhook_request: webhookRequestTool,
   huggingface_chat: huggingfaceChatTool,
   llm_chat: llmChatTool,
   function_execute: functionExecuteTool,
