@@ -164,7 +164,7 @@ function getBlockIconAndColor(
     return { icon: ParallelTool.icon, bgColor: ParallelTool.bgColor }
   }
   if (lowerType === 'workflow') {
-    return { icon: WorkflowIcon, bgColor: '#705335' }
+    return { icon: WorkflowIcon, bgColor: '#6366F1' }
   }
 
   // Look up from block registry (model maps to agent)

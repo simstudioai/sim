@@ -130,7 +130,6 @@ import { VisionBlock } from '@/blocks/blocks/vision'
 import { WaitBlock } from '@/blocks/blocks/wait'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
 import { WebflowBlock } from '@/blocks/blocks/webflow'
-import { WebhookBlock } from '@/blocks/blocks/webhook'
 import { WebhookRequestBlock } from '@/blocks/blocks/webhook_request'
 import { WhatsAppBlock } from '@/blocks/blocks/whatsapp'
 import { WikipediaBlock } from '@/blocks/blocks/wikipedia'
@@ -281,7 +280,6 @@ export const registry: Record<string, BlockConfig> = {
   wait: WaitBlock,
   wealthbox: WealthboxBlock,
   webflow: WebflowBlock,
-  webhook: WebhookBlock,
   webhook_request: WebhookRequestBlock,
   whatsapp: WhatsAppBlock,
   wikipedia: WikipediaBlock,
@@ -296,11 +294,9 @@ export const registry: Record<string, BlockConfig> = {
 }
 
 export const getBlock = (type: string): BlockConfig | undefined => {
-  // Direct lookup first
   if (registry[type]) {
     return registry[type]
   }
-  // Fallback: normalize hyphens to underscores (e.g., 'microsoft-teams' -> 'microsoft_teams')
   const normalized = type.replace(/-/g, '_')
   return registry[normalized]
 }

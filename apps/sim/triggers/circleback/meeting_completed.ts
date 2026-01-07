@@ -40,24 +40,24 @@ export const circlebackMeetingCompletedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: circlebackSetupInstructions('All meeting data'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'circleback_meeting_completed',
-      },
-    },
-    {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'circleback_meeting_completed',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'circleback_meeting_completed',
+      },
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: circlebackSetupInstructions('All meeting data'),
+      mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'circleback_meeting_completed',

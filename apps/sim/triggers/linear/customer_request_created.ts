@@ -40,24 +40,24 @@ export const linearCustomerRequestCreatedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: linearSetupInstructions('Customer Requests'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'linear_customer_request_created',
-      },
-    },
-    {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'linear_customer_request_created',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'linear_customer_request_created',
+      },
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: linearSetupInstructions('Customer Requests'),
+      mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'linear_customer_request_created',

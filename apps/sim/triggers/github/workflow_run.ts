@@ -77,6 +77,18 @@ export const githubWorkflowRunTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'github_workflow_run',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'github_workflow_run',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -97,18 +109,6 @@ export const githubWorkflowRunTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'github_workflow_run',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'github_workflow_run',
       condition: {
         field: 'selectedTriggerId',
         value: 'github_workflow_run',

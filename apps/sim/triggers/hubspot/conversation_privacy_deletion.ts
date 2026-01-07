@@ -95,6 +95,17 @@ export const hubspotConversationPrivacyDeletionTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'hubspot_conversation_privacy_deletion',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'hubspot_conversation_privacy_deletion',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
@@ -152,17 +163,6 @@ export const hubspotConversationPrivacyDeletionTrigger: TriggerConfig = {
       showCopyButton: true,
       description: 'Run this command to subscribe to conversation privacy deletion events',
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_conversation_privacy_deletion',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_conversation_privacy_deletion',
       condition: {
         field: 'selectedTriggerId',
         value: 'hubspot_conversation_privacy_deletion',

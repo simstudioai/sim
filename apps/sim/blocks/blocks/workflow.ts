@@ -32,7 +32,7 @@ export const WorkflowBlock: BlockConfig = {
   description:
     'This is a core workflow block. Execute another workflow as a block in your workflow. Enter the input variable to pass to the child workflow.',
   category: 'blocks',
-  bgColor: '#705335',
+  bgColor: '#6366F1',
   icon: WorkflowIcon,
   subBlocks: [
     {

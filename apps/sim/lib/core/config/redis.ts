@@ -62,54 +62,6 @@ export function getRedisClient(): Redis | null {
 }
 
 /**
- * Check if Redis is ready for commands.
- * Use for health checks only - commands should be sent regardless (ioredis queues them).
- */
-export function isRedisConnected(): boolean {
-  return globalRedisClient?.status === 'ready'
-}
-
-/**
- * Get Redis connection status for diagnostics.
- */
-export function getRedisStatus(): string {
-  return globalRedisClient?.status ?? 'not initialized'
-}
-
-const MESSAGE_ID_PREFIX = 'processed:'
-const MESSAGE_ID_EXPIRY = 60 * 60 * 24 * 7
-
-/**
- * Check if a message has been processed (for idempotency).
- * Requires Redis - throws if Redis is not available.
- */
-export async function hasProcessedMessage(key: string): Promise<boolean> {
-  const redis = getRedisClient()
-  if (!redis) {
-    throw new Error('Redis not available for message deduplication')
-  }
-
-  const result = await redis.exists(`${MESSAGE_ID_PREFIX}${key}`)
-  return result === 1
-}
-
-/**
- * Mark a message as processed (for idempotency).
- * Requires Redis - throws if Redis is not available.
- */
-export async function markMessageAsProcessed(
-  key: string,
-  expirySeconds: number = MESSAGE_ID_EXPIRY
-): Promise<void> {
-  const redis = getRedisClient()
-  if (!redis) {
-    throw new Error('Redis not available for message deduplication')
-  }
-
-  await redis.set(`${MESSAGE_ID_PREFIX}${key}`, '1', 'EX', expirySeconds)
-}
-
-/**
  * Lua script for safe lock release.
  * Only deletes the key if the value matches (ownership verification).
  * Returns 1 if deleted, 0 if not (value mismatch or key doesn't exist).
@@ -125,7 +77,10 @@ end
 /**
  * Acquire a distributed lock using Redis SET NX.
  * Returns true if lock acquired, false if already held.
- * Requires Redis - throws if Redis is not available.
+ *
+ * When Redis is not available, returns true (lock "acquired") to allow
+ * single-replica deployments to function without Redis. In multi-replica
+ * deployments without Redis, the idempotency layer prevents duplicate processing.
  */
 export async function acquireLock(
   lockKey: string,
@@ -134,7 +89,7 @@ export async function acquireLock(
 ): Promise<boolean> {
   const redis = getRedisClient()
   if (!redis) {
-    throw new Error('Redis not available for distributed locking')
+    return true // No-op when Redis unavailable; idempotency layer handles duplicates
   }
 
   const result = await redis.set(lockKey, value, 'EX', expirySeconds, 'NX')
@@ -142,28 +97,16 @@ export async function acquireLock(
 }
 
 /**
- * Get the value of a lock key.
- * Requires Redis - throws if Redis is not available.
- */
-export async function getLockValue(key: string): Promise<string | null> {
-  const redis = getRedisClient()
-  if (!redis) {
-    throw new Error('Redis not available')
-  }
-
-  return redis.get(key)
-}
-
-/**
  * Release a distributed lock safely.
  * Only releases if the caller owns the lock (value matches).
  * Returns true if lock was released, false if not owned or already expired.
- * Requires Redis - throws if Redis is not available.
+ *
+ * When Redis is not available, returns true (no-op) since no lock was held.
  */
 export async function releaseLock(lockKey: string, value: string): Promise<boolean> {
   const redis = getRedisClient()
   if (!redis) {
-    throw new Error('Redis not available for distributed locking')
+    return true // No-op when Redis unavailable; no lock was actually held
   }
 
   const result = await redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, value)

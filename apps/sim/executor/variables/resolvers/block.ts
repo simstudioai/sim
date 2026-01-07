@@ -48,7 +48,6 @@ export class BlockResolver implements Resolver {
     }
 
     const output = this.getBlockOutput(blockId, context)
-
     if (output === undefined) {
       return undefined
     }
@@ -56,16 +55,62 @@ export class BlockResolver implements Resolver {
       return output
     }
 
-    const result = navigatePath(output, pathParts)
+    // Try the original path first
+    let result = navigatePath(output, pathParts)
 
-    if (result === undefined) {
-      const availableKeys = output && typeof output === 'object' ? Object.keys(output) : []
-      throw new Error(
-        `No value found at path "${pathParts.join('.')}" in block "${blockName}". Available fields: ${availableKeys.join(', ')}`
-      )
+    // If successful, return it immediately
+    if (result !== undefined) {
+      return result
     }
 
-    return result
+    // If failed, check if we should try backwards compatibility fallback
+    const block = this.workflow.blocks.find((b) => b.id === blockId)
+
+    // Response block backwards compatibility:
+    // Old: <responseBlock.response.data> -> New: <responseBlock.data>
+    // Only apply fallback if:
+    // 1. Block type is 'response'
+    // 2. Path starts with 'response.'
+    // 3. Output doesn't have a 'response' key (confirming it's the new format)
+    if (
+      block?.metadata?.id === 'response' &&
+      pathParts[0] === 'response' &&
+      output?.response === undefined
+    ) {
+      const adjustedPathParts = pathParts.slice(1)
+      if (adjustedPathParts.length === 0) {
+        return output
+      }
+      result = navigatePath(output, adjustedPathParts)
+      if (result !== undefined) {
+        return result
+      }
+    }
+
+    // Workflow block backwards compatibility:
+    // Old: <workflowBlock.result.response.data> -> New: <workflowBlock.result.data>
+    // Only apply fallback if:
+    // 1. Block type is 'workflow'
+    // 2. Path starts with 'result.response.'
+    // 3. output.result.response doesn't exist (confirming child used new format)
+    if (
+      block?.metadata?.id === 'workflow' &&
+      pathParts[0] === 'result' &&
+      pathParts[1] === 'response' &&
+      output?.result?.response === undefined
+    ) {
+      const adjustedPathParts = ['result', ...pathParts.slice(2)]
+      result = navigatePath(output, adjustedPathParts)
+      if (result !== undefined) {
+        return result
+      }
+    }
+
+    // If still undefined, throw error with original path
+    const availableKeys = output && typeof output === 'object' ? Object.keys(output) : []
+    throw new Error(
+      `No value found at path "${pathParts.join('.')}" in block "${blockName}". Available fields: ${availableKeys.join(', ')}`
+    )
   }
 
   private getBlockOutput(blockId: string, context: ResolutionContext): any {

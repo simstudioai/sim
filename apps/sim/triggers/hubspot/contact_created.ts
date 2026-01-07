@@ -94,6 +94,17 @@ export const hubspotContactCreatedTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'hubspot_contact_created',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'hubspot_contact_created',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
@@ -151,17 +162,6 @@ export const hubspotContactCreatedTrigger: TriggerConfig = {
       showCopyButton: true,
       description: 'Run this command to subscribe to contact creation events',
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_contact_created',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_contact_created',
       condition: {
         field: 'selectedTriggerId',
         value: 'hubspot_contact_created',

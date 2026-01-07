@@ -94,6 +94,17 @@ export const hubspotDealCreatedTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'hubspot_deal_created',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'hubspot_deal_created',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
@@ -151,17 +162,6 @@ export const hubspotDealCreatedTrigger: TriggerConfig = {
       showCopyButton: true,
       description: 'Run this command to subscribe to deal creation events',
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_deal_created',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_deal_created',
       condition: {
         field: 'selectedTriggerId',
         value: 'hubspot_deal_created',

@@ -1,0 +1,89 @@
+---
+title: Webhook
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+Le bloc Webhook envoie des requêtes HTTP POST vers des points de terminaison webhook externes avec des en-têtes webhook automatiques et une signature HMAC optionnelle.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Bloc Webhook"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Configuration
+
+### URL du webhook
+
+Le point de terminaison de destination pour votre requête webhook. Prend en charge les URL statiques et les valeurs dynamiques provenant d'autres blocs.
+
+### Charge utile
+
+Données JSON à envoyer dans le corps de la requête. Utilisez la baguette IA pour générer des charges utiles ou référencer des variables de workflow :
+
+```json
+{
+  "event": "workflow.completed",
+  "data": {
+    "result": "<agent.content>",
+    "timestamp": "<function.result>"
+  }
+}
+```
+
+### Secret de signature
+
+Secret optionnel pour la signature HMAC-SHA256 de la charge utile. Lorsqu'il est fourni, ajoute un en-tête `X-Webhook-Signature` :
+
+```
+X-Webhook-Signature: t=1704067200000,v1=5d41402abc4b2a76b9719d911017c592...
+```
+
+Pour vérifier les signatures, calculez `HMAC-SHA256(secret, "${timestamp}.${body}")` et comparez avec la valeur `v1`.
+
+### En-têtes supplémentaires
+
+En-têtes personnalisés clé-valeur à inclure avec la requête. Ceux-ci remplacent tous les en-têtes automatiques portant le même nom.
+
+## En-têtes automatiques
+
+Chaque requête inclut automatiquement ces en-têtes :
+
+| En-tête | Description |
+|--------|-------------|
+| `Content-Type` | `application/json` |
+| `X-Webhook-Timestamp` | Horodatage Unix en millisecondes |
+| `X-Delivery-ID` | UUID unique pour cette livraison |
+| `Idempotency-Key` | Identique à `X-Delivery-ID` pour la déduplication |
+
+## Sorties
+
+| Sortie | Type | Description |
+|--------|------|-------------|
+| `data` | json | Corps de la réponse du point de terminaison |
+| `status` | number | Code de statut HTTP |
+| `headers` | object | En-têtes de réponse |
+
+## Exemples de cas d'usage
+
+**Notifier des services externes** - Envoyer les résultats du workflow vers Slack, Discord ou des points de terminaison personnalisés
+
+```
+Agent → Function (format) → Webhook (notify)
+```
+
+**Déclencher des workflows externes** - Démarrer des processus dans d'autres systèmes lorsque des conditions sont remplies
+
+```
+Condition (check) → Webhook (trigger) → Response
+```
+
+<Callout>
+Le bloc Webhook utilise toujours POST. Pour d'autres méthodes HTTP ou plus de contrôle, utilisez le [bloc API](/blocks/api).
+</Callout>
