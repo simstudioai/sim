@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type { Credential } from '@/lib/oauth'
 import { CREDENTIAL_SET } from '@/executor/constants'
-import { useCredentialSetMemberships } from '@/hooks/queries/credential-sets'
+import { useCredentialSetMemberships, useCredentialSets } from '@/hooks/queries/credential-sets'
 import { fetchJson } from '@/hooks/selectors/helpers'
 
 interface CredentialListResponse {
@@ -62,7 +62,12 @@ export function useOAuthCredentialDetail(
   })
 }
 
-export function useCredentialName(credentialId?: string, providerId?: string, workflowId?: string) {
+export function useCredentialName(
+  credentialId?: string,
+  providerId?: string,
+  workflowId?: string,
+  workspaceId?: string
+) {
   // Check if this is a credential set value
   const isCredentialSet = credentialId?.startsWith(CREDENTIAL_SET.PREFIX) ?? false
   const credentialSetId = isCredentialSet
@@ -71,6 +76,12 @@ export function useCredentialName(credentialId?: string, providerId?: string, wo
 
   // Fetch credential set memberships if this is a credential set
   const { data: memberships = [], isFetching: membershipsLoading } = useCredentialSetMemberships()
+
+  // Also fetch owned credential sets to check there
+  const { data: ownedSets = [], isFetching: ownedSetsLoading } = useCredentialSets(
+    workspaceId,
+    isCredentialSet && Boolean(workspaceId)
+  )
 
   const { data: credentials = [], isFetching: credentialsLoading } = useOAuthCredentials(
     providerId,
@@ -91,9 +102,10 @@ export function useCredentialName(credentialId?: string, providerId?: string, wo
 
   const hasForeignMeta = foreignCredentials.length > 0
 
-  // For credential sets, find the matching membership and use its name
+  // For credential sets, find the matching membership or owned set and use its name
   const credentialSetName = credentialSetId
-    ? memberships.find((m) => m.credentialSetId === credentialSetId)?.credentialSetName
+    ? (memberships.find((m) => m.credentialSetId === credentialSetId)?.credentialSetName ??
+      ownedSets.find((s) => s.id === credentialSetId)?.name)
     : undefined
 
   const displayName =
@@ -103,7 +115,10 @@ export function useCredentialName(credentialId?: string, providerId?: string, wo
 
   return {
     displayName,
-    isLoading: credentialsLoading || foreignLoading || (isCredentialSet && membershipsLoading),
+    isLoading:
+      credentialsLoading ||
+      foreignLoading ||
+      (isCredentialSet && (membershipsLoading || ownedSetsLoading)),
     hasForeignMeta,
   }
 }
