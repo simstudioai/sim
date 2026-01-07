@@ -385,7 +385,7 @@ function SubAgentToolCall({ toolCall: toolCallProp }: { toolCall: CopilotToolCal
         />
       )}
       {renderSubAgentTable()}
-      <WorkflowEditSummary toolCall={toolCall} />
+      {/* WorkflowEditSummary is rendered outside SubAgentContent for edit subagent */}
       {showButtons && <RunSkipButtons toolCall={toolCall} />}
     </div>
   )
@@ -406,7 +406,7 @@ function getDisplayNameForSubAgent(toolCall: CopilotToolCall): string {
 /**
  * Max height for subagent content before internal scrolling kicks in
  */
-const SUBAGENT_MAX_HEIGHT = 125
+const SUBAGENT_MAX_HEIGHT = 200
 
 /**
  * Interval for auto-scroll during streaming (ms)
@@ -582,6 +582,16 @@ function SubAgentContent({
           })}
         </div>
       )}
+
+      {/* Render WorkflowEditSummary outside the collapsible container for edit_workflow tool calls */}
+      {blocks
+        .filter((block) => block.type === 'subagent_tool_call' && block.toolCall?.name === 'edit_workflow')
+        .map((block, index) => (
+          <WorkflowEditSummary
+            key={`edit-summary-${block.toolCall?.id || index}`}
+            toolCall={block.toolCall!}
+          />
+        ))}
     </div>
   )
 }
@@ -607,15 +617,24 @@ function isSpecialToolCall(toolCall: CopilotToolCall): boolean {
  * Expands inline on click to show individual blocks with their icons.
  */
 function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
-  const [isExpanded, setIsExpanded] = useState(false)
-
-  // Get workflow name from registry
-  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
-  const workflows = useWorkflowRegistry((s) => s.workflows)
-  const workflowName = activeWorkflowId ? workflows[activeWorkflowId]?.name : undefined
-
   // Get block data from current workflow state
   const blocks = useWorkflowStore((s) => s.blocks)
+
+  // Cache block info on first render (before diff is applied) so we can show
+  // deleted blocks properly even after they're removed from the workflow
+  const cachedBlockInfoRef = useRef<Record<string, { name: string; type: string }>>({})
+
+  // Update cache with current block info (only add, never remove)
+  useEffect(() => {
+    for (const [blockId, block] of Object.entries(blocks)) {
+      if (!cachedBlockInfoRef.current[blockId]) {
+        cachedBlockInfoRef.current[blockId] = {
+          name: block.name || '',
+          type: block.type || '',
+        }
+      }
+    }
+  }, [blocks])
 
   // Show for edit_workflow regardless of state
   if (toolCall.name !== 'edit_workflow') {
@@ -632,10 +651,19 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
   }
 
   // Group operations by type with block info
+  interface SubBlockPreview {
+    id: string
+    value: any
+  }
+
   interface BlockChange {
     blockId: string
     blockName: string
     blockType: string
+    /** All subblocks for add operations */
+    subBlocks?: SubBlockPreview[]
+    /** Only changed subblocks for edit operations */
+    changedSubBlocks?: SubBlockPreview[]
   }
 
   const addedBlocks: BlockChange[] = []
@@ -646,10 +674,11 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
     const blockId = op.block_id
     if (!blockId) continue
 
-    // Get block info from current workflow state or operation params
+    // Get block info from current workflow state, cached state, or operation params
     const currentBlock = blocks[blockId]
-    let blockName = currentBlock?.name || ''
-    let blockType = currentBlock?.type || ''
+    const cachedBlock = cachedBlockInfoRef.current[blockId]
+    let blockName = currentBlock?.name || cachedBlock?.name || ''
+    let blockType = currentBlock?.type || cachedBlock?.type || ''
 
     // For add operations, get info from params (type is stored as params.type)
     if (op.operation_type === 'add' && op.params) {
@@ -662,10 +691,44 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
       blockType = op.params.type || ''
     }
 
+    // Skip edge-only edit operations (like how we don't highlight blocks on canvas for edge changes)
+    // An edit is edge-only if params only contains 'connections' and nothing else meaningful
+    if (op.operation_type === 'edit' && op.params) {
+      const paramKeys = Object.keys(op.params)
+      const isEdgeOnlyEdit = paramKeys.length === 1 && paramKeys[0] === 'connections'
+      if (isEdgeOnlyEdit) {
+        continue
+      }
+    }
+
+    // For delete operations, check if block info was provided in operation
+    if (op.operation_type === 'delete') {
+      // Some delete operations may include block_name and block_type
+      blockName = blockName || op.block_name || ''
+      blockType = blockType || op.block_type || ''
+    }
+
     // Fallback name to type or ID
     if (!blockName) blockName = blockType || blockId
 
     const change: BlockChange = { blockId, blockName, blockType }
+
+    // Extract subblock info from operation params
+    if (op.params?.inputs && typeof op.params.inputs === 'object') {
+      const subBlocks: SubBlockPreview[] = []
+      for (const [id, value] of Object.entries(op.params.inputs)) {
+        // Skip empty values and connections
+        if (value === null || value === undefined || value === '') continue
+        subBlocks.push({ id, value })
+      }
+      if (subBlocks.length > 0) {
+        if (op.operation_type === 'add') {
+          change.subBlocks = subBlocks
+        } else if (op.operation_type === 'edit') {
+          change.changedSubBlocks = subBlocks
+        }
+      }
+    }
 
     switch (op.operation_type) {
       case 'add':
@@ -691,8 +754,40 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
     return getBlock(blockType)
   }
 
-  // Render a single block row (toolbar style: colored square with white icon)
-  const renderBlockRow = (
+  // Format subblock value for display
+  const formatSubBlockValue = (value: any): string => {
+    if (value === null || value === undefined) return ''
+    if (typeof value === 'string') {
+      // Truncate long strings
+      return value.length > 60 ? `${value.slice(0, 60)}...` : value
+    }
+    if (typeof value === 'boolean') return value ? 'true' : 'false'
+    if (typeof value === 'number') return String(value)
+    if (Array.isArray(value)) {
+      if (value.length === 0) return '[]'
+      return `[${value.length} items]`
+    }
+    if (typeof value === 'object') {
+      const keys = Object.keys(value)
+      if (keys.length === 0) return '{}'
+      return `{${keys.length} fields}`
+    }
+    return String(value)
+  }
+
+  // Format subblock ID to readable label
+  const formatSubBlockLabel = (id: string): string => {
+    return id
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/[_-]/g, ' ')
+      .trim()
+      .split(' ')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ')
+  }
+
+  // Render a single block item with action icon and details
+  const renderBlockItem = (
     change: BlockChange,
     type: 'add' | 'edit' | 'delete'
   ) => {
@@ -700,74 +795,67 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
     const Icon = blockConfig?.icon
     const bgColor = blockConfig?.bgColor || '#6B7280'
 
-    const symbols = {
+    const actionIcons = {
       add: { symbol: '+', color: 'text-[#22c55e]' },
-      edit: { symbol: '•', color: 'text-[#f97316]' },
+      edit: { symbol: '~', color: 'text-[#f97316]' },
       delete: { symbol: '-', color: 'text-[#ef4444]' },
     }
-    const { symbol, color } = symbols[type]
+    const { symbol, color } = actionIcons[type]
+
+    const subBlocksToShow = type === 'add' ? change.subBlocks : type === 'edit' ? change.changedSubBlocks : undefined
 
     return (
       <div
         key={`${type}-${change.blockId}`}
-        className='flex items-center gap-2 px-2.5 py-1.5'
+        className='rounded-md border border-[var(--border-1)] bg-[var(--surface-1)] overflow-hidden'
       >
-        <span className={`font-mono text-[11px] font-medium ${color} w-3`}>{symbol}</span>
-        {/* Toolbar-style icon: colored square with white icon */}
-        <div
-          className='flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-[3px]'
-          style={{ background: bgColor }}
-        >
-          {Icon && <Icon className='h-[10px] w-[10px] text-white' />}
+        {/* Block header */}
+        <div className='flex items-center justify-between px-2.5 py-2'>
+          <div className='flex items-center gap-2'>
+            {/* Toolbar-style icon: colored square with white icon */}
+            <div
+              className='flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-[3px]'
+              style={{ background: bgColor }}
+            >
+              {Icon && <Icon className='h-[10px] w-[10px] text-white' />}
+            </div>
+            <span
+              className={`font-medium font-season text-[12px] ${type === 'delete' ? 'text-[var(--text-tertiary)] line-through' : 'text-[var(--text-primary)]'}`}
+            >
+              {change.blockName}
+            </span>
+          </div>
+          {/* Action icon in top right */}
+          <span className={`font-mono text-[14px] font-bold ${color}`}>{symbol}</span>
         </div>
-        <span
-          className={`font-season text-[12px] ${type === 'delete' ? 'text-[var(--text-tertiary)] line-through' : 'text-[var(--text-secondary)]'}`}
-        >
-          {change.blockName}
-        </span>
+
+        {/* Subblock details */}
+        {subBlocksToShow && subBlocksToShow.length > 0 && (
+          <div className='border-t border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-1.5'>
+            {subBlocksToShow.map((sb) => (
+              <div
+                key={sb.id}
+                className='flex items-start gap-1.5 py-0.5 text-[11px]'
+              >
+                <span className={`font-medium ${type === 'edit' ? 'text-[#f97316]' : 'text-[var(--text-tertiary)]'}`}>
+                  {formatSubBlockLabel(sb.id)}:
+                </span>
+                <span className='text-[var(--text-muted)] line-clamp-1 break-all'>
+                  {formatSubBlockValue(sb.value)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     )
   }
 
   return (
-    <div className='mt-2 w-full overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-1)]'>
-      {/* Header row - always visible */}
-      <button
-        type='button'
-        onClick={() => setIsExpanded(!isExpanded)}
-        className='flex w-full items-center justify-between px-2.5 py-2 transition-colors hover:bg-[var(--surface-2)]'
-      >
-        <div className='flex items-center gap-2'>
-          <span className='font-medium font-season text-[12px] text-[var(--text-primary)]'>
-            {workflowName || 'Workflow'}
-          </span>
-          <span className='flex items-center gap-1.5'>
-            {addedBlocks.length > 0 && (
-              <span className='font-mono text-[11px] font-medium text-[#22c55e]'>+{addedBlocks.length}</span>
-            )}
-            {editedBlocks.length > 0 && (
-              <span className='font-mono text-[11px] font-medium text-[#f97316]'>•{editedBlocks.length}</span>
-            )}
-            {deletedBlocks.length > 0 && (
-              <span className='font-mono text-[11px] font-medium text-[#ef4444]'>-{deletedBlocks.length}</span>
-            )}
-          </span>
-        </div>
-        {isExpanded ? (
-          <ChevronUp className='h-3.5 w-3.5 text-[var(--text-tertiary)]' />
-        ) : (
-          <ChevronDown className='h-3.5 w-3.5 text-[var(--text-tertiary)]' />
-        )}
-      </button>
-
-      {/* Expanded block list */}
-      {isExpanded && (
-        <div className='border-t border-[var(--border-1)]'>
-          {addedBlocks.map((change) => renderBlockRow(change, 'add'))}
-          {editedBlocks.map((change) => renderBlockRow(change, 'edit'))}
-          {deletedBlocks.map((change) => renderBlockRow(change, 'delete'))}
-        </div>
-      )}
+    <div className='mt-2 flex flex-col gap-1.5'>
+      {addedBlocks.map((change) => renderBlockItem(change, 'add'))}
+      {editedBlocks.map((change) => renderBlockItem(change, 'edit'))}
+      {deletedBlocks.map((change) => renderBlockItem(change, 'delete'))}
     </div>
   )
 }

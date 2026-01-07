@@ -7,7 +7,7 @@ import { ChevronUp } from 'lucide-react'
 /**
  * Max height for thinking content before internal scrolling kicks in
  */
-const THINKING_MAX_HEIGHT = 125
+const THINKING_MAX_HEIGHT = 200
 
 /**
  * Interval for auto-scroll during streaming (ms)
