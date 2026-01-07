@@ -143,6 +143,14 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
         field: 'operation',
         value: ['gitlab_create_issue', 'gitlab_create_merge_request'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a clear, descriptive title for a GitLab issue or merge request based on the user's request.
+The title should be concise but informative.
+
+Return ONLY the title - no explanations, no extra text.`,
+        placeholder: 'Describe the issue or merge request...',
+      },
     },
     // Description
     {
@@ -159,6 +167,20 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
           'gitlab_update_merge_request',
         ],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comprehensive description for a GitLab issue or merge request based on the user's request.
+Include relevant sections as appropriate:
+- Summary of changes or problem
+- Context and motivation
+- Testing done (for MRs)
+- Steps to reproduce (for bugs)
+
+Use Markdown formatting for readability.
+
+Return ONLY the description - no explanations outside the content.`,
+        placeholder: 'Describe the content in detail...',
+      },
     },
     // Comment body
     {
@@ -170,6 +192,15 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
       condition: {
         field: 'operation',
         value: ['gitlab_create_issue_note', 'gitlab_create_merge_request_note'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a helpful GitLab comment based on the user's request.
+The comment should be clear, constructive, and professional.
+Use Markdown formatting for readability.
+
+Return ONLY the comment text - no explanations, no extra formatting.`,
+        placeholder: 'Describe the comment you want to write...',
       },
     },
     // Source branch (for MR creation)
@@ -351,6 +382,14 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
       condition: {
         field: 'operation',
         value: ['gitlab_merge_merge_request'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a clear merge commit message based on the user's request.
+The message should summarize what is being merged and why.
+
+Return ONLY the commit message - no explanations, no extra text.`,
+        placeholder: 'Describe the merge...',
       },
     },
     // Per page (pagination)

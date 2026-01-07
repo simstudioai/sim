@@ -30,6 +30,14 @@ export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
 JSON: Best for populating multiple columns.
 Plain Text: Best for populating a table in free-form style.
       `,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate JSON data structure or plain text content based on the user description. For JSON, create a well-structured object or array with appropriate keys and sample values. Return ONLY the data content - no explanations, no extra formatting.',
+        placeholder:
+          'Describe the data structure you need (e.g., "array of contacts with name, email, and company")...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'authToken',

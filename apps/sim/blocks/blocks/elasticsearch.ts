@@ -174,6 +174,16 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       placeholder: '{ "field": "value", "another_field": 123 }',
       required: true,
       condition: { field: 'operation', value: 'elasticsearch_index_document' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an Elasticsearch document JSON object based on the user's description.
+The document should contain the fields and values to be indexed.
+Use appropriate data types (strings, numbers, booleans, arrays, nested objects).
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the document you want to index...',
+        generationType: 'json-object',
+      },
     },
 
     // Document body - for update (partial)
@@ -184,6 +194,15 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       placeholder: '{ "field_to_update": "new_value" }',
       required: true,
       condition: { field: 'operation', value: 'elasticsearch_update_document' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an Elasticsearch partial document JSON for updating based on the user's description.
+Only include the fields that need to be updated - other fields will remain unchanged.
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the fields you want to update...',
+        generationType: 'json-object',
+      },
     },
 
     // Search query
@@ -193,6 +212,19 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       type: 'code',
       placeholder: '{ "match": { "field": "search term" } }',
       condition: { field: 'operation', value: 'elasticsearch_search' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an Elasticsearch query DSL JSON based on the user's description.
+Common query types:
+- {"match": {"field": "text"}} - Full-text search
+- {"term": {"field": "exact_value"}} - Exact match
+- {"range": {"field": {"gte": 10, "lte": 100}}} - Range query
+- {"bool": {"must": [...], "filter": [...]}} - Boolean combinations
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe what you want to search for...',
+        generationType: 'json-object',
+      },
     },
 
     // Count query
@@ -202,6 +234,18 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       type: 'code',
       placeholder: '{ "match": { "field": "value" } }',
       condition: { field: 'operation', value: 'elasticsearch_count' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an Elasticsearch query DSL JSON for counting documents based on the user's description.
+Common query types:
+- {"match": {"field": "text"}} - Full-text search
+- {"term": {"field": "exact_value"}} - Exact match
+- {"range": {"field": {"gte": 10}}} - Range query
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe which documents to count...',
+        generationType: 'json-object',
+      },
     },
 
     // Search size
@@ -229,6 +273,18 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       type: 'code',
       placeholder: '[{ "field": { "order": "asc" } }]',
       condition: { field: 'operation', value: 'elasticsearch_search' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an Elasticsearch sort specification JSON array based on the user's description.
+Format: [{"field_name": {"order": "asc"|"desc"}}]
+Examples:
+- [{"timestamp": {"order": "desc"}}] - Sort by timestamp descending
+- [{"_score": {"order": "desc"}}, {"date": {"order": "asc"}}] - Multi-field sort
+
+Return ONLY valid JSON array - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe how to sort the results...',
+        generationType: 'json-object',
+      },
     },
 
     // Source includes
@@ -264,6 +320,20 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
         '{ "index": { "_index": "my-index", "_id": "1" } }\n{ "field": "value" }\n{ "delete": { "_index": "my-index", "_id": "2" } }',
       required: true,
       condition: { field: 'operation', value: 'elasticsearch_bulk' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate Elasticsearch bulk operations in NDJSON format based on the user's description.
+Each operation consists of an action line followed by an optional document line.
+Actions: index, create, update, delete
+Format:
+{"index": {"_index": "my-index", "_id": "1"}}
+{"field": "value"}
+{"delete": {"_index": "my-index", "_id": "2"}}
+
+Return ONLY the NDJSON content - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the bulk operations you want to perform...',
+        generationType: 'json-object',
+      },
     },
 
     // Index settings
@@ -273,6 +343,19 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       type: 'code',
       placeholder: '{ "number_of_shards": 1, "number_of_replicas": 1 }',
       condition: { field: 'operation', value: 'elasticsearch_create_index' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate Elasticsearch index settings JSON based on the user's description.
+Common settings:
+- "number_of_shards": Number of primary shards
+- "number_of_replicas": Number of replica shards
+- "refresh_interval": How often to refresh the index
+- "analysis": Custom analyzers, tokenizers, filters
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the index settings you need...',
+        generationType: 'json-object',
+      },
     },
 
     // Index mappings
@@ -282,6 +365,21 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       type: 'code',
       placeholder: '{ "properties": { "field": { "type": "text" } } }',
       condition: { field: 'operation', value: 'elasticsearch_create_index' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate Elasticsearch index mappings JSON based on the user's description.
+Define field types and properties:
+- "text": Full-text searchable
+- "keyword": Exact match, sorting, aggregations
+- "integer", "long", "float", "double": Numeric types
+- "date": Date/time values
+- "boolean": True/false values
+- "object", "nested": Complex types
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the fields and their types...',
+        generationType: 'json-object',
+      },
     },
 
     // Refresh option

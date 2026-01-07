@@ -72,6 +72,21 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
       type: 'short-input',
       placeholder: 'Retrieve responses after this date (ISO format)',
       condition: { field: 'operation', value: 'typeform_responses' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "yesterday" -> Calculate yesterday's date at 00:00:00Z
+- "last week" -> Calculate 7 days ago at 00:00:00Z
+- "beginning of this month" -> First day of current month at 00:00:00Z
+- "24 hours ago" -> Calculate exactly 24 hours before now
+- "last Monday at 9am" -> Calculate the most recent Monday at 09:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "last week", "beginning of month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'until',
@@ -79,6 +94,21 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
       type: 'short-input',
       placeholder: 'Retrieve responses before this date (ISO format)',
       condition: { field: 'operation', value: 'typeform_responses' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "now" -> Current timestamp
+- "today at midnight" -> Today's date at 23:59:59Z
+- "end of this month" -> Last day of current month at 23:59:59Z
+- "yesterday" -> Yesterday's date at 23:59:59Z
+- "end of last week" -> Most recent Sunday at 23:59:59Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end date (e.g., "now", "end of yesterday")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'completed',

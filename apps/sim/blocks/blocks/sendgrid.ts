@@ -147,6 +147,37 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
       type: 'code',
       placeholder: '{"name": "John", "order_id": "12345"}',
       condition: { field: 'operation', value: 'send_mail' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate SendGrid dynamic template data JSON based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY a valid JSON object starting with { and ending with }
+- Include all variables that the template might use
+- Use descriptive key names that match template variables
+- Values should be sample data or variable references
+
+### EXAMPLE
+User: "Order confirmation with customer name, order number, items list, and total"
+Output:
+{
+  "customer_name": "John Doe",
+  "order_id": "ORD-12345",
+  "items": [
+    {"name": "Product A", "quantity": 2, "price": 29.99},
+    {"name": "Product B", "quantity": 1, "price": 49.99}
+  ],
+  "total": "$109.97",
+  "order_date": "January 15, 2024"
+}
+
+Return ONLY the JSON object.`,
+        placeholder: 'Describe the template variables...',
+        generationType: 'json-object',
+      },
     },
     // File upload (basic mode)
     {
@@ -200,6 +231,31 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
       type: 'code',
       placeholder: '{"custom_field_1": "value1"}',
       condition: { field: 'operation', value: ['add_contact'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate SendGrid custom fields JSON based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY a valid JSON object starting with { and ending with }
+- Use the custom field IDs defined in your SendGrid account
+- Custom field IDs are typically like "e1_T" or similar format
+- Include appropriate values for each custom field
+
+### EXAMPLE
+User: "Add company name and signup source as custom fields"
+Output:
+{
+  "e1_T": "Acme Corporation",
+  "e2_T": "website_signup"
+}
+
+Return ONLY the JSON object.`,
+        placeholder: 'Describe the custom field values...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'contactListIds',
@@ -223,6 +279,27 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
       placeholder: "email LIKE '%example.com%'",
       condition: { field: 'operation', value: ['search_contacts'] },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a SendGrid contact search query (SGQL) based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Use SendGrid Query Language (SGQL) syntax
+- Available operators: LIKE, NOT LIKE, IS, IS NOT, IN, NOT IN, BETWEEN
+- Available fields: email, first_name, last_name, created_at, updated_at, and custom fields
+- Use AND/OR for combining conditions
+- Use single quotes for string values
+
+### EXAMPLE
+User: "Find all contacts from gmail addresses added in the last 30 days"
+Output: email LIKE '%@gmail.com' AND created_at > TIMESTAMP '2024-01-01'
+
+Return ONLY the SGQL query.`,
+        placeholder: 'Describe the search criteria...',
+      },
     },
     {
       id: 'contactIds',
@@ -242,6 +319,32 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
       placeholder: '[{"email": "user@example.com", "first_name": "John"}]',
       condition: { field: 'operation', value: 'add_contacts_to_list' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of SendGrid contacts based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY a valid JSON array starting with [ and ending with ]
+- Each contact must have an "email" field
+- Optional fields: first_name, last_name, custom_fields
+- For custom fields, use the field ID format (e.g., "e1_T")
+
+### EXAMPLE
+User: "Add 3 contacts from the marketing team"
+Output:
+[
+  {"email": "alice@company.com", "first_name": "Alice", "last_name": "Smith"},
+  {"email": "bob@company.com", "first_name": "Bob", "last_name": "Jones"},
+  {"email": "carol@company.com", "first_name": "Carol", "last_name": "Williams"}
+]
+
+Return ONLY the JSON array.`,
+        placeholder: 'Describe the contacts to add...',
+        generationType: 'json-object',
+      },
     },
     // List fields
     {
@@ -330,6 +433,26 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
       placeholder: 'Email subject',
       condition: { field: 'operation', value: 'create_template_version' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an email subject line for a SendGrid template based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Keep it concise (under 60 characters for best deliverability)
+- Use Handlebars variables: {{variable_name}}
+- Make it clear and descriptive
+- Avoid spam trigger words
+
+### EXAMPLE
+User: "Order shipped notification with order number"
+Output: Your order #{{order_id}} has shipped!
+
+Return ONLY the subject line.`,
+        placeholder: 'Describe the template subject...',
+      },
     },
     {
       id: 'htmlContent',
@@ -337,6 +460,52 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
       type: 'code',
       placeholder: '<html><body>{{name}}</body></html>',
       condition: { field: 'operation', value: 'create_template_version' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate SendGrid email template HTML based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return valid HTML for email (use tables for layout, inline CSS)
+- Use Handlebars syntax for dynamic content: {{variable_name}}
+- Use conditionals: {{#if variable}}...{{/if}}
+- Use loops: {{#each items}}...{{/each}}
+- Include proper HTML structure with doctype
+- Make it mobile-responsive
+
+### EXAMPLE
+User: "Simple order confirmation template with customer name and order details"
+Output:
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; }
+    .header { background: #007bff; color: white; padding: 20px; text-align: center; }
+    .content { padding: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Order Confirmation</h1>
+    </div>
+    <div class="content">
+      <p>Hi {{customer_name}},</p>
+      <p>Thank you for your order #{{order_id}}!</p>
+      <p>Total: {{total}}</p>
+    </div>
+  </div>
+</body>
+</html>
+
+Return ONLY the HTML content.`,
+        placeholder: 'Describe the email template...',
+      },
     },
     {
       id: 'plainContent',

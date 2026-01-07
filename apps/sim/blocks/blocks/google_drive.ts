@@ -80,6 +80,17 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       placeholder: 'Text content for the file',
       condition: { field: 'operation', value: 'create_file' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate file content based on the user's description.
+Create well-structured content appropriate for the file type.
+For text files, use clear formatting and organization.
+For HTML, include proper structure with appropriate tags.
+For CSV, use proper comma-separated formatting.
+
+Return ONLY the file content - no explanations, no markdown code blocks, no extra text.`,
+        placeholder: 'Describe the content you want to create...',
+      },
     },
     {
       id: 'mimeType',
@@ -229,6 +240,24 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       type: 'short-input',
       placeholder: 'Search for specific files (e.g., name contains "report")',
       condition: { field: 'operation', value: 'list' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Google Drive search query based on the user's description.
+Use Google Drive query syntax:
+- name contains 'term' - search by filename
+- mimeType = 'type' - filter by file type
+- modifiedTime > 'date' - filter by date
+- 'email' in owners - filter by owner
+- fullText contains 'term' - search file contents
+
+Examples:
+- "PDF files" -> mimeType = 'application/pdf'
+- "files named report" -> name contains 'report'
+- "spreadsheets modified today" -> mimeType = 'application/vnd.google-apps.spreadsheet' and modifiedTime > '2024-01-01'
+
+Return ONLY the query string - no explanations, no quotes around the whole thing, no extra text.`,
+        placeholder: 'Describe the files you want to find...',
+      },
     },
     {
       id: 'pageSize',

@@ -130,6 +130,19 @@ export const IntercomBlock: BlockConfig = {
         field: 'operation',
         value: ['create_contact', 'update_contact'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+The timestamp should be a Unix epoch time in seconds (10 digits).
+Examples:
+- "yesterday" -> Yesterday at 00:00:00 as Unix timestamp
+- "last week" -> 7 days ago at 00:00:00 as Unix timestamp
+- "January 1, 2024" -> 1704067200
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the signup date (e.g., "yesterday", "January 1, 2024")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'last_seen_at',
@@ -139,6 +152,19 @@ export const IntercomBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['create_contact', 'update_contact'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+The timestamp should be a Unix epoch time in seconds (10 digits).
+Examples:
+- "now" -> Current Unix timestamp
+- "1 hour ago" -> Current time minus 3600 seconds
+- "today at noon" -> Today at 12:00:00 as Unix timestamp
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the last seen time (e.g., "now", "1 hour ago")...',
+        generationType: 'timestamp',
       },
     },
     {
@@ -173,6 +199,17 @@ export const IntercomBlock: BlockConfig = {
         field: 'operation',
         value: ['create_contact', 'update_contact'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for Intercom custom attributes based on the user's description.
+The object should contain key-value pairs for custom contact attributes.
+Example: {"plan_type": "enterprise", "signup_source": "website", "industry": "technology"}
+
+Return ONLY the JSON object - no explanations or markdown formatting.`,
+        placeholder:
+          'Describe the custom attributes (e.g., "enterprise customer, signed up from marketing campaign")...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'contact_company_id',
@@ -193,6 +230,17 @@ export const IntercomBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['search_contacts', 'search_conversations'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a search query for Intercom based on the user's description.
+This can be either:
+1. A simple text search query
+2. A JSON query object for advanced filtering
+
+Return ONLY the query - no explanations.`,
+        placeholder:
+          'Describe what you want to search for (e.g., "active users from last week", "open conversations about billing")...',
       },
     },
     {
@@ -310,6 +358,20 @@ export const IntercomBlock: BlockConfig = {
         field: 'operation',
         value: ['create_company'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+The timestamp should be a Unix epoch time in seconds (10 digits).
+Examples:
+- "2 years ago" -> Calculate 2 years ago as Unix timestamp
+- "January 2022" -> January 1, 2022 at 00:00:00 as Unix timestamp
+- "last year" -> 1 year ago at 00:00:00 as Unix timestamp
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder:
+          'Describe when the company was created (e.g., "2 years ago", "January 2022")...',
+        generationType: 'timestamp',
+      },
     },
     // Conversation fields
     {
@@ -396,6 +458,18 @@ export const IntercomBlock: BlockConfig = {
         field: 'operation',
         value: ['reply_conversation', 'create_message'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a message body for Intercom based on the user's description.
+The message should:
+- Be professional and friendly
+- Be clear and concise
+- Match the context (support reply, outreach, etc.)
+
+Return ONLY the message text - no explanations.`,
+        placeholder:
+          'Describe the message you want to send (e.g., "thank customer for feedback", "follow up on support ticket")...',
+      },
     },
     {
       id: 'admin_id',
@@ -426,6 +500,19 @@ export const IntercomBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['reply_conversation'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+The timestamp should be a Unix epoch time in seconds (10 digits).
+Examples:
+- "now" -> Current Unix timestamp
+- "5 minutes ago" -> Current time minus 300 seconds
+- "earlier today" -> Today at 09:00:00 as Unix timestamp
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the reply time (e.g., "now", "5 minutes ago")...',
+        generationType: 'timestamp',
       },
     },
     // Ticket fields
@@ -461,6 +548,16 @@ export const IntercomBlock: BlockConfig = {
         field: 'operation',
         value: ['create_ticket'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of contact identifiers for Intercom based on the user's description.
+The array should contain contact identifier objects.
+Example: [{"id": "contact_id_1"}, {"id": "contact_id_2"}] or [{"email": "user@example.com"}]
+
+Return ONLY the JSON array - no explanations or markdown formatting.`,
+        placeholder: 'Describe the contacts (e.g., "user with email john@example.com")...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'ticket_attributes',
@@ -471,6 +568,16 @@ export const IntercomBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['create_ticket'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for Intercom ticket attributes based on the user's description.
+The object should contain the ticket's custom attributes based on your ticket type schema.
+Example: {"_default_title_": "Issue title", "_default_description_": "Issue description", "priority": "high"}
+
+Return ONLY the JSON object - no explanations or markdown formatting.`,
+        placeholder: 'Describe the ticket (e.g., "high priority bug report about login issues")...',
+        generationType: 'json-object',
       },
     },
     {
@@ -491,6 +598,19 @@ export const IntercomBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['create_ticket'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+The timestamp should be a Unix epoch time in seconds (10 digits).
+Examples:
+- "now" -> Current Unix timestamp
+- "when the issue was reported" -> Use current time
+- "yesterday" -> Yesterday at 00:00:00 as Unix timestamp
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the ticket creation time (e.g., "now", "yesterday")...',
+        generationType: 'timestamp',
       },
     },
     {
@@ -554,6 +674,18 @@ export const IntercomBlock: BlockConfig = {
         field: 'operation',
         value: ['create_message'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an email subject line for Intercom based on the user's description.
+The subject should:
+- Be concise and attention-grabbing
+- Clearly indicate the email purpose
+- Be professional
+
+Return ONLY the subject line - no explanations.`,
+        placeholder:
+          'Describe the email purpose (e.g., "welcome new customer", "feature announcement")...',
+      },
     },
     {
       id: 'from_type',
@@ -607,6 +739,19 @@ export const IntercomBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['create_message'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+The timestamp should be a Unix epoch time in seconds (10 digits).
+Examples:
+- "now" -> Current Unix timestamp
+- "just now" -> Current Unix timestamp
+- "a few minutes ago" -> Current time minus 300 seconds
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the message time (e.g., "now", "just now")...',
+        generationType: 'timestamp',
       },
     },
     // Pagination fields

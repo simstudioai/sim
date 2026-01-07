@@ -169,6 +169,7 @@ export function useWand({
             systemPrompt: systemPrompt,
             stream: true,
             history: wandConfig?.maintainHistory ? conversationHistory : [],
+            generationType: wandConfig?.generationType,
           }),
           signal: abortControllerRef.current.signal,
           cache: 'no-store',

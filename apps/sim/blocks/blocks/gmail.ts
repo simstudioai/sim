@@ -68,6 +68,14 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       placeholder: 'Email subject',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
       required: false,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a clear, professional email subject line based on the user's request.
+The subject should be concise yet informative about the email's purpose.
+
+Return ONLY the subject line - no explanations, no extra text.`,
+        placeholder: 'Describe the email topic...',
+      },
     },
     {
       id: 'body',
@@ -76,6 +84,18 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       placeholder: 'Email content',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate professional email content based on the user's request.
+The email should:
+- Have an appropriate greeting
+- Be clear and well-structured
+- Have a professional tone
+- Include a proper closing
+
+Return ONLY the email body - no explanations, no extra text.`,
+        placeholder: 'Describe the email you want to write...',
+      },
     },
     {
       id: 'contentType',
@@ -207,6 +227,18 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       placeholder: 'Enter search terms',
       condition: { field: 'operation', value: 'search_gmail' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Gmail search query based on the user's request.
+Gmail search supports operators like:
+- from: to: subject: has:attachment
+- is:unread is:starred is:important
+- before: after: older: newer:
+- filename: label: category:
+
+Return ONLY the search query - no explanations, no extra text.`,
+        placeholder: 'Describe what emails you want to find...',
+      },
     },
     {
       id: 'maxResults',

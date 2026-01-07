@@ -147,6 +147,19 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
         field: 'operation',
         value: ['create_task', 'update_task'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "tomorrow" -> Calculate tomorrow's date in YYYY-MM-DD format
+- "next Friday" -> Calculate the next Friday's date in YYYY-MM-DD format
+- "in 3 days" -> Calculate 3 days from now in YYYY-MM-DD format
+- "end of week" -> Calculate the upcoming Friday or Sunday in YYYY-MM-DD format
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the due date (e.g., "tomorrow", "next Friday", "in 3 days")...',
+        generationType: 'timestamp',
+      },
     },
 
     {
