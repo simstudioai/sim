@@ -96,7 +96,7 @@ export const firefliesListTranscriptsTool: ToolConfig<
             $fromDate: DateTime
             $toDate: DateTime
             $host_email: String
-            $participants: [String]
+            $participants: [String!]
             $limit: Int
             $skip: Int
           ) {

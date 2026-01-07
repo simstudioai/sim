@@ -98,6 +98,20 @@ export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
         field: 'operation',
         value: 'fireflies_list_transcripts',
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "yesterday" -> Calculate yesterday's date at 00:00:00Z
+- "last week" -> Calculate 7 days ago at 00:00:00Z
+- "beginning of this month" -> First day of current month at 00:00:00Z
+- "January 1st 2024" -> 2024-01-01T00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "last week", "beginning of this month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'toDate',
@@ -108,6 +122,20 @@ export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
       condition: {
         field: 'operation',
         value: 'fireflies_list_transcripts',
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "today" -> Calculate today's date at 23:59:59Z
+- "end of this week" -> Calculate end of week at 23:59:59Z
+- "end of this month" -> Last day of current month at 23:59:59Z
+- "December 31st 2024" -> 2024-12-31T23:59:59Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "today", "end of this month")...',
+        generationType: 'timestamp',
       },
     },
     {
