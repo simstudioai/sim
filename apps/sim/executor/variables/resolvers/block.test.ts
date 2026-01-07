@@ -817,6 +817,112 @@ describe('BlockResolver', () => {
         expect(resolver.resolve('<workflow1.childWorkflowName>', ctx)).toBe('vibrant-cliff')
       }
     )
+
+    it.concurrent(
+      'real-world scenario: accessing entire response object via <workflow1.result.response> (workflow type)',
+      () => {
+        const workflow = createTestWorkflow([
+          { id: 'workflow-block', name: 'Workflow 1', type: 'workflow' },
+        ])
+        const resolver = new BlockResolver(workflow)
+
+        // Child Response block output (new format - no wrapper)
+        const ctx = createTestContext('current', {
+          'workflow-block': {
+            success: true,
+            childWorkflowName: 'response-workflow-child-editor',
+            result: {
+              data: {
+                s: 'example string',
+                nums: [1, 2, 3],
+                n: 42,
+                obj: { key1: 'value1', key2: 'value2' },
+              },
+              status: 206,
+              headers: { 'Content-Type': 'application/json', apple: 'banana' },
+            },
+          },
+        })
+
+        // OLD reference: <workflow1.result.response> should return the entire result object
+        // This is used when the user wants to get data, status, headers all at once
+        const response = resolver.resolve('<workflow1.result.response>', ctx)
+        expect(response).toEqual({
+          data: {
+            s: 'example string',
+            nums: [1, 2, 3],
+            n: 42,
+            obj: { key1: 'value1', key2: 'value2' },
+          },
+          status: 206,
+          headers: { 'Content-Type': 'application/json', apple: 'banana' },
+        })
+
+        // Verify individual fields can be accessed from the returned object
+        expect(response.status).toBe(206)
+        expect(response.headers.apple).toBe('banana')
+        expect(response.data.s).toBe('example string')
+        expect(response.data.n).toBe(42)
+        expect(response.data.nums).toEqual([1, 2, 3])
+        expect(response.data.obj.key1).toBe('value1')
+      }
+    )
+
+    it.concurrent(
+      'real-world scenario: workflow_input type block with <workflow1.result.response>',
+      () => {
+        /**
+         * CRITICAL: Workflow blocks can have type 'workflow' OR 'workflow_input'.
+         * Both must support backwards compatibility.
+         *
+         * This test uses 'workflow_input' which is the actual type in production.
+         */
+        const workflow = createTestWorkflow([
+          { id: 'workflow-block', name: 'Workflow 1', type: 'workflow_input' },
+        ])
+        const resolver = new BlockResolver(workflow)
+
+        const ctx = createTestContext('current', {
+          'workflow-block': {
+            success: true,
+            childWorkflowName: 'response-workflow-child-editor',
+            result: {
+              data: {
+                s: 'example string',
+                nums: [1, 2, 3],
+                n: 42,
+                obj: { key1: 'value1', key2: 'value2' },
+              },
+              status: 206,
+              headers: { 'Content-Type': 'application/json', apple: 'banana' },
+            },
+          },
+        })
+
+        // OLD reference: <workflow1.result.response> should return the entire result object
+        const response = resolver.resolve('<workflow1.result.response>', ctx)
+        expect(response).toEqual({
+          data: {
+            s: 'example string',
+            nums: [1, 2, 3],
+            n: 42,
+            obj: { key1: 'value1', key2: 'value2' },
+          },
+          status: 206,
+          headers: { 'Content-Type': 'application/json', apple: 'banana' },
+        })
+
+        // Also test drilling into specific fields
+        expect(resolver.resolve('<workflow1.result.response.data>', ctx)).toEqual({
+          s: 'example string',
+          nums: [1, 2, 3],
+          n: 42,
+          obj: { key1: 'value1', key2: 'value2' },
+        })
+        expect(resolver.resolve('<workflow1.result.response.status>', ctx)).toBe(206)
+        expect(resolver.resolve('<workflow1.result.response.data.s>', ctx)).toBe('example string')
+      }
+    )
   })
 
   describe('edge cases', () => {
