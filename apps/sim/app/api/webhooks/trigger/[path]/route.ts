@@ -162,6 +162,15 @@ export async function POST(
   if (foundWebhook.blockId) {
     const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
     if (!blockExists) {
+      // For Grain, if block doesn't exist in deployment, treat as verification request
+      // Grain validates webhook URLs during creation, and the block may not be deployed yet
+      if (foundWebhook.provider === 'grain') {
+        logger.info(
+          `[${requestId}] Grain webhook verification - block not in deployment, returning 200 OK`
+        )
+        return NextResponse.json({ status: 'ok', message: 'Webhook endpoint verified' })
+      }
+
       logger.info(
         `[${requestId}] Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`
       )

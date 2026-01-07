@@ -217,12 +217,12 @@ export const GrainBlock: BlockConfig = {
       value: () => 'grain_webhook',
       required: true,
     },
-    ...getTrigger('grain_recording_created').subBlocks.slice(1),
-    ...getTrigger('grain_recording_updated').subBlocks.slice(1),
-    ...getTrigger('grain_highlight_created').subBlocks.slice(1),
-    ...getTrigger('grain_highlight_updated').subBlocks.slice(1),
-    ...getTrigger('grain_story_created').subBlocks.slice(1),
-    ...getTrigger('grain_webhook').subBlocks.slice(1),
+    ...getTrigger('grain_recording_created').subBlocks,
+    ...getTrigger('grain_recording_updated').subBlocks,
+    ...getTrigger('grain_highlight_created').subBlocks,
+    ...getTrigger('grain_highlight_updated').subBlocks,
+    ...getTrigger('grain_story_created').subBlocks,
+    ...getTrigger('grain_webhook').subBlocks,
   ],
   tools: {
     access: [
