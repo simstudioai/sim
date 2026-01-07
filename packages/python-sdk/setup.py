@@ -7,7 +7,7 @@ setup(
     name="simstudio-sdk",
     version="0.1.1",
     author="Sim",
-    author_email="support@sim.ai",
+    author_email="help@sim.ai",
     description="Sim SDK - Execute workflows programmatically",
     long_description=long_description,
     long_description_content_type="text/markdown",
