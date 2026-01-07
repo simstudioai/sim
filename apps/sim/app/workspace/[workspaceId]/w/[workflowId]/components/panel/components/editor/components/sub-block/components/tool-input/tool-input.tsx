@@ -796,16 +796,11 @@ function WorkflowToolDeployBadge({
     }
   }, [isDeploying, workflowId, refetch, onDeploySuccess])
 
-  // Don't show badge if loading or workflow is deployed and doesn't need redeploy
   if (isLoading || (isDeployed && !needsRedeploy)) {
     return null
   }
 
   if (typeof isDeployed !== 'boolean') {
-    return null
-  }
-
-  if (isDeployed && !needsRedeploy) {
     return null
   }
 
