@@ -57,24 +57,24 @@ export const jiraIssueCommentedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: jiraSetupInstructions('comment_created'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_commented',
-      },
-    },
-    {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'jira_issue_commented',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'jira_issue_commented',
+      },
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: jiraSetupInstructions('comment_created'),
+      mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'jira_issue_commented',

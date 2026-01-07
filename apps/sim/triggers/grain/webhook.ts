@@ -35,24 +35,24 @@ export const grainWebhookTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: grainSetupInstructions('All events'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'grain_webhook',
-      },
-    },
-    {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'grain_webhook',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'grain_webhook',
+      },
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: grainSetupInstructions('All events'),
+      mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'grain_webhook',

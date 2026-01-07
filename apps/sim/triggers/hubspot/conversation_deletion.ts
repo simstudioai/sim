@@ -94,6 +94,17 @@ export const hubspotConversationDeletionTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'hubspot_conversation_deletion',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'hubspot_conversation_deletion',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
@@ -151,17 +162,6 @@ export const hubspotConversationDeletionTrigger: TriggerConfig = {
       showCopyButton: true,
       description: 'Run this command to subscribe to conversation deletion events',
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_conversation_deletion',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_conversation_deletion',
       condition: {
         field: 'selectedTriggerId',
         value: 'hubspot_conversation_deletion',

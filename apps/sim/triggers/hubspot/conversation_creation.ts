@@ -94,6 +94,17 @@ export const hubspotConversationCreationTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'hubspot_conversation_creation',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'hubspot_conversation_creation',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
@@ -151,17 +162,6 @@ export const hubspotConversationCreationTrigger: TriggerConfig = {
       showCopyButton: true,
       description: 'Run this command to subscribe to conversation creation events',
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_conversation_creation',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_conversation_creation',
       condition: {
         field: 'selectedTriggerId',
         value: 'hubspot_conversation_creation',

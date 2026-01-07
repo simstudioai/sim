@@ -38,6 +38,18 @@ export const calendlyWebhookTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'calendly_webhook',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'calendly_webhook',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -55,18 +67,6 @@ export const calendlyWebhookTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'calendly_webhook',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'calendly_webhook',
       condition: {
         field: 'selectedTriggerId',
         value: 'calendly_webhook',
