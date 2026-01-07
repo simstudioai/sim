@@ -42,9 +42,6 @@ export default function StructuredData() {
         publisher: {
           '@id': 'https://sim.ai/#organization',
         },
-        // Note: SearchAction removed - no public /search page exists
-        // Add back when search functionality is implemented:
-        // potentialAction: [{ '@type': 'SearchAction', target: { urlTemplate: '...' } }]
         inLanguage: 'en-US',
       },
       {
