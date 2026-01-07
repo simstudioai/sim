@@ -77,9 +77,13 @@ export interface PaneContextMenuProps {
   onAddBlock: () => void
   onAutoLayout: () => void
   onOpenLogs: () => void
-  onOpenVariables: () => void
-  onOpenChat: () => void
+  onToggleVariables: () => void
+  onToggleChat: () => void
   onInvite: () => void
+  /** Whether the variables panel is currently open */
+  isVariablesOpen?: boolean
+  /** Whether the chat panel is currently open */
+  isChatOpen?: boolean
   /** Whether clipboard has content for pasting */
   hasClipboard?: boolean
   /** Whether edit actions are disabled (no permission) */

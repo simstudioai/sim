@@ -24,9 +24,11 @@ export function PaneContextMenu({
   onAddBlock,
   onAutoLayout,
   onOpenLogs,
-  onOpenVariables,
-  onOpenChat,
+  onToggleVariables,
+  onToggleChat,
   onInvite,
+  isVariablesOpen = false,
+  isChatOpen = false,
   hasClipboard = false,
   disableEdit = false,
   disableAdmin = false,
@@ -125,19 +127,19 @@ export function PaneContextMenu({
         </PopoverItem>
         <PopoverItem
           onClick={() => {
-            onOpenVariables()
+            onToggleVariables()
             onClose()
           }}
         >
-          Variables
+          {isVariablesOpen ? 'Close Variables' : 'Open Variables'}
         </PopoverItem>
         <PopoverItem
           onClick={() => {
-            onOpenChat()
+            onToggleChat()
             onClose()
           }}
         >
-          Open Chat
+          {isChatOpen ? 'Close Chat' : 'Open Chat'}
         </PopoverItem>
 
         {/* Admin action */}

@@ -257,6 +257,10 @@ const WorkflowContent = React.memo(() => {
 
   const snapToGridSize = useGeneralStore((state) => state.snapToGridSize)
   const snapToGrid = snapToGridSize > 0
+
+  // Panel open states for context menu
+  const isVariablesOpen = useVariablesStore((state) => state.isOpen)
+  const isChatOpen = useChatStore((state) => state.isChatOpen)
   const snapGrid: [number, number] = useMemo(
     () => [snapToGridSize, snapToGridSize],
     [snapToGridSize]
@@ -754,12 +758,14 @@ const WorkflowContent = React.memo(() => {
     router.push(`/workspace/${workspaceId}/logs?workflowIds=${workflowIdParam}`)
   }, [router, workspaceId, workflowIdParam])
 
-  const handleContextOpenVariables = useCallback(() => {
-    useVariablesStore.getState().setIsOpen(true)
+  const handleContextToggleVariables = useCallback(() => {
+    const { isOpen, setIsOpen } = useVariablesStore.getState()
+    setIsOpen(!isOpen)
   }, [])
 
-  const handleContextOpenChat = useCallback(() => {
-    useChatStore.getState().setIsChatOpen(true)
+  const handleContextToggleChat = useCallback(() => {
+    const { isChatOpen, setIsChatOpen } = useChatStore.getState()
+    setIsChatOpen(!isChatOpen)
   }, [])
 
   const handleContextInvite = useCallback(() => {
@@ -2919,9 +2925,11 @@ const WorkflowContent = React.memo(() => {
               onAddBlock={handleContextAddBlock}
               onAutoLayout={handleAutoLayout}
               onOpenLogs={handleContextOpenLogs}
-              onOpenVariables={handleContextOpenVariables}
-              onOpenChat={handleContextOpenChat}
+              onToggleVariables={handleContextToggleVariables}
+              onToggleChat={handleContextToggleChat}
               onInvite={handleContextInvite}
+              isVariablesOpen={isVariablesOpen}
+              isChatOpen={isChatOpen}
               hasClipboard={hasClipboard()}
               disableEdit={!effectivePermissions.canEdit}
               disableAdmin={!effectivePermissions.canAdmin}
