@@ -317,6 +317,8 @@ interface WebhookMetadata {
   providerConfig: Record<string, any>
 }
 
+const CREDENTIAL_SET_PREFIX = 'credentialSet:'
+
 function buildWebhookMetadata(block: BlockState): WebhookMetadata | null {
   const triggerId =
     getSubBlockValue<string>(block, 'triggerId') ||
@@ -328,9 +330,17 @@ function buildWebhookMetadata(block: BlockState): WebhookMetadata | null {
   const triggerDef = triggerId ? getTrigger(triggerId) : undefined
   const provider = triggerDef?.provider || null
 
+  // Handle credential sets vs individual credentials
+  const isCredentialSet = triggerCredentials?.startsWith(CREDENTIAL_SET_PREFIX)
+  const credentialSetId = isCredentialSet
+    ? triggerCredentials.slice(CREDENTIAL_SET_PREFIX.length)
+    : undefined
+  const credentialId = isCredentialSet ? undefined : triggerCredentials
+
   const providerConfig = {
     ...(typeof triggerConfig === 'object' ? triggerConfig : {}),
-    ...(triggerCredentials ? { credentialId: triggerCredentials } : {}),
+    ...(credentialId ? { credentialId } : {}),
+    ...(credentialSetId ? { credentialSetId } : {}),
     ...(triggerId ? { triggerId } : {}),
   }
 
@@ -347,6 +357,54 @@ async function upsertWebhookRecord(
   webhookId: string,
   metadata: WebhookMetadata
 ): Promise<void> {
+  const providerConfig = metadata.providerConfig as Record<string, unknown>
+  const credentialSetId = providerConfig?.credentialSetId as string | undefined
+
+  // For credential sets, delegate to the sync function which handles fan-out
+  if (credentialSetId && metadata.provider) {
+    const { syncWebhooksForCredentialSet } = await import('@/lib/webhooks/utils.server')
+    const { getProviderIdFromServiceId } = await import('@/lib/oauth')
+
+    const oauthProviderId = getProviderIdFromServiceId(metadata.provider)
+    const requestId = crypto.randomUUID().slice(0, 8)
+
+    // Extract base config (without credential-specific fields)
+    const {
+      credentialId: _cId,
+      credentialSetId: _csId,
+      userId: _uId,
+      ...baseConfig
+    } = providerConfig
+
+    try {
+      await syncWebhooksForCredentialSet({
+        workflowId,
+        blockId: block.id,
+        provider: metadata.provider,
+        basePath: metadata.triggerPath,
+        credentialSetId,
+        oauthProviderId,
+        providerConfig: baseConfig as Record<string, any>,
+        requestId,
+      })
+
+      logger.info('Synced credential set webhooks during workflow save', {
+        workflowId,
+        blockId: block.id,
+        credentialSetId,
+      })
+    } catch (error) {
+      logger.error('Failed to sync credential set webhooks during workflow save', {
+        workflowId,
+        blockId: block.id,
+        credentialSetId,
+        error,
+      })
+    }
+    return
+  }
+
+  // For individual credentials, use the existing single webhook logic
   const [existing] = await db.select().from(webhook).where(eq(webhook.id, webhookId)).limit(1)
 
   if (existing) {
@@ -374,7 +432,6 @@ async function upsertWebhookRecord(
     return
   }
 
-  const providerConfig = metadata.providerConfig as Record<string, unknown>
   await db.insert(webhook).values({
     id: webhookId,
     workflowId,
@@ -382,7 +439,7 @@ async function upsertWebhookRecord(
     path: metadata.triggerPath,
     provider: metadata.provider,
     providerConfig: metadata.providerConfig,
-    credentialSetId: (providerConfig?.credentialSetId as string | null) || null,
+    credentialSetId: null,
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),

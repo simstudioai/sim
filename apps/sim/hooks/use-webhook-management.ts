@@ -238,8 +238,7 @@ export function useWebhookManagement({
 
     const triggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
 
-    const isCredentialSet =
-      selectedCredentialId && selectedCredentialId.startsWith(CREDENTIAL_SET_PREFIX)
+    const isCredentialSet = selectedCredentialId?.startsWith(CREDENTIAL_SET_PREFIX)
     const credentialSetId = isCredentialSet
       ? selectedCredentialId.slice(CREDENTIAL_SET_PREFIX.length)
       : undefined
@@ -305,8 +304,7 @@ export function useWebhookManagement({
   ): Promise<boolean> => {
     const triggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
 
-    const isCredentialSet =
-      selectedCredentialId && selectedCredentialId.startsWith(CREDENTIAL_SET_PREFIX)
+    const isCredentialSet = selectedCredentialId?.startsWith(CREDENTIAL_SET_PREFIX)
     const credentialSetId = isCredentialSet
       ? selectedCredentialId.slice(CREDENTIAL_SET_PREFIX.length)
       : undefined
