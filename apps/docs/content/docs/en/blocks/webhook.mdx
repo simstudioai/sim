@@ -39,28 +39,28 @@ JSON data to send in the request body. Use the AI wand to generate payloads or r
 
 ### Signing Secret
 
-Optional secret for HMAC-SHA256 payload signing. When provided, the block adds an `X-Webhook-Signature` header:
+Optional secret for HMAC-SHA256 payload signing. When provided, adds an `X-Webhook-Signature` header:
 
 ```
-X-Webhook-Signature: t=1234567890,v1=abc123...
+X-Webhook-Signature: t=1704067200000,v1=5d41402abc4b2a76b9719d911017c592...
 ```
 
-Verify signatures by computing `HMAC-SHA256(secret, "${timestamp}.${body}")`.
+To verify signatures, compute `HMAC-SHA256(secret, "${timestamp}.${body}")` and compare with the `v1` value.
 
 ### Additional Headers
 
-Custom headers to include with the request. User-provided headers override automatic webhook headers.
+Custom key-value headers to include with the request. These override any automatic headers with the same name.
 
 ## Automatic Headers
 
-Every request includes:
+Every request includes these headers automatically:
 
 | Header | Description |
 |--------|-------------|
 | `Content-Type` | `application/json` |
-| `X-Webhook-Timestamp` | Unix timestamp (milliseconds) |
-| `X-Delivery-ID` | Unique delivery identifier (UUID) |
-| `Idempotency-Key` | Same as delivery ID for deduplication |
+| `X-Webhook-Timestamp` | Unix timestamp in milliseconds |
+| `X-Delivery-ID` | Unique UUID for this delivery |
+| `Idempotency-Key` | Same as `X-Delivery-ID` for deduplication |
 
 ## Outputs
 
@@ -68,7 +68,7 @@ Every request includes:
 |--------|------|-------------|
 | `data` | json | Response body from the endpoint |
 | `status` | number | HTTP status code |
-| `headers` | json | Response headers |
+| `headers` | object | Response headers |
 
 ## Example Use Cases
 
