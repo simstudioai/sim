@@ -7,6 +7,7 @@ import {
   Avatar,
   AvatarFallback,
   AvatarImage,
+  Badge,
   Button,
   Input,
   Label,
@@ -318,12 +319,7 @@ export function CredentialSets() {
                 <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
                   {getProviderIcon(viewingSet.providerId)}
                 </div>
-                <div className='flex flex-col'>
-                  <span className='font-medium text-[14px]'>{viewingSet.name}</span>
-                  <span className='text-[13px] text-[var(--text-muted)]'>
-                    {getProviderDisplayName(viewingSet.providerId || '')}
-                  </span>
-                </div>
+                <span className='font-medium text-[14px]'>{viewingSet.name}</span>
               </div>
             </div>
             <Button
@@ -338,96 +334,101 @@ export function CredentialSets() {
             </Button>
           </div>
 
-          <div className='min-h-0 flex-1 overflow-y-auto'>
-            <div className='flex flex-col gap-[16px]'>
-              {membersLoading ? (
-                <div className='flex flex-col gap-[8px]'>
-                  <Skeleton className='h-[14px] w-[100px]' />
-                  {[1, 2].map((i) => (
-                    <div key={i} className='flex items-center justify-between'>
-                      <div className='flex items-center gap-[12px]'>
-                        <Skeleton className='h-9 w-9 rounded-full' />
-                        <div className='flex flex-col gap-[4px]'>
-                          <Skeleton className='h-[14px] w-[100px]' />
-                          <Skeleton className='h-[12px] w-[150px]' />
-                        </div>
+          <div className='relative min-h-0 flex-1 overflow-y-auto'>
+            {membersLoading ? (
+              <div className='flex flex-col gap-[8px]'>
+                <Skeleton className='h-[14px] w-[100px]' />
+                {[1, 2].map((i) => (
+                  <div key={i} className='flex items-center justify-between'>
+                    <div className='flex items-center gap-[12px]'>
+                      <Skeleton className='h-9 w-9 rounded-full' />
+                      <div className='flex flex-col gap-[4px]'>
+                        <Skeleton className='h-[14px] w-[100px]' />
+                        <Skeleton className='h-[12px] w-[150px]' />
                       </div>
-                      <Skeleton className='h-[32px] w-[32px] rounded-[6px]' />
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <>
-                  {activeMembers.length > 0 && (
-                    <div className='flex flex-col gap-[8px]'>
-                      <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                        Active Members ({activeMembers.length})
-                      </div>
-                      {activeMembers.map((member) => (
-                        <div key={member.id} className='flex items-center justify-between'>
-                          <div className='flex items-center gap-[12px]'>
-                            <Avatar className='h-9 w-9'>
-                              <AvatarImage src={member.userImage || undefined} />
-                              <AvatarFallback>
-                                <User className='h-4 w-4' />
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className='flex flex-col'>
+                    <Skeleton className='h-[32px] w-[32px] rounded-[6px]' />
+                  </div>
+                ))}
+              </div>
+            ) : members.length === 0 ? (
+              <div className='absolute inset-0 flex items-center justify-center text-[13px] text-[var(--text-muted)]'>
+                No members yet
+              </div>
+            ) : (
+              <div className='flex flex-col gap-[16px]'>
+                {activeMembers.length > 0 && (
+                  <div className='flex flex-col gap-[8px]'>
+                    <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                      Active Members ({activeMembers.length})
+                    </div>
+                    {activeMembers.map((member) => (
+                      <div key={member.id} className='flex items-center justify-between'>
+                        <div className='flex items-center gap-[12px]'>
+                          <Avatar className='h-9 w-9'>
+                            <AvatarImage src={member.userImage || undefined} />
+                            <AvatarFallback>
+                              <User className='h-4 w-4' />
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className='flex flex-col'>
+                            <div className='flex items-center gap-[6px]'>
                               <span className='font-medium text-[14px]'>
                                 {member.userName || 'Unknown'}
                               </span>
-                              <span className='text-[13px] text-[var(--text-muted)]'>
-                                {member.userEmail}
-                              </span>
+                              {member.credentials.length === 0 && (
+                                <Badge variant='red' className='text-[10px]'>
+                                  Disconnected
+                                </Badge>
+                              )}
                             </div>
+                            <span className='text-[13px] text-[var(--text-muted)]'>
+                              {member.userEmail}
+                            </span>
                           </div>
-                          <Button
-                            variant='ghost'
-                            onClick={() => handleRemoveMember(member.id)}
-                            disabled={removeMember.isPending}
-                          >
-                            Remove
-                          </Button>
                         </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {pendingMembers.length > 0 && (
-                    <div className='flex flex-col gap-[8px]'>
-                      <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                        Pending ({pendingMembers.length})
+                        <Button
+                          variant='ghost'
+                          onClick={() => handleRemoveMember(member.id)}
+                          disabled={removeMember.isPending}
+                        >
+                          Remove
+                        </Button>
                       </div>
-                      {pendingMembers.map((member) => (
-                        <div key={member.id} className='flex items-center justify-between'>
-                          <div className='flex items-center gap-[12px]'>
-                            <Avatar className='h-9 w-9'>
-                              <AvatarImage src={member.userImage || undefined} />
-                              <AvatarFallback>
-                                <User className='h-4 w-4' />
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className='flex flex-col'>
-                              <span className='font-medium text-[14px]'>
-                                {member.userName || 'Unknown'}
-                              </span>
-                              <span className='text-[13px] text-[var(--text-muted)]'>
-                                {member.userEmail}
-                              </span>
-                            </div>
-                          </div>
-                          <span className='text-[13px] text-[var(--text-muted)]'>Pending</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                    ))}
+                  </div>
+                )}
 
-                  {members.length === 0 && (
-                    <div className='text-[13px] text-[var(--text-muted)]'>No members yet</div>
-                  )}
-                </>
-              )}
-            </div>
+                {pendingMembers.length > 0 && (
+                  <div className='flex flex-col gap-[8px]'>
+                    <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                      Pending ({pendingMembers.length})
+                    </div>
+                    {pendingMembers.map((member) => (
+                      <div key={member.id} className='flex items-center justify-between'>
+                        <div className='flex items-center gap-[12px]'>
+                          <Avatar className='h-9 w-9'>
+                            <AvatarImage src={member.userImage || undefined} />
+                            <AvatarFallback>
+                              <User className='h-4 w-4' />
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className='flex flex-col'>
+                            <span className='font-medium text-[14px]'>
+                              {member.userName || 'Unknown'}
+                            </span>
+                            <span className='text-[13px] text-[var(--text-muted)]'>
+                              {member.userEmail}
+                            </span>
+                          </div>
+                        </div>
+                        <span className='text-[13px] text-[var(--text-muted)]'>Pending</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -487,147 +488,155 @@ export function CredentialSets() {
   return (
     <>
       <div className='flex h-full flex-col gap-[16px]'>
-        <div className='min-h-0 flex-1 overflow-y-auto'>
-          <div className='flex flex-col gap-[16px]'>
-            {hasNoContent && !canManageCredentialSets && (
-              <div className='text-[13px] text-[var(--text-muted)]'>
-                You're not a member of any polling groups yet. When someone invites you, it will
-                appear here.
-              </div>
-            )}
-
-            {invitations.length > 0 && (
-              <div className='flex flex-col gap-[8px]'>
-                <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                  Pending Invitations
-                </div>
-                {invitations.map((invitation) => (
-                  <div key={invitation.invitationId} className='flex items-center justify-between'>
-                    <div className='flex items-center gap-[12px]'>
-                      <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
-                        {getProviderIcon(invitation.providerId)}
-                      </div>
-                      <div className='flex flex-col'>
-                        <span className='font-medium text-[14px]'>
-                          {invitation.credentialSetName}
-                        </span>
-                        <span className='text-[13px] text-[var(--text-muted)]'>
-                          {invitation.organizationName}
-                        </span>
-                      </div>
-                    </div>
-                    <Button
-                      variant='tertiary'
-                      onClick={() => handleAcceptInvitation(invitation.token)}
-                      disabled={acceptInvitation.isPending}
-                    >
-                      {acceptInvitation.isPending ? (
-                        <Loader2 className='h-4 w-4 animate-spin' />
-                      ) : (
-                        'Accept'
-                      )}
-                    </Button>
+        <div className='relative min-h-0 flex-1 overflow-y-auto'>
+          {hasNoContent && !canManageCredentialSets ? (
+            <div className='absolute inset-0 flex items-center justify-center text-[13px] text-[var(--text-muted)]'>
+              You're not a member of any polling groups yet. When someone invites you, it will
+              appear here.
+            </div>
+          ) : (
+            <div className='flex flex-col gap-[16px]'>
+              {invitations.length > 0 && (
+                <div className='flex flex-col gap-[8px]'>
+                  <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                    Pending Invitations
                   </div>
-                ))}
-              </div>
-            )}
-
-            {activeMemberships.length > 0 && (
-              <div className='flex flex-col gap-[8px]'>
-                <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                  My Memberships
-                </div>
-                {activeMemberships.map((membership) => (
-                  <div key={membership.membershipId} className='flex items-center justify-between'>
-                    <div className='flex items-center gap-[12px]'>
-                      <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
-                        {getProviderIcon(membership.providerId)}
-                      </div>
-                      <div className='flex flex-col'>
-                        <span className='font-medium text-[14px]'>
-                          {membership.credentialSetName}
-                        </span>
-                        <span className='text-[13px] text-[var(--text-muted)]'>
-                          {membership.organizationName}
-                        </span>
-                      </div>
-                    </div>
-                    <Button
-                      variant='ghost'
-                      onClick={() =>
-                        handleLeave(membership.credentialSetId, membership.credentialSetName)
-                      }
-                      disabled={leaveCredentialSet.isPending}
-                    >
-                      Leave
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {canManageCredentialSets && (
-              <div className='flex flex-col gap-[8px]'>
-                <div className='flex items-center justify-between'>
-                  <div className='font-medium text-[13px] text-[var(--text-secondary)]'>Manage</div>
-                  <Button variant='tertiary' onClick={() => setShowCreateModal(true)}>
-                    <Plus className='mr-[6px] h-[13px] w-[13px]' />
-                    Create
-                  </Button>
-                </div>
-                {ownedSetsLoading ? (
-                  <>
-                    {[1, 2].map((i) => (
-                      <div key={i} className='flex items-center justify-between'>
-                        <div className='flex items-center gap-[12px]'>
-                          <Skeleton className='h-9 w-9 rounded-[6px]' />
-                          <div className='flex flex-col gap-[4px]'>
-                            <Skeleton className='h-[14px] w-[120px]' />
-                            <Skeleton className='h-[12px] w-[80px]' />
-                          </div>
-                        </div>
-                        <Skeleton className='h-[32px] w-[100px] rounded-[6px]' />
-                      </div>
-                    ))}
-                  </>
-                ) : ownedSets.length === 0 ? (
-                  <div className='text-[13px] text-[var(--text-muted)]'>
-                    No polling groups created yet
-                  </div>
-                ) : (
-                  ownedSets.map((set) => (
+                  {invitations.map((invitation) => (
                     <div
-                      key={set.id}
-                      className='flex cursor-pointer items-center justify-between'
-                      onClick={() => setViewingSet(set)}
+                      key={invitation.invitationId}
+                      className='flex items-center justify-between'
                     >
                       <div className='flex items-center gap-[12px]'>
                         <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
-                          {getProviderIcon(set.providerId)}
+                          {getProviderIcon(invitation.providerId)}
                         </div>
                         <div className='flex flex-col'>
-                          <span className='font-medium text-[14px]'>{set.name}</span>
+                          <span className='font-medium text-[14px]'>
+                            {invitation.credentialSetName}
+                          </span>
                           <span className='text-[13px] text-[var(--text-muted)]'>
-                            {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
+                            {invitation.organizationName}
                           </span>
                         </div>
                       </div>
                       <Button
                         variant='tertiary'
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedSetId(set.id)
-                          setShowInviteModal(true)
-                        }}
+                        onClick={() => handleAcceptInvitation(invitation.token)}
+                        disabled={acceptInvitation.isPending}
                       >
-                        Add Members
+                        {acceptInvitation.isPending ? (
+                          <Loader2 className='h-4 w-4 animate-spin' />
+                        ) : (
+                          'Accept'
+                        )}
                       </Button>
                     </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+
+              {activeMemberships.length > 0 && (
+                <div className='flex flex-col gap-[8px]'>
+                  <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                    My Memberships
+                  </div>
+                  {activeMemberships.map((membership) => (
+                    <div
+                      key={membership.membershipId}
+                      className='flex items-center justify-between'
+                    >
+                      <div className='flex items-center gap-[12px]'>
+                        <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                          {getProviderIcon(membership.providerId)}
+                        </div>
+                        <div className='flex flex-col'>
+                          <span className='font-medium text-[14px]'>
+                            {membership.credentialSetName}
+                          </span>
+                          <span className='text-[13px] text-[var(--text-muted)]'>
+                            {membership.organizationName}
+                          </span>
+                        </div>
+                      </div>
+                      <Button
+                        variant='ghost'
+                        onClick={() =>
+                          handleLeave(membership.credentialSetId, membership.credentialSetName)
+                        }
+                        disabled={leaveCredentialSet.isPending}
+                      >
+                        Leave
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {canManageCredentialSets && (
+                <div className='flex flex-col gap-[8px]'>
+                  <div className='flex items-center justify-between'>
+                    <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                      Manage
+                    </div>
+                    <Button variant='tertiary' onClick={() => setShowCreateModal(true)}>
+                      <Plus className='mr-[6px] h-[13px] w-[13px]' />
+                      Create
+                    </Button>
+                  </div>
+                  {ownedSetsLoading ? (
+                    <>
+                      {[1, 2].map((i) => (
+                        <div key={i} className='flex items-center justify-between'>
+                          <div className='flex items-center gap-[12px]'>
+                            <Skeleton className='h-9 w-9 rounded-[6px]' />
+                            <div className='flex flex-col gap-[4px]'>
+                              <Skeleton className='h-[14px] w-[120px]' />
+                              <Skeleton className='h-[12px] w-[80px]' />
+                            </div>
+                          </div>
+                          <Skeleton className='h-[32px] w-[100px] rounded-[6px]' />
+                        </div>
+                      ))}
+                    </>
+                  ) : ownedSets.length === 0 ? (
+                    <div className='text-[13px] text-[var(--text-muted)]'>
+                      No polling groups created yet
+                    </div>
+                  ) : (
+                    ownedSets.map((set) => (
+                      <div
+                        key={set.id}
+                        className='flex cursor-pointer items-center justify-between'
+                        onClick={() => setViewingSet(set)}
+                      >
+                        <div className='flex items-center gap-[12px]'>
+                          <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                            {getProviderIcon(set.providerId)}
+                          </div>
+                          <div className='flex flex-col'>
+                            <span className='font-medium text-[14px]'>{set.name}</span>
+                            <span className='text-[13px] text-[var(--text-muted)]'>
+                              {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          variant='tertiary'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedSetId(set.id)
+                            setShowInviteModal(true)
+                          }}
+                        >
+                          Add Members
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
