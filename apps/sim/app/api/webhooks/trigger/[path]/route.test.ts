@@ -249,6 +249,12 @@ vi.mock('@/lib/webhooks/processor', () => ({
       }
     ),
   checkWebhookPreprocessing: vi.fn().mockResolvedValue(null),
+  formatProviderErrorResponse: vi.fn().mockImplementation((_webhook, error, status) => {
+    const { NextResponse } = require('next/server')
+    return NextResponse.json({ error }, { status })
+  }),
+  shouldSkipWebhookEvent: vi.fn().mockReturnValue(false),
+  handlePreDeploymentVerification: vi.fn().mockReturnValue(null),
   queueWebhookExecution: vi.fn().mockImplementation(async () => {
     // Call processWebhookMock so tests can verify it was called
     processWebhookMock()
