@@ -89,6 +89,26 @@ const logger = createLogger('Workflow')
 const DEFAULT_PASTE_OFFSET = { x: 50, y: 50 }
 
 /**
+ * Gets the center of the current viewport in flow coordinates
+ */
+function getViewportCenter(
+  screenToFlowPosition: (pos: { x: number; y: number }) => { x: number; y: number }
+): { x: number; y: number } {
+  const flowContainer = document.querySelector('.react-flow')
+  if (!flowContainer) {
+    return screenToFlowPosition({
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    })
+  }
+  const rect = flowContainer.getBoundingClientRect()
+  return screenToFlowPosition({
+    x: rect.width / 2,
+    y: rect.height / 2,
+  })
+}
+
+/**
  * Calculates the offset to paste blocks at viewport center
  */
 function calculatePasteOffset(
@@ -124,14 +144,7 @@ function calculatePasteOffset(
   )
   const clipboardCenter = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }
 
-  const flowContainer = document.querySelector('.react-flow')
-  if (!flowContainer) return DEFAULT_PASTE_OFFSET
-
-  const rect = flowContainer.getBoundingClientRect()
-  const viewportCenter = screenToFlowPosition({
-    x: rect.width / 2,
-    y: rect.height / 2,
-  })
+  const viewportCenter = getViewportCenter(screenToFlowPosition)
 
   return {
     x: viewportCenter.x - clipboardCenter.x,
@@ -1311,30 +1324,13 @@ const WorkflowContent = React.memo(() => {
       if (!type) return
       if (type === 'connectionBlock') return
 
-      const getViewportCenterPosition = (): { x: number; y: number } => {
-        const flowContainer = document.querySelector('.react-flow')
-        if (!flowContainer) {
-          return screenToFlowPosition({
-            x: window.innerWidth / 2,
-            y: window.innerHeight / 2,
-          })
-        }
-        const rect = flowContainer.getBoundingClientRect()
-        return screenToFlowPosition({
-          x: rect.width / 2,
-          y: rect.height / 2,
-        })
-      }
+      const basePosition = getViewportCenter(screenToFlowPosition)
 
-      const basePosition = getViewportCenterPosition()
-
-      // Special handling for container nodes (loop or parallel)
       if (type === 'loop' || type === 'parallel') {
         const id = crypto.randomUUID()
         const baseName = type === 'loop' ? 'Loop' : 'Parallel'
         const name = getUniqueBlockName(baseName, blocks)
 
-        // No auto-connect edge for click/Cmd+K - only drag-and-drop gets auto-connect
         addBlock(
           id,
           type,
@@ -1359,18 +1355,13 @@ const WorkflowContent = React.memo(() => {
         return
       }
 
-      // Check trigger constraints first
       if (checkTriggerConstraints(type)) return
 
-      // Create a new block with a unique ID
       const id = crypto.randomUUID()
-      // Prefer semantic default names for triggers; then ensure unique numbering centrally
       const defaultTriggerName = TriggerUtils.getDefaultTriggerName(type)
       const baseName = defaultTriggerName || blockConfig.name
       const name = getUniqueBlockName(baseName, blocks)
 
-      // No auto-connect edge for click/Cmd+K - only drag-and-drop gets auto-connect
-      // Enable trigger mode if this is a trigger-capable block from the triggers tab
       addBlock(
         id,
         type,
