@@ -10,6 +10,7 @@ export const HumanInTheLoopBlock: BlockConfig<ResponseBlockOutput> = {
     'Combines response and start functionality. Sends structured responses and allows workflow to resume from this point.',
   category: 'blocks',
   bgColor: '#10B981',
+  docsLink: 'https://docs.sim.ai/blocks/human-in-the-loop',
   icon: HumanInTheLoopIcon,
   subBlocks: [
     // Operation dropdown hidden - block defaults to human approval mode
