@@ -317,6 +317,17 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_create_issue', 'linear_update_issue'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a concise Linear issue title based on the user's description.
+The title should:
+- Be clear and descriptive
+- Capture the essence of the issue
+- Be suitable for project management tracking
+
+Return ONLY the title text - no explanations.`,
+        placeholder: 'Describe the issue (e.g., "login not working", "add export feature")...',
+      },
     },
     // Description (for issue creation/update, comments, projects)
     {
@@ -333,6 +344,17 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_update_project',
         ],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a detailed description based on the user's description.
+The description should:
+- Provide context and details
+- Include acceptance criteria or requirements when applicable
+- Be professional and clear
+
+Return ONLY the description text - no explanations.`,
+        placeholder: 'Describe the details (e.g., "users report errors when logging in")...',
+      },
     },
     // Comment body
     {
@@ -347,6 +369,18 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       condition: {
         field: 'operation',
         value: ['linear_create_comment', 'linear_update_comment', 'linear_create_project_update'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comment or project update based on the user's description.
+The comment should:
+- Be professional and informative
+- Provide relevant updates or information
+- Be suitable for team collaboration
+
+Return ONLY the comment text - no explanations.`,
+        placeholder:
+          'Describe what you want to communicate (e.g., "progress update", "request for review")...',
       },
     },
     // Comment ID
@@ -475,6 +509,18 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       condition: {
         field: 'operation',
         value: ['linear_search_issues'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a search query for Linear issues based on the user's description.
+The query should:
+- Be specific and targeted
+- Use relevant keywords
+- Be suitable for finding issues
+
+Return ONLY the search query - no explanations.`,
+        placeholder:
+          'Describe what you want to search for (e.g., "open bugs", "my assigned tasks")...',
       },
     },
     // Include archived (for list operations)
@@ -887,6 +933,18 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       condition: {
         field: 'operation',
         value: ['linear_create_customer_request', 'linear_update_customer_request'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a customer request description based on the user's description.
+The description should:
+- Clearly explain the customer's need or request
+- Include relevant context and details
+- Be professional and suitable for product feedback
+
+Return ONLY the description text - no explanations.`,
+        placeholder:
+          'Describe the customer request (e.g., "need bulk export feature", "integration with Slack")...',
       },
     },
     // Customer request priority/urgency

@@ -103,6 +103,19 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
       type: 'short-input',
       placeholder: 'Filter dashboards by title',
       condition: { field: 'operation', value: 'grafana_list_dashboards' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Grafana dashboard search query based on the user's description.
+The query should be a simple text string to filter dashboards by title.
+
+Examples:
+- "production dashboards" -> production
+- "kubernetes monitoring" -> kubernetes
+- "api performance" -> api performance
+
+Return ONLY the search query - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the dashboards you want to find...',
+      },
     },
     {
       id: 'tag',
@@ -120,6 +133,22 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
       placeholder: 'Enter dashboard title',
       required: true,
       condition: { field: 'operation', value: 'grafana_create_dashboard' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a professional Grafana dashboard title based on the user's description.
+The title should be:
+- Clear and descriptive
+- Indicate the purpose or scope of monitoring
+- Concise (typically 2-5 words)
+
+Examples:
+- "api monitoring" -> API Performance Dashboard
+- "kubernetes cluster" -> Kubernetes Cluster Overview
+- "database metrics" -> Database Health & Metrics
+
+Return ONLY the title - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the dashboard...',
+      },
     },
     {
       id: 'folderUid',
@@ -154,6 +183,39 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
         field: 'operation',
         value: ['grafana_create_dashboard', 'grafana_update_dashboard'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate Grafana panel configurations as a JSON array based on the user's description.
+
+Basic panel structure:
+[
+  {
+    "title": "Panel Title",
+    "type": "graph|stat|gauge|table|text|heatmap|bargauge",
+    "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+    "targets": [
+      {
+        "expr": "prometheus_query_here",
+        "refId": "A"
+      }
+    ]
+  }
+]
+
+Common panel types:
+- "graph" / "timeseries": Line charts for time-series data
+- "stat": Single value display
+- "gauge": Gauge visualization
+- "table": Tabular data
+- "bargauge": Bar gauge
+
+Examples:
+- "CPU usage panel" -> [{"title":"CPU Usage","type":"timeseries","gridPos":{"x":0,"y":0,"w":12,"h":8},"targets":[{"expr":"100 - (avg(irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)","refId":"A"}]}]
+
+Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the panels you want to create...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'message',
@@ -186,6 +248,22 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
       condition: {
         field: 'operation',
         value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a professional Grafana alert rule name based on the user's description.
+The name should be:
+- Clear and descriptive
+- Indicate what is being monitored and the condition
+- Follow naming conventions (PascalCase or with spaces)
+
+Examples:
+- "high cpu alert" -> High CPU Usage Alert
+- "disk space warning" -> Low Disk Space Warning
+- "api error rate" -> API Error Rate Threshold
+
+Return ONLY the alert title - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the alert...',
       },
     },
     {
@@ -226,6 +304,48 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
       condition: {
         field: 'operation',
         value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate Grafana alert query data as a JSON array based on the user's description.
+
+Structure for alert queries:
+[
+  {
+    "refId": "A",
+    "datasourceUid": "datasource_uid",
+    "model": {
+      "expr": "prometheus_query",
+      "refId": "A"
+    }
+  },
+  {
+    "refId": "B",
+    "datasourceUid": "-100",
+    "model": {
+      "type": "reduce",
+      "expression": "A",
+      "reducer": "last"
+    }
+  },
+  {
+    "refId": "C",
+    "datasourceUid": "-100",
+    "model": {
+      "type": "threshold",
+      "expression": "B",
+      "conditions": [{"evaluator": {"type": "gt", "params": [80]}}]
+    }
+  }
+]
+
+Examples:
+- "alert when CPU > 80%" -> Query for CPU metrics with threshold condition
+- "memory usage warning" -> Query for memory with reduce and threshold
+
+Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the alert query conditions...',
+        generationType: 'json-object',
       },
     },
     {
@@ -278,6 +398,22 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
       condition: {
         field: 'operation',
         value: ['grafana_create_annotation', 'grafana_update_annotation'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate annotation text for Grafana based on the user's description.
+The annotation should:
+- Clearly describe the event or observation
+- Be concise but informative
+- Include relevant details (what happened, impact, etc.)
+
+Examples:
+- "deployment started" -> Deployment v2.3.1 started - API service
+- "high traffic period" -> High traffic period began - 3x normal load
+- "config change" -> Configuration update: increased connection pool size to 50
+
+Return ONLY the annotation text - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the annotation...',
       },
     },
     {
@@ -421,6 +557,22 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       placeholder: 'Enter folder title',
       required: true,
       condition: { field: 'operation', value: 'grafana_create_folder' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Grafana folder title based on the user's description.
+The title should be:
+- Clear and descriptive
+- Indicate the category or scope of dashboards it will contain
+- Concise (typically 1-3 words)
+
+Examples:
+- "production monitoring" -> Production
+- "kubernetes dashboards" -> Kubernetes
+- "team alpha metrics" -> Team Alpha
+
+Return ONLY the folder title - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the folder...',
+      },
     },
     {
       id: 'folderUidNew',

@@ -127,6 +127,17 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       type: 'short-input',
       placeholder: 'Enter incident name...',
       condition: { field: 'operation', value: 'incidentio_incidents_create' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a concise, descriptive incident name based on the user's description.
+The incident name should:
+- Be clear and descriptive
+- Indicate the nature of the issue
+- Be suitable for incident tracking and communication
+
+Return ONLY the incident name - no explanations.`,
+        placeholder: 'Describe the incident (e.g., "database outage", "API latency issues")...',
+      },
     },
     {
       id: 'summary',
@@ -136,6 +147,17 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       condition: {
         field: 'operation',
         value: ['incidentio_incidents_create', 'incidentio_incidents_update'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an incident summary based on the user's description.
+The summary should:
+- Clearly describe the impact and scope of the incident
+- Include relevant technical details
+- Be professional and suitable for stakeholder communication
+
+Return ONLY the summary text - no explanations.`,
+        placeholder: 'Describe the incident details (e.g., "users unable to login since 2pm")...',
       },
     },
     {
@@ -281,6 +303,18 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       placeholder: 'Enter escalation title...',
       condition: { field: 'operation', value: 'incidentio_escalations_create' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an escalation title based on the user's description.
+The title should:
+- Be concise and urgent
+- Clearly indicate the escalation reason
+- Be suitable for paging and alerting
+
+Return ONLY the title - no explanations.`,
+        placeholder:
+          'Describe the escalation reason (e.g., "critical system down", "security breach detected")...',
+      },
     },
     {
       id: 'escalation_path_id',
@@ -383,6 +417,26 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         'JSON configuration with rotations. Example: {"rotations": [{"name": "Primary", "users": [{"id": "user_id"}], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": [{"interval": 1, "interval_type": "weekly"}]}]}',
       condition: { field: 'operation', value: 'incidentio_schedules_create' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON schedule configuration for incident.io based on the user's description.
+The configuration must follow this structure:
+{
+  "rotations": [
+    {
+      "name": "Rotation Name",
+      "users": [{"id": "user_id"}],
+      "handover_start_at": "ISO8601 timestamp",
+      "handovers": [{"interval": number, "interval_type": "daily|weekly|monthly"}]
+    }
+  ]
+}
+
+Return ONLY the JSON object - no explanations or markdown formatting.`,
+        placeholder:
+          'Describe the schedule (e.g., "weekly rotation between 3 engineers starting Monday 9am")...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'timezone',
@@ -427,6 +481,18 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         value: ['incidentio_custom_fields_create', 'incidentio_custom_fields_update'],
       },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a description for a custom field based on the user's description.
+The description should:
+- Explain what the field is used for
+- Provide guidance on how to fill it out
+- Be clear and concise
+
+Return ONLY the description text - no explanations.`,
+        placeholder:
+          'Describe the custom field purpose (e.g., "tracks affected customer count", "categorizes incident type")...',
+      },
     },
     {
       id: 'field_type',
@@ -454,6 +520,18 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         value: ['incidentio_incident_roles_create', 'incidentio_incident_roles_update'],
       },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a description for an incident role based on the user's description.
+The description should:
+- Explain the role's responsibilities
+- Clarify when this role is needed
+- Be suitable for incident response documentation
+
+Return ONLY the description text - no explanations.`,
+        placeholder:
+          'Describe the role (e.g., "coordinates communication with stakeholders", "leads technical investigation")...',
+      },
     },
     {
       id: 'instructions',
@@ -465,6 +543,18 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         value: ['incidentio_incident_roles_create', 'incidentio_incident_roles_update'],
       },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate instructions for an incident role based on the user's description.
+The instructions should:
+- Provide step-by-step guidance for the role
+- Include key actions and responsibilities
+- Be actionable and clear during an incident
+
+Return ONLY the instructions text - no explanations.`,
+        placeholder:
+          'Describe what the role should do (e.g., "manage external communications during outages")...',
+      },
     },
     {
       id: 'shortform',
@@ -625,6 +715,24 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: 'incidentio_escalation_paths_create',
       },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array for escalation path configuration based on the user's description.
+The array must follow this structure:
+[
+  {
+    "targets": [{"id": "target_id", "type": "user|schedule", "urgency": "high|low"}],
+    "time_to_ack_seconds": number
+  }
+]
+
+Each level represents an escalation step with acknowledgment timeout.
+
+Return ONLY the JSON array - no explanations or markdown formatting.`,
+        placeholder:
+          'Describe the escalation path (e.g., "page on-call first, then manager after 5 min")...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'path',
@@ -647,6 +755,18 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: ['incidentio_escalation_paths_create', 'incidentio_escalation_paths_update'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array for working hours configuration based on the user's description.
+The array must follow this structure:
+[
+  {"weekday": "monday|tuesday|wednesday|thursday|friday|saturday|sunday", "start_time": "HH:MM", "end_time": "HH:MM"}
+]
+
+Return ONLY the JSON array - no explanations or markdown formatting.`,
+        placeholder: 'Describe working hours (e.g., "9-5 Monday to Friday", "24/7 coverage")...',
+        generationType: 'json-object',
       },
     },
     // API Key (common)

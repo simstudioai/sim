@@ -199,6 +199,17 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['create_contact', 'update_contact'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for Intercom custom attributes based on the user's description.
+The object should contain key-value pairs for custom contact attributes.
+Example: {"plan_type": "enterprise", "signup_source": "website", "industry": "technology"}
+
+Return ONLY the JSON object - no explanations or markdown formatting.`,
+        placeholder:
+          'Describe the custom attributes (e.g., "enterprise customer, signed up from marketing campaign")...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'contact_company_id',
@@ -219,6 +230,17 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: ['search_contacts', 'search_conversations'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a search query for Intercom based on the user's description.
+This can be either:
+1. A simple text search query
+2. A JSON query object for advanced filtering
+
+Return ONLY the query - no explanations.`,
+        placeholder:
+          'Describe what you want to search for (e.g., "active users from last week", "open conversations about billing")...',
       },
     },
     {
@@ -436,6 +458,18 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['reply_conversation', 'create_message'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a message body for Intercom based on the user's description.
+The message should:
+- Be professional and friendly
+- Be clear and concise
+- Match the context (support reply, outreach, etc.)
+
+Return ONLY the message text - no explanations.`,
+        placeholder:
+          'Describe the message you want to send (e.g., "thank customer for feedback", "follow up on support ticket")...',
+      },
     },
     {
       id: 'admin_id',
@@ -514,6 +548,16 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['create_ticket'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of contact identifiers for Intercom based on the user's description.
+The array should contain contact identifier objects.
+Example: [{"id": "contact_id_1"}, {"id": "contact_id_2"}] or [{"email": "user@example.com"}]
+
+Return ONLY the JSON array - no explanations or markdown formatting.`,
+        placeholder: 'Describe the contacts (e.g., "user with email john@example.com")...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'ticket_attributes',
@@ -524,6 +568,16 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: ['create_ticket'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for Intercom ticket attributes based on the user's description.
+The object should contain the ticket's custom attributes based on your ticket type schema.
+Example: {"_default_title_": "Issue title", "_default_description_": "Issue description", "priority": "high"}
+
+Return ONLY the JSON object - no explanations or markdown formatting.`,
+        placeholder: 'Describe the ticket (e.g., "high priority bug report about login issues")...',
+        generationType: 'json-object',
       },
     },
     {
@@ -619,6 +673,18 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: ['create_message'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an email subject line for Intercom based on the user's description.
+The subject should:
+- Be concise and attention-grabbing
+- Clearly indicate the email purpose
+- Be professional
+
+Return ONLY the subject line - no explanations.`,
+        placeholder:
+          'Describe the email purpose (e.g., "welcome new customer", "feature announcement")...',
       },
     },
     {

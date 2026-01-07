@@ -137,6 +137,21 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['grain_list_recordings'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a search term for finding recordings by title based on the user's description.
+The search term should be:
+- Keywords or phrases that would appear in recording titles
+- Concise and targeted
+
+Examples:
+- "meetings with john" -> John
+- "weekly standup" -> standup
+- "product demo" -> demo product
+
+Return ONLY the search term - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the recordings you want to find...',
+      },
     },
     // Team ID filter
     {

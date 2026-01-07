@@ -93,6 +93,18 @@ export const ZendeskBlock: BlockConfig = {
         field: 'operation',
         value: ['create_ticket', 'update_ticket'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a clear, concise support ticket subject line based on the user's description.
+Keep it brief but informative (under 100 characters).
+Examples:
+- "customer can't log in" -> Unable to access account - Login authentication issue
+- "billing question about renewal" -> Billing inquiry: Subscription renewal question
+- "feature request for dark mode" -> Feature Request: Dark mode support
+
+Return ONLY the subject line - no explanations.`,
+        placeholder: 'Describe the ticket issue briefly...',
+      },
     },
     {
       id: 'description',
@@ -106,6 +118,23 @@ export const ZendeskBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['create_ticket', 'update_ticket'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Write a detailed support ticket description based on the user's input.
+Include relevant details that would help support agents understand the issue.
+Structure the description clearly with:
+- Issue summary
+- Steps to reproduce (if applicable)
+- Expected vs actual behavior
+- Any relevant context
+
+Examples:
+- "user forgot password and email not working" -> Detailed description of password reset issue with email delivery problems
+- "subscription not renewing automatically" -> Clear explanation of billing/subscription issue
+
+Return ONLY the description text - no explanations.`,
+        placeholder: 'Describe the issue in detail...',
       },
     },
     {
@@ -177,6 +206,22 @@ export const ZendeskBlock: BlockConfig = {
         field: 'operation',
         value: ['create_ticket', 'update_ticket'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for Zendesk custom fields based on the user's description.
+Custom fields use numeric IDs and can have various value types.
+Format: {"id": field_id, "value": "field_value"}
+
+Examples:
+- "set product to Enterprise and region to EMEA" ->
+  [{"id": 123456, "value": "enterprise"}, {"id": 789012, "value": "emea"}]
+- "mark as VIP customer with priority support" ->
+  [{"id": 111111, "value": true}, {"id": 222222, "value": "priority"}]
+
+Return ONLY the JSON array - no explanations.`,
+        placeholder: 'Describe the custom field values to set...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'tickets',
@@ -187,6 +232,25 @@ export const ZendeskBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['create_tickets_bulk', 'update_tickets_bulk'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of Zendesk ticket objects based on the user's description.
+Each ticket object should include: subject, description (comment.body), and optionally priority, status, tags.
+
+Example structure:
+[
+  {
+    "subject": "Issue title",
+    "comment": {"body": "Issue description"},
+    "priority": "normal",
+    "tags": ["tag1", "tag2"]
+  }
+]
+
+Return ONLY the JSON array - no explanations.`,
+        placeholder: 'Describe the tickets to create or update...',
+        generationType: 'json-object',
       },
     },
     {
@@ -257,6 +321,25 @@ export const ZendeskBlock: BlockConfig = {
         field: 'operation',
         value: ['create_users_bulk', 'update_users_bulk'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of Zendesk user objects based on the user's description.
+Each user object should include: name, email, and optionally role, phone, organization_id, tags.
+
+Example structure:
+[
+  {
+    "name": "John Doe",
+    "email": "john@example.com",
+    "role": "end-user",
+    "phone": "+1234567890"
+  }
+]
+
+Return ONLY the JSON array - no explanations.`,
+        placeholder: 'Describe the users to create or update...',
+        generationType: 'json-object',
+      },
     },
     // Organization fields
     {
@@ -305,6 +388,25 @@ export const ZendeskBlock: BlockConfig = {
         field: 'operation',
         value: ['create_organizations_bulk'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of Zendesk organization objects based on the user's description.
+Each organization object should include: name, and optionally domain_names, tags, notes.
+
+Example structure:
+[
+  {
+    "name": "Acme Corp",
+    "domain_names": ["acme.com", "acme.io"],
+    "tags": ["enterprise", "priority"],
+    "notes": "Key customer since 2020"
+  }
+]
+
+Return ONLY the JSON array - no explanations.`,
+        placeholder: 'Describe the organizations to create...',
+        generationType: 'json-object',
+      },
     },
     // Search fields
     {
@@ -319,6 +421,26 @@ export const ZendeskBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['search_users', 'search', 'search_count'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Zendesk search query based on the user's description.
+Use Zendesk search syntax for precise results:
+- type:ticket, type:user, type:organization - filter by type
+- status:open, status:pending, status:solved - ticket status
+- priority:urgent, priority:high - ticket priority
+- assignee:name - assigned to specific agent
+- created>2024-01-01 - date filters
+- tags:billing - filter by tags
+- "exact phrase" - exact match
+
+Examples:
+- "urgent tickets from last week" -> type:ticket priority:urgent created>1week
+- "open tickets about billing" -> type:ticket status:open tags:billing
+- "customers named John" -> type:user name:John*
+
+Return ONLY the search query - no explanations.`,
+        placeholder: 'Describe what you want to search for...',
       },
     },
     {

@@ -221,6 +221,23 @@ export const MailchimpBlock: BlockConfig = {
         field: 'operation',
         value: ['create_audience', 'update_audience'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a clear, descriptive name for a Mailchimp audience/mailing list based on the user's description.
+
+### GUIDELINES
+- Keep it concise but descriptive (2-5 words typically)
+- Make it easy to identify the audience purpose
+- Use professional naming conventions
+
+### EXAMPLES
+"Newsletter subscribers" -> "Newsletter Subscribers"
+"Customers who bought product X" -> "Product X Customers"
+"Event attendees from 2024" -> "2024 Event Attendees"
+
+Return ONLY the audience name - no explanations.`,
+        placeholder: 'Describe the audience...',
+      },
     },
     {
       id: 'contact',
@@ -234,6 +251,25 @@ export const MailchimpBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['create_audience', 'update_audience'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object with contact information for a Mailchimp audience based on the user's description.
+
+### REQUIRED FIELDS
+- company: Company or organization name
+- address1: Street address
+- city: City name
+- state: State/province
+- zip: Postal/ZIP code
+- country: Country code (e.g., "US", "CA", "GB")
+
+### EXAMPLE OUTPUT
+{"company": "Acme Corp", "address1": "123 Main Street", "city": "San Francisco", "state": "CA", "zip": "94102", "country": "US"}
+
+Return ONLY the JSON object - no explanations or markdown.`,
+        placeholder: 'Describe the company contact info...',
+        generationType: 'json-object',
       },
     },
     {
@@ -249,6 +285,25 @@ export const MailchimpBlock: BlockConfig = {
         field: 'operation',
         value: ['create_audience', 'update_audience'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a permission reminder message for a Mailchimp audience based on the user's description.
+
+This text reminds subscribers how they signed up and why they're receiving emails.
+
+### GUIDELINES
+- Be clear about how they joined the list
+- Keep it concise (1-2 sentences)
+- Make it friendly and professional
+
+### EXAMPLES
+"Newsletter signup" -> "You signed up for our newsletter on our website."
+"Event registration" -> "You're receiving this email because you registered for one of our events."
+"Product purchase" -> "You subscribed to updates when you made a purchase from our store."
+
+Return ONLY the permission reminder text - no explanations.`,
+        placeholder: 'Describe how subscribers joined...',
+      },
     },
     {
       id: 'campaignDefaults',
@@ -262,6 +317,23 @@ export const MailchimpBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['create_audience', 'update_audience'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object with campaign default settings for a Mailchimp audience based on the user's description.
+
+### REQUIRED FIELDS
+- from_name: Sender name that appears in emails
+- from_email: Sender email address
+- subject: Default email subject line
+- language: Language code (e.g., "en" for English)
+
+### EXAMPLE OUTPUT
+{"from_name": "Acme Marketing", "from_email": "marketing@acme.com", "subject": "News from Acme", "language": "en"}
+
+Return ONLY the JSON object - no explanations or markdown.`,
+        placeholder: 'Describe the campaign defaults...',
+        generationType: 'json-object',
       },
     },
     {
@@ -395,6 +467,24 @@ export const MailchimpBlock: BlockConfig = {
         field: 'operation',
         value: ['add_member', 'add_or_update_member', 'update_member'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object with merge field values for a Mailchimp subscriber based on the user's description.
+
+### COMMON MERGE FIELDS
+- FNAME: First name
+- LNAME: Last name
+- PHONE: Phone number
+- BIRTHDAY: Birthday (MM/DD format)
+- ADDRESS: Mailing address
+
+### EXAMPLE OUTPUT
+{"FNAME": "John", "LNAME": "Doe", "PHONE": "+1-555-123-4567"}
+
+Return ONLY the JSON object - no explanations or markdown.`,
+        placeholder: 'Describe the subscriber info...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'interests',
@@ -404,6 +494,21 @@ export const MailchimpBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['add_member', 'add_or_update_member', 'update_member'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object with interest group settings for a Mailchimp subscriber.
+
+Interest IDs map to boolean values indicating whether the subscriber is interested in that category.
+
+### EXAMPLE OUTPUT
+{"abc123def456": true, "xyz789ghi012": false, "mno345pqr678": true}
+
+Note: You'll need actual interest IDs from your Mailchimp audience. Use Get Interest Categories to find them.
+
+Return ONLY the JSON object - no explanations or markdown.`,
+        placeholder: 'Describe the interests to set...',
+        generationType: 'json-object',
       },
     },
     {
@@ -418,6 +523,21 @@ export const MailchimpBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['add_member_tags', 'remove_member_tags'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of tag objects for Mailchimp member tagging based on the user's description.
+
+### TAG OBJECT FORMAT
+- name: Tag name
+- status: "active" to add, "inactive" to remove
+
+### EXAMPLE OUTPUT
+[{"name": "VIP Customer", "status": "active"}, {"name": "Newsletter", "status": "active"}]
+
+Return ONLY the JSON array - no explanations or markdown.`,
+        placeholder: 'Describe the tags to add or remove...',
+        generationType: 'json-object',
       },
     },
     // Campaign fields
@@ -490,6 +610,24 @@ export const MailchimpBlock: BlockConfig = {
         field: 'operation',
         value: ['create_campaign', 'update_campaign'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object with campaign settings for a Mailchimp email campaign based on the user's description.
+
+### COMMON SETTINGS
+- subject_line: Email subject line
+- preview_text: Preview text shown in inbox
+- from_name: Sender name
+- reply_to: Reply-to email address
+- title: Internal campaign title
+
+### EXAMPLE OUTPUT
+{"subject_line": "Your Weekly Newsletter", "preview_text": "Check out what's new this week", "from_name": "Acme Team", "reply_to": "hello@acme.com", "title": "Weekly Newsletter - Jan 2024"}
+
+Return ONLY the JSON object - no explanations or markdown.`,
+        placeholder: 'Describe the campaign settings...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'recipients',
@@ -499,6 +637,26 @@ export const MailchimpBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['create_campaign', 'update_campaign'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object defining campaign recipients for a Mailchimp campaign based on the user's description.
+
+### REQUIRED FIELDS
+- list_id: The audience/list ID to send to
+
+### OPTIONAL FIELDS
+- segment_opts: Segment filtering options
+  - saved_segment_id: ID of a saved segment
+  - match: "any" or "all" for condition matching
+  - conditions: Array of filter conditions
+
+### EXAMPLE OUTPUT
+{"list_id": "abc123def", "segment_opts": {"saved_segment_id": 12345}}
+
+Return ONLY the JSON object - no explanations or markdown.`,
+        placeholder: 'Describe the recipients...',
+        generationType: 'json-object',
       },
     },
     {
@@ -539,6 +697,31 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['set_campaign_content'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate HTML email content for a Mailchimp campaign based on the user's description.
+
+### GUIDELINES
+- Use inline CSS for styling (email clients don't support external stylesheets)
+- Keep the design simple and mobile-friendly
+- Use tables for layout (better email client support)
+- Include proper structure with header, body, and footer sections
+
+### EXAMPLE STRUCTURE
+<html>
+<body style="font-family: Arial, sans-serif; margin: 0; padding: 20px;">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr><td style="padding: 20px; background: #f4f4f4;">
+      <h1 style="color: #333;">Your Title</h1>
+      <p style="color: #666;">Your content here...</p>
+    </td></tr>
+  </table>
+</body>
+</html>
+
+Return ONLY the HTML content - no explanations or markdown.`,
+        placeholder: 'Describe the email content...',
+      },
     },
     {
       id: 'plainText',
@@ -548,6 +731,34 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: ['set_campaign_content'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate plain text email content for a Mailchimp campaign based on the user's description.
+
+### GUIDELINES
+- Use clear formatting with line breaks
+- Keep paragraphs short and readable
+- Include clear calls-to-action with full URLs
+- Use dashes or asterisks for bullet points
+
+### EXAMPLE
+Hello [FNAME],
+
+Thank you for subscribing to our newsletter!
+
+Here's what's new this week:
+- Feature update #1
+- Exciting announcement
+- Upcoming events
+
+Visit our website: https://example.com
+
+Best regards,
+The Team
+
+Return ONLY the plain text content - no explanations.`,
+        placeholder: 'Describe the email content...',
       },
     },
     {
@@ -577,6 +788,23 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['create_template', 'update_template'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a descriptive name for a Mailchimp email template based on the user's description.
+
+### GUIDELINES
+- Keep it clear and identifiable
+- Include the purpose or use case
+- Use professional naming conventions
+
+### EXAMPLES
+"Welcome email template" -> "Welcome Email Template"
+"Monthly newsletter design" -> "Monthly Newsletter Template"
+"Product announcement" -> "Product Announcement Template"
+
+Return ONLY the template name - no explanations.`,
+        placeholder: 'Describe the template...',
+      },
     },
     {
       id: 'templateHtml',
@@ -590,6 +818,35 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: ['create_template', 'update_template'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate HTML content for a Mailchimp email template based on the user's description.
+
+### GUIDELINES
+- Use mc:edit regions for editable content areas
+- Use inline CSS for styling
+- Design for mobile-first responsiveness
+- Include proper Mailchimp merge tags (*|FNAME|*, *|CURRENT_YEAR|*, etc.)
+
+### EXAMPLE STRUCTURE
+<html>
+<body style="font-family: Arial, sans-serif;">
+  <div mc:edit="header">
+    <h1>*|MC:SUBJECT|*</h1>
+  </div>
+  <div mc:edit="body_content">
+    <p>Hello *|FNAME|*,</p>
+    <p>Your content here...</p>
+  </div>
+  <div mc:edit="footer">
+    <p>&copy; *|CURRENT_YEAR|* Your Company</p>
+  </div>
+</body>
+</html>
+
+Return ONLY the HTML content - no explanations or markdown.`,
+        placeholder: 'Describe the template design...',
       },
     },
     // Automation fields
@@ -673,6 +930,23 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['create_segment', 'update_segment'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a descriptive name for a Mailchimp audience segment based on the user's description.
+
+### GUIDELINES
+- Make it clear who is in the segment
+- Keep it concise but informative
+- Use professional naming conventions
+
+### EXAMPLES
+"Active customers last 30 days" -> "Active Customers - Last 30 Days"
+"High value subscribers" -> "High-Value Subscribers"
+"Users who opened last campaign" -> "Last Campaign Openers"
+
+Return ONLY the segment name - no explanations.`,
+        placeholder: 'Describe the segment...',
+      },
     },
     {
       id: 'segmentOptions',
@@ -682,6 +956,27 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: ['create_segment', 'update_segment'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object with segment conditions for a Mailchimp audience segment based on the user's description.
+
+### SEGMENT OPTIONS FORMAT
+- match: "any" or "all" (how conditions combine)
+- conditions: Array of condition objects
+
+### CONDITION OBJECT FIELDS
+- condition_type: Type of condition (e.g., "EmailActivity", "DateMerge", "TextMerge")
+- field: The field to check
+- op: Operator (e.g., "is", "contains", "greater", "less")
+- value: The value to compare
+
+### EXAMPLE OUTPUT
+{"match": "all", "conditions": [{"condition_type": "EmailActivity", "field": "campaign_id", "op": "open", "value": "abc123"}]}
+
+Return ONLY the JSON object - no explanations or markdown.`,
+        placeholder: 'Describe the segment conditions...',
+        generationType: 'json-object',
       },
     },
     // Merge field fields
@@ -711,6 +1006,25 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: ['create_merge_field', 'update_merge_field'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a name for a Mailchimp merge field based on the user's description.
+
+Merge fields are custom fields that store subscriber data.
+
+### GUIDELINES
+- Use descriptive, clear names
+- Keep it concise
+- Use Title Case
+
+### EXAMPLES
+"Customer phone number" -> "Phone Number"
+"Company size" -> "Company Size"
+"Preferred language" -> "Preferred Language"
+
+Return ONLY the merge field name - no explanations.`,
+        placeholder: 'Describe the merge field...',
       },
     },
     {
@@ -785,6 +1099,25 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['create_interest_category', 'update_interest_category'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a title for a Mailchimp interest category based on the user's description.
+
+Interest categories group related subscriber preferences.
+
+### GUIDELINES
+- Make it descriptive of the category
+- Keep it concise
+- Use Title Case
+
+### EXAMPLES
+"Product preferences" -> "Product Preferences"
+"Communication frequency" -> "Communication Preferences"
+"Topics of interest" -> "Topics of Interest"
+
+Return ONLY the category title - no explanations.`,
+        placeholder: 'Describe the interest category...',
+      },
     },
     {
       id: 'interestCategoryType',
@@ -833,6 +1166,25 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['create_interest', 'update_interest'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a name for a Mailchimp interest option based on the user's description.
+
+Interests are individual options within an interest category.
+
+### GUIDELINES
+- Make it clear and specific
+- Keep it concise
+- Use Title Case
+
+### EXAMPLES
+"Weekly email updates" -> "Weekly Updates"
+"Product announcements" -> "Product Announcements"
+"Special offers" -> "Special Offers & Promotions"
+
+Return ONLY the interest name - no explanations.`,
+        placeholder: 'Describe the interest...',
+      },
     },
     // Landing page fields
     {
@@ -869,6 +1221,23 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: ['create_landing_page', 'update_landing_page'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a title for a Mailchimp landing page based on the user's description.
+
+### GUIDELINES
+- Make it compelling and action-oriented
+- Keep it concise
+- Focus on the value proposition
+
+### EXAMPLES
+"Newsletter signup page" -> "Join Our Newsletter"
+"Free ebook download" -> "Download Your Free Guide"
+"Event registration" -> "Register for Our Exclusive Event"
+
+Return ONLY the landing page title - no explanations.`,
+        placeholder: 'Describe the landing page...',
       },
     },
     {
@@ -915,6 +1284,26 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: ['create_batch_operation'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of batch operations for Mailchimp based on the user's description.
+
+### OPERATION OBJECT FORMAT
+- method: HTTP method (GET, POST, PUT, PATCH, DELETE)
+- path: API endpoint path
+- operation_id: Unique identifier for the operation
+- body: Request body (for POST/PUT/PATCH)
+
+### EXAMPLE OUTPUT
+[
+  {"method": "POST", "path": "/lists/abc123/members", "operation_id": "add_member_1", "body": {"email_address": "user@example.com", "status": "subscribed"}},
+  {"method": "POST", "path": "/lists/abc123/members", "operation_id": "add_member_2", "body": {"email_address": "user2@example.com", "status": "subscribed"}}
+]
+
+Return ONLY the JSON array - no explanations or markdown.`,
+        placeholder: 'Describe the batch operations...',
+        generationType: 'json-object',
       },
     },
     // Pagination and filtering

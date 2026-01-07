@@ -73,6 +73,30 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
         field: 'validationType',
         value: ['regex'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a regular expression pattern based on the user's description.
+The regex should be:
+- Valid JavaScript regex syntax
+- Properly escaped for special characters
+- Optimized for the use case
+
+Common patterns:
+- Email: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$
+- Phone (US): ^\\+?1?[-.\\s]?\\(?\\d{3}\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}$
+- URL: ^https?:\\/\\/[\\w\\-]+(\\.[\\w\\-]+)+[/#?]?.*$
+- Date (YYYY-MM-DD): ^\\d{4}-\\d{2}-\\d{2}$
+- UUID: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+- IP Address: ^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$
+
+Examples:
+- "validate email" -> ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$
+- "check for numbers only" -> ^\\d+$
+- "alphanumeric with underscores" -> ^[a-zA-Z0-9_]+$
+
+Return ONLY the regex pattern - no explanations, no quotes, no forward slashes, no extra text.`,
+        placeholder: 'Describe the pattern you want to match...',
+      },
     },
     {
       id: 'knowledgeBaseId',

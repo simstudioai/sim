@@ -50,6 +50,31 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       placeholder: '[{"id": 1, "vector": [0.1, 0.2], "payload": {"category": "a"}}]',
       condition: { field: 'operation', value: 'upsert' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of Qdrant points for vector database upsert based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY a valid JSON array starting with [ and ending with ]
+- Each point must have: id (number or string UUID), vector (array of floats)
+- Optional: payload (object with metadata)
+- Vector dimensions must match the collection's configuration
+
+### EXAMPLE
+User: "Create 2 points for product embeddings with category and price"
+Output:
+[
+  {"id": 1, "vector": [0.1, 0.2, 0.3], "payload": {"category": "electronics", "price": 299.99}},
+  {"id": 2, "vector": [0.4, 0.5, 0.6], "payload": {"category": "clothing", "price": 49.99}}
+]
+
+Return ONLY the JSON array.`,
+        placeholder: 'Describe the points to upsert...',
+        generationType: 'json-object',
+      },
     },
     // Search fields
     {
@@ -89,6 +114,34 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       type: 'long-input',
       placeholder: '{"must":[{"key":"city","match":{"value":"London"}}]}',
       condition: { field: 'operation', value: 'search' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Qdrant filter JSON object based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY a valid JSON object starting with { and ending with }
+- Use Qdrant filter syntax with "must", "should", or "must_not" arrays
+- Each condition has: key (field name), match/range/geo (condition type)
+- Match types: value (exact), text (full-text), any (array contains)
+- Range types: gt, gte, lt, lte
+
+### EXAMPLE
+User: "Filter for products in electronics category with price under 500"
+Output:
+{
+  "must": [
+    {"key": "category", "match": {"value": "electronics"}},
+    {"key": "price", "range": {"lt": 500}}
+  ]
+}
+
+Return ONLY the JSON object.`,
+        placeholder: 'Describe the filter conditions...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'search_return_data',

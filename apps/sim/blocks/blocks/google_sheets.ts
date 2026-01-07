@@ -83,6 +83,22 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'write' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate Google Sheets data as a JSON array based on the user's description.
+
+Format options:
+1. Array of arrays: [["Header1", "Header2"], ["Value1", "Value2"]]
+2. Array of objects: [{"column1": "value1", "column2": "value2"}]
+
+Examples:
+- "sales data with product and revenue columns" -> [["Product", "Revenue"], ["Widget A", 1500], ["Widget B", 2300]]
+- "list of employees with name and email" -> [{"name": "John Doe", "email": "john@example.com"}, {"name": "Jane Smith", "email": "jane@example.com"}]
+
+Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the data you want to write...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'valueInputOption',
@@ -103,6 +119,22 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'update' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate Google Sheets data as a JSON array based on the user's description.
+
+Format options:
+1. Array of arrays: [["Header1", "Header2"], ["Value1", "Value2"]]
+2. Array of objects: [{"column1": "value1", "column2": "value2"}]
+
+Examples:
+- "update with new prices" -> [["Product", "Price"], ["Widget A", 29.99], ["Widget B", 49.99]]
+- "quarterly targets" -> [{"Q1": 10000, "Q2": 12000, "Q3": 15000, "Q4": 18000}]
+
+Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the data you want to update...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'valueInputOption',
@@ -123,6 +155,22 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'append' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate Google Sheets data as a JSON array based on the user's description.
+
+Format options:
+1. Array of arrays: [["Value1", "Value2"], ["Value3", "Value4"]]
+2. Array of objects: [{"column1": "value1", "column2": "value2"}]
+
+Examples:
+- "add new sales record" -> [["2024-01-15", "Widget Pro", 5, 249.99]]
+- "append customer info" -> [{"name": "Acme Corp", "contact": "John Smith", "status": "Active"}]
+
+Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the data you want to append...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'valueInputOption',

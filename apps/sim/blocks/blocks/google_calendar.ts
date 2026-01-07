@@ -67,6 +67,14 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       placeholder: 'Meeting with team',
       condition: { field: 'operation', value: 'create' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a clear, descriptive calendar event title based on the user's request.
+The title should be concise but informative about the event's purpose.
+
+Return ONLY the event title - no explanations, no extra text.`,
+        placeholder: 'Describe the event...',
+      },
     },
     {
       id: 'description',
@@ -74,6 +82,18 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       type: 'long-input',
       placeholder: 'Event description',
       condition: { field: 'operation', value: 'create' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a helpful calendar event description based on the user's request.
+Include relevant details like:
+- Purpose of the event
+- Agenda items
+- Preparation notes
+- Links or resources
+
+Return ONLY the description - no explanations, no extra text.`,
+        placeholder: 'Describe the event details...',
+      },
     },
     {
       id: 'location',
@@ -213,6 +233,23 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: 'Meeting with John tomorrow at 3pm for 1 hour',
       condition: { field: 'operation', value: 'quick_add' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a natural language event description that Google Calendar can parse.
+Include:
+- Event title/purpose
+- Date and time
+- Duration (optional)
+- Location (optional)
+
+Examples:
+- "Meeting with John tomorrow at 3pm for 1 hour"
+- "Lunch at Cafe Milano on Friday at noon"
+- "Team standup every Monday at 9am"
+
+Return ONLY the natural language event text - no explanations.`,
+        placeholder: 'Describe the event in natural language...',
+      },
     },
     {
       id: 'attendees',

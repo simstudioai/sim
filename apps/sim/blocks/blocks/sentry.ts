@@ -52,6 +52,28 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
       type: 'long-input',
       placeholder: 'e.g., is:unresolved, level:error',
       condition: { field: 'operation', value: 'sentry_issues_list' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Sentry issue search query based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Use Sentry search syntax
+- Common filters: is:unresolved, is:resolved, is:ignored, level:error, level:warning
+- Time-based: firstSeen:, lastSeen:, age:
+- Assignment: assigned:, assigned_to_team:, bookmarks:
+- Tags: tags[key]:value, browser:, os:, device:
+- Events: event.type:, message:
+
+### EXAMPLE
+User: "Find unresolved high-priority errors from the last week"
+Output: is:unresolved level:error age:-7d
+
+Return ONLY the search query.`,
+        placeholder: 'Describe what issues you want to find...',
+      },
     },
     {
       id: 'statsPeriod',
@@ -279,6 +301,27 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
       type: 'long-input',
       placeholder: 'e.g., user.email:*@example.com',
       condition: { field: 'operation', value: 'sentry_events_list' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Sentry events search query based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Use Sentry search syntax for events
+- User filters: user.email:, user.id:, user.username:
+- Context: browser:, os:, device:, url:, environment:
+- Error details: error.type:, error.value:, message:
+- Use wildcards (*) for partial matches
+
+### EXAMPLE
+User: "Find events from users at gmail in production"
+Output: user.email:*@gmail.com environment:production
+
+Return ONLY the search query.`,
+        placeholder: 'Describe what events you want to find...',
+      },
     },
     {
       id: 'limit',
@@ -331,6 +374,25 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
       type: 'long-input',
       placeholder: 'Search for specific release versions',
       condition: { field: 'operation', value: 'sentry_releases_list' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Sentry releases search query based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Search by version string or partial match
+- Can include version numbers, package names, commit SHAs
+- Use wildcards for partial matches if needed
+
+### EXAMPLE
+User: "Find all releases from version 2.x"
+Output: 2.*
+
+Return ONLY the search query.`,
+        placeholder: 'Describe which releases you want to find...',
+      },
     },
     {
       id: 'limit',
@@ -400,6 +462,32 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'long-input',
       placeholder: '[{"id":"abc123","message":"Fix bug"}]',
       condition: { field: 'operation', value: 'sentry_releases_create' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of commits for a Sentry release based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY a valid JSON array starting with [ and ending with ]
+- Each commit must have: id (commit SHA)
+- Optional fields: message, author_name, author_email, timestamp
+- Include meaningful commit messages
+
+### EXAMPLE
+User: "3 commits for bug fixes and a feature addition"
+Output:
+[
+  {"id": "abc123def", "message": "Fix authentication timeout issue"},
+  {"id": "def456ghi", "message": "Fix memory leak in data processor"},
+  {"id": "ghi789jkl", "message": "Add user dashboard analytics feature"}
+]
+
+Return ONLY the JSON array.`,
+        placeholder: 'Describe the commits for this release...',
+        generationType: 'json-object',
+      },
     },
 
     // =====================================================================
