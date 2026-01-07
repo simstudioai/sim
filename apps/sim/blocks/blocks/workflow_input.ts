@@ -2,7 +2,6 @@ import { WorkflowIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
-// Helper: list workflows excluding self
 const getAvailableWorkflows = (): Array<{ label: string; id: string }> => {
   try {
     const { workflows, activeWorkflowId } = useWorkflowRegistry.getState()
@@ -15,7 +14,6 @@ const getAvailableWorkflows = (): Array<{ label: string; id: string }> => {
   }
 }
 
-// New workflow block variant that visualizes child Input Trigger schema for mapping
 export const WorkflowInputBlock: BlockConfig = {
   type: 'workflow_input',
   name: 'Workflow',
@@ -26,6 +24,7 @@ export const WorkflowInputBlock: BlockConfig = {
   - Remember, that the start point of the child workflow is the Start block.
   `,
   category: 'blocks',
+  docsLink: 'https://docs.sim.ai/blocks/workflow',
   bgColor: '#6366F1', // Indigo - modern and professional
   icon: WorkflowIcon,
   subBlocks: [

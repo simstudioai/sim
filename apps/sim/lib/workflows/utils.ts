@@ -136,12 +136,7 @@ export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
 }
 
 export const workflowHasResponseBlock = (executionResult: ExecutionResult): boolean => {
-  if (
-    !executionResult?.logs ||
-    !Array.isArray(executionResult.logs) ||
-    !executionResult.success ||
-    !executionResult.output.response
-  ) {
+  if (!executionResult?.logs || !Array.isArray(executionResult.logs) || !executionResult.success) {
     return false
   }
 
@@ -154,8 +149,7 @@ export const workflowHasResponseBlock = (executionResult: ExecutionResult): bool
 
 // Create a HTTP response from response block
 export const createHttpResponseFromBlock = (executionResult: ExecutionResult): NextResponse => {
-  const output = executionResult.output.response
-  const { data = {}, status = 200, headers = {} } = output
+  const { data = {}, status = 200, headers = {} } = executionResult.output
 
   const responseHeaders = new Headers({
     'Content-Type': 'application/json',

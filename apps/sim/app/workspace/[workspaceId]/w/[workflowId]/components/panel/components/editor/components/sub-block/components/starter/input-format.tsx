@@ -95,7 +95,9 @@ export function FieldFormat({
 }: FieldFormatProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<Field[]>(blockId, subBlockId)
   const valueInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement>>({})
+  const nameInputRefs = useRef<Record<string, HTMLInputElement>>({})
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
+  const nameOverlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   const inputController = useSubBlockInput({
@@ -156,6 +158,97 @@ export function FieldFormat({
   const syncOverlayScroll = (fieldId: string, scrollLeft: number) => {
     const overlay = overlayRefs.current[fieldId]
     if (overlay) overlay.scrollLeft = scrollLeft
+  }
+
+  /**
+   * Syncs scroll position between name input and overlay for text highlighting
+   */
+  const syncNameOverlayScroll = (fieldId: string, scrollLeft: number) => {
+    const overlay = nameOverlayRefs.current[fieldId]
+    if (overlay) overlay.scrollLeft = scrollLeft
+  }
+
+  /**
+   * Generates a unique field key for name inputs to avoid collision with value inputs
+   */
+  const getNameFieldKey = (fieldId: string) => `name-${fieldId}`
+
+  /**
+   * Renders the name input field with tag dropdown support
+   */
+  const renderNameInput = (field: Field) => {
+    const nameFieldKey = getNameFieldKey(field.id)
+    const fieldValue = field.name ?? ''
+    const fieldState = inputController.fieldHelpers.getFieldState(nameFieldKey)
+    const handlers = inputController.fieldHelpers.createFieldHandlers(
+      nameFieldKey,
+      fieldValue,
+      (newValue) => updateField(field.id, 'name', newValue)
+    )
+    const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
+      nameFieldKey,
+      fieldValue,
+      (newValue) => updateField(field.id, 'name', newValue)
+    )
+
+    const inputClassName = cn('text-transparent caret-foreground')
+
+    return (
+      <>
+        <Input
+          ref={(el) => {
+            if (el) nameInputRefs.current[field.id] = el
+          }}
+          name='name'
+          value={fieldValue}
+          onChange={handlers.onChange}
+          onKeyDown={handlers.onKeyDown}
+          onDrop={handlers.onDrop}
+          onDragOver={handlers.onDragOver}
+          onScroll={(e) => syncNameOverlayScroll(field.id, e.currentTarget.scrollLeft)}
+          onPaste={() =>
+            setTimeout(() => {
+              const input = nameInputRefs.current[field.id]
+              input && syncNameOverlayScroll(field.id, input.scrollLeft)
+            }, 0)
+          }
+          placeholder={placeholder}
+          disabled={isReadOnly}
+          autoComplete='off'
+          className={cn('allow-scroll w-full overflow-auto', inputClassName)}
+          style={{ overflowX: 'auto' }}
+        />
+        <div
+          ref={(el) => {
+            if (el) nameOverlayRefs.current[field.id] = el
+          }}
+          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
+          style={{ overflowX: 'auto' }}
+        >
+          <div
+            className='w-full whitespace-pre'
+            style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+          >
+            {formatDisplayText(
+              fieldValue,
+              accessiblePrefixes ? { accessiblePrefixes } : { highlightAll: true }
+            )}
+          </div>
+        </div>
+        {fieldState.showTags && (
+          <TagDropdown
+            visible={fieldState.showTags}
+            onSelect={tagSelectHandler}
+            blockId={blockId}
+            activeSourceBlockId={fieldState.activeSourceBlockId}
+            inputValue={fieldValue}
+            cursorPosition={fieldState.cursorPosition}
+            onClose={() => inputController.fieldHelpers.hideFieldDropdowns(nameFieldKey)}
+            inputRef={{ current: nameInputRefs.current[field.id] || null }}
+          />
+        )}
+      </>
+    )
   }
 
   /**
@@ -417,14 +510,7 @@ export function FieldFormat({
             <div className='flex flex-col gap-[8px] border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
               <div className='flex flex-col gap-[6px]'>
                 <Label className='text-[13px]'>Name</Label>
-                <Input
-                  name='name'
-                  value={field.name}
-                  onChange={(e) => updateField(field.id, 'name', e.target.value)}
-                  placeholder={placeholder}
-                  disabled={isReadOnly}
-                  autoComplete='off'
-                />
+                <div className='relative'>{renderNameInput(field)}</div>
               </div>
 
               {showType && (
