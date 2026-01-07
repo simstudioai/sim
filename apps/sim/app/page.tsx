@@ -29,9 +29,9 @@ export const metadata: Metadata = {
     locale: 'en_US',
     images: [
       {
-        url: '/social/facebook.png',
-        width: 1200,
-        height: 630,
+        url: '/logo/426-240/primary/small.png',
+        width: 2130,
+        height: 1200,
         alt: 'Sim - AI Agent Workflow Builder',
         type: 'image/png',
       },
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     description:
       'Open-source platform for agentic workflows. 60,000+ developers. Visual builder. 100+ integrations. SOC2 & HIPAA compliant.',
     images: {
-      url: '/social/twitter.png',
+      url: '/logo/426-240/primary/small.png',
       alt: 'Sim - AI Agent Workflow Builder',
     },
   },

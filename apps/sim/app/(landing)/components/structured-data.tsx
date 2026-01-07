@@ -170,11 +170,10 @@ export default function StructuredData() {
           'Scheduled workflows',
           'Event triggers',
         ],
-        // Screenshot using the social sharing image which exists
         screenshot: [
           {
             '@type': 'ImageObject',
-            url: 'https://sim.ai/social/facebook.png',
+            url: 'https://sim.ai/logo/426-240/primary/small.png',
             caption: 'Sim AI agent workflow builder interface',
           },
         ],
