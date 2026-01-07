@@ -155,22 +155,39 @@ export function getAllModelProviders(): Record<string, ProviderId> {
 
 export function getProviderFromModel(model: string): ProviderId {
   const normalizedModel = model.toLowerCase()
-  if (normalizedModel in getAllModelProviders()) {
-    return getAllModelProviders()[normalizedModel]
-  }
 
-  for (const [providerId, config] of Object.entries(providers)) {
-    if (config.modelPatterns) {
-      for (const pattern of config.modelPatterns) {
-        if (pattern.test(normalizedModel)) {
-          return providerId as ProviderId
+  let providerId: ProviderId | null = null
+
+  if (normalizedModel in getAllModelProviders()) {
+    providerId = getAllModelProviders()[normalizedModel]
+  } else {
+    for (const [id, config] of Object.entries(providers)) {
+      if (config.modelPatterns) {
+        for (const pattern of config.modelPatterns) {
+          if (pattern.test(normalizedModel)) {
+            providerId = id as ProviderId
+            break
+          }
         }
       }
+      if (providerId) break
     }
   }
 
-  logger.warn(`No provider found for model: ${model}, defaulting to ollama`)
-  return 'ollama'
+  if (!providerId) {
+    logger.warn(`No provider found for model: ${model}, defaulting to ollama`)
+    providerId = 'ollama'
+  }
+
+  if (isProviderBlacklisted(providerId)) {
+    throw new Error(`Provider "${providerId}" is not available`)
+  }
+
+  if (isModelBlacklisted(normalizedModel)) {
+    throw new Error(`Model "${model}" is not available`)
+  }
+
+  return providerId
 }
 
 export function getProvider(id: string): ProviderMetadata | undefined {
