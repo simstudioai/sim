@@ -90,11 +90,13 @@ export class BlockResolver implements Resolver {
     // Workflow block backwards compatibility:
     // Old: <workflowBlock.result.response.data> -> New: <workflowBlock.result.data>
     // Only apply fallback if:
-    // 1. Block type is 'workflow'
+    // 1. Block type is 'workflow' or 'workflow_input'
     // 2. Path starts with 'result.response.'
     // 3. output.result.response doesn't exist (confirming child used new format)
+    const isWorkflowBlock =
+      block?.metadata?.id === 'workflow' || block?.metadata?.id === 'workflow_input'
     if (
-      block?.metadata?.id === 'workflow' &&
+      isWorkflowBlock &&
       pathParts[0] === 'result' &&
       pathParts[1] === 'response' &&
       output?.result?.response === undefined
