@@ -333,7 +333,7 @@ function buildWebhookMetadata(block: BlockState): WebhookMetadata | null {
   // Handle credential sets vs individual credentials
   const isCredentialSet = triggerCredentials?.startsWith(CREDENTIAL_SET_PREFIX)
   const credentialSetId = isCredentialSet
-    ? triggerCredentials.slice(CREDENTIAL_SET_PREFIX.length)
+    ? triggerCredentials!.slice(CREDENTIAL_SET_PREFIX.length)
     : undefined
   const credentialId = isCredentialSet ? undefined : triggerCredentials
 

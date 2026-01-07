@@ -240,7 +240,7 @@ export function useWebhookManagement({
 
     const isCredentialSet = selectedCredentialId?.startsWith(CREDENTIAL_SET_PREFIX)
     const credentialSetId = isCredentialSet
-      ? selectedCredentialId.slice(CREDENTIAL_SET_PREFIX.length)
+      ? selectedCredentialId!.slice(CREDENTIAL_SET_PREFIX.length)
       : undefined
     const credentialId = isCredentialSet ? undefined : selectedCredentialId
 
@@ -306,7 +306,7 @@ export function useWebhookManagement({
 
     const isCredentialSet = selectedCredentialId?.startsWith(CREDENTIAL_SET_PREFIX)
     const credentialSetId = isCredentialSet
-      ? selectedCredentialId.slice(CREDENTIAL_SET_PREFIX.length)
+      ? selectedCredentialId!.slice(CREDENTIAL_SET_PREFIX.length)
       : undefined
     const credentialId = isCredentialSet ? undefined : selectedCredentialId
 

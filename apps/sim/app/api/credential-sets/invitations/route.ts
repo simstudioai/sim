@@ -24,6 +24,7 @@ export async function GET() {
         createdAt: credentialSetInvitation.createdAt,
         credentialSetId: credentialSet.id,
         credentialSetName: credentialSet.name,
+        providerId: credentialSet.providerId,
         organizationId: organization.id,
         organizationName: organization.name,
         invitedByName: user.name,

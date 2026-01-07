@@ -21,6 +21,7 @@ export interface CredentialSetMembership {
   credentialSetId: string
   credentialSetName: string
   credentialSetDescription: string | null
+  providerId: string | null
   organizationId: string
   organizationName: string
 }
@@ -33,6 +34,7 @@ export interface CredentialSetInvitation {
   createdAt: string
   credentialSetId: string
   credentialSetName: string
+  providerId: string | null
   organizationId: string
   organizationName: string
   invitedByName: string | null

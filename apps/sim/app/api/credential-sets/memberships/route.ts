@@ -24,6 +24,7 @@ export async function GET() {
         credentialSetId: credentialSet.id,
         credentialSetName: credentialSet.name,
         credentialSetDescription: credentialSet.description,
+        providerId: credentialSet.providerId,
         organizationId: organization.id,
         organizationName: organization.name,
       })

@@ -505,7 +505,7 @@ export function CredentialSets() {
                   <div key={invitation.invitationId} className='flex items-center justify-between'>
                     <div className='flex items-center gap-[12px]'>
                       <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
-                        <GmailIcon className='h-4 w-4' />
+                        {getProviderIcon(invitation.providerId)}
                       </div>
                       <div className='flex flex-col'>
                         <span className='font-medium text-[14px]'>
@@ -541,7 +541,7 @@ export function CredentialSets() {
                   <div key={membership.membershipId} className='flex items-center justify-between'>
                     <div className='flex items-center gap-[12px]'>
                       <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
-                        <GmailIcon className='h-4 w-4' />
+                        {getProviderIcon(membership.providerId)}
                       </div>
                       <div className='flex flex-col'>
                         <span className='font-medium text-[14px]'>
