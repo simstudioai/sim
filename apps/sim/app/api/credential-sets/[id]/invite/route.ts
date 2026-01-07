@@ -78,8 +78,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Credential set not found' }, { status: 404 })
     }
 
-    if (result.role !== 'admin') {
-      return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
+    if (result.role !== 'admin' && result.role !== 'owner') {
+      return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
     }
 
     const body = await req.json()
@@ -193,8 +193,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Credential set not found' }, { status: 404 })
     }
 
-    if (result.role !== 'admin') {
-      return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
+    if (result.role !== 'admin' && result.role !== 'owner') {
+      return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
     }
 
     await db

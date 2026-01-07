@@ -95,9 +95,10 @@ export async function POST(req: Request) {
       .where(and(eq(member.userId, session.user.id), eq(member.organizationId, organizationId)))
       .limit(1)
 
-    if (membership.length === 0 || membership[0].role !== 'admin') {
+    const role = membership[0]?.role
+    if (membership.length === 0 || (role !== 'admin' && role !== 'owner')) {
       return NextResponse.json(
-        { error: 'Admin permissions required to create credential sets' },
+        { error: 'Admin or owner permissions required to create credential sets' },
         { status: 403 }
       )
     }
