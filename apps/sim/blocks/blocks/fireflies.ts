@@ -223,6 +223,21 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['fireflies_upload_audio', 'fireflies_add_to_live_meeting'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a clear, professional meeting title based on the user's description.
+The title should be concise (3-8 words) and descriptive.
+
+Examples:
+- "weekly sync with engineering" -> "Weekly Engineering Team Sync"
+- "discussing q1 roadmap" -> "Q1 Roadmap Planning Discussion"
+- "interview with john for backend role" -> "Backend Engineer Interview - John"
+- "customer demo for acme corp" -> "Product Demo - Acme Corp"
+
+Return ONLY the title - no quotes, no explanations.`,
+        placeholder:
+          'Describe the meeting (e.g., "weekly team sync", "customer call with Acme")...',
+      },
     },
     {
       id: 'language',
@@ -233,6 +248,25 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: ['fireflies_upload_audio', 'fireflies_add_to_live_meeting'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the language name to its ISO 639-1 two-letter code.
+
+Examples:
+- "Spanish" -> es
+- "French" -> fr
+- "German" -> de
+- "Portuguese" -> pt
+- "Japanese" -> ja
+- "Chinese" -> zh
+- "Korean" -> ko
+- "Italian" -> it
+- "Dutch" -> nl
+- "Russian" -> ru
+
+Return ONLY the two-letter language code - no explanations, no quotes.`,
+        placeholder: 'Enter language name (e.g., "Spanish", "French")...',
       },
     },
     {
@@ -245,6 +279,21 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: 'fireflies_upload_audio',
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of attendees based on the user's description.
+Each attendee should have "displayName" and "email" fields.
+
+Examples:
+- "John Smith at john@example.com" -> [{"displayName": "John Smith", "email": "john@example.com"}]
+- "Alice (alice@test.com) and Bob (bob@test.com)" -> [{"displayName": "Alice", "email": "alice@test.com"}, {"displayName": "Bob", "email": "bob@test.com"}]
+- "Sarah Johnson, sarah.j@company.org" -> [{"displayName": "Sarah Johnson", "email": "sarah.j@company.org"}]
+
+Return ONLY the valid JSON array - no explanations, no markdown code blocks.`,
+        placeholder:
+          'Describe attendees (e.g., "John Smith at john@example.com and Jane Doe at jane@test.com")...',
+        generationType: 'json-object',
       },
     },
     {
@@ -337,6 +386,20 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: 'fireflies_create_bite',
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Write a concise, professional summary for a meeting highlight/soundbite based on the user's description.
+The summary should be 1-2 sentences that capture the key point of the highlighted segment.
+
+Guidelines:
+- Be clear and concise
+- Focus on the main topic or decision discussed
+- Use professional language
+- Avoid filler words
+
+Return ONLY the summary text - no quotes, no labels.`,
+        placeholder: 'Describe what this highlight is about...',
       },
     },
     // Trigger SubBlocks
@@ -517,6 +580,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     // Trigger outputs
     meetingId: { type: 'string', description: 'Meeting/transcript ID from webhook' },
     eventType: { type: 'string', description: 'Webhook event type' },
+    clientReferenceId: { type: 'string', description: 'Custom reference ID if set during upload' },
   },
   triggers: {
     enabled: true,

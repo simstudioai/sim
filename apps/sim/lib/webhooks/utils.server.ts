@@ -1522,6 +1522,28 @@ export async function formatWebhookInput(
     }
   }
 
+  if (foundWebhook.provider === 'fireflies') {
+    // Fireflies webhook payload uses camelCase:
+    // { meetingId, eventType, clientReferenceId }
+    return {
+      meetingId: body.meetingId || '',
+      eventType: body.eventType || 'Transcription completed',
+      clientReferenceId: body.clientReferenceId || '',
+
+      webhook: {
+        data: {
+          provider: 'fireflies',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
   // Generic format for other providers
   return {
     webhook: {
