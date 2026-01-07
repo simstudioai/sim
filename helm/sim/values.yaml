@@ -107,11 +107,17 @@ app:
     NEXT_PUBLIC_BRAND_NAME: "Sim"                         # Custom brand name
     NEXT_PUBLIC_BRAND_LOGO_URL: ""                        # Custom logo URL (leave empty for default)
     NEXT_PUBLIC_BRAND_FAVICON_URL: ""                     # Custom favicon URL (leave empty for default)
+    NEXT_PUBLIC_BRAND_PRIMARY_COLOR: ""                   # Primary brand color (hex, e.g., "#701a75")
+    NEXT_PUBLIC_BRAND_ACCENT_COLOR: ""                    # Accent color (hex, e.g., "#9333ea")
+    NEXT_PUBLIC_BRAND_BACKGROUND_COLOR: ""                # Background color (hex, e.g., "#ffffff")
     NEXT_PUBLIC_CUSTOM_CSS_URL: ""                        # Custom stylesheet URL (leave empty for none)
     NEXT_PUBLIC_SUPPORT_EMAIL: "help@sim.ai"             # Support email address
     NEXT_PUBLIC_DOCUMENTATION_URL: ""                    # Documentation URL (leave empty for none)
     NEXT_PUBLIC_TERMS_URL: ""                            # Terms of service URL (leave empty for none)
     NEXT_PUBLIC_PRIVACY_URL: ""                          # Privacy policy URL (leave empty for none)
+
+    # Registration Control
+    DISABLE_REGISTRATION: ""                              # Set to "true" to disable new user signups
     
     # Access Control (leave empty if not restricting login)
     ALLOWED_LOGIN_EMAILS: ""                             # Comma-separated list of allowed email addresses for login
