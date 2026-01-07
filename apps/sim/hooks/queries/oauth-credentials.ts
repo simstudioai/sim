@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import type { Credential } from '@/lib/oauth'
-import { CREDENTIAL_SET } from '@/executor/constants'
+import { CREDENTIAL, CREDENTIAL_SET } from '@/executor/constants'
 import { useCredentialSetDetail } from '@/hooks/queries/credential-sets'
 import { fetchJson } from '@/hooks/selectors/helpers'
 
@@ -93,11 +93,13 @@ export function useCredentialName(credentialId?: string, providerId?: string, wo
   )
 
   const hasForeignMeta = foreignCredentials.length > 0
+  const isForeignCredentialSet = isCredentialSet && !credentialSetData && !credentialSetLoading
 
   const displayName =
     credentialSetData?.name ??
     selectedCredential?.name ??
-    (hasForeignMeta ? 'Saved by collaborator' : null)
+    (hasForeignMeta ? CREDENTIAL.FOREIGN_LABEL : null) ??
+    (isForeignCredentialSet ? CREDENTIAL.FOREIGN_LABEL : null)
 
   return {
     displayName,

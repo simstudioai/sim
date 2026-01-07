@@ -17,7 +17,7 @@ import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
-import { CREDENTIAL_SET } from '@/executor/constants'
+import { CREDENTIAL, CREDENTIAL_SET } from '@/executor/constants'
 import { useCredentialSets } from '@/hooks/queries/credential-sets'
 import { useOAuthCredentialDetail, useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
 import { useOrganizations } from '@/hooks/queries/organization'
@@ -116,12 +116,15 @@ export function CredentialSelector({
     [credentialSets, selectedCredentialSetId]
   )
 
+  const isForeignCredentialSet = Boolean(isCredentialSetSelected && !selectedCredentialSet)
+
   const resolvedLabel = useMemo(() => {
     if (selectedCredentialSet) return selectedCredentialSet.name
+    if (isForeignCredentialSet) return CREDENTIAL.FOREIGN_LABEL
     if (selectedCredential) return selectedCredential.name
-    if (isForeign) return 'Saved by collaborator'
+    if (isForeign) return CREDENTIAL.FOREIGN_LABEL
     return ''
-  }, [selectedCredentialSet, selectedCredential, isForeign])
+  }, [selectedCredentialSet, isForeignCredentialSet, selectedCredential, isForeign])
 
   useEffect(() => {
     if (!isEditing) {
@@ -363,7 +366,7 @@ export function CredentialSelector({
         }
         disabled={effectiveDisabled}
         editable={true}
-        filterOptions={true}
+        filterOptions={!isForeign && !isForeignCredentialSet}
         isLoading={credentialsLoading}
         overlayContent={overlayContent}
         className={selectedId || isCredentialSetSelected ? 'pl-[28px]' : ''}
