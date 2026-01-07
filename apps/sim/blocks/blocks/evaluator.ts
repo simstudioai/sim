@@ -4,7 +4,7 @@ import { isHosted } from '@/lib/core/config/feature-flags'
 import type { BlockConfig, ParamType } from '@/blocks/types'
 import type { ProviderId } from '@/providers/types'
 import {
-  getAllModelProviders,
+  getBaseModelProviders,
   getHostedModels,
   getProviderIcon,
   providers,
@@ -357,7 +357,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
         if (!model) {
           throw new Error('No model selected')
         }
-        const tool = getAllModelProviders()[model as ProviderId]
+        const tool = getBaseModelProviders()[model as ProviderId]
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)
         }

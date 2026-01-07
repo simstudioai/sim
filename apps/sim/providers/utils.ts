@@ -1,7 +1,7 @@
 import { createLogger, type Logger } from '@sim/logger'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { isCustomTool } from '@/executor/constants'
 import {
@@ -131,6 +131,9 @@ function filterBlacklistedModelsFromProviderMap(
 ): Record<string, ProviderId> {
   const filtered: Record<string, ProviderId> = {}
   for (const [model, providerId] of Object.entries(providerMap)) {
+    if (isProviderBlacklisted(providerId)) {
+      continue
+    }
     if (!isModelBlacklisted(model)) {
       filtered[model] = providerId
     }
@@ -192,35 +195,42 @@ export function getProviderModels(providerId: ProviderId): string[] {
   return getProviderModelsFromDefinitions(providerId)
 }
 
-interface ModelBlacklist {
-  models: string[]
-  prefixes: string[]
-  envOverride?: string
+function getBlacklistedProviders(): string[] {
+  if (!env.BLACKLISTED_PROVIDERS) return []
+  return env.BLACKLISTED_PROVIDERS.split(',').map((p) => p.trim().toLowerCase())
 }
 
-const MODEL_BLACKLISTS: ModelBlacklist[] = [
-  {
-    models: ['deepseek-chat', 'deepseek-v3', 'deepseek-r1'],
-    prefixes: ['openrouter/deepseek', 'openrouter/tngtech'],
-    envOverride: 'DEEPSEEK_MODELS_ENABLED',
-  },
-]
+export function isProviderBlacklisted(providerId: string): boolean {
+  const blacklist = getBlacklistedProviders()
+  return blacklist.includes(providerId.toLowerCase())
+}
+
+/**
+ * Get the list of blacklisted models from env var.
+ * BLACKLISTED_MODELS supports:
+ * - Exact model names: "gpt-4,claude-3-opus"
+ * - Prefix patterns with *: "claude-*,gpt-4-*" (matches models starting with that prefix)
+ */
+function getBlacklistedModels(): { models: string[]; prefixes: string[] } {
+  if (!env.BLACKLISTED_MODELS) return { models: [], prefixes: [] }
+
+  const entries = env.BLACKLISTED_MODELS.split(',').map((m) => m.trim().toLowerCase())
+  const models = entries.filter((e) => !e.endsWith('*'))
+  const prefixes = entries.filter((e) => e.endsWith('*')).map((e) => e.slice(0, -1))
+
+  return { models, prefixes }
+}
 
 function isModelBlacklisted(model: string): boolean {
   const lowerModel = model.toLowerCase()
+  const blacklist = getBlacklistedModels()
 
-  for (const blacklist of MODEL_BLACKLISTS) {
-    if (blacklist.envOverride && isTruthy(getEnv(blacklist.envOverride))) {
-      continue
-    }
+  if (blacklist.models.includes(lowerModel)) {
+    return true
+  }
 
-    if (blacklist.models.includes(lowerModel)) {
-      return true
-    }
-
-    if (blacklist.prefixes.some((prefix) => lowerModel.startsWith(prefix))) {
-      return true
-    }
+  if (blacklist.prefixes.some((prefix) => lowerModel.startsWith(prefix))) {
+    return true
   }
 
   return false

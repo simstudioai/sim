@@ -3,7 +3,7 @@ import { isHosted } from '@/lib/core/config/feature-flags'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { ProviderId } from '@/providers/types'
 import {
-  getAllModelProviders,
+  getBaseModelProviders,
   getHostedModels,
   getProviderIcon,
   providers,
@@ -324,7 +324,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
         if (!model) {
           throw new Error('No model selected')
         }
-        const tool = getAllModelProviders()[model as ProviderId]
+        const tool = getBaseModelProviders()[model as ProviderId]
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)
         }
@@ -508,7 +508,7 @@ export const RouterV2Block: BlockConfig<RouterV2Response> = {
         if (!model) {
           throw new Error('No model selected')
         }
-        const tool = getAllModelProviders()[model as ProviderId]
+        const tool = getBaseModelProviders()[model as ProviderId]
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)
         }

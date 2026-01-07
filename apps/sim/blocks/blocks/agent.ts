@@ -4,7 +4,7 @@ import { isHosted } from '@/lib/core/config/feature-flags'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import {
-  getAllModelProviders,
+  getBaseModelProviders,
   getHostedModels,
   getMaxTemperature,
   getProviderIcon,
@@ -417,7 +417,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       condition: () => ({
         field: 'model',
         value: (() => {
-          const allModels = Object.keys(getAllModelProviders())
+          const allModels = Object.keys(getBaseModelProviders())
           return allModels.filter(
             (model) => supportsTemperature(model) && getMaxTemperature(model) === 1
           )
@@ -434,7 +434,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       condition: () => ({
         field: 'model',
         value: (() => {
-          const allModels = Object.keys(getAllModelProviders())
+          const allModels = Object.keys(getBaseModelProviders())
           return allModels.filter(
             (model) => supportsTemperature(model) && getMaxTemperature(model) === 2
           )
@@ -555,7 +555,7 @@ Example 3 (Array Input):
         if (!model) {
           throw new Error('No model selected')
         }
-        const tool = getAllModelProviders()[model]
+        const tool = getBaseModelProviders()[model]
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)
         }
