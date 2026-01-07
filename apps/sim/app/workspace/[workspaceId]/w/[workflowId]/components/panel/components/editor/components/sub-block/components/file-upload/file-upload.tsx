@@ -6,6 +6,7 @@ import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
 import { Progress } from '@/components/ui/progress'
+import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -429,14 +430,14 @@ export function FileUpload({
         <Button
           type='button'
           variant='ghost'
-          className='h-6 w-6 shrink-0 p-0'
+          className='h-5 w-5 shrink-0 p-0'
           onClick={(e) => handleRemoveFile(file, e)}
           disabled={isDeleting}
         >
           {isDeleting ? (
-            <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+            <div className='h-3.5 w-3.5 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
           ) : (
-            <X className='h-4 w-4' />
+            <X className='h-3.5 w-3.5' />
           )}
         </Button>
       </div>
@@ -453,8 +454,8 @@ export function FileUpload({
           <span className='text-[var(--text-primary)]'>{file.name}</span>
           <span className='ml-2 text-[var(--text-muted)]'>({formatFileSize(file.size)})</span>
         </div>
-        <div className='flex h-8 w-8 shrink-0 items-center justify-center'>
-          <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+        <div className='flex h-5 w-5 shrink-0 items-center justify-center'>
+          <div className='h-3.5 w-3.5 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
         </div>
       </div>
     )
@@ -512,72 +513,66 @@ export function FileUpload({
       {/* Error message */}
       {uploadError && <div className='mb-2 text-red-600 text-sm'>{uploadError}</div>}
 
-      <div>
-        {/* File list with consistent spacing */}
-        {(hasFiles || isUploading) && (
-          <div className='mb-2 space-y-2'>
-            {/* Only show files that aren't currently uploading */}
-            {filesArray.map((file) => {
-              const isCurrentlyUploading = uploadingFiles.some(
-                (uploadingFile) => uploadingFile.name === file.name
-              )
-              return !isCurrentlyUploading && renderFileItem(file)
-            })}
-            {isUploading && (
-              <>
-                {uploadingFiles.map(renderUploadingItem)}
-                <div className='mt-1'>
-                  <Progress
-                    value={uploadProgress}
-                    className='h-2 w-full'
-                    indicatorClassName='bg-foreground'
-                  />
-                  <div className='mt-1 text-center text-muted-foreground text-xs'>
-                    {uploadProgress < 100 ? 'Uploading...' : 'Upload complete!'}
-                  </div>
+      {/* File list with consistent spacing */}
+      {(hasFiles || isUploading) && (
+        <div className={cn('space-y-2', multiple && 'mb-2')}>
+          {/* Only show files that aren't currently uploading */}
+          {filesArray.map((file) => {
+            const isCurrentlyUploading = uploadingFiles.some(
+              (uploadingFile) => uploadingFile.name === file.name
+            )
+            return !isCurrentlyUploading && renderFileItem(file)
+          })}
+          {isUploading && (
+            <>
+              {uploadingFiles.map(renderUploadingItem)}
+              <div className='mt-1'>
+                <Progress
+                  value={uploadProgress}
+                  className='h-2 w-full'
+                  indicatorClassName='bg-foreground'
+                />
+                <div className='mt-1 text-center text-muted-foreground text-xs'>
+                  {uploadProgress < 100 ? 'Uploading...' : 'Upload complete!'}
                 </div>
-              </>
-            )}
-          </div>
-        )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
-        {/* Add More dropdown for multiple files */}
-        {hasFiles && multiple && !isUploading && (
-          <div>
-            <Combobox
-              options={comboboxOptions}
-              value={inputValue}
-              onChange={handleComboboxChange}
-              onOpenChange={(open) => {
-                if (open) void loadWorkspaceFiles()
-              }}
-              placeholder={loadingWorkspaceFiles ? 'Loading files...' : '+ Add More'}
-              disabled={disabled || loadingWorkspaceFiles}
-              editable={true}
-              filterOptions={true}
-              isLoading={loadingWorkspaceFiles}
-            />
-          </div>
-        )}
-      </div>
+      {/* Add More dropdown for multiple files */}
+      {hasFiles && multiple && !isUploading && (
+        <Combobox
+          options={comboboxOptions}
+          value={inputValue}
+          onChange={handleComboboxChange}
+          onOpenChange={(open) => {
+            if (open) void loadWorkspaceFiles()
+          }}
+          placeholder={loadingWorkspaceFiles ? 'Loading files...' : '+ Add More'}
+          disabled={disabled || loadingWorkspaceFiles}
+          editable={true}
+          filterOptions={true}
+          isLoading={loadingWorkspaceFiles}
+        />
+      )}
 
       {/* Show dropdown selector if no files and not uploading */}
       {!hasFiles && !isUploading && (
-        <div className='flex items-center'>
-          <Combobox
-            options={comboboxOptions}
-            value={inputValue}
-            onChange={handleComboboxChange}
-            onOpenChange={(open) => {
-              if (open) void loadWorkspaceFiles()
-            }}
-            placeholder={loadingWorkspaceFiles ? 'Loading files...' : 'Select or upload file'}
-            disabled={disabled || loadingWorkspaceFiles}
-            editable={true}
-            filterOptions={true}
-            isLoading={loadingWorkspaceFiles}
-          />
-        </div>
+        <Combobox
+          options={comboboxOptions}
+          value={inputValue}
+          onChange={handleComboboxChange}
+          onOpenChange={(open) => {
+            if (open) void loadWorkspaceFiles()
+          }}
+          placeholder={loadingWorkspaceFiles ? 'Loading files...' : 'Select or upload file'}
+          disabled={disabled || loadingWorkspaceFiles}
+          editable={true}
+          filterOptions={true}
+          isLoading={loadingWorkspaceFiles}
+        />
       )}
     </div>
   )

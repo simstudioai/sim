@@ -102,7 +102,7 @@ export const firefliesCreateBiteTool: ToolConfig<
             $summary: String
           ) {
             createBite(
-              transcript_id: $transcriptId
+              transcript_Id: $transcriptId
               start_time: $startTime
               end_time: $endTime
               name: $name

@@ -20,9 +20,15 @@ export const firefliesUploadAudioTool: ToolConfig<
       visibility: 'user-only',
       description: 'Fireflies API key',
     },
+    audioFile: {
+      type: 'file',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Audio/video file to upload for transcription',
+    },
     audioUrl: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'Public HTTPS URL of the audio/video file (MP3, MP4, WAV, M4A, OGG)',
     },
@@ -72,12 +78,26 @@ export const firefliesUploadAudioTool: ToolConfig<
       }
     },
     body: (params) => {
-      if (!params.audioUrl || !params.audioUrl.startsWith('https://')) {
+      let url: string | undefined
+
+      if (params.audioFile) {
+        url = params.audioFile.url || params.audioFile.path
+      }
+
+      if (!url && params.audioUrl) {
+        url = params.audioUrl
+      }
+
+      if (!url) {
+        throw new Error('Either an audio file or audio URL is required')
+      }
+
+      if (!url.startsWith('https://')) {
         throw new Error('Audio URL must be a valid HTTPS URL')
       }
 
       const input: Record<string, unknown> = {
-        url: params.audioUrl,
+        url,
       }
 
       if (params.title) input.title = params.title

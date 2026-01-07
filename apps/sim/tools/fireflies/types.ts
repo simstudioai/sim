@@ -1,7 +1,4 @@
 import type { ToolResponse } from '@/tools/types'
-
-// ===== Core Types =====
-
 export interface FirefliesTranscript {
   id: string
   title: string
@@ -115,8 +112,6 @@ export interface FirefliesUser {
   recent_meeting?: string
 }
 
-// ===== Request Params =====
-
 export interface FirefliesListTranscriptsParams {
   apiKey: string
   keyword?: string
@@ -140,7 +135,15 @@ export interface FirefliesGetUserParams {
 
 export interface FirefliesUploadAudioParams {
   apiKey: string
-  audioUrl: string
+  audioUrl?: string
+  audioFile?: {
+    url?: string
+    path?: string
+    name?: string
+    size?: number
+    type?: string
+    key?: string
+  }
   title?: string
   webhook?: string
   language?: string
@@ -187,8 +190,6 @@ export interface FirefliesListBitesParams {
 export interface FirefliesListContactsParams {
   apiKey: string
 }
-
-// ===== Response Types =====
 
 export interface FirefliesListTranscriptsResponse extends ToolResponse {
   output: {

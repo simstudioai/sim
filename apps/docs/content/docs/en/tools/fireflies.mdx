@@ -117,7 +117,8 @@ Upload an audio file URL to Fireflies.ai for transcription
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Fireflies API key |
-| `audioUrl` | string | Yes | Public HTTPS URL of the audio/video file \(MP3, MP4, WAV, M4A, OGG\) |
+| `audioFile` | file | No | Audio/video file to upload for transcription |
+| `audioUrl` | string | No | Public HTTPS URL of the audio/video file \(MP3, MP4, WAV, M4A, OGG\) |
 | `title` | string | No | Title for the meeting/transcript |
 | `webhook` | string | No | Webhook URL to notify when transcription is complete |
 | `language` | string | No | Language code for transcription \(e.g., "es" for Spanish, "de" for German\) |
