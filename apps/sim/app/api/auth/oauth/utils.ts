@@ -135,11 +135,14 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       const refreshResult = await refreshOAuthToken(providerId, credential.refreshToken!)
 
       if (!refreshResult) {
-        logger.error(`Failed to refresh token for user ${userId}, provider ${providerId}`, {
-          providerId,
-          userId,
-          hasRefreshToken: !!credential.refreshToken,
-        })
+        logger.error(
+          `Failed to refresh token for user ${userId}, provider ${providerId} - no result returned`,
+          {
+            providerId,
+            userId,
+            hasRefreshToken: !!credential.refreshToken,
+          }
+        )
         return null
       }
 
@@ -170,7 +173,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
         providerId,
         userId,
       })
-      return null
+      throw error
     }
   }
 
@@ -221,12 +224,15 @@ export async function refreshAccessTokenIfNeeded(
       )
 
       if (!refreshedToken) {
-        logger.error(`[${requestId}] Failed to refresh token for credential: ${credentialId}`, {
-          credentialId,
-          providerId: credential.providerId,
-          userId: credential.userId,
-          hasRefreshToken: !!credential.refreshToken,
-        })
+        logger.error(
+          `[${requestId}] Failed to refresh token for credential: ${credentialId} - no result returned`,
+          {
+            credentialId,
+            providerId: credential.providerId,
+            userId: credential.userId,
+            hasRefreshToken: !!credential.refreshToken,
+          }
+        )
         return null
       }
 
@@ -249,6 +255,7 @@ export async function refreshAccessTokenIfNeeded(
       logger.info(`[${requestId}] Successfully refreshed access token for credential`)
       return refreshedToken.accessToken
     } catch (error) {
+      // Re-throw the error to propagate detailed error messages (e.g., session expiry instructions)
       logger.error(`[${requestId}] Error refreshing token for credential`, {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
@@ -256,7 +263,7 @@ export async function refreshAccessTokenIfNeeded(
         credentialId,
         userId: credential.userId,
       })
-      return null
+      throw error
     }
   } else if (!accessToken) {
     // We have no access token and either no refresh token or not eligible to refresh
@@ -292,8 +299,8 @@ export async function refreshTokenIfNeeded(
     const refreshResult = await refreshOAuthToken(credential.providerId, credential.refreshToken!)
 
     if (!refreshResult) {
-      logger.error(`[${requestId}] Failed to refresh token for credential`)
-      throw new Error('Failed to refresh token')
+      logger.error(`[${requestId}] Failed to refresh token for credential - no result returned`)
+      throw new Error('Failed to refresh token: no result returned from provider')
     }
 
     const { accessToken: refreshedToken, expiresIn, refreshToken: newRefreshToken } = refreshResult

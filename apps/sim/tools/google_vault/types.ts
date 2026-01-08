@@ -14,7 +14,6 @@ export interface GoogleVaultCreateMattersExportParams extends GoogleVaultCommonP
   terms?: string
   startTime?: string
   endTime?: string
-  timeZone?: string
   includeSharedDrives?: boolean
 }
 
@@ -39,6 +38,12 @@ export interface GoogleVaultCreateMattersHoldsParams extends GoogleVaultCommonPa
   corpus: GoogleVaultCorpus
   accountEmails?: string // Comma-separated list or array handled in the tool
   orgUnitId?: string
+  // Query parameters for MAIL and GROUPS corpus (date filtering)
+  terms?: string
+  startTime?: string
+  endTime?: string
+  // Drive-specific option
+  includeSharedDrives?: boolean
 }
 
 export interface GoogleVaultListMattersHoldsParams extends GoogleVaultCommonParams {
