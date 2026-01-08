@@ -92,6 +92,20 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
       type: 'short-input',
       placeholder: 'ISO 8601 format (e.g., 2024-01-01T00:00:00Z)',
       condition: { field: 'operation', value: 'calendly_list_scheduled_events' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "today" -> Today's date at 00:00:00Z
+- "beginning of this week" -> Monday of the current week at 00:00:00Z
+- "start of month" -> First day of current month at 00:00:00Z
+- "last week" -> 7 days ago at 00:00:00Z
+
+Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "today", "start of month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'max_start_time',
@@ -99,6 +113,20 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
       type: 'short-input',
       placeholder: 'ISO 8601 format (e.g., 2024-12-31T23:59:59Z)',
       condition: { field: 'operation', value: 'calendly_list_scheduled_events' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "end of today" -> Today's date at 23:59:59Z
+- "end of this week" -> Sunday of the current week at 23:59:59Z
+- "end of month" -> Last day of current month at 23:59:59Z
+- "next week" -> 7 days from now at 23:59:59Z
+
+Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "end of week", "end of month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'status',

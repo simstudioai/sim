@@ -541,6 +541,7 @@ async function logPreprocessingError(params: {
         stackTrace: undefined,
       },
       traceSpans: [],
+      skipCost: true, // Preprocessing errors should not charge - no execution occurred
     })
 
     logger.debug(`[${requestId}] Logged preprocessing error to database`, {

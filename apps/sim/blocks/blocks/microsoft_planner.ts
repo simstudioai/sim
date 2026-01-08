@@ -190,6 +190,20 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       type: 'short-input',
       placeholder: 'Enter due date in ISO 8601 format (e.g., 2024-12-31T23:59:59Z)',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description for Microsoft Planner task due date.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "tomorrow" -> Calculate tomorrow's date at 23:59:59Z
+- "next Friday" -> Calculate the next Friday at 17:00:00Z
+- "end of the month" -> Calculate the last day of the current month at 23:59:59Z
+- "in 3 days" -> Calculate 3 days from now at 17:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the due date (e.g., "next Friday", "end of the month")...',
+        generationType: 'timestamp',
+      },
     },
 
     // Start Date
@@ -199,6 +213,20 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       type: 'short-input',
       placeholder: 'Enter start date in ISO 8601 format (optional)',
       condition: { field: 'operation', value: ['update_task'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description for Microsoft Planner task start date.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "today" -> Calculate today's date at 09:00:00Z
+- "next Monday" -> Calculate the next Monday at 09:00:00Z
+- "beginning of next week" -> Calculate the next Monday at 09:00:00Z
+- "tomorrow morning" -> Calculate tomorrow's date at 09:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "next Monday", "tomorrow morning")...',
+        generationType: 'timestamp',
+      },
     },
 
     // Assignee

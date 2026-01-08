@@ -27,6 +27,7 @@ import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { ExaBlock } from '@/blocks/blocks/exa'
 import { FileBlock } from '@/blocks/blocks/file'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
+import { FirefliesBlock } from '@/blocks/blocks/fireflies'
 import { FunctionBlock } from '@/blocks/blocks/function'
 import { GenericWebhookBlock } from '@/blocks/blocks/generic_webhook'
 import { GitHubBlock } from '@/blocks/blocks/github'
@@ -174,6 +175,7 @@ export const registry: Record<string, BlockConfig> = {
   exa: ExaBlock,
   file: FileBlock,
   firecrawl: FirecrawlBlock,
+  fireflies: FirefliesBlock,
   function: FunctionBlock,
   generic_webhook: GenericWebhookBlock,
   github: GitHubBlock,

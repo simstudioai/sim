@@ -90,6 +90,12 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         field: 'operation',
         value: 'notion_create_page',
       },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          "Generate a concise, descriptive title for a Notion page based on the user's description. The title should be clear and professional. Return ONLY the title text - no explanations, no quotes.",
+        placeholder: 'Describe what the page is about...',
+      },
     },
     // Content input for write/create operations
     {
@@ -102,6 +108,12 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         value: 'notion_write',
       },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          "Generate content to append to a Notion page based on the user's description. The content can include paragraphs, lists, headings, and other text elements. Format it appropriately for Notion. Return ONLY the content - no explanations.",
+        placeholder: 'Describe the content you want to add...',
+      },
     },
     {
       id: 'content',
@@ -113,6 +125,12 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         value: 'notion_create_page',
       },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          "Generate content for a new Notion page based on the user's description. The content can include paragraphs, lists, headings, and other text elements. Format it appropriately for Notion. Return ONLY the content - no explanations.",
+        placeholder: 'Describe the content you want to create...',
+      },
     },
     // Query Database Fields
     {
@@ -130,6 +148,14 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       placeholder: 'Enter filter conditions as JSON (optional)',
       condition: { field: 'operation', value: 'notion_query_database' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Notion database filter object in JSON format based on the user\'s description. Notion filters use properties like "property", "equals", "contains", "checkbox", "date", etc. Example: {"property": "Status", "select": {"equals": "Done"}}. For compound filters use "and" or "or" arrays. Return ONLY valid JSON - no explanations.',
+        placeholder:
+          'Describe what you want to filter (e.g., "status is done", "created after last week")...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'sorts',
@@ -137,6 +163,13 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'long-input',
       placeholder: 'Enter sort criteria as JSON array (optional)',
       condition: { field: 'operation', value: 'notion_query_database' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Notion database sort criteria array in JSON format based on the user\'s description. Each sort object has "property" (property name) or "timestamp" ("created_time" or "last_edited_time") and "direction" ("ascending" or "descending"). Example: [{"property": "Name", "direction": "ascending"}]. Return ONLY a valid JSON array - no explanations.',
+        placeholder: 'Describe how to sort (e.g., "by name ascending", "newest first")...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'pageSize',
@@ -152,6 +185,12 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'short-input',
       placeholder: 'Enter search terms (leave empty for all pages)',
       condition: { field: 'operation', value: 'notion_search' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          "Generate a search query string for searching a Notion workspace based on the user's description. The query should be concise and use relevant keywords. Return ONLY the search query text - no explanations, no quotes.",
+        placeholder: 'Describe what you want to search for...',
+      },
     },
     {
       id: 'filterType',
@@ -180,6 +219,12 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       placeholder: 'Title for the new database',
       condition: { field: 'operation', value: 'notion_create_database' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          "Generate a concise, descriptive title for a Notion database based on the user's description. The title should clearly indicate what data the database will contain. Return ONLY the title text - no explanations, no quotes.",
+        placeholder: 'Describe what the database will track...',
+      },
     },
     {
       id: 'properties',
@@ -187,6 +232,14 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'long-input',
       placeholder: 'Enter database properties as JSON object',
       condition: { field: 'operation', value: 'notion_create_database' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate Notion database properties in JSON format based on the user\'s description. Properties define the schema of the database. Common types: "title" (required), "rich_text", "number", "select" (with options), "multi_select", "date", "checkbox", "url", "email", "phone_number". Example: {"Name": {"title": {}}, "Status": {"select": {"options": [{"name": "To Do"}, {"name": "Done"}]}}, "Priority": {"number": {}}}. Return ONLY valid JSON - no explanations.',
+        placeholder:
+          'Describe the columns/properties you want (e.g., "name, status dropdown, due date, priority number")...',
+        generationType: 'json-object',
+      },
     },
   ],
   tools: {

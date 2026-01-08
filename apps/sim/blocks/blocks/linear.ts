@@ -317,6 +317,17 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_create_issue', 'linear_update_issue'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a concise Linear issue title based on the user's description.
+The title should:
+- Be clear and descriptive
+- Capture the essence of the issue
+- Be suitable for project management tracking
+
+Return ONLY the title text - no explanations.`,
+        placeholder: 'Describe the issue (e.g., "login not working", "add export feature")...',
+      },
     },
     // Description (for issue creation/update, comments, projects)
     {
@@ -333,6 +344,17 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_update_project',
         ],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a detailed description based on the user's description.
+The description should:
+- Provide context and details
+- Include acceptance criteria or requirements when applicable
+- Be professional and clear
+
+Return ONLY the description text - no explanations.`,
+        placeholder: 'Describe the details (e.g., "users report errors when logging in")...',
+      },
     },
     // Comment body
     {
@@ -347,6 +369,18 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       condition: {
         field: 'operation',
         value: ['linear_create_comment', 'linear_update_comment', 'linear_create_project_update'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comment or project update based on the user's description.
+The comment should:
+- Be professional and informative
+- Provide relevant updates or information
+- Be suitable for team collaboration
+
+Return ONLY the comment text - no explanations.`,
+        placeholder:
+          'Describe what you want to communicate (e.g., "progress update", "request for review")...',
       },
     },
     // Comment ID
@@ -476,6 +510,18 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_search_issues'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a search query for Linear issues based on the user's description.
+The query should:
+- Be specific and targeted
+- Use relevant keywords
+- Be suitable for finding issues
+
+Return ONLY the search query - no explanations.`,
+        placeholder:
+          'Describe what you want to search for (e.g., "open bugs", "my assigned tasks")...',
+      },
     },
     // Include archived (for list operations)
     {
@@ -509,6 +555,19 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_create_cycle', 'linear_create_project'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "today" -> Today's date
+- "next Monday" -> Calculate the next Monday
+- "start of next month" -> First day of next month
+- "in 2 weeks" -> Calculate 14 days from now
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "next Monday", "start of next month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'endDate',
@@ -518,6 +577,19 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       condition: {
         field: 'operation',
         value: ['linear_create_cycle'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "in 2 weeks" -> Calculate 14 days from now
+- "end of month" -> Last day of current month
+- "next Friday" -> Calculate the next Friday
+- "end of quarter" -> Last day of current quarter
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end date (e.g., "in 2 weeks", "end of month")...',
+        generationType: 'timestamp',
       },
     },
     // Target date (for projects)
@@ -529,6 +601,19 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       condition: {
         field: 'operation',
         value: ['linear_create_project', 'linear_update_project'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "end of quarter" -> Last day of current quarter
+- "in 3 months" -> Calculate 3 months from now
+- "end of year" -> December 31 of current year
+- "next month" -> First day of next month
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the target date (e.g., "end of quarter", "in 3 months")...',
+        generationType: 'timestamp',
       },
     },
     // Attachment URL
@@ -849,6 +934,18 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_create_customer_request', 'linear_update_customer_request'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a customer request description based on the user's description.
+The description should:
+- Clearly explain the customer's need or request
+- Include relevant context and details
+- Be professional and suitable for product feedback
+
+Return ONLY the description text - no explanations.`,
+        placeholder:
+          'Describe the customer request (e.g., "need bulk export feature", "integration with Slack")...',
+      },
     },
     // Customer request priority/urgency
     {
@@ -1097,6 +1194,19 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       condition: {
         field: 'operation',
         value: ['linear_create_project_milestone', 'linear_update_project_milestone'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "in 2 weeks" -> Calculate 14 days from now
+- "end of sprint" -> Calculate based on typical 2-week sprint
+- "next milestone" -> Calculate a reasonable next milestone date
+- "end of month" -> Last day of current month
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the milestone target date (e.g., "in 2 weeks", "end of month")...',
+        generationType: 'timestamp',
       },
     },
     // Project status fields

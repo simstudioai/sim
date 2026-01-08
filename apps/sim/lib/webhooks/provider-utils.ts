@@ -63,6 +63,13 @@ function extractAirtableIdentifier(body: any): string | null {
   return null
 }
 
+function extractGrainIdentifier(body: any): string | null {
+  if (body.type && body.data?.id) {
+    return `${body.type}:${body.data.id}`
+  }
+  return null
+}
+
 const PROVIDER_EXTRACTORS: Record<string, (body: any) => string | null> = {
   slack: extractSlackIdentifier,
   twilio: extractTwilioIdentifier,
@@ -73,6 +80,7 @@ const PROVIDER_EXTRACTORS: Record<string, (body: any) => string | null> = {
   jira: extractJiraIdentifier,
   'microsoft-teams': extractMicrosoftTeamsIdentifier,
   airtable: extractAirtableIdentifier,
+  grain: extractGrainIdentifier,
 }
 
 export function extractProviderIdentifierFromBody(provider: string, body: any): string | null {

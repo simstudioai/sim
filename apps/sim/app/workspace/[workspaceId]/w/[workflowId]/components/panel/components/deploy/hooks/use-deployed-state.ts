@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -27,29 +27,27 @@ export function useDeployedState({
     (state) => state.setWorkflowNeedsRedeployment
   )
 
-  /**
-   * Fetches the deployed state of the workflow from the server
-   * This is the single source of truth for deployed workflow state
-   */
-  const fetchDeployedState = async () => {
-    if (!workflowId || !isDeployed) {
+  const fetchDeployedState = useCallback(async () => {
+    const registry = useWorkflowRegistry.getState()
+    const currentWorkflowId = registry.activeWorkflowId
+    const deploymentStatus = currentWorkflowId
+      ? registry.getWorkflowDeploymentStatus(currentWorkflowId)
+      : null
+    const currentIsDeployed = deploymentStatus?.isDeployed ?? false
+
+    if (!currentWorkflowId || !currentIsDeployed) {
       setDeployedState(null)
       return
     }
 
-    // Store the workflow ID at the start of the request to prevent race conditions
-    const requestWorkflowId = workflowId
-
-    // Helper to get current active workflow ID for race condition checks
-    const getCurrentActiveWorkflowId = () => useWorkflowRegistry.getState().activeWorkflowId
+    const requestWorkflowId = currentWorkflowId
 
     try {
       setIsLoadingDeployedState(true)
 
       const response = await fetch(`/api/workflows/${requestWorkflowId}/deployed`)
 
-      // Check if the workflow ID changed during the request (user navigated away)
-      if (requestWorkflowId !== getCurrentActiveWorkflowId()) {
+      if (requestWorkflowId !== useWorkflowRegistry.getState().activeWorkflowId) {
         logger.debug('Workflow changed during deployed state fetch, ignoring response')
         return
       }
@@ -64,22 +62,22 @@ export function useDeployedState({
 
       const data = await response.json()
 
-      if (requestWorkflowId === getCurrentActiveWorkflowId()) {
+      if (requestWorkflowId === useWorkflowRegistry.getState().activeWorkflowId) {
         setDeployedState(data.deployedState || null)
       } else {
         logger.debug('Workflow changed after deployed state response, ignoring result')
       }
     } catch (error) {
       logger.error('Error fetching deployed state:', { error })
-      if (requestWorkflowId === getCurrentActiveWorkflowId()) {
+      if (requestWorkflowId === useWorkflowRegistry.getState().activeWorkflowId) {
         setDeployedState(null)
       }
     } finally {
-      if (requestWorkflowId === getCurrentActiveWorkflowId()) {
+      if (requestWorkflowId === useWorkflowRegistry.getState().activeWorkflowId) {
         setIsLoadingDeployedState(false)
       }
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (!workflowId) {

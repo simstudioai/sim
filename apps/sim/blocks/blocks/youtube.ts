@@ -62,6 +62,21 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
       type: 'short-input',
       placeholder: '2024-01-01T00:00:00Z',
       condition: { field: 'operation', value: 'youtube_search' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:mm:ssZ (UTC timezone).
+This is for filtering YouTube videos published after this date.
+Examples:
+- "last month" -> Calculate 30 days ago at 00:00:00Z
+- "beginning of 2024" -> 2024-01-01T00:00:00Z
+- "last year" -> Calculate 1 year ago at 00:00:00Z
+- "past 7 days" -> Calculate 7 days ago at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "last month", "beginning of 2024")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'publishedBefore',
@@ -69,6 +84,21 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
       type: 'short-input',
       placeholder: '2024-12-31T23:59:59Z',
       condition: { field: 'operation', value: 'youtube_search' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:mm:ssZ (UTC timezone).
+This is for filtering YouTube videos published before this date.
+Examples:
+- "today" -> Today's date at 23:59:59Z
+- "end of 2024" -> 2024-12-31T23:59:59Z
+- "yesterday" -> Yesterday's date at 23:59:59Z
+- "end of last month" -> Last day of previous month at 23:59:59Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end date (e.g., "today", "end of last year")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'videoDuration',

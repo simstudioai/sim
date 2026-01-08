@@ -21,6 +21,25 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
       type: 'long-input',
       placeholder: 'Enter your search query',
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Google search query based on the user's description.
+Create an effective search query that will find relevant results.
+Use search operators when appropriate:
+- "exact phrase" for exact matches
+- site:domain.com to search within a site
+- -word to exclude terms
+- OR for alternatives
+- filetype:pdf for specific file types
+
+Examples:
+- "latest AI news" -> latest artificial intelligence news 2024
+- "python tutorials on youtube" -> site:youtube.com python tutorial
+- "PDF reports about climate change" -> climate change report filetype:pdf
+
+Return ONLY the search query - no explanations, no quotes around the whole thing, no extra text.`,
+        placeholder: 'Describe what you want to search for...',
+      },
     },
     {
       id: 'searchEngineId',

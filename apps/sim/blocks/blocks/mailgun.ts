@@ -76,6 +76,24 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
       placeholder: 'Email subject',
       condition: { field: 'operation', value: 'send_message' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a compelling email subject line based on the user's description.
+
+### GUIDELINES
+- Keep it concise (50 characters or less is ideal)
+- Make it attention-grabbing
+- Avoid spam trigger words
+- Be clear about the email content
+
+### EXAMPLES
+"Welcome email for new users" -> "Welcome to Our Platform!"
+"Order confirmation" -> "Your Order #12345 is Confirmed"
+"Newsletter about new features" -> "New Features You'll Love"
+
+Return ONLY the subject line - no explanations.`,
+        placeholder: 'Describe the email topic...',
+      },
     },
     {
       id: 'text',
@@ -83,6 +101,33 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
       type: 'long-input',
       placeholder: 'Plain text email body',
       condition: { field: 'operation', value: 'send_message' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate plain text email content based on the user's description.
+
+### GUIDELINES
+- Use clear, readable formatting
+- Keep paragraphs short
+- Include appropriate greeting and sign-off
+- Use line breaks for readability
+
+### EXAMPLE
+Hello,
+
+Thank you for your interest in our product.
+
+Here are the details you requested:
+- Point 1
+- Point 2
+
+Let us know if you have any questions.
+
+Best regards,
+The Team
+
+Return ONLY the email body text - no explanations.`,
+        placeholder: 'Describe the email content...',
+      },
     },
     {
       id: 'html',
@@ -90,6 +135,31 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
       type: 'code',
       placeholder: '<html><body>HTML email body</body></html>',
       condition: { field: 'operation', value: 'send_message' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate HTML email content based on the user's description.
+
+### GUIDELINES
+- Use inline CSS for styling (email clients don't support external stylesheets)
+- Keep the design simple and mobile-friendly
+- Use tables for layout (better email client support)
+- Include proper structure
+
+### EXAMPLE STRUCTURE
+<html>
+<body style="font-family: Arial, sans-serif; margin: 0; padding: 20px;">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr><td style="padding: 20px; background: #f4f4f4;">
+      <h1 style="color: #333;">Your Title</h1>
+      <p style="color: #666;">Your content here...</p>
+    </td></tr>
+  </table>
+</body>
+</html>
+
+Return ONLY the HTML content - no explanations or markdown.`,
+        placeholder: 'Describe the email content...',
+      },
     },
     {
       id: 'cc',
@@ -165,6 +235,23 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
       type: 'short-input',
       placeholder: 'My Mailing List',
       condition: { field: 'operation', value: 'create_mailing_list' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a name for a Mailgun mailing list based on the user's description.
+
+### GUIDELINES
+- Keep it clear and descriptive
+- Use professional naming conventions
+- Make it easy to identify the list purpose
+
+### EXAMPLES
+"Newsletter subscribers" -> "Newsletter Subscribers"
+"Beta testers" -> "Beta Testers"
+"Customer updates" -> "Customer Updates List"
+
+Return ONLY the list name - no explanations.`,
+        placeholder: 'Describe the mailing list...',
+      },
     },
     {
       id: 'description',
@@ -172,6 +259,22 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
       type: 'long-input',
       placeholder: 'Description of the mailing list',
       condition: { field: 'operation', value: 'create_mailing_list' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a description for a Mailgun mailing list based on the user's description.
+
+### GUIDELINES
+- Explain the purpose of the list
+- Keep it concise but informative
+- Mention what subscribers will receive
+
+### EXAMPLES
+"Newsletter for product updates" -> "Subscribers receive weekly updates about new features, product announcements, and company news."
+"Beta program list" -> "Early access program members who test new features before public release."
+
+Return ONLY the description text - no explanations.`,
+        placeholder: 'Describe the purpose of the list...',
+      },
     },
     {
       id: 'accessLevel',
@@ -207,6 +310,22 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
       type: 'code',
       placeholder: '{"key": "value"}',
       condition: { field: 'operation', value: 'add_list_member' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object with custom variables for a Mailgun mailing list member based on the user's description.
+
+### GUIDELINES
+- Use descriptive key names
+- Include relevant member data
+- Keep values properly typed
+
+### EXAMPLE OUTPUT
+{"first_name": "John", "last_name": "Doe", "company": "Acme Corp", "plan": "premium"}
+
+Return ONLY the JSON object - no explanations or markdown.`,
+        placeholder: 'Describe the member data...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'subscribed',

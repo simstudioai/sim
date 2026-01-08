@@ -235,6 +235,19 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
       type: 'short-input',
       placeholder: '2025-12-31T23:59:59Z',
       condition: { field: 'operation', value: 'dropbox_create_shared_link' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "in 1 week" -> Calculate 7 days from now at 23:59:59Z
+- "end of month" -> Calculate last day of current month at 23:59:59Z
+- "next year" -> Calculate January 1st of next year at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe when link should expire (e.g., "in 1 week", "end of month")...',
+        generationType: 'timestamp',
+      },
     },
     // Search operation inputs
     {

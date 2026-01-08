@@ -37,6 +37,7 @@ export type GenerationType =
   | 'mongodb-update'
   | 'neo4j-cypher'
   | 'neo4j-parameters'
+  | 'timestamp'
 
 export type SubBlockType =
   | 'short-input' // Single line input

@@ -45,6 +45,7 @@ export interface SessionErrorCompleteParams {
     stackTrace?: string
   }
   traceSpans?: TraceSpan[]
+  skipCost?: boolean
 }
 
 export interface SessionCancelledParams {
@@ -342,7 +343,7 @@ export class LoggingSession {
     }
 
     try {
-      const { endedAt, totalDurationMs, error, traceSpans } = params
+      const { endedAt, totalDurationMs, error, traceSpans, skipCost } = params
 
       const endTime = endedAt ? new Date(endedAt) : new Date()
       const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
@@ -350,19 +351,31 @@ export class LoggingSession {
 
       const hasProvidedSpans = Array.isArray(traceSpans) && traceSpans.length > 0
 
-      const costSummary = hasProvidedSpans
-        ? calculateCostSummary(traceSpans)
-        : {
-            totalCost: BASE_EXECUTION_CHARGE,
+      const costSummary = skipCost
+        ? {
+            totalCost: 0,
             totalInputCost: 0,
             totalOutputCost: 0,
             totalTokens: 0,
             totalPromptTokens: 0,
             totalCompletionTokens: 0,
-            baseExecutionCharge: BASE_EXECUTION_CHARGE,
+            baseExecutionCharge: 0,
             modelCost: 0,
             models: {},
           }
+        : hasProvidedSpans
+          ? calculateCostSummary(traceSpans)
+          : {
+              totalCost: BASE_EXECUTION_CHARGE,
+              totalInputCost: 0,
+              totalOutputCost: 0,
+              totalTokens: 0,
+              totalPromptTokens: 0,
+              totalCompletionTokens: 0,
+              baseExecutionCharge: BASE_EXECUTION_CHARGE,
+              modelCost: 0,
+              models: {},
+            }
 
       const message = error?.message || 'Execution failed before starting blocks'
 

@@ -1,6 +1,6 @@
 import { GrainIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildGenericOutputs, grainSetupInstructions, grainTriggerOptions } from './utils'
+import { buildGenericOutputs, grainSetupInstructions } from './utils'
 
 export const grainWebhookTrigger: TriggerConfig = {
   id: 'grain_webhook',
@@ -11,15 +11,6 @@ export const grainWebhookTrigger: TriggerConfig = {
   icon: GrainIcon,
 
   subBlocks: [
-    {
-      id: 'selectedTriggerId',
-      title: 'Trigger Type',
-      type: 'dropdown',
-      mode: 'trigger',
-      options: grainTriggerOptions,
-      value: () => 'grain_webhook',
-      required: true,
-    },
     {
       id: 'apiKey',
       title: 'API Key',

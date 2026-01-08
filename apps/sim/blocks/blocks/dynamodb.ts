@@ -65,6 +65,18 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       placeholder: '{\n  "pk": "user#123"\n}',
       condition: { field: 'operation', value: 'get' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a DynamoDB primary key JSON object based on the user's description.
+The key should include partition key and optionally sort key.
+Examples:
+- {"pk": "user#123"} - Simple partition key
+- {"pk": "order#456", "sk": "2024-01-15"} - Partition key with sort key
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the item key...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'key',
@@ -73,6 +85,18 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       placeholder: '{\n  "pk": "user#123"\n}',
       condition: { field: 'operation', value: 'update' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a DynamoDB primary key JSON object based on the user's description.
+The key should include partition key and optionally sort key.
+Examples:
+- {"pk": "user#123"} - Simple partition key
+- {"pk": "order#456", "sk": "2024-01-15"} - Partition key with sort key
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the item key...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'key',
@@ -81,6 +105,18 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       placeholder: '{\n  "pk": "user#123"\n}',
       condition: { field: 'operation', value: 'delete' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a DynamoDB primary key JSON object based on the user's description.
+The key should include partition key and optionally sort key.
+Examples:
+- {"pk": "user#123"} - Simple partition key
+- {"pk": "order#456", "sk": "2024-01-15"} - Partition key with sort key
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the item key...',
+        generationType: 'json-object',
+      },
     },
     // Consistent read for get
     {
@@ -103,6 +139,16 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
         '{\n  "pk": "user#123",\n  "name": "John Doe",\n  "email": "john@example.com"\n}',
       condition: { field: 'operation', value: 'put' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a DynamoDB item JSON object based on the user's description.
+The item must include the primary key and any additional attributes.
+Use appropriate data types for values (strings, numbers, booleans, lists, maps).
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the item you want to store...',
+        generationType: 'json-object',
+      },
     },
     // Key condition expression for query
     {
@@ -112,6 +158,19 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       placeholder: 'pk = :pk',
       condition: { field: 'operation', value: 'query' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a DynamoDB key condition expression based on the user's description.
+The expression must reference the partition key and optionally the sort key.
+Use :placeholders for values and #names for reserved words.
+Examples:
+- "pk = :pk" - Match partition key
+- "pk = :pk AND sk BETWEEN :start AND :end" - Range query on sort key
+- "pk = :pk AND begins_with(sk, :prefix)" - Prefix match on sort key
+
+Return ONLY the expression - no explanations.`,
+        placeholder: 'Describe the key condition...',
+      },
     },
     // Update expression for update operation
     {
@@ -121,6 +180,19 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       placeholder: 'SET #name = :name',
       condition: { field: 'operation', value: 'update' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a DynamoDB update expression based on the user's description.
+Use SET, REMOVE, ADD, or DELETE clauses.
+Use :placeholders for values and #names for attribute names.
+Examples:
+- "SET #name = :name, #age = :age" - Update multiple attributes
+- "SET #count = #count + :increment" - Increment a counter
+- "REMOVE #oldAttribute" - Remove an attribute
+
+Return ONLY the expression - no explanations.`,
+        placeholder: 'Describe what updates to make...',
+      },
     },
     // Filter expression for query and scan
     {
@@ -129,6 +201,19 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       type: 'short-input',
       placeholder: 'attribute_exists(email)',
       condition: { field: 'operation', value: 'query' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a DynamoDB filter expression based on the user's description.
+Filter expressions are applied after the query but before results are returned.
+Use comparison operators, functions like attribute_exists(), contains(), begins_with().
+Examples:
+- "attribute_exists(email)" - Items with email attribute
+- "#status = :active AND #age > :minAge" - Multiple conditions
+- "contains(#tags, :tag)" - Contains a value in a list
+
+Return ONLY the expression - no explanations.`,
+        placeholder: 'Describe how to filter results...',
+      },
     },
     {
       id: 'filterExpression',
@@ -136,6 +221,19 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       type: 'short-input',
       placeholder: 'attribute_exists(email)',
       condition: { field: 'operation', value: 'scan' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a DynamoDB filter expression based on the user's description.
+Filter expressions are applied after the scan but before results are returned.
+Use comparison operators, functions like attribute_exists(), contains(), begins_with().
+Examples:
+- "attribute_exists(email)" - Items with email attribute
+- "#status = :active AND #age > :minAge" - Multiple conditions
+- "contains(#tags, :tag)" - Contains a value in a list
+
+Return ONLY the expression - no explanations.`,
+        placeholder: 'Describe how to filter results...',
+      },
     },
     // Projection expression for scan
     {
@@ -152,6 +250,17 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       type: 'code',
       placeholder: '{\n  "#name": "name"\n}',
       condition: { field: 'operation', value: 'query' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate DynamoDB expression attribute names JSON based on the user's description.
+Map placeholder names (starting with #) to actual attribute names.
+Required when using reserved words or for clarity.
+Example: {"#name": "name", "#status": "status"}
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the attribute name mappings...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'expressionAttributeNames',
@@ -159,6 +268,17 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       type: 'code',
       placeholder: '{\n  "#name": "name"\n}',
       condition: { field: 'operation', value: 'scan' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate DynamoDB expression attribute names JSON based on the user's description.
+Map placeholder names (starting with #) to actual attribute names.
+Required when using reserved words or for clarity.
+Example: {"#name": "name", "#status": "status"}
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the attribute name mappings...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'expressionAttributeNames',
@@ -166,6 +286,17 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       type: 'code',
       placeholder: '{\n  "#name": "name"\n}',
       condition: { field: 'operation', value: 'update' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate DynamoDB expression attribute names JSON based on the user's description.
+Map placeholder names (starting with #) to actual attribute names.
+Required when using reserved words or for clarity.
+Example: {"#name": "name", "#status": "status"}
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the attribute name mappings...',
+        generationType: 'json-object',
+      },
     },
     // Expression attribute values for query, scan, update
     {
@@ -174,6 +305,16 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       type: 'code',
       placeholder: '{\n  ":pk": "user#123",\n  ":name": "Jane"\n}',
       condition: { field: 'operation', value: 'query' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate DynamoDB expression attribute values JSON based on the user's description.
+Map placeholder values (starting with :) to actual values.
+Example: {":pk": "user#123", ":status": "active", ":minAge": 18}
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the attribute values...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'expressionAttributeValues',
@@ -181,6 +322,16 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       type: 'code',
       placeholder: '{\n  ":status": "active"\n}',
       condition: { field: 'operation', value: 'scan' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate DynamoDB expression attribute values JSON based on the user's description.
+Map placeholder values (starting with :) to actual values.
+Example: {":status": "active", ":minAge": 18}
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the attribute values...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'expressionAttributeValues',
@@ -188,6 +339,16 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       type: 'code',
       placeholder: '{\n  ":name": "Jane Doe"\n}',
       condition: { field: 'operation', value: 'update' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate DynamoDB expression attribute values JSON based on the user's description.
+Map placeholder values (starting with :) to actual values.
+Example: {":name": "Jane Doe", ":count": 1}
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the attribute values...',
+        generationType: 'json-object',
+      },
     },
     // Index name for query
     {
@@ -219,6 +380,18 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       type: 'short-input',
       placeholder: 'attribute_exists(pk)',
       condition: { field: 'operation', value: 'update' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a DynamoDB condition expression based on the user's description.
+Condition expressions prevent the operation if the condition is not met.
+Examples:
+- "attribute_exists(pk)" - Item must exist
+- "attribute_not_exists(pk)" - Item must not exist (for inserts)
+- "#version = :expectedVersion" - Optimistic locking
+
+Return ONLY the expression - no explanations.`,
+        placeholder: 'Describe the condition that must be true...',
+      },
     },
     {
       id: 'conditionExpression',
@@ -226,6 +399,17 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       type: 'short-input',
       placeholder: 'attribute_exists(pk)',
       condition: { field: 'operation', value: 'delete' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a DynamoDB condition expression based on the user's description.
+Condition expressions prevent the operation if the condition is not met.
+Examples:
+- "attribute_exists(pk)" - Item must exist
+- "#status = :deletable" - Only delete if status matches
+
+Return ONLY the expression - no explanations.`,
+        placeholder: 'Describe the condition that must be true...',
+      },
     },
   ],
   tools: {

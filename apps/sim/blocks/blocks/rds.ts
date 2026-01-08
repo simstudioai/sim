@@ -205,6 +205,35 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
       placeholder: '{\n  "name": "John Doe",\n  "email": "john@example.com",\n  "active": true\n}',
       condition: { field: 'operation', value: 'insert' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert database developer. Generate a JSON object for inserting data into an Amazon RDS table based on the user's request.
+
+### CONTEXT
+{context}
+
+### CRITICAL INSTRUCTION
+Return ONLY a valid JSON object. Do not include any explanations, markdown formatting, or additional text.
+
+### GUIDELINES
+1. Use appropriate data types (strings in quotes, numbers without, booleans as true/false)
+2. Use snake_case for field names (common database convention)
+3. Include relevant fields based on the table structure
+4. Use null for optional fields that should be empty
+
+### EXAMPLE
+User: "Insert a new customer with name, email, and premium status"
+Output:
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "is_premium": true,
+  "created_at": "NOW()"
+}`,
+        placeholder: 'Describe the data you want to insert...',
+        generationType: 'json-object',
+      },
     },
     // Set clause for updates
     {
@@ -214,6 +243,34 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
       placeholder: '{\n  "name": "Jane Doe",\n  "email": "jane@example.com"\n}',
       condition: { field: 'operation', value: 'update' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert database developer. Generate a JSON object for updating data in an Amazon RDS table based on the user's request.
+
+### CONTEXT
+{context}
+
+### CRITICAL INSTRUCTION
+Return ONLY a valid JSON object containing the fields to update. Do not include any explanations, markdown formatting, or additional text.
+
+### GUIDELINES
+1. Only include fields that need to be updated
+2. Use appropriate data types (strings in quotes, numbers without, booleans as true/false)
+3. Use snake_case for field names
+4. Consider including updated_at field if appropriate
+
+### EXAMPLE
+User: "Update the customer to inactive and clear their subscription"
+Output:
+{
+  "is_active": false,
+  "subscription_id": null,
+  "updated_at": "NOW()"
+}`,
+        placeholder: 'Describe the fields you want to update...',
+        generationType: 'json-object',
+      },
     },
     // Conditions for update/delete (parameterized for SQL injection prevention)
     {
@@ -223,6 +280,31 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
       placeholder: '{\n  "id": 1\n}',
       condition: { field: 'operation', value: 'update' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for RDS WHERE conditions based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY a valid JSON object starting with { and ending with }
+- Each key-value pair represents a column and its expected value
+- Multiple conditions will be combined with AND
+- Use appropriate data types (strings, numbers, booleans)
+
+### EXAMPLE
+User: "Update records where user_id is 123 and status is active"
+Output:
+{
+  "user_id": 123,
+  "status": "active"
+}
+
+Return ONLY the JSON object.`,
+        placeholder: 'Describe the conditions...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'conditions',
@@ -231,6 +313,32 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
       placeholder: '{\n  "id": 1\n}',
       condition: { field: 'operation', value: 'delete' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for RDS WHERE conditions based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY a valid JSON object starting with { and ending with }
+- Each key-value pair represents a column and its expected value
+- Multiple conditions will be combined with AND
+- Use appropriate data types (strings, numbers, booleans)
+- Be careful with delete conditions - they determine which rows are removed
+
+### EXAMPLE
+User: "Delete records where status is expired and created before 2023"
+Output:
+{
+  "status": "expired",
+  "created_year": 2022
+}
+
+Return ONLY the JSON object.`,
+        placeholder: 'Describe the conditions...',
+        generationType: 'json-object',
+      },
     },
   ],
   tools: {

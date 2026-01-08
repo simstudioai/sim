@@ -170,6 +170,18 @@ export const PolymarketBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Unix timestamp UTC (if no interval)',
       condition: { field: 'operation', value: ['get_price_history'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp (seconds since epoch) based on the user's description.
+Examples:
+- "yesterday" -> Unix timestamp for yesterday at 00:00:00 UTC
+- "last week" -> Unix timestamp for 7 days ago at 00:00:00 UTC
+- "beginning of this month" -> Unix timestamp for the 1st of the current month at 00:00:00 UTC
+
+Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "last week", "beginning of month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'endTs',
@@ -177,6 +189,18 @@ export const PolymarketBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Unix timestamp UTC (if no interval)',
       condition: { field: 'operation', value: ['get_price_history'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp (seconds since epoch) based on the user's description.
+Examples:
+- "now" -> Current Unix timestamp
+- "yesterday" -> Unix timestamp for yesterday at 23:59:59 UTC
+- "end of last week" -> Unix timestamp for last Sunday at 23:59:59 UTC
+
+Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "now", "end of last week")...',
+        generationType: 'timestamp',
+      },
     },
     // Filters for list operations
     {
