@@ -3,6 +3,7 @@ import { member, permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import { parsePermissionGroupConfig } from '@/lib/permission-groups/types'
 
 export async function GET(req: Request) {
@@ -27,6 +28,16 @@ export async function GET(req: Request) {
 
   if (!membership) {
     return NextResponse.json({ error: 'Not a member of this organization' }, { status: 403 })
+  }
+
+  // Short-circuit: if org is not on enterprise plan, ignore permission configs
+  const isEnterprise = await isOrganizationOnEnterprisePlan(organizationId)
+  if (!isEnterprise) {
+    return NextResponse.json({
+      permissionGroupId: null,
+      groupName: null,
+      config: null,
+    })
   }
 
   const [groupMembership] = await db

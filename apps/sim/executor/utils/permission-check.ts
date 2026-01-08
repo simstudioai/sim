@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { member, permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
@@ -50,6 +51,11 @@ export async function getUserPermissionConfig(
     .limit(1)
 
   if (!membership) {
+    return null
+  }
+
+  const isEnterprise = await isOrganizationOnEnterprisePlan(membership.organizationId)
+  if (!isEnterprise) {
     return null
   }
 
