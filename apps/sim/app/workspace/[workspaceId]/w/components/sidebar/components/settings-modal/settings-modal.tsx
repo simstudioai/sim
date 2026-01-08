@@ -126,7 +126,6 @@ const allNavigationItems: NavigationItem[] = [
     icon: Mail,
     section: 'system',
     requiresHosted: true,
-    requiresTeam: true,
     selfHostedOverride: isCredentialSetsEnabled,
   },
   { id: 'environment', label: 'Environment', icon: FolderCode, section: 'system' },
