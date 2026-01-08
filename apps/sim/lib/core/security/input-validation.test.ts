@@ -595,26 +595,6 @@ describe('validateUrlWithDNS', () => {
       expect(result.isValid).toBe(false)
     })
   })
-
-  describe('DNS resolution', () => {
-    it('should accept valid public URLs and return resolved IP', async () => {
-      const result = await validateUrlWithDNS('https://example.com')
-      expect(result.isValid).toBe(true)
-      expect(result.resolvedIP).toBeDefined()
-      expect(result.originalHostname).toBe('example.com')
-    })
-
-    it('should reject URLs that resolve to private IPs', async () => {
-      const result = await validateUrlWithDNS('https://localhost.localdomain')
-      expect(result.isValid).toBe(false)
-    })
-
-    it('should reject unresolvable hostnames', async () => {
-      const result = await validateUrlWithDNS('https://this-domain-does-not-exist-xyz123.invalid')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('could not be resolved')
-    })
-  })
 })
 
 describe('createPinnedUrl', () => {

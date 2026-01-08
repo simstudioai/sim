@@ -220,6 +220,8 @@ export async function pollOutlookWebhooks() {
                   organizationId: cs.organizationId,
                 }
               )
+              await markWebhookFailed(webhookId)
+              failureCount++
               return
             }
           }

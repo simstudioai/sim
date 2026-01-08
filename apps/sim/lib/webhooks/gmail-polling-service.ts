@@ -171,6 +171,8 @@ export async function pollGmailWebhooks() {
                   organizationId: cs.organizationId,
                 }
               )
+              await markWebhookFailed(webhookId)
+              failureCount++
               return
             }
           }
