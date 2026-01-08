@@ -289,14 +289,12 @@ export class LoggingSession {
 
       this.completed = true
 
-      // Track workflow execution outcome and create trace spans
       if (traceSpans && traceSpans.length > 0) {
         try {
-          const { trackPlatformEvent, createOTelSpansForWorkflowExecution } = await import(
+          const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
             '@/lib/core/telemetry'
           )
 
-          // Determine status from trace spans
           const hasErrors = traceSpans.some((span: any) => {
             const checkForErrors = (s: any): boolean => {
               if (s.status === 'error') return true
@@ -308,17 +306,16 @@ export class LoggingSession {
             return checkForErrors(span)
           })
 
-          trackPlatformEvent('platform.workflow.executed', {
-            'workflow.id': this.workflowId,
-            'execution.duration_ms': duration,
-            'execution.status': hasErrors ? 'error' : 'success',
-            'execution.trigger': this.triggerType,
-            'execution.blocks_executed': traceSpans.length,
-            'execution.has_errors': hasErrors,
-            'execution.total_cost': costSummary.totalCost || 0,
+          PlatformEvents.workflowExecuted({
+            workflowId: this.workflowId,
+            durationMs: duration,
+            status: hasErrors ? 'error' : 'success',
+            trigger: this.triggerType,
+            blocksExecuted: traceSpans.length,
+            hasErrors,
+            totalCost: costSummary.totalCost || 0,
           })
 
-          // Create OpenTelemetry trace spans for the workflow execution
           const startTime = new Date(new Date(endTime).getTime() - duration).toISOString()
           createOTelSpansForWorkflowExecution({
             workflowId: this.workflowId,
@@ -340,7 +337,6 @@ export class LoggingSession {
         logger.debug(`[${this.requestId}] Completed logging for execution ${this.executionId}`)
       }
     } catch (error) {
-      // Always log completion failures with full details - these should not be silent
       logger.error(`Failed to complete logging for execution ${this.executionId}:`, {
         requestId: this.requestId,
         workflowId: this.workflowId,
@@ -348,7 +344,6 @@ export class LoggingSession {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
       })
-      // Rethrow so safeComplete can decide what to do
       throw error
     }
   }
@@ -420,22 +415,20 @@ export class LoggingSession {
 
       this.completed = true
 
-      // Track workflow execution error outcome and create trace spans
       try {
-        const { trackPlatformEvent, createOTelSpansForWorkflowExecution } = await import(
+        const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
           '@/lib/core/telemetry'
         )
-        trackPlatformEvent('platform.workflow.executed', {
-          'workflow.id': this.workflowId,
-          'execution.duration_ms': Math.max(1, durationMs),
-          'execution.status': 'error',
-          'execution.trigger': this.triggerType,
-          'execution.blocks_executed': spans.length,
-          'execution.has_errors': true,
-          'execution.error_message': message,
+        PlatformEvents.workflowExecuted({
+          workflowId: this.workflowId,
+          durationMs: Math.max(1, durationMs),
+          status: 'error',
+          trigger: this.triggerType,
+          blocksExecuted: spans.length,
+          hasErrors: true,
+          errorMessage: message,
         })
 
-        // Create OpenTelemetry trace spans for the workflow execution
         createOTelSpansForWorkflowExecution({
           workflowId: this.workflowId,
           workflowName: this.workflowState?.metadata?.name,
@@ -458,7 +451,6 @@ export class LoggingSession {
         )
       }
     } catch (enhancedError) {
-      // Always log completion failures with full details
       logger.error(`Failed to complete error logging for execution ${this.executionId}:`, {
         requestId: this.requestId,
         workflowId: this.workflowId,
@@ -466,7 +458,6 @@ export class LoggingSession {
         error: enhancedError instanceof Error ? enhancedError.message : String(enhancedError),
         stack: enhancedError instanceof Error ? enhancedError.stack : undefined,
       })
-      // Rethrow so safeCompleteWithError can decide what to do
       throw enhancedError
     }
   }
@@ -509,16 +500,16 @@ export class LoggingSession {
       this.completed = true
 
       try {
-        const { trackPlatformEvent, createOTelSpansForWorkflowExecution } = await import(
+        const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
           '@/lib/core/telemetry'
         )
-        trackPlatformEvent('platform.workflow.executed', {
-          'workflow.id': this.workflowId,
-          'execution.duration_ms': Math.max(1, durationMs),
-          'execution.status': 'cancelled',
-          'execution.trigger': this.triggerType,
-          'execution.blocks_executed': traceSpans?.length || 0,
-          'execution.has_errors': false,
+        PlatformEvents.workflowExecuted({
+          workflowId: this.workflowId,
+          durationMs: Math.max(1, durationMs),
+          status: 'cancelled',
+          trigger: this.triggerType,
+          blocksExecuted: traceSpans?.length || 0,
+          hasErrors: false,
         })
 
         // Create OpenTelemetry trace spans for the workflow execution
@@ -590,17 +581,17 @@ export class LoggingSession {
       })
 
       try {
-        const { trackPlatformEvent, createOTelSpansForWorkflowExecution } = await import(
+        const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
           '@/lib/core/telemetry'
         )
-        trackPlatformEvent('platform.workflow.executed', {
-          'workflow.id': this.workflowId,
-          'execution.duration_ms': Math.max(1, durationMs),
-          'execution.status': 'paused',
-          'execution.trigger': this.triggerType,
-          'execution.blocks_executed': traceSpans?.length || 0,
-          'execution.has_errors': false,
-          'execution.total_cost': costSummary.totalCost || 0,
+        PlatformEvents.workflowExecuted({
+          workflowId: this.workflowId,
+          durationMs: Math.max(1, durationMs),
+          status: 'paused',
+          trigger: this.triggerType,
+          blocksExecuted: traceSpans?.length || 0,
+          hasErrors: false,
+          totalCost: costSummary.totalCost || 0,
         })
 
         // Create OpenTelemetry trace spans for the workflow execution

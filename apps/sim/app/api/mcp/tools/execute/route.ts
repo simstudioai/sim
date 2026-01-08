@@ -194,12 +194,12 @@ export const POST = withMcpAuth('read')(
       logger.info(`[${requestId}] Successfully executed tool ${toolName} on server ${serverId}`)
 
       try {
-        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
-        trackPlatformEvent('platform.mcp.tool_executed', {
-          'mcp.server_id': serverId,
-          'mcp.tool_name': toolName,
-          'mcp.execution_status': 'success',
-          'workspace.id': workspaceId,
+        const { PlatformEvents } = await import('@/lib/core/telemetry')
+        PlatformEvents.mcpToolExecuted({
+          serverId,
+          toolName,
+          status: 'success',
+          workspaceId,
         })
       } catch {
         // Telemetry failure is non-critical

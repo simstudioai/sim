@@ -8,6 +8,7 @@ import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-ke
 import { getSession } from '@/lib/auth'
 import { verifyInternalToken } from '@/lib/auth/internal'
 import { env } from '@/lib/core/config/env'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { getWorkflowAccessContext, getWorkflowById } from '@/lib/workflows/utils'
@@ -334,6 +335,15 @@ export async function DELETE(
     }
 
     await db.delete(workflow).where(eq(workflow.id, workflowId))
+
+    try {
+      PlatformEvents.workflowDeleted({
+        workflowId,
+        workspaceId: workflowData.workspaceId || undefined,
+      })
+    } catch {
+      // Telemetry should not fail the operation
+    }
 
     const elapsed = Date.now() - startTime
     logger.info(`[${requestId}] Successfully deleted workflow ${workflowId} in ${elapsed}ms`)

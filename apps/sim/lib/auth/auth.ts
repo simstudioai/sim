@@ -52,6 +52,7 @@ import {
   isHosted,
   isRegistrationDisabled,
 } from '@/lib/core/config/feature-flags'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
@@ -97,6 +98,15 @@ export const auth = betterAuth({
           logger.info('[databaseHooks.user.create.after] User created, initializing stats', {
             userId: user.id,
           })
+
+          try {
+            PlatformEvents.userSignedUp({
+              userId: user.id,
+              authMethod: 'email',
+            })
+          } catch {
+            // Telemetry should not fail the operation
+          }
 
           try {
             await handleNewUser(user.id)
@@ -319,6 +329,15 @@ export const auth = betterAuth({
                 )
               }
             }
+          }
+
+          try {
+            PlatformEvents.oauthConnected({
+              userId: account.userId,
+              provider: account.providerId,
+            })
+          } catch {
+            // Telemetry should not fail the operation
           }
         },
       },

@@ -68,7 +68,6 @@ data:
 {{- if (include "sim.createPostgresqlSecret" .) }}
 ---
 # Secret for PostgreSQL password
-# Only created when not using existingSecret or External Secrets Operator
 apiVersion: v1
 kind: Secret
 metadata:
