@@ -1,12 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle2, Loader2, Mail } from 'lucide-react'
+import { Mail } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Button } from '@/components/emcn'
 import { GmailIcon, OutlookIcon } from '@/components/icons'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { getProviderDisplayName, isPollingProvider } from '@/lib/credential-sets/providers'
+import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 
 interface InvitationInfo {
   credentialSetName: string
@@ -129,27 +129,9 @@ export default function CredentialAccountInvitePage() {
     }
   }, [session?.user?.id, token, router, invitation?.providerId])
 
-  if (loading || sessionLoading) {
-    return (
-      <div className='flex min-h-screen items-center justify-center bg-[var(--bg)]'>
-        <Loader2 className='h-[32px] w-[32px] animate-spin text-[var(--text-muted)]' />
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className='flex min-h-screen items-center justify-center bg-[var(--bg)]'>
-        <div className='flex flex-col items-center gap-[16px]'>
-          <AlertCircle className='h-[48px] w-[48px] text-[var(--text-error)]' />
-          <p className='font-medium text-[18px] text-[var(--text-primary)]'>
-            Unable to load invitation
-          </p>
-          <p className='text-[13px] text-[var(--text-secondary)]'>{error}</p>
-        </div>
-      </div>
-    )
-  }
+  const providerName = invitation?.providerId
+    ? getProviderDisplayName(invitation.providerId)
+    : 'email'
 
   const ProviderIcon =
     invitation?.providerId === 'outlook'
@@ -157,105 +139,131 @@ export default function CredentialAccountInvitePage() {
       : invitation?.providerId === 'google-email'
         ? GmailIcon
         : Mail
-  const providerName = invitation?.providerId
-    ? getProviderDisplayName(invitation.providerId)
-    : 'email'
+
+  const providerWithIcon = (
+    <span className='inline-flex items-baseline gap-1'>
+      <ProviderIcon className='inline-block h-4 w-4 translate-y-[2px]' />
+      {providerName}
+    </span>
+  )
+
+  const getCallbackUrl = () => `/credential-account/${token}`
+
+  if (loading || sessionLoading) {
+    return (
+      <InviteLayout>
+        <InviteStatusCard type='loading' title='' description='Loading invitation...' />
+      </InviteLayout>
+    )
+  }
+
+  if (error) {
+    return (
+      <InviteLayout>
+        <InviteStatusCard
+          type='error'
+          title='Unable to load invitation'
+          description={error}
+          icon='error'
+          actions={[
+            {
+              label: 'Return to Home',
+              onClick: () => router.push('/'),
+            },
+          ]}
+        />
+      </InviteLayout>
+    )
+  }
 
   if (acceptedState === 'already-connected') {
     return (
-      <div className='flex min-h-screen items-center justify-center bg-[var(--bg)]'>
-        <div className='flex max-w-[400px] flex-col items-center gap-[24px] p-[32px]'>
-          <CheckCircle2 className='h-[48px] w-[48px] text-green-500' />
-          <p className='font-medium text-[20px] text-[var(--text-primary)]'>You're all set!</p>
-          <p className='text-center text-[13px] text-[var(--text-secondary)]'>
-            You've joined {invitation?.credentialSetName}. Your {providerName} account is already
-            connected.
-          </p>
-          <p className='text-[12px] text-[var(--text-tertiary)]'>Redirecting to workspace...</p>
-          <Loader2 className='h-[24px] w-[24px] animate-spin text-[var(--text-muted)]' />
-        </div>
-      </div>
+      <InviteLayout>
+        <InviteStatusCard
+          type='success'
+          title="You're all set!"
+          description={`You've joined ${invitation?.credentialSetName}. Your ${providerName} account is already connected. Redirecting to workspace...`}
+          icon='success'
+        />
+      </InviteLayout>
     )
   }
 
   if (acceptedState === 'connecting') {
     return (
-      <div className='flex min-h-screen items-center justify-center bg-[var(--bg)]'>
-        <div className='flex max-w-[400px] flex-col items-center gap-[24px] p-[32px]'>
-          <ProviderIcon className='h-[48px] w-[48px]' />
-          <p className='font-medium text-[20px] text-[var(--text-primary)]'>
-            Connecting to {providerName}...
-          </p>
-          <p className='text-center text-[13px] text-[var(--text-secondary)]'>
-            You've joined {invitation?.credentialSetName}. You'll be redirected to connect your{' '}
-            {providerName} account.
-          </p>
-          <Loader2 className='h-[24px] w-[24px] animate-spin text-[var(--text-muted)]' />
-        </div>
-      </div>
+      <InviteLayout>
+        <InviteStatusCard
+          type='loading'
+          title={`Connecting to ${providerName}...`}
+          description={`You've joined ${invitation?.credentialSetName}. You'll be redirected to connect your ${providerName} account.`}
+        />
+      </InviteLayout>
     )
   }
 
+  // Not logged in
+  if (!session?.user) {
+    const callbackUrl = encodeURIComponent(getCallbackUrl())
+
+    return (
+      <InviteLayout>
+        <InviteStatusCard
+          type='login'
+          title='Join Email Polling Group'
+          description={`You've been invited to join ${invitation?.credentialSetName} by ${invitation?.organizationName}. Sign in or create an account to accept this invitation.`}
+          icon='mail'
+          actions={[
+            {
+              label: 'Sign in',
+              onClick: () => router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`),
+            },
+            {
+              label: 'Create an account',
+              onClick: () =>
+                router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true&new=true`),
+              variant: 'outline' as const,
+            },
+            {
+              label: 'Return to Home',
+              onClick: () => router.push('/'),
+              variant: 'ghost' as const,
+            },
+          ]}
+        />
+      </InviteLayout>
+    )
+  }
+
+  // Logged in - show invitation
   return (
-    <div className='flex min-h-screen items-center justify-center bg-[var(--bg)]'>
-      <div className='w-full max-w-[400px] p-[32px]'>
-        <div className='flex flex-col items-center gap-[8px]'>
-          <ProviderIcon className='h-[48px] w-[48px]' />
-          <p className='font-medium text-[20px] text-[var(--text-primary)]'>
-            Join Email Polling Group
-          </p>
-          <p className='text-center text-[13px] text-[var(--text-secondary)]'>
-            You've been invited to join{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {invitation?.credentialSetName}
-            </span>{' '}
-            by {invitation?.organizationName}
-          </p>
-          {invitation?.providerId && (
-            <p className='mt-[8px] text-center text-[12px] text-[var(--text-tertiary)]'>
-              You'll be asked to connect your {providerName} account after accepting.
-            </p>
-          )}
-        </div>
-
-        <div className='mt-[32px] flex flex-col gap-[16px]'>
-          {session?.user ? (
-            <>
-              <p className='text-center text-[13px] text-[var(--text-secondary)]'>
-                Logged in as{' '}
-                <span className='font-medium text-[var(--text-primary)]'>{session.user.email}</span>
-              </p>
-              <Button variant='tertiary' onClick={handleAccept} disabled={accepting}>
-                {accepting ? (
-                  <>
-                    <Loader2 className='mr-[8px] h-[14px] w-[14px] animate-spin' />
-                    Joining...
-                  </>
-                ) : (
-                  <>
-                    <ProviderIcon className='mr-[8px] h-[16px] w-[16px]' />
-                    Accept & Connect {providerName}
-                  </>
-                )}
-              </Button>
-            </>
-          ) : (
-            <>
-              <p className='text-center text-[13px] text-[var(--text-secondary)]'>
-                Sign in or create an account to accept this invitation
-              </p>
-              <Button variant='tertiary' onClick={handleAccept}>
-                Continue
-              </Button>
-            </>
-          )}
-        </div>
-
-        <p className='mt-[24px] text-center text-[11px] text-[var(--text-muted)]'>
-          By joining, you agree to share your {providerName} credentials with this polling group for
-          use in automated email workflows.
-        </p>
-      </div>
-    </div>
+    <InviteLayout>
+      <InviteStatusCard
+        type='invitation'
+        title='Join Email Polling Group'
+        description={
+          <>
+            You've been invited to join {invitation?.credentialSetName} by{' '}
+            {invitation?.organizationName}.
+            {invitation?.providerId && (
+              <> You'll be asked to connect your {providerWithIcon} account after accepting.</>
+            )}
+          </>
+        }
+        icon='mail'
+        actions={[
+          {
+            label: `Accept & Connect ${providerName}`,
+            onClick: handleAccept,
+            disabled: accepting,
+            loading: accepting,
+          },
+          {
+            label: 'Return to Home',
+            onClick: () => router.push('/'),
+            variant: 'ghost' as const,
+          },
+        ]}
+      />
+    </InviteLayout>
   )
 }

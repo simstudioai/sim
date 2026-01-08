@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { type KeyboardEvent, useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowLeft, Loader2, Plus, User } from 'lucide-react'
+import { Paperclip, Plus, Search, X } from 'lucide-react'
 import {
   Avatar,
   AvatarFallback,
@@ -16,26 +16,32 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Textarea,
 } from '@/components/emcn'
 import { GmailIcon, OutlookIcon } from '@/components/icons'
-import { Skeleton } from '@/components/ui'
+import { Input as BaseInput, Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client'
 import { cn } from '@/lib/core/utils/cn'
 import { getProviderDisplayName, type PollingProvider } from '@/lib/credential-sets/providers'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { getUserRole } from '@/lib/workspaces/organization'
+import { EmailTag } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal/components'
+import { getUserColor } from '@/app/workspace/[workspaceId]/w/utils/get-user-color'
 import {
   type CredentialSet,
   useAcceptCredentialSetInvitation,
+  useCancelCredentialSetInvitation,
   useCreateCredentialSet,
   useCreateCredentialSetInvitation,
   useCredentialSetInvitations,
+  useCredentialSetInvitationsDetail,
   useCredentialSetMembers,
   useCredentialSetMemberships,
   useCredentialSets,
+  useDeleteCredentialSet,
   useLeaveCredentialSet,
   useRemoveCredentialSetMember,
+  useResendCredentialSetInvitation,
 } from '@/hooks/queries/credential-sets'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
@@ -98,24 +104,38 @@ export function CredentialSets() {
   const createCredentialSet = useCreateCredentialSet()
   const createInvitation = useCreateCredentialSetInvitation()
 
+  const [searchTerm, setSearchTerm] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [showInviteModal, setShowInviteModal] = useState(false)
-  const [selectedSetId, setSelectedSetId] = useState<string | null>(null)
   const [viewingSet, setViewingSet] = useState<CredentialSet | null>(null)
   const [newSetName, setNewSetName] = useState('')
   const [newSetDescription, setNewSetDescription] = useState('')
   const [newSetProvider, setNewSetProvider] = useState<PollingProvider>('google-email')
   const [createError, setCreateError] = useState<string | null>(null)
-  const [inviteEmails, setInviteEmails] = useState('')
+  const [emails, setEmails] = useState<string[]>([])
+  const [invalidEmails, setInvalidEmails] = useState<string[]>([])
+  const [duplicateEmails, setDuplicateEmails] = useState<string[]>([])
+  const [inputValue, setInputValue] = useState('')
   const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [leavingMembership, setLeavingMembership] = useState<{
     credentialSetId: string
     name: string
   } | null>(null)
 
   const { data: members = [], isPending: membersLoading } = useCredentialSetMembers(viewingSet?.id)
+  const { data: pendingInvitations = [], isPending: pendingInvitationsLoading } =
+    useCredentialSetInvitationsDetail(viewingSet?.id)
   const removeMember = useRemoveCredentialSetMember()
   const leaveCredentialSet = useLeaveCredentialSet()
+  const deleteCredentialSet = useDeleteCredentialSet()
+  const cancelInvitation = useCancelCredentialSetInvitation()
+  const resendInvitation = useResendCredentialSetInvitation()
+
+  const [deletingSet, setDeletingSet] = useState<{ id: string; name: string } | null>(null)
+  const [deletingSetIds, setDeletingSetIds] = useState<Set<string>>(new Set())
+  const [cancellingInvitations, setCancellingInvitations] = useState<Set<string>>(new Set())
+  const [resendingInvitations, setResendingInvitations] = useState<Set<string>>(new Set())
+  const [resendCooldowns, setResendCooldowns] = useState<Record<string, number>>({})
 
   const extractEmailsFromText = useCallback((text: string): string[] => {
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
@@ -123,26 +143,140 @@ export function CredentialSets() {
     return [...new Set(matches.map((e) => e.toLowerCase()))]
   }, [])
 
+  const addEmail = useCallback(
+    (email: string) => {
+      if (!email.trim()) return false
+
+      const normalized = email.trim().toLowerCase()
+      const validation = quickValidateEmail(normalized)
+      const isValid = validation.isValid
+
+      if (
+        emails.includes(normalized) ||
+        invalidEmails.includes(normalized) ||
+        duplicateEmails.includes(normalized)
+      ) {
+        return false
+      }
+
+      const isPendingInvitation = pendingInvitations.some(
+        (inv) => inv.email?.toLowerCase() === normalized
+      )
+      if (isPendingInvitation) {
+        setDuplicateEmails((prev) => {
+          if (prev.includes(normalized)) return prev
+          return [...prev, normalized]
+        })
+        setInputValue('')
+        return false
+      }
+
+      const isActiveMember = members.some(
+        (m) => m.userEmail?.toLowerCase() === normalized && m.status === 'active'
+      )
+      if (isActiveMember) {
+        setDuplicateEmails((prev) => {
+          if (prev.includes(normalized)) return prev
+          return [...prev, normalized]
+        })
+        setInputValue('')
+        return false
+      }
+
+      if (!isValid) {
+        setInvalidEmails((prev) => {
+          if (prev.includes(normalized)) return prev
+          return [...prev, normalized]
+        })
+        setInputValue('')
+        return false
+      }
+
+      setEmails((prev) => {
+        if (prev.includes(normalized)) return prev
+        return [...prev, normalized]
+      })
+      setInputValue('')
+      return true
+    },
+    [emails, invalidEmails, duplicateEmails, pendingInvitations, members]
+  )
+
+  const removeEmail = useCallback((index: number) => {
+    setEmails((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const removeInvalidEmail = useCallback((index: number) => {
+    setInvalidEmails((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const removeDuplicateEmail = useCallback((index: number) => {
+    setDuplicateEmails((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const handleEmailKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        if (inputValue.trim()) {
+          addEmail(inputValue)
+        }
+        return
+      }
+
+      if ([',', ' '].includes(e.key) && inputValue.trim()) {
+        e.preventDefault()
+        addEmail(inputValue)
+      }
+
+      if (e.key === 'Backspace' && !inputValue) {
+        if (duplicateEmails.length > 0) {
+          removeDuplicateEmail(duplicateEmails.length - 1)
+        } else if (invalidEmails.length > 0) {
+          removeInvalidEmail(invalidEmails.length - 1)
+        } else if (emails.length > 0) {
+          removeEmail(emails.length - 1)
+        }
+      }
+    },
+    [
+      inputValue,
+      addEmail,
+      duplicateEmails,
+      invalidEmails,
+      emails,
+      removeDuplicateEmail,
+      removeInvalidEmail,
+      removeEmail,
+    ]
+  )
+
+  const handleEmailPaste = useCallback(
+    (e: React.ClipboardEvent<HTMLInputElement>) => {
+      e.preventDefault()
+      const pastedText = e.clipboardData.getData('text')
+      const pastedEmails = extractEmailsFromText(pastedText)
+
+      pastedEmails.forEach((email) => {
+        addEmail(email)
+      })
+    },
+    [addEmail, extractEmailsFromText]
+  )
+
   const handleFileDrop = useCallback(
     async (file: File) => {
       try {
         const text = await file.text()
-        const emails = extractEmailsFromText(text)
-        if (emails.length > 0) {
-          setInviteEmails((prev) => {
-            const existing = prev
-              .split(/[,\n]/)
-              .map((e) => e.trim())
-              .filter((e) => e.length > 0)
-            const combined = [...new Set([...existing, ...emails])]
-            return combined.join('\n')
-          })
-        }
+        const extractedEmails = extractEmailsFromText(text)
+        extractedEmails.forEach((email) => {
+          addEmail(email)
+        })
       } catch (error) {
         logger.error('Error reading dropped file', error)
       }
     },
-    [extractEmailsFromText]
+    [extractEmailsFromText, addEmail]
   )
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -176,6 +310,21 @@ export function CredentialSets() {
       for (const file of validFiles) {
         await handleFileDrop(file)
       }
+    },
+    [handleFileDrop]
+  )
+
+  const handleFileInputChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files
+      if (!files) return
+
+      for (const file of Array.from(files)) {
+        await handleFileDrop(file)
+      }
+
+      // Reset input so the same file can be selected again
+      e.target.value = ''
     },
     [handleFileDrop]
   )
@@ -235,10 +384,9 @@ export function CredentialSets() {
       setNewSetDescription('')
       setNewSetProvider('google-email')
 
-      // Open invite modal for the newly created group
-      if (result?.credentialSet?.id) {
-        setSelectedSetId(result.credentialSet.id)
-        setShowInviteModal(true)
+      // Open detail view for the newly created group
+      if (result?.credentialSet) {
+        setViewingSet(result.credentialSet)
       }
     } catch (error) {
       logger.error('Failed to create polling group', error)
@@ -250,30 +398,31 @@ export function CredentialSets() {
     }
   }, [newSetName, newSetDescription, newSetProvider, activeOrganization?.id, createCredentialSet])
 
-  const handleCreateInvite = useCallback(async () => {
-    if (!selectedSetId) return
+  const handleInviteMembers = useCallback(async () => {
+    if (!viewingSet?.id) return
 
-    const emails = inviteEmails
-      .split(/[,\n]/)
-      .map((e) => e.trim())
-      .filter((e) => e.length > 0 && e.includes('@'))
+    // Add any pending input value first
+    if (inputValue.trim()) {
+      addEmail(inputValue)
+    }
 
     if (emails.length === 0) return
 
     try {
       for (const email of emails) {
         await createInvitation.mutateAsync({
-          credentialSetId: selectedSetId,
+          credentialSetId: viewingSet.id,
           email,
         })
       }
-      setInviteEmails('')
-      setShowInviteModal(false)
-      setSelectedSetId(null)
+      setEmails([])
+      setInvalidEmails([])
+      setDuplicateEmails([])
+      setInputValue('')
     } catch (error) {
       logger.error('Failed to create invitations', error)
     }
-  }, [selectedSetId, inviteEmails, createInvitation])
+  }, [viewingSet?.id, emails, inputValue, addEmail, createInvitation])
 
   const handleCloseCreateModal = useCallback(() => {
     setShowCreateModal(false)
@@ -283,204 +432,439 @@ export function CredentialSets() {
     setCreateError(null)
   }, [])
 
-  const handleCloseInviteModal = useCallback(() => {
-    setShowInviteModal(false)
-    setInviteEmails('')
-    setSelectedSetId(null)
+  const handleBackToList = useCallback(() => {
+    setViewingSet(null)
+    setEmails([])
+    setInvalidEmails([])
+    setDuplicateEmails([])
+    setInputValue('')
   }, [])
+
+  const handleCancelInvitation = useCallback(
+    async (invitationId: string) => {
+      if (!viewingSet?.id) return
+
+      setCancellingInvitations((prev) => new Set([...prev, invitationId]))
+      try {
+        await cancelInvitation.mutateAsync({
+          credentialSetId: viewingSet.id,
+          invitationId,
+        })
+      } catch (error) {
+        logger.error('Failed to cancel invitation', error)
+      } finally {
+        setCancellingInvitations((prev) => {
+          const next = new Set(prev)
+          next.delete(invitationId)
+          return next
+        })
+      }
+    },
+    [viewingSet?.id, cancelInvitation]
+  )
+
+  const handleResendInvitation = useCallback(
+    async (invitationId: string, email: string) => {
+      if (!viewingSet?.id) return
+
+      const secondsLeft = resendCooldowns[invitationId]
+      if (secondsLeft && secondsLeft > 0) return
+
+      setResendingInvitations((prev) => new Set([...prev, invitationId]))
+      try {
+        await resendInvitation.mutateAsync({
+          credentialSetId: viewingSet.id,
+          invitationId,
+          email,
+        })
+
+        // Start 60s cooldown
+        setResendCooldowns((prev) => ({ ...prev, [invitationId]: 60 }))
+        const interval = setInterval(() => {
+          setResendCooldowns((prev) => {
+            const current = prev[invitationId]
+            if (current === undefined) return prev
+            if (current <= 1) {
+              const next = { ...prev }
+              delete next[invitationId]
+              clearInterval(interval)
+              return next
+            }
+            return { ...prev, [invitationId]: current - 1 }
+          })
+        }, 1000)
+      } catch (error) {
+        logger.error('Failed to resend invitation', error)
+      } finally {
+        setResendingInvitations((prev) => {
+          const next = new Set(prev)
+          next.delete(invitationId)
+          return next
+        })
+      }
+    },
+    [viewingSet?.id, resendInvitation, resendCooldowns]
+  )
+
+  const handleDeleteClick = useCallback((set: CredentialSet) => {
+    setDeletingSet({ id: set.id, name: set.name })
+  }, [])
+
+  const confirmDelete = useCallback(async () => {
+    if (!deletingSet || !activeOrganization?.id) return
+    setDeletingSetIds((prev) => new Set(prev).add(deletingSet.id))
+    try {
+      await deleteCredentialSet.mutateAsync({
+        credentialSetId: deletingSet.id,
+        organizationId: activeOrganization.id,
+      })
+      setDeletingSet(null)
+    } catch (error) {
+      logger.error('Failed to delete polling group', error)
+    } finally {
+      setDeletingSetIds((prev) => {
+        const next = new Set(prev)
+        next.delete(deletingSet.id)
+        return next
+      })
+    }
+  }, [deletingSet, activeOrganization?.id, deleteCredentialSet])
 
   const getProviderIcon = (providerId: string | null) => {
     if (providerId === 'outlook') return <OutlookIcon className='h-4 w-4' />
     return <GmailIcon className='h-4 w-4' />
   }
 
+  // All hooks must be called before any early returns
+  const activeMemberships = useMemo(
+    () => memberships.filter((m) => m.status === 'active'),
+    [memberships]
+  )
+
+  const filteredInvitations = useMemo(() => {
+    if (!searchTerm.trim()) return invitations
+    const searchLower = searchTerm.toLowerCase()
+    return invitations.filter(
+      (inv) =>
+        inv.credentialSetName.toLowerCase().includes(searchLower) ||
+        inv.organizationName.toLowerCase().includes(searchLower)
+    )
+  }, [invitations, searchTerm])
+
+  const filteredMemberships = useMemo(() => {
+    if (!searchTerm.trim()) return activeMemberships
+    const searchLower = searchTerm.toLowerCase()
+    return activeMemberships.filter(
+      (m) =>
+        m.credentialSetName.toLowerCase().includes(searchLower) ||
+        m.organizationName.toLowerCase().includes(searchLower)
+    )
+  }, [activeMemberships, searchTerm])
+
+  const filteredOwnedSets = useMemo(() => {
+    if (!searchTerm.trim()) return ownedSets
+    const searchLower = searchTerm.toLowerCase()
+    return ownedSets.filter((set) => set.name.toLowerCase().includes(searchLower))
+  }, [ownedSets, searchTerm])
+
+  const hasNoContent =
+    invitations.length === 0 && activeMemberships.length === 0 && ownedSets.length === 0
+  const hasNoResults =
+    searchTerm.trim() &&
+    filteredInvitations.length === 0 &&
+    filteredMemberships.length === 0 &&
+    filteredOwnedSets.length === 0 &&
+    !hasNoContent
+
+  // Early returns AFTER all hooks
   if (membershipsLoading || invitationsLoading) {
     return <CredentialSetsSkeleton />
   }
 
-  const activeMemberships = memberships.filter((m) => m.status === 'active')
-  const hasNoContent =
-    invitations.length === 0 && activeMemberships.length === 0 && ownedSets.length === 0
-
   // Detail view for a polling group
   if (viewingSet) {
     const activeMembers = members.filter((m) => m.status === 'active')
-    const pendingMembers = members.filter((m) => m.status === 'pending')
+    const totalCount = activeMembers.length + pendingInvitations.length
 
     return (
       <>
         <div className='flex h-full flex-col gap-[16px]'>
-          <div className='flex items-center justify-between'>
-            <div className='flex items-center gap-[8px]'>
-              <Button variant='ghost' onClick={() => setViewingSet(null)} className='h-9 w-9 p-0'>
-                <ArrowLeft className='h-4 w-4' />
-              </Button>
-              <div className='flex items-center gap-[12px]'>
-                <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
-                  {getProviderIcon(viewingSet.providerId)}
+          <div className='min-h-0 flex-1 overflow-y-auto'>
+            <div className='flex flex-col gap-[16px]'>
+              {/* Group Info */}
+              <div className='flex items-center gap-[16px]'>
+                <div className='flex items-center gap-[8px]'>
+                  <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                    Group Name
+                  </span>
+                  <span className='text-[13px] text-[var(--text-secondary)]'>
+                    {viewingSet.name}
+                  </span>
                 </div>
-                <span className='font-medium text-[14px]'>{viewingSet.name}</span>
-              </div>
-            </div>
-            <Button
-              variant='tertiary'
-              onClick={() => {
-                setSelectedSetId(viewingSet.id)
-                setShowInviteModal(true)
-              }}
-            >
-              <Plus className='mr-[6px] h-[13px] w-[13px]' />
-              Add Members
-            </Button>
-          </div>
-
-          <div className='relative min-h-0 flex-1 overflow-y-auto'>
-            {membersLoading ? (
-              <div className='flex flex-col gap-[8px]'>
-                <Skeleton className='h-[14px] w-[100px]' />
-                {[1, 2].map((i) => (
-                  <div key={i} className='flex items-center justify-between'>
-                    <div className='flex items-center gap-[12px]'>
-                      <Skeleton className='h-9 w-9 rounded-full' />
-                      <div className='flex flex-col gap-[4px]'>
-                        <Skeleton className='h-[14px] w-[100px]' />
-                        <Skeleton className='h-[12px] w-[150px]' />
-                      </div>
-                    </div>
-                    <Skeleton className='h-[32px] w-[32px] rounded-[6px]' />
+                <div className='h-4 w-px bg-[var(--border)]' />
+                <div className='flex items-center gap-[8px]'>
+                  <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                    Provider
+                  </span>
+                  <div className='flex items-center gap-[6px]'>
+                    {getProviderIcon(viewingSet.providerId)}
+                    <span className='text-[13px] text-[var(--text-secondary)]'>
+                      {getProviderDisplayName(viewingSet.providerId as PollingProvider)}
+                    </span>
                   </div>
-                ))}
+                </div>
               </div>
-            ) : members.length === 0 ? (
-              <div className='absolute inset-0 flex items-center justify-center text-[13px] text-[var(--text-muted)]'>
-                No members yet
-              </div>
-            ) : (
-              <div className='flex flex-col gap-[16px]'>
-                {activeMembers.length > 0 && (
-                  <div className='flex flex-col gap-[8px]'>
-                    <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                      Active Members ({activeMembers.length})
-                    </div>
-                    {activeMembers.map((member) => (
-                      <div key={member.id} className='flex items-center justify-between'>
-                        <div className='flex items-center gap-[12px]'>
-                          <Avatar className='h-9 w-9'>
-                            <AvatarImage src={member.userImage || undefined} />
-                            <AvatarFallback>
-                              <User className='h-4 w-4' />
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className='flex flex-col'>
-                            <div className='flex items-center gap-[6px]'>
-                              <span className='font-medium text-[14px]'>
-                                {member.userName || 'Unknown'}
-                              </span>
-                              {member.credentials.length === 0 && (
-                                <Badge variant='red' className='text-[10px]'>
-                                  Disconnected
-                                </Badge>
-                              )}
-                            </div>
-                            <span className='text-[13px] text-[var(--text-muted)]'>
-                              {member.userEmail}
-                            </span>
-                          </div>
-                        </div>
-                        <Button
-                          variant='ghost'
-                          onClick={() => handleRemoveMember(member.id)}
-                          disabled={removeMember.isPending}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
 
-                {pendingMembers.length > 0 && (
-                  <div className='flex flex-col gap-[8px]'>
-                    <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                      Pending ({pendingMembers.length})
-                    </div>
-                    {pendingMembers.map((member) => (
-                      <div key={member.id} className='flex items-center justify-between'>
-                        <div className='flex items-center gap-[12px]'>
-                          <Avatar className='h-9 w-9'>
-                            <AvatarImage src={member.userImage || undefined} />
-                            <AvatarFallback>
-                              <User className='h-4 w-4' />
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className='flex flex-col'>
-                            <span className='font-medium text-[14px]'>
-                              {member.userName || 'Unknown'}
-                            </span>
-                            <span className='text-[13px] text-[var(--text-muted)]'>
-                              {member.userEmail}
-                            </span>
-                          </div>
-                        </div>
-                        <span className='text-[13px] text-[var(--text-muted)]'>Pending</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <Modal open={showInviteModal} onOpenChange={handleCloseInviteModal}>
-          <ModalContent className='w-[400px]'>
-            <ModalHeader>Add Members</ModalHeader>
-            <ModalBody>
-              <div className='flex flex-col gap-[12px]'>
-                <Label>Email Addresses</Label>
+              {/* Invite Section - Email Tags Input */}
+              <div className='flex items-center gap-[8px]'>
+                <input
+                  ref={fileInputRef}
+                  type='file'
+                  accept='.csv,.txt,text/csv,text/plain'
+                  onChange={handleFileInputChange}
+                  className='hidden'
+                />
                 <div
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  className={`relative ${isDragging ? 'ring-2 ring-[var(--accent)]' : ''}`}
+                  className={cn(
+                    'relative flex min-h-9 flex-1 flex-wrap items-center gap-x-[8px] gap-y-[4px] rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[6px] py-[4px] focus-within:outline-none transition-colors',
+                    isDragging && 'border-[var(--border)] border-dashed bg-[var(--surface-5)]'
+                  )}
                 >
-                  <Textarea
-                    value={inviteEmails}
-                    onChange={(e) => setInviteEmails(e.target.value)}
-                    placeholder='Enter emails separated by commas or newlines'
-                    rows={4}
-                  />
                   {isDragging && (
-                    <div className='pointer-events-none absolute inset-0 flex items-center justify-center rounded-[6px] bg-[var(--accent)]/10'>
-                      <span className='font-medium text-[13px] text-[var(--accent)]'>
-                        Drop CSV or text file
+                    <div className='absolute inset-0 flex items-center justify-center rounded-[4px] bg-[var(--surface-5)]/90'>
+                      <span className='text-[13px] text-[var(--text-tertiary)]'>
+                        Drop file here
                       </span>
                     </div>
                   )}
+                  {invalidEmails.map((email, index) => (
+                    <EmailTag
+                      key={`invalid-${index}`}
+                      email={email}
+                      onRemove={() => removeInvalidEmail(index)}
+                      disabled={createInvitation.isPending}
+                      isInvalid={true}
+                    />
+                  ))}
+                  {duplicateEmails.map((email, index) => (
+                    <div
+                      key={`duplicate-${index}`}
+                      className='flex w-auto items-center gap-[4px] rounded-[4px] border border-amber-500 bg-amber-500/10 px-[6px] py-[2px] text-[12px] text-amber-600 dark:bg-amber-500/20 dark:text-amber-400'
+                    >
+                      <span className='max-w-[200px] truncate'>{email}</span>
+                      <span className='text-[11px] opacity-70'>duplicate</span>
+                      {!createInvitation.isPending && (
+                        <button
+                          type='button'
+                          onClick={() => removeDuplicateEmail(index)}
+                          className='flex-shrink-0 text-amber-600 transition-colors hover:text-amber-700 focus:outline-none dark:text-amber-400 dark:hover:text-amber-300'
+                          aria-label={`Remove ${email}`}
+                        >
+                          <X className='h-[12px] w-[12px] translate-y-[0.2px]' />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {emails.map((email, index) => (
+                    <EmailTag
+                      key={`valid-${index}`}
+                      email={email}
+                      onRemove={() => removeEmail(index)}
+                      disabled={createInvitation.isPending}
+                    />
+                  ))}
+                  <div className='relative flex flex-1 items-center'>
+                    <input
+                      type='text'
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyDown={handleEmailKeyDown}
+                      onPaste={handleEmailPaste}
+                      onBlur={() => inputValue.trim() && addEmail(inputValue)}
+                      placeholder={
+                        emails.length > 0 || invalidEmails.length > 0 || duplicateEmails.length > 0
+                          ? 'Add another email'
+                          : 'Enter email addresses'
+                      }
+                      className='h-6 min-w-[140px] flex-1 border-none bg-transparent p-0 pl-[4px] text-[13px] outline-none placeholder:text-[var(--text-tertiary)]'
+                      disabled={createInvitation.isPending}
+                    />
+                    <button
+                      type='button'
+                      onClick={() => fileInputRef.current?.click()}
+                      className='ml-[4px] flex-shrink-0 text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]'
+                    >
+                      <Paperclip className='h-[14px] w-[14px]' strokeWidth={2} />
+                    </button>
+                  </div>
                 </div>
-                <p className='text-[12px] text-[var(--text-tertiary)]'>
-                  Invitees will receive an email with a link to connect their account.
-                </p>
+                <Button
+                  variant='default'
+                  onClick={handleInviteMembers}
+                  disabled={
+                    createInvitation.isPending || (emails.length === 0 && !inputValue.trim())
+                  }
+                >
+                  {createInvitation.isPending ? 'Sending...' : 'Invite'}
+                </Button>
               </div>
-            </ModalBody>
-            <ModalFooter>
-              <Button variant='default' onClick={handleCloseInviteModal}>
-                Cancel
-              </Button>
-              <Button
-                variant='tertiary'
-                onClick={handleCreateInvite}
-                disabled={createInvitation.isPending || !inviteEmails.trim()}
-              >
-                {createInvitation.isPending ? (
-                  <Loader2 className='h-4 w-4 animate-spin' />
+
+              {/* Members List - styled like team members */}
+              <div className='flex flex-col gap-[16px]'>
+                <h4 className='font-medium text-[14px] text-[var(--text-primary)]'>Members</h4>
+
+                {membersLoading || pendingInvitationsLoading ? (
+                  <div className='flex flex-col gap-[16px]'>
+                    {[1, 2].map((i) => (
+                      <div key={i} className='flex items-center justify-between'>
+                        <div className='flex items-center gap-[12px]'>
+                          <Skeleton className='h-8 w-8 rounded-full' />
+                          <div className='flex flex-col gap-[4px]'>
+                            <Skeleton className='h-[14px] w-[100px]' />
+                            <Skeleton className='h-[12px] w-[150px]' />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : totalCount === 0 ? (
+                  <p className='text-[13px] text-[var(--text-muted)]'>
+                    No members yet. Send invitations above.
+                  </p>
                 ) : (
-                  'Send Invites'
+                  <div className='flex flex-col gap-[16px]'>
+                    {/* Active Members */}
+                    {activeMembers.map((member) => {
+                      const name = member.userName || 'Unknown'
+                      const avatarInitial = name.charAt(0).toUpperCase()
+
+                      return (
+                        <div key={member.id} className='flex items-center justify-between'>
+                          <div className='flex flex-1 items-center gap-[12px]'>
+                            <Avatar size='sm'>
+                              {member.userImage && (
+                                <AvatarImage src={member.userImage} alt={name} />
+                              )}
+                              <AvatarFallback
+                                style={{
+                                  background: getUserColor(member.userId || member.userEmail || ''),
+                                }}
+                                className='border-0 text-white'
+                              >
+                                {avatarInitial}
+                              </AvatarFallback>
+                            </Avatar>
+
+                            <div className='min-w-0'>
+                              <div className='flex items-center gap-[8px]'>
+                                <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                                  {name}
+                                </span>
+                                {member.credentials.length === 0 && (
+                                  <Badge variant='red' size='sm'>
+                                    Disconnected
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className='truncate text-[12px] text-[var(--text-muted)]'>
+                                {member.userEmail}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className='ml-[16px] flex items-center gap-[4px]'>
+                            <Button
+                              variant='destructive'
+                              onClick={() => handleRemoveMember(member.id)}
+                              disabled={removeMember.isPending}
+                              className='h-8'
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
+
+                    {/* Pending Invitations */}
+                    {pendingInvitations.map((invitation) => {
+                      const email = invitation.email || 'Unknown'
+                      const emailPrefix = email.split('@')[0]
+                      const avatarInitial = emailPrefix.charAt(0).toUpperCase()
+
+                      return (
+                        <div key={invitation.id} className='flex items-center justify-between'>
+                          <div className='flex flex-1 items-center gap-[12px]'>
+                            <Avatar size='sm'>
+                              <AvatarFallback
+                                style={{ background: getUserColor(email) }}
+                                className='border-0 text-white'
+                              >
+                                {avatarInitial}
+                              </AvatarFallback>
+                            </Avatar>
+
+                            <div className='min-w-0'>
+                              <div className='flex items-center gap-[8px]'>
+                                <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                                  {emailPrefix}
+                                </span>
+                                <Badge variant='gray-secondary' size='sm'>
+                                  Pending
+                                </Badge>
+                              </div>
+                              <div className='truncate text-[12px] text-[var(--text-muted)]'>
+                                {email}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className='ml-[16px] flex items-center gap-[4px]'>
+                            <Button
+                              variant='ghost'
+                              onClick={() => handleResendInvitation(invitation.id, email)}
+                              disabled={
+                                resendingInvitations.has(invitation.id) ||
+                                (resendCooldowns[invitation.id] ?? 0) > 0
+                              }
+                              className='h-8'
+                            >
+                              {resendingInvitations.has(invitation.id)
+                                ? 'Sending...'
+                                : resendCooldowns[invitation.id]
+                                  ? `Resend (${resendCooldowns[invitation.id]}s)`
+                                  : 'Resend'}
+                            </Button>
+                            <Button
+                              variant='ghost'
+                              onClick={() => handleCancelInvitation(invitation.id)}
+                              disabled={cancellingInvitations.has(invitation.id)}
+                              className='h-8'
+                            >
+                              {cancellingInvitations.has(invitation.id)
+                                ? 'Cancelling...'
+                                : 'Cancel'}
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Actions */}
+          <div className='mt-auto flex items-center justify-end'>
+            <Button onClick={handleBackToList} variant='tertiary'>
+              Back
+            </Button>
+          </div>
+        </div>
       </>
     )
   }
@@ -488,20 +872,45 @@ export function CredentialSets() {
   return (
     <>
       <div className='flex h-full flex-col gap-[16px]'>
+        <div className='flex items-center gap-[8px]'>
+          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
+            <Search
+              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              strokeWidth={2}
+            />
+            <BaseInput
+              placeholder='Search polling groups...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+            />
+          </div>
+          {canManageCredentialSets && (
+            <Button variant='tertiary' onClick={() => setShowCreateModal(true)}>
+              <Plus className='mr-[6px] h-[13px] w-[13px]' />
+              Create
+            </Button>
+          )}
+        </div>
+
         <div className='relative min-h-0 flex-1 overflow-y-auto'>
           {hasNoContent && !canManageCredentialSets ? (
             <div className='absolute inset-0 flex items-center justify-center text-[13px] text-[var(--text-muted)]'>
               You're not a member of any polling groups yet. When someone invites you, it will
               appear here.
             </div>
+          ) : hasNoResults ? (
+            <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
+              No results found matching "{searchTerm}"
+            </div>
           ) : (
             <div className='flex flex-col gap-[16px]'>
-              {invitations.length > 0 && (
+              {filteredInvitations.length > 0 && (
                 <div className='flex flex-col gap-[8px]'>
                   <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
                     Pending Invitations
                   </div>
-                  {invitations.map((invitation) => (
+                  {filteredInvitations.map((invitation) => (
                     <div
                       key={invitation.invitationId}
                       className='flex items-center justify-between'
@@ -524,23 +933,19 @@ export function CredentialSets() {
                         onClick={() => handleAcceptInvitation(invitation.token)}
                         disabled={acceptInvitation.isPending}
                       >
-                        {acceptInvitation.isPending ? (
-                          <Loader2 className='h-4 w-4 animate-spin' />
-                        ) : (
-                          'Accept'
-                        )}
+                        {acceptInvitation.isPending ? 'Accepting...' : 'Accept'}
                       </Button>
                     </div>
                   ))}
                 </div>
               )}
 
-              {activeMemberships.length > 0 && (
+              {filteredMemberships.length > 0 && (
                 <div className='flex flex-col gap-[8px]'>
                   <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
                     My Memberships
                   </div>
-                  {activeMemberships.map((membership) => (
+                  {filteredMemberships.map((membership) => (
                     <div
                       key={membership.membershipId}
                       className='flex items-center justify-between'
@@ -572,74 +977,69 @@ export function CredentialSets() {
                 </div>
               )}
 
-              {canManageCredentialSets && (
-                <div className='flex flex-col gap-[8px]'>
-                  <div className='flex items-center justify-between'>
+              {canManageCredentialSets &&
+                (filteredOwnedSets.length > 0 ||
+                  ownedSetsLoading ||
+                  (!searchTerm.trim() && ownedSets.length === 0)) && (
+                  <div className='flex flex-col gap-[8px]'>
                     <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
                       Manage
                     </div>
-                    <Button variant='tertiary' onClick={() => setShowCreateModal(true)}>
-                      <Plus className='mr-[6px] h-[13px] w-[13px]' />
-                      Create
-                    </Button>
-                  </div>
-                  {ownedSetsLoading ? (
-                    <>
-                      {[1, 2].map((i) => (
-                        <div key={i} className='flex items-center justify-between'>
-                          <div className='flex items-center gap-[12px]'>
-                            <Skeleton className='h-9 w-9 rounded-[6px]' />
-                            <div className='flex flex-col gap-[4px]'>
-                              <Skeleton className='h-[14px] w-[120px]' />
-                              <Skeleton className='h-[12px] w-[80px]' />
+                    {ownedSetsLoading ? (
+                      <>
+                        {[1, 2].map((i) => (
+                          <div key={i} className='flex items-center justify-between'>
+                            <div className='flex items-center gap-[12px]'>
+                              <Skeleton className='h-9 w-9 rounded-[6px]' />
+                              <div className='flex flex-col gap-[4px]'>
+                                <Skeleton className='h-[14px] w-[120px]' />
+                                <Skeleton className='h-[12px] w-[80px]' />
+                              </div>
                             </div>
                           </div>
-                          <Skeleton className='h-[32px] w-[100px] rounded-[6px]' />
-                        </div>
-                      ))}
-                    </>
-                  ) : ownedSets.length === 0 ? (
-                    <div className='text-[13px] text-[var(--text-muted)]'>
-                      No polling groups created yet
-                    </div>
-                  ) : (
-                    ownedSets.map((set) => (
-                      <div
-                        key={set.id}
-                        className='flex cursor-pointer items-center justify-between'
-                        onClick={() => setViewingSet(set)}
-                      >
-                        <div className='flex items-center gap-[12px]'>
-                          <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
-                            {getProviderIcon(set.providerId)}
-                          </div>
-                          <div className='flex flex-col'>
-                            <span className='font-medium text-[14px]'>{set.name}</span>
-                            <span className='text-[13px] text-[var(--text-muted)]'>
-                              {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                        </div>
-                        <Button
-                          variant='tertiary'
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedSetId(set.id)
-                            setShowInviteModal(true)
-                          }}
-                        >
-                          Add Members
-                        </Button>
+                        ))}
+                      </>
+                    ) : !searchTerm.trim() && ownedSets.length === 0 ? (
+                      <div className='text-[13px] text-[var(--text-muted)]'>
+                        No polling groups created yet
                       </div>
-                    ))
-                  )}
-                </div>
-              )}
+                    ) : (
+                      filteredOwnedSets.map((set) => (
+                        <div key={set.id} className='flex items-center justify-between'>
+                          <div className='flex items-center gap-[12px]'>
+                            <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                              {getProviderIcon(set.providerId)}
+                            </div>
+                            <div className='flex flex-col'>
+                              <span className='font-medium text-[14px]'>{set.name}</span>
+                              <span className='text-[13px] text-[var(--text-muted)]'>
+                                {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          </div>
+                          <div className='flex items-center gap-[8px]'>
+                            <Button variant='ghost' onClick={() => setViewingSet(set)}>
+                              Details
+                            </Button>
+                            <Button
+                              variant='destructive'
+                              onClick={() => handleDeleteClick(set)}
+                              disabled={deletingSetIds.has(set.id)}
+                            >
+                              {deletingSetIds.has(set.id) ? 'Deleting...' : 'Delete'}
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
             </div>
           )}
         </div>
       </div>
 
+      {/* Create Polling Group Modal */}
       <Modal open={showCreateModal} onOpenChange={handleCloseCreateModal}>
         <ModalContent className='w-[400px]'>
           <ModalHeader>Create Polling Group</ModalHeader>
@@ -706,66 +1106,13 @@ export function CredentialSets() {
               onClick={handleCreateCredentialSet}
               disabled={!newSetName.trim() || createCredentialSet.isPending}
             >
-              {createCredentialSet.isPending ? (
-                <Loader2 className='h-4 w-4 animate-spin' />
-              ) : (
-                'Create'
-              )}
+              {createCredentialSet.isPending ? 'Creating...' : 'Create'}
             </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
 
-      <Modal open={showInviteModal} onOpenChange={handleCloseInviteModal}>
-        <ModalContent className='w-[400px]'>
-          <ModalHeader>Add Members</ModalHeader>
-          <ModalBody>
-            <div className='flex flex-col gap-[12px]'>
-              <Label>Email Addresses</Label>
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`relative ${isDragging ? 'ring-2 ring-[var(--accent)]' : ''}`}
-              >
-                <Textarea
-                  value={inviteEmails}
-                  onChange={(e) => setInviteEmails(e.target.value)}
-                  placeholder='Enter emails separated by commas or newlines'
-                  rows={4}
-                />
-                {isDragging && (
-                  <div className='pointer-events-none absolute inset-0 flex items-center justify-center rounded-[6px] bg-[var(--accent)]/10'>
-                    <span className='font-medium text-[13px] text-[var(--accent)]'>
-                      Drop CSV or text file
-                    </span>
-                  </div>
-                )}
-              </div>
-              <p className='text-[12px] text-[var(--text-tertiary)]'>
-                Invitees will receive an email with a link to connect their account.
-              </p>
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={handleCloseInviteModal}>
-              Cancel
-            </Button>
-            <Button
-              variant='tertiary'
-              onClick={handleCreateInvite}
-              disabled={createInvitation.isPending || !inviteEmails.trim()}
-            >
-              {createInvitation.isPending ? (
-                <Loader2 className='h-4 w-4 animate-spin' />
-              ) : (
-                'Send Invites'
-              )}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
+      {/* Leave Confirmation Modal */}
       <Modal open={!!leavingMembership} onOpenChange={() => setLeavingMembership(null)}>
         <ModalContent className='w-[400px]'>
           <ModalHeader>Leave Polling Group</ModalHeader>
@@ -788,6 +1135,32 @@ export function CredentialSets() {
               disabled={leaveCredentialSet.isPending}
             >
               {leaveCredentialSet.isPending ? 'Leaving...' : 'Leave'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal open={!!deletingSet} onOpenChange={() => setDeletingSet(null)}>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Delete Polling Group</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{deletingSet?.name}</span>?{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='default' onClick={() => setDeletingSet(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant='destructive'
+              onClick={confirmDelete}
+              disabled={deleteCredentialSet.isPending}
+            >
+              {deleteCredentialSet.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>
         </ModalContent>

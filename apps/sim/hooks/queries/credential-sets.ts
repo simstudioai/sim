@@ -265,3 +265,106 @@ export function useLeaveCredentialSet() {
     },
   })
 }
+
+export interface DeleteCredentialSetParams {
+  credentialSetId: string
+  organizationId: string
+}
+
+export function useDeleteCredentialSet() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ credentialSetId }: DeleteCredentialSetParams) => {
+      const response = await fetch(`/api/credential-sets/${credentialSetId}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to delete credential set')
+      }
+      return response.json()
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: credentialSetKeys.list(variables.organizationId),
+      })
+      queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() })
+    },
+  })
+}
+
+export interface CredentialSetInvitationDetail {
+  id: string
+  credentialSetId: string
+  email: string | null
+  token: string
+  status: string
+  expiresAt: string
+  createdAt: string
+  invitedBy: string
+}
+
+interface InvitationsDetailResponse {
+  invitations?: CredentialSetInvitationDetail[]
+}
+
+export function useCredentialSetInvitationsDetail(credentialSetId?: string) {
+  return useQuery<CredentialSetInvitationDetail[]>({
+    queryKey: [...credentialSetKeys.detail(credentialSetId), 'invitations'],
+    queryFn: async () => {
+      const data = await fetchJson<InvitationsDetailResponse>(
+        `/api/credential-sets/${credentialSetId}/invite`
+      )
+      return (data.invitations ?? []).filter((inv) => inv.status === 'pending')
+    },
+    enabled: Boolean(credentialSetId),
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useCancelCredentialSetInvitation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (data: { credentialSetId: string; invitationId: string }) => {
+      const response = await fetch(
+        `/api/credential-sets/${data.credentialSetId}/invite?invitationId=${data.invitationId}`,
+        { method: 'DELETE' }
+      )
+      if (!response.ok) {
+        const result = await response.json()
+        throw new Error(result.error || 'Failed to cancel invitation')
+      }
+      return response.json()
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [...credentialSetKeys.detail(variables.credentialSetId), 'invitations'],
+      })
+    },
+  })
+}
+
+export function useResendCredentialSetInvitation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (data: { credentialSetId: string; invitationId: string; email: string }) => {
+      const response = await fetch(
+        `/api/credential-sets/${data.credentialSetId}/invite/${data.invitationId}`,
+        { method: 'POST' }
+      )
+      if (!response.ok) {
+        const result = await response.json()
+        throw new Error(result.error || 'Failed to resend invitation')
+      }
+      return response.json()
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [...credentialSetKeys.detail(variables.credentialSetId), 'invitations'],
+      })
+    },
+  })
+}

@@ -364,6 +364,32 @@ export function useCancelInvitation() {
 }
 
 /**
+ * Resend invitation mutation
+ */
+interface ResendInvitationParams {
+  invitationId: string
+  orgId: string
+}
+
+export function useResendInvitation() {
+  return useMutation({
+    mutationFn: async ({ invitationId, orgId }: ResendInvitationParams) => {
+      const response = await fetch(`/api/organizations/${orgId}/invitations/${invitationId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to resend invitation')
+      }
+
+      return response.json()
+    },
+  })
+}
+
+/**
  * Update seats mutation (handles both add and reduce)
  */
 interface UpdateSeatsParams {
