@@ -1,7 +1,7 @@
 /**
  * Environment utility functions for consistent environment detection across the application
  */
-import { env, getEnv, isTruthy } from './env'
+import { env, getEnv, isFalsy, isTruthy } from './env'
 
 /**
  * Is the application running in production mode
@@ -68,7 +68,7 @@ export const isRegistrationDisabled = isTruthy(env.DISABLE_REGISTRATION)
 /**
  * Is email/password authentication enabled (defaults to true)
  */
-export const isEmailPasswordEnabled = env.EMAIL_PASSWORD_SIGNUP_ENABLED !== false
+export const isEmailPasswordEnabled = !isFalsy(env.EMAIL_PASSWORD_SIGNUP_ENABLED)
 
 /**
  * Is Trigger.dev enabled for async job processing
