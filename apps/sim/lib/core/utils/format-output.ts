@@ -2,9 +2,6 @@ import { createLogger } from '@sim/logger'
 
 const logger = createLogger('FormatOutput')
 
-// Cache for circular reference detection
-const seenObjects = new WeakSet()
-
 // Common text field names to search for
 const TEXT_FIELD_NAMES = [
   'text', 'content', 'message', 'body', 'value', 'result',
@@ -53,12 +50,10 @@ function deepExtractText(
       }
     }
 
-    // Traverse nested objects
-    for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
-        const nestedText = deepExtractText(obj[key], depth + 1, visited)
-        if (nestedText) return nestedText
-      }
+    // Traverse nested objects using Object.entries for better performance
+    for (const [key, value] of Object.entries(obj)) {
+      const nestedText = deepExtractText(value, depth + 1, visited)
+      if (nestedText) return nestedText
     }
   } catch (error) {
     logger.debug('Error during deep text extraction', { error })
@@ -136,7 +131,8 @@ function extractContent(item: any): string | null {
       .map(extractContent)
       .filter(Boolean)
 
-    return contents.length > 0 ? contents.join('\n') : null
+    // Join with space for inline display in chat UI
+    return contents.length > 0 ? contents.join(' ') : null
   }
 
   // Objects - try deep extraction
@@ -181,9 +177,10 @@ export function formatOutputForDisplay(
         result = result.substring(0, maxLength) + '... [truncated]'
       }
 
-      // Clean whitespace unless preserved
-      if (!preserveWhitespace) {
-        result = result.replace(/\s+/g, ' ').trim()
+      // Clean whitespace unless preserved (but keep code formatting intact)
+      if (!preserveWhitespace && mode !== 'workflow') {
+        // Only normalize multiple spaces/tabs to single space, preserve newlines for readability
+        result = result.replace(/[ \t]+/g, ' ').trim()
       }
 
       return result
