@@ -42,4 +42,3 @@ export class AuthClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.executing)
   }
 }
-

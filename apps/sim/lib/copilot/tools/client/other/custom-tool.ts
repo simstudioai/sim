@@ -42,4 +42,3 @@ export class CustomToolClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.executing)
   }
 }
-

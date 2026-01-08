@@ -3,7 +3,11 @@
 import { type FC, memo, useCallback, useMemo, useState } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { Button } from '@/components/emcn'
-import { OptionsSelector, parseSpecialTags, ToolCall } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
+import {
+  OptionsSelector,
+  parseSpecialTags,
+  ToolCall,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
 import {
   FileAttachmentDisplay,
   SmoothStreamingText,
@@ -466,7 +470,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               </div>
             )}
 
-
             {/* Citations if available */}
             {message.citations && message.citations.length > 0 && (
               <div className='pt-1'>
@@ -488,17 +491,14 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             )}
 
             {/* Options selector when agent presents choices */}
-            {!isStreaming &&
-              parsedTags?.options &&
-              Object.keys(parsedTags.options).length > 0 && (
-                <OptionsSelector
-                  options={parsedTags.options}
-                  onSelect={handleOptionSelect}
-                  disabled={isSendingMessage}
-                  enableKeyboardNav={isLastMessage}
-                />
-              )}
-
+            {!isStreaming && parsedTags?.options && Object.keys(parsedTags.options).length > 0 && (
+              <OptionsSelector
+                options={parsedTags.options}
+                onSelect={handleOptionSelect}
+                disabled={isSendingMessage}
+                enableKeyboardNav={isLastMessage}
+              />
+            )}
           </div>
         </div>
       )

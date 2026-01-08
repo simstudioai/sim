@@ -213,7 +213,9 @@ export const ToolArgSchemas = {
   manage_custom_tool: z.object({
     operation: z
       .enum(['add', 'edit', 'delete', 'list'])
-      .describe('The operation to perform: add (create new), edit (update existing), delete, or list (get all tools)'),
+      .describe(
+        'The operation to perform: add (create new), edit (update existing), delete, or list (get all tools)'
+      ),
     toolId: z
       .string()
       .optional()

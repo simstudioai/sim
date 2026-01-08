@@ -45,4 +45,3 @@ export class EditClientTool extends BaseClientTool {
     // when the edit subagent completes its work
   }
 }
-

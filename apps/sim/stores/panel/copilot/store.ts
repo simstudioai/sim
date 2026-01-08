@@ -25,27 +25,27 @@ import {
   registerToolStateSync,
 } from '@/lib/copilot/tools/client/manager'
 import { NavigateUIClientTool } from '@/lib/copilot/tools/client/navigation/navigate-ui'
+import { AuthClientTool } from '@/lib/copilot/tools/client/other/auth'
 import { CheckoffTodoClientTool } from '@/lib/copilot/tools/client/other/checkoff-todo'
+import { CustomToolClientTool } from '@/lib/copilot/tools/client/other/custom-tool'
+import { DebugClientTool } from '@/lib/copilot/tools/client/other/debug'
+import { DeployClientTool } from '@/lib/copilot/tools/client/other/deploy'
+import { EditClientTool } from '@/lib/copilot/tools/client/other/edit'
+import { InfoClientTool } from '@/lib/copilot/tools/client/other/info'
+import { KnowledgeClientTool } from '@/lib/copilot/tools/client/other/knowledge'
 import { MakeApiRequestClientTool } from '@/lib/copilot/tools/client/other/make-api-request'
 import { MarkTodoInProgressClientTool } from '@/lib/copilot/tools/client/other/mark-todo-in-progress'
 import { OAuthRequestAccessClientTool } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
 import { RememberDebugClientTool } from '@/lib/copilot/tools/client/other/remember-debug'
+import { ResearchClientTool } from '@/lib/copilot/tools/client/other/research'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
 import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
-import { EditClientTool } from '@/lib/copilot/tools/client/other/edit'
-import { DebugClientTool } from '@/lib/copilot/tools/client/other/debug'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
 import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
 import { SleepClientTool } from '@/lib/copilot/tools/client/other/sleep'
 import { TestClientTool } from '@/lib/copilot/tools/client/other/test'
-import { DeployClientTool } from '@/lib/copilot/tools/client/other/deploy'
-import { AuthClientTool } from '@/lib/copilot/tools/client/other/auth'
-import { ResearchClientTool } from '@/lib/copilot/tools/client/other/research'
-import { KnowledgeClientTool } from '@/lib/copilot/tools/client/other/knowledge'
-import { CustomToolClientTool } from '@/lib/copilot/tools/client/other/custom-tool'
 import { TourClientTool } from '@/lib/copilot/tools/client/other/tour'
-import { InfoClientTool } from '@/lib/copilot/tools/client/other/info'
 import { WorkflowClientTool } from '@/lib/copilot/tools/client/other/workflow'
 import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
 import { GetCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-credentials'
@@ -1690,7 +1690,7 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
     // Arguments can come in different locations depending on SSE format
     // Check multiple possible locations
     let args = toolData.arguments || toolData.input || data?.arguments || data?.input
-    
+
     // If arguments is a string, try to parse it as JSON
     if (typeof args === 'string') {
       try {
@@ -1721,7 +1721,9 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
     ensureClientToolInstance(name, id)
 
     // Create or update the subagent tool call
-    const existingIndex = context.subAgentToolCalls[parentToolCallId].findIndex((tc) => tc.id === id)
+    const existingIndex = context.subAgentToolCalls[parentToolCallId].findIndex(
+      (tc) => tc.id === id
+    )
     const subAgentToolCall: CopilotToolCall = {
       id,
       name,
@@ -1755,7 +1757,9 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
       const def = getTool(name)
       if (def) {
         const hasInterrupt =
-          typeof def.hasInterrupt === 'function' ? !!def.hasInterrupt(args || {}) : !!def.hasInterrupt
+          typeof def.hasInterrupt === 'function'
+            ? !!def.hasInterrupt(args || {})
+            : !!def.hasInterrupt
         if (!hasInterrupt) {
           // Auto-execute tools without interrupts
           const ctx = createExecutionContext({ toolCallId: id, toolName: name })
@@ -1774,7 +1778,11 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
             try {
               await instance.execute(args || {})
             } catch (execErr: any) {
-              logger.error('[SubAgent] Class tool execution failed', { id, name, error: execErr?.message })
+              logger.error('[SubAgent] Class tool execution failed', {
+                id,
+                name,
+                error: execErr?.message,
+              })
             }
           }
         }
@@ -2339,7 +2347,9 @@ export const useCopilotStore = create<CopilotStore>()(
       // If already sending a message, queue this one instead
       if (isSendingMessage) {
         get().addToQueue(message, { fileAttachments, contexts })
-        logger.info('[Copilot] Message queued (already sending)', { queueLength: get().messageQueue.length + 1 })
+        logger.info('[Copilot] Message queued (already sending)', {
+          queueLength: get().messageQueue.length + 1,
+        })
         return
       }
 
@@ -2551,7 +2561,6 @@ export const useCopilotStore = create<CopilotStore>()(
             }).catch(() => {})
           } catch {}
         }
-
       } catch {
         set({ isSendingMessage: false, isAborting: false, abortController: null })
       }
@@ -2992,14 +3001,14 @@ export const useCopilotStore = create<CopilotStore>()(
               })
               continue
             }
-            
+
             logger.info('[SSE] Processing subagent event', {
               type: data.type,
               subagent: data.subagent,
               parentToolCallId,
               hasHandler: !!subAgentSSEHandlers[data.type],
             })
-            
+
             const subAgentHandler = subAgentSSEHandlers[data.type]
             if (subAgentHandler) {
               await subAgentHandler(data, context, get, set)
@@ -3065,7 +3074,10 @@ export const useCopilotStore = create<CopilotStore>()(
         // Process next message in queue if any
         const nextInQueue = get().messageQueue[0]
         if (nextInQueue) {
-          logger.info('[Queue] Processing next queued message', { id: nextInQueue.id, queueLength: get().messageQueue.length })
+          logger.info('[Queue] Processing next queued message', {
+            id: nextInQueue.id,
+            queueLength: get().messageQueue.length,
+          })
           // Remove from queue and send
           get().removeFromQueue(nextInQueue.id)
           // Use setTimeout to avoid blocking the current execution
@@ -3493,12 +3505,18 @@ export const useCopilotStore = create<CopilotStore>()(
         queuedAt: Date.now(),
       }
       set({ messageQueue: [...get().messageQueue, queuedMessage] })
-      logger.info('[Queue] Message added to queue', { id: queuedMessage.id, queueLength: get().messageQueue.length })
+      logger.info('[Queue] Message added to queue', {
+        id: queuedMessage.id,
+        queueLength: get().messageQueue.length,
+      })
     },
 
     removeFromQueue: (id) => {
       set({ messageQueue: get().messageQueue.filter((m) => m.id !== id) })
-      logger.info('[Queue] Message removed from queue', { id, queueLength: get().messageQueue.length })
+      logger.info('[Queue] Message removed from queue', {
+        id,
+        queueLength: get().messageQueue.length,
+      })
     },
 
     moveUpInQueue: (id) => {

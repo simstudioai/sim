@@ -46,4 +46,3 @@ export class DebugClientTool extends BaseClientTool {
     // when the debug subagent completes its work
   }
 }
-

@@ -42,4 +42,3 @@ export class TourClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.executing)
   }
 }
-

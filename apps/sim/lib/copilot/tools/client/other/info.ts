@@ -42,4 +42,3 @@ export class InfoClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.executing)
   }
 }
-

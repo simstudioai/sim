@@ -171,7 +171,10 @@ export function ThinkingBlock({
         </span>
         {hasContent && (
           <ChevronUp
-            className={clsx('h-3 w-3 transition-transform', isExpanded ? 'rotate-180' : 'rotate-90')}
+            className={clsx(
+              'h-3 w-3 transition-transform',
+              isExpanded ? 'rotate-180' : 'rotate-90'
+            )}
             aria-hidden='true'
           />
         )}

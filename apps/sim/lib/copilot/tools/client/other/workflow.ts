@@ -42,4 +42,3 @@ export class WorkflowClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.executing)
   }
 }
-

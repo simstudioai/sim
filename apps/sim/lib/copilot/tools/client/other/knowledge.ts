@@ -42,4 +42,3 @@ export class KnowledgeClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.executing)
   }
 }
-

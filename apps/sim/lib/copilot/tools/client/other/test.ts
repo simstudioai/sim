@@ -42,4 +42,3 @@ export class TestClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.executing)
   }
 }
-

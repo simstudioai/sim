@@ -66,7 +66,11 @@ export class GetBlockOptionsClientTool extends BaseClientTool {
       // Handle both camelCase and snake_case parameter names, plus blockType as an alias
       const normalizedArgs = args
         ? {
-            blockId: args.blockId || (args as any).block_id || (args as any).blockType || (args as any).block_type,
+            blockId:
+              args.blockId ||
+              (args as any).block_id ||
+              (args as any).blockType ||
+              (args as any).block_type,
           }
         : {}
 
