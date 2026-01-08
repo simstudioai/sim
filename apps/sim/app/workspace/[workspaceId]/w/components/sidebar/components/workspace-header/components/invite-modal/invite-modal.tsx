@@ -836,7 +836,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   className={cn(
-                    'relative scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[6px] py-[4px] focus-within:outline-none transition-colors',
+                    'scrollbar-hide relative flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[6px] py-[4px] transition-colors focus-within:outline-none',
                     isDragging && 'border-[var(--border)] border-dashed bg-[var(--surface-5)]'
                   )}
                 >

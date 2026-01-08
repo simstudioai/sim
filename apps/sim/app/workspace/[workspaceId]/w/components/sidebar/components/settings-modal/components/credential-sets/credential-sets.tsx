@@ -629,7 +629,7 @@ export function CredentialSets() {
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   className={cn(
-                    'relative flex min-h-9 flex-1 flex-wrap items-center gap-x-[8px] gap-y-[4px] rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[6px] py-[4px] focus-within:outline-none transition-colors',
+                    'relative flex min-h-9 flex-1 flex-wrap items-center gap-x-[8px] gap-y-[4px] rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[6px] py-[4px] transition-colors focus-within:outline-none',
                     isDragging && 'border-[var(--border)] border-dashed bg-[var(--surface-5)]'
                   )}
                 >
