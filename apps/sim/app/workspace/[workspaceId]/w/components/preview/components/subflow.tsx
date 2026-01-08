@@ -26,11 +26,9 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
   const blockIconBg = isLoop ? '#2FB3FF' : '#FEE12B'
   const blockName = name || (isLoop ? 'Loop' : 'Parallel')
 
-  // Handle IDs matching the actual subflow component
   const startHandleId = isLoop ? 'loop-start-source' : 'parallel-start-source'
   const endHandleId = isLoop ? 'loop-end-source' : 'parallel-end-source'
 
-  // Handle styles matching the workflow-block component
   const leftHandleClass =
     '!z-[10] !border-none !bg-[var(--workflow-edge)] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none'
   const rightHandleClass =

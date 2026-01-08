@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Slider } from '@/components/emcn/components/slider/slider'
+import { cn } from '@/lib/core/utils/cn'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 
 interface SliderInputProps {
@@ -58,15 +59,17 @@ export function SliderInput({
 
   const percentage = ((normalizedValue - min) / (max - min)) * 100
 
+  const isDisabled = isPreview || disabled
+
   return (
-    <div className='relative pt-2 pb-[22px]'>
+    <div className={cn('relative pt-2 pb-[22px]', isDisabled && 'opacity-50')}>
       <Slider
         value={[normalizedValue]}
         min={min}
         max={max}
         step={integer ? 1 : step}
         onValueChange={handleValueChange}
-        disabled={isPreview || disabled}
+        disabled={isDisabled}
       />
       <div
         className='absolute top-6 text-muted-foreground text-sm'

@@ -18,12 +18,15 @@ import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/componen
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
-import { WorkflowPreviewBlock } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview-block'
-import { WorkflowPreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview-subflow'
+import { WorkflowPreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview/components/block'
+import { WorkflowPreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/subflow'
 import { getBlock } from '@/blocks'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowPreview')
+
+/** Execution status for edges/nodes in the preview */
+type ExecutionStatus = 'success' | 'error' | 'not-executed'
 
 interface WorkflowPreviewProps {
   workflowState: WorkflowState
@@ -40,6 +43,8 @@ interface WorkflowPreviewProps {
   lightweight?: boolean
   /** Cursor style to show when hovering the canvas */
   cursorStyle?: 'default' | 'pointer' | 'grab'
+  /** Map of executed block IDs to their status for highlighting the execution path */
+  executedBlocks?: Record<string, { status: string }>
 }
 
 /**
@@ -105,10 +110,9 @@ export function WorkflowPreview({
   onNodeClick,
   lightweight = false,
   cursorStyle = 'grab',
+  executedBlocks,
 }: WorkflowPreviewProps) {
-  // Use lightweight node types for better performance in template cards
   const nodeTypes = lightweight ? lightweightNodeTypes : fullNodeTypes
-  // Check if the workflow state is valid
   const isValidWorkflowState = workflowState?.blocks && workflowState.edges
 
   const blocksStructure = useMemo(() => {
@@ -178,9 +182,7 @@ export function WorkflowPreview({
 
       const absolutePosition = calculateAbsolutePosition(block, workflowState.blocks)
 
-      // Lightweight mode: create minimal node data for performance
       if (lightweight) {
-        // Handle loops and parallels as subflow nodes
         if (block.type === 'loop' || block.type === 'parallel') {
           nodeArray.push({
             id: blockId,
@@ -197,7 +199,6 @@ export function WorkflowPreview({
           return
         }
 
-        // Regular blocks
         nodeArray.push({
           id: blockId,
           type: 'workflowBlock',
@@ -214,7 +215,6 @@ export function WorkflowPreview({
         return
       }
 
-      // Full mode: create detailed node data for interactive previews
       if (block.type === 'loop') {
         nodeArray.push({
           id: block.id,
@@ -265,11 +265,24 @@ export function WorkflowPreview({
 
       const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
 
+      // Determine execution status for this block
+      let executionStatus: ExecutionStatus | undefined
+      if (executedBlocks) {
+        const blockExecution = executedBlocks[blockId]
+        if (blockExecution) {
+          executionStatus = blockExecution.status === 'error' ? 'error' : 'success'
+        } else {
+          // Block exists but wasn't executed
+          executionStatus = 'not-executed'
+        }
+      }
+
       nodeArray.push({
         id: blockId,
         type: nodeType,
         position: absolutePosition,
         draggable: false,
+        className: executionStatus ? `execution-${executionStatus}` : undefined,
         data: {
           type: block.type,
           config: blockConfig,
@@ -278,6 +291,7 @@ export function WorkflowPreview({
           canEdit: false,
           isPreview: true,
           subBlockValues: block.subBlocks ?? {},
+          executionStatus,
         },
       })
 
@@ -326,21 +340,45 @@ export function WorkflowPreview({
     workflowState.blocks,
     isValidWorkflowState,
     lightweight,
+    executedBlocks,
   ])
 
   const edges: Edge[] = useMemo(() => {
     if (!isValidWorkflowState) return []
 
-    return (workflowState.edges || []).map((edge) => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      sourceHandle: edge.sourceHandle,
-      targetHandle: edge.targetHandle,
-    }))
-  }, [edgesStructure, workflowState.edges, isValidWorkflowState])
+    return (workflowState.edges || []).map((edge) => {
+      // Determine if this edge was part of the execution path
+      let executionStatus: ExecutionStatus | undefined
+      if (executedBlocks) {
+        const sourceExecuted = executedBlocks[edge.source]
+        const targetExecuted = executedBlocks[edge.target]
 
-  // Handle migrated logs that don't have complete workflow state
+        // Edge was traversed if both source and target blocks were executed
+        if (sourceExecuted && targetExecuted) {
+          // If the target had an error, mark the edge leading to it as error
+          if (targetExecuted.status === 'error') {
+            executionStatus = 'error'
+          } else {
+            executionStatus = 'success'
+          }
+        } else {
+          // Edge wasn't traversed
+          executionStatus = 'not-executed'
+        }
+      }
+
+      return {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        sourceHandle: edge.sourceHandle,
+        targetHandle: edge.targetHandle,
+        data: executionStatus ? { executionStatus } : undefined,
+        className: executionStatus === 'not-executed' ? 'execution-not-executed' : undefined,
+      }
+    })
+  }, [edgesStructure, workflowState.edges, isValidWorkflowState, executedBlocks])
+
   if (!isValidWorkflowState) {
     return (
       <div
@@ -363,13 +401,22 @@ export function WorkflowPreview({
         style={{ height, width, backgroundColor: 'var(--bg)' }}
         className={cn('preview-mode', className)}
       >
-        {cursorStyle && (
-          <style>{`
-            .preview-mode .react-flow__pane {
-              cursor: ${cursorStyle} !important;
-            }
-          `}</style>
-        )}
+        <style>{`
+          ${cursorStyle ? `.preview-mode .react-flow__pane { cursor: ${cursorStyle} !important; }` : ''}
+          
+          /* Execution status styling for nodes */
+          .preview-mode .react-flow__node.execution-success {
+            border-radius: 8px;
+            box-shadow: 0 0 0 4px var(--border-success);
+          }
+          .preview-mode .react-flow__node.execution-error {
+            border-radius: 8px;
+            box-shadow: 0 0 0 4px var(--text-error);
+          }
+          .preview-mode .react-flow__node.execution-not-executed {
+            opacity: 0.4;
+          }
+        `}</style>
         <ReactFlow
           nodes={nodes}
           edges={edges}

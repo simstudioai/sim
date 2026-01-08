@@ -55,7 +55,11 @@ const WorkflowEdgeComponent = ({
 
   const dataSourceHandle = (data as { sourceHandle?: string } | undefined)?.sourceHandle
   const isErrorEdge = (sourceHandle ?? dataSourceHandle) === 'error'
-  const edgeRunStatus = lastRunEdges.get(id)
+  // Check for execution status from both live execution store and preview data
+  const previewExecutionStatus = (
+    data as { executionStatus?: 'success' | 'error' | 'not-executed' } | undefined
+  )?.executionStatus
+  const edgeRunStatus = previewExecutionStatus || lastRunEdges.get(id)
 
   // Memoize diff status calculation to avoid recomputing on every render
   const edgeDiffStatus = useMemo((): EdgeDiffStatus => {
@@ -87,18 +91,39 @@ const WorkflowEdgeComponent = ({
   // Memoize edge style to prevent object recreation
   const edgeStyle = useMemo(() => {
     let color = 'var(--workflow-edge)'
-    if (edgeDiffStatus === 'deleted') color = 'var(--text-error)'
-    else if (isErrorEdge) color = 'var(--text-error)'
-    else if (edgeDiffStatus === 'new') color = 'var(--brand-tertiary)'
-    else if (edgeRunStatus === 'success') color = 'var(--border-success)'
-    else if (edgeRunStatus === 'error') color = 'var(--text-error)'
+    let opacity = 1
+
+    if (edgeDiffStatus === 'deleted') {
+      color = 'var(--text-error)'
+      opacity = 0.7
+    } else if (isErrorEdge) {
+      color = 'var(--text-error)'
+    } else if (edgeDiffStatus === 'new') {
+      color = 'var(--brand-tertiary)'
+    } else if (edgeRunStatus === 'success') {
+      color = 'var(--border-success)'
+    } else if (edgeRunStatus === 'error') {
+      color = 'var(--text-error)'
+    } else if (edgeRunStatus === 'not-executed') {
+      opacity = 0.3
+    }
+
+    if (isSelected) {
+      opacity = 0.5
+    }
 
     return {
       ...(style ?? {}),
-      strokeWidth: edgeDiffStatus ? 3 : isSelected ? 2.5 : 2,
+      strokeWidth: edgeDiffStatus
+        ? 3
+        : edgeRunStatus === 'success' || edgeRunStatus === 'error'
+          ? 2.5
+          : isSelected
+            ? 2.5
+            : 2,
       stroke: color,
       strokeDasharray: edgeDiffStatus === 'deleted' ? '10,5' : undefined,
-      opacity: edgeDiffStatus === 'deleted' ? 0.7 : isSelected ? 0.5 : 1,
+      opacity,
     }
   }, [style, edgeDiffStatus, isSelected, isErrorEdge, edgeRunStatus])
 

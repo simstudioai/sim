@@ -6,11 +6,13 @@ import { AlertCircle, Loader2 } from 'lucide-react'
 import { Modal, ModalBody, ModalContent, ModalHeader } from '@/components/emcn'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { cn } from '@/lib/core/utils/cn'
-import { PinnedSubBlocks } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/components/pinned-sub-blocks'
-import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
+import {
+  BlockDetailsSidebar,
+  WorkflowPreview,
+} from '@/app/workspace/[workspaceId]/w/components/preview'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const logger = createLogger('FrozenCanvas')
+const logger = createLogger('ExecutionSnapshot')
 
 interface BlockExecutionData {
   input: unknown
@@ -19,7 +21,7 @@ interface BlockExecutionData {
   durationMs: number
 }
 
-interface FrozenCanvasData {
+interface ExecutionSnapshotData {
   executionId: string
   workflowId: string
   workflowState: WorkflowState
@@ -38,7 +40,7 @@ interface FrozenCanvasData {
   }
 }
 
-interface FrozenCanvasProps {
+interface ExecutionSnapshotProps {
   executionId: string
   traceSpans?: any[]
   className?: string
@@ -49,7 +51,7 @@ interface FrozenCanvasProps {
   onClose?: () => void
 }
 
-export function FrozenCanvas({
+export function ExecutionSnapshot({
   executionId,
   traceSpans,
   className,
@@ -58,8 +60,8 @@ export function FrozenCanvas({
   isModal = false,
   isOpen = false,
   onClose,
-}: FrozenCanvasProps) {
-  const [data, setData] = useState<FrozenCanvasData | null>(null)
+}: ExecutionSnapshotProps) {
+  const [data, setData] = useState<ExecutionSnapshotData | null>(null)
   const [blockExecutions, setBlockExecutions] = useState<Record<string, BlockExecutionData>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -109,15 +111,15 @@ export function FrozenCanvas({
 
         const response = await fetch(`/api/logs/execution/${executionId}`)
         if (!response.ok) {
-          throw new Error(`Failed to fetch frozen canvas data: ${response.statusText}`)
+          throw new Error(`Failed to fetch execution snapshot data: ${response.statusText}`)
         }
 
         const result = await response.json()
         setData(result)
-        logger.debug(`Loaded frozen canvas data for execution: ${executionId}`)
+        logger.debug(`Loaded execution snapshot data for execution: ${executionId}`)
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-        logger.error('Failed to fetch frozen canvas data:', err)
+        logger.error('Failed to fetch execution snapshot data:', err)
         setError(errorMessage)
       } finally {
         setLoading(false)
@@ -136,7 +138,7 @@ export function FrozenCanvas({
         >
           <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
             <Loader2 className='h-[16px] w-[16px] animate-spin' />
-            <span className='text-[13px]'>Loading frozen canvas...</span>
+            <span className='text-[13px]'>Loading execution snapshot...</span>
           </div>
         </div>
       )
@@ -150,7 +152,7 @@ export function FrozenCanvas({
         >
           <div className='flex items-center gap-[8px] text-[var(--text-error)]'>
             <AlertCircle className='h-[16px] w-[16px]' />
-            <span className='text-[13px]'>Failed to load frozen canvas: {error}</span>
+            <span className='text-[13px]'>Failed to load execution snapshot: {error}</span>
           </div>
         </div>
       )
@@ -190,9 +192,14 @@ export function FrozenCanvas({
     }
 
     return (
-      <div style={{ height, width }} className={cn('flex', className)}>
-        {/* Canvas area */}
-        <div className='frozen-canvas-mode h-full flex-1 overflow-hidden border-[var(--border)] border-r'>
+      <div
+        style={{ height, width }}
+        className={cn(
+          'flex overflow-hidden rounded-[4px] border border-[var(--border)]',
+          className
+        )}
+      >
+        <div className='h-full flex-1'>
           <WorkflowPreview
             workflowState={data.workflowState}
             showSubBlocks={true}
@@ -200,17 +207,20 @@ export function FrozenCanvas({
             defaultPosition={{ x: 0, y: 0 }}
             defaultZoom={0.8}
             onNodeClick={(blockId) => {
-              setPinnedBlockId(blockId)
+              // Toggle: clicking same block closes sidebar, clicking different block switches
+              setPinnedBlockId((prev) => (prev === blockId ? null : blockId))
             }}
+            cursorStyle='pointer'
+            executedBlocks={blockExecutions}
           />
         </div>
-
-        {/* Sidebar - attached to right side */}
         {pinnedBlockId && data.workflowState.blocks[pinnedBlockId] && (
-          <PinnedSubBlocks
+          <BlockDetailsSidebar
             block={data.workflowState.blocks[pinnedBlockId]}
-            onClose={() => setPinnedBlockId(null)}
             executionData={blockExecutions[pinnedBlockId]}
+            allBlockExecutions={blockExecutions}
+            workflowBlocks={data.workflowState.blocks}
+            isExecutionMode
           />
         )}
       </div>

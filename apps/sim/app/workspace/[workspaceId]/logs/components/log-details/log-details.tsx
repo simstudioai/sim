@@ -5,7 +5,11 @@ import { ChevronUp, X } from 'lucide-react'
 import { Button, Eye } from '@/components/emcn'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
-import { FileCards, FrozenCanvas, TraceSpans } from '@/app/workspace/[workspaceId]/logs/components'
+import {
+  ExecutionSnapshot,
+  FileCards,
+  TraceSpans,
+} from '@/app/workspace/[workspaceId]/logs/components'
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
 import {
   formatDate,
@@ -49,7 +53,7 @@ export const LogDetails = memo(function LogDetails({
   hasNext = false,
   hasPrev = false,
 }: LogDetailsProps) {
-  const [isFrozenCanvasOpen, setIsFrozenCanvasOpen] = useState(false)
+  const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const panelWidth = useLogDetailsUIStore((state) => state.panelWidth)
   const { handleMouseDown } = useLogDetailsResize()
@@ -266,7 +270,7 @@ export const LogDetails = memo(function LogDetails({
                       Workflow State
                     </span>
                     <button
-                      onClick={() => setIsFrozenCanvasOpen(true)}
+                      onClick={() => setIsExecutionSnapshotOpen(true)}
                       className='flex items-center justify-between rounded-[6px] bg-[var(--surface-1)] px-[10px] py-[8px] transition-colors hover:bg-[var(--surface-4)]'
                     >
                       <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
@@ -363,12 +367,12 @@ export const LogDetails = memo(function LogDetails({
 
         {/* Frozen Canvas Modal */}
         {log?.executionId && (
-          <FrozenCanvas
+          <ExecutionSnapshot
             executionId={log.executionId}
             traceSpans={log.executionData?.traceSpans}
             isModal
-            isOpen={isFrozenCanvasOpen}
-            onClose={() => setIsFrozenCanvasOpen(false)}
+            isOpen={isExecutionSnapshotOpen}
+            onClose={() => setIsExecutionSnapshotOpen(false)}
           />
         )}
       </div>

@@ -14,8 +14,10 @@ import {
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
-import { ExpandedWorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/components'
-import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
+import {
+  BlockDetailsSidebar,
+  WorkflowPreview,
+} from '@/app/workspace/[workspaceId]/w/components/preview'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { Versions } from './components'
 
@@ -52,6 +54,7 @@ export function GeneralDeploy({
   const [showLoadDialog, setShowLoadDialog] = useState(false)
   const [showPromoteDialog, setShowPromoteDialog] = useState(false)
   const [showExpandedPreview, setShowExpandedPreview] = useState(false)
+  const [expandedSelectedBlockId, setExpandedSelectedBlockId] = useState<string | null>(null)
   const [versionToLoad, setVersionToLoad] = useState<number | null>(null)
   const [versionToPromote, setVersionToPromote] = useState<number | null>(null)
 
@@ -319,16 +322,48 @@ export function GeneralDeploy({
       </Modal>
 
       {workflowToShow && (
-        <ExpandedWorkflowPreview
-          isOpen={showExpandedPreview}
-          onClose={() => setShowExpandedPreview(false)}
-          workflowState={workflowToShow}
-          title={
-            previewMode === 'selected' && selectedVersionInfo
-              ? selectedVersionInfo.name || `v${selectedVersion}`
-              : 'Live Workflow'
-          }
-        />
+        <Modal
+          open={showExpandedPreview}
+          onOpenChange={(open) => {
+            if (!open) {
+              setExpandedSelectedBlockId(null)
+            }
+            setShowExpandedPreview(open)
+          }}
+        >
+          <ModalContent size='full' className='flex h-[90vh] flex-col'>
+            <ModalHeader>
+              {previewMode === 'selected' && selectedVersionInfo
+                ? selectedVersionInfo.name || `v${selectedVersion}`
+                : 'Live Workflow'}
+            </ModalHeader>
+            <ModalBody className='!p-0 min-h-0 flex-1'>
+              <div className='flex h-full w-full overflow-hidden rounded-[4px] border border-[var(--border)]'>
+                <div className='h-full flex-1'>
+                  <WorkflowPreview
+                    workflowState={workflowToShow}
+                    showSubBlocks={true}
+                    isPannable={true}
+                    defaultPosition={{ x: 0, y: 0 }}
+                    defaultZoom={0.8}
+                    onNodeClick={(blockId) => {
+                      setExpandedSelectedBlockId(
+                        expandedSelectedBlockId === blockId ? null : blockId
+                      )
+                    }}
+                    cursorStyle='pointer'
+                  />
+                </div>
+                {expandedSelectedBlockId && workflowToShow.blocks?.[expandedSelectedBlockId] && (
+                  <BlockDetailsSidebar
+                    block={workflowToShow.blocks[expandedSelectedBlockId]}
+                    onClose={() => setExpandedSelectedBlockId(null)}
+                  />
+                )}
+              </div>
+            </ModalBody>
+          </ModalContent>
+        </Modal>
       )}
     </>
   )

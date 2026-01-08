@@ -19,8 +19,8 @@ import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { API_ENDPOINTS } from '@/stores/constants'
-import type { PermissionType, UserPermissions } from './components'
-import { EmailTag, PermissionsTable } from './components'
+import type { PermissionType, UserPermissions } from '.'
+import { EmailTag, PermissionsTable } from '.'
 
 const logger = createLogger('InviteModal')
 

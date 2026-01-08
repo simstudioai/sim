@@ -29,10 +29,8 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
   }
 
   const IconComponent = blockConfig.icon
-  // Hide input handle for triggers, starters, or blocks in trigger mode
   const isStarterOrTrigger = blockConfig.category === 'triggers' || type === 'starter' || isTrigger
 
-  // Get visible subblocks from config (no fetching, just config structure)
   const visibleSubBlocks = useMemo(() => {
     if (!blockConfig.subBlocks) return []
 
@@ -48,7 +46,6 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
   const hasSubBlocks = visibleSubBlocks.length > 0
   const showErrorRow = !isStarterOrTrigger
 
-  // Handle styles based on orientation
   const horizontalHandleClass = '!border-none !bg-[var(--surface-7)] !h-5 !w-[7px] !rounded-[2px]'
   const verticalHandleClass = '!border-none !bg-[var(--surface-7)] !h-[7px] !w-5 !rounded-[2px]'
 
