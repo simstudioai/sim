@@ -66,6 +66,11 @@ export async function getApiKeyWithBYOK(
     return { apiKey: userProvidedKey || 'empty', isBYOK: false }
   }
 
+  const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
+  if (isBedrockModel) {
+    return { apiKey: 'bedrock-uses-own-credentials', isBYOK: false }
+  }
+
   const isOpenAIModel = provider === 'openai'
   const isClaudeModel = provider === 'anthropic'
   const isGeminiModel = provider === 'google'

@@ -88,6 +88,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   'azure-openai': buildProviderMetadata('azure-openai'),
   openrouter: buildProviderMetadata('openrouter'),
   ollama: buildProviderMetadata('ollama'),
+  bedrock: buildProviderMetadata('bedrock'),
 }
 
 export function updateOllamaProviderModels(models: string[]): void {
@@ -620,6 +621,12 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
     provider === 'vllm' || useProvidersStore.getState().providers.vllm.models.includes(model)
   if (isVllmModel) {
     return userProvidedKey || 'empty'
+  }
+
+  // Bedrock uses its own credentials (bedrockAccessKeyId/bedrockSecretKey), not apiKey
+  const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
+  if (isBedrockModel) {
+    return 'bedrock-uses-own-credentials'
   }
 
   const isOpenAIModel = provider === 'openai'
