@@ -4,8 +4,17 @@ const logger = createLogger('FormatOutput')
 
 // Common text field names to search for
 const TEXT_FIELD_NAMES = [
-  'text', 'content', 'message', 'body', 'value', 'result',
-  'output', 'response', 'answer', 'reply', 'data'
+  'text',
+  'content',
+  'message',
+  'body',
+  'value',
+  'result',
+  'output',
+  'response',
+  'answer',
+  'reply',
+  'data',
 ] as const
 
 // Maximum depth for recursive traversal
@@ -16,11 +25,7 @@ const MAX_ARRAY_ITEMS = 1000
 /**
  * Deep traversal to find text content in nested structures
  */
-function deepExtractText(
-  obj: any,
-  depth = 0,
-  visited = new Set<any>()
-): string | null {
+function deepExtractText(obj: any, depth = 0, visited = new Set<any>()): string | null {
   // Prevent infinite recursion
   if (depth > MAX_DEPTH) return null
   if (!obj || typeof obj !== 'object') return null
@@ -69,23 +74,27 @@ function safeStringify(obj: any, indent = 2): string {
   const seen = new Set()
 
   try {
-    return JSON.stringify(obj, (key, value) => {
-      // Handle undefined, functions, symbols
-      if (value === undefined) return '[undefined]'
-      if (typeof value === 'function') return '[Function]'
-      if (typeof value === 'symbol') return '[Symbol]'
+    return JSON.stringify(
+      obj,
+      (key, value) => {
+        // Handle undefined, functions, symbols
+        if (value === undefined) return '[undefined]'
+        if (typeof value === 'function') return '[Function]'
+        if (typeof value === 'symbol') return '[Symbol]'
 
-      // Handle BigInt
-      if (typeof value === 'bigint') return value.toString()
+        // Handle BigInt
+        if (typeof value === 'bigint') return value.toString()
 
-      // Handle circular references
-      if (typeof value === 'object' && value !== null) {
-        if (seen.has(value)) return '[Circular]'
-        seen.add(value)
-      }
+        // Handle circular references
+        if (typeof value === 'object' && value !== null) {
+          if (seen.has(value)) return '[Circular]'
+          seen.add(value)
+        }
 
-      return value
-    }, indent)
+        return value
+      },
+      indent
+    )
   } catch (error) {
     logger.warn('Failed to stringify object', { error })
     return '[Serialization Error]'
@@ -126,10 +135,7 @@ function extractContent(item: any): string | null {
       return `[Large Array: ${item.length} items]`
     }
 
-    const contents = item
-      .slice(0, MAX_ARRAY_ITEMS)
-      .map(extractContent)
-      .filter(Boolean)
+    const contents = item.slice(0, MAX_ARRAY_ITEMS).map(extractContent).filter(Boolean)
 
     // Join with space for inline display in chat UI
     return contents.length > 0 ? contents.join(' ') : null
@@ -159,7 +165,7 @@ export function formatOutputForDisplay(
     mode = 'chat',
     maxLength = MAX_STRING_LENGTH,
     truncate = true,
-    preserveWhitespace = false
+    preserveWhitespace = false,
   } = options
 
   try {
@@ -174,7 +180,7 @@ export function formatOutputForDisplay(
 
       // Apply length limits
       if (truncate && result.length > maxLength) {
-        result = result.substring(0, maxLength) + '... [truncated]'
+        result = `${result.substring(0, maxLength)}... [truncated]`
       }
 
       // Clean whitespace unless preserved (but keep code formatting intact)
@@ -196,6 +202,11 @@ export function formatOutputForDisplay(
       case 'raw':
         return json
       case 'chat':
+        // For chat, try to make it more readable
+        if (json.length > 500) {
+          return '[Complex Object - See logs for details]'
+        }
+        return json
       default:
         // For chat, try to make it more readable
         if (json.length > 500) {
@@ -216,21 +227,21 @@ export const formatOutputForChat = (output: unknown) =>
   formatOutputForDisplay(output, {
     mode: 'chat',
     maxLength: 5000,
-    truncate: true
+    truncate: true,
   })
 
 export const formatOutputForWorkflow = (output: unknown) =>
   formatOutputForDisplay(output, {
     mode: 'workflow',
     maxLength: 10000,
-    truncate: true
+    truncate: true,
   })
 
 export const formatOutputRaw = (output: unknown) =>
   formatOutputForDisplay(output, {
     mode: 'raw',
     truncate: false,
-    preserveWhitespace: true
+    preserveWhitespace: true,
   })
 
 /**
@@ -246,10 +257,10 @@ export function isOutputSafe(output: unknown): boolean {
       /on\w+\s*=/i, // onclick, onload, etc.
       /<iframe/i,
       /<embed/i,
-      /<object/i
+      /<object/i,
     ]
 
-    return !dangerous.some(pattern => pattern.test(str))
+    return !dangerous.some((pattern) => pattern.test(str))
   } catch {
     return false
   }
