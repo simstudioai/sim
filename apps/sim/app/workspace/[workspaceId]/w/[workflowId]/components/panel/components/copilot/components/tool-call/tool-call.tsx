@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button, Code } from '@/components/emcn'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
@@ -12,6 +12,250 @@ import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/panel/copilot/sto
 import type { CopilotToolCall, SubAgentContentBlock } from '@/stores/panel/copilot/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
+
+/**
+ * Parse special tags from content
+ */
+/**
+ * Plan step can be either a string or an object with title and plan
+ */
+type PlanStep = string | { title: string; plan?: string }
+
+/**
+ * Option can be either a string or an object with title and description
+ */
+type OptionItem = string | { title: string; description?: string }
+
+interface ParsedTags {
+  plan?: Record<string, PlanStep>
+  options?: Record<string, OptionItem>
+  cleanContent: string
+}
+
+/**
+ * Parse <plan> and <options> tags from content
+ */
+export function parseSpecialTags(content: string): ParsedTags {
+  const result: ParsedTags = { cleanContent: content }
+
+  // Parse <plan> tag
+  const planMatch = content.match(/<plan>([\s\S]*?)<\/plan>/i)
+  if (planMatch) {
+    try {
+      result.plan = JSON.parse(planMatch[1])
+      result.cleanContent = result.cleanContent.replace(planMatch[0], '').trim()
+    } catch {
+      // Invalid JSON, ignore
+    }
+  }
+
+  // Parse <options> tag
+  const optionsMatch = content.match(/<options>([\s\S]*?)<\/options>/i)
+  if (optionsMatch) {
+    try {
+      result.options = JSON.parse(optionsMatch[1])
+      result.cleanContent = result.cleanContent.replace(optionsMatch[0], '').trim()
+    } catch {
+      // Invalid JSON, ignore
+    }
+  }
+
+  // Strip any incomplete/partial special tags that are still streaming
+  // This handles cases like "<options>{"1": "op..." or "<plan>{..." during streaming
+  // Matches: <tagname> followed by any content until end of string (no closing tag yet)
+  const incompleteTagPattern = /<(plan|options)>[\s\S]*$/i
+  result.cleanContent = result.cleanContent.replace(incompleteTagPattern, '').trim()
+
+  // Also strip partial opening tags like "<opt" or "<pla" at the very end of content
+  // Simple approach: remove any trailing < followed by partial tag text
+  result.cleanContent = result.cleanContent.replace(/<[a-z]*$/i, '').trim()
+
+  return result
+}
+
+/**
+ * PlanSteps component renders the workflow plan steps from the plan subagent
+ * Only renders the title, not the full plan details
+ */
+function PlanSteps({ steps }: { steps: Record<string, PlanStep> }) {
+  const sortedSteps = useMemo(() => {
+    return Object.entries(steps)
+      .sort(([a], [b]) => {
+        const numA = parseInt(a, 10)
+        const numB = parseInt(b, 10)
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB
+        return a.localeCompare(b)
+      })
+      .map(([num, step]) => {
+        // Extract title from step - handle both string and object formats
+        const title = typeof step === 'string' ? step : step.title
+        return [num, title] as const
+      })
+  }, [steps])
+
+  if (sortedSteps.length === 0) return null
+
+  return (
+    <div className='mt-2 rounded-md border border-[var(--border-1)] bg-[var(--surface-1)] overflow-hidden'>
+      <div className='px-2.5 py-2 border-b border-[var(--border-1)] bg-[var(--surface-2)]'>
+        <span className='font-medium font-season text-[12px] text-[var(--text-primary)]'>
+          Workflow Plan
+        </span>
+      </div>
+      <div className='divide-y divide-[var(--border-1)]'>
+        {sortedSteps.map(([num, title]) => (
+          <div key={num} className='flex items-start gap-2.5 px-2.5 py-2'>
+            <div className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-3)] font-mono text-[11px] font-medium text-[var(--text-secondary)]'>
+              {num}
+            </div>
+            <div className='min-w-0 flex-1 text-[12px] text-[var(--text-secondary)] leading-5 [&_p]:m-0 [&_p]:leading-5 [&_code]:text-[11px] [&_code]:px-1 [&_code]:py-0.5'>
+              <CopilotMarkdownRenderer content={title} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * OptionsSelector component renders selectable options from the agent
+ * Supports keyboard navigation (arrow up/down, enter) and click selection
+ * After selection, shows the chosen option highlighted and others struck through
+ */
+export function OptionsSelector({
+  options,
+  onSelect,
+  disabled = false,
+  enableKeyboardNav = false,
+}: {
+  options: Record<string, OptionItem>
+  onSelect: (optionKey: string, optionText: string) => void
+  disabled?: boolean
+  /** Only enable keyboard navigation for the active options (last message) */
+  enableKeyboardNav?: boolean
+}) {
+  const sortedOptions = useMemo(() => {
+    return Object.entries(options)
+      .sort(([a], [b]) => {
+        const numA = parseInt(a, 10)
+        const numB = parseInt(b, 10)
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB
+        return a.localeCompare(b)
+      })
+      .map(([key, option]) => {
+        const title = typeof option === 'string' ? option : option.title
+        const description = typeof option === 'string' ? undefined : option.description
+        return { key, title, description }
+      })
+  }, [options])
+
+  const [hoveredIndex, setHoveredIndex] = useState(0)
+  const [chosenKey, setChosenKey] = useState<string | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const isLocked = chosenKey !== null
+
+  // Handle keyboard navigation - only for the active options selector
+  useEffect(() => {
+    if (disabled || !enableKeyboardNav || isLocked) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle if the container or document body is focused (not when typing in input)
+      const activeElement = document.activeElement
+      const isInputFocused =
+        activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        activeElement?.getAttribute('contenteditable') === 'true'
+
+      if (isInputFocused) return
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setHoveredIndex((prev) => Math.min(prev + 1, sortedOptions.length - 1))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setHoveredIndex((prev) => Math.max(prev - 1, 0))
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        const selected = sortedOptions[hoveredIndex]
+        if (selected) {
+          setChosenKey(selected.key)
+          onSelect(selected.key, selected.title)
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [disabled, enableKeyboardNav, isLocked, sortedOptions, hoveredIndex, onSelect])
+
+  if (sortedOptions.length === 0) return null
+
+  return (
+    <div
+      ref={containerRef}
+      className='mt-3 rounded-md border border-[var(--border-1)] bg-[var(--surface-1)] overflow-hidden'
+    >
+      <div className='divide-y divide-[var(--border-1)]'>
+        {sortedOptions.map((option, index) => {
+          const isHovered = index === hoveredIndex && !isLocked
+          const isChosen = option.key === chosenKey
+          const isRejected = isLocked && !isChosen
+
+          return (
+            <div
+              key={option.key}
+              onClick={() => {
+                if (!disabled && !isLocked) {
+                  setChosenKey(option.key)
+                  onSelect(option.key, option.title)
+                }
+              }}
+              onMouseEnter={() => {
+                if (!isLocked) setHoveredIndex(index)
+              }}
+              className={`flex items-start gap-2.5 px-2.5 py-2 transition-colors ${
+                isLocked
+                  ? isChosen
+                    ? 'bg-[var(--surface-3)]'
+                    : 'bg-transparent'
+                  : isHovered
+                    ? 'bg-[var(--surface-3)] cursor-pointer'
+                    : 'hover:bg-[var(--surface-2)] cursor-pointer'
+              } ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${isLocked ? 'cursor-default' : ''}`}
+            >
+              {/* Option number */}
+              <div
+                className={`flex h-5 w-5 flex-shrink-0 items-center justify-center font-mono text-[11px] font-medium ${
+                  isRejected ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-secondary)]'
+                }`}
+              >
+                {option.key}.
+              </div>
+
+              {/* Option content */}
+              <div
+                className={`min-w-0 flex-1 font-season text-[12px] leading-5 [&_p]:m-0 [&_p]:leading-5 [&_code]:text-[11px] [&_code]:px-1 [&_code]:py-0.5 ${
+                  isChosen
+                    ? 'font-medium text-[var(--text-primary)]'
+                    : isRejected
+                      ? 'text-[var(--text-tertiary)] line-through'
+                      : isHovered
+                        ? 'font-medium text-[var(--text-primary)]'
+                        : 'text-[var(--text-secondary)]'
+                }`}
+              >
+                <CopilotMarkdownRenderer content={option.title} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 interface ToolCallProps {
   toolCall?: CopilotToolCall
@@ -556,12 +800,16 @@ function SubAgentContent({
           {blocks.map((block, index) => {
             if (block.type === 'subagent_text' && block.content) {
               const isLastBlock = index === blocks.length - 1
+              // Strip special tags from display (they're rendered separately)
+              const parsed = parseSpecialTags(block.content)
+              const displayContent = parsed.cleanContent
+              if (!displayContent) return null
               return (
                 <pre
                   key={`subagent-text-${index}`}
                   className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-tertiary)] leading-[1.15rem]'
                 >
-                  {block.content}
+                  {displayContent}
                   {isStreaming && isLastBlock && (
                     <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[var(--text-tertiary)]' />
                   )}
@@ -592,6 +840,20 @@ function SubAgentContent({
             toolCall={block.toolCall!}
           />
         ))}
+
+      {/* Render PlanSteps for plan subagent when content contains <plan> tag */}
+      {toolName === 'plan' && (() => {
+        // Combine all text content from blocks
+        const allText = blocks
+          .filter((b) => b.type === 'subagent_text' && b.content)
+          .map((b) => b.content)
+          .join('')
+        const parsed = parseSpecialTags(allText)
+        if (parsed.plan && Object.keys(parsed.plan).length > 0) {
+          return <PlanSteps steps={parsed.plan} />
+        }
+        return null
+      })()}
     </div>
   )
 }

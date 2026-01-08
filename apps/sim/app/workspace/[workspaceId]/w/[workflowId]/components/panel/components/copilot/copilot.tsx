@@ -563,6 +563,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                             onRevertModeChange={(isReverting) =>
                               handleRevertModeChange(message.id, isReverting)
                             }
+                            isLastMessage={index === messages.length - 1}
                           />
                         )
                       })}
