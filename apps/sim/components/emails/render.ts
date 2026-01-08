@@ -12,6 +12,7 @@ import { CareersConfirmationEmail, CareersSubmissionEmail } from '@/components/e
 import {
   BatchInvitationEmail,
   InvitationEmail,
+  PollingGroupInvitationEmail,
   WorkspaceInvitationEmail,
 } from '@/components/emails/invitations'
 import { HelpConfirmationEmail } from '@/components/emails/support'
@@ -180,6 +181,24 @@ export async function renderWorkspaceInvitationEmail(
       inviterName,
       workspaceName,
       invitationLink,
+    })
+  )
+}
+
+export async function renderPollingGroupInvitationEmail(params: {
+  inviterName: string
+  organizationName: string
+  pollingGroupName: string
+  provider: 'google-email' | 'outlook'
+  inviteLink: string
+}): Promise<string> {
+  return await render(
+    PollingGroupInvitationEmail({
+      inviterName: params.inviterName,
+      organizationName: params.organizationName,
+      pollingGroupName: params.pollingGroupName,
+      provider: params.provider,
+      inviteLink: params.inviteLink,
     })
   )
 }

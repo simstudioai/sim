@@ -8,11 +8,18 @@ import { createMockLogger, createMockRequest } from '@/app/api/__test-utils__/ut
 
 describe('OAuth Disconnect API Route', () => {
   const mockGetSession = vi.fn()
+  const mockSelectChain = {
+    from: vi.fn().mockReturnThis(),
+    innerJoin: vi.fn().mockReturnThis(),
+    where: vi.fn().mockResolvedValue([]),
+  }
   const mockDb = {
     delete: vi.fn().mockReturnThis(),
     where: vi.fn(),
+    select: vi.fn().mockReturnValue(mockSelectChain),
   }
   const mockLogger = createMockLogger()
+  const mockSyncAllWebhooksForCredentialSet = vi.fn().mockResolvedValue({})
 
   const mockUUID = 'mock-uuid-12345678-90ab-cdef-1234-567890abcdef'
 
@@ -33,6 +40,13 @@ describe('OAuth Disconnect API Route', () => {
 
     vi.doMock('@sim/db/schema', () => ({
       account: { userId: 'userId', providerId: 'providerId' },
+      credentialSetMember: {
+        id: 'id',
+        credentialSetId: 'credentialSetId',
+        userId: 'userId',
+        status: 'status',
+      },
+      credentialSet: { id: 'id', providerId: 'providerId' },
     }))
 
     vi.doMock('drizzle-orm', () => ({
@@ -44,6 +58,14 @@ describe('OAuth Disconnect API Route', () => {
 
     vi.doMock('@sim/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
+    }))
+
+    vi.doMock('@/lib/core/utils/request', () => ({
+      generateRequestId: vi.fn().mockReturnValue('test-request-id'),
+    }))
+
+    vi.doMock('@/lib/webhooks/utils.server', () => ({
+      syncAllWebhooksForCredentialSet: mockSyncAllWebhooksForCredentialSet,
     }))
   })
 

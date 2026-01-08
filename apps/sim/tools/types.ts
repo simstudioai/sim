@@ -122,7 +122,9 @@ export interface TableRow {
 }
 
 export interface OAuthTokenPayload {
-  credentialId: string
+  credentialId?: string
+  credentialAccountUserId?: string
+  providerId?: string
   workflowId?: string
 }
 

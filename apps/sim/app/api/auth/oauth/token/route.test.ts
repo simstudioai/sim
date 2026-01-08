@@ -138,7 +138,10 @@ describe('OAuth Token API Routes', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data).toHaveProperty('error', 'Credential ID is required')
+      expect(data).toHaveProperty(
+        'error',
+        'Either credentialId or (credentialAccountUserId + providerId) is required'
+      )
       expect(mockLogger.warn).toHaveBeenCalled()
     })
 

@@ -181,6 +181,22 @@ export const MCP = {
   TOOL_PREFIX: 'mcp-',
 } as const
 
+export const CREDENTIAL_SET = {
+  PREFIX: 'credentialSet:',
+} as const
+
+export const CREDENTIAL = {
+  FOREIGN_LABEL: 'Saved by collaborator',
+} as const
+
+export function isCredentialSetValue(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.startsWith(CREDENTIAL_SET.PREFIX)
+}
+
+export function extractCredentialSetId(value: string): string {
+  return value.slice(CREDENTIAL_SET.PREFIX.length)
+}
+
 export const MEMORY = {
   DEFAULT_SLIDING_WINDOW_SIZE: 10,
   DEFAULT_SLIDING_WINDOW_TOKENS: 4000,
