@@ -2,6 +2,7 @@
 
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { formatOutputForWorkflow } from '@/lib/core/utils/format-output'
 import {
   AlertCircle,
   ArrowDownToLine,
@@ -156,20 +157,8 @@ const extractOutputFromLogs = (logs: BlockLog[] | undefined, outputId: string): 
   return output
 }
 
-/**
- * Formats output content for display in chat
- * @param output - Output value to format (string, object, or other)
- * @returns Formatted string, markdown code block for objects, or empty string
- */
-const formatOutputContent = (output: unknown): string => {
-  if (typeof output === 'string') {
-    return output
-  }
-  if (output && typeof output === 'object') {
-    return `\`\`\`json\n${JSON.stringify(output, null, 2)}\n\`\`\``
-  }
-  return ''
-}
+// Use shared utility for formatting output - removed duplicate code
+const formatOutputContent = formatOutputForWorkflow
 
 /**
  * Represents a field in the start block's input format configuration
