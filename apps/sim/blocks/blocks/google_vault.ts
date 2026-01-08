@@ -159,13 +159,13 @@ Return ONLY the hold name - no explanations, no quotes, no extra text.`,
       placeholder: 'Org Unit ID (alternative to emails)',
       condition: { field: 'operation', value: ['create_matters_holds', 'create_matters_export'] },
     },
-    // Date filtering for exports and holds (holds only support MAIL and GROUPS corpus)
+    // Date filtering for exports (works with all corpus types)
     {
       id: 'startTime',
       title: 'Start Time',
       type: 'short-input',
       placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
-      condition: { field: 'operation', value: ['create_matters_export', 'create_matters_holds'] },
+      condition: { field: 'operation', value: 'create_matters_export' },
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp in GMT based on the user's description for Google Vault date filtering.
@@ -187,7 +187,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'End Time',
       type: 'short-input',
       placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
-      condition: { field: 'operation', value: ['create_matters_export', 'create_matters_holds'] },
+      condition: { field: 'operation', value: 'create_matters_export' },
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp in GMT based on the user's description for Google Vault date filtering.
@@ -204,12 +204,66 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
+    // Date filtering for holds (only works with MAIL and GROUPS corpus)
+    {
+      id: 'startTime',
+      title: 'Start Time',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
+      condition: {
+        field: 'operation',
+        value: 'create_matters_holds',
+        and: { field: 'corpus', value: ['MAIL', 'GROUPS'] },
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp in GMT based on the user's description for Google Vault date filtering.
+The timestamp should be in the format: YYYY-MM-DDTHH:mm:ssZ (UTC timezone).
+Note: Google Vault rounds times to 12 AM on the specified date.
+Examples:
+- "yesterday" -> Calculate yesterday's date at 00:00:00Z
+- "last week" -> Calculate 7 days ago at 00:00:00Z
+- "beginning of this month" -> Calculate the 1st of current month at 00:00:00Z
+- "January 1, 2024" -> 2024-01-01T00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "last month", "January 1, 2024")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'endTime',
+      title: 'End Time',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
+      condition: {
+        field: 'operation',
+        value: 'create_matters_holds',
+        and: { field: 'corpus', value: ['MAIL', 'GROUPS'] },
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp in GMT based on the user's description for Google Vault date filtering.
+The timestamp should be in the format: YYYY-MM-DDTHH:mm:ssZ (UTC timezone).
+Note: Google Vault rounds times to 12 AM on the specified date.
+Examples:
+- "now" -> Current timestamp
+- "today" -> Today's date at 23:59:59Z
+- "end of last month" -> Last day of previous month at 23:59:59Z
+- "December 31, 2024" -> 2024-12-31T23:59:59Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end date (e.g., "today", "end of last quarter")...',
+        generationType: 'timestamp',
+      },
+    },
+    // Search terms for exports (works with all corpus types)
     {
       id: 'terms',
       title: 'Search Terms',
       type: 'long-input',
       placeholder: 'Enter search query (e.g., from:user@example.com subject:confidential)',
-      condition: { field: 'operation', value: ['create_matters_export', 'create_matters_holds'] },
+      condition: { field: 'operation', value: 'create_matters_export' },
       wandConfig: {
         enabled: true,
         prompt: `Generate a Google Vault search query based on the user's description.
@@ -226,7 +280,30 @@ For DRIVE corpus, use Drive search operators:
 - owner:user@example.com - files owned by user
 - type:document - specific file types
 
-For holds, date filtering only works with MAIL and GROUPS corpus.
+Return ONLY the search query - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe what content to search for...',
+      },
+    },
+    // Search terms for holds (only works with MAIL and GROUPS corpus)
+    {
+      id: 'terms',
+      title: 'Search Terms',
+      type: 'long-input',
+      placeholder: 'Enter search query (e.g., from:user@example.com subject:confidential)',
+      condition: {
+        field: 'operation',
+        value: 'create_matters_holds',
+        and: { field: 'corpus', value: ['MAIL', 'GROUPS'] },
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Google Vault search query based on the user's description.
+The query can use Gmail-style search operators:
+- from:user@example.com - emails from specific sender
+- to:user@example.com - emails to specific recipient  
+- subject:keyword - emails with keyword in subject
+- has:attachment - emails with attachments
+- filename:pdf - emails with PDF attachments
 
 Return ONLY the search query - no explanations, no quotes, no extra text.`,
         placeholder: 'Describe what content to search for...',

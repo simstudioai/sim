@@ -1247,8 +1247,6 @@ export async function refreshOAuthToken(
     }
   } catch (error) {
     logger.error('Error refreshing token:', { error })
-    // Re-throw specific errors so they propagate with their detailed messages
-    // Only return null for truly unexpected errors without useful messages
     throw error
   }
 }
