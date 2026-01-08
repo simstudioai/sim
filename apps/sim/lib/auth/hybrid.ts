@@ -113,8 +113,9 @@ export async function checkHybridAuth(
       }
     }
 
-    // 3. Try API key auth
-    const apiKeyHeader = request.headers.get('x-api-key')
+    // 3. Try API key auth (check both X-API-Key and Authorization: Bearer as fallback)
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+    const apiKeyHeader = request.headers.get('x-api-key') || bearerToken
     if (apiKeyHeader) {
       const result = await authenticateApiKeyFromHeader(apiKeyHeader)
       if (result.success) {

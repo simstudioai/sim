@@ -1,4 +1,10 @@
 import {
+  a2aCancelTaskTool,
+  a2aGetAgentCardTool,
+  a2aGetTaskTool,
+  a2aSendTaskTool,
+} from '@/tools/a2a'
+import {
   ahrefsBacklinksStatsTool,
   ahrefsBacklinksTool,
   ahrefsBrokenBacklinksTool,
@@ -1421,6 +1427,10 @@ import { sqsSendTool } from './sqs'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
+  a2a_cancel_task: a2aCancelTaskTool,
+  a2a_get_agent_card: a2aGetAgentCardTool,
+  a2a_get_task: a2aGetTaskTool,
+  a2a_send_task: a2aSendTaskTool,
   arxiv_search: arxivSearchTool,
   arxiv_get_paper: arxivGetPaperTool,
   arxiv_get_author_papers: arxivGetAuthorPapersTool,

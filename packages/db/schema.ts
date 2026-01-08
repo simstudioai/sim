@@ -1785,6 +1785,115 @@ export const workflowMcpTool = pgTable(
   })
 )
 
+/**
+ * A2A Task State Enum (v0.2.6)
+ */
+export const a2aTaskStatusEnum = pgEnum('a2a_task_status', [
+  'submitted',
+  'working',
+  'input-required',
+  'completed',
+  'failed',
+  'canceled',
+  'rejected',
+  'auth-required',
+  'unknown',
+])
+
+/**
+ * A2A Agents - Workflows exposed as A2A-compatible agents
+ * These agents can be called by external A2A clients
+ */
+export const a2aAgent = pgTable(
+  'a2a_agent',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+
+    /** Agent name (used in Agent Card) */
+    name: text('name').notNull(),
+    /** Agent description */
+    description: text('description'),
+    /** Agent version */
+    version: text('version').notNull().default('1.0.0'),
+
+    /** Agent capabilities (streaming, pushNotifications, etc.) */
+    capabilities: jsonb('capabilities').notNull().default('{}'),
+    /** Agent skills derived from workflow */
+    skills: jsonb('skills').notNull().default('[]'),
+    /** Authentication configuration */
+    authentication: jsonb('authentication').notNull().default('{}'),
+
+    /** Whether the agent is published and discoverable */
+    isPublished: boolean('is_published').notNull().default(false),
+    /** When the agent was published */
+    publishedAt: timestamp('published_at'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdIdx: index('a2a_agent_workspace_id_idx').on(table.workspaceId),
+    workflowIdIdx: index('a2a_agent_workflow_id_idx').on(table.workflowId),
+    createdByIdx: index('a2a_agent_created_by_idx').on(table.createdBy),
+    workspaceWorkflowUnique: uniqueIndex('a2a_agent_workspace_workflow_unique').on(
+      table.workspaceId,
+      table.workflowId
+    ),
+  })
+)
+
+/**
+ * A2A Tasks - Tracks task state for A2A agent interactions (v0.2.6)
+ * Each task represents a conversation/interaction with an agent
+ */
+export const a2aTask = pgTable(
+  'a2a_task',
+  {
+    id: text('id').primaryKey(),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => a2aAgent.id, { onDelete: 'cascade' }),
+
+    /** Context ID for multi-turn conversations (maps to API contextId) */
+    sessionId: text('session_id'),
+
+    /** Task state */
+    status: a2aTaskStatusEnum('status').notNull().default('submitted'),
+
+    /** Message history (maps to API history, array of TaskMessage) */
+    messages: jsonb('messages').notNull().default('[]'),
+
+    /** Structured output artifacts */
+    artifacts: jsonb('artifacts').default('[]'),
+
+    /** Link to workflow execution */
+    executionId: text('execution_id'),
+
+    /** Additional metadata */
+    metadata: jsonb('metadata').default('{}'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+  },
+  (table) => ({
+    agentIdIdx: index('a2a_task_agent_id_idx').on(table.agentId),
+    sessionIdIdx: index('a2a_task_session_id_idx').on(table.sessionId),
+    statusIdx: index('a2a_task_status_idx').on(table.status),
+    executionIdIdx: index('a2a_task_execution_id_idx').on(table.executionId),
+    createdAtIdx: index('a2a_task_created_at_idx').on(table.createdAt),
+  })
+)
+
 export const usageLogCategoryEnum = pgEnum('usage_log_category', ['model', 'fixed'])
 export const usageLogSourceEnum = pgEnum('usage_log_source', ['workflow', 'wand', 'copilot'])
 
