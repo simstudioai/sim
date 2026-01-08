@@ -512,7 +512,6 @@ export class LoggingSession {
           hasErrors: false,
         })
 
-        // Create OpenTelemetry trace spans for the workflow execution
         if (traceSpans && traceSpans.length > 0) {
           const startTime = new Date(endTime.getTime() - Math.max(1, durationMs))
           createOTelSpansForWorkflowExecution({
@@ -594,7 +593,6 @@ export class LoggingSession {
           totalCost: costSummary.totalCost || 0,
         })
 
-        // Create OpenTelemetry trace spans for the workflow execution
         if (traceSpans && traceSpans.length > 0) {
           const startTime = new Date(endTime.getTime() - Math.max(1, durationMs))
           createOTelSpansForWorkflowExecution({
