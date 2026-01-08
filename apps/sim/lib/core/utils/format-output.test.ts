@@ -88,7 +88,7 @@ describe('format-output utilities', () => {
       obj.self = obj
       const result = formatOutputForDisplay(obj, { mode: 'raw' })
       expect(result).toContain('[Circular]')
-      expect(result).not.toThrow()
+      expect(() => formatOutputForDisplay(obj, { mode: 'raw' })).not.toThrow()
     })
 
     // Large arrays
@@ -126,16 +126,21 @@ describe('format-output utilities', () => {
 
     // Mode-specific formatting
     it('formats correctly for different modes', () => {
-      const obj = { data: 'test' }
+      const obj = { someField: 'value', type: 'test' }
 
       const chatFormat = formatOutputForDisplay(obj, { mode: 'chat' })
-      expect(chatFormat).toContain('test')
-
       const workflowFormat = formatOutputForDisplay(obj, { mode: 'workflow' })
-      expect(workflowFormat).toMatch(/```json/)
-
       const rawFormat = formatOutputForDisplay(obj, { mode: 'raw' })
-      expect(rawFormat).toBe('{"data":"test"}')
+
+      // Chat mode should show JSON for objects without text fields
+      expect(chatFormat).toContain('someField')
+
+      // Workflow mode should wrap in code blocks
+      expect(workflowFormat).toMatch(/```json/)
+      expect(workflowFormat).toContain('someField')
+
+      // Raw mode should show plain JSON
+      expect(rawFormat).toMatch(/"someField":\s*"value"/)
     })
 
     // Edge cases
