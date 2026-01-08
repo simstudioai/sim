@@ -32,6 +32,9 @@ export class EvaluatorBlockHandler implements BlockHandler {
       vertexProject: inputs.vertexProject,
       vertexLocation: inputs.vertexLocation,
       vertexCredential: inputs.vertexCredential,
+      bedrockAccessKeyId: inputs.bedrockAccessKeyId,
+      bedrockSecretKey: inputs.bedrockSecretKey,
+      bedrockRegion: inputs.bedrockRegion,
     }
     const providerId = getProviderFromModel(evaluatorConfig.model)
 
@@ -126,6 +129,12 @@ export class EvaluatorBlockHandler implements BlockHandler {
       if (providerId === 'azure-openai') {
         providerRequest.azureEndpoint = inputs.azureEndpoint
         providerRequest.azureApiVersion = inputs.azureApiVersion
+      }
+
+      if (providerId === 'bedrock') {
+        providerRequest.bedrockAccessKeyId = evaluatorConfig.bedrockAccessKeyId
+        providerRequest.bedrockSecretKey = evaluatorConfig.bedrockSecretKey
+        providerRequest.bedrockRegion = evaluatorConfig.bedrockRegion
       }
 
       const response = await fetch(url.toString(), {

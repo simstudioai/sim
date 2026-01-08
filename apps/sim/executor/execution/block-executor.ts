@@ -339,7 +339,7 @@ export class BlockExecutor {
 
     if (isTrigger) {
       const filtered: NormalizedBlockOutput = {}
-      const internalKeys = ['webhook', 'workflowId', 'input']
+      const internalKeys = ['webhook', 'workflowId']
       for (const [key, value] of Object.entries(output)) {
         if (internalKeys.includes(key)) continue
         filtered[key] = value
