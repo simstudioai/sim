@@ -26,6 +26,20 @@ export class IntegrationNotAllowedError extends Error {
   }
 }
 
+export class McpToolsNotAllowedError extends Error {
+  constructor() {
+    super('MCP tools are not allowed based on your permission group settings')
+    this.name = 'McpToolsNotAllowedError'
+  }
+}
+
+export class CustomToolsNotAllowedError extends Error {
+  constructor() {
+    super('Custom tools are not allowed based on your permission group settings')
+    this.name = 'CustomToolsNotAllowedError'
+  }
+}
+
 export async function getUserPermissionConfig(
   userId: string
 ): Promise<PermissionGroupConfig | null> {
@@ -97,5 +111,39 @@ export async function validateBlockType(
   if (!config.allowedIntegrations.includes(blockType)) {
     logger.warn('Integration blocked by permission group', { userId, blockType })
     throw new IntegrationNotAllowedError(blockType)
+  }
+}
+
+export async function validateMcpToolsAllowed(userId: string | undefined): Promise<void> {
+  if (!userId) {
+    return
+  }
+
+  const config = await getUserPermissionConfig(userId)
+
+  if (!config) {
+    return
+  }
+
+  if (config.disableMcpTools) {
+    logger.warn('MCP tools blocked by permission group', { userId })
+    throw new McpToolsNotAllowedError()
+  }
+}
+
+export async function validateCustomToolsAllowed(userId: string | undefined): Promise<void> {
+  if (!userId) {
+    return
+  }
+
+  const config = await getUserPermissionConfig(userId)
+
+  if (!config) {
+    return
+  }
+
+  if (config.disableCustomTools) {
+    logger.warn('Custom tools blocked by permission group', { userId })
+    throw new CustomToolsNotAllowedError()
   }
 }

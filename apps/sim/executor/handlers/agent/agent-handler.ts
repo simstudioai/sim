@@ -25,7 +25,12 @@ import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/execu
 import { collectBlockData } from '@/executor/utils/block-data'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
-import { validateBlockType, validateModelProvider } from '@/executor/utils/permission-check'
+import {
+  validateBlockType,
+  validateCustomToolsAllowed,
+  validateMcpToolsAllowed,
+  validateModelProvider,
+} from '@/executor/utils/permission-check'
 import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -50,6 +55,9 @@ export class AgentBlockHandler implements BlockHandler {
     // Filter out unavailable MCP tools early so they don't appear in logs/inputs
     const filteredTools = await this.filterUnavailableMcpTools(ctx, inputs.tools || [])
     const filteredInputs = { ...inputs, tools: filteredTools }
+
+    // Validate tool permissions before processing
+    await this.validateToolPermissions(ctx, filteredInputs.tools || [])
 
     const responseFormat = this.parseResponseFormat(filteredInputs.responseFormat)
     const model = filteredInputs.model || AGENT.DEFAULT_MODEL
@@ -145,6 +153,21 @@ export class AgentBlockHandler implements BlockHandler {
       value: responseFormat,
     })
     return undefined
+  }
+
+  private async validateToolPermissions(ctx: ExecutionContext, tools: ToolInput[]): Promise<void> {
+    if (!Array.isArray(tools) || tools.length === 0) return
+
+    const hasMcpTools = tools.some((t) => t.type === 'mcp')
+    const hasCustomTools = tools.some((t) => t.type === 'custom-tool')
+
+    if (hasMcpTools) {
+      await validateMcpToolsAllowed(ctx.userId)
+    }
+
+    if (hasCustomTools) {
+      await validateCustomToolsAllowed(ctx.userId)
+    }
   }
 
   private async filterUnavailableMcpTools(

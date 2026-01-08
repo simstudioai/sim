@@ -18,6 +18,14 @@ const configSchema = z.object({
   allowedIntegrations: z.array(z.string()).nullable().optional(),
   allowedModelProviders: z.array(z.string()).nullable().optional(),
   hideTraceSpans: z.boolean().optional(),
+  hideKnowledgeBaseTab: z.boolean().optional(),
+  hideCopilot: z.boolean().optional(),
+  hideApiKeysTab: z.boolean().optional(),
+  hideEnvironmentTab: z.boolean().optional(),
+  hideFilesTab: z.boolean().optional(),
+  disableMcpTools: z.boolean().optional(),
+  disableCustomTools: z.boolean().optional(),
+  hideTemplates: z.boolean().optional(),
 })
 
 const createSchema = z.object({

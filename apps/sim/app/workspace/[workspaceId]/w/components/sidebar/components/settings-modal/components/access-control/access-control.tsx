@@ -112,7 +112,8 @@ export function AccessControl() {
   const [integrationSearchTerm, setIntegrationSearchTerm] = useState('')
 
   const allBlocks = useMemo(() => {
-    const blocks = getAllBlocks().filter((b) => !b.hideFromToolbar)
+    // Filter out hidden blocks and start_trigger (which should never be disabled)
+    const blocks = getAllBlocks().filter((b) => !b.hideFromToolbar && b.type !== 'start_trigger')
     return blocks.sort((a, b) => {
       // Group by category: triggers first, then blocks, then tools
       const categoryOrder = { triggers: 0, blocks: 1, tools: 2 }
@@ -525,7 +526,7 @@ export function AccessControl() {
 
                 <div className='flex flex-col gap-[8px]'>
                   <div className='flex items-center justify-between'>
-                    <Label>Allowed Integrations</Label>
+                    <Label>Allowed Blocks</Label>
                     <button
                       type='button'
                       onClick={() => {
@@ -545,13 +546,12 @@ export function AccessControl() {
                     </button>
                   </div>
                   <p className='text-[12px] text-[var(--text-muted)]'>
-                    Select which integrations are visible in the toolbar. All are visible by
-                    default.
+                    Select which blocks are visible in the toolbar. All are visible by default.
                   </p>
                   <div className='flex items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px]'>
                     <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                     <BaseInput
-                      placeholder='Search integrations...'
+                      placeholder='Search blocks...'
                       value={integrationSearchTerm}
                       onChange={(e) => setIntegrationSearchTerm(e.target.value)}
                       className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-[13px] leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
@@ -633,7 +633,7 @@ export function AccessControl() {
                   <div className='flex flex-col gap-[16px] rounded-[8px] border border-[var(--border)] p-[12px]'>
                     {/* Sidebar */}
                     <div className='flex flex-col gap-[8px]'>
-                      <span className='text-[11px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]'>
+                      <span className='font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
                         Sidebar
                       </span>
                       <div className='flex flex-col gap-[8px] pl-[2px]'>
@@ -649,7 +649,7 @@ export function AccessControl() {
                           />
                           <Label
                             htmlFor='hide-knowledge-base'
-                            className='cursor-pointer text-[13px] font-normal'
+                            className='cursor-pointer font-normal text-[13px]'
                           >
                             Knowledge Base
                           </Label>
@@ -666,7 +666,7 @@ export function AccessControl() {
                           />
                           <Label
                             htmlFor='hide-templates'
-                            className='cursor-pointer text-[13px] font-normal'
+                            className='cursor-pointer font-normal text-[13px]'
                           >
                             Templates
                           </Label>
@@ -676,7 +676,7 @@ export function AccessControl() {
 
                     {/* Workflow Panel */}
                     <div className='flex flex-col gap-[8px]'>
-                      <span className='text-[11px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]'>
+                      <span className='font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
                         Workflow Panel
                       </span>
                       <div className='flex flex-col gap-[8px] pl-[2px]'>
@@ -692,7 +692,7 @@ export function AccessControl() {
                           />
                           <Label
                             htmlFor='hide-copilot'
-                            className='cursor-pointer text-[13px] font-normal'
+                            className='cursor-pointer font-normal text-[13px]'
                           >
                             Copilot
                           </Label>
@@ -702,7 +702,7 @@ export function AccessControl() {
 
                     {/* Settings Tabs */}
                     <div className='flex flex-col gap-[8px]'>
-                      <span className='text-[11px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]'>
+                      <span className='font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
                         Settings Tabs
                       </span>
                       <div className='flex flex-col gap-[8px] pl-[2px]'>
@@ -718,7 +718,7 @@ export function AccessControl() {
                           />
                           <Label
                             htmlFor='hide-api-keys'
-                            className='cursor-pointer text-[13px] font-normal'
+                            className='cursor-pointer font-normal text-[13px]'
                           >
                             API Keys
                           </Label>
@@ -735,7 +735,7 @@ export function AccessControl() {
                           />
                           <Label
                             htmlFor='hide-environment'
-                            className='cursor-pointer text-[13px] font-normal'
+                            className='cursor-pointer font-normal text-[13px]'
                           >
                             Environment
                           </Label>
@@ -752,7 +752,7 @@ export function AccessControl() {
                           />
                           <Label
                             htmlFor='hide-files'
-                            className='cursor-pointer text-[13px] font-normal'
+                            className='cursor-pointer font-normal text-[13px]'
                           >
                             Files
                           </Label>
@@ -762,7 +762,7 @@ export function AccessControl() {
 
                     {/* Tools */}
                     <div className='flex flex-col gap-[8px]'>
-                      <span className='text-[11px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]'>
+                      <span className='font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
                         Tools
                       </span>
                       <div className='flex flex-col gap-[8px] pl-[2px]'>
@@ -778,7 +778,7 @@ export function AccessControl() {
                           />
                           <Label
                             htmlFor='disable-mcp'
-                            className='cursor-pointer text-[13px] font-normal'
+                            className='cursor-pointer font-normal text-[13px]'
                           >
                             MCP Tools
                           </Label>
@@ -795,7 +795,7 @@ export function AccessControl() {
                           />
                           <Label
                             htmlFor='disable-custom-tools'
-                            className='cursor-pointer text-[13px] font-normal'
+                            className='cursor-pointer font-normal text-[13px]'
                           >
                             Custom Tools
                           </Label>
@@ -805,7 +805,7 @@ export function AccessControl() {
 
                     {/* Logs */}
                     <div className='flex flex-col gap-[8px]'>
-                      <span className='text-[11px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]'>
+                      <span className='font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
                         Logs
                       </span>
                       <div className='flex flex-col gap-[8px] pl-[2px]'>
@@ -821,7 +821,7 @@ export function AccessControl() {
                           />
                           <Label
                             htmlFor='hide-trace-spans'
-                            className='cursor-pointer text-[13px] font-normal'
+                            className='cursor-pointer font-normal text-[13px]'
                           >
                             Trace spans
                           </Label>
