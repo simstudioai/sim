@@ -299,6 +299,18 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       placeholder: 'YYYY-MM-DD (required for create)',
       condition: { field: 'operation', value: ['create_opportunity', 'update_opportunity'] },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "end of quarter" -> Calculate the last day of the current quarter
+- "next month" -> Calculate the last day of next month
+- "in 90 days" -> Calculate the date 90 days from now
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the close date (e.g., "end of quarter", "in 90 days")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'amount',
@@ -363,6 +375,18 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "tomorrow" -> Calculate tomorrow's date
+- "next Friday" -> Calculate the next Friday's date
+- "in 3 days" -> Calculate the date 3 days from now
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the due date (e.g., "tomorrow", "next Friday")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'whoId',

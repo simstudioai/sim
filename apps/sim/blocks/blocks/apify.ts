@@ -46,6 +46,32 @@ export const ApifyBlock: BlockConfig<RunActorResult> = {
       language: 'json',
       placeholder: '{\n  "startUrl": "https://example.com",\n  "maxPages": 10\n}',
       required: false,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON configuration object for an Apify actor based on the user's description.
+Apify actors typically accept configuration for web scraping, automation, or data processing tasks.
+
+Current input: {context}
+
+Common Apify actor input patterns:
+- Web scrapers: startUrls, maxPages, proxyConfiguration
+- Crawlers: startUrls, maxRequestsPerCrawl, maxConcurrency
+- Data processors: inputData, outputFormat, filters
+
+Examples:
+- "scrape 5 pages starting from example.com" ->
+{"startUrls": [{"url": "https://example.com"}], "maxPages": 5}
+
+- "crawl the site with proxy and limit to 100 requests" ->
+{"startUrls": [{"url": "https://example.com"}], "maxRequestsPerCrawl": 100, "proxyConfiguration": {"useApifyProxy": true}}
+
+- "extract product data with custom selectors" ->
+{"startUrls": [{"url": "https://shop.example.com"}], "selectors": {"title": "h1.product-title", "price": ".price"}}
+
+Return ONLY the valid JSON object - no explanations, no markdown.`,
+        placeholder: 'Describe the actor configuration you need...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'timeout',

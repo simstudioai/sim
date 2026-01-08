@@ -125,6 +125,18 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       placeholder: 'Enter search query (e.g., "software companies in San Francisco")',
       condition: { field: 'operation', value: 'hunter_discover' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a company discovery search query for Hunter.io based on the user's description.
+The query should be optimized for finding companies and should include:
+- Industry or business type
+- Location if relevant
+- Company size or other relevant criteria
+
+Return ONLY the search query text - no explanations.`,
+        placeholder:
+          'Describe the companies you want to find (e.g., "fintech startups in NYC", "healthcare companies in Europe")...',
+      },
     },
     {
       id: 'domain',

@@ -325,6 +325,22 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         field: 'operation',
         value: 'read',
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+This timestamp is used to filter Slack messages - only messages after this timestamp will be returned.
+Examples:
+- "last hour" -> Calculate 1 hour ago from current time
+- "yesterday" -> Calculate yesterday's date at 00:00:00Z
+- "last week" -> Calculate 7 days ago at 00:00:00Z
+- "beginning of this month" -> First day of current month at 00:00:00Z
+- "30 minutes ago" -> Calculate 30 minutes before current time
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the cutoff date (e.g., "last hour", "yesterday", "last week")...',
+        generationType: 'timestamp',
+      },
     },
     // Download File specific fields
     {

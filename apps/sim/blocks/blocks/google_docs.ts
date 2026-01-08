@@ -73,6 +73,14 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       placeholder: 'Enter title for the new document',
       condition: { field: 'operation', value: 'create' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a clear, descriptive document title based on the user's request.
+The title should be concise but informative about the document's purpose.
+
+Return ONLY the document title - no explanations, no extra text.`,
+        placeholder: 'Describe the document...',
+      },
     },
     // Folder selector (basic mode)
     {
@@ -107,6 +115,14 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       placeholder: 'Enter document content',
       condition: { field: 'operation', value: 'write' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate document content based on the user's request.
+The content should be well-structured and appropriate for a Google Doc.
+
+Return ONLY the document content - no explanations, no extra text.`,
+        placeholder: 'Describe the document content you want to write...',
+      },
     },
     // Content Field for create operation
     {
@@ -115,6 +131,14 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       type: 'long-input',
       placeholder: 'Enter document content',
       condition: { field: 'operation', value: 'create' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate initial document content based on the user's request.
+The content should be well-structured and appropriate for a new Google Doc.
+
+Return ONLY the document content - no explanations, no extra text.`,
+        placeholder: 'Describe the document content you want to create...',
+      },
     },
   ],
   tools: {

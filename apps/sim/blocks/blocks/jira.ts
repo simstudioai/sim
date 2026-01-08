@@ -186,6 +186,18 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Enter new summary for the issue',
       dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['update', 'write'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a concise Jira issue summary/title based on the user's description.
+The summary should:
+- Be clear and descriptive
+- Capture the essence of the issue
+- Be suitable for issue tracking
+
+Return ONLY the summary text - no explanations.`,
+        placeholder:
+          'Describe the issue (e.g., "login page not loading", "add dark mode feature")...',
+      },
     },
     {
       id: 'description',
@@ -194,6 +206,18 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Enter new description for the issue',
       dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['update', 'write'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a detailed Jira issue description based on the user's description.
+The description should:
+- Provide context and details about the issue
+- Include steps to reproduce (for bugs) or requirements (for features)
+- Be professional and clear
+
+Return ONLY the description text - no explanations.`,
+        placeholder:
+          'Describe the issue details (e.g., "users seeing 500 error when clicking submit")...',
+      },
     },
     // Write Issue additional fields
     {
@@ -227,6 +251,19 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'YYYY-MM-DD (e.g., 2024-12-31)',
       dependsOn: ['projectId'],
       condition: { field: 'operation', value: 'write' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "tomorrow" -> Calculate tomorrow's date
+- "next week" -> Calculate 7 days from now
+- "end of month" -> Calculate the last day of the current month
+- "in 2 weeks" -> Calculate 14 days from now
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the due date (e.g., "next Friday", "end of month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'reporter',
@@ -296,6 +333,17 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'long-input',
       placeholder: 'Add optional comment for transition',
       condition: { field: 'operation', value: 'transition' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a transition comment for a Jira issue based on the user's description.
+The comment should:
+- Explain the reason for the status change
+- Provide any relevant context
+- Be professional and informative
+
+Return ONLY the comment text - no explanations.`,
+        placeholder: 'Describe the transition reason (e.g., "fixed bug", "ready for QA review")...',
+      },
     },
     // Search Issues fields
     {
@@ -305,6 +353,22 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       required: true,
       placeholder: 'Enter JQL query (e.g., project = PROJ AND status = "In Progress")',
       condition: { field: 'operation', value: 'search' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JQL (Jira Query Language) query based on the user's description.
+JQL syntax examples:
+- project = PROJ
+- status = "In Progress"
+- assignee = currentUser()
+- created >= -7d
+- priority = High AND status != Done
+- labels in (bug, urgent)
+
+Return ONLY the JQL query - no explanations or markdown formatting.`,
+        placeholder:
+          'Describe what you want to search for (e.g., "open bugs assigned to me", "high priority issues from last week")...',
+        generationType: 'sql-query',
+      },
     },
     {
       id: 'maxResults',
@@ -321,6 +385,18 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       required: true,
       placeholder: 'Enter comment text',
       condition: { field: 'operation', value: ['add_comment', 'update_comment'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Jira issue comment based on the user's description.
+The comment should:
+- Be professional and informative
+- Provide relevant updates or information
+- Be suitable for team collaboration
+
+Return ONLY the comment text - no explanations.`,
+        placeholder:
+          'Describe what you want to comment (e.g., "update on investigation", "requesting review")...',
+      },
     },
     {
       id: 'commentId',
@@ -361,6 +437,18 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'long-input',
       placeholder: 'Enter optional worklog comment',
       condition: { field: 'operation', value: ['add_worklog', 'update_worklog'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a worklog comment for Jira based on the user's description.
+The comment should:
+- Describe the work that was done
+- Be concise but informative
+- Be suitable for time tracking records
+
+Return ONLY the comment text - no explanations.`,
+        placeholder:
+          'Describe the work done (e.g., "implemented API endpoint", "fixed login bug")...',
+      },
     },
     {
       id: 'started',
@@ -368,6 +456,20 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'short-input',
       placeholder: 'ISO timestamp (defaults to now)',
       condition: { field: 'operation', value: ['add_worklog', 'update_worklog'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS.sssZ (UTC timezone).
+Examples:
+- "now" -> Current timestamp
+- "yesterday at 9am" -> Yesterday's date at 09:00:00.000Z
+- "last Monday at 2pm" -> Calculate last Monday at 14:00:00.000Z
+- "start of today" -> Today's date at 00:00:00.000Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe when the work started (e.g., "yesterday at 9am")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'worklogId',
@@ -408,6 +510,18 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'long-input',
       placeholder: 'Add optional comment for the link',
       condition: { field: 'operation', value: 'create_link' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comment for a Jira issue link based on the user's description.
+The comment should:
+- Explain why the issues are linked
+- Provide context for the relationship
+- Be concise and clear
+
+Return ONLY the comment text - no explanations.`,
+        placeholder:
+          'Describe the relationship (e.g., "blocks deployment", "related to refactoring effort")...',
+      },
     },
     {
       id: 'linkId',

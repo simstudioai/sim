@@ -189,6 +189,21 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
         field: 'operation',
         value: 'list_calls',
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date based on the user's description.
+The date should be in YYYY-MM-DD format.
+Examples:
+- "yesterday" -> Calculate yesterday's date
+- "last week" -> Calculate 7 days ago
+- "beginning of this month" -> First day of the current month (YYYY-MM-01)
+- "last Monday" -> Calculate the most recent Monday
+- "30 days ago" -> Calculate 30 days before today
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "last week", "beginning of month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'startTimeBefore',
@@ -198,6 +213,21 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       condition: {
         field: 'operation',
         value: 'list_calls',
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date based on the user's description.
+The date should be in YYYY-MM-DD format.
+Examples:
+- "today" -> Today's date
+- "end of this month" -> Last day of the current month
+- "next Friday" -> Calculate the upcoming Friday
+- "in 7 days" -> Calculate 7 days from today
+- "end of year" -> December 31st of the current year
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end date (e.g., "today", "end of month")...',
+        generationType: 'timestamp',
       },
     },
     {

@@ -911,7 +911,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       type,
       config.category,
       displayTriggerMode,
-      subBlockRows.length,
+      subBlockRows.reduce((acc, row) => acc + row.length, 0),
       conditionRows.length,
       routerRows.length,
       horizontalHandles,
