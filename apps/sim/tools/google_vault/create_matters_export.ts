@@ -36,6 +36,24 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
       visibility: 'user-only',
       description: 'Organization unit ID to scope export (alternative to emails)',
     },
+    startTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Start time for date filtering (ISO 8601 format, e.g., 2024-01-01T00:00:00Z)',
+    },
+    endTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'End time for date filtering (ISO 8601 format, e.g., 2024-12-31T23:59:59Z)',
+    },
+    terms: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Search query terms to filter exported content',
+    },
   },
 
   request: {
@@ -75,7 +93,6 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
         terms: params.terms || undefined,
         startTime: params.startTime || undefined,
         endTime: params.endTime || undefined,
-        timeZone: params.timeZone || undefined,
         ...scope,
       }
 

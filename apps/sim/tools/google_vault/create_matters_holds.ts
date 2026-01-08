@@ -36,6 +36,32 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
       visibility: 'user-only',
       description: 'Organization unit ID to put on hold (alternative to accounts)',
     },
+    // Query parameters for MAIL and GROUPS corpus (date filtering)
+    terms: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Search terms to filter held content (for MAIL and GROUPS corpus)',
+    },
+    startTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Start time for date filtering (ISO 8601 format, for MAIL and GROUPS corpus)',
+    },
+    endTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'End time for date filtering (ISO 8601 format, for MAIL and GROUPS corpus)',
+    },
+    // Drive-specific option
+    includeSharedDrives: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Include files in shared drives (for DRIVE corpus)',
+    },
   },
 
   request: {
@@ -70,6 +96,25 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
         body.accounts = emails.map((email: string) => ({ email }))
       } else if (params.orgUnitId) {
         body.orgUnit = { orgUnitId: params.orgUnitId }
+      }
+
+      // Build corpus-specific query for date filtering
+      if (params.corpus === 'MAIL' || params.corpus === 'GROUPS') {
+        const hasQueryParams = params.terms || params.startTime || params.endTime
+        if (hasQueryParams) {
+          const queryObj: any = {}
+          if (params.terms) queryObj.terms = params.terms
+          if (params.startTime) queryObj.startTime = params.startTime
+          if (params.endTime) queryObj.endTime = params.endTime
+
+          if (params.corpus === 'MAIL') {
+            body.query = { mailQuery: queryObj }
+          } else {
+            body.query = { groupsQuery: queryObj }
+          }
+        }
+      } else if (params.corpus === 'DRIVE' && params.includeSharedDrives) {
+        body.query = { driveQuery: { includeSharedDriveFiles: params.includeSharedDrives } }
       }
 
       return body

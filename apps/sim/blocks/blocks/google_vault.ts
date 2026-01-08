@@ -159,6 +159,90 @@ Return ONLY the hold name - no explanations, no quotes, no extra text.`,
       placeholder: 'Org Unit ID (alternative to emails)',
       condition: { field: 'operation', value: ['create_matters_holds', 'create_matters_export'] },
     },
+    // Date filtering for exports and holds (holds only support MAIL and GROUPS corpus)
+    {
+      id: 'startTime',
+      title: 'Start Time',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
+      condition: { field: 'operation', value: ['create_matters_export', 'create_matters_holds'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp in GMT based on the user's description for Google Vault date filtering.
+The timestamp should be in the format: YYYY-MM-DDTHH:mm:ssZ (UTC timezone).
+Note: Google Vault rounds times to 12 AM on the specified date.
+Examples:
+- "yesterday" -> Calculate yesterday's date at 00:00:00Z
+- "last week" -> Calculate 7 days ago at 00:00:00Z
+- "beginning of this month" -> Calculate the 1st of current month at 00:00:00Z
+- "January 1, 2024" -> 2024-01-01T00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "last month", "January 1, 2024")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'endTime',
+      title: 'End Time',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
+      condition: { field: 'operation', value: ['create_matters_export', 'create_matters_holds'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp in GMT based on the user's description for Google Vault date filtering.
+The timestamp should be in the format: YYYY-MM-DDTHH:mm:ssZ (UTC timezone).
+Note: Google Vault rounds times to 12 AM on the specified date.
+Examples:
+- "now" -> Current timestamp
+- "today" -> Today's date at 23:59:59Z
+- "end of last month" -> Last day of previous month at 23:59:59Z
+- "December 31, 2024" -> 2024-12-31T23:59:59Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end date (e.g., "today", "end of last quarter")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'terms',
+      title: 'Search Terms',
+      type: 'long-input',
+      placeholder: 'Enter search query (e.g., from:user@example.com subject:confidential)',
+      condition: { field: 'operation', value: ['create_matters_export', 'create_matters_holds'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Google Vault search query based on the user's description.
+The query can use Gmail-style search operators for MAIL corpus:
+- from:user@example.com - emails from specific sender
+- to:user@example.com - emails to specific recipient  
+- subject:keyword - emails with keyword in subject
+- has:attachment - emails with attachments
+- filename:pdf - emails with PDF attachments
+- before:YYYY/MM/DD - emails before date
+- after:YYYY/MM/DD - emails after date
+
+For DRIVE corpus, use Drive search operators:
+- owner:user@example.com - files owned by user
+- type:document - specific file types
+
+For holds, date filtering only works with MAIL and GROUPS corpus.
+
+Return ONLY the search query - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe what content to search for...',
+      },
+    },
+    // Drive-specific option for holds
+    {
+      id: 'includeSharedDrives',
+      title: 'Include Shared Drives',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: 'create_matters_holds',
+        and: { field: 'corpus', value: 'DRIVE' },
+      },
+    },
     {
       id: 'exportId',
       title: 'Export ID',
@@ -296,9 +380,16 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
     corpus: { type: 'string', description: 'Data corpus (MAIL, DRIVE, GROUPS, etc.)' },
     accountEmails: { type: 'string', description: 'Comma-separated account emails' },
     orgUnitId: { type: 'string', description: 'Organization unit ID' },
+    startTime: { type: 'string', description: 'Start time for date filtering (ISO 8601 format)' },
+    endTime: { type: 'string', description: 'End time for date filtering (ISO 8601 format)' },
+    terms: { type: 'string', description: 'Search query terms' },
 
     // Create hold inputs
     holdName: { type: 'string', description: 'Name for the hold' },
+    includeSharedDrives: {
+      type: 'boolean',
+      description: 'Include files in shared drives (for DRIVE corpus holds)',
+    },
 
     // Download export file inputs
     bucketName: { type: 'string', description: 'GCS bucket name from export' },
