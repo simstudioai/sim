@@ -197,11 +197,12 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
   const { filterBlocks } = usePermissionConfig()
 
   // Get static data (computed once and cached)
-  const triggers = getTriggers()
+  const allTriggers = getTriggers()
   const allBlocks = getBlocks()
 
-  // Apply permission-based filtering to blocks
+  // Apply permission-based filtering to blocks and triggers
   const blocks = useMemo(() => filterBlocks(allBlocks), [filterBlocks, allBlocks])
+  const triggers = useMemo(() => filterBlocks(allTriggers), [filterBlocks, allTriggers])
 
   // Determine if triggers are at minimum height (blocks are fully expanded)
   const isTriggersAtMinimum = toolbarTriggersHeight <= TRIGGERS_MIN_THRESHOLD

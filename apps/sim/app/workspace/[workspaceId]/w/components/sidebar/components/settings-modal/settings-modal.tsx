@@ -61,6 +61,7 @@ import { generalSettingsKeys, useGeneralSettings } from '@/hooks/queries/general
 import { organizationKeys, useOrganizations } from '@/hooks/queries/organization'
 import { ssoKeys, useSSOProviders } from '@/hooks/queries/sso'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsModalStore } from '@/stores/settings-modal/store'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
@@ -187,6 +188,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders()
 
   const activeOrganization = organizationsData?.activeOrganization
+  const { config: permissionConfig } = usePermissionConfig()
   const environmentBeforeLeaveHandler = useRef<((onProceed: () => void) => void) | null>(null)
   const integrationsCloseHandler = useRef<((open: boolean) => void) | null>(null)
 
@@ -211,6 +213,26 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const navigationItems = useMemo(() => {
     return allNavigationItems.filter((item) => {
       if (item.hideWhenBillingDisabled && !isBillingEnabled) {
+        return false
+      }
+
+      // Permission group-based filtering
+      if (item.id === 'template-profile' && permissionConfig.hideTemplates) {
+        return false
+      }
+      if (item.id === 'apikeys' && permissionConfig.hideApiKeysTab) {
+        return false
+      }
+      if (item.id === 'environment' && permissionConfig.hideEnvironmentTab) {
+        return false
+      }
+      if (item.id === 'files' && permissionConfig.hideFilesTab) {
+        return false
+      }
+      if (item.id === 'mcp' && permissionConfig.disableMcpTools) {
+        return false
+      }
+      if (item.id === 'custom-tools' && permissionConfig.disableCustomTools) {
         return false
       }
 
@@ -262,6 +284,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     userRole,
     subscriptionStatus.isTeam,
     subscriptionStatus.isEnterprise,
+    permissionConfig,
   ])
 
   // Memoized callbacks to prevent infinite loops in child components

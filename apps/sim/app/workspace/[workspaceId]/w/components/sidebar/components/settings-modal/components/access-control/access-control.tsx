@@ -106,9 +106,33 @@ export function AccessControl() {
   const [editingConfig, setEditingConfig] = useState<PermissionGroupConfig | null>(null)
   const [showAddMembersModal, setShowAddMembersModal] = useState(false)
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set())
+  const [providerSearchTerm, setProviderSearchTerm] = useState('')
+  const [integrationSearchTerm, setIntegrationSearchTerm] = useState('')
 
-  const allBlocks = useMemo(() => getAllBlocks().filter((b) => !b.hideFromToolbar), [])
+  const allBlocks = useMemo(() => {
+    const blocks = getAllBlocks().filter((b) => !b.hideFromToolbar)
+    return blocks.sort((a, b) => {
+      // Group by category: triggers first, then blocks, then tools
+      const categoryOrder = { triggers: 0, blocks: 1, tools: 2 }
+      const catA = categoryOrder[a.category] ?? 3
+      const catB = categoryOrder[b.category] ?? 3
+      if (catA !== catB) return catA - catB
+      return a.name.localeCompare(b.name)
+    })
+  }, [])
   const allProviderIds = useMemo(() => getAllProviderIds(), [])
+
+  const filteredProviders = useMemo(() => {
+    if (!providerSearchTerm.trim()) return allProviderIds
+    const query = providerSearchTerm.toLowerCase()
+    return allProviderIds.filter((id) => id.toLowerCase().includes(query))
+  }, [allProviderIds, providerSearchTerm])
+
+  const filteredBlocks = useMemo(() => {
+    if (!integrationSearchTerm.trim()) return allBlocks
+    const query = integrationSearchTerm.toLowerCase()
+    return allBlocks.filter((b) => b.name.toLowerCase().includes(query))
+  }, [allBlocks, integrationSearchTerm])
 
   const orgMembers = useMemo(() => {
     return organization?.members || []
@@ -132,10 +156,6 @@ export function AccessControl() {
       setShowCreateModal(false)
       setNewGroupName('')
       setNewGroupDescription('')
-
-      if (result?.permissionGroup) {
-        setViewingGroup(result.permissionGroup)
-      }
     } catch (error) {
       logger.error('Failed to create permission group', error)
       if (error instanceof Error) {
@@ -215,6 +235,8 @@ export function AccessControl() {
       })
       setShowConfigModal(false)
       setEditingConfig(null)
+      setProviderSearchTerm('')
+      setIntegrationSearchTerm('')
       setViewingGroup((prev) => (prev ? { ...prev, config: editingConfig } : null))
     } catch (error) {
       logger.error('Failed to update config', error)
@@ -439,33 +461,46 @@ export function AccessControl() {
         </div>
 
         <Modal open={showConfigModal} onOpenChange={setShowConfigModal}>
-          <ModalContent className='max-h-[80vh] w-[600px]'>
+          <ModalContent size='xl' className='max-h-[80vh]'>
             <ModalHeader>Configure Permissions</ModalHeader>
             <ModalBody className='max-h-[60vh] overflow-y-auto'>
               <div className='flex flex-col gap-[20px]'>
-                <div className='flex items-center gap-[12px]'>
-                  <Checkbox
-                    id='hide-trace-spans'
-                    checked={editingConfig?.hideTraceSpans ?? false}
-                    onCheckedChange={(checked) =>
-                      setEditingConfig((prev) =>
-                        prev ? { ...prev, hideTraceSpans: checked === true } : prev
-                      )
-                    }
-                  />
-                  <Label htmlFor='hide-trace-spans' className='cursor-pointer'>
-                    Hide trace spans in logs (nerfed logs view)
-                  </Label>
-                </div>
-
                 <div className='flex flex-col gap-[8px]'>
-                  <Label>Allowed Model Providers</Label>
+                  <div className='flex items-center justify-between'>
+                    <Label>Allowed Model Providers</Label>
+                    <button
+                      type='button'
+                      onClick={() => {
+                        const allAllowed =
+                          editingConfig?.allowedModelProviders === null ||
+                          editingConfig?.allowedModelProviders?.length === allProviderIds.length
+                        setEditingConfig((prev) =>
+                          prev ? { ...prev, allowedModelProviders: allAllowed ? [] : null } : prev
+                        )
+                      }}
+                      className='text-[12px] text-[var(--accent)] hover:underline'
+                    >
+                      {editingConfig?.allowedModelProviders === null ||
+                      editingConfig?.allowedModelProviders?.length === allProviderIds.length
+                        ? 'Deselect All'
+                        : 'Select All'}
+                    </button>
+                  </div>
                   <p className='text-[12px] text-[var(--text-muted)]'>
                     Select which model providers are available in agent dropdowns. All are allowed
                     by default.
                   </p>
+                  <div className='flex items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px]'>
+                    <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                    <BaseInput
+                      placeholder='Search providers...'
+                      value={providerSearchTerm}
+                      onChange={(e) => setProviderSearchTerm(e.target.value)}
+                      className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-[13px] leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                    />
+                  </div>
                   <div className='grid grid-cols-3 gap-[8px]'>
-                    {allProviderIds.map((providerId) => (
+                    {filteredProviders.map((providerId) => (
                       <button
                         key={providerId}
                         type='button'
@@ -487,13 +522,41 @@ export function AccessControl() {
                 </div>
 
                 <div className='flex flex-col gap-[8px]'>
-                  <Label>Allowed Integrations</Label>
+                  <div className='flex items-center justify-between'>
+                    <Label>Allowed Integrations</Label>
+                    <button
+                      type='button'
+                      onClick={() => {
+                        const allAllowed =
+                          editingConfig?.allowedIntegrations === null ||
+                          editingConfig?.allowedIntegrations?.length === allBlocks.length
+                        setEditingConfig((prev) =>
+                          prev ? { ...prev, allowedIntegrations: allAllowed ? [] : null } : prev
+                        )
+                      }}
+                      className='text-[12px] text-[var(--accent)] hover:underline'
+                    >
+                      {editingConfig?.allowedIntegrations === null ||
+                      editingConfig?.allowedIntegrations?.length === allBlocks.length
+                        ? 'Deselect All'
+                        : 'Select All'}
+                    </button>
+                  </div>
                   <p className='text-[12px] text-[var(--text-muted)]'>
                     Select which integrations are visible in the toolbar. All are visible by
                     default.
                   </p>
+                  <div className='flex items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px]'>
+                    <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                    <BaseInput
+                      placeholder='Search integrations...'
+                      value={integrationSearchTerm}
+                      onChange={(e) => setIntegrationSearchTerm(e.target.value)}
+                      className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-[13px] leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                    />
+                  </div>
                   <div className='grid max-h-[200px] grid-cols-3 gap-[8px] overflow-y-auto'>
-                    {allBlocks.map((block) => (
+                    {filteredBlocks.map((block) => (
                       <button
                         key={block.type}
                         type='button'
@@ -513,10 +576,269 @@ export function AccessControl() {
                     ))}
                   </div>
                 </div>
+
+                <div className='flex flex-col gap-[8px]'>
+                  <div className='flex items-center justify-between'>
+                    <Label>Platform Configuration</Label>
+                    <button
+                      type='button'
+                      onClick={() => {
+                        const allVisible =
+                          !editingConfig?.hideKnowledgeBaseTab &&
+                          !editingConfig?.hideTemplates &&
+                          !editingConfig?.hideCopilot &&
+                          !editingConfig?.hideApiKeysTab &&
+                          !editingConfig?.hideEnvironmentTab &&
+                          !editingConfig?.hideFilesTab &&
+                          !editingConfig?.disableMcpTools &&
+                          !editingConfig?.disableCustomTools &&
+                          !editingConfig?.hideTraceSpans
+                        setEditingConfig((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                hideKnowledgeBaseTab: allVisible,
+                                hideTemplates: allVisible,
+                                hideCopilot: allVisible,
+                                hideApiKeysTab: allVisible,
+                                hideEnvironmentTab: allVisible,
+                                hideFilesTab: allVisible,
+                                disableMcpTools: allVisible,
+                                disableCustomTools: allVisible,
+                                hideTraceSpans: allVisible,
+                              }
+                            : prev
+                        )
+                      }}
+                      className='text-[12px] text-[var(--accent)] hover:underline'
+                    >
+                      {!editingConfig?.hideKnowledgeBaseTab &&
+                      !editingConfig?.hideTemplates &&
+                      !editingConfig?.hideCopilot &&
+                      !editingConfig?.hideApiKeysTab &&
+                      !editingConfig?.hideEnvironmentTab &&
+                      !editingConfig?.hideFilesTab &&
+                      !editingConfig?.disableMcpTools &&
+                      !editingConfig?.disableCustomTools &&
+                      !editingConfig?.hideTraceSpans
+                        ? 'Deselect All'
+                        : 'Select All'}
+                    </button>
+                  </div>
+                  <p className='text-[12px] text-[var(--text-muted)]'>
+                    Checked features are visible. Uncheck to hide.
+                  </p>
+                  <div className='flex flex-col gap-[16px] rounded-[8px] border border-[var(--border)] p-[12px]'>
+                    {/* Sidebar */}
+                    <div className='flex flex-col gap-[8px]'>
+                      <span className='text-[11px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]'>
+                        Sidebar
+                      </span>
+                      <div className='flex flex-col gap-[8px] pl-[2px]'>
+                        <div className='flex items-center gap-[12px]'>
+                          <Checkbox
+                            id='hide-knowledge-base'
+                            checked={!editingConfig?.hideKnowledgeBaseTab}
+                            onCheckedChange={(checked) =>
+                              setEditingConfig((prev) =>
+                                prev ? { ...prev, hideKnowledgeBaseTab: checked !== true } : prev
+                              )
+                            }
+                          />
+                          <Label
+                            htmlFor='hide-knowledge-base'
+                            className='cursor-pointer text-[13px] font-normal'
+                          >
+                            Knowledge Base
+                          </Label>
+                        </div>
+                        <div className='flex items-center gap-[12px]'>
+                          <Checkbox
+                            id='hide-templates'
+                            checked={!editingConfig?.hideTemplates}
+                            onCheckedChange={(checked) =>
+                              setEditingConfig((prev) =>
+                                prev ? { ...prev, hideTemplates: checked !== true } : prev
+                              )
+                            }
+                          />
+                          <Label
+                            htmlFor='hide-templates'
+                            className='cursor-pointer text-[13px] font-normal'
+                          >
+                            Templates
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Workflow Panel */}
+                    <div className='flex flex-col gap-[8px]'>
+                      <span className='text-[11px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]'>
+                        Workflow Panel
+                      </span>
+                      <div className='flex flex-col gap-[8px] pl-[2px]'>
+                        <div className='flex items-center gap-[12px]'>
+                          <Checkbox
+                            id='hide-copilot'
+                            checked={!editingConfig?.hideCopilot}
+                            onCheckedChange={(checked) =>
+                              setEditingConfig((prev) =>
+                                prev ? { ...prev, hideCopilot: checked !== true } : prev
+                              )
+                            }
+                          />
+                          <Label
+                            htmlFor='hide-copilot'
+                            className='cursor-pointer text-[13px] font-normal'
+                          >
+                            Copilot
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Settings Tabs */}
+                    <div className='flex flex-col gap-[8px]'>
+                      <span className='text-[11px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]'>
+                        Settings Tabs
+                      </span>
+                      <div className='flex flex-col gap-[8px] pl-[2px]'>
+                        <div className='flex items-center gap-[12px]'>
+                          <Checkbox
+                            id='hide-api-keys'
+                            checked={!editingConfig?.hideApiKeysTab}
+                            onCheckedChange={(checked) =>
+                              setEditingConfig((prev) =>
+                                prev ? { ...prev, hideApiKeysTab: checked !== true } : prev
+                              )
+                            }
+                          />
+                          <Label
+                            htmlFor='hide-api-keys'
+                            className='cursor-pointer text-[13px] font-normal'
+                          >
+                            API Keys
+                          </Label>
+                        </div>
+                        <div className='flex items-center gap-[12px]'>
+                          <Checkbox
+                            id='hide-environment'
+                            checked={!editingConfig?.hideEnvironmentTab}
+                            onCheckedChange={(checked) =>
+                              setEditingConfig((prev) =>
+                                prev ? { ...prev, hideEnvironmentTab: checked !== true } : prev
+                              )
+                            }
+                          />
+                          <Label
+                            htmlFor='hide-environment'
+                            className='cursor-pointer text-[13px] font-normal'
+                          >
+                            Environment
+                          </Label>
+                        </div>
+                        <div className='flex items-center gap-[12px]'>
+                          <Checkbox
+                            id='hide-files'
+                            checked={!editingConfig?.hideFilesTab}
+                            onCheckedChange={(checked) =>
+                              setEditingConfig((prev) =>
+                                prev ? { ...prev, hideFilesTab: checked !== true } : prev
+                              )
+                            }
+                          />
+                          <Label
+                            htmlFor='hide-files'
+                            className='cursor-pointer text-[13px] font-normal'
+                          >
+                            Files
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tools */}
+                    <div className='flex flex-col gap-[8px]'>
+                      <span className='text-[11px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]'>
+                        Tools
+                      </span>
+                      <div className='flex flex-col gap-[8px] pl-[2px]'>
+                        <div className='flex items-center gap-[12px]'>
+                          <Checkbox
+                            id='disable-mcp'
+                            checked={!editingConfig?.disableMcpTools}
+                            onCheckedChange={(checked) =>
+                              setEditingConfig((prev) =>
+                                prev ? { ...prev, disableMcpTools: checked !== true } : prev
+                              )
+                            }
+                          />
+                          <Label
+                            htmlFor='disable-mcp'
+                            className='cursor-pointer text-[13px] font-normal'
+                          >
+                            MCP Tools
+                          </Label>
+                        </div>
+                        <div className='flex items-center gap-[12px]'>
+                          <Checkbox
+                            id='disable-custom-tools'
+                            checked={!editingConfig?.disableCustomTools}
+                            onCheckedChange={(checked) =>
+                              setEditingConfig((prev) =>
+                                prev ? { ...prev, disableCustomTools: checked !== true } : prev
+                              )
+                            }
+                          />
+                          <Label
+                            htmlFor='disable-custom-tools'
+                            className='cursor-pointer text-[13px] font-normal'
+                          >
+                            Custom Tools
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Logs */}
+                    <div className='flex flex-col gap-[8px]'>
+                      <span className='text-[11px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]'>
+                        Logs
+                      </span>
+                      <div className='flex flex-col gap-[8px] pl-[2px]'>
+                        <div className='flex items-center gap-[12px]'>
+                          <Checkbox
+                            id='hide-trace-spans'
+                            checked={!editingConfig?.hideTraceSpans}
+                            onCheckedChange={(checked) =>
+                              setEditingConfig((prev) =>
+                                prev ? { ...prev, hideTraceSpans: checked !== true } : prev
+                              )
+                            }
+                          />
+                          <Label
+                            htmlFor='hide-trace-spans'
+                            className='cursor-pointer text-[13px] font-normal'
+                          >
+                            Trace spans
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </ModalBody>
             <ModalFooter>
-              <Button variant='default' onClick={() => setShowConfigModal(false)}>
+              <Button
+                variant='default'
+                onClick={() => {
+                  setShowConfigModal(false)
+                  setProviderSearchTerm('')
+                  setIntegrationSearchTerm('')
+                }}
+              >
                 Cancel
               </Button>
               <Button
