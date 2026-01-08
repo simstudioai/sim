@@ -119,12 +119,12 @@ export async function POST(req: NextRequest) {
     logger.info(`[${requestId}] Creating workflow ${workflowId} for user ${session.user.id}`)
 
     import('@/lib/core/telemetry')
-      .then(({ trackPlatformEvent }) => {
-        trackPlatformEvent('platform.workflow.created', {
-          'workflow.id': workflowId,
-          'workflow.name': name,
-          'workflow.has_workspace': !!workspaceId,
-          'workflow.has_folder': !!folderId,
+      .then(({ PlatformEvents }) => {
+        PlatformEvents.workflowCreated({
+          workflowId,
+          name,
+          workspaceId: workspaceId || undefined,
+          folderId: folderId || undefined,
         })
       })
       .catch(() => {

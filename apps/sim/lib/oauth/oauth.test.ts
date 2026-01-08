@@ -1,8 +1,8 @@
-import { createMockFetch, loggerMock } from '@sim/testing'
+import { createEnvMock, createMockFetch, loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: {
+vi.mock('@/lib/core/config/env', () =>
+  createEnvMock({
     GOOGLE_CLIENT_ID: 'google_client_id',
     GOOGLE_CLIENT_SECRET: 'google_client_secret',
     GITHUB_CLIENT_ID: 'github_client_id',
@@ -49,8 +49,8 @@ vi.mock('@/lib/core/config/env', () => ({
     WORDPRESS_CLIENT_SECRET: 'wordpress_client_secret',
     SPOTIFY_CLIENT_ID: 'spotify_client_id',
     SPOTIFY_CLIENT_SECRET: 'spotify_client_secret',
-  },
-}))
+  })
+)
 
 vi.mock('@sim/logger', () => loggerMock)
 

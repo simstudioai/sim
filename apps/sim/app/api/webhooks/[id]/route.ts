@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { validateInteger } from '@/lib/core/security/input-validation'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -314,6 +315,17 @@ export async function DELETE(
         await db.delete(webhook).where(eq(webhook.id, wId))
       }
 
+      try {
+        for (const wId of idsToDelete) {
+          PlatformEvents.webhookDeleted({
+            webhookId: wId,
+            workflowId: webhookData.workflow.id,
+          })
+        }
+      } catch {
+        // Telemetry should not fail the operation
+      }
+
       logger.info(
         `[${requestId}] Successfully deleted ${idsToDelete.length} webhooks for credential set`,
         {
@@ -325,6 +337,16 @@ export async function DELETE(
     } else {
       await cleanupExternalWebhook(foundWebhook, webhookData.workflow, requestId)
       await db.delete(webhook).where(eq(webhook.id, id))
+
+      try {
+        PlatformEvents.webhookDeleted({
+          webhookId: id,
+          workflowId: webhookData.workflow.id,
+        })
+      } catch {
+        // Telemetry should not fail the operation
+      }
+
       logger.info(`[${requestId}] Successfully deleted webhook: ${id}`)
     }
 

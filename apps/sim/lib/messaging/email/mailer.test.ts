@@ -1,3 +1,4 @@
+import { createEnvMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 /**
@@ -44,15 +45,15 @@ vi.mock('@/lib/messaging/email/unsubscribe', () => ({
 }))
 
 // Mock env with valid API keys so the clients get initialized
-vi.mock('@/lib/core/config/env', () => ({
-  env: {
+vi.mock('@/lib/core/config/env', () =>
+  createEnvMock({
     RESEND_API_KEY: 'test-api-key',
     AZURE_ACS_CONNECTION_STRING: 'test-azure-connection-string',
     AZURE_COMMUNICATION_EMAIL_DOMAIN: 'test.azurecomm.net',
     NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
     FROM_EMAIL_ADDRESS: 'Sim <noreply@sim.ai>',
-  },
-}))
+  })
+)
 
 // Mock URL utilities
 vi.mock('@/lib/core/utils/urls', () => ({

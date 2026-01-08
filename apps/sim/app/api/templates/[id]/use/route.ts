@@ -168,18 +168,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       `[${requestId}] Successfully used template: ${id}, created workflow: ${newWorkflowId}`
     )
 
-    // Track template usage
     try {
-      const { trackPlatformEvent } = await import('@/lib/core/telemetry')
+      const { PlatformEvents } = await import('@/lib/core/telemetry')
       const templateState = templateData.state as any
-      trackPlatformEvent('platform.template.used', {
-        'template.id': id,
-        'template.name': templateData.name,
-        'workflow.created_id': newWorkflowId,
-        'workflow.blocks_count': templateState?.blocks
-          ? Object.keys(templateState.blocks).length
-          : 0,
-        'workspace.id': workspaceId,
+      PlatformEvents.templateUsed({
+        templateId: id,
+        templateName: templateData.name,
+        newWorkflowId,
+        blocksCount: templateState?.blocks ? Object.keys(templateState.blocks).length : 0,
+        workspaceId,
       })
     } catch (_e) {
       // Silently fail

@@ -5,6 +5,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -789,6 +790,19 @@ export async function POST(request: NextRequest) {
       }
     }
     // --- End Grain specific logic ---
+
+    if (!targetWebhookId && savedWebhook) {
+      try {
+        PlatformEvents.webhookCreated({
+          webhookId: savedWebhook.id,
+          workflowId: workflowId,
+          provider: provider || 'generic',
+          workspaceId: workflowRecord.workspaceId || undefined,
+        })
+      } catch {
+        // Telemetry should not fail the operation
+      }
+    }
 
     const status = targetWebhookId ? 200 : 201
     return NextResponse.json({ webhook: savedWebhook }, { status })

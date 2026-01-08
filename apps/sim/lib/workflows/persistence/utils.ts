@@ -565,10 +565,9 @@ export async function deployWorkflow(params: {
 
     logger.info(`Deployed workflow ${workflowId} as v${deployedVersion}`)
 
-    // Track deployment telemetry if workflow name is provided
     if (workflowName) {
       try {
-        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
+        const { PlatformEvents } = await import('@/lib/core/telemetry')
 
         const blockTypeCounts: Record<string, number> = {}
         for (const block of Object.values(currentState.blocks)) {
@@ -576,15 +575,15 @@ export async function deployWorkflow(params: {
           blockTypeCounts[blockType] = (blockTypeCounts[blockType] || 0) + 1
         }
 
-        trackPlatformEvent('platform.workflow.deployed', {
-          'workflow.id': workflowId,
-          'workflow.name': workflowName,
-          'workflow.blocks_count': Object.keys(currentState.blocks).length,
-          'workflow.edges_count': currentState.edges.length,
-          'workflow.loops_count': Object.keys(currentState.loops).length,
-          'workflow.parallels_count': Object.keys(currentState.parallels).length,
-          'workflow.block_types': JSON.stringify(blockTypeCounts),
-          'deployment.version': deployedVersion,
+        PlatformEvents.workflowDeployed({
+          workflowId,
+          workflowName,
+          blocksCount: Object.keys(currentState.blocks).length,
+          edgesCount: currentState.edges.length,
+          version: deployedVersion,
+          loopsCount: Object.keys(currentState.loops).length,
+          parallelsCount: Object.keys(currentState.parallels).length,
+          blockTypes: JSON.stringify(blockTypeCounts),
         })
       } catch (telemetryError) {
         logger.warn(`Failed to track deployment telemetry for ${workflowId}`, telemetryError)

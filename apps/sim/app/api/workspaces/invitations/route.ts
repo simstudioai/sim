@@ -14,6 +14,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { WorkspaceInvitationEmail } from '@/components/emails'
 import { getSession } from '@/lib/auth'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
@@ -81,7 +82,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Workspace ID and email are required' }, { status: 400 })
     }
 
-    // Validate permission type
     const validPermissions: PermissionType[] = ['admin', 'write', 'read']
     if (!validPermissions.includes(permission)) {
       return NextResponse.json(
@@ -90,7 +90,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Check if user has admin permissions for this workspace
     const userPermission = await db
       .select()
       .from(permissions)
@@ -111,7 +110,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Get the workspace details for the email
     const workspaceDetails = await db
       .select()
       .from(workspace)
@@ -122,8 +120,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
-    // Check if the user is already a member
-    // First find if a user with this email exists
     const existingUser = await db
       .select()
       .from(user)
@@ -131,7 +127,6 @@ export async function POST(req: NextRequest) {
       .then((rows) => rows[0])
 
     if (existingUser) {
-      // Check if the user already has permissions for this workspace
       const existingPermission = await db
         .select()
         .from(permissions)
@@ -155,7 +150,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Check if there's already a pending invitation
     const existingInvitation = await db
       .select()
       .from(workspaceInvitation)
@@ -178,12 +172,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Generate a unique token and set expiry date (1 week from now)
     const token = randomUUID()
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7) // 7 days expiry
 
-    // Create the invitation
     const invitationData = {
       id: randomUUID(),
       workspaceId,
@@ -198,10 +190,19 @@ export async function POST(req: NextRequest) {
       updatedAt: new Date(),
     }
 
-    // Create invitation
     await db.insert(workspaceInvitation).values(invitationData)
 
-    // Send the invitation email
+    try {
+      PlatformEvents.workspaceMemberInvited({
+        workspaceId,
+        invitedBy: session.user.id,
+        inviteeEmail: email,
+        role: permission,
+      })
+    } catch {
+      // Telemetry should not fail the operation
+    }
+
     await sendInvitationEmail({
       to: email,
       inviterName: session.user.name || session.user.email || 'A user',
@@ -217,7 +218,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Helper function to send invitation email using the Resend API
 async function sendInvitationEmail({
   to,
   inviterName,
@@ -233,7 +233,6 @@ async function sendInvitationEmail({
 }) {
   try {
     const baseUrl = getBaseUrl()
-    // Use invitation ID in path, token in query parameter for security
     const invitationLink = `${baseUrl}/invite/${invitationId}?token=${token}`
 
     const emailHtml = await render(
@@ -263,6 +262,5 @@ async function sendInvitationEmail({
     }
   } catch (error) {
     logger.error('Error sending invitation email:', error)
-    // Continue even if email fails - the invitation is still created
   }
 }
