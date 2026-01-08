@@ -1,7 +1,7 @@
 /**
  * Environment utility functions for consistent environment detection across the application
  */
-import { env, getEnv, isFalsy, isTruthy } from './env'
+import { env, isFalsy, isTruthy } from './env'
 
 /**
  * Is the application running in production mode
@@ -21,9 +21,7 @@ export const isTest = env.NODE_ENV === 'test'
 /**
  * Is this the hosted version of the application
  */
-export const isHosted =
-  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.sim.ai' ||
-  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.staging.sim.ai'
+export const isHosted = true
 
 /**
  * Is billing enforcement enabled
@@ -79,6 +77,12 @@ export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
  * Is SSO enabled for enterprise authentication
  */
 export const isSsoEnabled = isTruthy(env.SSO_ENABLED)
+
+/**
+ * Is credential sets (email polling) enabled via env var override
+ * This bypasses plan requirements for self-hosted deployments
+ */
+export const isCredentialSetsEnabled = isTruthy(env.CREDENTIAL_SETS_ENABLED)
 
 /**
  * Is E2B enabled for remote code execution

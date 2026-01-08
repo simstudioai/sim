@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
-import { account, webhook, workflow } from '@sim/db/schema'
+import { account, credentialSet, webhook, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { htmlToText } from 'html-to-text'
 import { nanoid } from 'nanoid'
+import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing'
 import { pollingIdempotency } from '@/lib/core/idempotency'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -192,12 +193,36 @@ export async function pollOutlookWebhooks() {
         const metadata = webhookData.providerConfig as any
         const credentialId: string | undefined = metadata?.credentialId
         const userId: string | undefined = metadata?.userId
+        const credentialSetId: string | undefined = metadata?.credentialSetId
 
         if (!credentialId && !userId) {
           logger.error(`[${requestId}] Missing credentialId and userId for webhook ${webhookId}`)
           await markWebhookFailed(webhookId)
           failureCount++
           return
+        }
+
+        if (credentialSetId) {
+          const [cs] = await db
+            .select({ organizationId: credentialSet.organizationId })
+            .from(credentialSet)
+            .where(eq(credentialSet.id, credentialSetId))
+            .limit(1)
+
+          if (cs?.organizationId) {
+            const hasAccess = await isOrganizationOnTeamOrEnterprisePlan(cs.organizationId)
+            if (!hasAccess) {
+              logger.error(
+                `[${requestId}] Polling Group plan restriction: Your current plan does not support Polling Groups. Upgrade to Team or Enterprise to use this feature.`,
+                {
+                  webhookId,
+                  credentialSetId,
+                  organizationId: cs.organizationId,
+                }
+              )
+              return
+            }
+          }
         }
 
         let accessToken: string | null = null

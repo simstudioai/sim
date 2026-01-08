@@ -10,9 +10,15 @@ export * from '@/lib/billing/core/subscription'
 export {
   getHighestPrioritySubscription as getActiveSubscription,
   getUserSubscriptionState as getSubscriptionState,
+  hasCredentialSetsAccess,
+  hasSSOAccess,
+  isEnterpriseOrgAdminOrOwner,
   isEnterprisePlan as hasEnterprisePlan,
+  isOrganizationOnTeamOrEnterprisePlan,
   isProPlan as hasProPlan,
+  isTeamOrgAdminOrOwner,
   isTeamPlan as hasTeamPlan,
+  isWorkspaceOnEnterprisePlan,
   sendPlanWelcomeEmail,
 } from '@/lib/billing/core/subscription'
 export * from '@/lib/billing/core/usage'
