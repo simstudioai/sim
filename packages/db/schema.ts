@@ -824,7 +824,7 @@ export const member = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => ({
-    userIdIdx: index('member_user_id_idx').on(table.userId),
+    userIdUnique: uniqueIndex('member_user_id_unique').on(table.userId), // Users can only belong to one org
     organizationIdIdx: index('member_organization_id_idx').on(table.organizationId),
   })
 )
