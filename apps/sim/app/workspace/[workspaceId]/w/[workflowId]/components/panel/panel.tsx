@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { ArrowUp, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
+  BubbleChatClose,
   BubbleChatPreview,
   Button,
   Copy,
@@ -427,7 +428,7 @@ export function Panel() {
                 variant={isChatOpen ? 'active' : 'default'}
                 onClick={() => setIsChatOpen(!isChatOpen)}
               >
-                <BubbleChatPreview />
+                {isChatOpen ? <BubbleChatClose /> : <BubbleChatPreview />}
               </Button>
             </div>
 

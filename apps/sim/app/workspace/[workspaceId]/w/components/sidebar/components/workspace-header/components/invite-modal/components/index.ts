@@ -1,4 +1,3 @@
-export * from './email-tag'
 export * from './permission-selector'
 export * from './permissions-table'
 export * from './permissions-table-skeleton'

@@ -2156,7 +2156,7 @@ export function ToolInput({
             >
               <div
                 className={cn(
-                  'flex items-center justify-between gap-[8px] bg-[var(--surface-4)] px-[8px] py-[6.5px]',
+                  'flex items-center justify-between gap-[8px] rounded-t-[4px] bg-[var(--surface-4)] px-[8px] py-[6.5px]',
                   (isCustomTool || hasToolBody) && 'cursor-pointer'
                 )}
                 onClick={() => {

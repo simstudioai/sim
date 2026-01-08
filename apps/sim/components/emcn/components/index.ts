@@ -107,6 +107,15 @@ export {
   TableHeader,
   TableRow,
 } from './table/table'
+export {
+  Tag,
+  TagInput,
+  type TagInputProps,
+  type TagItem,
+  type TagProps,
+  tagInputVariants,
+  tagVariants,
+} from './tag-input/tag-input'
 export { Textarea } from './textarea/textarea'
 export { TimePicker, type TimePickerProps, timePickerVariants } from './time-picker/time-picker'
 export { Tooltip } from './tooltip/tooltip'

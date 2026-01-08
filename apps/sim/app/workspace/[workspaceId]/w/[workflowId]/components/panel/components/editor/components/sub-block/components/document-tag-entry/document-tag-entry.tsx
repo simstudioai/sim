@@ -225,7 +225,7 @@ export function DocumentTagEntry({
    */
   const renderTagHeader = (tag: DocumentTag, index: number) => (
     <div
-      className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'
+      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-[10px] py-[5px]'
       onClick={() => toggleCollapse(tag.id)}
     >
       <div className='flex min-w-0 flex-1 items-center gap-[8px]'>

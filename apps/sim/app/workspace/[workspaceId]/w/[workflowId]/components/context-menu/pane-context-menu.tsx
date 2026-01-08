@@ -61,7 +61,7 @@ export function PaneContextMenu({
           }}
         >
           <span>Undo</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘Z</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘Z</span>
         </PopoverItem>
         <PopoverItem
           className='group'
@@ -72,7 +72,7 @@ export function PaneContextMenu({
           }}
         >
           <span>Redo</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘⇧Z</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘⇧Z</span>
         </PopoverItem>
 
         {/* Edit and creation actions */}
@@ -86,7 +86,7 @@ export function PaneContextMenu({
           }}
         >
           <span>Paste</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘V</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘V</span>
         </PopoverItem>
         <PopoverItem
           className='group'
@@ -97,7 +97,7 @@ export function PaneContextMenu({
           }}
         >
           <span>Add Block</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘K</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘K</span>
         </PopoverItem>
         <PopoverItem
           className='group'
@@ -108,7 +108,7 @@ export function PaneContextMenu({
           }}
         >
           <span>Auto-layout</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⇧L</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⇧L</span>
         </PopoverItem>
 
         {/* Navigation actions */}
@@ -121,7 +121,7 @@ export function PaneContextMenu({
           }}
         >
           <span>Open Logs</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘L</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘L</span>
         </PopoverItem>
         <PopoverItem
           onClick={() => {

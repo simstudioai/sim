@@ -1240,7 +1240,7 @@ export function Terminal() {
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
-                          <span>Clear console</span>
+                          <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
                         </Tooltip.Content>
                       </Tooltip.Root>
                     </>
@@ -1605,7 +1605,7 @@ export function Terminal() {
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content>
-                        <span>Clear console</span>
+                        <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}

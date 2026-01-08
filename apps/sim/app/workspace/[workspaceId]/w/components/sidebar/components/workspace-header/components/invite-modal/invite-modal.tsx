@@ -1,25 +1,25 @@
 'use client'
 
-import React, { type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import {
   Button,
-  Input,
   Label,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
+  TagInput,
+  type TagItem,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
-import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { API_ENDPOINTS } from '@/stores/constants'
 import type { PermissionType, UserPermissions } from './components'
-import { EmailTag, PermissionsTable } from './components'
+import { PermissionsTable } from './components'
 
 const logger = createLogger('InviteModal')
 
@@ -40,9 +40,7 @@ interface PendingInvitation {
 
 export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalProps) {
   const formRef = useRef<HTMLFormElement>(null)
-  const [inputValue, setInputValue] = useState('')
-  const [emails, setEmails] = useState<string[]>([])
-  const [invalidEmails, setInvalidEmails] = useState<string[]>([])
+  const [emailItems, setEmailItems] = useState<TagItem[]>([])
   const [userPermissions, setUserPermissions] = useState<UserPermissions[]>([])
   const [pendingInvitations, setPendingInvitations] = useState<UserPermissions[]>([])
   const [isPendingInvitationsLoading, setIsPendingInvitationsLoading] = useState(false)
@@ -79,7 +77,8 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
   } = useWorkspacePermissionsContext()
 
   const hasPendingChanges = Object.keys(existingUserPermissionChanges).length > 0
-  const hasNewInvites = emails.length > 0 || inputValue.trim()
+  const validEmails = emailItems.filter((item) => item.isValid).map((item) => item.value)
+  const hasNewInvites = validEmails.length > 0
 
   const fetchPendingInvitations = useCallback(async () => {
     if (!workspaceId) return
@@ -134,14 +133,13 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
       const validation = quickValidateEmail(normalized)
       const isValid = validation.isValid
 
-      if (emails.includes(normalized) || invalidEmails.includes(normalized)) {
+      if (emailItems.some((item) => item.value === normalized)) {
         return false
       }
 
       const hasPendingInvitation = pendingInvitations.some((inv) => inv.email === normalized)
       if (hasPendingInvitation) {
         setErrorMessage(`${normalized} already has a pending invitation`)
-        setInputValue('')
         return false
       }
 
@@ -150,51 +148,42 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
       )
       if (isExistingMember) {
         setErrorMessage(`${normalized} is already a member of this workspace`)
-        setInputValue('')
         return false
       }
 
       if (session?.user?.email && session.user.email.toLowerCase() === normalized) {
         setErrorMessage('You cannot invite yourself')
-        setInputValue('')
         return false
       }
 
-      if (!isValid) {
-        setInvalidEmails((prev) => [...prev, normalized])
-        setInputValue('')
-        return false
+      setEmailItems((prev) => [...prev, { value: normalized, isValid }])
+
+      if (isValid) {
+        setErrorMessage(null)
+        setUserPermissions((prev) => [
+          ...prev,
+          {
+            email: normalized,
+            permissionType: 'read',
+          },
+        ])
       }
 
-      setErrorMessage(null)
-      setEmails((prev) => [...prev, normalized])
-
-      setUserPermissions((prev) => [
-        ...prev,
-        {
-          email: normalized,
-          permissionType: 'read',
-        },
-      ])
-
-      setInputValue('')
-      return true
+      return isValid
     },
-    [emails, invalidEmails, pendingInvitations, workspacePermissions?.users, session?.user?.email]
+    [emailItems, pendingInvitations, workspacePermissions?.users, session?.user?.email]
   )
 
-  const removeEmail = useCallback(
-    (index: number) => {
-      const emailToRemove = emails[index]
-      setEmails((prev) => prev.filter((_, i) => i !== index))
-      setUserPermissions((prev) => prev.filter((user) => user.email !== emailToRemove))
+  const removeEmailItem = useCallback(
+    (_value: string, index: number, isValid?: boolean) => {
+      const itemToRemove = emailItems[index]
+      setEmailItems((prev) => prev.filter((_, i) => i !== index))
+      if (isValid ?? itemToRemove?.isValid) {
+        setUserPermissions((prev) => prev.filter((user) => user.email !== itemToRemove?.value))
+      }
     },
-    [emails]
+    [emailItems]
   )
-
-  const removeInvalidEmail = useCallback((index: number) => {
-    setInvalidEmails((prev) => prev.filter((_, i) => i !== index))
-  }, [])
 
   const handlePermissionChange = useCallback(
     (identifier: string, permissionType: PermissionType) => {
@@ -472,57 +461,15 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     [workspaceId, userPerms.canAdmin, resendCooldowns]
   )
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLInputElement>) => {
-      if (['Enter', ',', ' '].includes(e.key) && inputValue.trim()) {
-        e.preventDefault()
-        addEmail(inputValue)
-      }
-
-      if (e.key === 'Backspace' && !inputValue) {
-        if (invalidEmails.length > 0) {
-          removeInvalidEmail(invalidEmails.length - 1)
-        } else if (emails.length > 0) {
-          removeEmail(emails.length - 1)
-        }
-      }
-    },
-    [inputValue, addEmail, invalidEmails, emails, removeInvalidEmail, removeEmail]
-  )
-
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent<HTMLInputElement>) => {
-      e.preventDefault()
-      const pastedText = e.clipboardData.getData('text')
-      const pastedEmails = pastedText.split(/[\s,;]+/).filter(Boolean)
-
-      let addedCount = 0
-      pastedEmails.forEach((email) => {
-        if (addEmail(email)) {
-          addedCount++
-        }
-      })
-
-      if (addedCount === 0 && pastedEmails.length === 1) {
-        setInputValue(inputValue + pastedEmails[0])
-      }
-    },
-    [addEmail, inputValue]
-  )
-
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault()
-
-      if (inputValue.trim()) {
-        addEmail(inputValue)
-      }
 
       // Clear messages at start of submission
       setErrorMessage(null)
       setSuccessMessage(null)
 
-      if (emails.length === 0 || !workspaceId) {
+      if (validEmails.length === 0 || !workspaceId) {
         return
       }
 
@@ -532,7 +479,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         const failedInvites: string[] = []
 
         const results = await Promise.all(
-          emails.map(async (email) => {
+          validEmails.map(async (email) => {
             try {
               const userPermission = userPermissions.find((up) => up.email === email)
               const permissionType = userPermission?.permissionType || 'read'
@@ -553,9 +500,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               const data = await response.json()
 
               if (!response.ok) {
-                if (!invalidEmails.includes(email)) {
-                  failedInvites.push(email)
-                }
+                failedInvites.push(email)
 
                 if (data.error) {
                   setErrorMessage(data.error)
@@ -566,16 +511,14 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
 
               return true
             } catch {
-              if (!invalidEmails.includes(email)) {
-                failedInvites.push(email)
-              }
+              failedInvites.push(email)
               return false
             }
           })
         )
 
         const successCount = results.filter(Boolean).length
-        const successfulEmails = emails.filter((_, index) => results[index])
+        const successfulEmails = validEmails.filter((_, index) => results[index])
 
         if (successCount > 0) {
           if (successfulEmails.length > 0) {
@@ -605,17 +548,14 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
           }
 
           fetchPendingInvitations()
-          setInputValue('')
 
           if (failedInvites.length > 0) {
-            setEmails(failedInvites)
+            setEmailItems(failedInvites.map((email) => ({ value: email, isValid: true })))
             setUserPermissions((prev) => prev.filter((user) => failedInvites.includes(user.email)))
           } else {
-            setEmails([])
+            setEmailItems([])
             setUserPermissions([])
           }
-
-          setInvalidEmails([])
           setShowSent(true)
 
           setTimeout(() => {
@@ -631,23 +571,12 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         setIsSubmitting(false)
       }
     },
-    [
-      inputValue,
-      addEmail,
-      emails,
-      workspaceId,
-      userPermissions,
-      invalidEmails,
-      fetchPendingInvitations,
-      onOpenChange,
-    ]
+    [validEmails, workspaceId, userPermissions, fetchPendingInvitations]
   )
 
   const resetState = useCallback(() => {
     // Batch state updates using React's automatic batching in React 18+
-    setInputValue('')
-    setEmails([])
-    setInvalidEmails([])
+    setEmailItems([])
     setUserPermissions([])
     setPendingInvitations([])
     setIsPendingInvitationsLoading(false)
@@ -718,55 +647,21 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                   tabIndex={-1}
                   readOnly
                 />
-                <div className='scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[6px] py-[4px] focus-within:outline-none'>
-                  {invalidEmails.map((email, index) => (
-                    <EmailTag
-                      key={`invalid-${index}`}
-                      email={email}
-                      onRemove={() => removeInvalidEmail(index)}
-                      disabled={isSubmitting || !userPerms.canAdmin}
-                      isInvalid={true}
-                    />
-                  ))}
-                  {emails.map((email, index) => (
-                    <EmailTag
-                      key={`valid-${index}`}
-                      email={email}
-                      onRemove={() => removeEmail(index)}
-                      disabled={isSubmitting || !userPerms.canAdmin}
-                    />
-                  ))}
-                  <Input
-                    id='invite-field'
-                    name='invite_search_field'
-                    type='text'
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onPaste={handlePaste}
-                    onBlur={() => inputValue.trim() && addEmail(inputValue)}
-                    placeholder={
-                      !userPerms.canAdmin
-                        ? 'Only administrators can invite new members'
-                        : emails.length > 0 || invalidEmails.length > 0
-                          ? 'Add another email'
-                          : 'Enter emails'
-                    }
-                    className={cn(
-                      'h-6 min-w-[180px] flex-1 border-none bg-transparent p-0 text-[13px] focus-visible:ring-0 focus-visible:ring-offset-0',
-                      emails.length > 0 || invalidEmails.length > 0 ? 'pl-[4px]' : 'pl-[4px]'
-                    )}
-                    autoFocus={userPerms.canAdmin}
-                    disabled={isSubmitting || !userPerms.canAdmin}
-                    autoComplete='off'
-                    autoCorrect='off'
-                    autoCapitalize='off'
-                    spellCheck={false}
-                    data-lpignore='true'
-                    data-form-type='other'
-                    aria-autocomplete='none'
-                  />
-                </div>
+                <TagInput
+                  id='invite-field'
+                  name='invite_search_field'
+                  items={emailItems}
+                  onAdd={(value) => addEmail(value)}
+                  onRemove={removeEmailItem}
+                  placeholder={
+                    !userPerms.canAdmin
+                      ? 'Only administrators can invite new members'
+                      : 'Enter emails'
+                  }
+                  placeholderWithTags='Add email'
+                  autoFocus={userPerms.canAdmin}
+                  disabled={isSubmitting || !userPerms.canAdmin}
+                />
               </div>
               {errorMessage && (
                 <p className='mt-[4px] text-[12px] text-[var(--text-error)]'>{errorMessage}</p>

@@ -2,8 +2,17 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ChevronDown, ChevronRight, Eye, EyeOff, Loader2, X } from 'lucide-react'
-import { Badge, ButtonGroup, ButtonGroupItem, Input, Label, Textarea } from '@/components/emcn'
+import { ChevronDown, ChevronRight, Eye, EyeOff, Loader2 } from 'lucide-react'
+import {
+  Badge,
+  ButtonGroup,
+  ButtonGroupItem,
+  Input,
+  Label,
+  TagInput,
+  type TagItem,
+  Textarea,
+} from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { getEnv } from '@/lib/core/config/env'
 import { isDev } from '@/lib/core/config/feature-flags'
@@ -85,7 +94,7 @@ export function FormDeploy({
   )
   const [authType, setAuthType] = useState<'public' | 'password' | 'email'>('public')
   const [password, setPassword] = useState('')
-  const [allowedEmails, setAllowedEmails] = useState<string[]>([])
+  const [emailItems, setEmailItems] = useState<TagItem[]>([])
   const [existingForm, setExistingForm] = useState<ExistingForm | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [formUrl, setFormUrl] = useState('')
@@ -143,7 +152,9 @@ export function FormDeploy({
                   'Your response has been submitted successfully.'
               )
               setAuthType(form.authType)
-              setAllowedEmails(form.allowedEmails || [])
+              setEmailItems(
+                (form.allowedEmails || []).map((email) => ({ value: email, isValid: true }))
+              )
               if (form.customizations?.fieldConfigs) {
                 setFieldConfigs(form.customizations.fieldConfigs)
               }
@@ -210,6 +221,8 @@ export function FormDeploy({
     }
   }, [workflowId, fieldConfigs.length])
 
+  const allowedEmails = emailItems.filter((item) => item.isValid).map((item) => item.value)
+
   // Validate form
   useEffect(() => {
     const isValid =
@@ -225,7 +238,7 @@ export function FormDeploy({
     title,
     authType,
     password,
-    allowedEmails,
+    allowedEmails.length,
     existingForm?.hasPassword,
     onValidationChange,
     inputFields.length,
@@ -612,41 +625,27 @@ export function FormDeploy({
             <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
               Allowed emails
             </Label>
-            <div className='flex flex-wrap items-center gap-[4px] rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px]'>
-              {allowedEmails.map((email) => (
-                <div
-                  key={email}
-                  className='flex items-center gap-[4px] rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[6px] py-[2px] text-[12px]'
-                >
-                  <span>{email}</span>
-                  <button
-                    type='button'
-                    onClick={() => setAllowedEmails(allowedEmails.filter((e) => e !== email))}
-                    className='text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
-                  >
-                    <X className='h-[12px] w-[12px]' />
-                  </button>
-                </div>
-              ))}
-              <input
-                type='text'
-                placeholder={
-                  allowedEmails.length > 0 ? 'Add another' : 'Enter emails or @domain.com'
+            <TagInput
+              items={emailItems}
+              onAdd={(value) => {
+                const trimmed = value.trim().toLowerCase()
+                if (!trimmed || emailItems.some((item) => item.value === trimmed)) {
+                  return false
                 }
-                className='min-w-[150px] flex-1 border-none bg-transparent p-0 text-sm outline-none placeholder:text-[var(--text-muted)]'
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ',') {
-                    e.preventDefault()
-                    const value = (e.target as HTMLInputElement).value.trim()
-                    if (value && !allowedEmails.includes(value)) {
-                      setAllowedEmails([...allowedEmails, value])
-                      clearError('emails')
-                      ;(e.target as HTMLInputElement).value = ''
-                    }
-                  }
-                }}
-              />
-            </div>
+                const isDomainPattern = trimmed.startsWith('@')
+                const isValid = isDomainPattern || trimmed.includes('@')
+                setEmailItems((prev) => [...prev, { value: trimmed, isValid }])
+                if (isValid) {
+                  clearError('emails')
+                }
+                return isValid
+              }}
+              onRemove={(_value, index) => {
+                setEmailItems((prev) => prev.filter((_, i) => i !== index))
+              }}
+              placeholder='Enter emails or @domain.com'
+              placeholderWithTags='Add another'
+            />
             {errors.emails && (
               <p className='mt-[6.5px] text-[11px] text-[var(--text-error)]'>{errors.emails}</p>
             )}

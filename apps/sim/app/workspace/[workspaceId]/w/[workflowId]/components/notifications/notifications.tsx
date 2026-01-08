@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { X } from 'lucide-react'
-import { Button } from '@/components/emcn'
+import { Button, Tooltip } from '@/components/emcn'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
@@ -130,14 +130,21 @@ export const Notifications = memo(function Notifications() {
                   hasAction ? 'line-clamp-2' : 'line-clamp-4'
                 }`}
               >
-                <Button
-                  variant='ghost'
-                  onClick={() => removeNotification(notification.id)}
-                  aria-label='Dismiss notification'
-                  className='!p-1.5 -m-1.5 float-right ml-[16px]'
-                >
-                  <X className='h-3 w-3' />
-                </Button>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='ghost'
+                      onClick={() => removeNotification(notification.id)}
+                      aria-label='Dismiss notification'
+                      className='!p-1.5 -m-1.5 float-right ml-[16px]'
+                    >
+                      <X className='h-3 w-3' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>
+                    <Tooltip.Shortcut keys='⌘E'>Clear all</Tooltip.Shortcut>
+                  </Tooltip.Content>
+                </Tooltip.Root>
                 {notification.level === 'error' && (
                   <span className='mr-[6px] mb-[2.75px] inline-block h-[6px] w-[6px] rounded-[2px] bg-[var(--text-error)] align-middle' />
                 )}
