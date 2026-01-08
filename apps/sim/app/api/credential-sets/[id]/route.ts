@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { hasCredentialSetsAccess } from '@/lib/billing'
 
 const logger = createLogger('CredentialSet')
 
@@ -49,6 +50,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // Check plan access (team/enterprise) or env var override
+  const hasAccess = await hasCredentialSetsAccess(session.user.id)
+  if (!hasAccess) {
+    return NextResponse.json(
+      { error: 'Credential sets require a Team or Enterprise plan' },
+      { status: 403 }
+    )
+  }
+
   const { id } = await params
   const result = await getCredentialSetWithAccess(id, session.user.id)
 
@@ -64,6 +74,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Check plan access (team/enterprise) or env var override
+  const hasAccess = await hasCredentialSetsAccess(session.user.id)
+  if (!hasAccess) {
+    return NextResponse.json(
+      { error: 'Credential sets require a Team or Enterprise plan' },
+      { status: 403 }
+    )
   }
 
   const { id } = await params
@@ -127,6 +146,15 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Check plan access (team/enterprise) or env var override
+  const hasAccess = await hasCredentialSetsAccess(session.user.id)
+  if (!hasAccess) {
+    return NextResponse.json(
+      { error: 'Credential sets require a Team or Enterprise plan' },
+      { status: 403 }
+    )
   }
 
   const { id } = await params

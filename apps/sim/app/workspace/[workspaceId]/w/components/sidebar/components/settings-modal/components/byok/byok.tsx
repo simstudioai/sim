@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Eye, EyeOff } from 'lucide-react'
+import { Crown, Eye, EyeOff } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -81,7 +81,9 @@ export function BYOK() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
-  const { data: keys = [], isLoading } = useBYOKKeys(workspaceId)
+  const { data, isLoading } = useBYOKKeys(workspaceId)
+  const keys = data?.keys ?? []
+  const byokEnabled = data?.byokEnabled ?? true
   const upsertKey = useUpsertBYOKKey()
   const deleteKey = useDeleteBYOKKey()
 
@@ -94,6 +96,31 @@ export function BYOK() {
 
   const getKeyForProvider = (providerId: BYOKProviderId): BYOKKey | undefined => {
     return keys.find((k) => k.providerId === providerId)
+  }
+
+  // Show enterprise-only gate if BYOK is not enabled
+  if (!isLoading && !byokEnabled) {
+    return (
+      <div className='flex h-full flex-col items-center justify-center gap-[16px] py-[32px]'>
+        <div className='flex h-[48px] w-[48px] items-center justify-center rounded-full bg-[var(--surface-6)]'>
+          <Crown className='h-[24px] w-[24px] text-[var(--amber-9)]' />
+        </div>
+        <div className='flex flex-col items-center gap-[8px] text-center'>
+          <h3 className='font-medium text-[15px] text-[var(--text-primary)]'>Enterprise Feature</h3>
+          <p className='max-w-[320px] text-[13px] text-[var(--text-secondary)]'>
+            Bring Your Own Key (BYOK) is available exclusively on the Enterprise plan. Upgrade to
+            use your own API keys and eliminate the 2x cost multiplier.
+          </p>
+        </div>
+        <Button
+          variant='primary'
+          className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+          onClick={() => window.open('https://sim.ai/enterprise', '_blank')}
+        >
+          Contact Sales
+        </Button>
+      </div>
+    )
   }
 
   const handleSave = async () => {

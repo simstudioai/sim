@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getEmailSubject, renderPollingGroupInvitationEmail } from '@/components/emails'
 import { getSession } from '@/lib/auth'
+import { hasCredentialSetsAccess } from '@/lib/billing'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 
@@ -43,6 +44,15 @@ export async function POST(
 
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Check plan access (team/enterprise) or env var override
+  const hasAccess = await hasCredentialSetsAccess(session.user.id)
+  if (!hasAccess) {
+    return NextResponse.json(
+      { error: 'Credential sets require a Team or Enterprise plan' },
+      { status: 403 }
+    )
   }
 
   const { id, invitationId } = await params

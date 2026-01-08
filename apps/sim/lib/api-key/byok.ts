@@ -2,7 +2,12 @@ import { db } from '@sim/db'
 import { workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
+import { getRotatingApiKey } from '@/lib/core/config/api-keys'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { getHostedModels } from '@/providers/models'
+import { useProvidersStore } from '@/stores/providers/store'
 
 const logger = createLogger('BYOKKeys')
 
@@ -51,9 +56,6 @@ export async function getApiKeyWithBYOK(
   workspaceId: string | undefined | null,
   userProvidedKey?: string
 ): Promise<{ apiKey: string; isBYOK: boolean }> {
-  const { isHosted } = await import('@/lib/core/config/feature-flags')
-  const { useProvidersStore } = await import('@/stores/providers/store')
-
   const isOllamaModel =
     provider === 'ollama' || useProvidersStore.getState().providers.ollama.models.includes(model)
   if (isOllamaModel) {
@@ -83,23 +85,27 @@ export async function getApiKeyWithBYOK(
     workspaceId &&
     (isOpenAIModel || isClaudeModel || isGeminiModel || isMistralModel)
   ) {
-    const { getHostedModels } = await import('@/providers/models')
     const hostedModels = getHostedModels()
     const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())
 
     logger.debug('BYOK check', { provider, model, workspaceId, isHosted, isModelHosted })
 
     if (isModelHosted || isMistralModel) {
-      const byokResult = await getBYOKKey(workspaceId, byokProviderId)
-      if (byokResult) {
-        logger.info('Using BYOK key', { provider, model, workspaceId })
-        return byokResult
+      const hasEnterprise = await isWorkspaceOnEnterprisePlan(workspaceId)
+
+      if (hasEnterprise) {
+        const byokResult = await getBYOKKey(workspaceId, byokProviderId)
+        if (byokResult) {
+          logger.info('Using BYOK key', { provider, model, workspaceId })
+          return byokResult
+        }
+        logger.debug('No BYOK key found, falling back', { provider, model, workspaceId })
+      } else {
+        logger.debug('Workspace not on enterprise plan, skipping BYOK', { workspaceId })
       }
-      logger.debug('No BYOK key found, falling back', { provider, model, workspaceId })
 
       if (isModelHosted) {
         try {
-          const { getRotatingApiKey } = await import('@/lib/core/config/api-keys')
           const serverKey = getRotatingApiKey(isGeminiModel ? 'gemini' : provider)
           return { apiKey: serverKey, isBYOK: false }
         } catch (_error) {
