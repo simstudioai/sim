@@ -44,15 +44,14 @@ spec:
               cd /app/packages/db
               export DATABASE_URL="{{ include "sim.databaseUrl" . }}"
               bun run db:migrate
-          {{- if .Values.postgresql.enabled }}
           envFrom:
+            {{- if .Values.postgresql.enabled }}
             - secretRef:
-                name: {{ include "sim.fullname" . }}-postgresql-secret
-          {{- else if .Values.externalDatabase.enabled }}
-          envFrom:
+                name: {{ include "sim.postgresqlSecretName" . }}
+            {{- else if .Values.externalDatabase.enabled }}
             - secretRef:
-                name: {{ include "sim.fullname" . }}-external-db-secret
-          {{- end }}
+                name: {{ include "sim.externalDbSecretName" . }}
+            {{- end }}
           {{- include "sim.resources" .Values.migrations | nindent 10 }}
           {{- include "sim.securityContext" .Values.migrations | nindent 10 }}
       {{- end }}
@@ -89,15 +88,18 @@ spec:
             {{- with .Values.extraEnvVars }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- if .Values.postgresql.enabled }}
           envFrom:
+            # App secrets (authentication, encryption keys)
             - secretRef:
-                name: {{ include "sim.fullname" . }}-postgresql-secret
-          {{- else if .Values.externalDatabase.enabled }}
-          envFrom:
+                name: {{ include "sim.appSecretName" . }}
+            # Database secrets
+            {{- if .Values.postgresql.enabled }}
             - secretRef:
-                name: {{ include "sim.fullname" . }}-external-db-secret
-          {{- end }}
+                name: {{ include "sim.postgresqlSecretName" . }}
+            {{- else if .Values.externalDatabase.enabled }}
+            - secretRef:
+                name: {{ include "sim.externalDbSecretName" . }}
+            {{- end }}
           {{- if .Values.app.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.app.livenessProbe | nindent 12 }}

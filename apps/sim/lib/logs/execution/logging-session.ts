@@ -289,10 +289,12 @@ export class LoggingSession {
 
       this.completed = true
 
-      // Track workflow execution outcome
+      // Track workflow execution outcome and create trace spans
       if (traceSpans && traceSpans.length > 0) {
         try {
-          const { trackPlatformEvent } = await import('@/lib/core/telemetry')
+          const { trackPlatformEvent, createOTelSpansForWorkflowExecution } = await import(
+            '@/lib/core/telemetry'
+          )
 
           // Determine status from trace spans
           const hasErrors = traceSpans.some((span: any) => {
@@ -314,6 +316,20 @@ export class LoggingSession {
             'execution.blocks_executed': traceSpans.length,
             'execution.has_errors': hasErrors,
             'execution.total_cost': costSummary.totalCost || 0,
+          })
+
+          // Create OpenTelemetry trace spans for the workflow execution
+          const startTime = new Date(new Date(endTime).getTime() - duration).toISOString()
+          createOTelSpansForWorkflowExecution({
+            workflowId: this.workflowId,
+            workflowName: this.workflowState?.metadata?.name,
+            executionId: this.executionId,
+            traceSpans,
+            trigger: this.triggerType,
+            startTime,
+            endTime,
+            totalDurationMs: duration,
+            status: hasErrors ? 'error' : 'success',
           })
         } catch (_e) {
           // Silently fail
@@ -404,9 +420,11 @@ export class LoggingSession {
 
       this.completed = true
 
-      // Track workflow execution error outcome
+      // Track workflow execution error outcome and create trace spans
       try {
-        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
+        const { trackPlatformEvent, createOTelSpansForWorkflowExecution } = await import(
+          '@/lib/core/telemetry'
+        )
         trackPlatformEvent('platform.workflow.executed', {
           'workflow.id': this.workflowId,
           'execution.duration_ms': Math.max(1, durationMs),
@@ -415,6 +433,20 @@ export class LoggingSession {
           'execution.blocks_executed': spans.length,
           'execution.has_errors': true,
           'execution.error_message': message,
+        })
+
+        // Create OpenTelemetry trace spans for the workflow execution
+        createOTelSpansForWorkflowExecution({
+          workflowId: this.workflowId,
+          workflowName: this.workflowState?.metadata?.name,
+          executionId: this.executionId,
+          traceSpans: spans,
+          trigger: this.triggerType,
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+          totalDurationMs: Math.max(1, durationMs),
+          status: 'error',
+          error: message,
         })
       } catch (_e) {
         // Silently fail
@@ -477,7 +509,9 @@ export class LoggingSession {
       this.completed = true
 
       try {
-        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
+        const { trackPlatformEvent, createOTelSpansForWorkflowExecution } = await import(
+          '@/lib/core/telemetry'
+        )
         trackPlatformEvent('platform.workflow.executed', {
           'workflow.id': this.workflowId,
           'execution.duration_ms': Math.max(1, durationMs),
@@ -486,6 +520,22 @@ export class LoggingSession {
           'execution.blocks_executed': traceSpans?.length || 0,
           'execution.has_errors': false,
         })
+
+        // Create OpenTelemetry trace spans for the workflow execution
+        if (traceSpans && traceSpans.length > 0) {
+          const startTime = new Date(endTime.getTime() - Math.max(1, durationMs))
+          createOTelSpansForWorkflowExecution({
+            workflowId: this.workflowId,
+            workflowName: this.workflowState?.metadata?.name,
+            executionId: this.executionId,
+            traceSpans,
+            trigger: this.triggerType,
+            startTime: startTime.toISOString(),
+            endTime: endTime.toISOString(),
+            totalDurationMs: Math.max(1, durationMs),
+            status: 'success', // Cancelled executions are not errors
+          })
+        }
       } catch (_e) {
         // Silently fail
       }
@@ -540,7 +590,9 @@ export class LoggingSession {
       })
 
       try {
-        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
+        const { trackPlatformEvent, createOTelSpansForWorkflowExecution } = await import(
+          '@/lib/core/telemetry'
+        )
         trackPlatformEvent('platform.workflow.executed', {
           'workflow.id': this.workflowId,
           'execution.duration_ms': Math.max(1, durationMs),
@@ -550,6 +602,22 @@ export class LoggingSession {
           'execution.has_errors': false,
           'execution.total_cost': costSummary.totalCost || 0,
         })
+
+        // Create OpenTelemetry trace spans for the workflow execution
+        if (traceSpans && traceSpans.length > 0) {
+          const startTime = new Date(endTime.getTime() - Math.max(1, durationMs))
+          createOTelSpansForWorkflowExecution({
+            workflowId: this.workflowId,
+            workflowName: this.workflowState?.metadata?.name,
+            executionId: this.executionId,
+            traceSpans,
+            trigger: this.triggerType,
+            startTime: startTime.toISOString(),
+            endTime: endTime.toISOString(),
+            totalDurationMs: Math.max(1, durationMs),
+            status: 'success', // Paused executions are not errors
+          })
+        }
       } catch (_e) {}
 
       if (this.requestId) {

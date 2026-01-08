@@ -47,6 +47,7 @@ import { env } from '@/lib/core/config/env'
 import {
   isAuthDisabled,
   isBillingEnabled,
+  isEmailPasswordEnabled,
   isEmailVerificationEnabled,
   isHosted,
   isRegistrationDisabled,
@@ -460,6 +461,12 @@ export const auth = betterAuth({
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path.startsWith('/sign-up') && isRegistrationDisabled)
         throw new Error('Registration is disabled, please contact your admin.')
+
+      if (!isEmailPasswordEnabled) {
+        const emailPasswordPaths = ['/sign-in/email', '/sign-up/email', '/email-otp']
+        if (emailPasswordPaths.some((path) => ctx.path.startsWith(path)))
+          throw new Error('Email/password authentication is disabled. Please use SSO to sign in.')
+      }
 
       if (
         (ctx.path.startsWith('/sign-in') || ctx.path.startsWith('/sign-up')) &&

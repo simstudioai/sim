@@ -66,6 +66,11 @@ if (isTruthy(env.DISABLE_AUTH)) {
 export const isRegistrationDisabled = isTruthy(env.DISABLE_REGISTRATION)
 
 /**
+ * Is email/password authentication enabled (defaults to true)
+ */
+export const isEmailPasswordEnabled = env.EMAIL_PASSWORD_SIGNUP_ENABLED !== false
+
+/**
  * Is Trigger.dev enabled for async job processing
  */
 export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
