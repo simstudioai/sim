@@ -2546,7 +2546,6 @@ export async function syncWebhooksForCredentialSet(params: {
   const pollingProviders = ['gmail', 'outlook', 'rss', 'imap']
   const useUniquePaths = pollingProviders.includes(provider)
 
-  // Get all credentials in the set
   const credentials = await getCredentialsForCredentialSet(credentialSetId, oauthProviderId)
 
   if (credentials.length === 0) {

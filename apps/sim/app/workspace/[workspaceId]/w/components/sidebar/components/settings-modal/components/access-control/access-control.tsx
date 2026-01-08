@@ -71,7 +71,9 @@ export function AccessControl() {
   const hasEnterprisePlan = subscriptionStatus.isEnterprise
   const userRole = getUserRole(activeOrganization, session?.user?.email)
   const isOwner = userRole === 'owner'
-  const canManage = hasEnterprisePlan && isOwner && !!activeOrganization?.id
+  const isAdmin = userRole === 'admin'
+  const isOrgAdminOrOwner = isOwner || isAdmin
+  const canManage = hasEnterprisePlan && isOrgAdminOrOwner && !!activeOrganization?.id
 
   const queryEnabled = !!activeOrganization?.id
   const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(

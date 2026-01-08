@@ -198,15 +198,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           `[${requestId}] Starting controlled async processing of ${createdDocuments.length} documents`
         )
 
-        // Track bulk document upload
         try {
-          const { trackPlatformEvent } = await import('@/lib/core/telemetry')
-          trackPlatformEvent('platform.knowledge_base.documents_uploaded', {
-            'knowledge_base.id': knowledgeBaseId,
-            'documents.count': createdDocuments.length,
-            'documents.upload_type': 'bulk',
-            'processing.chunk_size': validatedData.processingOptions.chunkSize,
-            'processing.recipe': validatedData.processingOptions.recipe,
+          const { PlatformEvents } = await import('@/lib/core/telemetry')
+          PlatformEvents.knowledgeBaseDocumentsUploaded({
+            knowledgeBaseId,
+            documentsCount: createdDocuments.length,
+            uploadType: 'bulk',
+            chunkSize: validatedData.processingOptions.chunkSize,
+            recipe: validatedData.processingOptions.recipe,
           })
         } catch (_e) {
           // Silently fail
@@ -262,15 +261,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           userId
         )
 
-        // Track single document upload
         try {
-          const { trackPlatformEvent } = await import('@/lib/core/telemetry')
-          trackPlatformEvent('platform.knowledge_base.documents_uploaded', {
-            'knowledge_base.id': knowledgeBaseId,
-            'documents.count': 1,
-            'documents.upload_type': 'single',
-            'document.mime_type': validatedData.mimeType,
-            'document.file_size': validatedData.fileSize,
+          const { PlatformEvents } = await import('@/lib/core/telemetry')
+          PlatformEvents.knowledgeBaseDocumentsUploaded({
+            knowledgeBaseId,
+            documentsCount: 1,
+            uploadType: 'single',
+            mimeType: validatedData.mimeType,
+            fileSize: validatedData.fileSize,
           })
         } catch (_e) {
           // Silently fail

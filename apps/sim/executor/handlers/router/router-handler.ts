@@ -69,6 +69,9 @@ export class RouterBlockHandler implements BlockHandler {
       vertexProject: inputs.vertexProject,
       vertexLocation: inputs.vertexLocation,
       vertexCredential: inputs.vertexCredential,
+      bedrockAccessKeyId: inputs.bedrockAccessKeyId,
+      bedrockSecretKey: inputs.bedrockSecretKey,
+      bedrockRegion: inputs.bedrockRegion,
     }
 
     await validateModelProvider(ctx.userId, routerConfig.model)
@@ -105,6 +108,12 @@ export class RouterBlockHandler implements BlockHandler {
       if (providerId === 'azure-openai') {
         providerRequest.azureEndpoint = inputs.azureEndpoint
         providerRequest.azureApiVersion = inputs.azureApiVersion
+      }
+
+      if (providerId === 'bedrock') {
+        providerRequest.bedrockAccessKeyId = routerConfig.bedrockAccessKeyId
+        providerRequest.bedrockSecretKey = routerConfig.bedrockSecretKey
+        providerRequest.bedrockRegion = routerConfig.bedrockRegion
       }
 
       const response = await fetch(url.toString(), {
@@ -200,6 +209,9 @@ export class RouterBlockHandler implements BlockHandler {
       vertexProject: inputs.vertexProject,
       vertexLocation: inputs.vertexLocation,
       vertexCredential: inputs.vertexCredential,
+      bedrockAccessKeyId: inputs.bedrockAccessKeyId,
+      bedrockSecretKey: inputs.bedrockSecretKey,
+      bedrockRegion: inputs.bedrockRegion,
     }
 
     await validateModelProvider(ctx.userId, routerConfig.model)
@@ -236,6 +248,12 @@ export class RouterBlockHandler implements BlockHandler {
       if (providerId === 'azure-openai') {
         providerRequest.azureEndpoint = inputs.azureEndpoint
         providerRequest.azureApiVersion = inputs.azureApiVersion
+      }
+
+      if (providerId === 'bedrock') {
+        providerRequest.bedrockAccessKeyId = routerConfig.bedrockAccessKeyId
+        providerRequest.bedrockSecretKey = routerConfig.bedrockSecretKey
+        providerRequest.bedrockRegion = routerConfig.bedrockRegion
       }
 
       const response = await fetch(url.toString(), {

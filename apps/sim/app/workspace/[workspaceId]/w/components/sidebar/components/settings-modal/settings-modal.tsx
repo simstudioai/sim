@@ -66,6 +66,8 @@ import { useSettingsModalStore } from '@/stores/settings-modal/store'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 const isSSOEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
+const isCredentialSetsEnabled = isTruthy(getEnv('NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED'))
+const isAccessControlEnabled = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
 
 interface SettingsModalProps {
   open: boolean
@@ -100,8 +102,8 @@ type NavigationItem = {
   hideWhenBillingDisabled?: boolean
   requiresTeam?: boolean
   requiresEnterprise?: boolean
-  requiresOwner?: boolean
   requiresHosted?: boolean
+  selfHostedOverride?: boolean
 }
 
 const sectionConfig: { key: NavigationSection; title: string }[] = [
@@ -119,9 +121,9 @@ const allNavigationItems: NavigationItem[] = [
     label: 'Access Control',
     icon: ShieldCheck,
     section: 'account',
-    requiresTeam: true,
+    requiresHosted: true,
     requiresEnterprise: true,
-    requiresOwner: true,
+    selfHostedOverride: isAccessControlEnabled,
   },
   {
     id: 'subscription',
@@ -136,6 +138,7 @@ const allNavigationItems: NavigationItem[] = [
     icon: Users,
     section: 'subscription',
     hideWhenBillingDisabled: true,
+    requiresHosted: true,
     requiresTeam: true,
   },
   { id: 'integrations', label: 'Integrations', icon: Connections, section: 'tools' },
@@ -146,7 +149,8 @@ const allNavigationItems: NavigationItem[] = [
     label: 'Email Polling',
     icon: Mail,
     section: 'system',
-    requiresTeam: true,
+    requiresHosted: true,
+    selfHostedOverride: isCredentialSetsEnabled,
   },
   { id: 'environment', label: 'Environment', icon: FolderCode, section: 'system' },
   { id: 'apikeys', label: 'API Keys', icon: Key, section: 'system' },
@@ -157,6 +161,7 @@ const allNavigationItems: NavigationItem[] = [
     icon: KeySquare,
     section: 'system',
     requiresHosted: true,
+    requiresEnterprise: true,
   },
   {
     id: 'copilot',
@@ -171,9 +176,9 @@ const allNavigationItems: NavigationItem[] = [
     label: 'Single Sign-On',
     icon: LogIn,
     section: 'system',
-    requiresTeam: true,
+    requiresHosted: true,
     requiresEnterprise: true,
-    requiresOwner: true,
+    selfHostedOverride: isSSOEnabled,
   },
 ]
 
@@ -197,8 +202,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const userRole = getUserRole(activeOrganization, userEmail)
   const isOwner = userRole === 'owner'
   const isAdmin = userRole === 'admin'
-  const canManageSSO = isOwner || isAdmin
+  const isOrgAdminOrOwner = isOwner || isAdmin
   const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
+  const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
   const hasEnterprisePlan = subscriptionStatus.isEnterprise
   const hasOrganization = !!activeOrganization?.id
 
@@ -236,37 +242,28 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         return false
       }
 
-      // SSO has special logic that must be checked before requiresTeam
-      if (item.id === 'sso') {
-        if (isHosted) {
-          return hasOrganization && hasEnterprisePlan && canManageSSO
+      // Self-hosted override allows showing the item when not on hosted
+      if (item.selfHostedOverride && !isHosted) {
+        // SSO has special logic: only show if no providers or user owns a provider
+        if (item.id === 'sso') {
+          const hasProviders = (ssoProvidersData?.providers?.length ?? 0) > 0
+          return !hasProviders || isSSOProviderOwner === true
         }
-        // For self-hosted, only show SSO tab if explicitly enabled via environment variable
-        if (!isSSOEnabled) return false
-        // Show tab if user is the SSO provider owner, or if no providers exist yet (to allow initial setup)
-        const hasProviders = (ssoProvidersData?.providers?.length ?? 0) > 0
-        return !hasProviders || isSSOProviderOwner === true
+        return true
       }
 
-      if (item.requiresEnterprise && !hasEnterprisePlan) {
+      // requiresTeam: must have team/enterprise plan AND be org admin/owner
+      if (item.requiresTeam && (!hasTeamPlan || !isOrgAdminOrOwner)) {
         return false
       }
 
-      if (item.requiresTeam) {
-        const isMember = userRole === 'member' || isAdmin
-        const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
-
-        if (isMember) return true
-        if (isOwner && hasTeamPlan) return true
-
+      // requiresEnterprise: must have enterprise plan AND be org admin/owner
+      if (item.requiresEnterprise && (!hasEnterprisePlan || !isOrgAdminOrOwner)) {
         return false
       }
 
+      // requiresHosted: only show on hosted environments
       if (item.requiresHosted && !isHosted) {
-        return false
-      }
-
-      if (item.requiresOwner && !isOwner) {
         return false
       }
 
@@ -274,16 +271,13 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     })
   }, [
     hasOrganization,
+    hasTeamPlan,
     hasEnterprisePlan,
-    canManageSSO,
+    isOrgAdminOrOwner,
     isSSOProviderOwner,
-    isSSOEnabled,
     ssoProvidersData?.providers?.length,
     isOwner,
     isAdmin,
-    userRole,
-    subscriptionStatus.isTeam,
-    subscriptionStatus.isEnterprise,
     permissionConfig,
   ])
 

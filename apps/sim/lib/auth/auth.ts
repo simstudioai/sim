@@ -47,10 +47,12 @@ import { env } from '@/lib/core/config/env'
 import {
   isAuthDisabled,
   isBillingEnabled,
+  isEmailPasswordEnabled,
   isEmailVerificationEnabled,
   isHosted,
   isRegistrationDisabled,
 } from '@/lib/core/config/feature-flags'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
@@ -96,6 +98,15 @@ export const auth = betterAuth({
           logger.info('[databaseHooks.user.create.after] User created, initializing stats', {
             userId: user.id,
           })
+
+          try {
+            PlatformEvents.userSignedUp({
+              userId: user.id,
+              authMethod: 'email',
+            })
+          } catch {
+            // Telemetry should not fail the operation
+          }
 
           try {
             await handleNewUser(user.id)
@@ -319,6 +330,15 @@ export const auth = betterAuth({
               }
             }
           }
+
+          try {
+            PlatformEvents.oauthConnected({
+              userId: account.userId,
+              provider: account.providerId,
+            })
+          } catch {
+            // Telemetry should not fail the operation
+          }
         },
       },
     },
@@ -460,6 +480,12 @@ export const auth = betterAuth({
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path.startsWith('/sign-up') && isRegistrationDisabled)
         throw new Error('Registration is disabled, please contact your admin.')
+
+      if (!isEmailPasswordEnabled) {
+        const emailPasswordPaths = ['/sign-in/email', '/sign-up/email', '/email-otp']
+        if (emailPasswordPaths.some((path) => ctx.path.startsWith(path)))
+          throw new Error('Email/password authentication is disabled. Please use SSO to sign in.')
+      }
 
       if (
         (ctx.path.startsWith('/sign-in') || ctx.path.startsWith('/sign-up')) &&

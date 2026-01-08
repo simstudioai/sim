@@ -5,6 +5,7 @@ import { and, count, desc, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { hasAccessControlAccess } from '@/lib/billing'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -93,6 +94,14 @@ export async function POST(req: Request) {
   }
 
   try {
+    const hasAccess = await hasAccessControlAccess(session.user.id)
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Access Control is an Enterprise feature' },
+        { status: 403 }
+      )
+    }
+
     const body = await req.json()
     const { organizationId, name, description, config } = createSchema.parse(body)
 

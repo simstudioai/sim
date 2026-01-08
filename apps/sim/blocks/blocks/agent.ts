@@ -94,7 +94,6 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       placeholder: 'Type or select a model...',
       required: true,
       defaultValue: 'claude-sonnet-4-5',
-      searchable: true,
       options: () => {
         const providersState = useProvidersStore.getState()
         const baseModels = providersState.providers.base.models
@@ -330,6 +329,43 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       },
     },
     {
+      id: 'bedrockAccessKeyId',
+      title: 'AWS Access Key ID',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter your AWS Access Key ID',
+      connectionDroppable: false,
+      required: true,
+      condition: {
+        field: 'model',
+        value: providers.bedrock.models,
+      },
+    },
+    {
+      id: 'bedrockSecretKey',
+      title: 'AWS Secret Access Key',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter your AWS Secret Access Key',
+      connectionDroppable: false,
+      required: true,
+      condition: {
+        field: 'model',
+        value: providers.bedrock.models,
+      },
+    },
+    {
+      id: 'bedrockRegion',
+      title: 'AWS Region',
+      type: 'short-input',
+      placeholder: 'us-east-1',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers.bedrock.models,
+      },
+    },
+    {
       id: 'tools',
       title: 'Tools',
       type: 'tool-input',
@@ -343,11 +379,11 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       password: true,
       connectionDroppable: false,
       required: true,
-      // Hide API key for hosted models, Ollama models, vLLM models, and Vertex models (uses OAuth)
+      // Hide API key for hosted models, Ollama models, vLLM models, Vertex models (uses OAuth), and Bedrock (uses AWS credentials)
       condition: isHosted
         ? {
             field: 'model',
-            value: [...getHostedModels(), ...providers.vertex.models],
+            value: [...getHostedModels(), ...providers.vertex.models, ...providers.bedrock.models],
             not: true, // Show for all models EXCEPT those listed
           }
         : () => ({
@@ -356,8 +392,9 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
               ...getCurrentOllamaModels(),
               ...getCurrentVLLMModels(),
               ...providers.vertex.models,
+              ...providers.bedrock.models,
             ],
-            not: true, // Show for all models EXCEPT Ollama, vLLM, and Vertex models
+            not: true, // Show for all models EXCEPT Ollama, vLLM, Vertex, and Bedrock models
           }),
     },
     {
@@ -634,6 +671,9 @@ Example 3 (Array Input):
     azureApiVersion: { type: 'string', description: 'Azure API version' },
     vertexProject: { type: 'string', description: 'Google Cloud project ID for Vertex AI' },
     vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },
+    bedrockAccessKeyId: { type: 'string', description: 'AWS Access Key ID for Bedrock' },
+    bedrockSecretKey: { type: 'string', description: 'AWS Secret Access Key for Bedrock' },
+    bedrockRegion: { type: 'string', description: 'AWS region for Bedrock' },
     responseFormat: {
       type: 'json',
       description: 'JSON response format schema',

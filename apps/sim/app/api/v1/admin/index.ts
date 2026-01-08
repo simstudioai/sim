@@ -51,6 +51,10 @@
  *   GET    /api/v1/admin/subscriptions                      - List all subscriptions
  *   GET    /api/v1/admin/subscriptions/:id                  - Get subscription details
  *   DELETE /api/v1/admin/subscriptions/:id                  - Cancel subscription (?atPeriodEnd=true for scheduled)
+ *
+ *   BYOK Keys:
+ *   GET    /api/v1/admin/byok                               - List BYOK keys (?organizationId=X or ?workspaceId=X)
+ *   DELETE /api/v1/admin/byok                               - Delete BYOK keys for org/workspace
  */
 
 export type { AdminAuthFailure, AdminAuthResult, AdminAuthSuccess } from '@/app/api/v1/admin/auth'

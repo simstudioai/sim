@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { hasAccessControlAccess } from '@/lib/billing'
 
 const logger = createLogger('PermissionGroupMembers')
 
@@ -75,6 +76,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
 
   try {
+    const hasAccess = await hasAccessControlAccess(session.user.id)
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Access Control is an Enterprise feature' },
+        { status: 403 }
+      )
+    }
+
     const result = await getPermissionGroupWithAccess(id, session.user.id)
 
     if (!result) {
@@ -170,6 +179,14 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   }
 
   try {
+    const hasAccess = await hasAccessControlAccess(session.user.id)
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Access Control is an Enterprise feature' },
+        { status: 403 }
+      )
+    }
+
     const result = await getPermissionGroupWithAccess(id, session.user.id)
 
     if (!result) {

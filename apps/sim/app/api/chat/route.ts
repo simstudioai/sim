@@ -212,6 +212,18 @@ export async function POST(request: NextRequest) {
 
       logger.info(`Chat "${title}" deployed successfully at ${chatUrl}`)
 
+      try {
+        const { PlatformEvents } = await import('@/lib/core/telemetry')
+        PlatformEvents.chatDeployed({
+          chatId: id,
+          workflowId,
+          authType,
+          hasOutputConfigs: outputConfigs.length > 0,
+        })
+      } catch (_e) {
+        // Silently fail
+      }
+
       return createSuccessResponse({
         id,
         chatUrl,

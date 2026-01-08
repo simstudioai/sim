@@ -7,7 +7,7 @@ import {
   renderFreeTierUpgradeEmail,
   renderUsageThresholdEmail,
 } from '@/components/emails'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
   canEditUsageLimit,
   getFreeTierLimit,
