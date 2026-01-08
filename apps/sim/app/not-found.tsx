@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { CTAButton } from '@/app/(auth)/components/cta-button'
+import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { StatusPageLayout } from '@/app/(auth)/components/status-page-layout'
 
 export default function NotFound() {
@@ -12,7 +12,7 @@ export default function NotFound() {
       title='Page Not Found'
       description="The page you're looking for doesn't exist or has been moved."
     >
-      <CTAButton onClick={() => router.push('/')}>Return to Home</CTAButton>
+      <BrandedButton onClick={() => router.push('/')}>Return to Home</BrandedButton>
     </StatusPageLayout>
   )
 }

@@ -7,7 +7,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import { CTAButton } from '@/app/(auth)/components/cta-button'
+import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Nav from '@/app/(landing)/components/nav/nav'
 
@@ -86,14 +86,14 @@ export function PasswordAuth({ onSubmit, error }: PasswordAuthProps) {
                   {error && <p className='text-[14px] text-red-500'>{error}</p>}
                 </div>
 
-                <CTAButton
+                <BrandedButton
                   type='submit'
                   disabled={!password.trim()}
                   loading={isSubmitting}
                   loadingText='Verifying'
                 >
                   Continue
-                </CTAButton>
+                </BrandedButton>
               </form>
             </div>
           </div>

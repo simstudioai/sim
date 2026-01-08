@@ -4,9 +4,9 @@ import { forwardRef, useState } from 'react'
 import { ArrowRight, ChevronRight, Loader2 } from 'lucide-react'
 import { Button, type ButtonProps as EmcnButtonProps } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { useCtaButtonClass } from '@/hooks/use-cta-button-class'
+import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 
-export interface CTAButtonProps extends Omit<EmcnButtonProps, 'variant' | 'size'> {
+export interface BrandedButtonProps extends Omit<EmcnButtonProps, 'variant' | 'size'> {
   /** Shows loading spinner and disables button */
   loading?: boolean
   /** Text to show when loading (appends "..." automatically) */
@@ -18,22 +18,22 @@ export interface CTAButtonProps extends Omit<EmcnButtonProps, 'variant' | 'size'
 }
 
 /**
- * Branded CTA button for auth and status pages.
+ * Branded button for auth and status pages.
  * Automatically detects whitelabel customization and applies appropriate styling.
  *
  * @example
  * ```tsx
  * // Primary branded button with arrow
- * <CTAButton onClick={handleSubmit}>Sign In</CTAButton>
+ * <BrandedButton onClick={handleSubmit}>Sign In</BrandedButton>
  *
  * // Loading state
- * <CTAButton loading loadingText="Signing in">Sign In</CTAButton>
+ * <BrandedButton loading loadingText="Signing in">Sign In</BrandedButton>
  *
  * // Without arrow animation
- * <CTAButton showArrow={false}>Continue</CTAButton>
+ * <BrandedButton showArrow={false}>Continue</BrandedButton>
  * ```
  */
-export const CTAButton = forwardRef<HTMLButtonElement, CTAButtonProps>(
+export const BrandedButton = forwardRef<HTMLButtonElement, BrandedButtonProps>(
   (
     {
       children,
@@ -49,7 +49,7 @@ export const CTAButton = forwardRef<HTMLButtonElement, CTAButtonProps>(
     },
     ref
   ) => {
-    const buttonClass = useCtaButtonClass()
+    const buttonClass = useBrandedButtonClass()
     const [isHovered, setIsHovered] = useState(false)
 
     const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -65,8 +65,8 @@ export const CTAButton = forwardRef<HTMLButtonElement, CTAButtonProps>(
     return (
       <Button
         ref={ref}
-        variant='cta'
-        size='cta'
+        variant='branded'
+        size='branded'
         disabled={disabled || loading}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -97,4 +97,4 @@ export const CTAButton = forwardRef<HTMLButtonElement, CTAButtonProps>(
   }
 )
 
-CTAButton.displayName = 'CTAButton'
+BrandedButton.displayName = 'BrandedButton'

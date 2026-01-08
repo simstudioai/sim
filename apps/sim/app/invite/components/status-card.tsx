@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
-import { CTAButton } from '@/app/(auth)/components/cta-button'
+import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 
 interface InviteStatusCardProps {
@@ -63,11 +63,11 @@ export function InviteStatusCard({
 
       <div className={`${inter.className} mt-8 w-full max-w-[410px] space-y-3`}>
         {isExpiredError && (
-          <CTAButton onClick={() => router.push('/')}>Request New Invitation</CTAButton>
+          <BrandedButton onClick={() => router.push('/')}>Request New Invitation</BrandedButton>
         )}
 
         {actions.map((action, index) => (
-          <CTAButton
+          <BrandedButton
             key={index}
             onClick={action.onClick}
             disabled={action.disabled}
@@ -75,7 +75,7 @@ export function InviteStatusCard({
             loadingText={action.label}
           >
             {action.label}
-          </CTAButton>
+          </BrandedButton>
         ))}
       </div>
 

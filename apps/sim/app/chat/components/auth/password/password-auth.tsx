@@ -9,7 +9,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import { CTAButton } from '@/app/(auth)/components/cta-button'
+import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Nav from '@/app/(landing)/components/nav/nav'
 
@@ -149,14 +149,14 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
                   )}
                 </div>
 
-                <CTAButton
+                <BrandedButton
                   type='submit'
                   disabled={!password.trim()}
                   loading={isAuthenticating}
                   loadingText='Authenticating'
                 >
                   Continue
-                </CTAButton>
+                </BrandedButton>
               </form>
             </div>
           </div>

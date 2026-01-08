@@ -10,6 +10,14 @@ export { Badge } from './badge/badge'
 export { Breadcrumb, type BreadcrumbItem, type BreadcrumbProps } from './breadcrumb/breadcrumb'
 export { Button, type ButtonProps, buttonVariants } from './button/button'
 export {
+  ButtonGroup,
+  ButtonGroupItem,
+  type ButtonGroupItemProps,
+  type ButtonGroupProps,
+  buttonGroupItemVariants,
+  buttonGroupVariants,
+} from './button-group/button-group'
+export {
   Checkbox,
   type CheckboxProps,
   checkboxIconVariants,

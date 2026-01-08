@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import { CTAButton } from '@/app/(auth)/components/cta-button'
+import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import {
   FormErrorState,
@@ -16,7 +16,7 @@ import {
   ThankYouScreen,
 } from '@/app/form/[identifier]/components'
 
-const logger = createLogger('FormClient')
+const logger = createLogger('Form')
 
 interface FieldConfig {
   name: string
@@ -49,7 +49,7 @@ interface InputField {
   required?: boolean
 }
 
-export default function FormClient({ identifier }: { identifier: string }) {
+export default function Form({ identifier }: { identifier: string }) {
   const [formConfig, setFormConfig] = useState<FormConfig | null>(null)
   const [formData, setFormData] = useState<Record<string, unknown>>({})
   const [isLoading, setIsLoading] = useState(true)
@@ -319,14 +319,14 @@ export default function FormClient({ identifier }: { identifier: string }) {
               )}
 
               {fields.length > 0 && (
-                <CTAButton
+                <BrandedButton
                   type='submit'
                   loading={isSubmitting}
                   loadingText='Submitting...'
                   fullWidth
                 >
                   Submit
-                </CTAButton>
+                </BrandedButton>
               )}
             </form>
           </div>

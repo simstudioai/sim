@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
-import { CTAButton } from '@/app/(auth)/components/cta-button'
+import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { StatusPageLayout } from '@/app/(auth)/components/status-page-layout'
 
 const logger = createLogger('FormError')
@@ -23,7 +23,7 @@ export default function FormError({ error, reset }: FormErrorProps) {
       description='We encountered an error loading this form. Please try again.'
       hideNav
     >
-      <CTAButton onClick={reset}>Try again</CTAButton>
+      <BrandedButton onClick={reset}>Try again</BrandedButton>
     </StatusPageLayout>
   )
 }

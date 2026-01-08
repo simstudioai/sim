@@ -10,7 +10,7 @@ const buttonVariants = cva(
         default:
           'bg-[var(--surface-4)] hover:bg-[var(--surface-6)] border border-[var(--border)] hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]',
         active:
-          'bg-[var(--border-1)] hover:bg-[var(--border-1)] text-[var(--text-primary)] border border-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]',
+          'bg-[var(--surface-5)] hover:bg-[var(--surface-7)] text-[var(--text-primary)] border border-[var(--border-1)] dark:hover:bg-[var(--border-1)]',
         '3d': 'text-[var(--text-tertiary)] border-t border-l border-r border-[var(--border-1)] shadow-[0_2px_0_0_var(--border-1)] hover:shadow-[0_4px_0_0_var(--border-1)] transition-all hover:-translate-y-0.5 hover:text-[var(--text-primary)]',
         outline:
           'border border-[var(--text-muted)] bg-[var(--surface-4)] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
@@ -21,17 +21,15 @@ const buttonVariants = cva(
           '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:brightness-110 hover:!text-[var(--text-inverse)] ![transition-property:background-color,border-color,fill,stroke]',
         ghost: '',
         'ghost-secondary': 'text-[var(--text-muted)]',
-        /** CTA button variant - requires cta-button-gradient or cta-button-custom class for colors */
-        cta: 'rounded-[10px] border text-white hover:text-white text-[15px] transition-all duration-200',
-        /** CTA outline button variant - branded outline style */
-        'cta-outline':
-          'rounded-[10px] border border-[var(--brand-primary-hex)] text-[var(--brand-primary-hex)] transition-colors duration-200 hover:bg-[var(--brand-primary-hex)] hover:text-white',
+        /** Branded button - requires branded-button-gradient or branded-button-custom class for colors */
+        branded:
+          'rounded-[10px] border text-white hover:text-white text-[15px] transition-all duration-200',
       },
       size: {
         sm: 'px-[6px] py-[4px] text-[11px]',
         md: 'px-[8px] py-[6px] text-[12px]',
-        /** CTA size - matches login form button padding */
-        cta: 'py-[6px] pr-[10px] pl-[12px]',
+        /** Branded size - matches login form button padding */
+        branded: 'py-[6px] pr-[10px] pl-[12px]',
       },
     },
     defaultVariants: {

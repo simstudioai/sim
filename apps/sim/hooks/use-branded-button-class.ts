@@ -4,14 +4,14 @@ import { useEffect, useState } from 'react'
 
 const DEFAULT_BRAND_ACCENT = '#6f3dfa'
 
-export type CtaButtonClass = 'cta-button-gradient' | 'cta-button-custom'
+export type BrandedButtonClass = 'branded-button-gradient' | 'branded-button-custom'
 
 /**
  * Hook to determine the appropriate button class based on brand customization.
- * Returns 'cta-button-gradient' for default Sim branding, 'cta-button-custom' for whitelabeled instances.
+ * Returns 'branded-button-gradient' for default Sim branding, 'branded-button-custom' for whitelabeled instances.
  */
-export function useCtaButtonClass(): CtaButtonClass {
-  const [buttonClass, setButtonClass] = useState<CtaButtonClass>('cta-button-gradient')
+export function useBrandedButtonClass(): BrandedButtonClass {
+  const [buttonClass, setButtonClass] = useState<BrandedButtonClass>('branded-button-gradient')
 
   useEffect(() => {
     const checkCustomBrand = () => {
@@ -19,9 +19,9 @@ export function useCtaButtonClass(): CtaButtonClass {
       const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
 
       if (brandAccent && brandAccent !== DEFAULT_BRAND_ACCENT) {
-        setButtonClass('cta-button-custom')
+        setButtonClass('branded-button-custom')
       } else {
-        setButtonClass('cta-button-gradient')
+        setButtonClass('branded-button-gradient')
       }
     }
 

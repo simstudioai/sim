@@ -10,7 +10,7 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import { CTAButton } from '@/app/(auth)/components/cta-button'
+import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Nav from '@/app/(landing)/components/nav/nav'
 
@@ -156,9 +156,9 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
                   )}
                 </div>
 
-                <CTAButton type='submit' loading={isLoading} loadingText='Redirecting to SSO'>
+                <BrandedButton type='submit' loading={isLoading} loadingText='Redirecting to SSO'>
                   Continue with SSO
-                </CTAButton>
+                </BrandedButton>
               </form>
             </div>
           </div>

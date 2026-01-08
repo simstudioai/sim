@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronRight, Eye, EyeOff, Loader2, X } from 'lucide-react'
-import { Badge, Button, Input, Label, Textarea } from '@/components/emcn'
+import { Badge, ButtonGroup, ButtonGroupItem, Input, Label, Textarea } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { getEnv } from '@/lib/core/config/env'
 import { isDev } from '@/lib/core/config/feature-flags'
@@ -560,25 +560,14 @@ export function FormDeploy({
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
             Access control
           </Label>
-          <div className='inline-flex gap-[2px]'>
-            {(['public', 'password', 'email'] as const).map((type, i, arr) => (
-              <Button
-                key={type}
-                type='button'
-                variant={authType === type ? 'active' : 'default'}
-                onClick={() => setAuthType(type)}
-                className={`px-[8px] py-[4px] text-[12px] capitalize ${
-                  i === 0
-                    ? 'rounded-r-none'
-                    : i === arr.length - 1
-                      ? 'rounded-l-none'
-                      : 'rounded-none'
-                }`}
-              >
-                {type === 'public' ? 'Public' : type === 'password' ? 'Password' : 'Email'}
-              </Button>
-            ))}
-          </div>
+          <ButtonGroup
+            value={authType}
+            onValueChange={(val) => setAuthType(val as 'public' | 'password' | 'email')}
+          >
+            <ButtonGroupItem value='public'>Public</ButtonGroupItem>
+            <ButtonGroupItem value='password'>Password</ButtonGroupItem>
+            <ButtonGroupItem value='email'>Email</ButtonGroupItem>
+          </ButtonGroup>
         </div>
 
         {authType === 'password' && (

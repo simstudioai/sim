@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { CTAButton } from '@/app/(auth)/components/cta-button'
+import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { StatusPageLayout } from '@/app/(auth)/components/status-page-layout'
 
 interface ChatErrorStateProps {
@@ -13,7 +13,7 @@ export function ChatErrorState({ error }: ChatErrorStateProps) {
 
   return (
     <StatusPageLayout title='Chat Unavailable' description={error}>
-      <CTAButton onClick={() => router.push('/workspace')}>Return to Workspace</CTAButton>
+      <BrandedButton onClick={() => router.push('/workspace')}>Return to Workspace</BrandedButton>
     </StatusPageLayout>
   )
 }

@@ -30,7 +30,7 @@ export interface StatusPageLayoutProps {
  *   title="Page Not Found"
  *   description="The page you're looking for doesn't exist."
  * >
- *   <CTAButton onClick={() => router.push('/')}>Return to Home</CTAButton>
+ *   <BrandedButton onClick={() => router.push('/')}>Return to Home</BrandedButton>
  * </StatusPageLayout>
  * ```
  */

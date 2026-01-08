@@ -10,7 +10,7 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import { CTAButton } from '@/app/(auth)/components/cta-button'
+import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Nav from '@/app/(landing)/components/nav/nav'
 
@@ -245,9 +245,9 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                       )}
                     </div>
 
-                    <CTAButton type='submit' loading={isSendingOtp} loadingText='Sending Code'>
+                    <BrandedButton type='submit' loading={isSendingOtp} loadingText='Sending Code'>
                       Continue
-                    </CTAButton>
+                    </BrandedButton>
                   </form>
                 ) : (
                   <div className='space-y-6'>
@@ -293,14 +293,14 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                       </div>
                     )}
 
-                    <CTAButton
+                    <BrandedButton
                       onClick={() => handleVerifyOtp()}
                       disabled={otpValue.length !== 6}
                       loading={isVerifyingOtp}
                       loadingText='Verifying'
                     >
                       Verify Email
-                    </CTAButton>
+                    </BrandedButton>
 
                     <div className='text-center'>
                       <p className='text-muted-foreground text-sm'>

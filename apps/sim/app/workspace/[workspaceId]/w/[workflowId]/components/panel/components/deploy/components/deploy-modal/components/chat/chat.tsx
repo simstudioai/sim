@@ -5,6 +5,8 @@ import { createLogger } from '@sim/logger'
 import { AlertTriangle, Check, Clipboard, Eye, EyeOff, Loader2, RefreshCw, X } from 'lucide-react'
 import {
   Button,
+  ButtonGroup,
+  ButtonGroupItem,
   Input,
   Label,
   Modal,
@@ -672,26 +674,17 @@ function AuthSelector({
         <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
           Access control
         </Label>
-        <div className='inline-flex gap-[2px]'>
-          {authOptions.map((type, index, arr) => (
-            <Button
-              key={type}
-              type='button'
-              variant={authType === type ? 'active' : 'default'}
-              onClick={() => !disabled && onAuthTypeChange(type)}
-              disabled={disabled}
-              className={`px-[8px] py-[4px] text-[12px] ${
-                index === 0
-                  ? 'rounded-r-none'
-                  : index === arr.length - 1
-                    ? 'rounded-l-none'
-                    : 'rounded-none'
-              }`}
-            >
+        <ButtonGroup
+          value={authType}
+          onValueChange={(val) => onAuthTypeChange(val as AuthType)}
+          disabled={disabled}
+        >
+          {authOptions.map((type) => (
+            <ButtonGroupItem key={type} value={type}>
               {AUTH_LABELS[type]}
-            </Button>
+            </ButtonGroupItem>
           ))}
-        </div>
+        </ButtonGroup>
       </div>
 
       {authType === 'password' && (

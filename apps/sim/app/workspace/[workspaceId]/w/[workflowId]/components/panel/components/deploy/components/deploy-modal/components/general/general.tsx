@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
+  ButtonGroup,
+  ButtonGroupItem,
   Label,
   Modal,
   ModalBody,
@@ -189,25 +191,18 @@ export function GeneralDeploy({
                 : 'Live Workflow'}
             </Label>
             <div
-              className='absolute top-[-5px] right-0 inline-flex gap-[2px]'
+              className='absolute top-[-5px] right-0'
               style={{ visibility: showToggle ? 'visible' : 'hidden' }}
             >
-              <Button
-                type='button'
-                variant={previewMode === 'active' ? 'active' : 'default'}
-                onClick={() => setPreviewMode('active')}
-                className='rounded-r-none px-[8px] py-[4px] text-[12px]'
+              <ButtonGroup
+                value={previewMode}
+                onValueChange={(val) => setPreviewMode(val as PreviewMode)}
               >
-                Live
-              </Button>
-              <Button
-                type='button'
-                variant={previewMode === 'selected' ? 'active' : 'default'}
-                onClick={() => setPreviewMode('selected')}
-                className='truncate rounded-l-none px-[8px] py-[4px] text-[12px]'
-              >
-                {selectedVersionInfo?.name || `v${selectedVersion}`}
-              </Button>
+                <ButtonGroupItem value='active'>Live</ButtonGroupItem>
+                <ButtonGroupItem value='selected' className='truncate'>
+                  {selectedVersionInfo?.name || `v${selectedVersion}`}
+                </ButtonGroupItem>
+              </ButtonGroup>
             </div>
           </div>
 

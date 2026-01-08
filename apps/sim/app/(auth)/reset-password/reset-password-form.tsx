@@ -27,7 +27,7 @@ export function RequestResetForm({
   statusMessage,
   className,
 }: RequestResetFormProps) {
-  const [buttonClass, setButtonClass] = useState('cta-button-gradient')
+  const [buttonClass, setButtonClass] = useState('branded-button-gradient')
   const [isButtonHovered, setIsButtonHovered] = useState(false)
 
   useEffect(() => {
@@ -36,9 +36,9 @@ export function RequestResetForm({
       const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
 
       if (brandAccent && brandAccent !== '#6f3dfa') {
-        setButtonClass('cta-button-custom')
+        setButtonClass('branded-button-custom')
       } else {
-        setButtonClass('cta-button-gradient')
+        setButtonClass('branded-button-gradient')
       }
     }
 
@@ -138,7 +138,7 @@ export function SetNewPasswordForm({
   const [validationMessage, setValidationMessage] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [buttonClass, setButtonClass] = useState('cta-button-gradient')
+  const [buttonClass, setButtonClass] = useState('branded-button-gradient')
   const [isButtonHovered, setIsButtonHovered] = useState(false)
 
   useEffect(() => {
@@ -147,9 +147,9 @@ export function SetNewPasswordForm({
       const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
 
       if (brandAccent && brandAccent !== '#6f3dfa') {
-        setButtonClass('cta-button-custom')
+        setButtonClass('branded-button-custom')
       } else {
-        setButtonClass('cta-button-gradient')
+        setButtonClass('branded-button-gradient')
       }
     }
 
