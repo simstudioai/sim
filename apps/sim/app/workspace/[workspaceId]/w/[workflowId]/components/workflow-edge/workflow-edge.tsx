@@ -104,8 +104,6 @@ const WorkflowEdgeComponent = ({
       color = 'var(--border-success)'
     } else if (edgeRunStatus === 'error') {
       color = 'var(--text-error)'
-    } else if (edgeRunStatus === 'not-executed') {
-      opacity = 0.3
     }
 
     if (isSelected) {

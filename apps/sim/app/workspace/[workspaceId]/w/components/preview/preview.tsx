@@ -413,9 +413,6 @@ export function WorkflowPreview({
             border-radius: 8px;
             box-shadow: 0 0 0 4px var(--text-error);
           }
-          .preview-mode .react-flow__node.execution-not-executed {
-            opacity: 0.4;
-          }
         `}</style>
         <ReactFlow
           nodes={nodes}

@@ -10,6 +10,8 @@ import { extractReferencePrefixes } from '@/lib/workflows/sanitization/reference
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { getBlock } from '@/blocks'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { normalizeName } from '@/executor/constants'
+import { navigatePath } from '@/executor/variables/resolvers/reference'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 /**
@@ -82,26 +84,16 @@ function formatValueAsJson(value: unknown): string {
 interface ResolvedVariable {
   tag: string
   value: string
+  blockName: string
+  blockType: string
+  fieldPath: string
 }
 
-/**
- * Navigate a path in an object (e.g., ['response', 'data'] in { response: { data: 'value' } })
- */
-function navigatePath(obj: unknown, path: string[]): unknown {
-  let current: unknown = obj
-  for (const part of path) {
-    if (current === null || current === undefined) return undefined
-    if (typeof current !== 'object') return undefined
-    current = (current as Record<string, unknown>)[part]
-  }
-  return current
-}
-
-/**
- * Normalize a block name for comparison (lowercase, remove spaces)
- */
-function normalizeName(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, '')
+interface ResolvedConnection {
+  blockId: string
+  blockName: string
+  blockType: string
+  fields: Array<{ path: string; value: string; tag: string }>
 }
 
 /**
@@ -117,8 +109,11 @@ function extractAllReferencesFromSubBlocks(subBlockValues: Record<string, unknow
     } else if (Array.isArray(value)) {
       value.forEach(processValue)
     } else if (value && typeof value === 'object') {
-      // Process ALL properties of objects to find nested references
-      Object.values(value).forEach(processValue)
+      if ('value' in value) {
+        processValue((value as { value: unknown }).value)
+      } else {
+        Object.values(value).forEach(processValue)
+      }
     }
   }
 
@@ -222,10 +217,26 @@ function ExecutionDataSection({ title, data, isError = false }: ExecutionDataSec
 /**
  * Section showing resolved variable references - styled like the connections section in editor
  */
-function ResolvedConnectionsSection({ variables }: { variables: ResolvedVariable[] }) {
+function ResolvedConnectionsSection({ connections }: { connections: ResolvedConnection[] }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(() => {
+    // Start with all blocks expanded
+    return new Set(connections.map((c) => c.blockId))
+  })
 
-  if (variables.length === 0) return null
+  if (connections.length === 0) return null
+
+  const toggleBlock = (blockId: string) => {
+    setExpandedBlocks((prev) => {
+      const next = new Set(prev)
+      if (next.has(blockId)) {
+        next.delete(blockId)
+      } else {
+        next.add(blockId)
+      }
+      return next
+    })
+  }
 
   return (
     <div className='flex flex-shrink-0 flex-col border-[var(--border)] border-t'>
@@ -249,25 +260,86 @@ function ResolvedConnectionsSection({ variables }: { variables: ResolvedVariable
         <div className='font-medium text-[13px] text-[var(--text-primary)]'>Connections</div>
       </div>
 
-      {/* Content */}
+      {/* Content - styled like ConnectionBlocks */}
       {!isCollapsed && (
         <div className='space-y-[2px] px-[6px] pb-[8px]'>
-          {variables.map((variable) => (
-            <div key={variable.tag} className='mb-[2px] last:mb-0'>
-              <div
-                className={clsx(
-                  'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]'
+          {connections.map((connection) => {
+            const blockConfig = getBlock(connection.blockType)
+            const Icon = blockConfig?.icon
+            const bgColor = blockConfig?.bgColor || '#6B7280'
+            const isExpanded = expandedBlocks.has(connection.blockId)
+            const hasFields = connection.fields.length > 0
+
+            return (
+              <div key={connection.blockId} className='mb-[2px] last:mb-0'>
+                {/* Block header - styled like ConnectionItem */}
+                <div
+                  className={clsx(
+                    'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
+                    hasFields && 'cursor-pointer'
+                  )}
+                  onClick={() => hasFields && toggleBlock(connection.blockId)}
+                >
+                  <div
+                    className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                    style={{ background: bgColor }}
+                  >
+                    {Icon && (
+                      <Icon
+                        className={clsx(
+                          'text-white transition-transform duration-200',
+                          hasFields && 'group-hover:scale-110',
+                          '!h-[9px] !w-[9px]'
+                        )}
+                      />
+                    )}
+                  </div>
+                  <span
+                    className={clsx(
+                      'truncate font-medium',
+                      'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                    )}
+                  >
+                    {connection.blockName}
+                  </span>
+                  {hasFields && (
+                    <ChevronDownIcon
+                      className={clsx(
+                        'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
+                        'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
+                        isExpanded && 'rotate-180'
+                      )}
+                    />
+                  )}
+                </div>
+
+                {/* Fields - styled like FieldItem but showing resolved values */}
+                {isExpanded && hasFields && (
+                  <div className='relative mt-[2px] ml-[12px] space-y-[2px] pl-[10px]'>
+                    <div className='pointer-events-none absolute top-[4px] bottom-[4px] left-0 w-px bg-[var(--border)]' />
+                    {connection.fields.map((field) => (
+                      <div
+                        key={field.tag}
+                        className='group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                      >
+                        <span
+                          className={clsx(
+                            'flex-shrink-0 font-medium',
+                            'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                          )}
+                        >
+                          {field.path}
+                        </span>
+                        <span className='min-w-0 flex-1 truncate text-[var(--text-tertiary)]'>
+                          {field.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              >
-                <span className={clsx('truncate font-medium', 'text-[var(--brand-secondary)]')}>
-                  {variable.tag}
-                </span>
-                <span className={clsx('min-w-0 flex-1 truncate', 'text-[var(--text-secondary)]')}>
-                  {variable.value}
-                </span>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -361,27 +433,55 @@ function BlockDetailsSidebarContent({
     }
   }, [allBlockExecutions, workflowBlocks, blockNameToId])
 
-  const resolvedVariables = useMemo((): ResolvedVariable[] => {
-    const allRefs = extractAllReferencesFromSubBlocks(subBlockValues)
-    if (allRefs.length === 0) return []
+  // Group resolved variables by source block for display
+  const resolvedConnections = useMemo((): ResolvedConnection[] => {
+    if (!allBlockExecutions || !workflowBlocks) return []
 
-    const results: ResolvedVariable[] = []
+    const allRefs = extractAllReferencesFromSubBlocks(subBlockValues)
     const seen = new Set<string>()
+    const blockMap = new Map<string, ResolvedConnection>()
 
     for (const ref of allRefs) {
       if (seen.has(ref)) continue
+
+      // Parse reference: <blockName.path.to.value>
+      const inner = ref.slice(1, -1)
+      const parts = inner.split('.')
+      if (parts.length < 1) continue
+
+      const [blockName, ...pathParts] = parts
+      const normalizedBlockName = normalizeName(blockName)
+      const blockId = blockNameToId.get(normalizedBlockName)
+      if (!blockId) continue
+
+      const sourceBlock = workflowBlocks[blockId]
+      if (!sourceBlock) continue
+
+      const resolvedValue = resolveReference(ref)
+      if (resolvedValue === undefined) continue
+
       seen.add(ref)
 
-      // Try to resolve from block executions if available
-      const resolvedValue = resolveReference(ref)
-      results.push({
+      // Get or create block entry
+      if (!blockMap.has(blockId)) {
+        blockMap.set(blockId, {
+          blockId,
+          blockName: sourceBlock.name || blockName,
+          blockType: sourceBlock.type,
+          fields: [],
+        })
+      }
+
+      const connection = blockMap.get(blockId)!
+      connection.fields.push({
+        path: pathParts.join('.') || 'output',
+        value: formatInlineValue(resolvedValue),
         tag: ref,
-        value: resolvedValue !== undefined ? formatInlineValue(resolvedValue) : '—',
       })
     }
 
-    return results
-  }, [subBlockValues, resolveReference])
+    return Array.from(blockMap.values())
+  }, [subBlockValues, allBlockExecutions, workflowBlocks, blockNameToId, resolveReference])
 
   if (!blockConfig) {
     return (
@@ -559,12 +659,12 @@ function BlockDetailsSidebarContent({
             </div>
           )}
         </div>
-
-        {/* Resolved Variables Section - Shows what variable references resolved to */}
-        {resolvedVariables.length > 0 && (
-          <ResolvedConnectionsSection variables={resolvedVariables} />
-        )}
       </div>
+
+      {/* Resolved Variables Section - Pinned at bottom, outside scrollable area */}
+      {resolvedConnections.length > 0 && (
+        <ResolvedConnectionsSection connections={resolvedConnections} />
+      )}
     </div>
   )
 }
