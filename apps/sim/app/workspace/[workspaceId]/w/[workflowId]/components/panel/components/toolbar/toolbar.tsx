@@ -25,6 +25,7 @@ import {
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import type { BlockConfig } from '@/blocks/types'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useToolbarStore } from '@/stores/panel/toolbar/store'
 
 interface BlockItem {
@@ -192,9 +193,15 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
     triggersHeaderRef,
   })
 
+  // Permission config for filtering
+  const { filterBlocks } = usePermissionConfig()
+
   // Get static data (computed once and cached)
   const triggers = getTriggers()
-  const blocks = getBlocks()
+  const allBlocks = getBlocks()
+
+  // Apply permission-based filtering to blocks
+  const blocks = useMemo(() => filterBlocks(allBlocks), [filterBlocks, allBlocks])
 
   // Determine if triggers are at minimum height (blocks are fully expanded)
   const isTriggersAtMinimum = toolbarTriggersHeight <= TRIGGERS_MIN_THRESHOLD

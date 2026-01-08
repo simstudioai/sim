@@ -4,7 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { useQueryClient } from '@tanstack/react-query'
-import { Files, KeySquare, LogIn, Mail, Server, Settings, User, Users, Wrench } from 'lucide-react'
+import {
+  Files,
+  KeySquare,
+  LogIn,
+  Mail,
+  Server,
+  Settings,
+  ShieldCheck,
+  User,
+  Users,
+  Wrench,
+} from 'lucide-react'
 import {
   Card,
   Connections,
@@ -29,6 +40,7 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { getUserRole } from '@/lib/workspaces/organization'
 import {
+  AccessControl,
   ApiKeys,
   BYOK,
   Copilot,
@@ -65,6 +77,7 @@ type SettingsSection =
   | 'template-profile'
   | 'integrations'
   | 'credential-sets'
+  | 'access-control'
   | 'apikeys'
   | 'byok'
   | 'files'
@@ -100,6 +113,15 @@ const sectionConfig: { key: NavigationSection; title: string }[] = [
 const allNavigationItems: NavigationItem[] = [
   { id: 'general', label: 'General', icon: Settings, section: 'account' },
   { id: 'template-profile', label: 'Template Profile', icon: User, section: 'account' },
+  {
+    id: 'access-control',
+    label: 'Access Control',
+    icon: ShieldCheck,
+    section: 'account',
+    requiresTeam: true,
+    requiresEnterprise: true,
+    requiresOwner: true,
+  },
   {
     id: 'subscription',
     label: 'Subscription',
@@ -204,6 +226,10 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         return !hasProviders || isSSOProviderOwner === true
       }
 
+      if (item.requiresEnterprise && !hasEnterprisePlan) {
+        return false
+      }
+
       if (item.requiresTeam) {
         const isMember = userRole === 'member' || isAdmin
         const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
@@ -211,10 +237,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         if (isMember) return true
         if (isOwner && hasTeamPlan) return true
 
-        return false
-      }
-
-      if (item.requiresEnterprise && !hasEnterprisePlan) {
         return false
       }
 
@@ -472,6 +494,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               />
             )}
             {activeSection === 'credential-sets' && <CredentialSets />}
+            {activeSection === 'access-control' && <AccessControl />}
             {activeSection === 'apikeys' && <ApiKeys onOpenChange={onOpenChange} />}
             {activeSection === 'files' && <FileUploads />}
             {isBillingEnabled && activeSection === 'subscription' && <Subscription />}

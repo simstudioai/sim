@@ -1,0 +1,101 @@
+import { db } from '@sim/db'
+import { member, permissionGroup, permissionGroupMember } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { and, eq } from 'drizzle-orm'
+import {
+  type PermissionGroupConfig,
+  parsePermissionGroupConfig,
+} from '@/lib/permission-groups/types'
+import { getProviderFromModel } from '@/providers/utils'
+
+const logger = createLogger('PermissionCheck')
+
+export class ProviderNotAllowedError extends Error {
+  constructor(providerId: string, model: string) {
+    super(
+      `Provider "${providerId}" is not allowed for model "${model}" based on your permission group settings`
+    )
+    this.name = 'ProviderNotAllowedError'
+  }
+}
+
+export class IntegrationNotAllowedError extends Error {
+  constructor(blockType: string) {
+    super(`Integration "${blockType}" is not allowed based on your permission group settings`)
+    this.name = 'IntegrationNotAllowedError'
+  }
+}
+
+export async function getUserPermissionConfig(
+  userId: string
+): Promise<PermissionGroupConfig | null> {
+  const [membership] = await db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, userId))
+    .limit(1)
+
+  if (!membership) {
+    return null
+  }
+
+  const [groupMembership] = await db
+    .select({ config: permissionGroup.config })
+    .from(permissionGroupMember)
+    .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
+    .where(
+      and(
+        eq(permissionGroupMember.userId, userId),
+        eq(permissionGroup.organizationId, membership.organizationId)
+      )
+    )
+    .limit(1)
+
+  if (!groupMembership) {
+    return null
+  }
+
+  return parsePermissionGroupConfig(groupMembership.config)
+}
+
+export async function validateModelProvider(
+  userId: string | undefined,
+  model: string
+): Promise<void> {
+  if (!userId) {
+    return
+  }
+
+  const config = await getUserPermissionConfig(userId)
+
+  if (!config || config.allowedModelProviders === null) {
+    return
+  }
+
+  const providerId = getProviderFromModel(model)
+
+  if (!config.allowedModelProviders.includes(providerId)) {
+    logger.warn('Model provider blocked by permission group', { userId, model, providerId })
+    throw new ProviderNotAllowedError(providerId, model)
+  }
+}
+
+export async function validateBlockType(
+  userId: string | undefined,
+  blockType: string
+): Promise<void> {
+  if (!userId) {
+    return
+  }
+
+  const config = await getUserPermissionConfig(userId)
+
+  if (!config || config.allowedIntegrations === null) {
+    return
+  }
+
+  if (!config.allowedIntegrations.includes(blockType)) {
+    logger.warn('Integration blocked by permission group', { userId, blockType })
+    throw new IntegrationNotAllowedError(blockType)
+  }
+}

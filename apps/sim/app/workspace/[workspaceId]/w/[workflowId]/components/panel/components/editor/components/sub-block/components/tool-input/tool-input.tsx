@@ -59,6 +59,7 @@ import {
 import { useForceRefreshMcpTools, useMcpServers, useStoredMcpTools } from '@/hooks/queries/mcp'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useMcpTools } from '@/hooks/use-mcp-tools'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
 import { useSettingsModalStore } from '@/stores/settings-modal/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -1003,18 +1004,23 @@ export function ToolInput({
   const provider = model ? getProviderFromModel(model) : ''
   const supportsToolControl = provider ? supportsToolUsageControl(provider) : false
 
-  const toolBlocks = getAllBlocks().filter(
-    (block) =>
-      (block.category === 'tools' ||
-        block.type === 'api' ||
-        block.type === 'webhook_request' ||
-        block.type === 'workflow' ||
-        block.type === 'knowledge' ||
-        block.type === 'function') &&
-      block.type !== 'evaluator' &&
-      block.type !== 'mcp' &&
-      block.type !== 'file'
-  )
+  const { filterBlocks } = usePermissionConfig()
+
+  const toolBlocks = useMemo(() => {
+    const allToolBlocks = getAllBlocks().filter(
+      (block) =>
+        (block.category === 'tools' ||
+          block.type === 'api' ||
+          block.type === 'webhook_request' ||
+          block.type === 'workflow' ||
+          block.type === 'knowledge' ||
+          block.type === 'function') &&
+        block.type !== 'evaluator' &&
+        block.type !== 'mcp' &&
+        block.type !== 'file'
+    )
+    return filterBlocks(allToolBlocks)
+  }, [filterBlocks])
 
   const customFilter = useCallback((value: string, search: string) => {
     if (!search.trim()) return 1

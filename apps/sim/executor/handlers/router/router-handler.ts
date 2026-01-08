@@ -15,6 +15,7 @@ import {
   ROUTER,
 } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import { validateModelProvider } from '@/executor/utils/permission-check'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -69,6 +70,8 @@ export class RouterBlockHandler implements BlockHandler {
       vertexLocation: inputs.vertexLocation,
       vertexCredential: inputs.vertexCredential,
     }
+
+    await validateModelProvider(ctx.userId, routerConfig.model)
 
     const providerId = getProviderFromModel(routerConfig.model)
 
@@ -198,6 +201,8 @@ export class RouterBlockHandler implements BlockHandler {
       vertexLocation: inputs.vertexLocation,
       vertexCredential: inputs.vertexCredential,
     }
+
+    await validateModelProvider(ctx.userId, routerConfig.model)
 
     const providerId = getProviderFromModel(routerConfig.model)
 

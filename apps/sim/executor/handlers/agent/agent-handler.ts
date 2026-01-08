@@ -25,6 +25,7 @@ import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/execu
 import { collectBlockData } from '@/executor/utils/block-data'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
+import { validateBlockType, validateModelProvider } from '@/executor/utils/permission-check'
 import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -52,6 +53,9 @@ export class AgentBlockHandler implements BlockHandler {
 
     const responseFormat = this.parseResponseFormat(filteredInputs.responseFormat)
     const model = filteredInputs.model || AGENT.DEFAULT_MODEL
+
+    await validateModelProvider(ctx.userId, model)
+
     const providerId = getProviderFromModel(model)
     const formattedTools = await this.formatTools(ctx, filteredInputs.tools || [])
     const streamingConfig = this.getStreamingConfig(ctx, block)
@@ -212,6 +216,9 @@ export class AgentBlockHandler implements BlockHandler {
     const otherResults = await Promise.all(
       otherTools.map(async (tool) => {
         try {
+          if (tool.type && tool.type !== 'custom-tool' && tool.type !== 'mcp') {
+            await validateBlockType(ctx.userId, tool.type)
+          }
           if (tool.type === 'custom-tool' && (tool.schema || tool.customToolId)) {
             return await this.createCustomTool(ctx, tool)
           }

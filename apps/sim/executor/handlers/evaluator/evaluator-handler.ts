@@ -8,6 +8,7 @@ import { BlockType, DEFAULTS, EVALUATOR, HTTP } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAPIUrl, extractAPIErrorMessage } from '@/executor/utils/http'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
+import { validateModelProvider } from '@/executor/utils/permission-check'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -33,6 +34,9 @@ export class EvaluatorBlockHandler implements BlockHandler {
       vertexLocation: inputs.vertexLocation,
       vertexCredential: inputs.vertexCredential,
     }
+
+    await validateModelProvider(ctx.userId, evaluatorConfig.model)
+
     const providerId = getProviderFromModel(evaluatorConfig.model)
 
     let finalApiKey: string | undefined = evaluatorConfig.apiKey

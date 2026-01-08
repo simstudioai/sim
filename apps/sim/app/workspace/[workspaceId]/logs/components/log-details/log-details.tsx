@@ -13,6 +13,7 @@ import {
   StatusBadge,
   TriggerBadge,
 } from '@/app/workspace/[workspaceId]/logs/utils'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
@@ -53,6 +54,7 @@ export const LogDetails = memo(function LogDetails({
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const panelWidth = useLogDetailsUIStore((state) => state.panelWidth)
   const { handleMouseDown } = useLogDetailsResize()
+  const { config: permissionConfig } = usePermissionConfig()
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -260,7 +262,7 @@ export const LogDetails = memo(function LogDetails({
                 </div>
 
                 {/* Workflow State */}
-                {isWorkflowExecutionLog && log.executionId && (
+                {isWorkflowExecutionLog && log.executionId && !permissionConfig.hideTraceSpans && (
                   <div className='flex flex-col gap-[6px] rounded-[6px] bg-[var(--surface-2)] px-[10px] py-[8px]'>
                     <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
                       Workflow State
@@ -278,12 +280,14 @@ export const LogDetails = memo(function LogDetails({
                 )}
 
                 {/* Workflow Execution - Trace Spans */}
-                {isWorkflowExecutionLog && log.executionData?.traceSpans && (
-                  <TraceSpans
-                    traceSpans={log.executionData.traceSpans}
-                    totalDuration={log.executionData.totalDuration}
-                  />
-                )}
+                {isWorkflowExecutionLog &&
+                  log.executionData?.traceSpans &&
+                  !permissionConfig.hideTraceSpans && (
+                    <TraceSpans
+                      traceSpans={log.executionData.traceSpans}
+                      totalDuration={log.executionData.totalDuration}
+                    />
+                  )}
 
                 {/* Files */}
                 {log.files && log.files.length > 0 && (

@@ -1877,3 +1877,52 @@ export const credentialSetInvitation = pgTable(
     expiresAtIdx: index('credential_set_invitation_expires_at_idx').on(table.expiresAt),
   })
 )
+
+export const permissionGroup = pgTable(
+  'permission_group',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    config: jsonb('config').notNull().default('{}'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationIdIdx: index('permission_group_organization_id_idx').on(table.organizationId),
+    createdByIdx: index('permission_group_created_by_idx').on(table.createdBy),
+    orgNameUnique: uniqueIndex('permission_group_org_name_unique').on(
+      table.organizationId,
+      table.name
+    ),
+  })
+)
+
+export const permissionGroupMember = pgTable(
+  'permission_group_member',
+  {
+    id: text('id').primaryKey(),
+    permissionGroupId: text('permission_group_id')
+      .notNull()
+      .references(() => permissionGroup.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    assignedBy: text('assigned_by').references(() => user.id, { onDelete: 'set null' }),
+    assignedAt: timestamp('assigned_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    permissionGroupIdIdx: index('permission_group_member_group_id_idx').on(table.permissionGroupId),
+    userIdIdx: index('permission_group_member_user_id_idx').on(table.userId),
+    uniqueMembership: uniqueIndex('permission_group_member_unique').on(
+      table.permissionGroupId,
+      table.userId
+    ),
+  })
+)
