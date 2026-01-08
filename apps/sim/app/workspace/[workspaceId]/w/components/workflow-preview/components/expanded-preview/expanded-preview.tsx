@@ -45,20 +45,24 @@ export function ExpandedWorkflowPreview({
       <ModalContent size='full' className='flex h-[90vh] flex-col'>
         <ModalHeader>{title}</ModalHeader>
 
-        <ModalBody className='!p-0 relative min-h-0 flex-1'>
-          <div className='h-full w-full overflow-hidden rounded-[4px] border border-[var(--border)]'>
-            <WorkflowPreview
-              workflowState={workflowState}
-              showSubBlocks={true}
-              isPannable={true}
-              defaultPosition={{ x: 0, y: 0 }}
-              defaultZoom={0.8}
-              onNodeClick={handleNodeClick}
-              cursorStyle='pointer'
-            />
-          </div>
+        <ModalBody className='!p-0 min-h-0 flex-1'>
+          <div className='flex h-full w-full overflow-hidden rounded-[4px] border border-[var(--border)]'>
+            {/* Canvas area */}
+            <div className='h-full flex-1'>
+              <WorkflowPreview
+                workflowState={workflowState}
+                showSubBlocks={true}
+                isPannable={true}
+                defaultPosition={{ x: 0, y: 0 }}
+                defaultZoom={0.8}
+                onNodeClick={handleNodeClick}
+                cursorStyle='pointer'
+              />
+            </div>
 
-          {selectedBlock && <PinnedSubBlocks block={selectedBlock} onClose={handleClosePanel} />}
+            {/* Sidebar - attached to right side */}
+            {selectedBlock && <PinnedSubBlocks block={selectedBlock} onClose={handleClosePanel} />}
+          </div>
         </ModalBody>
       </ModalContent>
     </Modal>
