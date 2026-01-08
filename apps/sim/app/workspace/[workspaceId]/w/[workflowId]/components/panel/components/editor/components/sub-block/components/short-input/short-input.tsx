@@ -375,7 +375,7 @@ export function ShortInput({
                   className={cn(
                     'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-foreground text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
                     showCopyButton ? 'pr-14' : 'pr-3',
-                    disabled && 'opacity-50'
+                    (isPreview || disabled) && 'opacity-50'
                   )}
                 >
                   <div className='min-w-fit whitespace-pre'>{formattedText}</div>

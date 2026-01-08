@@ -14,6 +14,15 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('ExecutionSnapshot')
 
+interface TraceSpan {
+  blockId?: string
+  input?: unknown
+  output?: unknown
+  status?: string
+  duration?: number
+  children?: TraceSpan[]
+}
+
 interface BlockExecutionData {
   input: unknown
   output: unknown
@@ -42,7 +51,7 @@ interface ExecutionSnapshotData {
 
 interface ExecutionSnapshotProps {
   executionId: string
-  traceSpans?: any[]
+  traceSpans?: TraceSpan[]
   className?: string
   height?: string | number
   width?: string | number
@@ -59,7 +68,7 @@ export function ExecutionSnapshot({
   width = '100%',
   isModal = false,
   isOpen = false,
-  onClose,
+  onClose = () => {},
 }: ExecutionSnapshotProps) {
   const [data, setData] = useState<ExecutionSnapshotData | null>(null)
   const [blockExecutions, setBlockExecutions] = useState<Record<string, BlockExecutionData>>({})
@@ -71,8 +80,8 @@ export function ExecutionSnapshot({
     if (traceSpans && Array.isArray(traceSpans)) {
       const blockExecutionMap: Record<string, BlockExecutionData> = {}
 
-      const collectBlockSpans = (spans: any[]): any[] => {
-        const blockSpans: any[] = []
+      const collectBlockSpans = (spans: TraceSpan[]): TraceSpan[] => {
+        const blockSpans: TraceSpan[] = []
 
         for (const span of spans) {
           if (span.blockId) {

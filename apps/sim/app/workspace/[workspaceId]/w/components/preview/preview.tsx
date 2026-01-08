@@ -217,7 +217,7 @@ export function WorkflowPreview({
 
       if (block.type === 'loop') {
         nodeArray.push({
-          id: block.id,
+          id: blockId,
           type: 'subflowNode',
           position: absolutePosition,
           parentId: block.data?.parentId,
@@ -238,7 +238,7 @@ export function WorkflowPreview({
 
       if (block.type === 'parallel') {
         nodeArray.push({
-          id: block.id,
+          id: blockId,
           type: 'subflowNode',
           position: absolutePosition,
           parentId: block.data?.parentId,
@@ -265,14 +265,12 @@ export function WorkflowPreview({
 
       const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
 
-      // Determine execution status for this block
       let executionStatus: ExecutionStatus | undefined
       if (executedBlocks) {
         const blockExecution = executedBlocks[blockId]
         if (blockExecution) {
           executionStatus = blockExecution.status === 'error' ? 'error' : 'success'
         } else {
-          // Block exists but wasn't executed
           executionStatus = 'not-executed'
         }
       }
@@ -294,41 +292,6 @@ export function WorkflowPreview({
           executionStatus,
         },
       })
-
-      if (block.type === 'loop') {
-        const childBlocks = Object.entries(workflowState.blocks || {}).filter(
-          ([_, childBlock]) => childBlock.data?.parentId === blockId
-        )
-
-        childBlocks.forEach(([childId, childBlock]) => {
-          const childConfig = getBlock(childBlock.type)
-
-          if (childConfig) {
-            const childNodeType = childBlock.type === 'note' ? 'noteBlock' : 'workflowBlock'
-
-            nodeArray.push({
-              id: childId,
-              type: childNodeType,
-              position: {
-                x: block.position.x + 50,
-                y: block.position.y + (childBlock.position?.y || 100),
-              },
-              data: {
-                type: childBlock.type,
-                config: childConfig,
-                name: childBlock.name,
-                blockState: childBlock,
-                showSubBlocks,
-                isChild: true,
-                parentId: blockId,
-                canEdit: false,
-                isPreview: true,
-              },
-              draggable: false,
-            })
-          }
-        })
-      }
     })
 
     return nodeArray
@@ -347,22 +310,18 @@ export function WorkflowPreview({
     if (!isValidWorkflowState) return []
 
     return (workflowState.edges || []).map((edge) => {
-      // Determine if this edge was part of the execution path
       let executionStatus: ExecutionStatus | undefined
       if (executedBlocks) {
         const sourceExecuted = executedBlocks[edge.source]
         const targetExecuted = executedBlocks[edge.target]
 
-        // Edge was traversed if both source and target blocks were executed
         if (sourceExecuted && targetExecuted) {
-          // If the target had an error, mark the edge leading to it as error
           if (targetExecuted.status === 'error') {
             executionStatus = 'error'
           } else {
             executionStatus = 'success'
           }
         } else {
-          // Edge wasn't traversed
           executionStatus = 'not-executed'
         }
       }

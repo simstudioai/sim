@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import clsx from 'clsx'
 import { ChevronDown as ChevronDownIcon, X } from 'lucide-react'
 import { ReactFlowProvider } from 'reactflow'
 import { Badge, Button, ChevronDown, Code } from '@/components/emcn'
@@ -9,7 +8,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { getBlock } from '@/blocks'
-import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockIcon, SubBlockConfig } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -79,14 +78,6 @@ function formatValueAsJson(value: unknown): string {
     }
   }
   return String(value)
-}
-
-interface ResolvedVariable {
-  tag: string
-  value: string
-  blockName: string
-  blockType: string
-  fieldPath: string
 }
 
 interface ResolvedConnection {
@@ -255,7 +246,7 @@ function ResolvedConnectionsSection({ connections }: { connections: ResolvedConn
         aria-label={isCollapsed ? 'Expand connections' : 'Collapse connections'}
       >
         <ChevronDownIcon
-          className={clsx('h-[14px] w-[14px] transition-transform', !isCollapsed && 'rotate-180')}
+          className={cn('h-[14px] w-[14px] transition-transform', !isCollapsed && 'rotate-180')}
         />
         <div className='font-medium text-[13px] text-[var(--text-primary)]'>Connections</div>
       </div>
@@ -274,7 +265,7 @@ function ResolvedConnectionsSection({ connections }: { connections: ResolvedConn
               <div key={connection.blockId} className='mb-[2px] last:mb-0'>
                 {/* Block header - styled like ConnectionItem */}
                 <div
-                  className={clsx(
+                  className={cn(
                     'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
                     hasFields && 'cursor-pointer'
                   )}
@@ -286,7 +277,7 @@ function ResolvedConnectionsSection({ connections }: { connections: ResolvedConn
                   >
                     {Icon && (
                       <Icon
-                        className={clsx(
+                        className={cn(
                           'text-white transition-transform duration-200',
                           hasFields && 'group-hover:scale-110',
                           '!h-[9px] !w-[9px]'
@@ -295,7 +286,7 @@ function ResolvedConnectionsSection({ connections }: { connections: ResolvedConn
                     )}
                   </div>
                   <span
-                    className={clsx(
+                    className={cn(
                       'truncate font-medium',
                       'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
                     )}
@@ -304,7 +295,7 @@ function ResolvedConnectionsSection({ connections }: { connections: ResolvedConn
                   </span>
                   {hasFields && (
                     <ChevronDownIcon
-                      className={clsx(
+                      className={cn(
                         'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
                         'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
                         isExpanded && 'rotate-180'
@@ -323,7 +314,7 @@ function ResolvedConnectionsSection({ connections }: { connections: ResolvedConn
                         className='group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
                       >
                         <span
-                          className={clsx(
+                          className={cn(
                             'flex-shrink-0 font-medium',
                             'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
                           )}
@@ -349,7 +340,13 @@ function ResolvedConnectionsSection({ connections }: { connections: ResolvedConn
 /**
  * Icon component for rendering block icons
  */
-function IconComponent({ icon: Icon, className }: { icon: any; className?: string }) {
+function IconComponent({
+  icon: Icon,
+  className,
+}: {
+  icon: BlockIcon | undefined
+  className?: string
+}) {
   if (!Icon) return null
   return <Icon className={className} />
 }
