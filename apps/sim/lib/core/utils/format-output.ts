@@ -3,7 +3,18 @@ import { createLogger } from '@sim/logger'
 const logger = createLogger('FormatOutput')
 
 // Type definitions for better type safety
-type TextFieldName = 'text' | 'content' | 'message' | 'body' | 'value' | 'result' | 'output' | 'response' | 'answer' | 'reply' | 'data'
+type TextFieldName =
+  | 'text'
+  | 'content'
+  | 'message'
+  | 'body'
+  | 'value'
+  | 'result'
+  | 'output'
+  | 'response'
+  | 'answer'
+  | 'reply'
+  | 'data'
 type FormatMode = 'chat' | 'workflow' | 'raw'
 
 interface FormatOptions {
@@ -30,8 +41,17 @@ interface TextExtractable {
 
 // Constants
 const TEXT_FIELDS: readonly TextFieldName[] = [
-  'text', 'content', 'message', 'body', 'value', 'result',
-  'output', 'response', 'answer', 'reply', 'data',
+  'text',
+  'content',
+  'message',
+  'body',
+  'value',
+  'result',
+  'output',
+  'response',
+  'answer',
+  'reply',
+  'data',
 ] as const
 
 const MAX_STRING_LENGTH = 50000
@@ -76,9 +96,7 @@ function extractText(value: unknown, depth = 0): string | null {
     }
 
     // For arrays, concatenate all text content
-    const texts = value
-      .map(item => extractText(item, depth + 1))
-      .filter(Boolean)
+    const texts = value.map((item) => extractText(item, depth + 1)).filter(Boolean)
 
     return texts.length > 0 ? texts.join(' ') : null
   }
@@ -140,19 +158,23 @@ function extractText(value: unknown, depth = 0): string | null {
 function safeStringify(value: unknown): string {
   try {
     const seen = new WeakSet()
-    return JSON.stringify(value, (_, val) => {
-      if (val === undefined) return '[undefined]'
-      if (typeof val === 'function') return '[Function]'
-      if (typeof val === 'symbol') return '[Symbol]'
-      if (typeof val === 'bigint') return val.toString()
+    return JSON.stringify(
+      value,
+      (_, val) => {
+        if (val === undefined) return '[undefined]'
+        if (typeof val === 'function') return '[Function]'
+        if (typeof val === 'symbol') return '[Symbol]'
+        if (typeof val === 'bigint') return val.toString()
 
-      if (typeof val === 'object' && val !== null) {
-        if (seen.has(val)) return '[Circular]'
-        seen.add(val)
-      }
+        if (typeof val === 'object' && val !== null) {
+          if (seen.has(val)) return '[Circular]'
+          seen.add(val)
+        }
 
-      return val
-    }, 2)
+        return val
+      },
+      2
+    )
   } catch (error) {
     logger.debug('Stringify failed', { error })
     return '[Unable to display]'
@@ -163,10 +185,7 @@ function safeStringify(value: unknown): string {
  * Format output for display with smart text extraction
  * Optimized for performance and common use cases
  */
-export function formatOutputForDisplay(
-  output: unknown,
-  options: FormatOptions = {}
-): string {
+export function formatOutputForDisplay(output: unknown, options: FormatOptions = {}): string {
   const {
     mode = 'chat',
     maxLength = MAX_STRING_LENGTH,

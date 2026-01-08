@@ -2,7 +2,6 @@
 
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { formatOutputForWorkflow } from '@/lib/core/utils/format-output'
 import {
   AlertCircle,
   ArrowDownToLine,
@@ -25,6 +24,7 @@ import {
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
+import { formatOutputForWorkflow } from '@/lib/core/utils/format-output'
 import {
   extractBlockIdFromOutputId,
   extractPathFromOutputId,

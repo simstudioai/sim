@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-
 import { formatOutputForChat } from '@/lib/core/utils/format-output'
 import { StreamingIndicator } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/smooth-streaming'
 
@@ -95,10 +94,7 @@ const WordWrap = ({ text }: { text: string }) => {
  * Renders a chat message with optional file attachments
  */
 export function ChatMessage({ message }: ChatMessageProps) {
-  const formattedContent = useMemo(
-    () => formatOutputForChat(message.content),
-    [message.content]
-  )
+  const formattedContent = useMemo(() => formatOutputForChat(message.content), [message.content])
 
   const handleAttachmentClick = (attachment: ChatAttachment) => {
     const validDataUrl = attachment.dataUrl?.trim()

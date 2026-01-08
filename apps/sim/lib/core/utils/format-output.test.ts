@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
-  formatOutputForDisplay,
   formatOutputForChat,
+  formatOutputForDisplay,
   formatOutputForWorkflow,
   formatOutputRaw,
   formatOutputSafe,
-  isOutputSafe
+  isOutputSafe,
 } from './format-output'
 
 describe('format-output utilities', () => {
@@ -37,32 +37,22 @@ describe('format-output utilities', () => {
         data: {
           response: {
             message: {
-              content: 'Deep text'
-            }
-          }
-        }
+              content: 'Deep text',
+            },
+          },
+        },
       }
       expect(formatOutputForDisplay(nested)).toBe('Deep text')
     })
 
     // Arrays
     it('handles arrays of text objects', () => {
-      const arr = [
-        { text: 'Line 1' },
-        { text: 'Line 2' },
-        { content: 'Line 3' }
-      ]
+      const arr = [{ text: 'Line 1' }, { text: 'Line 2' }, { content: 'Line 3' }]
       expect(formatOutputForDisplay(arr)).toBe('Line 1 Line 2 Line 3')
     })
 
     it('handles mixed arrays', () => {
-      const mixed = [
-        'String',
-        { text: 'Object text' },
-        123,
-        null,
-        { message: 'Message text' }
-      ]
+      const mixed = ['String', { text: 'Object text' }, 123, null, { message: 'Message text' }]
       expect(formatOutputForDisplay(mixed)).toBe('String Object text 123 Message text')
     })
 
@@ -103,7 +93,7 @@ describe('format-output utilities', () => {
       const buffer = Buffer.from('Hello Buffer')
       expect(formatOutputForDisplay(buffer)).toBe('Hello Buffer')
 
-      const binaryBuffer = Buffer.from([0xFF, 0xFE, 0x00, 0x01])
+      const binaryBuffer = Buffer.from([0xff, 0xfe, 0x00, 0x01])
       expect(formatOutputForDisplay(binaryBuffer)).toBe('[Binary Data]')
     })
 
@@ -118,10 +108,12 @@ describe('format-output utilities', () => {
     // Whitespace handling
     it('preserves whitespace when requested', () => {
       const spaced = 'Line 1\n\nLine 2\t\tTabbed'
-      expect(formatOutputForDisplay(spaced, { preserveWhitespace: true }))
-        .toBe('Line 1\n\nLine 2\t\tTabbed')
-      expect(formatOutputForDisplay(spaced, { preserveWhitespace: false }))
-        .toBe('Line 1 Line 2 Tabbed')
+      expect(formatOutputForDisplay(spaced, { preserveWhitespace: true })).toBe(
+        'Line 1\n\nLine 2\t\tTabbed'
+      )
+      expect(formatOutputForDisplay(spaced, { preserveWhitespace: false })).toBe(
+        'Line 1 Line 2 Tabbed'
+      )
     })
 
     // Mode-specific formatting
@@ -148,7 +140,7 @@ describe('format-output utilities', () => {
       const customObj = {
         toString() {
           return 'Custom String'
-        }
+        },
       }
       expect(formatOutputForDisplay(customObj)).toBe('Custom String')
     })
@@ -157,7 +149,7 @@ describe('format-output utilities', () => {
       const obj = {
         func: () => console.log('test'),
         undef: undefined,
-        sym: Symbol('test')
+        sym: Symbol('test'),
       }
       const result = formatOutputForDisplay(obj, { mode: 'raw' })
       expect(result).toContain('[Function]')
@@ -214,11 +206,14 @@ describe('format-output utilities', () => {
   describe('error handling', () => {
     it('handles errors gracefully', () => {
       // Create object that throws on property access
-      const evil = new Proxy({}, {
-        get() {
-          throw new Error('Evil object!')
+      const evil = new Proxy(
+        {},
+        {
+          get() {
+            throw new Error('Evil object!')
+          },
         }
-      })
+      )
 
       const result = formatOutputForDisplay(evil)
       expect(result).toContain('[')
@@ -241,20 +236,24 @@ describe('format-output utilities', () => {
   describe('real-world LLM outputs', () => {
     it('handles OpenAI format', () => {
       const openAIResponse = {
-        choices: [{
-          message: {
-            content: 'AI response here'
-          }
-        }]
+        choices: [
+          {
+            message: {
+              content: 'AI response here',
+            },
+          },
+        ],
       }
       expect(formatOutputForDisplay(openAIResponse)).toBe('AI response here')
     })
 
     it('handles Anthropic format', () => {
       const anthropicResponse = {
-        content: [{
-          text: 'Claude response'
-        }]
+        content: [
+          {
+            text: 'Claude response',
+          },
+        ],
       }
       expect(formatOutputForDisplay(anthropicResponse)).toBe('Claude response')
     })
@@ -262,8 +261,8 @@ describe('format-output utilities', () => {
     it('handles streaming chunks', () => {
       const chunk = {
         delta: {
-          content: 'Streaming text'
-        }
+          content: 'Streaming text',
+        },
       }
       expect(formatOutputForDisplay(chunk)).toBe('Streaming text')
     })
@@ -272,9 +271,9 @@ describe('format-output utilities', () => {
       const toolOutput = {
         result: {
           data: {
-            output: 'Tool execution result'
-          }
-        }
+            output: 'Tool execution result',
+          },
+        },
       }
       expect(formatOutputForDisplay(toolOutput)).toBe('Tool execution result')
     })
