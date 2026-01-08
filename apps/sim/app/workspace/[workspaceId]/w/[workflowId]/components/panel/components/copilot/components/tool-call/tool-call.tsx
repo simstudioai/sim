@@ -8,6 +8,7 @@ import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
+import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { getBlock } from '@/blocks/registry'
 import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/panel/copilot/store'
 import type { CopilotToolCall, SubAgentContentBlock } from '@/stores/panel/copilot/types'
@@ -954,7 +955,9 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
   // Group operations by type with block info
   interface SubBlockPreview {
     id: string
+    title: string
     value: any
+    isPassword?: boolean
   }
 
   interface BlockChange {
@@ -1014,14 +1017,42 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
 
     const change: BlockChange = { blockId, blockName, blockType }
 
-    // Extract subblock info from operation params
+    // Extract subblock info from operation params, ordered by block config
     if (op.params?.inputs && typeof op.params.inputs === 'object') {
+      const inputs = op.params.inputs as Record<string, unknown>
+      const blockConfig = getBlock(blockType)
+
+      // Filter visible subblocks from config (same logic as canvas)
+      const visibleSubBlocks =
+        blockConfig?.subBlocks?.filter((sb) => {
+          // Skip hidden subblocks
+          if (sb.hidden) return false
+          if (sb.hideFromPreview) return false
+          // Skip advanced mode subblocks (not visible by default)
+          if (sb.mode === 'advanced') return false
+          // Skip trigger mode subblocks
+          if (sb.mode === 'trigger') return false
+          return true
+        }) ?? []
+
+      // Build subBlocks array respecting config order
       const subBlocks: SubBlockPreview[] = []
-      for (const [id, value] of Object.entries(op.params.inputs)) {
-        // Skip empty values and connections
-        if (value === null || value === undefined || value === '') continue
-        subBlocks.push({ id, value })
+
+      // Add subblocks that are visible in config, in config order
+      for (const subBlockConfig of visibleSubBlocks) {
+        if (subBlockConfig.id in inputs) {
+          const value = inputs[subBlockConfig.id]
+          // Skip empty values and connections
+          if (value === null || value === undefined || value === '') continue
+          subBlocks.push({
+            id: subBlockConfig.id,
+            title: subBlockConfig.title ?? subBlockConfig.id,
+            value,
+            isPassword: subBlockConfig.password === true,
+          })
+        }
       }
+
       if (subBlocks.length > 0) {
         if (op.operation_type === 'add') {
           change.subBlocks = subBlocks
@@ -1053,38 +1084,6 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
   // Get block config by type (for icon and bgColor)
   const getBlockConfig = (blockType: string) => {
     return getBlock(blockType)
-  }
-
-  // Format subblock value for display
-  const formatSubBlockValue = (value: any): string => {
-    if (value === null || value === undefined) return ''
-    if (typeof value === 'string') {
-      // Truncate long strings
-      return value.length > 60 ? `${value.slice(0, 60)}...` : value
-    }
-    if (typeof value === 'boolean') return value ? 'true' : 'false'
-    if (typeof value === 'number') return String(value)
-    if (Array.isArray(value)) {
-      if (value.length === 0) return '[]'
-      return `[${value.length} items]`
-    }
-    if (typeof value === 'object') {
-      const keys = Object.keys(value)
-      if (keys.length === 0) return '{}'
-      return `{${keys.length} fields}`
-    }
-    return String(value)
-  }
-
-  // Format subblock ID to readable label
-  const formatSubBlockLabel = (id: string): string => {
-    return id
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/[_-]/g, ' ')
-      .trim()
-      .split(' ')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ')
   }
 
   // Render a single block item with action icon and details
@@ -1128,21 +1127,25 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
           <span className={`font-bold font-mono text-[14px] ${color}`}>{symbol}</span>
         </div>
 
-        {/* Subblock details */}
+        {/* Subblock details - uses same title and value formatting as canvas */}
         {subBlocksToShow && subBlocksToShow.length > 0 && (
           <div className='border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 py-1.5'>
-            {subBlocksToShow.map((sb) => (
-              <div key={sb.id} className='flex items-start gap-1.5 py-0.5 text-[11px]'>
-                <span
-                  className={`font-medium ${type === 'edit' ? 'text-[#f97316]' : 'text-[var(--text-tertiary)]'}`}
-                >
-                  {formatSubBlockLabel(sb.id)}:
-                </span>
-                <span className='line-clamp-1 break-all text-[var(--text-muted)]'>
-                  {formatSubBlockValue(sb.value)}
-                </span>
-              </div>
-            ))}
+            {subBlocksToShow.map((sb) => {
+              // Mask password fields like the canvas does
+              const displayValue = sb.isPassword ? '•••' : getDisplayValue(sb.value)
+              return (
+                <div key={sb.id} className='flex items-start gap-1.5 py-0.5 text-[11px]'>
+                  <span
+                    className={`font-medium ${type === 'edit' ? 'text-[#f97316]' : 'text-[var(--text-tertiary)]'}`}
+                  >
+                    {sb.title}:
+                  </span>
+                  <span className='line-clamp-1 break-all text-[var(--text-muted)]'>
+                    {displayValue}
+                  </span>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
