@@ -184,6 +184,15 @@ export function OptionsSelector({
           setChosenKey(selected.key)
           onSelect(selected.key, selected.title)
         }
+      } else if (/^[1-9]$/.test(e.key)) {
+        // Number keys select that option directly
+        const optionIndex = sortedOptions.findIndex((opt) => opt.key === e.key)
+        if (optionIndex !== -1) {
+          e.preventDefault()
+          const selected = sortedOptions[optionIndex]
+          setChosenKey(selected.key)
+          onSelect(selected.key, selected.title)
+        }
       }
     }
 
@@ -194,65 +203,50 @@ export function OptionsSelector({
   if (sortedOptions.length === 0) return null
 
   return (
-    <div
-      ref={containerRef}
-      className='mt-3 overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-1)]'
-    >
-      <div className='divide-y divide-[var(--border-1)]'>
-        {sortedOptions.map((option, index) => {
-          const isHovered = index === hoveredIndex && !isLocked
-          const isChosen = option.key === chosenKey
-          const isRejected = isLocked && !isChosen
+    <div ref={containerRef} className='mt-3 flex flex-col gap-1 pb-1'>
+      {sortedOptions.map((option, index) => {
+        const isHovered = index === hoveredIndex && !isLocked
+        const isChosen = option.key === chosenKey
+        const isRejected = isLocked && !isChosen
 
-          return (
-            <div
-              key={option.key}
-              onClick={() => {
-                if (!disabled && !isLocked) {
-                  setChosenKey(option.key)
-                  onSelect(option.key, option.title)
-                }
-              }}
-              onMouseEnter={() => {
-                if (!isLocked) setHoveredIndex(index)
-              }}
-              className={`flex items-start gap-2.5 px-2.5 py-2 transition-colors ${
-                isLocked
-                  ? isChosen
-                    ? 'bg-[var(--surface-3)]'
-                    : 'bg-transparent'
-                  : isHovered
-                    ? 'cursor-pointer bg-[var(--surface-3)]'
-                    : 'cursor-pointer hover:bg-[var(--surface-2)]'
-              } ${disabled ? 'cursor-not-allowed opacity-50' : ''} ${isLocked ? 'cursor-default' : ''}`}
+        return (
+          <div
+            key={option.key}
+            onClick={() => {
+              if (!disabled && !isLocked) {
+                setChosenKey(option.key)
+                onSelect(option.key, option.title)
+              }
+            }}
+            onMouseEnter={() => {
+              if (!isLocked) setHoveredIndex(index)
+            }}
+            className={clsx(
+              'group flex cursor-pointer items-start gap-2.5 rounded-[8px] p-1',
+              'hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
+              disabled && 'cursor-not-allowed opacity-50',
+              isLocked && 'cursor-default',
+              isHovered && 'is-hovered bg-[var(--surface-6)] dark:bg-[var(--surface-5)]'
+            )}
+          >
+            <Button
+              variant='3d'
+              className='group-hover:-translate-y-0.5 group-[.is-hovered]:-translate-y-0.5 w-[22px] py-[2px] text-[11px] group-hover:text-[var(--text-primary)] group-[.is-hovered]:text-[var(--text-primary)] group-hover:shadow-[0_4px_0_0_rgba(48,48,48,1)] group-[.is-hovered]:shadow-[0_4px_0_0_rgba(48,48,48,1)]'
             >
-              {/* Option number */}
-              <div
-                className={`flex h-5 w-5 flex-shrink-0 items-center justify-center font-medium font-mono text-[11px] ${
-                  isRejected ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-secondary)]'
-                }`}
-              >
-                {option.key}.
-              </div>
+              {option.key}
+            </Button>
 
-              {/* Option content */}
-              <div
-                className={`min-w-0 flex-1 font-season text-[12px] leading-5 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[11px] [&_p]:m-0 [&_p]:leading-5 ${
-                  isChosen
-                    ? 'font-medium text-[var(--text-primary)]'
-                    : isRejected
-                      ? 'text-[var(--text-tertiary)] line-through'
-                      : isHovered
-                        ? 'font-medium text-[var(--text-primary)]'
-                        : 'text-[var(--text-secondary)]'
-                }`}
-              >
-                <CopilotMarkdownRenderer content={option.title} />
-              </div>
-            </div>
-          )
-        })}
-      </div>
+            <span
+              className={clsx(
+                'min-w-0 flex-1 pt-0.5 font-season text-[12px] leading-5 text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] group-[.is-hovered]:text-[var(--text-primary)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[11px] [&_p]:m-0 [&_p]:leading-5',
+                isRejected && 'text-[var(--text-tertiary)] line-through opacity-50'
+              )}
+            >
+              <CopilotMarkdownRenderer content={option.title} />
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }
