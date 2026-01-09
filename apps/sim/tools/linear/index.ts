@@ -16,7 +16,6 @@ import { linearCreateIssueRelationTool } from '@/tools/linear/create_issue_relat
 import { linearCreateLabelTool } from '@/tools/linear/create_label'
 import { linearCreateProjectTool } from '@/tools/linear/create_project'
 import { linearCreateProjectLabelTool } from '@/tools/linear/create_project_label'
-import { linearCreateProjectLinkTool } from '@/tools/linear/create_project_link'
 import { linearCreateProjectMilestoneTool } from '@/tools/linear/create_project_milestone'
 import { linearCreateProjectStatusTool } from '@/tools/linear/create_project_status'
 import { linearCreateProjectUpdateTool } from '@/tools/linear/create_project_update'
@@ -138,7 +137,6 @@ export {
   linearListFavoritesTool,
   linearCreateProjectUpdateTool,
   linearListProjectUpdatesTool,
-  linearCreateProjectLinkTool,
   linearListNotificationsTool,
   linearUpdateNotificationTool,
   linearCreateCustomerTool,
