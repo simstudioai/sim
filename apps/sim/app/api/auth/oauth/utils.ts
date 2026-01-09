@@ -135,14 +135,11 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       const refreshResult = await refreshOAuthToken(providerId, credential.refreshToken!)
 
       if (!refreshResult) {
-        logger.error(
-          `Failed to refresh token for user ${userId}, provider ${providerId} - no result returned`,
-          {
-            providerId,
-            userId,
-            hasRefreshToken: !!credential.refreshToken,
-          }
-        )
+        logger.error(`Failed to refresh token for user ${userId}, provider ${providerId}`, {
+          providerId,
+          userId,
+          hasRefreshToken: !!credential.refreshToken,
+        })
         return null
       }
 
@@ -224,15 +221,12 @@ export async function refreshAccessTokenIfNeeded(
       )
 
       if (!refreshedToken) {
-        logger.error(
-          `[${requestId}] Failed to refresh token for credential: ${credentialId} - no result returned`,
-          {
-            credentialId,
-            providerId: credential.providerId,
-            userId: credential.userId,
-            hasRefreshToken: !!credential.refreshToken,
-          }
-        )
+        logger.error(`[${requestId}] Failed to refresh token for credential: ${credentialId}`, {
+          credentialId,
+          providerId: credential.providerId,
+          userId: credential.userId,
+          hasRefreshToken: !!credential.refreshToken,
+        })
         return null
       }
 
