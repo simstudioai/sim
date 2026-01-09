@@ -92,7 +92,7 @@ type SettingsSection =
   | 'custom-tools'
   | 'workflow-mcp-servers'
 
-type NavigationSection = 'account' | 'subscription' | 'tools' | 'system'
+type NavigationSection = 'account' | 'subscription' | 'tools' | 'system' | 'enterprise'
 
 type NavigationItem = {
   id: SettingsSection
@@ -111,6 +111,7 @@ const sectionConfig: { key: NavigationSection; title: string }[] = [
   { key: 'tools', title: 'Tools' },
   { key: 'subscription', title: 'Subscription' },
   { key: 'system', title: 'System' },
+  { key: 'enterprise', title: 'Enterprise' },
 ]
 
 const allNavigationItems: NavigationItem[] = [
@@ -120,7 +121,7 @@ const allNavigationItems: NavigationItem[] = [
     id: 'access-control',
     label: 'Access Control',
     icon: ShieldCheck,
-    section: 'account',
+    section: 'enterprise',
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isAccessControlEnabled,
@@ -159,7 +160,7 @@ const allNavigationItems: NavigationItem[] = [
     id: 'byok',
     label: 'BYOK',
     icon: KeySquare,
-    section: 'system',
+    section: 'enterprise',
     requiresHosted: true,
     requiresEnterprise: true,
   },
@@ -175,7 +176,7 @@ const allNavigationItems: NavigationItem[] = [
     id: 'sso',
     label: 'Single Sign-On',
     icon: LogIn,
-    section: 'system',
+    section: 'enterprise',
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isSSOEnabled,
