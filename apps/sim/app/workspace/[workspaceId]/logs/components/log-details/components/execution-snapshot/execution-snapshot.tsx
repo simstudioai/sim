@@ -211,7 +211,15 @@ export function ExecutionSnapshot({
 
   if (isModal) {
     return (
-      <Modal open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <Modal
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPinnedBlockId(null)
+            onClose()
+          }
+        }}
+      >
         <ModalContent size='full' className='flex h-[90vh] flex-col'>
           <ModalHeader>Workflow State</ModalHeader>
 

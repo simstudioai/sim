@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown as ChevronDownIcon, X } from 'lucide-react'
 import { ReactFlowProvider } from 'reactflow'
 import { Badge, Button, ChevronDown, Code } from '@/components/emcn'
@@ -210,10 +210,11 @@ function ExecutionDataSection({ title, data, isError = false }: ExecutionDataSec
  */
 function ResolvedConnectionsSection({ connections }: { connections: ResolvedConnection[] }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
-  const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(() => {
-    // Start with all blocks expanded
-    return new Set(connections.map((c) => c.blockId))
-  })
+  const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    setExpandedBlocks(new Set(connections.map((c) => c.blockId)))
+  }, [connections])
 
   if (connections.length === 0) return null
 
