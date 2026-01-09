@@ -239,7 +239,6 @@ export function shouldSkipWebhookEvent(webhook: any, body: any, requestId: strin
     }
   }
 
-  // Grain event filtering - filter by payload type field (e.g., recording_added, highlight_created)
   if (webhook.provider === 'grain') {
     const eventTypes = providerConfig.eventTypes
     if (eventTypes && Array.isArray(eventTypes) && eventTypes.length > 0) {

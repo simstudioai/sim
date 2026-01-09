@@ -1204,7 +1204,6 @@ async function createGrainWebhookSubscription(
       grain_upload_status: 'upload_status',
     }
 
-    // Map trigger IDs to expected payload event types (for filtering incoming webhooks)
     const eventTypeMap: Record<string, string[]> = {
       grain_webhook: [],
       grain_recording_created: ['recording_added'],
