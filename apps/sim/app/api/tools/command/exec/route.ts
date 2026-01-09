@@ -41,7 +41,12 @@ export async function POST(request: NextRequest) {
 
 		return NextResponse.json(output);
 	} catch (error) {
-		console.error("Command execution error:", error);
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('CommandExecAPI')
+
+// Then replace console.error with:
+		logger.error('Command execution error:', { error })
 		return NextResponse.json(
 			{
 				error: error instanceof Error ? error.message : "Unknown error occurred",
