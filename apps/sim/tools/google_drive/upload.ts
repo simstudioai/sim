@@ -241,15 +241,6 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
 
       const finalFile = await finalFileResponse.json()
 
-      logger.info('File uploaded successfully', {
-        fileId: finalFile.id,
-        name: finalFile.name,
-        mimeType: finalFile.mimeType,
-        size: finalFile.size,
-        hasOwners: !!finalFile.owners?.length,
-        hasPermissions: !!finalFile.permissions?.length,
-      })
-
       return {
         success: true,
         output: {

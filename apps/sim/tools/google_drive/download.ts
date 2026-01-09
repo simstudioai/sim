@@ -149,7 +149,6 @@ export const downloadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveDownload
         fileBuffer = Buffer.from(arrayBuffer)
       }
 
-      // Fetch revisions if requested (default: true)
       const includeRevisions = params?.includeRevisions !== false
       if (includeRevisions) {
         try {

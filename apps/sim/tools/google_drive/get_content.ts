@@ -137,7 +137,6 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
         content = await downloadResponse.text()
       }
 
-      // Fetch revisions if requested (default: true)
       const includeRevisions = params?.includeRevisions !== false
       if (includeRevisions) {
         try {
