@@ -331,6 +331,7 @@ export function GeneralDeploy({
                 {expandedSelectedBlockId && workflowToShow.blocks?.[expandedSelectedBlockId] && (
                   <BlockDetailsSidebar
                     block={workflowToShow.blocks[expandedSelectedBlockId]}
+                    workflowVariables={workflowToShow.variables}
                     onClose={() => setExpandedSelectedBlockId(null)}
                   />
                 )}
