@@ -1788,18 +1788,6 @@ const WorkflowContent = React.memo(() => {
         return
       }
 
-      // Recovery: detect and clear invalid parent references to prevent infinite recursion
-      if (block.data?.parentId) {
-        if (block.data.parentId === block.id) {
-          block.data = { ...block.data, parentId: undefined, extent: undefined }
-        } else {
-          const parentBlock = blocks[block.data.parentId]
-          if (parentBlock?.data?.parentId === block.id) {
-            block.data = { ...block.data, parentId: undefined, extent: undefined }
-          }
-        }
-      }
-
       // Handle container nodes differently
       if (block.type === 'loop' || block.type === 'parallel') {
         nodeArray.push({
