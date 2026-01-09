@@ -2396,11 +2396,14 @@ const WorkflowContent = React.memo(() => {
       const selectedNodes = allNodes.filter((n) => n.selected)
       multiNodeDragStartRef.current.clear()
       selectedNodes.forEach((n) => {
-        multiNodeDragStartRef.current.set(n.id, {
-          x: n.position.x,
-          y: n.position.y,
-          parentId: blocks[n.id]?.data?.parentId,
-        })
+        const block = blocks[n.id]
+        if (block) {
+          multiNodeDragStartRef.current.set(n.id, {
+            x: n.position.x,
+            y: n.position.y,
+            parentId: block.data?.parentId,
+          })
+        }
       })
     },
     [blocks, setDragStartPosition, getNodes]

@@ -682,11 +682,10 @@ export function useUndoRedo() {
             userId,
           })
 
+          // Use setBlockEnabled to directly restore to previous state
+          // This is more robust than conditional toggle in collaborative scenarios
           validBlockIds.forEach((blockId) => {
-            const targetState = previousStates[blockId]
-            if (workflowStore.blocks[blockId].enabled !== targetState) {
-              workflowStore.toggleBlockEnabled(blockId)
-            }
+            workflowStore.setBlockEnabled(blockId, previousStates[blockId])
           })
           break
         }
@@ -711,11 +710,10 @@ export function useUndoRedo() {
             userId,
           })
 
+          // Use setBlockHandles to directly restore to previous state
+          // This is more robust than conditional toggle in collaborative scenarios
           validBlockIds.forEach((blockId) => {
-            const targetState = previousStates[blockId]
-            if (workflowStore.blocks[blockId].horizontalHandles !== targetState) {
-              workflowStore.toggleBlockHandles(blockId)
-            }
+            workflowStore.setBlockHandles(blockId, previousStates[blockId])
           })
           break
         }
@@ -1192,11 +1190,10 @@ export function useUndoRedo() {
             userId,
           })
 
+          // Use setBlockEnabled to directly set to toggled state
+          // Redo sets to !previousStates (the state after the original toggle)
           validBlockIds.forEach((blockId) => {
-            const targetState = !previousStates[blockId]
-            if (workflowStore.blocks[blockId].enabled !== targetState) {
-              workflowStore.toggleBlockEnabled(blockId)
-            }
+            workflowStore.setBlockEnabled(blockId, !previousStates[blockId])
           })
           break
         }
@@ -1221,11 +1218,10 @@ export function useUndoRedo() {
             userId,
           })
 
+          // Use setBlockHandles to directly set to toggled state
+          // Redo sets to !previousStates (the state after the original toggle)
           validBlockIds.forEach((blockId) => {
-            const targetState = !previousStates[blockId]
-            if (workflowStore.blocks[blockId].horizontalHandles !== targetState) {
-              workflowStore.toggleBlockHandles(blockId)
-            }
+            workflowStore.setBlockHandles(blockId, !previousStates[blockId])
           })
           break
         }

@@ -586,6 +586,27 @@ export const useWorkflowStore = create<WorkflowStore>()(
         // Note: Socket.IO handles real-time sync automatically
       },
 
+      setBlockEnabled: (id: string, enabled: boolean) => {
+        const block = get().blocks[id]
+        if (!block || block.enabled === enabled) return
+
+        const newState = {
+          blocks: {
+            ...get().blocks,
+            [id]: {
+              ...block,
+              enabled,
+            },
+          },
+          edges: [...get().edges],
+          loops: { ...get().loops },
+          parallels: { ...get().parallels },
+        }
+
+        set(newState)
+        get().updateLastSaved()
+      },
+
       duplicateBlock: (id: string) => {
         const block = get().blocks[id]
         if (!block) return
@@ -666,6 +687,26 @@ export const useWorkflowStore = create<WorkflowStore>()(
         set(newState)
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
+      },
+
+      setBlockHandles: (id: string, horizontalHandles: boolean) => {
+        const block = get().blocks[id]
+        if (!block || block.horizontalHandles === horizontalHandles) return
+
+        const newState = {
+          blocks: {
+            ...get().blocks,
+            [id]: {
+              ...block,
+              horizontalHandles,
+            },
+          },
+          edges: [...get().edges],
+          loops: { ...get().loops },
+        }
+
+        set(newState)
+        get().updateLastSaved()
       },
 
       updateBlockName: (id: string, name: string) => {
