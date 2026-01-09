@@ -425,7 +425,8 @@ export function useUndoRedo() {
           break
         }
         case 'batch-add-blocks': {
-          const batchAddOp = entry.operation as BatchAddBlocksOperation
+          // Undoing a removal: inverse is batch-add-blocks, use entry.inverse for data
+          const batchAddOp = entry.inverse as BatchAddBlocksOperation
           const { blockSnapshots, edgeSnapshots, subBlockValues } = batchAddOp.data
 
           const blocksToAdd = blockSnapshots.filter((b) => !workflowStore.blocks[b.id])
