@@ -11,6 +11,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Tooltip,
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
@@ -235,14 +236,19 @@ export function GeneralDeploy({
                   defaultPosition={{ x: 0, y: 0 }}
                   defaultZoom={0.6}
                 />
-                <button
-                  type='button'
-                  onClick={() => setShowExpandedPreview(true)}
-                  className='absolute top-[8px] right-[8px] z-10 rounded-[4px] bg-[var(--surface-1)] p-[6px] text-[var(--text-secondary)] shadow-sm transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]'
-                  title='Expand preview'
-                >
-                  <Maximize2 className='h-[14px] w-[14px]' />
-                </button>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      type='button'
+                      variant='default'
+                      onClick={() => setShowExpandedPreview(true)}
+                      className='absolute top-[8px] right-[8px] z-10 h-[28px] w-[28px] p-0'
+                    >
+                      <Maximize2 className='h-[14px] w-[14px]' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom'>Expand preview</Tooltip.Content>
+                </Tooltip.Root>
               </>
             ) : (
               <div className='flex h-full items-center justify-center text-[#8D8D8D] text-[13px]'>
