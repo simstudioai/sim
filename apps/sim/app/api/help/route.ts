@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
 Type: ${type}
 From: ${email}
 User ID: ${userId}
-Workspace ID: ${workspaceId}
+Workspace ID: ${workspaceId ?? 'N/A'}
 Workflow ID: ${workflowId ?? 'N/A'}
 Browser: ${userAgent ?? 'N/A'}
 

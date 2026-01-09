@@ -616,6 +616,7 @@ export function deepMergeInputMapping(
 
   for (const [key, userValue] of Object.entries(parsedUserMapping)) {
     // Only override LLM value if user provided a non-empty value
+    // Note: Using strict inequality (===) so 0 and false are correctly preserved
     if (userValue !== undefined && userValue !== null && userValue !== '') {
       merged[key] = userValue
     }
