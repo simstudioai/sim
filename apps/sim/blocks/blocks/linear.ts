@@ -227,7 +227,11 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_update_project',
           'linear_archive_project',
           'linear_delete_project',
+          'linear_create_project_update',
           'linear_list_project_updates',
+          'linear_create_project_link',
+          'linear_create_project_status',
+          'linear_create_project_label',
         ],
       },
       condition: {
@@ -239,7 +243,11 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_update_project',
           'linear_archive_project',
           'linear_delete_project',
+          'linear_create_project_update',
           'linear_list_project_updates',
+          'linear_create_project_link',
+          'linear_create_project_status',
+          'linear_create_project_label',
           'linear_list_project_labels',
         ],
       },
@@ -262,6 +270,8 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_create_project_update',
           'linear_list_project_updates',
           'linear_create_project_link',
+          'linear_create_project_status',
+          'linear_create_project_label',
         ],
       },
       condition: {
@@ -276,6 +286,8 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_create_project_update',
           'linear_list_project_updates',
           'linear_create_project_link',
+          'linear_create_project_status',
+          'linear_create_project_label',
           'linear_list_project_labels',
         ],
       },
@@ -1993,11 +2005,15 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
           // Project Label Operations
           case 'linear_create_project_label':
+            if (!effectiveProjectId) {
+              throw new Error('Project ID is required.')
+            }
             if (!params.projectLabelName?.trim()) {
               throw new Error('Project label name is required.')
             }
             return {
               ...baseParams,
+              projectId: effectiveProjectId,
               name: params.projectLabelName.trim(),
               description: params.projectLabelDescription?.trim() || undefined,
               color: params.statusColor?.trim() || undefined,
@@ -2033,22 +2049,22 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             }
 
           case 'linear_add_label_to_project':
-            if (!effectiveProjectId || !params.projectLabelId?.trim()) {
+            if (!params.projectIdForMilestone?.trim() || !params.projectLabelId?.trim()) {
               throw new Error('Project ID and label ID are required.')
             }
             return {
               ...baseParams,
-              projectId: effectiveProjectId,
+              projectId: params.projectIdForMilestone.trim(),
               labelId: params.projectLabelId.trim(),
             }
 
           case 'linear_remove_label_from_project':
-            if (!effectiveProjectId || !params.projectLabelId?.trim()) {
+            if (!params.projectIdForMilestone?.trim() || !params.projectLabelId?.trim()) {
               throw new Error('Project ID and label ID are required.')
             }
             return {
               ...baseParams,
-              projectId: effectiveProjectId,
+              projectId: params.projectIdForMilestone.trim(),
               labelId: params.projectLabelId.trim(),
             }
 
@@ -2097,11 +2113,15 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
           // Project Status Operations
           case 'linear_create_project_status':
+            if (!effectiveProjectId) {
+              throw new Error('Project ID is required.')
+            }
             if (!params.projectStatusName?.trim() || !params.statusColor?.trim()) {
               throw new Error('Project status name and color are required.')
             }
             return {
               ...baseParams,
+              projectId: effectiveProjectId,
               name: params.projectStatusName.trim(),
               color: params.statusColor.trim(),
               description: params.projectStatusDescription?.trim() || undefined,
