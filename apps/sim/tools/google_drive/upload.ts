@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { GoogleDriveToolParams, GoogleDriveUploadResponse } from '@/tools/google_drive/types'
 import {
+  ALL_FILE_FIELDS,
   GOOGLE_WORKSPACE_MIME_TYPES,
   handleSheetsFormat,
   SOURCE_MIME_TYPES,
@@ -8,83 +9,6 @@ import {
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GoogleDriveUploadTool')
-
-// All available file metadata fields from Google Drive API v3
-const ALL_FILE_FIELDS = [
-  // Basic Info
-  'id',
-  'name',
-  'mimeType',
-  'kind',
-  'description',
-  'originalFilename',
-  'fullFileExtension',
-  'fileExtension',
-  // Ownership & Sharing
-  'owners',
-  'permissions',
-  'permissionIds',
-  'shared',
-  'ownedByMe',
-  'writersCanShare',
-  'viewersCanCopyContent',
-  'copyRequiresWriterPermission',
-  'sharingUser',
-  // Labels/Tags
-  'starred',
-  'trashed',
-  'explicitlyTrashed',
-  'properties',
-  'appProperties',
-  'folderColorRgb',
-  // Timestamps
-  'createdTime',
-  'modifiedTime',
-  'modifiedByMeTime',
-  'viewedByMeTime',
-  'sharedWithMeTime',
-  'trashedTime',
-  // User Info
-  'lastModifyingUser',
-  'trashingUser',
-  'viewedByMe',
-  'modifiedByMe',
-  // Links
-  'webViewLink',
-  'webContentLink',
-  'iconLink',
-  'thumbnailLink',
-  'exportLinks',
-  // Size & Storage
-  'size',
-  'quotaBytesUsed',
-  // Checksums
-  'md5Checksum',
-  'sha1Checksum',
-  'sha256Checksum',
-  // Hierarchy & Location
-  'parents',
-  'spaces',
-  'driveId',
-  'teamDriveId',
-  // Capabilities
-  'capabilities',
-  // Versions
-  'version',
-  'headRevisionId',
-  // Media Metadata
-  'hasThumbnail',
-  'thumbnailVersion',
-  'imageMediaMetadata',
-  'videoMediaMetadata',
-  'contentHints',
-  // Other
-  'isAppAuthorized',
-  'contentRestrictions',
-  'resourceKey',
-  'shortcutDetails',
-  'linkShareMetadata',
-].join(',')
 
 export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResponse> = {
   id: 'google_drive_upload',
