@@ -778,29 +778,31 @@ async function handleBlocksOperationTx(
 
         const isRemovingFromParent = !parentId
 
-        // Get current data to update
+        // Get current data and position
         const [currentBlock] = await tx
-          .select({ data: workflowBlocks.data })
+          .select({
+            data: workflowBlocks.data,
+            positionX: workflowBlocks.positionX,
+            positionY: workflowBlocks.positionY,
+          })
           .from(workflowBlocks)
           .where(and(eq(workflowBlocks.id, id), eq(workflowBlocks.workflowId, workflowId)))
           .limit(1)
 
         const currentData = currentBlock?.data || {}
 
-        // Update data with parentId and extent
         const updatedData = isRemovingFromParent
-          ? {} // Clear data entirely when removing from parent
+          ? {}
           : {
               ...currentData,
               ...(parentId ? { parentId, extent: 'parent' } : {}),
             }
 
-        // Update position and data
         await tx
           .update(workflowBlocks)
           .set({
-            positionX: position?.x ?? currentBlock?.data?.positionX,
-            positionY: position?.y ?? currentBlock?.data?.positionY,
+            positionX: position?.x ?? currentBlock?.positionX ?? 0,
+            positionY: position?.y ?? currentBlock?.positionY ?? 0,
             data: updatedData,
             updatedAt: new Date(),
           })
