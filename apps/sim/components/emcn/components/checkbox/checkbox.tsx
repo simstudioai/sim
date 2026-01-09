@@ -23,7 +23,7 @@ import { cn } from '@/lib/core/utils/cn'
  * ```
  */
 const checkboxVariants = cva(
-  'peer shrink-0 rounded-sm border border-[var(--border-1)] bg-[var(--surface-4)] ring-offset-background transition-colors hover:border-[var(--border-muted)] hover:bg-[var(--surface-7)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-[var(--text-muted)] data-[state=checked]:bg-[var(--text-muted)] data-[state=checked]:text-white dark:bg-[var(--surface-5)] dark:data-[state=checked]:border-[var(--surface-7)] dark:data-[state=checked]:bg-[var(--surface-7)] dark:data-[state=checked]:text-[var(--text-primary)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)]',
+  'peer shrink-0 rounded-sm border border-[var(--border-1)] bg-[var(--surface-4)] ring-offset-background transition-colors hover:border-[var(--border-muted)] hover:bg-[var(--surface-7)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[state=checked]:border-[var(--text-muted)] data-[state=checked]:bg-[var(--text-muted)] data-[state=checked]:text-white dark:bg-[var(--surface-5)] dark:data-[state=checked]:border-[var(--surface-7)] dark:data-[state=checked]:bg-[var(--surface-7)] dark:data-[state=checked]:text-[var(--text-primary)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)]',
   {
     variants: {
       size: {

@@ -3,8 +3,8 @@
 import { memo, useMemo } from 'react'
 import { useViewport } from 'reactflow'
 import { useSession } from '@/lib/auth/auth-client'
+import { getUserColor } from '@/lib/workspaces/colors'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { getUserColor } from '@/app/workspace/[workspaceId]/w/utils/get-user-color'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 
 interface CursorPoint {

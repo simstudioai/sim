@@ -844,6 +844,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
             className={cn(
               datePickerVariants({ variant, size }),
               'relative cursor-pointer items-center justify-between',
+              disabled && 'cursor-not-allowed opacity-50',
               className
             )}
             onClick={handleTriggerClick}

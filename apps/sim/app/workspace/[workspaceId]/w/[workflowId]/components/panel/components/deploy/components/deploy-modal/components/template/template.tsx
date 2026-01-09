@@ -18,7 +18,7 @@ import { Skeleton, TagInput } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { captureAndUploadOGImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from '@/lib/og'
-import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
+import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import {
   useCreateTemplate,
   useDeleteTemplate,

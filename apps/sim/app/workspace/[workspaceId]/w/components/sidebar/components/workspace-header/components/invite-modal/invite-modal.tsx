@@ -18,9 +18,10 @@ import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { EmailTag } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal/components/email-tag'
+import { PermissionsTable } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal/components/permissions-table'
 import { API_ENDPOINTS } from '@/stores/constants'
-import type { PermissionType, UserPermissions } from './components'
-import { EmailTag, PermissionsTable } from './components'
+import type { PermissionType, UserPermissions } from './components/types'
 
 const logger = createLogger('InviteModal')
 

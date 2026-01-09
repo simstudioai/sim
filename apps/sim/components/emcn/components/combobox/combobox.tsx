@@ -467,7 +467,12 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                     {...inputProps}
                   />
                   {(overlayContent || SelectedIcon) && (
-                    <div className='pointer-events-none absolute top-0 right-[42px] bottom-0 left-0 flex items-center bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'>
+                    <div
+                      className={cn(
+                        'pointer-events-none absolute top-0 right-[42px] bottom-0 left-0 flex items-center bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm',
+                        disabled && 'opacity-50'
+                      )}
+                    >
                       {overlayContent ? (
                         overlayContent
                       ) : (
@@ -505,6 +510,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                   className={cn(
                     comboboxVariants({ variant, size }),
                     'relative cursor-pointer items-center justify-between',
+                    disabled && 'cursor-not-allowed opacity-50',
                     className
                   )}
                   onClick={handleToggle}

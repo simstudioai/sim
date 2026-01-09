@@ -13,6 +13,7 @@ import {
   getNextWorkflowColor,
 } from '@/stores/workflows/registry/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowQueries')
 
@@ -20,6 +21,9 @@ export const workflowKeys = {
   all: ['workflows'] as const,
   lists: () => [...workflowKeys.all, 'list'] as const,
   list: (workspaceId: string | undefined) => [...workflowKeys.lists(), workspaceId ?? ''] as const,
+  deploymentVersions: () => [...workflowKeys.all, 'deploymentVersion'] as const,
+  deploymentVersion: (workflowId: string | undefined, version: number | undefined) =>
+    [...workflowKeys.deploymentVersions(), workflowId ?? '', version ?? 0] as const,
 }
 
 function mapWorkflow(workflow: any): WorkflowMetadata {
@@ -335,6 +339,63 @@ export function useDuplicateWorkflowMutation() {
             [data.id]: { ...sourceSubblockValues },
           },
         }))
+      }
+    },
+  })
+}
+
+interface DeploymentVersionStateResponse {
+  deployedState: WorkflowState
+}
+
+async function fetchDeploymentVersionState(
+  workflowId: string,
+  version: number
+): Promise<WorkflowState> {
+  const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch deployment version: ${response.statusText}`)
+  }
+
+  const data: DeploymentVersionStateResponse = await response.json()
+  if (!data.deployedState) {
+    throw new Error('No deployed state returned')
+  }
+
+  return data.deployedState
+}
+
+/**
+ * Hook for fetching the workflow state of a specific deployment version.
+ * Used in the deploy modal to preview historical versions.
+ */
+export function useDeploymentVersionState(workflowId: string | null, version: number | null) {
+  return useQuery({
+    queryKey: workflowKeys.deploymentVersion(workflowId ?? undefined, version ?? undefined),
+    queryFn: () => fetchDeploymentVersionState(workflowId as string, version as number),
+    enabled: Boolean(workflowId) && version !== null,
+    staleTime: 5 * 60 * 1000, // 5 minutes - deployment versions don't change
+  })
+}
+
+interface RevertToVersionVariables {
+  workflowId: string
+  version: number
+}
+
+/**
+ * Mutation hook for reverting (loading) a deployment version into the current workflow.
+ */
+export function useRevertToVersion() {
+  return useMutation({
+    mutationFn: async ({ workflowId, version }: RevertToVersionVariables): Promise<void> => {
+      const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}/revert`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to load deployment')
       }
     },
   })

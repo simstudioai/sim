@@ -24,9 +24,9 @@ import { getSubscriptionStatus } from '@/lib/billing/client'
 import { cn } from '@/lib/core/utils/cn'
 import { getProviderDisplayName, type PollingProvider } from '@/lib/credential-sets/providers'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { getUserColor } from '@/lib/workspaces/colors'
 import { getUserRole } from '@/lib/workspaces/organization'
-import { EmailTag } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal/components'
-import { getUserColor } from '@/app/workspace/[workspaceId]/w/utils/get-user-color'
+import { EmailTag } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import {
   type CredentialSet,
   useAcceptCredentialSetInvitation,
