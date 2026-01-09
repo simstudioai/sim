@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import type {
+  GoogleDriveFile,
   GoogleDriveGetContentResponse,
+  GoogleDriveRevision,
   GoogleDriveToolParams,
 } from '@/tools/google_drive/types'
 import { DEFAULT_EXPORT_FORMATS, GOOGLE_WORKSPACE_MIME_TYPES } from '@/tools/google_drive/utils'
@@ -8,11 +10,106 @@ import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GoogleDriveGetContentTool')
 
+// All available file metadata fields from Google Drive API v3
+const ALL_FILE_FIELDS = [
+  // Basic Info
+  'id',
+  'name',
+  'mimeType',
+  'kind',
+  'description',
+  'originalFilename',
+  'fullFileExtension',
+  'fileExtension',
+  // Ownership & Sharing
+  'owners',
+  'permissions',
+  'permissionIds',
+  'shared',
+  'ownedByMe',
+  'writersCanShare',
+  'viewersCanCopyContent',
+  'copyRequiresWriterPermission',
+  'sharingUser',
+  // Labels/Tags
+  'starred',
+  'trashed',
+  'explicitlyTrashed',
+  'properties',
+  'appProperties',
+  'folderColorRgb',
+  // Timestamps
+  'createdTime',
+  'modifiedTime',
+  'modifiedByMeTime',
+  'viewedByMeTime',
+  'sharedWithMeTime',
+  'trashedTime',
+  // User Info
+  'lastModifyingUser',
+  'trashingUser',
+  'viewedByMe',
+  'modifiedByMe',
+  // Links
+  'webViewLink',
+  'webContentLink',
+  'iconLink',
+  'thumbnailLink',
+  'exportLinks',
+  // Size & Storage
+  'size',
+  'quotaBytesUsed',
+  // Checksums
+  'md5Checksum',
+  'sha1Checksum',
+  'sha256Checksum',
+  // Hierarchy & Location
+  'parents',
+  'spaces',
+  'driveId',
+  'teamDriveId',
+  // Capabilities
+  'capabilities',
+  // Versions
+  'version',
+  'headRevisionId',
+  // Media Metadata
+  'hasThumbnail',
+  'thumbnailVersion',
+  'imageMediaMetadata',
+  'videoMediaMetadata',
+  'contentHints',
+  // Other
+  'isAppAuthorized',
+  'contentRestrictions',
+  'resourceKey',
+  'shortcutDetails',
+  'linkShareMetadata',
+].join(',')
+
+// All revision fields
+const ALL_REVISION_FIELDS = [
+  'id',
+  'mimeType',
+  'modifiedTime',
+  'keepForever',
+  'published',
+  'publishAuto',
+  'publishedLink',
+  'publishedOutsideDomain',
+  'lastModifyingUser',
+  'originalFilename',
+  'md5Checksum',
+  'size',
+  'exportLinks',
+  'kind',
+].join(',')
+
 export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetContentResponse> = {
   id: 'google_drive_get_content',
   name: 'Get Content from Google Drive',
   description:
-    'Get content from a file in Google Drive (exports Google Workspace files automatically)',
+    'Get content from a file in Google Drive with complete metadata (exports Google Workspace files automatically)',
   version: '1.0',
 
   oauth: {
@@ -39,11 +136,17 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
       visibility: 'hidden',
       description: 'The MIME type to export Google Workspace files to (optional)',
     },
+    includeRevisions: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to include revision history in the metadata (default: true)',
+    },
   },
 
   request: {
     url: (params) =>
-      `https://www.googleapis.com/drive/v3/files/${params.fileId}?fields=id,name,mimeType&supportsAllDrives=true`,
+      `https://www.googleapis.com/drive/v3/files/${params.fileId}?fields=${ALL_FILE_FIELDS}&supportsAllDrives=true`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -61,7 +164,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
         throw new Error(errorDetails.error?.message || 'Failed to get file metadata')
       }
 
-      const metadata = await response.json()
+      const metadata: GoogleDriveFile = await response.json()
       const fileId = metadata.id
       const mimeType = metadata.mimeType
       const authHeader = `Bearer ${params?.accessToken || ''}`
@@ -124,40 +227,54 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
         content = await downloadResponse.text()
       }
 
-      const metadataResponse = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,webViewLink,webContentLink,size,createdTime,modifiedTime,parents&supportsAllDrives=true`,
-        {
-          headers: {
-            Authorization: authHeader,
-          },
-        }
-      )
+      // Fetch revisions if requested (default: true)
+      const includeRevisions = params?.includeRevisions !== false
+      if (includeRevisions) {
+        try {
+          const revisionsResponse = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${fileId}/revisions?fields=revisions(${ALL_REVISION_FIELDS})&pageSize=100`,
+            {
+              headers: {
+                Authorization: authHeader,
+              },
+            }
+          )
 
-      if (!metadataResponse.ok) {
-        logger.warn('Failed to get full metadata, using partial metadata', {
-          status: metadataResponse.status,
-          statusText: metadataResponse.statusText,
-        })
-      } else {
-        const fullMetadata = await metadataResponse.json()
-        Object.assign(metadata, fullMetadata)
+          if (revisionsResponse.ok) {
+            const revisionsData = await revisionsResponse.json()
+            metadata.revisions = revisionsData.revisions as GoogleDriveRevision[]
+            logger.info('Fetched file revisions', {
+              fileId,
+              revisionCount: metadata.revisions?.length || 0,
+            })
+          } else {
+            logger.warn('Failed to fetch revisions, continuing without them', {
+              status: revisionsResponse.status,
+              statusText: revisionsResponse.statusText,
+            })
+          }
+        } catch (revisionError: any) {
+          logger.warn('Error fetching revisions, continuing without them', {
+            error: revisionError.message,
+          })
+        }
       }
+
+      logger.info('File content retrieved successfully', {
+        fileId,
+        name: metadata.name,
+        mimeType: metadata.mimeType,
+        contentLength: content.length,
+        hasOwners: !!metadata.owners?.length,
+        hasPermissions: !!metadata.permissions?.length,
+        hasRevisions: !!metadata.revisions?.length,
+      })
 
       return {
         success: true,
         output: {
           content,
-          metadata: {
-            id: metadata.id,
-            name: metadata.name,
-            mimeType: metadata.mimeType,
-            webViewLink: metadata.webViewLink,
-            webContentLink: metadata.webContentLink,
-            size: metadata.size,
-            createdTime: metadata.createdTime,
-            modifiedTime: metadata.modifiedTime,
-            parents: metadata.parents,
-          },
+          metadata,
         },
       }
     } catch (error: any) {
@@ -176,7 +293,8 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
     },
     metadata: {
       type: 'json',
-      description: 'File metadata including ID, name, MIME type, and links',
+      description:
+        'Complete file metadata including ownership, sharing, permissions, labels, checksums, capabilities, and revision history',
     },
   },
 }
