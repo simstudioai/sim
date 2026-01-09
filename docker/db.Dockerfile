@@ -32,6 +32,9 @@ RUN addgroup -g 1001 -S nodejs && \
 # Copy only the necessary files from deps (cached if dependencies don't change)
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 
+# Copy root package.json for workspace resolution
+COPY --chown=nextjs:nodejs package.json ./package.json
+
 # Copy package configuration files (needed for migrations)
 COPY --chown=nextjs:nodejs packages/db/drizzle.config.ts ./packages/db/drizzle.config.ts
 
