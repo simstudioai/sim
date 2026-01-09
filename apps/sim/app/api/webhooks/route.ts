@@ -1197,7 +1197,7 @@ async function createGrainWebhookSubscription(
 
     const requestBody: Record<string, any> = {
       hook_url: notificationUrl,
-      hook_type: 'recording_added', // Required parameter - fires when a new recording is added
+      hook_type: 'recording_added',
     }
 
     // Build include object based on configuration
