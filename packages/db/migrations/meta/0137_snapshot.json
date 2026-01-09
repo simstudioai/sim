@@ -1,5 +1,5 @@
 {
-  "id": "60200982-7693-47b9-a396-c2ffad54f529",
+  "id": "7bffede1-bcac-4f13-9039-7236379e5b63",
   "prevId": "ff6b124c-50b5-4e92-bbe3-0b162a184d5b",
   "version": "7",
   "dialect": "postgresql",
@@ -4267,30 +4267,9 @@
           "method": "btree",
           "with": {}
         },
-        "permission_group_member_user_id_idx": {
-          "name": "permission_group_member_user_id_idx",
+        "permission_group_member_user_id_unique": {
+          "name": "permission_group_member_user_id_unique",
           "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "permission_group_member_unique": {
-          "name": "permission_group_member_unique",
-          "columns": [
-            {
-              "expression": "permission_group_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
             {
               "expression": "user_id",
               "isExpression": false,

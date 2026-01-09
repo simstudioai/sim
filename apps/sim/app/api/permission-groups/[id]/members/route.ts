@@ -110,29 +110,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       )
     }
 
-    const newMember = await db.transaction(async (tx) => {
-      const existingMembership = await tx
-        .select({
-          id: permissionGroupMember.id,
-          permissionGroupId: permissionGroupMember.permissionGroupId,
-        })
-        .from(permissionGroupMember)
-        .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
-        .where(
-          and(
-            eq(permissionGroupMember.userId, userId),
-            eq(permissionGroup.organizationId, result.group.organizationId)
-          )
-        )
-        .limit(1)
+    const [existingMembership] = await db
+      .select({
+        id: permissionGroupMember.id,
+        permissionGroupId: permissionGroupMember.permissionGroupId,
+      })
+      .from(permissionGroupMember)
+      .where(eq(permissionGroupMember.userId, userId))
+      .limit(1)
 
-      if (existingMembership.length > 0) {
-        if (existingMembership[0].permissionGroupId === id) {
-          throw new Error('ALREADY_IN_GROUP')
-        }
+    if (existingMembership?.permissionGroupId === id) {
+      return NextResponse.json(
+        { error: 'User is already in this permission group' },
+        { status: 409 }
+      )
+    }
+
+    const newMember = await db.transaction(async (tx) => {
+      if (existingMembership) {
         await tx
           .delete(permissionGroupMember)
-          .where(eq(permissionGroupMember.id, existingMembership[0].id))
+          .where(eq(permissionGroupMember.id, existingMembership.id))
       }
 
       const memberData = {
@@ -158,11 +156,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
     }
-    if (error instanceof Error && error.message === 'ALREADY_IN_GROUP') {
-      return NextResponse.json(
-        { error: 'User is already in this permission group' },
-        { status: 409 }
-      )
+    if (
+      error instanceof Error &&
+      error.message.includes('permission_group_member_user_id_unique')
+    ) {
+      return NextResponse.json({ error: 'User is already in a permission group' }, { status: 409 })
     }
     logger.error('Error adding member to permission group', error)
     return NextResponse.json({ error: 'Failed to add member' }, { status: 500 })

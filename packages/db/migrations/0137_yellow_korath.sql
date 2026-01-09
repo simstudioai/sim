@@ -26,5 +26,4 @@ CREATE INDEX "permission_group_organization_id_idx" ON "permission_group" USING 
 CREATE INDEX "permission_group_created_by_idx" ON "permission_group" USING btree ("created_by");--> statement-breakpoint
 CREATE UNIQUE INDEX "permission_group_org_name_unique" ON "permission_group" USING btree ("organization_id","name");--> statement-breakpoint
 CREATE INDEX "permission_group_member_group_id_idx" ON "permission_group_member" USING btree ("permission_group_id");--> statement-breakpoint
-CREATE INDEX "permission_group_member_user_id_idx" ON "permission_group_member" USING btree ("user_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "permission_group_member_unique" ON "permission_group_member" USING btree ("permission_group_id","user_id");
+CREATE UNIQUE INDEX "permission_group_member_user_id_unique" ON "permission_group_member" USING btree ("user_id");

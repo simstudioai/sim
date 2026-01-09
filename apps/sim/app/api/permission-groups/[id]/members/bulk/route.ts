@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { member, permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, ne } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -95,54 +95,49 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ added: 0, moved: 0 })
     }
 
-    const existingInThisGroup = await db
-      .select({ userId: permissionGroupMember.userId })
+    const existingMemberships = await db
+      .select({
+        id: permissionGroupMember.id,
+        userId: permissionGroupMember.userId,
+        permissionGroupId: permissionGroupMember.permissionGroupId,
+      })
       .from(permissionGroupMember)
-      .where(
-        and(
-          eq(permissionGroupMember.permissionGroupId, id),
-          inArray(permissionGroupMember.userId, targetUserIds)
-        )
-      )
+      .where(inArray(permissionGroupMember.userId, targetUserIds))
 
-    const existingUserIds = new Set(existingInThisGroup.map((m) => m.userId))
-    const usersToAdd = targetUserIds.filter((uid) => !existingUserIds.has(uid))
+    const alreadyInThisGroup = new Set(
+      existingMemberships.filter((m) => m.permissionGroupId === id).map((m) => m.userId)
+    )
+    const usersToAdd = targetUserIds.filter((uid) => !alreadyInThisGroup.has(uid))
 
     if (usersToAdd.length === 0) {
       return NextResponse.json({ added: 0, moved: 0 })
     }
 
-    const otherGroupMemberships = await db
-      .select({
-        id: permissionGroupMember.id,
-        userId: permissionGroupMember.userId,
-      })
-      .from(permissionGroupMember)
-      .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
-      .where(
-        and(
-          eq(permissionGroup.organizationId, result.group.organizationId),
-          inArray(permissionGroupMember.userId, usersToAdd),
-          ne(permissionGroupMember.permissionGroupId, id)
+    const membershipsToDelete = existingMemberships.filter(
+      (m) => m.permissionGroupId !== id && usersToAdd.includes(m.userId)
+    )
+    const movedCount = membershipsToDelete.length
+
+    await db.transaction(async (tx) => {
+      if (membershipsToDelete.length > 0) {
+        await tx.delete(permissionGroupMember).where(
+          inArray(
+            permissionGroupMember.id,
+            membershipsToDelete.map((m) => m.id)
+          )
         )
-      )
+      }
 
-    const movedCount = otherGroupMemberships.length
+      const newMembers = usersToAdd.map((userId) => ({
+        id: crypto.randomUUID(),
+        permissionGroupId: id,
+        userId,
+        assignedBy: session.user.id,
+        assignedAt: new Date(),
+      }))
 
-    if (otherGroupMemberships.length > 0) {
-      const idsToDelete = otherGroupMemberships.map((m) => m.id)
-      await db.delete(permissionGroupMember).where(inArray(permissionGroupMember.id, idsToDelete))
-    }
-
-    const newMembers = usersToAdd.map((userId) => ({
-      id: crypto.randomUUID(),
-      permissionGroupId: id,
-      userId,
-      assignedBy: session.user.id,
-      assignedAt: new Date(),
-    }))
-
-    await db.insert(permissionGroupMember).values(newMembers)
+      await tx.insert(permissionGroupMember).values(newMembers)
+    })
 
     logger.info('Bulk added members to permission group', {
       permissionGroupId: id,
@@ -155,6 +150,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
+    }
+    if (
+      error instanceof Error &&
+      error.message.includes('permission_group_member_user_id_unique')
+    ) {
+      return NextResponse.json(
+        { error: 'One or more users are already in a permission group' },
+        { status: 409 }
+      )
     }
     logger.error('Error bulk adding members to permission group', error)
     return NextResponse.json({ error: 'Failed to add members' }, { status: 500 })

@@ -1919,10 +1919,6 @@ export const permissionGroupMember = pgTable(
   },
   (table) => ({
     permissionGroupIdIdx: index('permission_group_member_group_id_idx').on(table.permissionGroupId),
-    userIdIdx: index('permission_group_member_user_id_idx').on(table.userId),
-    uniqueMembership: uniqueIndex('permission_group_member_unique').on(
-      table.permissionGroupId,
-      table.userId
-    ),
+    userIdUnique: uniqueIndex('permission_group_member_user_id_unique').on(table.userId),
   })
 )
