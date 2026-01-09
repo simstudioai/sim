@@ -744,7 +744,7 @@ export async function POST(request: NextRequest) {
     if (savedWebhook && provider === 'grain') {
       logger.info(`[${requestId}] Grain provider detected. Creating Grain webhook subscription.`)
       try {
-        const grainHookId = await createGrainWebhookSubscription(
+        const grainResult = await createGrainWebhookSubscription(
           request,
           {
             id: savedWebhook.id,
@@ -754,11 +754,12 @@ export async function POST(request: NextRequest) {
           requestId
         )
 
-        if (grainHookId) {
-          // Update the webhook record with the external Grain hook ID
+        if (grainResult) {
+          // Update the webhook record with the external Grain hook ID and event types for filtering
           const updatedConfig = {
             ...(savedWebhook.providerConfig as Record<string, any>),
-            externalId: grainHookId,
+            externalId: grainResult.id,
+            eventTypes: grainResult.eventTypes,
           }
           await db
             .update(webhook)
@@ -770,7 +771,8 @@ export async function POST(request: NextRequest) {
 
           savedWebhook.providerConfig = updatedConfig
           logger.info(`[${requestId}] Successfully created Grain webhook`, {
-            grainHookId,
+            grainHookId: grainResult.id,
+            eventTypes: grainResult.eventTypes,
             webhookId: savedWebhook.id,
           })
         }
@@ -1176,10 +1178,10 @@ async function createGrainWebhookSubscription(
   request: NextRequest,
   webhookData: any,
   requestId: string
-): Promise<string | undefined> {
+): Promise<{ id: string; eventTypes: string[] } | undefined> {
   try {
     const { path, providerConfig } = webhookData
-    const { apiKey, includeHighlights, includeParticipants, includeAiSummary } =
+    const { apiKey, triggerId, includeHighlights, includeParticipants, includeAiSummary } =
       providerConfig || {}
 
     if (!apiKey) {
@@ -1191,12 +1193,53 @@ async function createGrainWebhookSubscription(
       )
     }
 
+    // Map trigger IDs to Grain API hook_type (only 2 options: recording_added, upload_status)
+    const hookTypeMap: Record<string, string> = {
+      grain_webhook: 'recording_added',
+      grain_recording_created: 'recording_added',
+      grain_recording_updated: 'recording_added',
+      grain_highlight_created: 'recording_added',
+      grain_highlight_updated: 'recording_added',
+      grain_story_created: 'recording_added',
+      grain_upload_status: 'upload_status',
+    }
+
+    const eventTypeMap: Record<string, string[]> = {
+      grain_webhook: [],
+      grain_recording_created: ['recording_added'],
+      grain_recording_updated: ['recording_updated'],
+      grain_highlight_created: ['highlight_created'],
+      grain_highlight_updated: ['highlight_updated'],
+      grain_story_created: ['story_created'],
+      grain_upload_status: ['upload_status'],
+    }
+
+    const hookType = hookTypeMap[triggerId] ?? 'recording_added'
+    const eventTypes = eventTypeMap[triggerId] ?? []
+
+    if (!hookTypeMap[triggerId]) {
+      logger.warn(
+        `[${requestId}] Unknown triggerId for Grain: ${triggerId}, defaulting to recording_added`,
+        {
+          webhookId: webhookData.id,
+        }
+      )
+    }
+
+    logger.info(`[${requestId}] Creating Grain webhook`, {
+      triggerId,
+      hookType,
+      eventTypes,
+      webhookId: webhookData.id,
+    })
+
     const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
 
     const grainApiUrl = 'https://api.grain.com/_/public-api/v2/hooks/create'
 
     const requestBody: Record<string, any> = {
       hook_url: notificationUrl,
+      hook_type: hookType,
     }
 
     // Build include object based on configuration
@@ -1226,8 +1269,10 @@ async function createGrainWebhookSubscription(
 
     const responseBody = await grainResponse.json()
 
-    if (!grainResponse.ok || responseBody.error) {
+    if (!grainResponse.ok || responseBody.error || responseBody.errors) {
+      logger.warn('[App] Grain response body:', responseBody)
       const errorMessage =
+        responseBody.errors?.detail ||
         responseBody.error?.message ||
         responseBody.error ||
         responseBody.message ||
@@ -1255,10 +1300,11 @@ async function createGrainWebhookSubscription(
       `[${requestId}] Successfully created webhook in Grain for webhook ${webhookData.id}.`,
       {
         grainWebhookId: responseBody.id,
+        eventTypes,
       }
     )
 
-    return responseBody.id
+    return { id: responseBody.id, eventTypes }
   } catch (error: any) {
     logger.error(
       `[${requestId}] Exception during Grain webhook creation for webhook ${webhookData.id}.`,

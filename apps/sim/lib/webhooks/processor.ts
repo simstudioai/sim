@@ -239,6 +239,19 @@ export function shouldSkipWebhookEvent(webhook: any, body: any, requestId: strin
     }
   }
 
+  if (webhook.provider === 'grain') {
+    const eventTypes = providerConfig.eventTypes
+    if (eventTypes && Array.isArray(eventTypes) && eventTypes.length > 0) {
+      const eventType = body?.type
+      if (eventType && !eventTypes.includes(eventType)) {
+        logger.info(
+          `[${requestId}] Grain event type '${eventType}' not in allowed list for webhook ${webhook.id}, skipping`
+        )
+        return true
+      }
+    }
+  }
+
   return false
 }
 
