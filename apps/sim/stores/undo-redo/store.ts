@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import type {
   BatchAddBlocksOperation,
+  BatchAddEdgesOperation,
   BatchMoveBlocksOperation,
   BatchRemoveBlocksOperation,
   BatchRemoveEdgesOperation,
@@ -104,16 +105,13 @@ function isOperationApplicable(
       const op = operation as BatchRemoveEdgesOperation
       return op.data.edgeSnapshots.every((edge) => Boolean(graph.edgesById[edge.id]))
     }
+    case 'batch-add-edges': {
+      const op = operation as BatchAddEdgesOperation
+      return op.data.edgeSnapshots.every((edge) => !graph.edgesById[edge.id])
+    }
     case 'add-edge': {
       const edgeId = operation.data.edgeId
       return !graph.edgesById[edgeId]
-    }
-    case 'add-subflow':
-    case 'remove-subflow': {
-      const subflowId = operation.data.subflowId
-      return operation.type === 'remove-subflow'
-        ? Boolean(graph.blocksById[subflowId])
-        : !graph.blocksById[subflowId]
     }
     default:
       return true

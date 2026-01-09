@@ -79,25 +79,6 @@ export function createInverseOperation(operation: Operation): Operation {
       } as BatchAddEdgesOperation
     }
 
-    case 'add-subflow':
-      return {
-        ...operation,
-        type: 'remove-subflow',
-        data: {
-          subflowId: operation.data.subflowId,
-          subflowSnapshot: null,
-        },
-      }
-
-    case 'remove-subflow':
-      return {
-        ...operation,
-        type: 'add-subflow',
-        data: {
-          subflowId: operation.data.subflowId,
-        },
-      }
-
     case 'batch-move-blocks': {
       const op = operation as BatchMoveBlocksOperation
       return {
@@ -112,16 +93,6 @@ export function createInverseOperation(operation: Operation): Operation {
         },
       } as BatchMoveBlocksOperation
     }
-
-    case 'move-subflow':
-      return {
-        ...operation,
-        data: {
-          subflowId: operation.data.subflowId,
-          before: operation.data.after,
-          after: operation.data.before,
-        },
-      }
 
     case 'update-parent':
       return {
@@ -256,20 +227,6 @@ export function operationToCollaborativePayload(operation: Operation): {
       }
     }
 
-    case 'add-subflow':
-      return {
-        operation: 'add',
-        target: 'subflow',
-        payload: { id: operation.data.subflowId },
-      }
-
-    case 'remove-subflow':
-      return {
-        operation: 'remove',
-        target: 'subflow',
-        payload: { id: operation.data.subflowId },
-      }
-
     case 'batch-move-blocks': {
       const op = operation as BatchMoveBlocksOperation
       return {
@@ -285,17 +242,6 @@ export function operationToCollaborativePayload(operation: Operation): {
         },
       }
     }
-
-    case 'move-subflow':
-      return {
-        operation: 'update-position',
-        target: 'subflow',
-        payload: {
-          id: operation.data.subflowId,
-          x: operation.data.after.x,
-          y: operation.data.after.y,
-        },
-      }
 
     case 'update-parent':
       return {

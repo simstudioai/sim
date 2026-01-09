@@ -9,7 +9,8 @@ export type OperationType =
   | 'batch-add-blocks'
   | 'batch-remove-blocks'
   | 'add-edge'
-  | 'remove-edge'
+  | 'batch-add-edges'
+  | 'batch-remove-edges'
   | 'batch-move-blocks'
   | 'update-parent'
 
@@ -71,11 +72,19 @@ export interface AddEdgeOperation extends BaseOperation {
 }
 
 /**
- * Remove edge operation data.
+ * Batch add edges operation data.
  */
-export interface RemoveEdgeOperation extends BaseOperation {
-  type: 'remove-edge'
-  data: { edgeId: string; edgeSnapshot: any }
+export interface BatchAddEdgesOperation extends BaseOperation {
+  type: 'batch-add-edges'
+  data: { edgeSnapshots: any[] }
+}
+
+/**
+ * Batch remove edges operation data.
+ */
+export interface BatchRemoveEdgesOperation extends BaseOperation {
+  type: 'batch-remove-edges'
+  data: { edgeSnapshots: any[] }
 }
 
 /**
@@ -96,7 +105,8 @@ export type Operation =
   | BatchAddBlocksOperation
   | BatchRemoveBlocksOperation
   | AddEdgeOperation
-  | RemoveEdgeOperation
+  | BatchAddEdgesOperation
+  | BatchRemoveEdgesOperation
   | BatchMoveBlocksOperation
   | UpdateParentOperation
 
@@ -212,9 +222,15 @@ export function createRemoveBlockEntry(
 /**
  * Creates a mock add-edge operation entry.
  */
-export function createAddEdgeEntry(edgeId: string, options: OperationEntryOptions = {}): any {
+export function createAddEdgeEntry(
+  edgeId: string,
+  edgeSnapshot: any = null,
+  options: OperationEntryOptions = {}
+): any {
   const { id = nanoid(8), workflowId = 'wf-1', userId = 'user-1', createdAt = Date.now() } = options
   const timestamp = Date.now()
+
+  const snapshot = edgeSnapshot || { id: edgeId, source: 'block-1', target: 'block-2' }
 
   return {
     id,
@@ -229,21 +245,20 @@ export function createAddEdgeEntry(edgeId: string, options: OperationEntryOption
     },
     inverse: {
       id: nanoid(8),
-      type: 'remove-edge',
+      type: 'batch-remove-edges',
       timestamp,
       workflowId,
       userId,
-      data: { edgeId, edgeSnapshot: null },
+      data: { edgeSnapshots: [snapshot] },
     },
   }
 }
 
 /**
- * Creates a mock remove-edge operation entry.
+ * Creates a mock batch-remove-edges operation entry.
  */
-export function createRemoveEdgeEntry(
-  edgeId: string,
-  edgeSnapshot: any = null,
+export function createBatchRemoveEdgesEntry(
+  edgeSnapshots: any[],
   options: OperationEntryOptions = {}
 ): any {
   const { id = nanoid(8), workflowId = 'wf-1', userId = 'user-1', createdAt = Date.now() } = options
@@ -254,19 +269,19 @@ export function createRemoveEdgeEntry(
     createdAt,
     operation: {
       id: nanoid(8),
-      type: 'remove-edge',
+      type: 'batch-remove-edges',
       timestamp,
       workflowId,
       userId,
-      data: { edgeId, edgeSnapshot },
+      data: { edgeSnapshots },
     },
     inverse: {
       id: nanoid(8),
-      type: 'add-edge',
+      type: 'batch-add-edges',
       timestamp,
       workflowId,
       userId,
-      data: { edgeId },
+      data: { edgeSnapshots },
     },
   }
 }

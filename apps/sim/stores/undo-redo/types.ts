@@ -7,10 +7,7 @@ export type OperationType =
   | 'add-edge'
   | 'batch-add-edges'
   | 'batch-remove-edges'
-  | 'add-subflow'
-  | 'remove-subflow'
   | 'batch-move-blocks'
-  | 'move-subflow'
   | 'update-parent'
   | 'batch-toggle-enabled'
   | 'batch-toggle-handles'
@@ -65,21 +62,6 @@ export interface BatchRemoveEdgesOperation extends BaseOperation {
   }
 }
 
-export interface AddSubflowOperation extends BaseOperation {
-  type: 'add-subflow'
-  data: {
-    subflowId: string
-  }
-}
-
-export interface RemoveSubflowOperation extends BaseOperation {
-  type: 'remove-subflow'
-  data: {
-    subflowId: string
-    subflowSnapshot: BlockState | null
-  }
-}
-
 export interface BatchMoveBlocksOperation extends BaseOperation {
   type: 'batch-move-blocks'
   data: {
@@ -88,21 +70,6 @@ export interface BatchMoveBlocksOperation extends BaseOperation {
       before: { x: number; y: number; parentId?: string }
       after: { x: number; y: number; parentId?: string }
     }>
-  }
-}
-
-export interface MoveSubflowOperation extends BaseOperation {
-  type: 'move-subflow'
-  data: {
-    subflowId: string
-    before: {
-      x: number
-      y: number
-    }
-    after: {
-      x: number
-      y: number
-    }
   }
 }
 
@@ -169,10 +136,7 @@ export type Operation =
   | AddEdgeOperation
   | BatchAddEdgesOperation
   | BatchRemoveEdgesOperation
-  | AddSubflowOperation
-  | RemoveSubflowOperation
   | BatchMoveBlocksOperation
-  | MoveSubflowOperation
   | UpdateParentOperation
   | BatchToggleEnabledOperation
   | BatchToggleHandlesOperation
