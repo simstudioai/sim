@@ -269,7 +269,13 @@ export function WorkflowPreview({
       if (executedBlocks) {
         const blockExecution = executedBlocks[blockId]
         if (blockExecution) {
-          executionStatus = blockExecution.status === 'error' ? 'error' : 'success'
+          if (blockExecution.status === 'error') {
+            executionStatus = 'error'
+          } else if (blockExecution.status === 'success') {
+            executionStatus = 'success'
+          } else {
+            executionStatus = 'not-executed'
+          }
         } else {
           executionStatus = 'not-executed'
         }
@@ -321,8 +327,10 @@ export function WorkflowPreview({
         if (sourceExecuted && targetExecuted) {
           if (targetExecuted.status === 'error') {
             executionStatus = 'error'
-          } else {
+          } else if (sourceExecuted.status === 'success' && targetExecuted.status === 'success') {
             executionStatus = 'success'
+          } else {
+            executionStatus = 'not-executed'
           }
         } else {
           executionStatus = 'not-executed'
