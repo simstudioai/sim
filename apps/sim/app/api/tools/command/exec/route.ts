@@ -2,17 +2,19 @@ import { spawn } from "child_process";
 import { NextRequest, NextResponse } from "next/server";
 import type { CommandInput, CommandOutput } from "@/tools/command/types";
 
+import { getSession } from '@/lib/auth'
+
 export async function POST(request: NextRequest) {
 	try {
-		const params: CommandInput = await request.json();
-
-		// Validate input
-		if (!params.command) {
+		const session = await getSession()
+		if (!session?.user?.id) {
 			return NextResponse.json(
-				{ error: "Command is required" },
-				{ status: 400 },
-			);
+				{ error: 'Unauthorized' },
+				{ status: 401 },
+			)
 		}
+
+		const params: CommandInput = await request.json()
 
 		// Set default values
 		const workingDirectory = params.workingDirectory || process.cwd();
