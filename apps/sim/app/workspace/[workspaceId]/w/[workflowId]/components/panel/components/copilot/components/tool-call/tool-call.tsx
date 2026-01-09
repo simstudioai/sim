@@ -8,6 +8,7 @@ import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
+import { SmoothStreamingText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/smooth-streaming'
 import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { getBlock } from '@/blocks/registry'
 import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/panel/copilot/store'
@@ -30,7 +31,39 @@ type OptionItem = string | { title: string; description?: string }
 interface ParsedTags {
   plan?: Record<string, PlanStep>
   options?: Record<string, OptionItem>
+  optionsComplete?: boolean
   cleanContent: string
+}
+
+/**
+ * Try to parse partial JSON for streaming options.
+ * Attempts to extract complete key-value pairs from incomplete JSON.
+ */
+function parsePartialOptionsJson(jsonStr: string): Record<string, OptionItem> | null {
+  // Try parsing as-is first (might be complete)
+  try {
+    return JSON.parse(jsonStr)
+  } catch {
+    // Continue to partial parsing
+  }
+
+  // Try to extract complete key-value pairs from partial JSON
+  // Match patterns like "1": "some text" or "1": {"title": "text"}
+  const result: Record<string, OptionItem> = {}
+  // Match complete string values: "key": "value"
+  const stringPattern = /"(\d+)":\s*"([^"]*?)"/g
+  let match
+  while ((match = stringPattern.exec(jsonStr)) !== null) {
+    result[match[1]] = match[2]
+  }
+
+  // Match complete object values: "key": {"title": "value"}
+  const objectPattern = /"(\d+)":\s*\{[^}]*"title":\s*"([^"]*)"[^}]*\}/g
+  while ((match = objectPattern.exec(jsonStr)) !== null) {
+    result[match[1]] = { title: match[2] }
+  }
+
+  return Object.keys(result).length > 0 ? result : null
 }
 
 /**
@@ -50,21 +83,33 @@ export function parseSpecialTags(content: string): ParsedTags {
     }
   }
 
-  // Parse <options> tag
+  // Parse <options> tag - check for complete tag first
   const optionsMatch = content.match(/<options>([\s\S]*?)<\/options>/i)
   if (optionsMatch) {
     try {
       result.options = JSON.parse(optionsMatch[1])
+      result.optionsComplete = true
       result.cleanContent = result.cleanContent.replace(optionsMatch[0], '').trim()
     } catch {
       // Invalid JSON, ignore
     }
+  } else {
+    // Check for streaming/incomplete options tag
+    const streamingOptionsMatch = content.match(/<options>([\s\S]*)$/i)
+    if (streamingOptionsMatch) {
+      const partialOptions = parsePartialOptionsJson(streamingOptionsMatch[1])
+      if (partialOptions) {
+        result.options = partialOptions
+        result.optionsComplete = false
+      }
+      // Strip the incomplete tag from clean content
+      result.cleanContent = result.cleanContent.replace(streamingOptionsMatch[0], '').trim()
+    }
   }
 
   // Strip any incomplete/partial special tags that are still streaming
-  // This handles cases like "<options>{"1": "op..." or "<plan>{..." during streaming
-  // Matches: <tagname> followed by any content until end of string (no closing tag yet)
-  const incompleteTagPattern = /<(plan|options)>[\s\S]*$/i
+  // This handles cases like "<plan>{..." during streaming
+  const incompleteTagPattern = /<plan>[\s\S]*$/i
   result.cleanContent = result.cleanContent.replace(incompleteTagPattern, '').trim()
 
   // Also strip partial opening tags like "<opt" or "<pla" at the very end of content
@@ -129,13 +174,17 @@ export function OptionsSelector({
   onSelect,
   disabled = false,
   enableKeyboardNav = false,
+  streaming = false,
 }: {
   options: Record<string, OptionItem>
   onSelect: (optionKey: string, optionText: string) => void
   disabled?: boolean
   /** Only enable keyboard navigation for the active options (last message) */
   enableKeyboardNav?: boolean
+  /** When true, looks enabled but interaction is disabled (for streaming state) */
+  streaming?: boolean
 }) {
+  const isInteractionDisabled = disabled || streaming
   const sortedOptions = useMemo(() => {
     return Object.entries(options)
       .sort(([a], [b]) => {
@@ -159,7 +208,7 @@ export function OptionsSelector({
 
   // Handle keyboard navigation - only for the active options selector
   useEffect(() => {
-    if (disabled || !enableKeyboardNav || isLocked) return
+    if (isInteractionDisabled || !enableKeyboardNav || isLocked) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only handle if the container or document body is focused (not when typing in input)
@@ -198,7 +247,7 @@ export function OptionsSelector({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [disabled, enableKeyboardNav, isLocked, sortedOptions, hoveredIndex, onSelect])
+  }, [isInteractionDisabled, enableKeyboardNav, isLocked, sortedOptions, hoveredIndex, onSelect])
 
   if (sortedOptions.length === 0) return null
 
@@ -213,20 +262,21 @@ export function OptionsSelector({
           <div
             key={option.key}
             onClick={() => {
-              if (!disabled && !isLocked) {
+              if (!isInteractionDisabled && !isLocked) {
                 setChosenKey(option.key)
                 onSelect(option.key, option.title)
               }
             }}
             onMouseEnter={() => {
-              if (!isLocked) setHoveredIndex(index)
+              if (!isLocked && !streaming) setHoveredIndex(index)
             }}
             className={clsx(
               'group flex cursor-pointer items-start gap-2.5 rounded-[8px] p-1',
               'hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
               disabled && 'cursor-not-allowed opacity-50',
+              streaming && 'pointer-events-none',
               isLocked && 'cursor-default',
-              isHovered && 'is-hovered bg-[var(--surface-6)] dark:bg-[var(--surface-5)]'
+              isHovered && !streaming && 'is-hovered bg-[var(--surface-6)] dark:bg-[var(--surface-5)]'
             )}
           >
             <Button
@@ -242,7 +292,11 @@ export function OptionsSelector({
                 isRejected && 'text-[var(--text-tertiary)] line-through opacity-50'
               )}
             >
-              <CopilotMarkdownRenderer content={option.title} />
+              {streaming ? (
+                <SmoothStreamingText content={option.title} isStreaming={true} />
+              ) : (
+                <CopilotMarkdownRenderer content={option.title} />
+              )}
             </span>
           </div>
         )

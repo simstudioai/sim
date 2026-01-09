@@ -151,10 +151,28 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     }, [message.content])
 
     // Parse special tags from message content (options, plan)
+    // During streaming, also check content blocks since message.content may not be updated yet
     const parsedTags = useMemo(() => {
-      if (!message.content || isUser) return null
-      return parseSpecialTags(message.content)
-    }, [message.content, isUser])
+      if (isUser) return null
+
+      // Try message.content first
+      if (message.content) {
+        const parsed = parseSpecialTags(message.content)
+        if (parsed.options) return parsed
+      }
+
+      // During streaming, check content blocks for options
+      if (message.contentBlocks && message.contentBlocks.length > 0) {
+        for (const block of message.contentBlocks) {
+          if (block.type === 'text' && block.content) {
+            const parsed = parseSpecialTags(block.content)
+            if (parsed.options) return parsed
+          }
+        }
+      }
+
+      return message.content ? parseSpecialTags(message.content) : null
+    }, [message.content, message.contentBlocks, isUser])
 
     // Get sendMessage from store for continuation actions
     const sendMessage = useCopilotStore((s) => s.sendMessage)
@@ -490,13 +508,14 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               </div>
             )}
 
-            {/* Options selector when agent presents choices */}
-            {!isStreaming && parsedTags?.options && Object.keys(parsedTags.options).length > 0 && (
+            {/* Options selector when agent presents choices - streams in but disabled until complete */}
+            {parsedTags?.options && Object.keys(parsedTags.options).length > 0 && (
               <OptionsSelector
                 options={parsedTags.options}
                 onSelect={handleOptionSelect}
                 disabled={isSendingMessage}
-                enableKeyboardNav={isLastMessage}
+                enableKeyboardNav={isLastMessage && parsedTags.optionsComplete === true}
+                streaming={!parsedTags.optionsComplete}
               />
             )}
           </div>
