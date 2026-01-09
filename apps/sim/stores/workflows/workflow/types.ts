@@ -164,8 +164,6 @@ export interface WorkflowState {
     exportedAt?: string
   }
   variables?: Record<string, Variable>
-  isDeployed?: boolean
-  deployedAt?: Date
   deploymentStatuses?: Record<string, DeploymentStatus>
   needsRedeployment?: boolean
   dragStartPosition?: DragStartPosition | null

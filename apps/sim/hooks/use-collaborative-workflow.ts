@@ -615,8 +615,6 @@ export function useCollaborativeWorkflow() {
                   edges: workflowData.state.edges || [],
                   loops: workflowData.state.loops || {},
                   parallels: workflowData.state.parallels || {},
-                  isDeployed: workflowData.state.isDeployed || false,
-                  deployedAt: workflowData.state.deployedAt,
                   lastSaved: workflowData.state.lastSaved || Date.now(),
                   deploymentStatuses: workflowData.state.deploymentStatuses || {},
                 })

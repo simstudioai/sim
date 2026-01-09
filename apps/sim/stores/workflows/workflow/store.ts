@@ -97,10 +97,6 @@ const initialState = {
   loops: {},
   parallels: {},
   lastSaved: undefined,
-  // Legacy deployment fields (keeping for compatibility but they will be deprecated)
-  isDeployed: false,
-  deployedAt: undefined,
-  // New field for per-workflow deployment tracking
   deploymentStatuses: {},
   needsRedeployment: false,
 }
@@ -174,7 +170,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           ...data,
           ...(parentId && { parentId, extent: extent || 'parent' }),
         }
-        // #endregion
 
         const subBlocks: Record<string, SubBlockState> = {}
         const subBlockStore = useSubBlockStore.getState()
@@ -506,8 +501,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           loops: state.loops,
           parallels: state.parallels,
           lastSaved: state.lastSaved,
-          isDeployed: state.isDeployed,
-          deployedAt: state.deployedAt,
           deploymentStatuses: state.deploymentStatuses,
           needsRedeployment: state.needsRedeployment,
         }
@@ -534,9 +527,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
             edges: nextEdges,
             loops: nextLoops,
             parallels: nextParallels,
-            isDeployed:
-              workflowState.isDeployed !== undefined ? workflowState.isDeployed : state.isDeployed,
-            deployedAt: workflowState.deployedAt ?? state.deployedAt,
             deploymentStatuses: workflowState.deploymentStatuses || state.deploymentStatuses,
             needsRedeployment:
               workflowState.needsRedeployment !== undefined
@@ -1043,7 +1033,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           edges: deployedState.edges,
           loops: deployedState.loops || {},
           parallels: deployedState.parallels || {},
-          isDeployed: true,
           needsRedeployment: false,
           // Keep existing deployment statuses and update for the active workflow if needed
           deploymentStatuses: {
