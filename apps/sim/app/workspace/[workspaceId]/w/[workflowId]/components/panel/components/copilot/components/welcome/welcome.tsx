@@ -10,6 +10,8 @@ interface WelcomeProps {
   onQuestionClick?: (question: string) => void
   /** Current copilot mode ('ask' for Q&A, 'plan' for planning, 'build' for workflow building) */
   mode?: 'ask' | 'build' | 'plan'
+  /** Callback when migrate button is clicked */
+  onMigrateClick?: () => void
 }
 
 /**
@@ -19,7 +21,7 @@ interface WelcomeProps {
  * @param props - Component props
  * @returns Welcome screen UI
  */
-export function Welcome({ onQuestionClick, mode = 'ask' }: WelcomeProps) {
+export function Welcome({ onQuestionClick, mode = 'ask', onMigrateClick }: WelcomeProps) {
   const capabilities =
     mode === 'build'
       ? [
@@ -68,6 +70,25 @@ export function Welcome({ onQuestionClick, mode = 'ask' }: WelcomeProps) {
             </div>
           </Button>
         ))}
+        
+        {/* Migrate from n8n button - only show in build mode */}
+        {mode === 'build' && (
+          <Button
+            variant='active'
+            onClick={onMigrateClick}
+            className='w-full justify-start'
+          >
+            <div className='flex flex-col items-start'>
+              <p className='font-medium flex items-center gap-2'>
+                Migrate From N8n
+                <span className='text-[10px] bg-[var(--surface-3)] text-[var(--text-secondary)] px-1.5 py-0.5 rounded-full font-medium'>
+                  BETA
+                </span>
+              </p>
+              <p className='text-[var(--text-secondary)]'>Convert n8n workflows using AI</p>
+            </div>
+          </Button>
+        )}
       </div>
 
       {/* Tips */}
