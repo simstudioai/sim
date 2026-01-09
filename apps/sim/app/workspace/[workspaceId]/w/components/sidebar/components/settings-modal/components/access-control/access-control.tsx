@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Check, Plus, Search, Users } from 'lucide-react'
+import { Check, Plus, Search } from 'lucide-react'
 import {
   Avatar,
   AvatarFallback,
@@ -864,40 +864,25 @@ export function AccessControl() {
                 </p>
               ) : (
                 <div className='flex flex-col gap-[12px]'>
-                  <button
-                    type='button'
-                    onClick={() => {
-                      const allIds = availableMembersToAdd.map((m: any) => m.userId)
-                      const allSelected = allIds.every((id: string) => selectedMemberIds.has(id))
-                      if (allSelected) {
-                        setSelectedMemberIds(new Set())
-                      } else {
-                        setSelectedMemberIds(new Set(allIds))
-                      }
-                    }}
-                    className={cn(
-                      'flex items-center gap-[12px] rounded-[8px] border p-[12px] transition-colors',
-                      selectedMemberIds.size === availableMembersToAdd.length
-                        ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                        : 'border-[var(--border)] hover:bg-[var(--surface-5)]'
-                    )}
-                  >
-                    <div className='flex h-8 w-8 items-center justify-center rounded-full bg-[var(--surface-5)]'>
-                      <Users className='h-4 w-4 text-[var(--text-secondary)]' />
-                    </div>
-                    <div className='min-w-0 flex-1 text-left'>
-                      <div className='font-medium text-[14px] text-[var(--text-primary)]'>
-                        Select All
-                      </div>
-                      <div className='text-[12px] text-[var(--text-muted)]'>
-                        {availableMembersToAdd.length} member
-                        {availableMembersToAdd.length !== 1 ? 's' : ''} available
-                      </div>
-                    </div>
-                    {selectedMemberIds.size === availableMembersToAdd.length && (
-                      <Check className='h-[16px] w-[16px] text-[var(--accent)]' />
-                    )}
-                  </button>
+                  <div className='flex justify-end'>
+                    <button
+                      type='button'
+                      onClick={() => {
+                        const allIds = availableMembersToAdd.map((m: any) => m.userId)
+                        const allSelected = allIds.every((id: string) => selectedMemberIds.has(id))
+                        if (allSelected) {
+                          setSelectedMemberIds(new Set())
+                        } else {
+                          setSelectedMemberIds(new Set(allIds))
+                        }
+                      }}
+                      className='text-[12px] text-[var(--accent)] hover:underline'
+                    >
+                      {selectedMemberIds.size === availableMembersToAdd.length
+                        ? 'Deselect All'
+                        : 'Select All'}
+                    </button>
+                  </div>
                   {availableMembersToAdd.map((member: any) => {
                     const name = member.user?.name || 'Unknown'
                     const email = member.user?.email || ''

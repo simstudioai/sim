@@ -52,6 +52,7 @@ type SkippedItemType =
   | 'block_not_found'
   | 'invalid_block_type'
   | 'block_not_allowed'
+  | 'tool_not_allowed'
   | 'invalid_edge_target'
   | 'invalid_edge_source'
   | 'invalid_source_handle'
@@ -561,7 +562,9 @@ function createBlockFromParams(
   blockId: string,
   params: any,
   parentId?: string,
-  errorsCollector?: ValidationError[]
+  errorsCollector?: ValidationError[],
+  permissionConfig?: PermissionGroupConfig | null,
+  skippedItems?: SkippedItem[]
 ): any {
   const blockConfig = getAllBlocks().find((b) => b.type === params.type)
 
@@ -629,9 +632,14 @@ function createBlockFromParams(
         }
       }
 
-      // Special handling for tools - normalize to restore sanitized fields
+      // Special handling for tools - normalize and filter disallowed
       if (key === 'tools' && Array.isArray(value)) {
-        sanitizedValue = normalizeTools(value)
+        sanitizedValue = filterDisallowedTools(
+          normalizeTools(value),
+          permissionConfig ?? null,
+          blockId,
+          skippedItems ?? []
+        )
       }
 
       // Special handling for responseFormat - normalize to ensure consistent format
@@ -1110,6 +1118,49 @@ function isBlockTypeAllowed(
 }
 
 /**
+ * Filters out tools that are not allowed by the permission group config
+ * Returns both the allowed tools and any skipped tool items for logging
+ */
+function filterDisallowedTools(
+  tools: any[],
+  permissionConfig: PermissionGroupConfig | null,
+  blockId: string,
+  skippedItems: SkippedItem[]
+): any[] {
+  if (!permissionConfig) {
+    return tools
+  }
+
+  const allowedTools: any[] = []
+
+  for (const tool of tools) {
+    if (tool.type === 'custom-tool' && permissionConfig.disableCustomTools) {
+      logSkippedItem(skippedItems, {
+        type: 'tool_not_allowed',
+        operationType: 'add',
+        blockId,
+        reason: `Custom tool "${tool.title || tool.customToolId || 'unknown'}" is not allowed by permission group - tool not added`,
+        details: { toolType: 'custom-tool', toolId: tool.customToolId },
+      })
+      continue
+    }
+    if (tool.type === 'mcp' && permissionConfig.disableMcpTools) {
+      logSkippedItem(skippedItems, {
+        type: 'tool_not_allowed',
+        operationType: 'add',
+        blockId,
+        reason: `MCP tool "${tool.title || 'unknown'}" is not allowed by permission group - tool not added`,
+        details: { toolType: 'mcp', serverId: tool.params?.serverId },
+      })
+      continue
+    }
+    allowedTools.push(tool)
+  }
+
+  return allowedTools
+}
+
+/**
  * Apply operations directly to the workflow JSON state
  */
 function applyOperationsToWorkflowState(
@@ -1314,9 +1365,14 @@ function applyOperationsToWorkflowState(
               }
             }
 
-            // Special handling for tools - normalize to restore sanitized fields
+            // Special handling for tools - normalize and filter disallowed
             if (key === 'tools' && Array.isArray(value)) {
-              sanitizedValue = normalizeTools(value)
+              sanitizedValue = filterDisallowedTools(
+                normalizeTools(value),
+                permissionConfig,
+                block_id,
+                skippedItems
+              )
             }
 
             // Special handling for responseFormat - normalize to ensure consistent format
@@ -1528,7 +1584,9 @@ function applyOperationsToWorkflowState(
               childId,
               childBlock,
               block_id,
-              validationErrors
+              validationErrors,
+              permissionConfig,
+              skippedItems
             )
             modifiedState.blocks[childId] = childBlockState
 
@@ -1718,7 +1776,14 @@ function applyOperationsToWorkflowState(
         }
 
         // Create new block with proper structure
-        const newBlock = createBlockFromParams(block_id, params, undefined, validationErrors)
+        const newBlock = createBlockFromParams(
+          block_id,
+          params,
+          undefined,
+          validationErrors,
+          permissionConfig,
+          skippedItems
+        )
 
         // Set loop/parallel data on parent block BEFORE adding to blocks (strict validation)
         if (params.nestedNodes) {
@@ -1797,7 +1862,9 @@ function applyOperationsToWorkflowState(
               childId,
               childBlock,
               block_id,
-              validationErrors
+              validationErrors,
+              permissionConfig,
+              skippedItems
             )
             modifiedState.blocks[childId] = childBlockState
 
@@ -1919,9 +1986,14 @@ function applyOperationsToWorkflowState(
                 }
               }
 
-              // Special handling for tools - normalize to restore sanitized fields
+              // Special handling for tools - normalize and filter disallowed
               if (key === 'tools' && Array.isArray(value)) {
-                sanitizedValue = normalizeTools(value)
+                sanitizedValue = filterDisallowedTools(
+                  normalizeTools(value),
+                  permissionConfig,
+                  block_id,
+                  skippedItems
+                )
               }
 
               // Special handling for responseFormat - normalize to ensure consistent format
@@ -1970,7 +2042,14 @@ function applyOperationsToWorkflowState(
           }
 
           // Create new block as child of subflow
-          const newBlock = createBlockFromParams(block_id, params, subflowId, validationErrors)
+          const newBlock = createBlockFromParams(
+            block_id,
+            params,
+            subflowId,
+            validationErrors,
+            permissionConfig,
+            skippedItems
+          )
           modifiedState.blocks[block_id] = newBlock
         }
 

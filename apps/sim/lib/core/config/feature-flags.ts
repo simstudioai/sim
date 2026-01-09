@@ -93,6 +93,14 @@ export const isCredentialSetsEnabled = isTruthy(env.CREDENTIAL_SETS_ENABLED)
 export const isAccessControlEnabled = isTruthy(env.ACCESS_CONTROL_ENABLED)
 
 /**
+ * Is organizations enabled
+ * True if billing is enabled (orgs come with billing), OR explicitly enabled via env var,
+ * OR if access control is enabled (access control requires organizations)
+ */
+export const isOrganizationsEnabled =
+  isBillingEnabled || isTruthy(env.ORGANIZATIONS_ENABLED) || isAccessControlEnabled
+
+/**
  * Is E2B enabled for remote code execution
  */
 export const isE2bEnabled = isTruthy(env.E2B_ENABLED)
