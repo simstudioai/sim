@@ -190,6 +190,7 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
       type: 'array',
       description: 'Array of file metadata objects from Google Drive',
       items: {
+        type: 'object',
         properties: {
           // Basic Info
           id: { type: 'string', description: 'Google Drive file ID' },
