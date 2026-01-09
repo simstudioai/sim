@@ -1,11 +1,6 @@
+import type { GoogleVaultListMattersParams } from '@/tools/google_vault/types'
+import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
-
-export interface GoogleVaultListMattersParams {
-  accessToken: string
-  pageSize?: number
-  pageToken?: string
-  matterId?: string // Optional get for a specific matter
-}
 
 export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
   id: 'list_matters',
@@ -47,7 +42,8 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
   transformResponse: async (response: Response, params?: GoogleVaultListMattersParams) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to list matters')
+      const errorMessage = data.error?.message || 'Failed to list matters'
+      throw new Error(enhanceGoogleVaultError(errorMessage))
     }
     if (params?.matterId) {
       return { success: true, output: { matter: data } }

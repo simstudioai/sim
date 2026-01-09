@@ -1,8 +1,7 @@
 import type { GoogleVaultCreateMattersHoldsParams } from '@/tools/google_vault/types'
+import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
 
-// matters.holds.create
-// POST https://vault.googleapis.com/v1/matters/{matterId}/holds
 export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsParams> = {
   id: 'create_matters_holds',
   name: 'Vault Create Hold (by Matter)',
@@ -36,7 +35,6 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
       visibility: 'user-only',
       description: 'Organization unit ID to put on hold (alternative to accounts)',
     },
-    // Query parameters for MAIL and GROUPS corpus (date filtering)
     terms: {
       type: 'string',
       required: false,
@@ -55,7 +53,6 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
       visibility: 'user-only',
       description: 'End time for date filtering (ISO 8601 format, for MAIL and GROUPS corpus)',
     },
-    // Drive-specific option
     includeSharedDrives: {
       type: 'boolean',
       required: false,
@@ -72,13 +69,11 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      // Build Hold body. One of accounts or orgUnit must be provided.
       const body: any = {
         name: params.holdName,
         corpus: params.corpus,
       }
 
-      // Handle accountEmails - can be string (comma-separated) or array
       let emails: string[] = []
       if (params.accountEmails) {
         if (Array.isArray(params.accountEmails)) {
@@ -92,13 +87,11 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
       }
 
       if (emails.length > 0) {
-        // Google Vault expects HeldAccount objects with 'email' or 'accountId'. Use 'email' here.
         body.accounts = emails.map((email: string) => ({ email }))
       } else if (params.orgUnitId) {
         body.orgUnit = { orgUnitId: params.orgUnitId }
       }
 
-      // Build corpus-specific query for date filtering
       if (params.corpus === 'MAIL' || params.corpus === 'GROUPS') {
         const hasQueryParams = params.terms || params.startTime || params.endTime
         if (hasQueryParams) {
@@ -124,7 +117,8 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to create hold')
+      const errorMessage = data.error?.message || 'Failed to create hold'
+      throw new Error(enhanceGoogleVaultError(errorMessage))
     }
     return { success: true, output: { hold: data } }
   },

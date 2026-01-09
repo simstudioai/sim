@@ -1,8 +1,7 @@
 import type { GoogleVaultCreateMattersExportParams } from '@/tools/google_vault/types'
+import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
 
-// matters.exports.create
-// POST https://vault.googleapis.com/v1/matters/{matterId}/exports
 export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportParams> = {
   id: 'create_matters_export',
   name: 'Vault Create Export (by Matter)',
@@ -64,7 +63,6 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      // Handle accountEmails - can be string (comma-separated) or array
       let emails: string[] = []
       if (params.accountEmails) {
         if (Array.isArray(params.accountEmails)) {
@@ -106,7 +104,8 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to create export')
+      const errorMessage = data.error?.message || 'Failed to create export'
+      throw new Error(enhanceGoogleVaultError(errorMessage))
     }
     return { success: true, output: { export: data } }
   },
