@@ -1336,8 +1336,8 @@ export function useUndoRedo() {
               addToQueue({
                 id: crypto.randomUUID(),
                 operation: {
-                  operation: 'batch-remove-edges',
-                  target: 'edges',
+                  operation: EDGES_OPERATIONS.BATCH_REMOVE_EDGES,
+                  target: OPERATION_TARGETS.EDGES,
                   payload: { edgeIds: affectedEdges.map((e) => e.id) },
                 },
                 workflowId: activeWorkflowId,
@@ -1358,8 +1358,8 @@ export function useUndoRedo() {
                 addToQueue({
                   id: crypto.randomUUID(),
                   operation: {
-                    operation: 'batch-add-edges',
-                    target: 'edges',
+                    operation: EDGES_OPERATIONS.BATCH_ADD_EDGES,
+                    target: OPERATION_TARGETS.EDGES,
                     payload: { edges: edgesToAdd },
                   },
                   workflowId: activeWorkflowId,
@@ -1374,8 +1374,8 @@ export function useUndoRedo() {
           addToQueue({
             id: opId,
             operation: {
-              operation: 'batch-update-parent',
-              target: 'blocks',
+              operation: BLOCKS_OPERATIONS.BATCH_UPDATE_PARENT,
+              target: OPERATION_TARGETS.BLOCKS,
               payload: {
                 updates: validUpdates.map((u) => ({
                   id: u.blockId,
@@ -1391,7 +1391,7 @@ export function useUndoRedo() {
           logger.debug('Redid batch-update-parent', { updateCount: validUpdates.length })
           break
         }
-        case 'batch-toggle-enabled': {
+        case UNDO_REDO_OPERATIONS.BATCH_TOGGLE_ENABLED: {
           const toggleOp = entry.operation as BatchToggleEnabledOperation
           const { blockIds, previousStates } = toggleOp.data
 
@@ -1404,8 +1404,8 @@ export function useUndoRedo() {
           addToQueue({
             id: opId,
             operation: {
-              operation: 'batch-toggle-enabled',
-              target: 'blocks',
+              operation: BLOCKS_OPERATIONS.BATCH_TOGGLE_ENABLED,
+              target: OPERATION_TARGETS.BLOCKS,
               payload: { blockIds: validBlockIds, previousStates },
             },
             workflowId: activeWorkflowId,
@@ -1419,7 +1419,7 @@ export function useUndoRedo() {
           })
           break
         }
-        case 'batch-toggle-handles': {
+        case UNDO_REDO_OPERATIONS.BATCH_TOGGLE_HANDLES: {
           const toggleOp = entry.operation as BatchToggleHandlesOperation
           const { blockIds, previousStates } = toggleOp.data
 
@@ -1432,8 +1432,8 @@ export function useUndoRedo() {
           addToQueue({
             id: opId,
             operation: {
-              operation: 'batch-toggle-handles',
-              target: 'blocks',
+              operation: BLOCKS_OPERATIONS.BATCH_TOGGLE_HANDLES,
+              target: OPERATION_TARGETS.BLOCKS,
               payload: { blockIds: validBlockIds, previousStates },
             },
             workflowId: activeWorkflowId,
@@ -1447,7 +1447,7 @@ export function useUndoRedo() {
           })
           break
         }
-        case 'apply-diff': {
+        case UNDO_REDO_OPERATIONS.APPLY_DIFF: {
           // Redo apply-diff means re-applying the proposed state with diff markers
           const applyDiffOp = entry.operation as any
           const { proposedState, diffAnalysis, baselineSnapshot } = applyDiffOp.data
@@ -1504,7 +1504,7 @@ export function useUndoRedo() {
           logger.info('Redid apply-diff operation')
           break
         }
-        case 'accept-diff': {
+        case UNDO_REDO_OPERATIONS.ACCEPT_DIFF: {
           // Redo accept-diff means re-accepting (stripping markers)
           const acceptDiffOp = entry.operation as any
           const { afterAccept } = acceptDiffOp.data
@@ -1558,7 +1558,7 @@ export function useUndoRedo() {
           logger.info('Redid accept-diff operation - cleared diff view')
           break
         }
-        case 'reject-diff': {
+        case UNDO_REDO_OPERATIONS.REJECT_DIFF: {
           // Redo reject-diff means re-rejecting (restoring baseline, clearing diff)
           const rejectDiffOp = entry.operation as any
           const { afterReject } = rejectDiffOp.data
@@ -1636,7 +1636,7 @@ export function useUndoRedo() {
 
       const operation: any = {
         id: crypto.randomUUID(),
-        type: 'apply-diff',
+        type: UNDO_REDO_OPERATIONS.APPLY_DIFF,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
         userId,
@@ -1649,7 +1649,7 @@ export function useUndoRedo() {
 
       const inverse: any = {
         id: crypto.randomUUID(),
-        type: 'apply-diff',
+        type: UNDO_REDO_OPERATIONS.APPLY_DIFF,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
         userId,
@@ -1680,7 +1680,7 @@ export function useUndoRedo() {
 
       const operation: any = {
         id: crypto.randomUUID(),
-        type: 'accept-diff',
+        type: UNDO_REDO_OPERATIONS.ACCEPT_DIFF,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
         userId,
@@ -1694,7 +1694,7 @@ export function useUndoRedo() {
 
       const inverse: any = {
         id: crypto.randomUUID(),
-        type: 'accept-diff',
+        type: UNDO_REDO_OPERATIONS.ACCEPT_DIFF,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
         userId,
@@ -1720,7 +1720,7 @@ export function useUndoRedo() {
 
       const operation: any = {
         id: crypto.randomUUID(),
-        type: 'reject-diff',
+        type: UNDO_REDO_OPERATIONS.REJECT_DIFF,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
         userId,
@@ -1734,7 +1734,7 @@ export function useUndoRedo() {
 
       const inverse: any = {
         id: crypto.randomUUID(),
-        type: 'reject-diff',
+        type: UNDO_REDO_OPERATIONS.REJECT_DIFF,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
         userId,

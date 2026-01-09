@@ -6,6 +6,7 @@ import {
   EDGES_OPERATIONS,
   OPERATION_TARGETS,
   VARIABLE_OPERATIONS,
+  type VariableOperation,
   WORKFLOW_OPERATIONS,
 } from '@/socket/constants'
 import { persistWorkflowOperation } from '@/socket/database/operations'
@@ -198,7 +199,9 @@ export function setupOperationsHandlers(
 
       if (
         target === OPERATION_TARGETS.VARIABLE &&
-        [VARIABLE_OPERATIONS.ADD, VARIABLE_OPERATIONS.REMOVE].includes(operation as any)
+        ([VARIABLE_OPERATIONS.ADD, VARIABLE_OPERATIONS.REMOVE] as VariableOperation[]).includes(
+          operation as VariableOperation
+        )
       ) {
         await persistWorkflowOperation(workflowId, {
           operation,
