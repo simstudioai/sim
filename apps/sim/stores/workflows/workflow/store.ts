@@ -174,6 +174,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           ...data,
           ...(parentId && { parentId, extent: extent || 'parent' }),
         }
+        // #endregion
 
         const subBlocks: Record<string, SubBlockState> = {}
         const subBlockStore = useSubBlockStore.getState()
@@ -295,26 +296,16 @@ export const useWorkflowStore = create<WorkflowStore>()(
           return
         }
 
-        logger.info('UpdateParentId called:', {
-          blockId: id,
-          blockName: block.name,
-          blockType: block.type,
-          newParentId: parentId,
-          extent,
-          currentParentId: block.data?.parentId,
-        })
-
-        // Skip if the parent ID hasn't changed
-        if (block.data?.parentId === parentId) {
-          logger.info('Parent ID unchanged, skipping update')
+        if (parentId === id) {
+          logger.error('Blocked attempt to set block as its own parent', { blockId: id })
           return
         }
 
-        // Store current absolute position
-        const absolutePosition = { ...block.position }
+        if (block.data?.parentId === parentId) {
+          return
+        }
 
-        // Handle empty or null parentId (removing from parent)
-        // On removal, clear the data JSON entirely per normalized DB contract
+        const absolutePosition = { ...block.position }
         const newData = !parentId
           ? {}
           : {
@@ -322,8 +313,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
               parentId,
               extent,
             }
-
-        // For removal we already set data to {}; for setting a parent keep as-is
 
         const newState = {
           blocks: {
@@ -338,12 +327,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           loops: { ...get().loops },
           parallels: { ...get().parallels },
         }
-
-        logger.info('[WorkflowStore/updateParentId] Updated parentId relationship:', {
-          blockId: id,
-          newParentId: parentId || 'None (removed parent)',
-          keepingPosition: absolutePosition,
-        })
 
         set(newState)
         get().updateLastSaved()

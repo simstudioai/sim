@@ -921,45 +921,6 @@ const WorkflowContent = React.memo(() => {
     [removeEdge]
   )
 
-  /** Handles ActionBar remove-from-subflow events. */
-  useEffect(() => {
-    const handleRemoveFromSubflow = (event: Event) => {
-      const customEvent = event as CustomEvent<{ blockIds: string[] }>
-      const blockIds = customEvent.detail?.blockIds
-      if (!blockIds || blockIds.length === 0) return
-
-      try {
-        const validBlockIds = blockIds.filter((id) => {
-          const block = blocks[id]
-          return block?.data?.parentId
-        })
-        if (validBlockIds.length === 0) return
-
-        const movingNodeIds = new Set(validBlockIds)
-
-        const boundaryEdges = edgesForDisplay.filter((e) => {
-          const sourceInSelection = movingNodeIds.has(e.source)
-          const targetInSelection = movingNodeIds.has(e.target)
-          return sourceInSelection !== targetInSelection
-        })
-
-        for (const blockId of validBlockIds) {
-          const edgesForThisNode = boundaryEdges.filter(
-            (e) => e.source === blockId || e.target === blockId
-          )
-          removeEdgesForNode(blockId, edgesForThisNode)
-          updateNodeParent(blockId, null, edgesForThisNode)
-        }
-      } catch (err) {
-        logger.error('Failed to remove from subflow', { err })
-      }
-    }
-
-    window.addEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
-    return () =>
-      window.removeEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
-  }, [blocks, edgesForDisplay, removeEdgesForNode, updateNodeParent])
-
   /** Finds the closest block to a position for auto-connect. */
   const findClosestOutput = useCallback(
     (newNodePosition: { x: number; y: number }): BlockData | null => {
@@ -1827,6 +1788,18 @@ const WorkflowContent = React.memo(() => {
         return
       }
 
+      // Recovery: detect and clear invalid parent references to prevent infinite recursion
+      if (block.data?.parentId) {
+        if (block.data.parentId === block.id) {
+          block.data = { ...block.data, parentId: undefined, extent: undefined }
+        } else {
+          const parentBlock = blocks[block.data.parentId]
+          if (parentBlock?.data?.parentId === block.id) {
+            block.data = { ...block.data, parentId: undefined, extent: undefined }
+          }
+        }
+      }
+
       // Handle container nodes differently
       if (block.type === 'loop' || block.type === 'parallel') {
         nodeArray.push({
@@ -1964,6 +1937,67 @@ const WorkflowContent = React.memo(() => {
       }))
     })
   }, [derivedNodes])
+
+  /** Handles ActionBar remove-from-subflow events. */
+  useEffect(() => {
+    const handleRemoveFromSubflow = (event: Event) => {
+      const customEvent = event as CustomEvent<{ blockIds: string[] }>
+      const blockIds = customEvent.detail?.blockIds
+      if (!blockIds || blockIds.length === 0) return
+
+      try {
+        const validBlockIds = blockIds.filter((id) => {
+          const block = blocks[id]
+          return block?.data?.parentId
+        })
+        if (validBlockIds.length === 0) return
+
+        const movingNodeIds = new Set(validBlockIds)
+
+        const boundaryEdges = edgesForDisplay.filter((e) => {
+          const sourceInSelection = movingNodeIds.has(e.source)
+          const targetInSelection = movingNodeIds.has(e.target)
+          return sourceInSelection !== targetInSelection
+        })
+
+        // Collect absolute positions BEFORE updating parents
+        const absolutePositions = new Map<string, { x: number; y: number }>()
+        for (const blockId of validBlockIds) {
+          absolutePositions.set(blockId, getNodeAbsolutePosition(blockId))
+        }
+
+        for (const blockId of validBlockIds) {
+          const edgesForThisNode = boundaryEdges.filter(
+            (e) => e.source === blockId || e.target === blockId
+          )
+          removeEdgesForNode(blockId, edgesForThisNode)
+          updateNodeParent(blockId, null, edgesForThisNode)
+        }
+
+        // Immediately update displayNodes to prevent React Flow from using stale parent data
+        setDisplayNodes((nodes) =>
+          nodes.map((n) => {
+            const absPos = absolutePositions.get(n.id)
+            if (absPos) {
+              return {
+                ...n,
+                position: absPos,
+                parentId: undefined,
+                extent: undefined,
+              }
+            }
+            return n
+          })
+        )
+      } catch (err) {
+        logger.error('Failed to remove from subflow', { err })
+      }
+    }
+
+    window.addEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
+    return () =>
+      window.removeEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
+  }, [blocks, edgesForDisplay, removeEdgesForNode, updateNodeParent, getNodeAbsolutePosition])
 
   /** Handles node position changes - updates local state for smooth drag, syncs to store only on drag end. */
   const onNodesChange = useCallback((changes: NodeChange[]) => {
@@ -2409,6 +2443,8 @@ const WorkflowContent = React.memo(() => {
       // Store the original parent ID when starting to drag
       const currentParentId = blocks[node.id]?.data?.parentId || null
       setDragStartParentId(currentParentId)
+      // Initialize potentialParentId to the current parent so a click without movement doesn't remove from subflow
+      setPotentialParentId(currentParentId)
       // Store starting position for undo/redo move entry
       setDragStartPosition({
         id: node.id,
@@ -2432,7 +2468,7 @@ const WorkflowContent = React.memo(() => {
         }
       })
     },
-    [blocks, setDragStartPosition, getNodes]
+    [blocks, setDragStartPosition, getNodes, potentialParentId, setPotentialParentId]
   )
 
   /** Handles node drag stop to establish parent-child relationships. */
@@ -2666,12 +2702,29 @@ const WorkflowContent = React.memo(() => {
         const affectedEdges = [...edgesToRemove, ...edgesToAdd]
         updateNodeParent(node.id, potentialParentId, affectedEdges)
 
+        setDisplayNodes((nodes) =>
+          nodes.map((n) => {
+            if (n.id === node.id) {
+              return {
+                ...n,
+                position: relativePositionBefore,
+                parentId: potentialParentId,
+                extent: 'parent' as const,
+              }
+            }
+            return n
+          })
+        )
+
         // Now add the edges after parent update
         edgesToAdd.forEach((edge) => addEdge(edge))
 
         window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: false } }))
       } else if (!potentialParentId && dragStartParentId) {
         // Moving OUT of a subflow to canvas
+        // Get absolute position BEFORE removing from parent
+        const absolutePosition = getNodeAbsolutePosition(node.id)
+
         // Remove edges connected to this node since it's leaving its parent
         const edgesToRemove = edgesForDisplay.filter(
           (e) => e.source === node.id || e.target === node.id
@@ -2689,6 +2742,21 @@ const WorkflowContent = React.memo(() => {
 
         // Clear the parent relationship
         updateNodeParent(node.id, null, edgesToRemove)
+
+        // Immediately update displayNodes to prevent React Flow from using stale parent data
+        setDisplayNodes((nodes) =>
+          nodes.map((n) => {
+            if (n.id === node.id) {
+              return {
+                ...n,
+                position: absolutePosition,
+                parentId: undefined,
+                extent: undefined,
+              }
+            }
+            return n
+          })
+        )
 
         logger.info('Moved node out of subflow', {
           blockId: node.id,
