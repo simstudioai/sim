@@ -2231,8 +2231,10 @@ export const auth = betterAuth({
                       referenceId: subscription.referenceId,
                       plan: subscription.plan,
                       error: orgError instanceof Error ? orgError.message : String(orgError),
+                      stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
                   )
+                  throw orgError
                 }
 
                 try {
