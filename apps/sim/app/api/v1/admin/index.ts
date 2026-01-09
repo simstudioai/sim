@@ -36,6 +36,7 @@
  *
  *   Organizations:
  *   GET    /api/v1/admin/organizations                      - List all organizations
+ *   POST   /api/v1/admin/organizations                      - Create organization (requires ownerId)
  *   GET    /api/v1/admin/organizations/:id                  - Get organization details
  *   PATCH  /api/v1/admin/organizations/:id                  - Update organization
  *   GET    /api/v1/admin/organizations/:id/members          - List organization members

@@ -50,6 +50,7 @@ import {
   isEmailPasswordEnabled,
   isEmailVerificationEnabled,
   isHosted,
+  isOrganizationsEnabled,
   isRegistrationDisabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -2324,8 +2325,15 @@ export const auth = betterAuth({
               }
             },
           }),
+        ]
+      : []),
+    ...(isOrganizationsEnabled
+      ? [
           organization({
             allowUserToCreateOrganization: async (user) => {
+              if (!isBillingEnabled) {
+                return true
+              }
               const dbSubscriptions = await db
                 .select()
                 .from(schema.subscription)
