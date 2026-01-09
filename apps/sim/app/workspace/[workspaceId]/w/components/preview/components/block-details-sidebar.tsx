@@ -482,7 +482,7 @@ function BlockDetailsSidebarContent({
 
   if (!blockConfig) {
     return (
-      <div className='flex h-full w-80 flex-col border-[var(--border)] border-l bg-[var(--surface-1)]'>
+      <div className='flex h-full w-80 flex-col overflow-hidden rounded-r-[8px] border-[var(--border)] border-l bg-[var(--surface-1)]'>
         <div className='flex items-center gap-[8px] bg-[var(--surface-4)] px-[12px] py-[8px]'>
           <div className='flex h-[18px] w-[18px] items-center justify-center rounded-[4px] bg-[var(--surface-3)]' />
           <span className='font-medium text-[14px] text-[var(--text-primary)]'>
@@ -513,7 +513,7 @@ function BlockDetailsSidebarContent({
         : 'gray'
 
   return (
-    <div className='flex h-full w-80 flex-col border-[var(--border)] border-l bg-[var(--surface-1)]'>
+    <div className='flex h-full w-80 flex-col overflow-hidden rounded-r-[8px] border-[var(--border)] border-l bg-[var(--surface-1)]'>
       {/* Header - styled like editor */}
       <div className='flex flex-shrink-0 items-center gap-[8px] bg-[var(--surface-4)] px-[12px] py-[8px]'>
         <div

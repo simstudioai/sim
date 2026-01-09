@@ -30,10 +30,25 @@ interface BlockExecutionData {
   durationMs: number
 }
 
+/**
+ * Migrated logs have special properties to indicate they came from the old logging system
+ */
+interface MigratedWorkflowState extends WorkflowState {
+  _migrated: true
+  _note?: string
+}
+
+/**
+ * Type guard to check if a workflow state is from a migrated log
+ */
+function isMigratedWorkflowState(state: WorkflowState): state is MigratedWorkflowState {
+  return (state as MigratedWorkflowState)._migrated === true
+}
+
 interface ExecutionSnapshotData {
   executionId: string
   workflowId: string
-  workflowState: WorkflowState
+  workflowState: WorkflowState | MigratedWorkflowState
   executionMetadata: {
     trigger: string
     startedAt: string
@@ -178,8 +193,7 @@ export function ExecutionSnapshot({
       )
     }
 
-    const isMigratedLog = (data.workflowState as any)?._migrated === true
-    if (isMigratedLog) {
+    if (isMigratedWorkflowState(data.workflowState)) {
       return (
         <div
           className={cn('flex flex-col items-center justify-center gap-[16px] p-[32px]', className)}
@@ -194,7 +208,7 @@ export function ExecutionSnapshot({
             is not available.
           </div>
           <div className='text-[12px] text-[var(--text-tertiary)]'>
-            Note: {(data.workflowState as any)?._note}
+            Note: {data.workflowState._note}
           </div>
         </div>
       )

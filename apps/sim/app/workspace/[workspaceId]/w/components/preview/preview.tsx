@@ -280,7 +280,10 @@ export function WorkflowPreview({
         type: nodeType,
         position: absolutePosition,
         draggable: false,
-        className: executionStatus ? `execution-${executionStatus}` : undefined,
+        className:
+          executionStatus && executionStatus !== 'not-executed'
+            ? `execution-${executionStatus}`
+            : undefined,
         data: {
           type: block.type,
           config: blockConfig,
@@ -333,7 +336,6 @@ export function WorkflowPreview({
         sourceHandle: edge.sourceHandle,
         targetHandle: edge.targetHandle,
         data: executionStatus ? { executionStatus } : undefined,
-        className: executionStatus === 'not-executed' ? 'execution-not-executed' : undefined,
       }
     })
   }, [edgesStructure, workflowState.edges, isValidWorkflowState, executedBlocks])
@@ -362,7 +364,7 @@ export function WorkflowPreview({
       >
         <style>{`
           ${cursorStyle ? `.preview-mode .react-flow__pane { cursor: ${cursorStyle} !important; }` : ''}
-          
+
           /* Execution status styling for nodes */
           .preview-mode .react-flow__node.execution-success {
             border-radius: 8px;

@@ -338,7 +338,7 @@ export function GeneralDeploy({
                 : 'Live Workflow'}
             </ModalHeader>
             <ModalBody className='!p-0 min-h-0 flex-1'>
-              <div className='flex h-full w-full overflow-hidden rounded-[4px] border border-[var(--border)]'>
+              <div className='flex h-full w-full overflow-hidden'>
                 <div className='h-full flex-1'>
                   <WorkflowPreview
                     workflowState={workflowToShow}
