@@ -54,9 +54,11 @@ export function useWebhookInfo(blockId: string, workflowId: string): UseWebhookI
     useCallback(
       (state) => {
         if (!activeWorkflowId) return undefined
-        return state.workflowValues[activeWorkflowId]?.[blockId]?.webhookProvider?.value as
-          | string
-          | undefined
+        const value = state.workflowValues[activeWorkflowId]?.[blockId]?.webhookProvider
+        if (typeof value === 'object' && value !== null && 'value' in value) {
+          return (value as { value?: unknown }).value as string | undefined
+        }
+        return value as string | undefined
       },
       [activeWorkflowId, blockId]
     )

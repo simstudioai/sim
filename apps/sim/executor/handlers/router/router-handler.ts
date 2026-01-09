@@ -366,12 +366,12 @@ export class RouterBlockHandler implements BlockHandler {
 
         let systemPrompt = ''
         if (isAgentBlockType(targetBlock.metadata?.id)) {
+          const paramsPrompt = targetBlock.config?.params?.systemPrompt
+          const inputsPrompt = targetBlock.inputs?.systemPrompt
           systemPrompt =
-            targetBlock.config?.params?.systemPrompt || targetBlock.inputs?.systemPrompt || ''
-
-          if (!systemPrompt && targetBlock.inputs) {
-            systemPrompt = targetBlock.inputs.systemPrompt || ''
-          }
+            (typeof paramsPrompt === 'string' ? paramsPrompt : '') ||
+            (typeof inputsPrompt === 'string' ? inputsPrompt : '') ||
+            ''
         }
 
         return {

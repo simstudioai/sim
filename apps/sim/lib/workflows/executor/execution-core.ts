@@ -19,8 +19,12 @@ import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor'
 import { REFERENCE } from '@/executor/constants'
 import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { ExecutionCallbacks, IterationContext } from '@/executor/execution/types'
-import type { ExecutionResult } from '@/executor/types'
+import type {
+  ContextExtensions,
+  ExecutionCallbacks,
+  IterationContext,
+} from '@/executor/execution/types'
+import type { ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
@@ -41,7 +45,7 @@ export interface ExecuteWorkflowCoreOptions {
   abortSignal?: AbortSignal
 }
 
-function parseVariableValueByType(value: any, type: string): any {
+function parseVariableValueByType(value: unknown, type: string): unknown {
   if (value === null || value === undefined) {
     switch (type) {
       case 'number':
@@ -262,7 +266,7 @@ export async function executeWorkflowCore(
     const filteredEdges = edges
 
     // Check if this is a resume execution before trigger resolution
-    const resumeFromSnapshot = (metadata as any).resumeFromSnapshot === true
+    const resumeFromSnapshot = metadata.resumeFromSnapshot === true
     const resumePendingQueue = snapshot.state?.pendingQueue
 
     let resolvedTriggerBlockId = triggerBlockId
@@ -321,7 +325,7 @@ export async function executeWorkflowCore(
       blockId: string,
       blockName: string,
       blockType: string,
-      output: any,
+      output: { input?: unknown; output: NormalizedBlockOutput; executionTime: number },
       iterationContext?: IterationContext
     ) => {
       await loggingSession.onBlockComplete(blockId, blockName, blockType, output)
@@ -330,7 +334,7 @@ export async function executeWorkflowCore(
       }
     }
 
-    const contextExtensions: any = {
+    const contextExtensions: ContextExtensions = {
       stream: !!onStream,
       selectedOutputs,
       executionId,
@@ -342,7 +346,12 @@ export async function executeWorkflowCore(
       onStream,
       resumeFromSnapshot,
       resumePendingQueue,
-      remainingEdges: snapshot.state?.remainingEdges,
+      remainingEdges: snapshot.state?.remainingEdges?.map((edge) => ({
+        source: edge.source,
+        target: edge.target,
+        sourceHandle: edge.sourceHandle ?? undefined,
+        targetHandle: edge.targetHandle ?? undefined,
+      })),
       dagIncomingEdges: snapshot.state?.dagIncomingEdges,
       snapshotState: snapshot.state,
       metadata,
@@ -363,7 +372,7 @@ export async function executeWorkflowCore(
     // Convert initial workflow variables to their native types
     if (workflowVariables) {
       for (const [varId, variable] of Object.entries(workflowVariables)) {
-        const v = variable as any
+        const v = variable as { value?: unknown; type?: string }
         if (v.value !== undefined && v.type) {
           v.value = parseVariableValueByType(v.value, v.type)
         }
@@ -432,18 +441,23 @@ export async function executeWorkflowCore(
     })
 
     return result
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error(`[${requestId}] Execution failed:`, error)
 
-    const executionResult = (error as any)?.executionResult
+    const errorWithResult = error as {
+      executionResult?: ExecutionResult
+      message?: string
+      stack?: string
+    }
+    const executionResult = errorWithResult?.executionResult
     const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
 
     await loggingSession.safeCompleteWithError({
       endedAt: new Date().toISOString(),
       totalDurationMs: executionResult?.metadata?.duration || 0,
       error: {
-        message: error.message || 'Execution failed',
-        stackTrace: error.stack,
+        message: errorWithResult?.message || 'Execution failed',
+        stackTrace: errorWithResult?.stack,
       },
       traceSpans,
     })

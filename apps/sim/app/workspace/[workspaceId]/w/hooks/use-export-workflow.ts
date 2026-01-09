@@ -4,6 +4,7 @@ import JSZip from 'jszip'
 import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import type { Variable } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('useExportWorkflow')
 
@@ -122,17 +123,12 @@ export function useExportWorkflow({
             continue
           }
 
-          // Fetch workflow variables
+          // Fetch workflow variables (API returns Record format directly)
           const variablesResponse = await fetch(`/api/workflows/${workflowId}/variables`)
-          let workflowVariables: any[] = []
+          let workflowVariables: Record<string, Variable> | undefined
           if (variablesResponse.ok) {
             const variablesData = await variablesResponse.json()
-            workflowVariables = Object.values(variablesData?.data || {}).map((v: any) => ({
-              id: v.id,
-              name: v.name,
-              type: v.type,
-              value: v.value,
-            }))
+            workflowVariables = variablesData?.data
           }
 
           // Prepare export state

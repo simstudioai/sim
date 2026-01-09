@@ -391,7 +391,7 @@ describe('Serializer', () => {
       expect(toolsParam).toBeDefined()
 
       // Parse tools to verify content
-      const tools = JSON.parse(toolsParam)
+      const tools = JSON.parse(toolsParam as string)
       expect(tools).toHaveLength(2)
 
       // Check custom tool

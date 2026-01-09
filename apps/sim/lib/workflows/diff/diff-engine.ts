@@ -245,10 +245,10 @@ function computeFieldDiff(
   const unchangedFields: string[] = []
 
   // Check basic fields
-  const fieldsToCheck = ['type', 'name', 'enabled', 'triggerMode', 'horizontalHandles']
+  const fieldsToCheck = ['type', 'name', 'enabled', 'triggerMode', 'horizontalHandles'] as const
   for (const field of fieldsToCheck) {
-    const currentValue = (currentBlock as any)[field]
-    const proposedValue = (proposedBlock as any)[field]
+    const currentValue = currentBlock[field]
+    const proposedValue = proposedBlock[field]
     if (JSON.stringify(currentValue) !== JSON.stringify(proposedValue)) {
       changedFields.push(field)
     } else if (currentValue !== undefined) {
@@ -363,7 +363,7 @@ export class WorkflowDiffEngine {
       }
 
       // Call the API route to create the diff
-      const body: any = {
+      const body: Record<string, unknown> = {
         jsonContent,
         currentWorkflowState: mergedBaseline,
       }
@@ -859,7 +859,7 @@ export class WorkflowDiffEngine {
         const proposedEdgeSet = new Set<string>()
 
         // Create edge identifiers for current state (using sim-agent format)
-        mergedBaseline.edges.forEach((edge: any) => {
+        mergedBaseline.edges.forEach((edge: Edge) => {
           const edgeId = `${edge.source}-${edge.sourceHandle || 'source'}-${edge.target}-${edge.targetHandle || 'target'}`
           currentEdgeSet.add(edgeId)
         })
@@ -992,7 +992,7 @@ export class WorkflowDiffEngine {
       }
 
       // Call the API route to merge the diff
-      const body: any = {
+      const body: Record<string, unknown> = {
         existingDiff: this.currentDiff,
         jsonContent,
       }

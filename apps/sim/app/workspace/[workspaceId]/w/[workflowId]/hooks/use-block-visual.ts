@@ -21,14 +21,15 @@ interface UseBlockVisualProps {
 
 /**
  * Provides visual state and interaction handlers for workflow blocks.
- * Computes ring styling based on execution, focus, diff, and run path states.
- * In preview mode, all interactive and execution-related visual states are disabled.
+ * Computes ring styling based on execution, diff, deletion, and run path states.
+ * In preview mode, uses isPreviewSelected for selection highlighting.
  *
  * @param props - The hook properties
  * @returns Visual state, click handler, and ring styling for the block
  */
 export function useBlockVisual({ blockId, data, isPending = false }: UseBlockVisualProps) {
   const isPreview = data.isPreview ?? false
+  const isPreviewSelected = data.isPreviewSelected ?? false
 
   const currentWorkflow = useCurrentWorkflow()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -40,14 +41,13 @@ export function useBlockVisual({ blockId, data, isPending = false }: UseBlockVis
     isDeletedBlock,
   } = useBlockState(blockId, currentWorkflow, data)
 
-  const isActive = isPreview ? false : blockIsActive
+  // In preview mode, use isPreviewSelected for selection state
+  const isActive = isPreview ? isPreviewSelected : blockIsActive
 
   const lastRunPath = useExecutionStore((state) => state.lastRunPath)
   const runPathStatus = isPreview ? undefined : lastRunPath.get(blockId)
 
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
-  const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
-  const isFocused = isPreview ? false : currentBlockId === blockId
 
   const handleClick = useCallback(() => {
     if (!isPreview) {
@@ -60,12 +60,12 @@ export function useBlockVisual({ blockId, data, isPending = false }: UseBlockVis
       getBlockRingStyles({
         isActive,
         isPending: isPreview ? false : isPending,
-        isFocused,
         isDeletedBlock: isPreview ? false : isDeletedBlock,
         diffStatus: isPreview ? undefined : diffStatus,
         runPathStatus,
+        isPreviewSelection: isPreview && isPreviewSelected,
       }),
-    [isActive, isPending, isFocused, isDeletedBlock, diffStatus, runPathStatus, isPreview]
+    [isActive, isPending, isDeletedBlock, diffStatus, runPathStatus, isPreview, isPreviewSelected]
   )
 
   return {

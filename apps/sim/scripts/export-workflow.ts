@@ -70,16 +70,11 @@ async function exportWorkflow(workflowId: string, outputFile?: string): Promise<
       process.exit(1)
     }
 
-    // Convert variables to array format
-    let workflowVariables: any[] = []
-    if (workflowData.variables && typeof workflowData.variables === 'object') {
-      workflowVariables = Object.values(workflowData.variables).map((v: any) => ({
-        id: v.id,
-        name: v.name,
-        type: v.type,
-        value: v.value,
-      }))
-    }
+    // Get variables in Record format (as stored in database)
+    type VariableType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+    const workflowVariables = workflowData.variables as
+      | Record<string, { id: string; name: string; type: VariableType; value: unknown }>
+      | undefined
 
     // Prepare export state - match the exact format from the UI
     const workflowState = {

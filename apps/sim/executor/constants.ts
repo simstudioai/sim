@@ -1,3 +1,5 @@
+import type { LoopType, ParallelType } from '@/lib/workflows/types'
+
 export enum BlockType {
   PARALLEL = 'parallel',
   LOOP = 'loop',
@@ -40,11 +42,7 @@ export const METADATA_ONLY_BLOCK_TYPES = [
   BlockType.NOTE,
 ] as const
 
-export type LoopType = 'for' | 'forEach' | 'while' | 'doWhile'
-
 export type SentinelType = 'start' | 'end'
-
-export type ParallelType = 'collection' | 'count'
 
 export const EDGE = {
   CONDITION_PREFIX: 'condition-',

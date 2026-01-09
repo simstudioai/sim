@@ -40,10 +40,7 @@ const WorkflowEdgeComponent = ({
   })
 
   const isSelected = data?.isSelected ?? false
-  const isInsideLoop = data?.isInsideLoop ?? false
-  const parentLoopId = data?.parentLoopId
 
-  // Combined store subscription to reduce subscription overhead
   const { diffAnalysis, isShowingDiff, isDiffReady } = useWorkflowDiffStore(
     useShallow((state) => ({
       diffAnalysis: state.diffAnalysis,
@@ -98,7 +95,8 @@ const WorkflowEdgeComponent = ({
     } else if (edgeDiffStatus === 'new') {
       color = 'var(--brand-tertiary)'
     } else if (edgeRunStatus === 'success') {
-      color = 'var(--border-success)'
+      // Use green for preview mode, default for canvas execution
+      color = previewExecutionStatus ? 'var(--brand-tertiary-2)' : 'var(--border-success)'
     } else if (edgeRunStatus === 'error') {
       color = 'var(--text-error)'
     }
@@ -120,34 +118,18 @@ const WorkflowEdgeComponent = ({
       strokeDasharray: edgeDiffStatus === 'deleted' ? '10,5' : undefined,
       opacity,
     }
-  }, [style, edgeDiffStatus, isSelected, isErrorEdge, edgeRunStatus])
+  }, [style, edgeDiffStatus, isSelected, isErrorEdge, edgeRunStatus, previewExecutionStatus])
 
   return (
     <>
-      <BaseEdge
-        path={edgePath}
-        data-testid='workflow-edge'
-        style={edgeStyle}
-        interactionWidth={30}
-        data-edge-id={id}
-        data-parent-loop-id={parentLoopId}
-        data-is-selected={isSelected ? 'true' : 'false'}
-        data-is-inside-loop={isInsideLoop ? 'true' : 'false'}
-      />
-      {/* Animate dash offset for edge movement effect */}
-      <animate
-        attributeName='stroke-dashoffset'
-        from={edgeDiffStatus === 'deleted' ? '15' : '10'}
-        to='0'
-        dur={edgeDiffStatus === 'deleted' ? '2s' : '1s'}
-        repeatCount='indefinite'
-      />
+      <BaseEdge path={edgePath} style={edgeStyle} interactionWidth={30} />
 
       {isSelected && (
         <EdgeLabelRenderer>
           <div
             className='nodrag nopan group flex h-[22px] w-[22px] cursor-pointer items-center justify-center transition-colors'
             style={{
+              position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
               zIndex: 100,

@@ -5,6 +5,7 @@ import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
+import type { ExecutionResult, StreamingExecution } from '@/executor/types'
 
 const logger = createLogger('WorkflowExecution')
 
@@ -13,8 +14,8 @@ export interface ExecuteWorkflowOptions {
   selectedOutputs?: string[]
   isSecureMode?: boolean
   workflowTriggerType?: 'api' | 'chat'
-  onStream?: (streamingExec: any) => Promise<void>
-  onBlockComplete?: (blockId: string, output: any) => Promise<void>
+  onStream?: (streamingExec: StreamingExecution) => Promise<void>
+  onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
   skipLoggingComplete?: boolean
 }
 
@@ -29,11 +30,11 @@ export interface WorkflowInfo {
 export async function executeWorkflow(
   workflow: WorkflowInfo,
   requestId: string,
-  input: any | undefined,
+  input: unknown | undefined,
   actorUserId: string,
   streamConfig?: ExecuteWorkflowOptions,
   providedExecutionId?: string
-): Promise<any> {
+): Promise<ExecutionResult> {
   if (!workflow.workspaceId) {
     throw new Error(`Workflow ${workflow.id} has no workspaceId`)
   }
@@ -71,7 +72,7 @@ export async function executeWorkflow(
       callbacks: {
         onStream: streamConfig?.onStream,
         onBlockComplete: streamConfig?.onBlockComplete
-          ? async (blockId: string, _blockName: string, _blockType: string, output: any) => {
+          ? async (blockId: string, _blockName: string, _blockType: string, output: unknown) => {
               await streamConfig.onBlockComplete!(blockId, output)
             }
           : undefined,
@@ -119,7 +120,7 @@ export async function executeWorkflow(
     }
 
     return result
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error(`[${requestId}] Workflow execution failed:`, error)
     throw error
   }

@@ -253,7 +253,7 @@ export async function POST(
         userId: deployment.userId,
         workspaceId,
         isDeployed: workflowRecord?.isDeployed ?? false,
-        variables: workflowRecord?.variables || {},
+        variables: (workflowRecord?.variables as Record<string, unknown>) ?? undefined,
       }
 
       const stream = await createStreamingResponse({

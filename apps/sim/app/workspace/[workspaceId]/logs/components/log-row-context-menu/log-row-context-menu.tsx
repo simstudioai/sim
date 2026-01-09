@@ -87,7 +87,7 @@ export function LogRowContextMenu({
             onClose()
           }}
         >
-          Open Preview
+          Open Snapshot
         </PopoverItem>
 
         {/* Filter actions */}

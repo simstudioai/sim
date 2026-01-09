@@ -1,4 +1,7 @@
+import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
+
+const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 /**
  * Simplified hook that uses React Query for usage limits.
@@ -12,7 +15,7 @@ export function useUsageLimits(options?: {
 }) {
   // For now, we only support user context via React Query
   // Organization context should use useOrganizationBilling directly
-  const { data: subscriptionData, isLoading } = useSubscriptionData()
+  const { data: subscriptionData, isLoading } = useSubscriptionData({ enabled: isBillingEnabled })
 
   const usageExceeded = subscriptionData?.data?.usage?.isExceeded || false
 

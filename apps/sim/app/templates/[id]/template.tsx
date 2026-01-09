@@ -332,7 +332,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       return (
         <WorkflowPreview
           workflowState={template.state}
-          showSubBlocks={true}
           height='100%'
           width='100%'
           isPannable={true}

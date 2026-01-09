@@ -13,7 +13,7 @@ export interface Variable {
   workflowId: string
   name: string // Must be unique per workflow
   type: VariableType
-  value: any
+  value: unknown
   validationError?: string // Tracks format validation errors
 }
 
