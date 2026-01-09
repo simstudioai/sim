@@ -1,5 +1,6 @@
 import type {
   BatchAddBlocksOperation,
+  BatchAddEdgesOperation,
   BatchMoveBlocksOperation,
   BatchRemoveBlocksOperation,
   BatchRemoveEdgesOperation,
@@ -56,8 +57,8 @@ export function createInverseOperation(operation: Operation): Operation {
         },
       } as BatchRemoveEdgesOperation
 
-    case 'batch-remove-edges': {
-      const op = operation as BatchRemoveEdgesOperation
+    case 'batch-add-edges': {
+      const op = operation as BatchAddEdgesOperation
       return {
         ...operation,
         type: 'batch-remove-edges',
@@ -65,6 +66,17 @@ export function createInverseOperation(operation: Operation): Operation {
           edgeSnapshots: op.data.edgeSnapshots,
         },
       } as BatchRemoveEdgesOperation
+    }
+
+    case 'batch-remove-edges': {
+      const op = operation as BatchRemoveEdgesOperation
+      return {
+        ...operation,
+        type: 'batch-add-edges',
+        data: {
+          edgeSnapshots: op.data.edgeSnapshots,
+        },
+      } as BatchAddEdgesOperation
     }
 
     case 'add-subflow':
@@ -217,6 +229,23 @@ export function operationToCollaborativePayload(operation: Operation): {
         target: 'edge',
         payload: { id: operation.data.edgeId },
       }
+
+    case 'batch-add-edges': {
+      const op = operation as BatchAddEdgesOperation
+      return {
+        operation: 'batch-add-edges',
+        target: 'edges',
+        payload: {
+          edges: op.data.edgeSnapshots.map((e) => ({
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            sourceHandle: e.sourceHandle ?? null,
+            targetHandle: e.targetHandle ?? null,
+          })),
+        },
+      }
+    }
 
     case 'batch-remove-edges': {
       const op = operation as BatchRemoveEdgesOperation
