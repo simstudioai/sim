@@ -5,12 +5,14 @@ export type OperationType =
   | 'batch-add-blocks'
   | 'batch-remove-blocks'
   | 'add-edge'
-  | 'remove-edge'
+  | 'batch-remove-edges'
   | 'add-subflow'
   | 'remove-subflow'
-  | 'move-block'
+  | 'batch-move-blocks'
   | 'move-subflow'
   | 'update-parent'
+  | 'batch-toggle-enabled'
+  | 'batch-toggle-handles'
   | 'apply-diff'
   | 'accept-diff'
   | 'reject-diff'
@@ -48,11 +50,10 @@ export interface AddEdgeOperation extends BaseOperation {
   }
 }
 
-export interface RemoveEdgeOperation extends BaseOperation {
-  type: 'remove-edge'
+export interface BatchRemoveEdgesOperation extends BaseOperation {
+  type: 'batch-remove-edges'
   data: {
-    edgeId: string
-    edgeSnapshot: Edge | null
+    edgeSnapshots: Edge[]
   }
 }
 
@@ -71,20 +72,14 @@ export interface RemoveSubflowOperation extends BaseOperation {
   }
 }
 
-export interface MoveBlockOperation extends BaseOperation {
-  type: 'move-block'
+export interface BatchMoveBlocksOperation extends BaseOperation {
+  type: 'batch-move-blocks'
   data: {
-    blockId: string
-    before: {
-      x: number
-      y: number
-      parentId?: string
-    }
-    after: {
-      x: number
-      y: number
-      parentId?: string
-    }
+    moves: Array<{
+      blockId: string
+      before: { x: number; y: number; parentId?: string }
+      after: { x: number; y: number; parentId?: string }
+    }>
   }
 }
 
@@ -112,6 +107,22 @@ export interface UpdateParentOperation extends BaseOperation {
     oldPosition: { x: number; y: number }
     newPosition: { x: number; y: number }
     affectedEdges?: Edge[]
+  }
+}
+
+export interface BatchToggleEnabledOperation extends BaseOperation {
+  type: 'batch-toggle-enabled'
+  data: {
+    blockIds: string[]
+    previousStates: Record<string, boolean>
+  }
+}
+
+export interface BatchToggleHandlesOperation extends BaseOperation {
+  type: 'batch-toggle-handles'
+  data: {
+    blockIds: string[]
+    previousStates: Record<string, boolean>
   }
 }
 
@@ -148,12 +159,14 @@ export type Operation =
   | BatchAddBlocksOperation
   | BatchRemoveBlocksOperation
   | AddEdgeOperation
-  | RemoveEdgeOperation
+  | BatchRemoveEdgesOperation
   | AddSubflowOperation
   | RemoveSubflowOperation
-  | MoveBlockOperation
+  | BatchMoveBlocksOperation
   | MoveSubflowOperation
   | UpdateParentOperation
+  | BatchToggleEnabledOperation
+  | BatchToggleHandlesOperation
   | ApplyDiffOperation
   | AcceptDiffOperation
   | RejectDiffOperation

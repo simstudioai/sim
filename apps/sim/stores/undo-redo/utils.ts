@@ -1,6 +1,8 @@
 import type {
   BatchAddBlocksOperation,
+  BatchMoveBlocksOperation,
   BatchRemoveBlocksOperation,
+  BatchRemoveEdgesOperation,
   Operation,
   OperationEntry,
 } from '@/stores/undo-redo/types'
@@ -43,23 +45,27 @@ export function createInverseOperation(operation: Operation): Operation {
     }
 
     case 'add-edge':
+      // Note: add-edge only stores edgeId. The full edge snapshot is stored
+      // in the inverse operation when recording. This function can't create
+      // a complete inverse without the snapshot.
       return {
         ...operation,
-        type: 'remove-edge',
+        type: 'batch-remove-edges',
         data: {
-          edgeId: operation.data.edgeId,
-          edgeSnapshot: null,
+          edgeSnapshots: [],
         },
-      }
+      } as BatchRemoveEdgesOperation
 
-    case 'remove-edge':
+    case 'batch-remove-edges': {
+      const op = operation as BatchRemoveEdgesOperation
       return {
         ...operation,
-        type: 'add-edge',
+        type: 'batch-remove-edges',
         data: {
-          edgeId: operation.data.edgeId,
+          edgeSnapshots: op.data.edgeSnapshots,
         },
-      }
+      } as BatchRemoveEdgesOperation
+    }
 
     case 'add-subflow':
       return {
@@ -80,15 +86,20 @@ export function createInverseOperation(operation: Operation): Operation {
         },
       }
 
-    case 'move-block':
+    case 'batch-move-blocks': {
+      const op = operation as BatchMoveBlocksOperation
       return {
         ...operation,
+        type: 'batch-move-blocks',
         data: {
-          blockId: operation.data.blockId,
-          before: operation.data.after,
-          after: operation.data.before,
+          moves: op.data.moves.map((m) => ({
+            blockId: m.blockId,
+            before: m.after,
+            after: m.before,
+          })),
         },
-      }
+      } as BatchMoveBlocksOperation
+    }
 
     case 'move-subflow':
       return {
@@ -145,6 +156,24 @@ export function createInverseOperation(operation: Operation): Operation {
         },
       }
 
+    case 'batch-toggle-enabled':
+      return {
+        ...operation,
+        data: {
+          blockIds: operation.data.blockIds,
+          previousStates: operation.data.previousStates,
+        },
+      }
+
+    case 'batch-toggle-handles':
+      return {
+        ...operation,
+        data: {
+          blockIds: operation.data.blockIds,
+          previousStates: operation.data.previousStates,
+        },
+      }
+
     default: {
       const exhaustiveCheck: never = operation
       throw new Error(`Unhandled operation type: ${(exhaustiveCheck as Operation).type}`)
@@ -189,12 +218,14 @@ export function operationToCollaborativePayload(operation: Operation): {
         payload: { id: operation.data.edgeId },
       }
 
-    case 'remove-edge':
+    case 'batch-remove-edges': {
+      const op = operation as BatchRemoveEdgesOperation
       return {
-        operation: 'remove',
-        target: 'edge',
-        payload: { id: operation.data.edgeId },
+        operation: 'batch-remove-edges',
+        target: 'edges',
+        payload: { ids: op.data.edgeSnapshots.map((e) => e.id) },
       }
+    }
 
     case 'add-subflow':
       return {
@@ -210,17 +241,21 @@ export function operationToCollaborativePayload(operation: Operation): {
         payload: { id: operation.data.subflowId },
       }
 
-    case 'move-block':
+    case 'batch-move-blocks': {
+      const op = operation as BatchMoveBlocksOperation
       return {
-        operation: 'update-position',
-        target: 'block',
+        operation: 'batch-update-positions',
+        target: 'blocks',
         payload: {
-          id: operation.data.blockId,
-          x: operation.data.after.x,
-          y: operation.data.after.y,
-          parentId: operation.data.after.parentId,
+          moves: op.data.moves.map((m) => ({
+            id: m.blockId,
+            x: m.after.x,
+            y: m.after.y,
+            parentId: m.after.parentId,
+          })),
         },
       }
+    }
 
     case 'move-subflow':
       return {
@@ -269,6 +304,26 @@ export function operationToCollaborativePayload(operation: Operation): {
         target: 'workflow',
         payload: {
           diffAnalysis: operation.data.diffAnalysis,
+        },
+      }
+
+    case 'batch-toggle-enabled':
+      return {
+        operation: 'batch-toggle-enabled',
+        target: 'blocks',
+        payload: {
+          blockIds: operation.data.blockIds,
+          previousStates: operation.data.previousStates,
+        },
+      }
+
+    case 'batch-toggle-handles':
+      return {
+        operation: 'batch-toggle-handles',
+        target: 'blocks',
+        payload: {
+          blockIds: operation.data.blockIds,
+          previousStates: operation.data.previousStates,
         },
       }
 

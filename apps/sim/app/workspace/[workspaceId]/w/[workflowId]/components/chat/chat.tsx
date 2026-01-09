@@ -45,7 +45,7 @@ import {
   useFloatBoundarySync,
   useFloatDrag,
   useFloatResize,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-float'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/float'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import type { BlockLog, ExecutionResult } from '@/executor/types'
 import { getChatPosition, useChatStore } from '@/stores/chat/store'

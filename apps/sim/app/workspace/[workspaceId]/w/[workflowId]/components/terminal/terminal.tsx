@@ -1489,9 +1489,7 @@ export function Terminal() {
                     variant='ghost'
                     className={clsx(
                       'px-[8px] py-[6px] text-[12px]',
-                      !showInput &&
-                        hasInputData &&
-                        '!text-[var(--text-primary)] dark:!text-[var(--text-primary)]'
+                      !showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-tertiary)]'
                     )}
                     onClick={(e) => {
                       e.stopPropagation()
@@ -1509,7 +1507,7 @@ export function Terminal() {
                       variant='ghost'
                       className={clsx(
                         'px-[8px] py-[6px] text-[12px]',
-                        showInput && '!text-[var(--text-primary)]'
+                        showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-tertiary)]'
                       )}
                       onClick={(e) => {
                         e.stopPropagation()

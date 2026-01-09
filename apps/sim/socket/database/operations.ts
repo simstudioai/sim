@@ -179,6 +179,9 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
         case 'edge':
           await handleEdgeOperationTx(tx, workflowId, op, payload)
           break
+        case 'edges':
+          await handleEdgesOperationTx(tx, workflowId, op, payload)
+          break
         case 'subflow':
           await handleSubflowOperationTx(tx, workflowId, op, payload)
           break
@@ -690,6 +693,68 @@ async function handleBlocksOperationTx(
       break
     }
 
+    case 'batch-toggle-enabled': {
+      const { blockIds } = payload
+      if (!Array.isArray(blockIds) || blockIds.length === 0) {
+        return
+      }
+
+      logger.info(
+        `Batch toggling enabled state for ${blockIds.length} blocks in workflow ${workflowId}`
+      )
+
+      for (const blockId of blockIds) {
+        const block = await tx
+          .select({ enabled: workflowBlocks.enabled })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        if (block.length > 0) {
+          await tx
+            .update(workflowBlocks)
+            .set({
+              enabled: !block[0].enabled,
+              updatedAt: new Date(),
+            })
+            .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+        }
+      }
+
+      logger.debug(`Batch toggled enabled state for ${blockIds.length} blocks`)
+      break
+    }
+
+    case 'batch-toggle-handles': {
+      const { blockIds } = payload
+      if (!Array.isArray(blockIds) || blockIds.length === 0) {
+        return
+      }
+
+      logger.info(`Batch toggling handles for ${blockIds.length} blocks in workflow ${workflowId}`)
+
+      for (const blockId of blockIds) {
+        const block = await tx
+          .select({ horizontalHandles: workflowBlocks.horizontalHandles })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        if (block.length > 0) {
+          await tx
+            .update(workflowBlocks)
+            .set({
+              horizontalHandles: !block[0].horizontalHandles,
+              updatedAt: new Date(),
+            })
+            .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+        }
+      }
+
+      logger.debug(`Batch toggled handles for ${blockIds.length} blocks`)
+      break
+    }
+
     default:
       throw new Error(`Unsupported blocks operation: ${operation}`)
   }
@@ -737,6 +802,60 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
     default:
       logger.warn(`Unknown edge operation: ${operation}`)
       throw new Error(`Unsupported edge operation: ${operation}`)
+  }
+}
+
+async function handleEdgesOperationTx(
+  tx: any,
+  workflowId: string,
+  operation: string,
+  payload: any
+) {
+  switch (operation) {
+    case 'batch-remove-edges': {
+      const { ids } = payload
+      if (!Array.isArray(ids) || ids.length === 0) {
+        logger.debug('No edge IDs provided for batch remove')
+        return
+      }
+
+      logger.info(`Batch removing ${ids.length} edges from workflow ${workflowId}`)
+
+      await tx
+        .delete(workflowEdges)
+        .where(and(eq(workflowEdges.workflowId, workflowId), inArray(workflowEdges.id, ids)))
+
+      logger.debug(`Batch removed ${ids.length} edges from workflow ${workflowId}`)
+      break
+    }
+
+    case 'batch-add-edges': {
+      const { edges } = payload
+      if (!Array.isArray(edges) || edges.length === 0) {
+        logger.debug('No edges provided for batch add')
+        return
+      }
+
+      logger.info(`Batch adding ${edges.length} edges to workflow ${workflowId}`)
+
+      const edgeValues = edges.map((edge: Record<string, unknown>) => ({
+        id: edge.id as string,
+        workflowId,
+        sourceBlockId: edge.source as string,
+        targetBlockId: edge.target as string,
+        sourceHandle: (edge.sourceHandle as string | null) || null,
+        targetHandle: (edge.targetHandle as string | null) || null,
+      }))
+
+      await tx.insert(workflowEdges).values(edgeValues)
+
+      logger.debug(`Batch added ${edges.length} edges to workflow ${workflowId}`)
+      break
+    }
+
+    default:
+      logger.warn(`Unknown edges operation: ${operation}`)
+      throw new Error(`Unsupported edges operation: ${operation}`)
   }
 }
 
