@@ -129,12 +129,8 @@ export async function POST(request: NextRequest) {
         { status: 200 }
       )
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to refresh access token'
-      logger.error(`[${requestId}] Failed to refresh access token:`, {
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined,
-      })
-      return NextResponse.json({ error: errorMessage }, { status: 401 })
+      logger.error(`[${requestId}] Failed to refresh access token:`, error)
+      return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
     }
   } catch (error) {
     logger.error(`[${requestId}] Error getting access token`, error)
@@ -211,13 +207,8 @@ export async function GET(request: NextRequest) {
         },
         { status: 200 }
       )
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to refresh access token'
-      logger.error(`[${requestId}] Failed to refresh access token:`, {
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined,
-      })
-      return NextResponse.json({ error: errorMessage }, { status: 401 })
+    } catch (_error) {
+      return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
     }
   } catch (error) {
     logger.error(`[${requestId}] Error fetching access token`, error)

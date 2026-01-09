@@ -36,13 +36,11 @@ export type GoogleVaultCorpus = 'MAIL' | 'DRIVE' | 'GROUPS' | 'HANGOUTS_CHAT' | 
 export interface GoogleVaultCreateMattersHoldsParams extends GoogleVaultCommonParams {
   holdName: string
   corpus: GoogleVaultCorpus
-  accountEmails?: string // Comma-separated list or array handled in the tool
+  accountEmails?: string
   orgUnitId?: string
-  // Query parameters for MAIL and GROUPS corpus (date filtering)
   terms?: string
   startTime?: string
   endTime?: string
-  // Drive-specific option
   includeSharedDrives?: boolean
 }
 

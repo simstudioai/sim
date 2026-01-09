@@ -1171,7 +1171,7 @@ export async function refreshOAuthToken(
 
     if (!response.ok) {
       const errorText = await response.text()
-      let errorData: any = errorText
+      let errorData = errorText
 
       try {
         errorData = JSON.parse(errorText)
@@ -1191,29 +1191,6 @@ export async function refreshOAuthToken(
         hasRefreshToken: !!refreshToken,
         refreshTokenPrefix: refreshToken ? `${refreshToken.substring(0, 10)}...` : 'none',
       })
-
-      // Check for Google Workspace session control errors (RAPT - Reauthentication Policy Token)
-      // This occurs when the organization enforces periodic re-authentication
-      if (
-        typeof errorData === 'object' &&
-        (errorData.error_subtype === 'invalid_rapt' ||
-          errorData.error_description?.includes('reauth related error'))
-      ) {
-        throw new Error(
-          `Session expired due to organization security policy. Please reconnect your ${providerId} account to continue. Alternatively, ask your Google Workspace admin to exempt this app from session control: Admin Console → Security → Google Cloud session control → "Exempt trusted apps".`
-        )
-      }
-
-      if (
-        typeof errorData === 'object' &&
-        errorData.error === 'invalid_grant' &&
-        !errorData.error_subtype
-      ) {
-        throw new Error(
-          `Access has been revoked or the refresh token is no longer valid. Please reconnect your ${providerId} account.`
-        )
-      }
-
       throw new Error(`Failed to refresh token: ${response.status} ${errorText}`)
     }
 
@@ -1247,6 +1224,6 @@ export async function refreshOAuthToken(
     }
   } catch (error) {
     logger.error('Error refreshing token:', { error })
-    throw error
+    return null
   }
 }
