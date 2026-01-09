@@ -29,6 +29,10 @@ interface ThinkingBlockProps {
   isStreaming?: boolean
   /** Whether there are more content blocks after this one (e.g., tool calls) */
   hasFollowingContent?: boolean
+  /** Custom label for the thinking block (e.g., "Thinking", "Exploring"). Defaults to "Thought" */
+  label?: string
+  /** Whether special tags (plan, options) are present - triggers collapse */
+  hasSpecialTags?: boolean
 }
 
 /**
@@ -44,6 +48,8 @@ export function ThinkingBlock({
   content,
   isStreaming = false,
   hasFollowingContent = false,
+  label = 'Thought',
+  hasSpecialTags = false,
 }: ThinkingBlockProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [duration, setDuration] = useState(0)
@@ -115,30 +121,34 @@ export function ThinkingBlock({
   }
 
   const hasContent = content && content.trim().length > 0
-  // Thinking is "done" when streaming ends OR when there's following content (like a tool call)
-  const isThinkingDone = !isStreaming || hasFollowingContent
-  const label = isThinkingDone ? 'Thought' : 'Thinking'
-  const durationText = ` for ${formatDuration(duration)}`
+  // Thinking is "done" when streaming ends OR when there's following content (like a tool call) OR when special tags appear
+  const isThinkingDone = !isStreaming || hasFollowingContent || hasSpecialTags
+  const durationText = `${label} for ${formatDuration(duration)}`
+  // Convert past tense label to present tense for streaming (e.g., "Thought" → "Thinking")
+  const getStreamingLabel = (lbl: string) => {
+    if (lbl === 'Thought') return 'Thinking'
+    if (lbl.endsWith('ed')) return `${lbl.slice(0, -2)}ing`
+    return lbl
+  }
+  const streamingLabel = getStreamingLabel(label)
 
-  return (
-    <div className='mt-1 mb-0'>
-      <button
-        onClick={() => {
-          setIsExpanded((v) => {
-            const next = !v
-            // If user collapses during streaming, remember to not auto-expand again
-            if (!next && isStreaming) userCollapsedRef.current = true
-            return next
-          })
-        }}
-        className='mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
-        type='button'
-        disabled={!hasContent}
-      >
-        <span className='relative inline-block'>
-          <span className='text-[var(--text-tertiary)]'>{label}</span>
-          <span className='text-[var(--text-muted)]'>{durationText}</span>
-          {!isThinkingDone && (
+  // During streaming: show header with shimmer effect + expanded content
+  if (!isThinkingDone) {
+    return (
+      <div className='mt-1 mb-0'>
+        <button
+          onClick={() => {
+            setIsExpanded((v) => {
+              const next = !v
+              if (!next) userCollapsedRef.current = true
+              return next
+            })
+          }}
+          className='mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
+          type='button'
+        >
+          <span className='relative inline-block'>
+            <span className='text-[var(--text-tertiary)]'>{streamingLabel}</span>
             <span
               aria-hidden='true'
               className='pointer-events-none absolute inset-0 select-none overflow-hidden'
@@ -156,19 +166,49 @@ export function ThinkingBlock({
                   mixBlendMode: 'screen',
                 }}
               >
-                {label}
-                {durationText}
+                {streamingLabel}
               </span>
             </span>
+          </span>
+          {hasContent && (
+            <ChevronUp
+              className={clsx(
+                'h-3 w-3 transition-transform',
+                isExpanded ? 'rotate-180' : 'rotate-90'
+              )}
+              aria-hidden='true'
+            />
           )}
-          <style>{`
-            @keyframes thinking-shimmer {
-              0% { background-position: 150% 0; }
-              50% { background-position: 0% 0; }
-              100% { background-position: -150% 0; }
-            }
-          `}</style>
-        </span>
+        </button>
+
+        <div
+          ref={scrollContainerRef}
+          className={clsx(
+            'overflow-y-auto transition-all duration-300 ease-in-out',
+            isExpanded ? 'mt-1 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
+          )}
+        >
+          <pre className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-tertiary)] leading-[1.15rem]'>
+            {content}
+            <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[var(--text-tertiary)]' />
+          </pre>
+        </div>
+      </div>
+    )
+  }
+
+  // After done: show collapsible header with duration
+  return (
+    <div className='mt-1 mb-0'>
+      <button
+        onClick={() => {
+          setIsExpanded((v) => !v)
+        }}
+        className='mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
+        type='button'
+        disabled={!hasContent}
+      >
+        <span className='text-[var(--text-tertiary)]'>{durationText}</span>
         {hasContent && (
           <ChevronUp
             className={clsx(
@@ -180,20 +220,17 @@ export function ThinkingBlock({
         )}
       </button>
 
-      {isExpanded && (
-        <div
-          ref={scrollContainerRef}
-          className='ml-1 overflow-y-auto border-[var(--border-1)] border-l-2 pl-2'
-          style={{ maxHeight: THINKING_MAX_HEIGHT }}
-        >
-          <pre className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-tertiary)] leading-[1.15rem]'>
-            {content}
-            {!isThinkingDone && (
-              <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[var(--text-tertiary)]' />
-            )}
-          </pre>
-        </div>
-      )}
+      <div
+        ref={scrollContainerRef}
+        className={clsx(
+          'overflow-y-auto transition-all duration-300 ease-in-out',
+          isExpanded ? 'mt-1 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
+        )}
+      >
+        <pre className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-tertiary)] leading-[1.15rem]'>
+          {content}
+        </pre>
+      </div>
     </div>
   )
 }

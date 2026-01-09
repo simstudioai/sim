@@ -1828,18 +1828,34 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
 
     if (existingIndex >= 0) {
       const existing = context.subAgentToolCalls[parentToolCallId][existingIndex]
-      context.subAgentToolCalls[parentToolCallId][existingIndex] = {
+      const updatedSubAgentToolCall = {
         ...existing,
         state: targetState,
         display: resolveToolDisplay(existing.name, targetState, toolCallId, existing.params),
       }
+      context.subAgentToolCalls[parentToolCallId][existingIndex] = updatedSubAgentToolCall
 
       // Also update in ordered blocks
       for (const block of context.subAgentBlocks[parentToolCallId]) {
         if (block.type === 'subagent_tool_call' && block.toolCall?.id === toolCallId) {
-          block.toolCall = context.subAgentToolCalls[parentToolCallId][existingIndex]
+          block.toolCall = updatedSubAgentToolCall
           break
         }
+      }
+
+      // Update the individual tool call in toolCallsById so ToolCall component gets latest state
+      const { toolCallsById } = get()
+      if (toolCallsById[toolCallId]) {
+        const updatedMap = {
+          ...toolCallsById,
+          [toolCallId]: updatedSubAgentToolCall,
+        }
+        set({ toolCallsById: updatedMap })
+        logger.info('[SubAgent] Updated subagent tool call state in toolCallsById', {
+          toolCallId,
+          name: existing.name,
+          state: targetState,
+        })
       }
     }
 

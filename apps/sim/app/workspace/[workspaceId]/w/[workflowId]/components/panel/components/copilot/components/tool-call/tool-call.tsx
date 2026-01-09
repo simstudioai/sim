@@ -9,6 +9,7 @@ import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 import { SmoothStreamingText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/smooth-streaming'
+import { ThinkingBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/thinking-block'
 import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { getBlock } from '@/blocks/registry'
 import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/panel/copilot/store'
@@ -30,6 +31,7 @@ type OptionItem = string | { title: string; description?: string }
 
 interface ParsedTags {
   plan?: Record<string, PlanStep>
+  planComplete?: boolean
   options?: Record<string, OptionItem>
   optionsComplete?: boolean
   cleanContent: string
@@ -67,19 +69,65 @@ function parsePartialOptionsJson(jsonStr: string): Record<string, OptionItem> | 
 }
 
 /**
+ * Try to parse partial JSON for streaming plan steps.
+ * Attempts to extract complete key-value pairs from incomplete JSON.
+ */
+function parsePartialPlanJson(jsonStr: string): Record<string, PlanStep> | null {
+  // Try parsing as-is first (might be complete)
+  try {
+    return JSON.parse(jsonStr)
+  } catch {
+    // Continue to partial parsing
+  }
+
+  // Try to extract complete key-value pairs from partial JSON
+  // Match patterns like "1": "step text" or "1": {"title": "text", "plan": "..."}
+  const result: Record<string, PlanStep> = {}
+
+  // Match complete string values: "key": "value"
+  const stringPattern = /"(\d+)":\s*"((?:[^"\\]|\\.)*)"/g
+  let match
+  while ((match = stringPattern.exec(jsonStr)) !== null) {
+    result[match[1]] = match[2].replace(/\\"/g, '"').replace(/\\n/g, '\n')
+  }
+
+  // Match complete object values: "key": {"title": "text"}
+  // Use a more robust pattern that handles nested content
+  const objectPattern = /"(\d+)":\s*\{[^{}]*"title":\s*"((?:[^"\\]|\\.)*)"/g
+  while ((match = objectPattern.exec(jsonStr)) !== null) {
+    result[match[1]] = { title: match[2].replace(/\\"/g, '"').replace(/\\n/g, '\n') }
+  }
+
+  return Object.keys(result).length > 0 ? result : null
+}
+
+/**
  * Parse <plan> and <options> tags from content
  */
 export function parseSpecialTags(content: string): ParsedTags {
   const result: ParsedTags = { cleanContent: content }
 
-  // Parse <plan> tag
+  // Parse <plan> tag - check for complete tag first
   const planMatch = content.match(/<plan>([\s\S]*?)<\/plan>/i)
   if (planMatch) {
     try {
       result.plan = JSON.parse(planMatch[1])
+      result.planComplete = true
       result.cleanContent = result.cleanContent.replace(planMatch[0], '').trim()
     } catch {
       // Invalid JSON, ignore
+    }
+  } else {
+    // Check for streaming/incomplete plan tag
+    const streamingPlanMatch = content.match(/<plan>([\s\S]*)$/i)
+    if (streamingPlanMatch) {
+      const partialPlan = parsePartialPlanJson(streamingPlanMatch[1])
+      if (partialPlan) {
+        result.plan = partialPlan
+        result.planComplete = false
+      }
+      // Strip the incomplete tag from clean content
+      result.cleanContent = result.cleanContent.replace(streamingPlanMatch[0], '').trim()
     }
   }
 
@@ -107,12 +155,7 @@ export function parseSpecialTags(content: string): ParsedTags {
     }
   }
 
-  // Strip any incomplete/partial special tags that are still streaming
-  // This handles cases like "<plan>{..." during streaming
-  const incompleteTagPattern = /<plan>[\s\S]*$/i
-  result.cleanContent = result.cleanContent.replace(incompleteTagPattern, '').trim()
-
-  // Also strip partial opening tags like "<opt" or "<pla" at the very end of content
+  // Strip partial opening tags like "<opt" or "<pla" at the very end of content
   // Simple approach: remove any trailing < followed by partial tag text
   result.cleanContent = result.cleanContent.replace(/<[a-z]*$/i, '').trim()
 
@@ -739,7 +782,20 @@ const SUBAGENT_MAX_HEIGHT = 200
 const SUBAGENT_SCROLL_INTERVAL = 100
 
 /**
- * Get display labels for subagent tools
+ * Get the outer collapse header label for completed subagent tools.
+ * Returns the label to show when subagent is done (e.g., "Planned", "Thought")
+ */
+function getSubagentCompletionLabel(toolName: string): string {
+  switch (toolName) {
+    case 'plan':
+      return 'Planned'
+    default:
+      return 'Thought'
+  }
+}
+
+/**
+ * Get display labels for subagent tools (legacy - used in SubAgentContent)
  */
 function getSubagentLabels(toolName: string, isStreaming: boolean): string {
   switch (toolName) {
@@ -792,9 +848,15 @@ function SubAgentContent({
   const userCollapsedRef = useRef<boolean>(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  // Auto-expand when streaming with content, auto-collapse when done
+  // Check if there are any tool calls (which means thinking should close)
+  const hasToolCalls = useMemo(() => {
+    if (!blocks) return false
+    return blocks.some((b) => b.type === 'subagent_tool_call' && b.toolCall)
+  }, [blocks])
+
+  // Auto-expand when streaming with content, auto-collapse when done or when tool call comes in
   useEffect(() => {
-    if (!isStreaming) {
+    if (!isStreaming || hasToolCalls) {
       setIsExpanded(false)
       userCollapsedRef.current = false
       return
@@ -803,7 +865,7 @@ function SubAgentContent({
     if (!userCollapsedRef.current && blocks && blocks.length > 0) {
       setIsExpanded(true)
     }
-  }, [isStreaming, blocks])
+  }, [isStreaming, blocks, hasToolCalls])
 
   // Auto-scroll to bottom during streaming using interval (same as copilot chat)
   useEffect(() => {
@@ -825,7 +887,9 @@ function SubAgentContent({
   if (!blocks || blocks.length === 0) return null
 
   const hasContent = blocks.length > 0
-  const label = getSubagentLabels(toolName, isStreaming)
+  // Show "done" label when streaming ends OR when tool calls are present
+  const isThinkingDone = !isStreaming || hasToolCalls
+  const label = getSubagentLabels(toolName, !isThinkingDone)
 
   return (
     <div className='mt-1 mb-0'>
@@ -843,7 +907,7 @@ function SubAgentContent({
       >
         <span className='relative inline-block'>
           <span className='text-[var(--text-tertiary)]'>{label}</span>
-          {isStreaming && (
+          {!isThinkingDone && (
             <span
               aria-hidden='true'
               className='pointer-events-none absolute inset-0 select-none overflow-hidden'
@@ -877,57 +941,37 @@ function SubAgentContent({
         )}
       </button>
 
-      {isExpanded && (
-        <div
-          ref={scrollContainerRef}
-          className='ml-1 overflow-y-auto border-[var(--border-1)] border-l-2 pl-2'
-          style={{ maxHeight: SUBAGENT_MAX_HEIGHT }}
-        >
-          {blocks.map((block, index) => {
-            if (block.type === 'subagent_text' && block.content) {
-              const isLastBlock = index === blocks.length - 1
-              // Strip special tags from display (they're rendered separately)
-              const parsed = parseSpecialTags(block.content)
-              const displayContent = parsed.cleanContent
-              if (!displayContent) return null
-              return (
-                <pre
-                  key={`subagent-text-${index}`}
-                  className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-tertiary)] leading-[1.15rem]'
-                >
-                  {displayContent}
-                  {isStreaming && isLastBlock && (
-                    <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[var(--text-tertiary)]' />
-                  )}
-                </pre>
-              )
-            }
+      <div
+        ref={scrollContainerRef}
+        className={clsx(
+          'overflow-y-auto transition-all duration-300 ease-in-out',
+          isExpanded ? 'mt-1 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
+        )}
+      >
+        {blocks.map((block, index) => {
+          if (block.type === 'subagent_text' && block.content) {
+            const isLastBlock = index === blocks.length - 1
+            // Strip special tags from display (they're rendered separately)
+            const parsed = parseSpecialTags(block.content)
+            const displayContent = parsed.cleanContent
+            if (!displayContent) return null
+            return (
+              <pre
+                key={`subagent-text-${index}`}
+                className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-tertiary)] leading-[1.15rem]'
+              >
+                {displayContent}
+                {!isThinkingDone && isLastBlock && (
+                  <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[var(--text-tertiary)]' />
+                )}
+              </pre>
+            )
+          }
 
-            if (block.type === 'subagent_tool_call' && block.toolCall) {
-              return (
-                <SubAgentToolCall
-                  key={`subagent-tool-${block.toolCall.id || index}`}
-                  toolCall={block.toolCall}
-                />
-              )
-            }
-
-            return null
-          })}
-        </div>
-      )}
-
-      {/* Render WorkflowEditSummary outside the collapsible container for edit_workflow tool calls */}
-      {blocks
-        .filter(
-          (block) => block.type === 'subagent_tool_call' && block.toolCall?.name === 'edit_workflow'
-        )
-        .map((block, index) => (
-          <WorkflowEditSummary
-            key={`edit-summary-${block.toolCall?.id || index}`}
-            toolCall={block.toolCall!}
-          />
-        ))}
+          // All tool calls are rendered at top level, skip here
+          return null
+        })}
+      </div>
 
       {/* Render PlanSteps for plan subagent when content contains <plan> tag */}
       {toolName === 'plan' &&
@@ -943,6 +987,222 @@ function SubAgentContent({
           }
           return null
         })()}
+    </div>
+  )
+}
+
+/**
+ * SubAgentThinkingContent renders subagent blocks as simple thinking text (ThinkingBlock).
+ * Used for inline rendering within regular tool calls that have subagent content.
+ */
+function SubAgentThinkingContent({
+  blocks,
+  isStreaming = false,
+}: {
+  blocks: SubAgentContentBlock[]
+  isStreaming?: boolean
+}) {
+  // Combine all text content from blocks
+  let allRawText = ''
+  let cleanText = ''
+  for (const block of blocks) {
+    if (block.type === 'subagent_text' && block.content) {
+      allRawText += block.content
+      const parsed = parseSpecialTags(block.content)
+      cleanText += parsed.cleanContent
+    }
+  }
+
+  // Parse plan from all text
+  const allParsed = parseSpecialTags(allRawText)
+
+  if (!cleanText.trim() && !allParsed.plan) return null
+
+  // Check if special tags are present
+  const hasSpecialTags = !!(allParsed.plan && Object.keys(allParsed.plan).length > 0)
+
+  return (
+    <div className='mt-2'>
+      {cleanText.trim() && (
+        <ThinkingBlock
+          content={cleanText}
+          isStreaming={isStreaming}
+          hasFollowingContent={false}
+          hasSpecialTags={hasSpecialTags}
+        />
+      )}
+      {allParsed.plan && Object.keys(allParsed.plan).length > 0 && (
+        <PlanSteps steps={allParsed.plan} />
+      )}
+    </div>
+  )
+}
+
+/**
+ * SubagentContentRenderer handles the rendering of subagent content.
+ * - During streaming: Shows content at top level
+ * - When done (not streaming): Collapses everything under a header like "Explored for 20s >"
+ * - Exception: "edit" subagent always stays at top level, never collapses
+ */
+function SubagentContentRenderer({
+  toolCall,
+  isEditSubagent,
+}: {
+  toolCall: CopilotToolCall
+  isEditSubagent: boolean
+}) {
+  const [isExpanded, setIsExpanded] = useState(true)
+  const [duration, setDuration] = useState(0)
+  const startTimeRef = useRef<number>(Date.now())
+
+  const isStreaming = !!toolCall.subAgentStreaming
+
+  // Reset start time when streaming begins
+  useEffect(() => {
+    if (isStreaming) {
+      startTimeRef.current = Date.now()
+      setDuration(0)
+    }
+  }, [isStreaming])
+
+  // Update duration timer during streaming
+  useEffect(() => {
+    if (!isStreaming) return
+
+    const interval = setInterval(() => {
+      setDuration(Date.now() - startTimeRef.current)
+    }, 100)
+
+    return () => clearInterval(interval)
+  }, [isStreaming])
+
+  // Auto-collapse when streaming ends (except for edit subagent)
+  useEffect(() => {
+    if (!isStreaming && !isEditSubagent) {
+      setIsExpanded(false)
+    }
+  }, [isStreaming, isEditSubagent])
+
+  // Build segments: each segment is either text content or a tool call
+  const segments: Array<{ type: 'text'; content: string } | { type: 'tool'; block: SubAgentContentBlock }> = []
+  let currentText = ''
+  let allRawText = ''
+
+  for (const block of toolCall.subAgentBlocks || []) {
+    if (block.type === 'subagent_text' && block.content) {
+      allRawText += block.content
+      const parsed = parseSpecialTags(block.content)
+      currentText += parsed.cleanContent
+    } else if (block.type === 'subagent_tool_call' && block.toolCall) {
+      if (currentText.trim()) {
+        segments.push({ type: 'text', content: currentText })
+        currentText = ''
+      }
+      segments.push({ type: 'tool', block })
+    }
+  }
+  if (currentText.trim()) {
+    segments.push({ type: 'text', content: currentText })
+  }
+
+  // Parse plan and options
+  const allParsed = parseSpecialTags(allRawText)
+  const hasSpecialTags = !!(
+    (allParsed.plan && Object.keys(allParsed.plan).length > 0) ||
+    (allParsed.options && Object.keys(allParsed.options).length > 0)
+  )
+
+  const formatDuration = (ms: number) => {
+    const seconds = Math.max(1, Math.round(ms / 1000))
+    return `${seconds}s`
+  }
+
+  // Outer header uses subagent-specific label
+  const outerLabel = getSubagentCompletionLabel(toolCall.name)
+  const durationText = `${outerLabel} for ${formatDuration(duration)}`
+
+  // Check if we have a plan to render outside the collapsible
+  const hasPlan = allParsed.plan && Object.keys(allParsed.plan).length > 0
+
+  // Render the collapsible content (thinking blocks + tool calls, NOT plan)
+  // Inner thinking text always uses "Thought" label
+  const renderCollapsibleContent = () => (
+    <>
+      {segments.map((segment, index) => {
+        if (segment.type === 'text') {
+          const isLastSegment = index === segments.length - 1
+          const hasFollowingTool = segments.slice(index + 1).some((s) => s.type === 'tool')
+
+          return (
+            <ThinkingBlock
+              key={`thinking-${index}`}
+              content={segment.content}
+              isStreaming={isStreaming && isLastSegment}
+              hasFollowingContent={hasFollowingTool || !isLastSegment}
+              label='Thought'
+              hasSpecialTags={hasSpecialTags}
+            />
+          )
+        }
+        if (segment.type === 'tool' && segment.block.toolCall) {
+          // For edit subagent's edit_workflow tool: only show the diff summary, skip the tool call header
+          if (isEditSubagent && segment.block.toolCall.name === 'edit_workflow') {
+            return (
+              <div key={`tool-${segment.block.toolCall.id || index}`} className='mt-2'>
+                <WorkflowEditSummary toolCall={segment.block.toolCall} />
+              </div>
+            )
+          }
+          return (
+            <div key={`tool-${segment.block.toolCall.id || index}`} className='mt-2'>
+              <ToolCall toolCallId={segment.block.toolCall.id} toolCall={segment.block.toolCall} />
+            </div>
+          )
+        }
+        return null
+      })}
+    </>
+  )
+
+  if (isEditSubagent || isStreaming) {
+    return (
+      <div className='w-full'>
+        {renderCollapsibleContent()}
+        {hasPlan && <PlanSteps steps={allParsed.plan!} />}
+      </div>
+    )
+  }
+
+  // Completed non-edit subagent: show collapsible header
+  // Plan artifact stays outside the collapsible
+  return (
+    <div className='w-full'>
+      <button
+        onClick={() => setIsExpanded((v) => !v)}
+        className='mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
+        type='button'
+      >
+        <span className='text-[var(--text-tertiary)]'>{durationText}</span>
+        <ChevronUp
+          className={clsx(
+            'h-3 w-3 transition-transform',
+            isExpanded ? 'rotate-180' : 'rotate-90'
+          )}
+          aria-hidden='true'
+        />
+      </button>
+
+      <div
+        className={clsx(
+          'overflow-hidden transition-all duration-300 ease-in-out',
+          isExpanded ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
+        )}
+      >
+        {renderCollapsibleContent()}
+      </div>
+
+      {/* Plan stays outside the collapsible */}
+      {hasPlan && <PlanSteps steps={allParsed.plan!} />}
     </div>
   )
 }
@@ -1520,8 +1780,10 @@ function RunSkipButtons({
 
 export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: ToolCallProps) {
   const [, forceUpdate] = useState({})
+  // Get live toolCall from store to ensure we have the latest state
+  const effectiveId = toolCallId || toolCallProp?.id
   const liveToolCall = useCopilotStore((s) =>
-    toolCallId ? s.toolCallsById[toolCallId] : undefined
+    effectiveId ? s.toolCallsById[effectiveId] : undefined
   )
   const toolCall = liveToolCall || toolCallProp
 
@@ -1559,7 +1821,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   // Skip rendering some internal tools
   if (toolCall.name === 'checkoff_todo' || toolCall.name === 'mark_todo_in_progress') return null
 
-  // Special rendering for subagent tools - only show the collapsible SubAgentContent
+  // Special rendering for subagent tools - show as thinking text with tool calls at top level
   const SUBAGENT_TOOLS = [
     'plan',
     'edit',
@@ -1576,15 +1838,27 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     'workflow',
   ]
   const isSubagentTool = SUBAGENT_TOOLS.includes(toolCall.name)
+  
+  // For ALL subagent tools, don't show anything until we have blocks with content
+  if (isSubagentTool) {
+    // Check if we have any meaningful content in blocks
+    const hasContent = toolCall.subAgentBlocks && toolCall.subAgentBlocks.some(block => 
+      (block.type === 'subagent_text' && block.content?.trim()) ||
+      (block.type === 'subagent_tool_call' && block.toolCall)
+    )
+    
+    if (!hasContent) {
+      return null
+    }
+  }
+  
   if (isSubagentTool && toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0) {
+    // Render subagent content using the dedicated component
     return (
-      <div className='w-full'>
-        <SubAgentContent
-          blocks={toolCall.subAgentBlocks}
-          isStreaming={toolCall.subAgentStreaming}
-          toolName={toolCall.name}
-        />
-      </div>
+      <SubagentContentRenderer
+        toolCall={toolCall}
+        isEditSubagent={toolCall.name === 'edit'}
+      />
     )
   }
 
@@ -2010,13 +2284,9 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             editedParams={editedParams}
           />
         )}
-        {/* Render subagent content */}
+        {/* Render subagent content as thinking text */}
         {toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0 && (
-          <SubAgentContent
-            blocks={toolCall.subAgentBlocks}
-            isStreaming={toolCall.subAgentStreaming}
-            toolName={toolCall.name}
-          />
+          <SubAgentThinkingContent blocks={toolCall.subAgentBlocks} isStreaming={toolCall.subAgentStreaming} />
         )}
       </div>
     )
@@ -2073,13 +2343,9 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             editedParams={editedParams}
           />
         )}
-        {/* Render subagent content */}
+        {/* Render subagent content as thinking text */}
         {toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0 && (
-          <SubAgentContent
-            blocks={toolCall.subAgentBlocks}
-            isStreaming={toolCall.subAgentStreaming}
-            toolName={toolCall.name}
-          />
+          <SubAgentThinkingContent blocks={toolCall.subAgentBlocks} isStreaming={toolCall.subAgentStreaming} />
         )}
       </div>
     )
@@ -2186,13 +2452,9 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
       {/* Workflow edit summary - shows block changes after edit_workflow completes */}
       <WorkflowEditSummary toolCall={toolCall} />
 
-      {/* Render subagent content (from debug tool or other subagents) */}
+      {/* Render subagent content as thinking text */}
       {toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0 && (
-        <SubAgentContent
-          blocks={toolCall.subAgentBlocks}
-          isStreaming={toolCall.subAgentStreaming}
-          toolName={toolCall.name}
-        />
+        <SubAgentThinkingContent blocks={toolCall.subAgentBlocks} isStreaming={toolCall.subAgentStreaming} />
       )}
     </div>
   )
