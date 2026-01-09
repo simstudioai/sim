@@ -1337,6 +1337,11 @@ const WorkflowContent = React.memo(() => {
         const baseName = type === 'loop' ? 'Loop' : 'Parallel'
         const name = getUniqueBlockName(baseName, blocks)
 
+        const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
+          blockType: type,
+          targetParentId: null,
+        })
+
         addBlock(
           id,
           type,
@@ -1349,7 +1354,7 @@ const WorkflowContent = React.memo(() => {
           },
           undefined,
           undefined,
-          undefined
+          autoConnectEdge
         )
 
         return
@@ -1368,6 +1373,12 @@ const WorkflowContent = React.memo(() => {
       const baseName = defaultTriggerName || blockConfig.name
       const name = getUniqueBlockName(baseName, blocks)
 
+      const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
+        blockType: type,
+        enableTriggerMode,
+        targetParentId: null,
+      })
+
       addBlock(
         id,
         type,
@@ -1376,7 +1387,7 @@ const WorkflowContent = React.memo(() => {
         undefined,
         undefined,
         undefined,
-        undefined,
+        autoConnectEdge,
         enableTriggerMode
       )
     }
@@ -1395,6 +1406,7 @@ const WorkflowContent = React.memo(() => {
     addBlock,
     effectivePermissions.canEdit,
     checkTriggerConstraints,
+    tryCreateAutoConnectEdge,
   ])
 
   /**
