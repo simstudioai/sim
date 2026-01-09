@@ -7,7 +7,7 @@
  * SSO provider records into the database, following the exact same logic
  * as Better Auth's registerSSOProvider endpoint.
  *
- * Usage: bun run packages/db/register-sso-provider.ts
+ * Usage: bun run packages/db/scripts/register-sso-provider.ts
  *
  * Required Environment Variables:
  *   SSO_ENABLED=true
