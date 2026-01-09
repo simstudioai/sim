@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, ChevronDown as ChevronDownIcon, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown as ChevronDownIcon, ChevronUp, X } from 'lucide-react'
 import { ReactFlowProvider } from 'reactflow'
 import { Badge, Button, ChevronDown, Code, Input } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -265,6 +265,16 @@ interface ConnectionsSectionProps {
   workflowVars: ResolvedVariable[]
   envVars: ResolvedVariable[]
   onContextMenu?: (e: React.MouseEvent, value: string) => void
+  /** Height of the connections section */
+  height: number
+  /** Whether the section is being resized */
+  isResizing: boolean
+  /** Whether the connections are at minimum height (collapsed) */
+  isAtMinHeight: boolean
+  /** Handler for resize mouse down */
+  onResizeMouseDown: (e: React.MouseEvent) => void
+  /** Handler for toggling collapsed state */
+  onToggleCollapsed: () => void
 }
 
 /**
@@ -275,8 +285,12 @@ function ConnectionsSection({
   workflowVars,
   envVars,
   onContextMenu,
+  height,
+  isResizing,
+  isAtMinHeight,
+  onResizeMouseDown,
+  onToggleCollapsed,
 }: ConnectionsSectionProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set())
   const [expandedVariables, setExpandedVariables] = useState(true)
   const [expandedEnvVars, setExpandedEnvVars] = useState(true)
@@ -308,205 +322,213 @@ function ConnectionsSection({
   }
 
   return (
-    <div className='flex flex-col border-[var(--border)] border-t'>
+    <div
+      className={cn(
+        'flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t',
+        !isResizing && 'transition-[height] duration-100 ease-out'
+      )}
+      style={{ height: `${height}px` }}
+    >
+      {/* Resize Handle */}
+      <div className='relative'>
+        <div
+          className='absolute top-[-4px] right-0 left-0 z-30 h-[8px] cursor-ns-resize'
+          onMouseDown={onResizeMouseDown}
+        />
+      </div>
+
       {/* Header with Chevron */}
       <div
         className='flex flex-shrink-0 cursor-pointer items-center gap-[8px] px-[10px] pt-[5px] pb-[5px]'
-        onClick={() => setIsCollapsed(!isCollapsed)}
+        onClick={onToggleCollapsed}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            setIsCollapsed(!isCollapsed)
+            onToggleCollapsed()
           }
         }}
         role='button'
         tabIndex={0}
-        aria-label={isCollapsed ? 'Expand connections' : 'Collapse connections'}
+        aria-label={isAtMinHeight ? 'Expand connections' : 'Collapse connections'}
       >
-        <ChevronDownIcon
-          className={cn('h-[14px] w-[14px] transition-transform', !isCollapsed && 'rotate-180')}
+        <ChevronUp
+          className={cn('h-[14px] w-[14px] transition-transform', !isAtMinHeight && 'rotate-180')}
         />
         <div className='font-medium text-[13px] text-[var(--text-primary)]'>Connections</div>
       </div>
 
       {/* Content - styled like ConnectionBlocks */}
-      {!isCollapsed && (
-        <div className='space-y-[2px] px-[6px] pb-[8px]'>
-          {connections.map((connection) => {
-            const blockConfig = getBlock(connection.blockType)
-            const Icon = blockConfig?.icon
-            const bgColor = blockConfig?.bgColor || '#6B7280'
-            const isExpanded = expandedBlocks.has(connection.blockId)
-            const hasFields = connection.fields.length > 0
+      <div className='flex-1 space-y-[2px] overflow-y-auto overflow-x-hidden px-[6px] pb-[8px]'>
+        {connections.map((connection) => {
+          const blockConfig = getBlock(connection.blockType)
+          const Icon = blockConfig?.icon
+          const bgColor = blockConfig?.bgColor || '#6B7280'
+          const isExpanded = expandedBlocks.has(connection.blockId)
+          const hasFields = connection.fields.length > 0
 
-            return (
-              <div key={connection.blockId} className='mb-[2px] last:mb-0'>
-                {/* Block header - styled like ConnectionItem */}
+          return (
+            <div key={connection.blockId} className='mb-[2px] last:mb-0'>
+              {/* Block header - styled like ConnectionItem */}
+              <div
+                className={cn(
+                  'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
+                  hasFields && 'cursor-pointer'
+                )}
+                onClick={() => hasFields && toggleBlock(connection.blockId)}
+              >
                 <div
-                  className={cn(
-                    'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
-                    hasFields && 'cursor-pointer'
-                  )}
-                  onClick={() => hasFields && toggleBlock(connection.blockId)}
+                  className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                  style={{ background: bgColor }}
                 >
-                  <div
-                    className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-                    style={{ background: bgColor }}
-                  >
-                    {Icon && (
-                      <Icon
-                        className={cn(
-                          'text-white transition-transform duration-200',
-                          hasFields && 'group-hover:scale-110',
-                          '!h-[9px] !w-[9px]'
-                        )}
-                      />
-                    )}
-                  </div>
-                  <span
-                    className={cn(
-                      'truncate font-medium',
-                      'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
-                    )}
-                  >
-                    {connection.blockName}
-                  </span>
-                  {hasFields && (
-                    <ChevronDownIcon
+                  {Icon && (
+                    <Icon
                       className={cn(
-                        'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
-                        'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
-                        isExpanded && 'rotate-180'
+                        'text-white transition-transform duration-200',
+                        hasFields && 'group-hover:scale-110',
+                        '!h-[9px] !w-[9px]'
                       )}
                     />
                   )}
                 </div>
-
-                {/* Fields - styled like FieldItem but showing resolved values */}
-                {isExpanded && hasFields && (
-                  <div className='relative mt-[2px] ml-[12px] space-y-[2px] pl-[10px]'>
-                    <div className='pointer-events-none absolute top-[4px] bottom-[4px] left-0 w-px bg-[var(--border)]' />
-                    {connection.fields.map((field) => (
-                      <div
-                        key={field.tag}
-                        className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
-                        onContextMenu={(e) => handleValueContextMenu(e, field.value)}
-                      >
-                        <span
-                          className={cn(
-                            'flex-shrink-0 font-medium',
-                            'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
-                          )}
-                        >
-                          {field.path}
-                        </span>
-                        <span className='min-w-0 break-all text-[var(--text-tertiary)]'>
-                          {field.value}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                <span
+                  className={cn(
+                    'truncate font-medium',
+                    'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                  )}
+                >
+                  {connection.blockName}
+                </span>
+                {hasFields && (
+                  <ChevronDownIcon
+                    className={cn(
+                      'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
+                      'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
+                      isExpanded && 'rotate-180'
+                    )}
+                  />
                 )}
               </div>
-            )
-          })}
 
-          {/* Workflow Variables */}
-          {workflowVars.length > 0 && (
-            <div className='mb-[2px] last:mb-0'>
-              <div
-                className='group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
-                onClick={() => setExpandedVariables(!expandedVariables)}
-              >
-                <div className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px] bg-[#8B5CF6]'>
-                  <span className='font-bold text-[9px] text-white'>V</span>
-                </div>
-                <span
-                  className={cn(
-                    'truncate font-medium',
-                    'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
-                  )}
-                >
-                  Variables
-                </span>
-                <ChevronDownIcon
-                  className={cn(
-                    'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
-                    'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
-                    expandedVariables && 'rotate-180'
-                  )}
-                />
-              </div>
-              {expandedVariables && (
+              {/* Fields - styled like FieldItem but showing resolved values */}
+              {isExpanded && hasFields && (
                 <div className='relative mt-[2px] ml-[12px] space-y-[2px] pl-[10px]'>
                   <div className='pointer-events-none absolute top-[4px] bottom-[4px] left-0 w-px bg-[var(--border)]' />
-                  {workflowVars.map((v) => (
+                  {connection.fields.map((field) => (
                     <div
-                      key={v.ref}
+                      key={field.tag}
                       className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
-                      onContextMenu={(e) => handleValueContextMenu(e, v.value)}
+                      onContextMenu={(e) => handleValueContextMenu(e, field.value)}
                     >
-                      <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
-                        {v.name}
+                      <span
+                        className={cn(
+                          'flex-shrink-0 font-medium',
+                          'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                        )}
+                      >
+                        {field.path}
                       </span>
                       <span className='min-w-0 break-all text-[var(--text-tertiary)]'>
-                        {v.value}
+                        {field.value}
                       </span>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-          )}
+          )
+        })}
 
-          {/* Environment Variables */}
-          {envVars.length > 0 && (
-            <div className='mb-[2px] last:mb-0'>
-              <div
-                className='group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
-                onClick={() => setExpandedEnvVars(!expandedEnvVars)}
-              >
-                <div className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px] bg-[#6B7280]'>
-                  <span className='font-bold text-[9px] text-white'>E</span>
-                </div>
-                <span
-                  className={cn(
-                    'truncate font-medium',
-                    'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
-                  )}
-                >
-                  Environment Variables
-                </span>
-                <ChevronDownIcon
-                  className={cn(
-                    'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
-                    'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
-                    expandedEnvVars && 'rotate-180'
-                  )}
-                />
+        {/* Workflow Variables */}
+        {workflowVars.length > 0 && (
+          <div className='mb-[2px] last:mb-0'>
+            <div
+              className='group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+              onClick={() => setExpandedVariables(!expandedVariables)}
+            >
+              <div className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px] bg-[#8B5CF6]'>
+                <span className='font-bold text-[9px] text-white'>V</span>
               </div>
-              {expandedEnvVars && (
-                <div className='relative mt-[2px] ml-[12px] space-y-[2px] pl-[10px]'>
-                  <div className='pointer-events-none absolute top-[4px] bottom-[4px] left-0 w-px bg-[var(--border)]' />
-                  {envVars.map((v) => (
-                    <div
-                      key={v.ref}
-                      className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
-                    >
-                      <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
-                        {v.name}
-                      </span>
-                      <span className='min-w-0 break-all text-[var(--text-tertiary)]'>
-                        {v.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <span
+                className={cn(
+                  'truncate font-medium',
+                  'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                )}
+              >
+                Variables
+              </span>
+              <ChevronDownIcon
+                className={cn(
+                  'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
+                  'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
+                  expandedVariables && 'rotate-180'
+                )}
+              />
             </div>
-          )}
-        </div>
-      )}
+            {expandedVariables && (
+              <div className='relative mt-[2px] ml-[12px] space-y-[2px] pl-[10px]'>
+                <div className='pointer-events-none absolute top-[4px] bottom-[4px] left-0 w-px bg-[var(--border)]' />
+                {workflowVars.map((v) => (
+                  <div
+                    key={v.ref}
+                    className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                    onContextMenu={(e) => handleValueContextMenu(e, v.value)}
+                  >
+                    <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
+                      {v.name}
+                    </span>
+                    <span className='min-w-0 break-all text-[var(--text-tertiary)]'>{v.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Environment Variables */}
+        {envVars.length > 0 && (
+          <div className='mb-[2px] last:mb-0'>
+            <div
+              className='group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+              onClick={() => setExpandedEnvVars(!expandedEnvVars)}
+            >
+              <div className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px] bg-[#6B7280]'>
+                <span className='font-bold text-[9px] text-white'>E</span>
+              </div>
+              <span
+                className={cn(
+                  'truncate font-medium',
+                  'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                )}
+              >
+                Environment Variables
+              </span>
+              <ChevronDownIcon
+                className={cn(
+                  'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
+                  'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
+                  expandedEnvVars && 'rotate-180'
+                )}
+              />
+            </div>
+            {expandedEnvVars && (
+              <div className='relative mt-[2px] ml-[12px] space-y-[2px] pl-[10px]'>
+                <div className='pointer-events-none absolute top-[4px] bottom-[4px] left-0 w-px bg-[var(--border)]' />
+                {envVars.map((v) => (
+                  <div
+                    key={v.ref}
+                    className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                  >
+                    <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
+                      {v.name}
+                    </span>
+                    <span className='min-w-0 break-all text-[var(--text-tertiary)]'>{v.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -562,6 +584,13 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(2)}s`
 }
 
+/** Minimum height for the connections section (header only) */
+const MIN_CONNECTIONS_HEIGHT = 30
+/** Maximum height for the connections section */
+const MAX_CONNECTIONS_HEIGHT = 300
+/** Default height for the connections section */
+const DEFAULT_CONNECTIONS_HEIGHT = 150
+
 /**
  * Readonly sidebar panel showing block configuration using SubBlock components.
  */
@@ -584,6 +613,13 @@ function BlockDetailsSidebarContent({
   const subBlockValues = block.subBlocks || {}
 
   const contentRef = useRef<HTMLDivElement>(null)
+  const subBlocksRef = useRef<HTMLDivElement>(null)
+
+  // Connections resize state
+  const [connectionsHeight, setConnectionsHeight] = useState(DEFAULT_CONNECTIONS_HEIGHT)
+  const [isResizing, setIsResizing] = useState(false)
+  const startYRef = useRef<number>(0)
+  const startHeightRef = useRef<number>(0)
 
   const {
     wrapText,
@@ -658,6 +694,62 @@ function BlockDetailsSidebarContent({
       navigator.clipboard.writeText(contextMenuData.content)
     }
   }, [contextMenuData.content])
+
+  /**
+   * Handles mouse down event on the resize handle to initiate resizing
+   */
+  const handleConnectionsResizeMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      setIsResizing(true)
+      startYRef.current = e.clientY
+      startHeightRef.current = connectionsHeight
+    },
+    [connectionsHeight]
+  )
+
+  /**
+   * Toggle connections collapsed state
+   */
+  const toggleConnectionsCollapsed = useCallback(() => {
+    setConnectionsHeight((prev) =>
+      prev <= MIN_CONNECTIONS_HEIGHT ? DEFAULT_CONNECTIONS_HEIGHT : MIN_CONNECTIONS_HEIGHT
+    )
+  }, [])
+
+  /**
+   * Sets up resize event listeners during resize operations
+   */
+  useEffect(() => {
+    if (!isResizing) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaY = startYRef.current - e.clientY // Inverted because we're resizing from bottom up
+      let newHeight = startHeightRef.current + deltaY
+
+      // Clamp height between fixed min and max for stable behavior
+      newHeight = Math.max(MIN_CONNECTIONS_HEIGHT, Math.min(MAX_CONNECTIONS_HEIGHT, newHeight))
+      setConnectionsHeight(newHeight)
+    }
+
+    const handleMouseUp = () => {
+      setIsResizing(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.body.style.cursor = 'ns-resize'
+    document.body.style.userSelect = 'none'
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizing])
+
+  // Determine if connections are at minimum height (collapsed state)
+  const isConnectionsAtMinHeight = connectionsHeight <= MIN_CONNECTIONS_HEIGHT + 5
 
   const blockNameToId = useMemo(() => {
     const map = new Map<string, string>()
@@ -778,8 +870,8 @@ function BlockDetailsSidebarContent({
 
   if (!blockConfig) {
     return (
-      <div className='flex h-full w-80 flex-col overflow-hidden rounded-r-[8px] border-[var(--border)] border-l bg-[var(--surface-1)]'>
-        <div className='flex items-center gap-[8px] bg-[var(--surface-4)] px-[12px] py-[8px]'>
+      <div className='flex h-full w-80 flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+        <div className='mx-[-1px] flex items-center gap-[8px] rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-[12px] py-[6px]'>
           <div className='flex h-[18px] w-[18px] items-center justify-center rounded-[4px] bg-[var(--surface-3)]' />
           <span className='font-medium text-[14px] text-[var(--text-primary)]'>
             {block.name || 'Unknown Block'}
@@ -809,9 +901,9 @@ function BlockDetailsSidebarContent({
         : 'gray'
 
   return (
-    <div className='relative flex h-full w-80 flex-col overflow-hidden rounded-r-[8px] border-[var(--border)] border-l bg-[var(--surface-1)]'>
+    <div className='relative flex h-full w-80 flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
       {/* Header - styled like editor */}
-      <div className='flex flex-shrink-0 items-center gap-[8px] bg-[var(--surface-4)] px-[12px] py-[8px]'>
+      <div className='mx-[-1px] flex flex-shrink-0 items-center gap-[8px] rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-[12px] py-[6px]'>
         <div
           className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
           style={{ backgroundColor: blockConfig.bgColor }}
@@ -836,85 +928,88 @@ function BlockDetailsSidebarContent({
         )}
       </div>
 
-      {/* Scrollable content */}
-      <div className='flex-1 overflow-y-auto'>
-        {/* Not Executed Banner - shown when in execution mode but block wasn't executed */}
-        {isExecutionMode && !executionData && (
-          <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden border-[var(--border)] border-b px-[12px] py-[10px]'>
-            <div className='flex items-center justify-between'>
-              <Badge variant='gray-secondary' size='sm' dot>
-                Not Executed
-              </Badge>
-            </div>
-          </div>
-        )}
-
-        {/* Execution Input/Output (if provided) */}
-        {executionData &&
-        (executionData.input !== undefined || executionData.output !== undefined) ? (
-          <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden border-[var(--border)] border-b px-[12px] py-[10px]'>
-            {/* Execution Status & Duration Header */}
-            {(executionData.status || executionData.durationMs !== undefined) && (
-              <div className='flex items-center justify-between'>
-                {executionData.status && (
-                  <Badge variant={statusVariant} size='sm' dot>
-                    <span className='capitalize'>{executionData.status}</span>
+      {/* Content area */}
+      <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
+        {/* Subblocks Section */}
+        <div ref={subBlocksRef} className='subblocks-section flex flex-1 flex-col overflow-hidden'>
+          <div className='flex-1 overflow-y-auto overflow-x-hidden'>
+            {/* Not Executed Banner - shown when in execution mode but block wasn't executed */}
+            {isExecutionMode && !executionData && (
+              <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden border-[var(--border)] border-b px-[12px] py-[10px]'>
+                <div className='flex items-center justify-between'>
+                  <Badge variant='gray-secondary' size='sm' dot>
+                    Not Executed
                   </Badge>
-                )}
-                {executionData.durationMs !== undefined && (
-                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                    {formatDuration(executionData.durationMs)}
-                  </span>
-                )}
+                </div>
               </div>
             )}
 
-            {/* Divider between Status/Duration and Input/Output */}
-            {(executionData.status || executionData.durationMs !== undefined) &&
-              (executionData.input !== undefined || executionData.output !== undefined) && (
-                <div className='border-[var(--border)] border-t border-dashed' />
-              )}
+            {/* Execution Input/Output (if provided) */}
+            {executionData &&
+            (executionData.input !== undefined || executionData.output !== undefined) ? (
+              <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden border-[var(--border)] border-b px-[12px] py-[10px]'>
+                {/* Execution Status & Duration Header */}
+                {(executionData.status || executionData.durationMs !== undefined) && (
+                  <div className='flex items-center justify-between'>
+                    {executionData.status && (
+                      <Badge variant={statusVariant} size='sm' dot>
+                        <span className='capitalize'>{executionData.status}</span>
+                      </Badge>
+                    )}
+                    {executionData.durationMs !== undefined && (
+                      <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                        {formatDuration(executionData.durationMs)}
+                      </span>
+                    )}
+                  </div>
+                )}
 
-            {/* Input Section */}
-            {executionData.input !== undefined && (
-              <ExecutionDataSection
-                title='Input'
-                data={executionData.input}
-                wrapText={wrapText}
-                searchQuery={isSearchActive ? searchQuery : undefined}
-                currentMatchIndex={currentMatchIndex}
-                onMatchCountChange={handleMatchCountChange}
-                contentRef={contentRef}
-                onContextMenu={handleExecutionContextMenu}
-              />
-            )}
+                {/* Divider between Status/Duration and Input/Output */}
+                {(executionData.status || executionData.durationMs !== undefined) &&
+                  (executionData.input !== undefined || executionData.output !== undefined) && (
+                    <div className='border-[var(--border)] border-t border-dashed' />
+                  )}
 
-            {/* Divider between Input and Output */}
-            {executionData.input !== undefined && executionData.output !== undefined && (
-              <div className='border-[var(--border)] border-t border-dashed' />
-            )}
+                {/* Input Section */}
+                {executionData.input !== undefined && (
+                  <ExecutionDataSection
+                    title='Input'
+                    data={executionData.input}
+                    wrapText={wrapText}
+                    searchQuery={isSearchActive ? searchQuery : undefined}
+                    currentMatchIndex={currentMatchIndex}
+                    onMatchCountChange={handleMatchCountChange}
+                    contentRef={contentRef}
+                    onContextMenu={handleExecutionContextMenu}
+                  />
+                )}
 
-            {/* Output Section */}
-            {executionData.output !== undefined && (
-              <ExecutionDataSection
-                title={executionData.status === 'error' ? 'Error' : 'Output'}
-                data={executionData.output}
-                isError={executionData.status === 'error'}
-                wrapText={wrapText}
-                searchQuery={isSearchActive ? searchQuery : undefined}
-                currentMatchIndex={currentMatchIndex}
-                onMatchCountChange={handleMatchCountChange}
-                contentRef={contentRef}
-                onContextMenu={handleExecutionContextMenu}
-              />
-            )}
-          </div>
-        ) : null}
+                {/* Divider between Input and Output */}
+                {executionData.input !== undefined && executionData.output !== undefined && (
+                  <div className='border-[var(--border)] border-t border-dashed' />
+                )}
 
-        {/* Subblock Values - Using SubBlock components in preview mode */}
-        <div className='readonly-preview px-[8px] py-[8px]'>
-          {/* CSS override to show full opacity and prevent interaction instead of dimmed disabled state */}
-          <style>{`
+                {/* Output Section */}
+                {executionData.output !== undefined && (
+                  <ExecutionDataSection
+                    title={executionData.status === 'error' ? 'Error' : 'Output'}
+                    data={executionData.output}
+                    isError={executionData.status === 'error'}
+                    wrapText={wrapText}
+                    searchQuery={isSearchActive ? searchQuery : undefined}
+                    currentMatchIndex={currentMatchIndex}
+                    onMatchCountChange={handleMatchCountChange}
+                    contentRef={contentRef}
+                    onContextMenu={handleExecutionContextMenu}
+                  />
+                )}
+              </div>
+            ) : null}
+
+            {/* Subblock Values - Using SubBlock components in preview mode */}
+            <div className='readonly-preview px-[8px] py-[8px]'>
+              {/* CSS override to show full opacity and prevent interaction instead of dimmed disabled state */}
+              <style>{`
             .readonly-preview,
             .readonly-preview * {
               cursor: default !important;
@@ -934,51 +1029,62 @@ function BlockDetailsSidebarContent({
               opacity: 1 !important;
             }
           `}</style>
-          {visibleSubBlocks.length > 0 ? (
-            <div className='flex flex-col'>
-              {visibleSubBlocks.map((subBlockConfig, index) => (
-                <div
-                  key={subBlockConfig.id}
-                  className='subblock-row'
-                  onContextMenu={(e) => handleSubblockContextMenu(e, subBlockConfig)}
-                >
-                  <SubBlock
-                    blockId={block.id}
-                    config={subBlockConfig}
-                    isPreview={true}
-                    subBlockValues={subBlockValues}
-                    disabled={true}
-                  />
-                  {index < visibleSubBlocks.length - 1 && (
-                    <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
-                      <div
-                        className='h-[1.25px]'
-                        style={{
-                          backgroundImage:
-                            'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
-                        }}
+              {visibleSubBlocks.length > 0 ? (
+                <div className='flex flex-col'>
+                  {visibleSubBlocks.map((subBlockConfig, index) => (
+                    <div
+                      key={subBlockConfig.id}
+                      className='subblock-row'
+                      onContextMenu={(e) => handleSubblockContextMenu(e, subBlockConfig)}
+                    >
+                      <SubBlock
+                        blockId={block.id}
+                        config={subBlockConfig}
+                        isPreview={true}
+                        subBlockValues={subBlockValues}
+                        disabled={true}
                       />
+                      {index < visibleSubBlocks.length - 1 && (
+                        <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
+                          <div
+                            className='h-[1.25px]'
+                            style={{
+                              backgroundImage:
+                                'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
-                  )}
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <div className='py-[16px] text-center'>
+                  <p className='text-[13px] text-[var(--text-secondary)]'>
+                    No configurable fields for this block.
+                  </p>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className='py-[16px] text-center'>
-              <p className='text-[13px] text-[var(--text-secondary)]'>
-                No configurable fields for this block.
-              </p>
-            </div>
-          )}
+          </div>
         </div>
 
-        {/* Connections Section */}
-        <ConnectionsSection
-          connections={resolvedConnections}
-          workflowVars={resolvedWorkflowVars}
-          envVars={resolvedEnvVars}
-          onContextMenu={(e, value) => openContextMenu(e, value, true)}
-        />
+        {/* Connections Section - Only show when there are connections */}
+        {(resolvedConnections.length > 0 ||
+          resolvedWorkflowVars.length > 0 ||
+          resolvedEnvVars.length > 0) && (
+          <ConnectionsSection
+            connections={resolvedConnections}
+            workflowVars={resolvedWorkflowVars}
+            envVars={resolvedEnvVars}
+            onContextMenu={(e, value) => openContextMenu(e, value, true)}
+            height={connectionsHeight}
+            isResizing={isResizing}
+            isAtMinHeight={isConnectionsAtMinHeight}
+            onResizeMouseDown={handleConnectionsResizeMouseDown}
+            onToggleCollapsed={toggleConnectionsCollapsed}
+          />
+        )}
       </div>
 
       {/* Search Overlay */}

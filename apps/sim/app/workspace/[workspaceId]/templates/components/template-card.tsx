@@ -210,7 +210,6 @@ function TemplateCardInner({
         {normalizedState && isInView ? (
           <WorkflowPreview
             workflowState={normalizedState}
-            showSubBlocks={false}
             height={180}
             width='100%'
             isPannable={false}

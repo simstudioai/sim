@@ -95,7 +95,8 @@ const WorkflowEdgeComponent = ({
     } else if (edgeDiffStatus === 'new') {
       color = 'var(--brand-tertiary)'
     } else if (edgeRunStatus === 'success') {
-      color = 'var(--border-success)'
+      // Use green for preview mode, default for canvas execution
+      color = previewExecutionStatus ? 'var(--brand-tertiary-2)' : 'var(--border-success)'
     } else if (edgeRunStatus === 'error') {
       color = 'var(--text-error)'
     }
@@ -117,7 +118,7 @@ const WorkflowEdgeComponent = ({
       strokeDasharray: edgeDiffStatus === 'deleted' ? '10,5' : undefined,
       opacity,
     }
-  }, [style, edgeDiffStatus, isSelected, isErrorEdge, edgeRunStatus])
+  }, [style, edgeDiffStatus, isSelected, isErrorEdge, edgeRunStatus, previewExecutionStatus])
 
   return (
     <>

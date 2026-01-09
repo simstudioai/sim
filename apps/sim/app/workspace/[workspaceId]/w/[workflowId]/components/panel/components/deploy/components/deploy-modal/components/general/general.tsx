@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Maximize2 } from 'lucide-react'
 import {
@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import {
   BlockDetailsSidebar,
+  getLeftmostBlockId,
   WorkflowPreview,
 } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
@@ -57,6 +58,7 @@ export function GeneralDeploy({
   const [showPromoteDialog, setShowPromoteDialog] = useState(false)
   const [showExpandedPreview, setShowExpandedPreview] = useState(false)
   const [expandedSelectedBlockId, setExpandedSelectedBlockId] = useState<string | null>(null)
+  const hasAutoSelectedRef = useRef(false)
   const [versionToLoad, setVersionToLoad] = useState<number | null>(null)
   const [versionToPromote, setVersionToPromote] = useState<number | null>(null)
 
@@ -131,6 +133,19 @@ export function GeneralDeploy({
   const hasDeployedData = deployedState && Object.keys(deployedState.blocks || {}).length > 0
   const showLoadingSkeleton = isLoadingDeployedState && !hasDeployedData
 
+  // Auto-select the leftmost block once when expanded preview opens
+  useEffect(() => {
+    if (showExpandedPreview && workflowToShow && !hasAutoSelectedRef.current) {
+      hasAutoSelectedRef.current = true
+      const leftmostId = getLeftmostBlockId(workflowToShow)
+      setExpandedSelectedBlockId(leftmostId)
+    }
+    // Reset when modal closes
+    if (!showExpandedPreview) {
+      hasAutoSelectedRef.current = false
+    }
+  }, [showExpandedPreview, workflowToShow])
+
   if (showLoadingSkeleton) {
     return (
       <div className='space-y-[12px]'>
@@ -186,7 +201,7 @@ export function GeneralDeploy({
           </div>
 
           <div
-            className='[&_*]:!cursor-default relative h-[260px] w-full cursor-default overflow-hidden rounded-[4px] border border-[var(--border)]'
+            className='relative h-[260px] w-full overflow-hidden rounded-[4px] border border-[var(--border)]'
             onWheelCapture={(e) => {
               if (e.ctrlKey || e.metaKey) return
               e.stopPropagation()
@@ -194,28 +209,28 @@ export function GeneralDeploy({
           >
             {workflowToShow ? (
               <>
-                <WorkflowPreview
-                  workflowState={workflowToShow}
-                  showSubBlocks={true}
-                  height='100%'
-                  width='100%'
-                  isPannable={true}
-                  defaultPosition={{ x: 0, y: 0 }}
-                  defaultZoom={0.6}
-                />
+                <div className='[&_*]:!cursor-default h-full w-full cursor-default'>
+                  <WorkflowPreview
+                    workflowState={workflowToShow}
+                    height='100%'
+                    width='100%'
+                    isPannable={true}
+                    defaultPosition={{ x: 0, y: 0 }}
+                    defaultZoom={0.6}
+                  />
+                </div>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
                       type='button'
                       variant='default'
-                      size='sm'
                       onClick={() => setShowExpandedPreview(true)}
-                      className='absolute top-[8px] right-[8px] z-10'
+                      className='absolute right-[8px] bottom-[8px] z-10 h-[28px] w-[28px] cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
                     >
                       <Maximize2 className='h-[14px] w-[14px]' />
                     </Button>
                   </Tooltip.Trigger>
-                  <Tooltip.Content side='bottom'>Expand preview</Tooltip.Content>
+                  <Tooltip.Content side='top'>See preview</Tooltip.Content>
                 </Tooltip.Root>
               </>
             ) : (
@@ -316,16 +331,15 @@ export function GeneralDeploy({
                 <div className='h-full flex-1'>
                   <WorkflowPreview
                     workflowState={workflowToShow}
-                    showSubBlocks={true}
                     isPannable={true}
                     defaultPosition={{ x: 0, y: 0 }}
                     defaultZoom={0.6}
                     onNodeClick={(blockId) => {
-                      setExpandedSelectedBlockId(
-                        expandedSelectedBlockId === blockId ? null : blockId
-                      )
+                      setExpandedSelectedBlockId(blockId)
                     }}
-                    cursorStyle='pointer'
+                    onPaneClick={() => setExpandedSelectedBlockId(null)}
+                    selectedBlockId={expandedSelectedBlockId}
+                    lightweight
                   />
                 </div>
                 {expandedSelectedBlockId && workflowToShow.blocks?.[expandedSelectedBlockId] && (

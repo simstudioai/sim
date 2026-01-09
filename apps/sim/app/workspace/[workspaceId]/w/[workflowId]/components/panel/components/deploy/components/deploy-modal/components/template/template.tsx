@@ -488,7 +488,6 @@ const OGCaptureContainer = forwardRef<HTMLDivElement>((_, ref) => {
     >
       <WorkflowPreview
         workflowState={workflowState}
-        showSubBlocks={false}
         height='100%'
         width='100%'
         isPannable={false}
@@ -529,7 +528,6 @@ function TemplatePreviewContent({ existingTemplate }: TemplatePreviewContentProp
     <WorkflowPreview
       key={`template-preview-${existingTemplate.id}`}
       workflowState={workflowState}
-      showSubBlocks={true}
       height='100%'
       width='100%'
       isPannable={true}

@@ -10,6 +10,8 @@ export interface WorkflowBlockProps {
   isActive?: boolean
   isPending?: boolean
   isPreview?: boolean
+  /** Whether this block is selected in preview mode */
+  isPreviewSelected?: boolean
   subBlockValues?: Record<string, any>
   blockState?: any
 }

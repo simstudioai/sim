@@ -10,6 +10,7 @@ export interface BlockRingOptions {
   isDeletedBlock: boolean
   diffStatus: BlockDiffStatus
   runPathStatus: BlockRunPathStatus
+  isPreviewSelection?: boolean
 }
 
 /**
@@ -20,7 +21,8 @@ export function getBlockRingStyles(options: BlockRingOptions): {
   hasRing: boolean
   ringClassName: string
 } {
-  const { isActive, isPending, isDeletedBlock, diffStatus, runPathStatus } = options
+  const { isActive, isPending, isDeletedBlock, diffStatus, runPathStatus, isPreviewSelection } =
+    options
 
   const hasRing =
     isActive ||
@@ -31,8 +33,12 @@ export function getBlockRingStyles(options: BlockRingOptions): {
     !!runPathStatus
 
   const ringClassName = cn(
+    // Preview selection: static blue ring (standard thickness, no animation)
+    isActive && isPreviewSelection && 'ring-[1.75px] ring-[var(--brand-secondary)]',
     // Executing block: pulsing success ring with prominent thickness
-    isActive && 'ring-[3.5px] ring-[var(--border-success)] animate-ring-pulse',
+    isActive &&
+      !isPreviewSelection &&
+      'ring-[3.5px] ring-[var(--border-success)] animate-ring-pulse',
     // Non-active states use standard ring utilities
     !isActive && hasRing && 'ring-[1.75px]',
     // Pending state: warning ring
