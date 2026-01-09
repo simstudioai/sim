@@ -408,6 +408,7 @@ function BlockDetailsSidebarContent({
   const resolveReference = useMemo(() => {
     return (reference: string): unknown => {
       if (!allBlockExecutions || !workflowBlocks) return undefined
+      if (!reference.startsWith('<') || !reference.endsWith('>')) return undefined
 
       const inner = reference.slice(1, -1) // Remove < and >
       const parts = inner.split('.')

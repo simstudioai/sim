@@ -128,12 +128,16 @@ export function ExecutionSnapshot({
   }, [traceSpans])
 
   useEffect(() => {
+    const abortController = new AbortController()
+
     const fetchData = async () => {
       try {
         setLoading(true)
         setError(null)
 
-        const response = await fetch(`/api/logs/execution/${executionId}`)
+        const response = await fetch(`/api/logs/execution/${executionId}`, {
+          signal: abortController.signal,
+        })
         if (!response.ok) {
           throw new Error(`Failed to fetch execution snapshot data: ${response.statusText}`)
         }
@@ -142,6 +146,7 @@ export function ExecutionSnapshot({
         setData(result)
         logger.debug(`Loaded execution snapshot data for execution: ${executionId}`)
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return
         const errorMessage = err instanceof Error ? err.message : 'Unknown error'
         logger.error('Failed to fetch execution snapshot data:', err)
         setError(errorMessage)
@@ -151,6 +156,8 @@ export function ExecutionSnapshot({
     }
 
     fetchData()
+
+    return () => abortController.abort()
   }, [executionId])
 
   const renderContent = () => {
@@ -252,7 +259,7 @@ export function ExecutionSnapshot({
 
   if (isModal) {
     return (
-      <Modal open={isOpen} onOpenChange={onClose}>
+      <Modal open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <ModalContent size='full' className='flex h-[90vh] flex-col'>
           <ModalHeader>Workflow State</ModalHeader>
 
