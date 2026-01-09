@@ -596,7 +596,7 @@ describe('useUndoRedoStore', () => {
       expect(getStackSizes(workflowId, userId).undoSize).toBe(2)
 
       const entry = undo(workflowId, userId)
-      expect(entry?.operation.type).toBe('add-edge')
+      expect(entry?.operation.type).toBe('batch-add-edges')
       expect(getStackSizes(workflowId, userId).redoSize).toBe(1)
 
       redo(workflowId, userId)
