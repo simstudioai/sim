@@ -56,6 +56,7 @@ async function createOrganizationWithOwner(
   metadata: Record<string, any> = {}
 ): Promise<string> {
   const orgId = `org_${crypto.randomUUID()}`
+  let sessionsUpdated = 0
 
   await db.transaction(async (tx) => {
     await tx.insert(organization).values({
@@ -71,19 +72,21 @@ async function createOrganizationWithOwner(
       organizationId: orgId,
       role: 'owner',
     })
-  })
 
-  const updatedSessions = await db
-    .update(session)
-    .set({ activeOrganizationId: orgId })
-    .where(eq(session.userId, userId))
-    .returning({ id: session.id })
+    const updatedSessions = await tx
+      .update(session)
+      .set({ activeOrganizationId: orgId })
+      .where(eq(session.userId, userId))
+      .returning({ id: session.id })
+
+    sessionsUpdated = updatedSessions.length
+  })
 
   logger.info('Created organization with owner', {
     userId,
     organizationId: orgId,
     organizationName,
-    sessionsUpdated: updatedSessions.length,
+    sessionsUpdated,
   })
 
   return orgId
@@ -161,15 +164,17 @@ export async function ensureOrganizationForTeamSubscription(
         organizationId: membership.organizationId,
       })
 
-      await db
-        .update(subscriptionTable)
-        .set({ referenceId: membership.organizationId })
-        .where(eq(subscriptionTable.id, subscription.id))
+      await db.transaction(async (tx) => {
+        await tx
+          .update(subscriptionTable)
+          .set({ referenceId: membership.organizationId })
+          .where(eq(subscriptionTable.id, subscription.id))
 
-      await db
-        .update(session)
-        .set({ activeOrganizationId: membership.organizationId })
-        .where(eq(session.userId, userId))
+        await tx
+          .update(session)
+          .set({ activeOrganizationId: membership.organizationId })
+          .where(eq(session.userId, userId))
+      })
 
       return { ...subscription, referenceId: membership.organizationId }
     }
