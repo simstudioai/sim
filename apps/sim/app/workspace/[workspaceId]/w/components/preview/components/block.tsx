@@ -3,7 +3,7 @@
 import { memo, useMemo } from 'react'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
-import { getBlock } from '@/blocks/registry'
+import { getBlock } from '@/blocks'
 
 interface WorkflowPreviewBlockData {
   type: string
