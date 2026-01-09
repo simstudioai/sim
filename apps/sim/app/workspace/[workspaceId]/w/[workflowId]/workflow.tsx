@@ -1348,6 +1348,11 @@ const WorkflowContent = React.memo(() => {
         const baseName = type === 'loop' ? 'Loop' : 'Parallel'
         const name = getUniqueBlockName(baseName, blocks)
 
+        const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
+          blockType: type,
+          targetParentId: null,
+        })
+
         addBlock(
           id,
           type,
@@ -1360,7 +1365,7 @@ const WorkflowContent = React.memo(() => {
           },
           undefined,
           undefined,
-          undefined
+          autoConnectEdge
         )
 
         return
@@ -1379,6 +1384,12 @@ const WorkflowContent = React.memo(() => {
       const baseName = defaultTriggerName || blockConfig.name
       const name = getUniqueBlockName(baseName, blocks)
 
+      const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
+        blockType: type,
+        enableTriggerMode,
+        targetParentId: null,
+      })
+
       addBlock(
         id,
         type,
@@ -1387,7 +1398,7 @@ const WorkflowContent = React.memo(() => {
         undefined,
         undefined,
         undefined,
-        undefined,
+        autoConnectEdge,
         enableTriggerMode
       )
     }
@@ -1406,6 +1417,7 @@ const WorkflowContent = React.memo(() => {
     addBlock,
     effectivePermissions.canEdit,
     checkTriggerConstraints,
+    tryCreateAutoConnectEdge,
   ])
 
   /**
@@ -2474,20 +2486,23 @@ const WorkflowContent = React.memo(() => {
               return sourceInSelection !== targetInSelection
             })
 
-            if (potentialParentId) {
-              const rawUpdates = validNodes.map((n) => {
-                const edgesForThisNode = boundaryEdges.filter(
-                  (e) => e.source === n.id || e.target === n.id
-                )
-                const newPosition = calculateRelativePosition(n.id, potentialParentId, true)
-                return {
-                  blockId: n.id,
-                  newParentId: potentialParentId,
-                  newPosition,
-                  affectedEdges: edgesForThisNode,
-                }
-              })
+            const rawUpdates = validNodes.map((n) => {
+              const edgesForThisNode = boundaryEdges.filter(
+                (e) => e.source === n.id || e.target === n.id
+              )
+              const newPosition = potentialParentId
+                ? calculateRelativePosition(n.id, potentialParentId, true)
+                : getNodeAbsolutePosition(n.id)
+              return {
+                blockId: n.id,
+                newParentId: potentialParentId,
+                newPosition,
+                affectedEdges: edgesForThisNode,
+              }
+            })
 
+            let updates = rawUpdates
+            if (potentialParentId) {
               const minX = Math.min(...rawUpdates.map((u) => u.newPosition.x))
               const minY = Math.min(...rawUpdates.map((u) => u.newPosition.y))
 
@@ -2498,41 +2513,39 @@ const WorkflowContent = React.memo(() => {
               const shiftX = minX < targetMinX ? targetMinX - minX : 0
               const shiftY = minY < targetMinY ? targetMinY - minY : 0
 
-              const updates = rawUpdates.map((u) => ({
+              updates = rawUpdates.map((u) => ({
                 ...u,
                 newPosition: {
                   x: u.newPosition.x + shiftX,
                   y: u.newPosition.y + shiftY,
                 },
               }))
-
-              collaborativeBatchUpdateParent(updates)
-
-              resizeLoopNodesWrapper()
-
-              logger.info('Batch moved nodes into subflow', {
-                targetParentId: potentialParentId,
-                nodeCount: validNodes.length,
-              })
-            } else {
-              const updates = validNodes.map((n) => {
-                const edgesForThisNode = boundaryEdges.filter(
-                  (e) => e.source === n.id || e.target === n.id
-                )
-                return {
-                  blockId: n.id,
-                  newParentId: null,
-                  newPosition: getNodeAbsolutePosition(n.id),
-                  affectedEdges: edgesForThisNode,
-                }
-              })
-
-              collaborativeBatchUpdateParent(updates)
-
-              logger.info('Batch moved nodes out of subflow', {
-                nodeCount: validNodes.length,
-              })
             }
+
+            collaborativeBatchUpdateParent(updates)
+
+            setDisplayNodes((nodes) =>
+              nodes.map((node) => {
+                const update = updates.find((u) => u.blockId === node.id)
+                if (update) {
+                  return {
+                    ...node,
+                    position: update.newPosition,
+                    parentId: update.newParentId ?? undefined,
+                  }
+                }
+                return node
+              })
+            )
+
+            if (potentialParentId) {
+              resizeLoopNodesWrapper()
+            }
+
+            logger.info('Batch moved nodes to new parent', {
+              targetParentId: potentialParentId,
+              nodeCount: validNodes.length,
+            })
           }
         }
 
@@ -2914,20 +2927,23 @@ const WorkflowContent = React.memo(() => {
             return sourceInSelection !== targetInSelection
           })
 
-          if (potentialParentId) {
-            const rawUpdates = validNodes.map((n: Node) => {
-              const edgesForThisNode = boundaryEdges.filter(
-                (e) => e.source === n.id || e.target === n.id
-              )
-              const newPosition = calculateRelativePosition(n.id, potentialParentId, true)
-              return {
-                blockId: n.id,
-                newParentId: potentialParentId,
-                newPosition,
-                affectedEdges: edgesForThisNode,
-              }
-            })
+          const rawUpdates = validNodes.map((n: Node) => {
+            const edgesForThisNode = boundaryEdges.filter(
+              (e) => e.source === n.id || e.target === n.id
+            )
+            const newPosition = potentialParentId
+              ? calculateRelativePosition(n.id, potentialParentId, true)
+              : getNodeAbsolutePosition(n.id)
+            return {
+              blockId: n.id,
+              newParentId: potentialParentId,
+              newPosition,
+              affectedEdges: edgesForThisNode,
+            }
+          })
 
+          let updates = rawUpdates
+          if (potentialParentId) {
             const minX = Math.min(...rawUpdates.map((u) => u.newPosition.x))
             const minY = Math.min(...rawUpdates.map((u) => u.newPosition.y))
 
@@ -2937,41 +2953,39 @@ const WorkflowContent = React.memo(() => {
             const shiftX = minX < targetMinX ? targetMinX - minX : 0
             const shiftY = minY < targetMinY ? targetMinY - minY : 0
 
-            const updates = rawUpdates.map((u) => ({
+            updates = rawUpdates.map((u) => ({
               ...u,
               newPosition: {
                 x: u.newPosition.x + shiftX,
                 y: u.newPosition.y + shiftY,
               },
             }))
-
-            collaborativeBatchUpdateParent(updates)
-
-            resizeLoopNodesWrapper()
-
-            logger.info('Batch moved selection into subflow', {
-              targetParentId: potentialParentId,
-              nodeCount: validNodes.length,
-            })
-          } else {
-            const updates = validNodes.map((n: Node) => {
-              const edgesForThisNode = boundaryEdges.filter(
-                (e) => e.source === n.id || e.target === n.id
-              )
-              return {
-                blockId: n.id,
-                newParentId: null,
-                newPosition: getNodeAbsolutePosition(n.id),
-                affectedEdges: edgesForThisNode,
-              }
-            })
-
-            collaborativeBatchUpdateParent(updates)
-
-            logger.info('Batch moved selection out of subflow', {
-              nodeCount: validNodes.length,
-            })
           }
+
+          collaborativeBatchUpdateParent(updates)
+
+          setDisplayNodes((nodes) =>
+            nodes.map((node) => {
+              const update = updates.find((u) => u.blockId === node.id)
+              if (update) {
+                return {
+                  ...node,
+                  position: update.newPosition,
+                  parentId: update.newParentId ?? undefined,
+                }
+              }
+              return node
+            })
+          )
+
+          if (potentialParentId) {
+            resizeLoopNodesWrapper()
+          }
+
+          logger.info('Batch moved selection to new parent', {
+            targetParentId: potentialParentId,
+            nodeCount: validNodes.length,
+          })
         }
       }
 

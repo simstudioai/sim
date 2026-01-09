@@ -19,12 +19,6 @@ export const linearCreateProjectLabelTool: ToolConfig<
   },
 
   params: {
-    projectId: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'The project for this label',
-    },
     name: {
       type: 'string',
       required: true,
@@ -71,7 +65,6 @@ export const linearCreateProjectLabelTool: ToolConfig<
     },
     body: (params) => {
       const input: Record<string, any> = {
-        projectId: params.projectId,
         name: params.name,
       }
 

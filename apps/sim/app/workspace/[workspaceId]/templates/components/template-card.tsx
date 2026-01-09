@@ -1,15 +1,12 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import { Star, User } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { VerifiedBadge } from '@/components/ui/verified-badge'
 import { cn } from '@/lib/core/utils/cn'
-import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
+import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks/registry'
 import { useStarTemplate } from '@/hooks/queries/templates'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-
-const logger = createLogger('TemplateCard')
 
 interface TemplateCardProps {
   id: string

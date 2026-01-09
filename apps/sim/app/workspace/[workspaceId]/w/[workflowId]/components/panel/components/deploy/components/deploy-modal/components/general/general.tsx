@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { Maximize2 } from 'lucide-react'
 import {
   Button,
   Label,
@@ -10,10 +11,15 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Tooltip,
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
-import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
+import {
+  BlockDetailsSidebar,
+  WorkflowPreview,
+} from '@/app/workspace/[workspaceId]/w/components/preview'
+import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { Versions } from './components'
 
@@ -49,48 +55,26 @@ export function GeneralDeploy({
   const [previewMode, setPreviewMode] = useState<PreviewMode>('active')
   const [showLoadDialog, setShowLoadDialog] = useState(false)
   const [showPromoteDialog, setShowPromoteDialog] = useState(false)
+  const [showExpandedPreview, setShowExpandedPreview] = useState(false)
+  const [expandedSelectedBlockId, setExpandedSelectedBlockId] = useState<string | null>(null)
   const [versionToLoad, setVersionToLoad] = useState<number | null>(null)
   const [versionToPromote, setVersionToPromote] = useState<number | null>(null)
-
-  const versionCacheRef = useRef<Map<number, WorkflowState>>(new Map())
-  const [, forceUpdate] = useState({})
 
   const selectedVersionInfo = versions.find((v) => v.version === selectedVersion)
   const versionToPromoteInfo = versions.find((v) => v.version === versionToPromote)
   const versionToLoadInfo = versions.find((v) => v.version === versionToLoad)
 
-  const cachedSelectedState =
-    selectedVersion !== null ? versionCacheRef.current.get(selectedVersion) : null
+  const { data: selectedVersionState } = useDeploymentVersionState(workflowId, selectedVersion)
 
-  const fetchSelectedVersionState = useCallback(
-    async (version: number) => {
-      if (!workflowId) return
-      if (versionCacheRef.current.has(version)) return
-
-      try {
-        const res = await fetch(`/api/workflows/${workflowId}/deployments/${version}`)
-        if (res.ok) {
-          const data = await res.json()
-          if (data.deployedState) {
-            versionCacheRef.current.set(version, data.deployedState)
-            forceUpdate({})
-          }
-        }
-      } catch (error) {
-        logger.error('Error fetching version state:', error)
-      }
-    },
-    [workflowId]
-  )
+  const revertMutation = useRevertToVersion()
 
   useEffect(() => {
     if (selectedVersion !== null) {
-      fetchSelectedVersionState(selectedVersion)
       setPreviewMode('selected')
     } else {
       setPreviewMode('active')
     }
-  }, [selectedVersion, fetchSelectedVersionState])
+  }, [selectedVersion])
 
   const handleSelectVersion = useCallback((version: number | null) => {
     setSelectedVersion(version)
@@ -109,20 +93,12 @@ export function GeneralDeploy({
   const confirmLoadDeployment = async () => {
     if (!workflowId || versionToLoad === null) return
 
-    // Close modal immediately for snappy UX
     setShowLoadDialog(false)
     const version = versionToLoad
     setVersionToLoad(null)
 
     try {
-      const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}/revert`, {
-        method: 'POST',
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to load deployment')
-      }
-
+      await revertMutation.mutateAsync({ workflowId, version })
       onLoadDeploymentComplete()
     } catch (error) {
       logger.error('Failed to load deployment:', error)
@@ -132,7 +108,6 @@ export function GeneralDeploy({
   const confirmPromoteToLive = async () => {
     if (versionToPromote === null) return
 
-    // Close modal immediately for snappy UX
     setShowPromoteDialog(false)
     const version = versionToPromote
     setVersionToPromote(null)
@@ -145,15 +120,14 @@ export function GeneralDeploy({
   }
 
   const workflowToShow = useMemo(() => {
-    if (previewMode === 'selected' && cachedSelectedState) {
-      return cachedSelectedState
+    if (previewMode === 'selected' && selectedVersionState) {
+      return selectedVersionState
     }
     return deployedState
-  }, [previewMode, cachedSelectedState, deployedState])
+  }, [previewMode, selectedVersionState, deployedState])
 
   const showToggle = selectedVersion !== null && deployedState
 
-  // Only show skeleton on initial load when we have no deployed data
   const hasDeployedData = deployedState && Object.keys(deployedState.blocks || {}).length > 0
   const showLoadingSkeleton = isLoadingDeployedState && !hasDeployedData
 
@@ -219,15 +193,31 @@ export function GeneralDeploy({
             }}
           >
             {workflowToShow ? (
-              <WorkflowPreview
-                workflowState={workflowToShow}
-                showSubBlocks={true}
-                height='100%'
-                width='100%'
-                isPannable={true}
-                defaultPosition={{ x: 0, y: 0 }}
-                defaultZoom={0.6}
-              />
+              <>
+                <WorkflowPreview
+                  workflowState={workflowToShow}
+                  showSubBlocks={true}
+                  height='100%'
+                  width='100%'
+                  isPannable={true}
+                  defaultPosition={{ x: 0, y: 0 }}
+                  defaultZoom={0.6}
+                />
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      type='button'
+                      variant='default'
+                      size='sm'
+                      onClick={() => setShowExpandedPreview(true)}
+                      className='absolute top-[8px] right-[8px] z-10'
+                    >
+                      <Maximize2 className='h-[14px] w-[14px]' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom'>Expand preview</Tooltip.Content>
+                </Tooltip.Root>
+              </>
             ) : (
               <div className='flex h-full items-center justify-center text-[#8D8D8D] text-[13px]'>
                 Deploy your workflow to see a preview
@@ -304,6 +294,51 @@ export function GeneralDeploy({
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {workflowToShow && (
+        <Modal
+          open={showExpandedPreview}
+          onOpenChange={(open) => {
+            if (!open) {
+              setExpandedSelectedBlockId(null)
+            }
+            setShowExpandedPreview(open)
+          }}
+        >
+          <ModalContent size='full' className='flex h-[90vh] flex-col'>
+            <ModalHeader>
+              {previewMode === 'selected' && selectedVersionInfo
+                ? selectedVersionInfo.name || `v${selectedVersion}`
+                : 'Live Workflow'}
+            </ModalHeader>
+            <ModalBody className='!p-0 min-h-0 flex-1'>
+              <div className='flex h-full w-full overflow-hidden'>
+                <div className='h-full flex-1'>
+                  <WorkflowPreview
+                    workflowState={workflowToShow}
+                    showSubBlocks={true}
+                    isPannable={true}
+                    defaultPosition={{ x: 0, y: 0 }}
+                    defaultZoom={0.6}
+                    onNodeClick={(blockId) => {
+                      setExpandedSelectedBlockId(
+                        expandedSelectedBlockId === blockId ? null : blockId
+                      )
+                    }}
+                    cursorStyle='pointer'
+                  />
+                </div>
+                {expandedSelectedBlockId && workflowToShow.blocks?.[expandedSelectedBlockId] && (
+                  <BlockDetailsSidebar
+                    block={workflowToShow.blocks[expandedSelectedBlockId]}
+                    onClose={() => setExpandedSelectedBlockId(null)}
+                  />
+                )}
+              </div>
+            </ModalBody>
+          </ModalContent>
+        </Modal>
+      )}
     </>
   )
 }

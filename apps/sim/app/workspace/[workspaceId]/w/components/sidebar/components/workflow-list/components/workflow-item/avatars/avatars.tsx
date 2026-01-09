@@ -4,7 +4,7 @@ import { type CSSProperties, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import { Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
-import { getUserColor } from '@/app/workspace/[workspaceId]/w/utils/get-user-color'
+import { getUserColor } from '@/lib/workspaces/colors'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 
 interface AvatarsProps {

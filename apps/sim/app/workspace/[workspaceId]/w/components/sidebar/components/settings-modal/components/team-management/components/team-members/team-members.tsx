@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Avatar, AvatarFallback, AvatarImage, Badge, Button } from '@/components/emcn'
+import { getUserColor } from '@/lib/workspaces/colors'
 import type { Invitation, Member, Organization } from '@/lib/workspaces/organization'
-import { getUserColor } from '@/app/workspace/[workspaceId]/w/utils/get-user-color'
 import {
   useCancelInvitation,
   useOrganizationMembers,
