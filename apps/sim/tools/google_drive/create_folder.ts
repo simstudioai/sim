@@ -93,8 +93,19 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
 
   outputs: {
     file: {
-      type: 'json',
-      description: 'Created folder metadata including ID, name, and parent information',
+      type: 'object',
+      description: 'Created folder metadata from Google Drive',
+      properties: {
+        id: { type: 'string', description: 'Google Drive folder ID' },
+        name: { type: 'string', description: 'Folder name' },
+        mimeType: { type: 'string', description: 'MIME type (application/vnd.google-apps.folder)' },
+        webViewLink: { type: 'string', description: 'URL to view in browser' },
+        webContentLink: { type: 'string', description: 'Direct download URL' },
+        size: { type: 'string', description: 'Size in bytes' },
+        createdTime: { type: 'string', description: 'Creation time' },
+        modifiedTime: { type: 'string', description: 'Last modification time' },
+        parents: { type: 'json', description: 'Parent folder IDs' },
+      },
     },
   },
 }
