@@ -195,8 +195,10 @@ export interface WorkflowActions {
   clear: () => Partial<WorkflowState>
   updateLastSaved: () => void
   toggleBlockEnabled: (id: string) => void
+  setBlockEnabled: (id: string, enabled: boolean) => void
   duplicateBlock: (id: string) => void
   toggleBlockHandles: (id: string) => void
+  setBlockHandles: (id: string, horizontalHandles: boolean) => void
   updateBlockName: (
     id: string,
     name: string
