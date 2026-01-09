@@ -6,6 +6,17 @@ import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
+import {
+  BLOCK_OPERATIONS,
+  BLOCKS_OPERATIONS,
+  EDGE_OPERATIONS,
+  EDGES_OPERATIONS,
+  OPERATION_TARGETS,
+  SUBBLOCK_OPERATIONS,
+  SUBFLOW_OPERATIONS,
+  VARIABLE_OPERATIONS,
+  WORKFLOW_OPERATIONS,
+} from '@/socket/constants'
 import { useNotificationStore } from '@/stores/notifications'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
 import { usePanelEditorStore } from '@/stores/panel/editor/store'
@@ -195,9 +206,9 @@ export function useCollaborativeWorkflow() {
       isApplyingRemoteChange.current = true
 
       try {
-        if (target === 'block') {
+        if (target === OPERATION_TARGETS.BLOCK) {
           switch (operation) {
-            case 'update-position': {
+            case BLOCK_OPERATIONS.UPDATE_POSITION: {
               const blockId = payload.id
 
               if (!data.timestamp) {
@@ -225,22 +236,22 @@ export function useCollaborativeWorkflow() {
               }
               break
             }
-            case 'update-name':
+            case BLOCK_OPERATIONS.UPDATE_NAME:
               workflowStore.updateBlockName(payload.id, payload.name)
               break
-            case 'toggle-enabled':
+            case BLOCK_OPERATIONS.TOGGLE_ENABLED:
               workflowStore.toggleBlockEnabled(payload.id)
               break
-            case 'update-parent':
+            case BLOCK_OPERATIONS.UPDATE_PARENT:
               workflowStore.updateParentId(payload.id, payload.parentId, payload.extent)
               break
-            case 'update-advanced-mode':
+            case BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE:
               workflowStore.setBlockAdvancedMode(payload.id, payload.advancedMode)
               break
-            case 'update-trigger-mode':
+            case BLOCK_OPERATIONS.UPDATE_TRIGGER_MODE:
               workflowStore.setBlockTriggerMode(payload.id, payload.triggerMode)
               break
-            case 'toggle-handles': {
+            case BLOCK_OPERATIONS.TOGGLE_HANDLES: {
               const currentBlock = workflowStore.blocks[payload.id]
               if (currentBlock && currentBlock.horizontalHandles !== payload.horizontalHandles) {
                 workflowStore.toggleBlockHandles(payload.id)
@@ -248,9 +259,9 @@ export function useCollaborativeWorkflow() {
               break
             }
           }
-        } else if (target === 'blocks') {
+        } else if (target === OPERATION_TARGETS.BLOCKS) {
           switch (operation) {
-            case 'batch-update-positions': {
+            case BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS: {
               const { updates } = payload
               if (Array.isArray(updates)) {
                 updates.forEach(({ id, position }: { id: string; position: Position }) => {
@@ -262,12 +273,12 @@ export function useCollaborativeWorkflow() {
               break
             }
           }
-        } else if (target === 'edge') {
+        } else if (target === OPERATION_TARGETS.EDGE) {
           switch (operation) {
-            case 'add':
+            case EDGE_OPERATIONS.ADD:
               workflowStore.addEdge(payload as Edge)
               break
-            case 'remove': {
+            case EDGE_OPERATIONS.REMOVE: {
               workflowStore.removeEdge(payload.id)
 
               const updatedBlocks = useWorkflowStore.getState().blocks
@@ -288,9 +299,9 @@ export function useCollaborativeWorkflow() {
               break
             }
           }
-        } else if (target === 'edges') {
+        } else if (target === OPERATION_TARGETS.EDGES) {
           switch (operation) {
-            case 'batch-remove-edges': {
+            case EDGES_OPERATIONS.BATCH_REMOVE_EDGES: {
               const { ids } = payload
               if (Array.isArray(ids)) {
                 ids.forEach((id: string) => {
@@ -315,7 +326,7 @@ export function useCollaborativeWorkflow() {
               }
               break
             }
-            case 'batch-add-edges': {
+            case EDGES_OPERATIONS.BATCH_ADD_EDGES: {
               const { edges } = payload
               if (Array.isArray(edges)) {
                 edges.forEach((edge: Edge) => workflowStore.addEdge(edge))
@@ -323,9 +334,9 @@ export function useCollaborativeWorkflow() {
               break
             }
           }
-        } else if (target === 'subflow') {
+        } else if (target === OPERATION_TARGETS.SUBFLOW) {
           switch (operation) {
-            case 'update':
+            case SUBFLOW_OPERATIONS.UPDATE:
               // Handle subflow configuration updates (loop/parallel type changes, etc.)
               if (payload.type === 'loop') {
                 const { config } = payload
@@ -358,9 +369,9 @@ export function useCollaborativeWorkflow() {
               }
               break
           }
-        } else if (target === 'variable') {
+        } else if (target === OPERATION_TARGETS.VARIABLE) {
           switch (operation) {
-            case 'add':
+            case VARIABLE_OPERATIONS.ADD:
               variablesStore.addVariable(
                 {
                   workflowId: payload.workflowId,
@@ -371,7 +382,7 @@ export function useCollaborativeWorkflow() {
                 payload.id
               )
               break
-            case 'variable-update':
+            case VARIABLE_OPERATIONS.UPDATE:
               if (payload.field === 'name') {
                 variablesStore.updateVariable(payload.variableId, { name: payload.value })
               } else if (payload.field === 'value') {
@@ -380,13 +391,13 @@ export function useCollaborativeWorkflow() {
                 variablesStore.updateVariable(payload.variableId, { type: payload.value })
               }
               break
-            case 'remove':
+            case VARIABLE_OPERATIONS.REMOVE:
               variablesStore.deleteVariable(payload.variableId)
               break
           }
-        } else if (target === 'workflow') {
+        } else if (target === OPERATION_TARGETS.WORKFLOW) {
           switch (operation) {
-            case 'replace-state':
+            case WORKFLOW_OPERATIONS.REPLACE_STATE:
               if (payload.state) {
                 logger.info('Received workflow state replacement from remote user', {
                   userId,
@@ -419,9 +430,9 @@ export function useCollaborativeWorkflow() {
           }
         }
 
-        if (target === 'blocks') {
+        if (target === OPERATION_TARGETS.BLOCKS) {
           switch (operation) {
-            case 'batch-add-blocks': {
+            case BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS: {
               const {
                 blocks,
                 edges,
@@ -489,7 +500,7 @@ export function useCollaborativeWorkflow() {
               logger.info('Successfully applied batch-add-blocks from remote user')
               break
             }
-            case 'batch-remove-blocks': {
+            case BLOCKS_OPERATIONS.BATCH_REMOVE_BLOCKS: {
               const { ids } = payload
               logger.info('Received batch-remove-blocks from remote user', {
                 userId,
@@ -773,8 +784,8 @@ export function useCollaborativeWorkflow() {
       addToQueue({
         id: operationId,
         operation: {
-          operation: 'batch-update-positions',
-          target: 'blocks',
+          operation: BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS,
+          target: OPERATION_TARGETS.BLOCKS,
           payload: { updates },
         },
         workflowId: activeWorkflowId || '',
@@ -842,41 +853,46 @@ export function useCollaborativeWorkflow() {
         return { success: false, error: `Block name "${trimmedName}" already exists` }
       }
 
-      executeQueuedOperation('update-name', 'block', { id, name: trimmedName }, () => {
-        const result = workflowStore.updateBlockName(id, trimmedName)
+      executeQueuedOperation(
+        BLOCK_OPERATIONS.UPDATE_NAME,
+        OPERATION_TARGETS.BLOCK,
+        { id, name: trimmedName },
+        () => {
+          const result = workflowStore.updateBlockName(id, trimmedName)
 
-        if (result.success && result.changedSubblocks.length > 0) {
-          logger.info('Emitting cascaded subblock updates from block rename', {
-            blockId: id,
-            newName: trimmedName,
-            updateCount: result.changedSubblocks.length,
-          })
+          if (result.success && result.changedSubblocks.length > 0) {
+            logger.info('Emitting cascaded subblock updates from block rename', {
+              blockId: id,
+              newName: trimmedName,
+              updateCount: result.changedSubblocks.length,
+            })
 
-          result.changedSubblocks.forEach(
-            ({
-              blockId,
-              subBlockId,
-              newValue,
-            }: {
-              blockId: string
-              subBlockId: string
-              newValue: any
-            }) => {
-              const operationId = crypto.randomUUID()
-              addToQueue({
-                id: operationId,
-                operation: {
-                  operation: 'subblock-update',
-                  target: 'subblock',
-                  payload: { blockId, subblockId: subBlockId, value: newValue },
-                },
-                workflowId: activeWorkflowId || '',
-                userId: session?.user?.id || 'unknown',
-              })
-            }
-          )
+            result.changedSubblocks.forEach(
+              ({
+                blockId,
+                subBlockId,
+                newValue,
+              }: {
+                blockId: string
+                subBlockId: string
+                newValue: any
+              }) => {
+                const operationId = crypto.randomUUID()
+                addToQueue({
+                  id: operationId,
+                  operation: {
+                    operation: SUBBLOCK_OPERATIONS.UPDATE,
+                    target: OPERATION_TARGETS.SUBBLOCK,
+                    payload: { blockId, subblockId: subBlockId, value: newValue },
+                  },
+                  workflowId: activeWorkflowId || '',
+                  userId: session?.user?.id || 'unknown',
+                })
+              }
+            )
+          }
         }
-      })
+      )
 
       return { success: true }
     },
@@ -905,8 +921,8 @@ export function useCollaborativeWorkflow() {
       addToQueue({
         id: operationId,
         operation: {
-          operation: 'batch-toggle-enabled',
-          target: 'blocks',
+          operation: BLOCKS_OPERATIONS.BATCH_TOGGLE_ENABLED,
+          target: OPERATION_TARGETS.BLOCKS,
           payload: { blockIds: validIds, previousStates },
         },
         workflowId: activeWorkflowId || '',
@@ -924,8 +940,11 @@ export function useCollaborativeWorkflow() {
 
   const collaborativeUpdateParentId = useCallback(
     (id: string, parentId: string, extent: 'parent') => {
-      executeQueuedOperation('update-parent', 'block', { id, parentId, extent }, () =>
-        workflowStore.updateParentId(id, parentId, extent)
+      executeQueuedOperation(
+        BLOCK_OPERATIONS.UPDATE_PARENT,
+        OPERATION_TARGETS.BLOCK,
+        { id, parentId, extent },
+        () => workflowStore.updateParentId(id, parentId, extent)
       )
     },
     [executeQueuedOperation, workflowStore]
@@ -978,8 +997,8 @@ export function useCollaborativeWorkflow() {
       addToQueue({
         id: operationId,
         operation: {
-          operation: 'batch-update-parent',
-          target: 'blocks',
+          operation: BLOCKS_OPERATIONS.BATCH_UPDATE_PARENT,
+          target: OPERATION_TARGETS.BLOCKS,
           payload: {
             updates: batchUpdates.map((u) => ({
               id: u.blockId,
@@ -1005,8 +1024,8 @@ export function useCollaborativeWorkflow() {
       const newAdvancedMode = !currentBlock.advancedMode
 
       executeQueuedOperation(
-        'update-advanced-mode',
-        'block',
+        BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE,
+        OPERATION_TARGETS.BLOCK,
         { id, advancedMode: newAdvancedMode },
         () => workflowStore.toggleBlockAdvancedMode(id)
       )
@@ -1036,8 +1055,8 @@ export function useCollaborativeWorkflow() {
       }
 
       executeQueuedOperation(
-        'update-trigger-mode',
-        'block',
+        BLOCK_OPERATIONS.UPDATE_TRIGGER_MODE,
+        OPERATION_TARGETS.BLOCK,
         { id, triggerMode: newTriggerMode },
         () => workflowStore.toggleBlockTriggerMode(id)
       )
@@ -1067,8 +1086,8 @@ export function useCollaborativeWorkflow() {
       addToQueue({
         id: operationId,
         operation: {
-          operation: 'batch-toggle-handles',
-          target: 'blocks',
+          operation: BLOCKS_OPERATIONS.BATCH_TOGGLE_HANDLES,
+          target: OPERATION_TARGETS.BLOCKS,
           payload: { blockIds: validIds, previousStates },
         },
         workflowId: activeWorkflowId || '',
@@ -1086,7 +1105,9 @@ export function useCollaborativeWorkflow() {
 
   const collaborativeAddEdge = useCallback(
     (edge: Edge) => {
-      executeQueuedOperation('add', 'edge', edge, () => workflowStore.addEdge(edge))
+      executeQueuedOperation(EDGE_OPERATIONS.ADD, OPERATION_TARGETS.EDGE, edge, () =>
+        workflowStore.addEdge(edge)
+      )
       if (!skipEdgeRecording.current) {
         undoRedo.recordAddEdge(edge.id)
       }
@@ -1119,7 +1140,7 @@ export function useCollaborativeWorkflow() {
         undoRedo.recordBatchRemoveEdges([edge])
       }
 
-      executeQueuedOperation('remove', 'edge', { id: edgeId }, () =>
+      executeQueuedOperation(EDGE_OPERATIONS.REMOVE, OPERATION_TARGETS.EDGE, { id: edgeId }, () =>
         workflowStore.removeEdge(edgeId)
       )
     },
@@ -1160,8 +1181,8 @@ export function useCollaborativeWorkflow() {
       addToQueue({
         id: operationId,
         operation: {
-          operation: 'batch-remove-edges',
-          target: 'edges',
+          operation: EDGES_OPERATIONS.BATCH_REMOVE_EDGES,
+          target: OPERATION_TARGETS.EDGES,
           payload: { ids: validEdgeIds },
         },
         workflowId: activeWorkflowId || '',
@@ -1206,8 +1227,8 @@ export function useCollaborativeWorkflow() {
       addToQueue({
         id: operationId,
         operation: {
-          operation: 'subblock-update',
-          target: 'subblock',
+          operation: SUBBLOCK_OPERATIONS.UPDATE,
+          target: OPERATION_TARGETS.SUBBLOCK,
           payload: { blockId, subblockId, value },
         },
         workflowId: currentActiveWorkflowId || '',
@@ -1270,8 +1291,8 @@ export function useCollaborativeWorkflow() {
       addToQueue({
         id: operationId,
         operation: {
-          operation: 'subblock-update',
-          target: 'subblock',
+          operation: SUBBLOCK_OPERATIONS.UPDATE,
+          target: OPERATION_TARGETS.SUBBLOCK,
           payload: { blockId, subblockId, value },
         },
         workflowId: activeWorkflowId || '',
@@ -1317,12 +1338,17 @@ export function useCollaborativeWorkflow() {
         doWhileCondition: existingDoWhileCondition ?? '',
       }
 
-      executeQueuedOperation('update', 'subflow', { id: loopId, type: 'loop', config }, () => {
-        workflowStore.updateLoopType(loopId, loopType)
-        workflowStore.setLoopForEachItems(loopId, existingForEachItems ?? '')
-        workflowStore.setLoopWhileCondition(loopId, existingWhileCondition ?? '')
-        workflowStore.setLoopDoWhileCondition(loopId, existingDoWhileCondition ?? '')
-      })
+      executeQueuedOperation(
+        SUBFLOW_OPERATIONS.UPDATE,
+        OPERATION_TARGETS.SUBFLOW,
+        { id: loopId, type: 'loop', config },
+        () => {
+          workflowStore.updateLoopType(loopId, loopType)
+          workflowStore.setLoopForEachItems(loopId, existingForEachItems ?? '')
+          workflowStore.setLoopWhileCondition(loopId, existingWhileCondition ?? '')
+          workflowStore.setLoopDoWhileCondition(loopId, existingDoWhileCondition ?? '')
+        }
+      )
     },
     [executeQueuedOperation, workflowStore]
   )
@@ -1355,8 +1381,8 @@ export function useCollaborativeWorkflow() {
       }
 
       executeQueuedOperation(
-        'update',
-        'subflow',
+        SUBFLOW_OPERATIONS.UPDATE,
+        OPERATION_TARGETS.SUBFLOW,
         { id: parallelId, type: 'parallel', config },
         () => {
           workflowStore.updateParallelType(parallelId, parallelType)
@@ -1390,8 +1416,11 @@ export function useCollaborativeWorkflow() {
           forEachItems: currentCollection,
         }
 
-        executeQueuedOperation('update', 'subflow', { id: nodeId, type: 'loop', config }, () =>
-          workflowStore.updateLoopCount(nodeId, count)
+        executeQueuedOperation(
+          SUBFLOW_OPERATIONS.UPDATE,
+          OPERATION_TARGETS.SUBFLOW,
+          { id: nodeId, type: 'loop', config },
+          () => workflowStore.updateLoopCount(nodeId, count)
         )
       } else {
         const currentDistribution = currentBlock.data?.collection || ''
@@ -1405,8 +1434,11 @@ export function useCollaborativeWorkflow() {
           parallelType: currentParallelType,
         }
 
-        executeQueuedOperation('update', 'subflow', { id: nodeId, type: 'parallel', config }, () =>
-          workflowStore.updateParallelCount(nodeId, count)
+        executeQueuedOperation(
+          SUBFLOW_OPERATIONS.UPDATE,
+          OPERATION_TARGETS.SUBFLOW,
+          { id: nodeId, type: 'parallel', config },
+          () => workflowStore.updateParallelCount(nodeId, count)
         )
       }
     },
@@ -1451,11 +1483,16 @@ export function useCollaborativeWorkflow() {
           doWhileCondition: nextDoWhileCondition ?? '',
         }
 
-        executeQueuedOperation('update', 'subflow', { id: nodeId, type: 'loop', config }, () => {
-          workflowStore.setLoopForEachItems(nodeId, nextForEachItems ?? '')
-          workflowStore.setLoopWhileCondition(nodeId, nextWhileCondition ?? '')
-          workflowStore.setLoopDoWhileCondition(nodeId, nextDoWhileCondition ?? '')
-        })
+        executeQueuedOperation(
+          SUBFLOW_OPERATIONS.UPDATE,
+          OPERATION_TARGETS.SUBFLOW,
+          { id: nodeId, type: 'loop', config },
+          () => {
+            workflowStore.setLoopForEachItems(nodeId, nextForEachItems ?? '')
+            workflowStore.setLoopWhileCondition(nodeId, nextWhileCondition ?? '')
+            workflowStore.setLoopDoWhileCondition(nodeId, nextDoWhileCondition ?? '')
+          }
+        )
       } else {
         const currentCount = currentBlock.data?.count || 5
         const currentParallelType = currentBlock.data?.parallelType || 'count'
@@ -1468,8 +1505,11 @@ export function useCollaborativeWorkflow() {
           parallelType: currentParallelType,
         }
 
-        executeQueuedOperation('update', 'subflow', { id: nodeId, type: 'parallel', config }, () =>
-          workflowStore.updateParallelCollection(nodeId, collection)
+        executeQueuedOperation(
+          SUBFLOW_OPERATIONS.UPDATE,
+          OPERATION_TARGETS.SUBFLOW,
+          { id: nodeId, type: 'parallel', config },
+          () => workflowStore.updateParallelCollection(nodeId, collection)
         )
       }
     },
@@ -1478,15 +1518,20 @@ export function useCollaborativeWorkflow() {
 
   const collaborativeUpdateVariable = useCallback(
     (variableId: string, field: 'name' | 'value' | 'type', value: any) => {
-      executeQueuedOperation('variable-update', 'variable', { variableId, field, value }, () => {
-        if (field === 'name') {
-          variablesStore.updateVariable(variableId, { name: value })
-        } else if (field === 'value') {
-          variablesStore.updateVariable(variableId, { value })
-        } else if (field === 'type') {
-          variablesStore.updateVariable(variableId, { type: value })
+      executeQueuedOperation(
+        VARIABLE_OPERATIONS.UPDATE,
+        OPERATION_TARGETS.VARIABLE,
+        { variableId, field, value },
+        () => {
+          if (field === 'name') {
+            variablesStore.updateVariable(variableId, { name: value })
+          } else if (field === 'value') {
+            variablesStore.updateVariable(variableId, { value })
+          } else if (field === 'type') {
+            variablesStore.updateVariable(variableId, { type: value })
+          }
         }
-      })
+      )
     },
     [executeQueuedOperation, variablesStore]
   )
@@ -1508,7 +1553,12 @@ export function useCollaborativeWorkflow() {
 
         // Queue operation with processed name for server & other clients
         // Empty callback because local store is already updated above
-        executeQueuedOperation('add', 'variable', payloadWithProcessedName, () => {})
+        executeQueuedOperation(
+          VARIABLE_OPERATIONS.ADD,
+          OPERATION_TARGETS.VARIABLE,
+          payloadWithProcessedName,
+          () => {}
+        )
       }
 
       return id
@@ -1520,9 +1570,14 @@ export function useCollaborativeWorkflow() {
     (variableId: string) => {
       cancelOperationsForVariable(variableId)
 
-      executeQueuedOperation('remove', 'variable', { variableId }, () => {
-        variablesStore.deleteVariable(variableId)
-      })
+      executeQueuedOperation(
+        VARIABLE_OPERATIONS.REMOVE,
+        OPERATION_TARGETS.VARIABLE,
+        { variableId },
+        () => {
+          variablesStore.deleteVariable(variableId)
+        }
+      )
     },
     [executeQueuedOperation, variablesStore, cancelOperationsForVariable]
   )
@@ -1558,8 +1613,8 @@ export function useCollaborativeWorkflow() {
       addToQueue({
         id: operationId,
         operation: {
-          operation: 'batch-add-blocks',
-          target: 'blocks',
+          operation: BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS,
+          target: OPERATION_TARGETS.BLOCKS,
           payload: { blocks, edges, loops, parallels, subBlockValues },
         },
         workflowId: activeWorkflowId || '',
@@ -1690,8 +1745,8 @@ export function useCollaborativeWorkflow() {
       addToQueue({
         id: operationId,
         operation: {
-          operation: 'batch-remove-blocks',
-          target: 'blocks',
+          operation: BLOCKS_OPERATIONS.BATCH_REMOVE_BLOCKS,
+          target: OPERATION_TARGETS.BLOCKS,
           payload: { ids: Array.from(allBlocksToRemove) },
         },
         workflowId: activeWorkflowId || '',

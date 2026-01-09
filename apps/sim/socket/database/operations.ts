@@ -7,6 +7,16 @@ import postgres from 'postgres'
 import { env } from '@/lib/core/config/env'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  BLOCK_OPERATIONS,
+  BLOCKS_OPERATIONS,
+  EDGE_OPERATIONS,
+  EDGES_OPERATIONS,
+  OPERATION_TARGETS,
+  SUBFLOW_OPERATIONS,
+  VARIABLE_OPERATIONS,
+  WORKFLOW_OPERATIONS,
+} from '@/socket/constants'
 
 const logger = createLogger('SocketDatabase')
 
@@ -155,7 +165,7 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
   try {
     const { operation: op, target, payload, timestamp, userId } = operation
 
-    if (op === 'update-position' && Math.random() < 0.01) {
+    if (op === BLOCK_OPERATIONS.UPDATE_POSITION && Math.random() < 0.01) {
       logger.debug('Socket DB operation sample:', {
         operation: op,
         target,
@@ -170,25 +180,25 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
         .where(eq(workflow.id, workflowId))
 
       switch (target) {
-        case 'block':
+        case OPERATION_TARGETS.BLOCK:
           await handleBlockOperationTx(tx, workflowId, op, payload)
           break
-        case 'blocks':
+        case OPERATION_TARGETS.BLOCKS:
           await handleBlocksOperationTx(tx, workflowId, op, payload)
           break
-        case 'edge':
+        case OPERATION_TARGETS.EDGE:
           await handleEdgeOperationTx(tx, workflowId, op, payload)
           break
-        case 'edges':
+        case OPERATION_TARGETS.EDGES:
           await handleEdgesOperationTx(tx, workflowId, op, payload)
           break
-        case 'subflow':
+        case OPERATION_TARGETS.SUBFLOW:
           await handleSubflowOperationTx(tx, workflowId, op, payload)
           break
-        case 'variable':
+        case OPERATION_TARGETS.VARIABLE:
           await handleVariableOperationTx(tx, workflowId, op, payload)
           break
-        case 'workflow':
+        case OPERATION_TARGETS.WORKFLOW:
           await handleWorkflowOperationTx(tx, workflowId, op, payload)
           break
         default:
@@ -222,7 +232,7 @@ async function handleBlockOperationTx(
   payload: any
 ) {
   switch (operation) {
-    case 'update-position': {
+    case BLOCK_OPERATIONS.UPDATE_POSITION: {
       if (!payload.id || !payload.position) {
         throw new Error('Missing required fields for update position operation')
       }
@@ -247,7 +257,7 @@ async function handleBlockOperationTx(
       break
     }
 
-    case 'update-name': {
+    case BLOCK_OPERATIONS.UPDATE_NAME: {
       if (!payload.id || !payload.name) {
         throw new Error('Missing required fields for update name operation')
       }
@@ -269,7 +279,7 @@ async function handleBlockOperationTx(
       break
     }
 
-    case 'toggle-enabled': {
+    case BLOCK_OPERATIONS.TOGGLE_ENABLED: {
       if (!payload.id) {
         throw new Error('Missing block ID for toggle enabled operation')
       }
@@ -299,7 +309,7 @@ async function handleBlockOperationTx(
       break
     }
 
-    case 'update-parent': {
+    case BLOCK_OPERATIONS.UPDATE_PARENT: {
       if (!payload.id) {
         throw new Error('Missing block ID for update parent operation')
       }
@@ -364,7 +374,7 @@ async function handleBlockOperationTx(
       break
     }
 
-    case 'update-advanced-mode': {
+    case BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE: {
       if (!payload.id || payload.advancedMode === undefined) {
         throw new Error('Missing required fields for update advanced mode operation')
       }
@@ -386,7 +396,7 @@ async function handleBlockOperationTx(
       break
     }
 
-    case 'update-trigger-mode': {
+    case BLOCK_OPERATIONS.UPDATE_TRIGGER_MODE: {
       if (!payload.id || payload.triggerMode === undefined) {
         throw new Error('Missing required fields for update trigger mode operation')
       }
@@ -408,7 +418,7 @@ async function handleBlockOperationTx(
       break
     }
 
-    case 'toggle-handles': {
+    case BLOCK_OPERATIONS.TOGGLE_HANDLES: {
       if (!payload.id || payload.horizontalHandles === undefined) {
         throw new Error('Missing required fields for toggle handles operation')
       }
@@ -445,7 +455,7 @@ async function handleBlocksOperationTx(
   payload: any
 ) {
   switch (operation) {
-    case 'batch-update-positions': {
+    case BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS: {
       const { updates } = payload
       if (!Array.isArray(updates) || updates.length === 0) {
         return
@@ -466,7 +476,7 @@ async function handleBlocksOperationTx(
       break
     }
 
-    case 'batch-add-blocks': {
+    case BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS: {
       const { blocks, edges, loops, parallels } = payload
 
       logger.info(`Batch adding blocks to workflow ${workflowId}`, {
@@ -578,7 +588,7 @@ async function handleBlocksOperationTx(
       break
     }
 
-    case 'batch-remove-blocks': {
+    case BLOCKS_OPERATIONS.BATCH_REMOVE_BLOCKS: {
       const { ids } = payload
       if (!Array.isArray(ids) || ids.length === 0) {
         return
@@ -693,7 +703,7 @@ async function handleBlocksOperationTx(
       break
     }
 
-    case 'batch-toggle-enabled': {
+    case BLOCKS_OPERATIONS.BATCH_TOGGLE_ENABLED: {
       const { blockIds } = payload
       if (!Array.isArray(blockIds) || blockIds.length === 0) {
         return
@@ -722,7 +732,7 @@ async function handleBlocksOperationTx(
       break
     }
 
-    case 'batch-toggle-handles': {
+    case BLOCKS_OPERATIONS.BATCH_TOGGLE_HANDLES: {
       const { blockIds } = payload
       if (!Array.isArray(blockIds) || blockIds.length === 0) {
         return
@@ -749,7 +759,7 @@ async function handleBlocksOperationTx(
       break
     }
 
-    case 'batch-update-parent': {
+    case BLOCKS_OPERATIONS.BATCH_UPDATE_PARENT: {
       const { updates } = payload
       if (!Array.isArray(updates) || updates.length === 0) {
         return
@@ -829,7 +839,7 @@ async function handleBlocksOperationTx(
 
 async function handleEdgeOperationTx(tx: any, workflowId: string, operation: string, payload: any) {
   switch (operation) {
-    case 'add': {
+    case EDGE_OPERATIONS.ADD: {
       // Validate required fields
       if (!payload.id || !payload.source || !payload.target) {
         throw new Error('Missing required fields for add edge operation')
@@ -848,7 +858,7 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
       break
     }
 
-    case 'remove': {
+    case EDGE_OPERATIONS.REMOVE: {
       if (!payload.id) {
         throw new Error('Missing edge ID for remove operation')
       }
@@ -879,7 +889,7 @@ async function handleEdgesOperationTx(
   payload: any
 ) {
   switch (operation) {
-    case 'batch-remove-edges': {
+    case EDGES_OPERATIONS.BATCH_REMOVE_EDGES: {
       const { ids } = payload
       if (!Array.isArray(ids) || ids.length === 0) {
         logger.debug('No edge IDs provided for batch remove')
@@ -896,7 +906,7 @@ async function handleEdgesOperationTx(
       break
     }
 
-    case 'batch-add-edges': {
+    case EDGES_OPERATIONS.BATCH_ADD_EDGES: {
       const { edges } = payload
       if (!Array.isArray(edges) || edges.length === 0) {
         logger.debug('No edges provided for batch add')
@@ -933,7 +943,7 @@ async function handleSubflowOperationTx(
   payload: any
 ) {
   switch (operation) {
-    case 'update': {
+    case SUBFLOW_OPERATIONS.UPDATE: {
       if (!payload.id || !payload.config) {
         throw new Error('Missing required fields for update subflow operation')
       }
@@ -1060,7 +1070,7 @@ async function handleVariableOperationTx(
   const currentVariables = (workflowData[0].variables as Record<string, any>) || {}
 
   switch (operation) {
-    case 'add': {
+    case VARIABLE_OPERATIONS.ADD: {
       if (!payload.id || !payload.name || payload.type === undefined) {
         throw new Error('Missing required fields for add variable operation')
       }
@@ -1089,7 +1099,7 @@ async function handleVariableOperationTx(
       break
     }
 
-    case 'remove': {
+    case VARIABLE_OPERATIONS.REMOVE: {
       if (!payload.variableId) {
         throw new Error('Missing variable ID for remove operation')
       }
@@ -1123,7 +1133,7 @@ async function handleWorkflowOperationTx(
   payload: any
 ) {
   switch (operation) {
-    case 'replace-state': {
+    case WORKFLOW_OPERATIONS.REPLACE_STATE: {
       if (!payload.state) {
         throw new Error('Missing state for replace-state operation')
       }

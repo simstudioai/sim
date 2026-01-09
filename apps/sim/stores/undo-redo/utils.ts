@@ -1,3 +1,4 @@
+import { UNDO_REDO_OPERATIONS } from '@/socket/constants'
 import type {
   BatchAddBlocksOperation,
   BatchAddEdgesOperation,
@@ -20,11 +21,11 @@ export function createOperationEntry(operation: Operation, inverse: Operation): 
 
 export function createInverseOperation(operation: Operation): Operation {
   switch (operation.type) {
-    case 'batch-add-blocks': {
+    case UNDO_REDO_OPERATIONS.BATCH_ADD_BLOCKS: {
       const op = operation as BatchAddBlocksOperation
       return {
         ...operation,
-        type: 'batch-remove-blocks',
+        type: UNDO_REDO_OPERATIONS.BATCH_REMOVE_BLOCKS,
         data: {
           blockSnapshots: op.data.blockSnapshots,
           edgeSnapshots: op.data.edgeSnapshots,
@@ -33,11 +34,11 @@ export function createInverseOperation(operation: Operation): Operation {
       } as BatchRemoveBlocksOperation
     }
 
-    case 'batch-remove-blocks': {
+    case UNDO_REDO_OPERATIONS.BATCH_REMOVE_BLOCKS: {
       const op = operation as BatchRemoveBlocksOperation
       return {
         ...operation,
-        type: 'batch-add-blocks',
+        type: UNDO_REDO_OPERATIONS.BATCH_ADD_BLOCKS,
         data: {
           blockSnapshots: op.data.blockSnapshots,
           edgeSnapshots: op.data.edgeSnapshots,
@@ -46,33 +47,33 @@ export function createInverseOperation(operation: Operation): Operation {
       } as BatchAddBlocksOperation
     }
 
-    case 'batch-add-edges': {
+    case UNDO_REDO_OPERATIONS.BATCH_ADD_EDGES: {
       const op = operation as BatchAddEdgesOperation
       return {
         ...operation,
-        type: 'batch-remove-edges',
+        type: UNDO_REDO_OPERATIONS.BATCH_REMOVE_EDGES,
         data: {
           edgeSnapshots: op.data.edgeSnapshots,
         },
       } as BatchRemoveEdgesOperation
     }
 
-    case 'batch-remove-edges': {
+    case UNDO_REDO_OPERATIONS.BATCH_REMOVE_EDGES: {
       const op = operation as BatchRemoveEdgesOperation
       return {
         ...operation,
-        type: 'batch-add-edges',
+        type: UNDO_REDO_OPERATIONS.BATCH_ADD_EDGES,
         data: {
           edgeSnapshots: op.data.edgeSnapshots,
         },
       } as BatchAddEdgesOperation
     }
 
-    case 'batch-move-blocks': {
+    case UNDO_REDO_OPERATIONS.BATCH_MOVE_BLOCKS: {
       const op = operation as BatchMoveBlocksOperation
       return {
         ...operation,
-        type: 'batch-move-blocks',
+        type: UNDO_REDO_OPERATIONS.BATCH_MOVE_BLOCKS,
         data: {
           moves: op.data.moves.map((m) => ({
             blockId: m.blockId,
@@ -83,7 +84,7 @@ export function createInverseOperation(operation: Operation): Operation {
       } as BatchMoveBlocksOperation
     }
 
-    case 'update-parent':
+    case UNDO_REDO_OPERATIONS.UPDATE_PARENT:
       return {
         ...operation,
         data: {
@@ -96,7 +97,7 @@ export function createInverseOperation(operation: Operation): Operation {
         },
       }
 
-    case 'batch-update-parent': {
+    case UNDO_REDO_OPERATIONS.BATCH_UPDATE_PARENT: {
       const op = operation as BatchUpdateParentOperation
       return {
         ...operation,
@@ -113,7 +114,7 @@ export function createInverseOperation(operation: Operation): Operation {
       } as BatchUpdateParentOperation
     }
 
-    case 'apply-diff':
+    case UNDO_REDO_OPERATIONS.APPLY_DIFF:
       return {
         ...operation,
         data: {
@@ -123,7 +124,7 @@ export function createInverseOperation(operation: Operation): Operation {
         },
       }
 
-    case 'accept-diff':
+    case UNDO_REDO_OPERATIONS.ACCEPT_DIFF:
       return {
         ...operation,
         data: {
@@ -134,7 +135,7 @@ export function createInverseOperation(operation: Operation): Operation {
         },
       }
 
-    case 'reject-diff':
+    case UNDO_REDO_OPERATIONS.REJECT_DIFF:
       return {
         ...operation,
         data: {
@@ -145,7 +146,7 @@ export function createInverseOperation(operation: Operation): Operation {
         },
       }
 
-    case 'batch-toggle-enabled':
+    case UNDO_REDO_OPERATIONS.BATCH_TOGGLE_ENABLED:
       return {
         ...operation,
         data: {
@@ -154,7 +155,7 @@ export function createInverseOperation(operation: Operation): Operation {
         },
       }
 
-    case 'batch-toggle-handles':
+    case UNDO_REDO_OPERATIONS.BATCH_TOGGLE_HANDLES:
       return {
         ...operation,
         data: {

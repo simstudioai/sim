@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import { UNDO_REDO_OPERATIONS } from '@/socket/constants'
 import type {
   BatchAddBlocksOperation,
   BatchAddEdgesOperation,
@@ -86,31 +87,31 @@ function isOperationApplicable(
   graph: { blocksById: Record<string, BlockState>; edgesById: Record<string, Edge> }
 ): boolean {
   switch (operation.type) {
-    case 'batch-remove-blocks': {
+    case UNDO_REDO_OPERATIONS.BATCH_REMOVE_BLOCKS: {
       const op = operation as BatchRemoveBlocksOperation
       return op.data.blockSnapshots.every((block) => Boolean(graph.blocksById[block.id]))
     }
-    case 'batch-add-blocks': {
+    case UNDO_REDO_OPERATIONS.BATCH_ADD_BLOCKS: {
       const op = operation as BatchAddBlocksOperation
       return op.data.blockSnapshots.every((block) => !graph.blocksById[block.id])
     }
-    case 'batch-move-blocks': {
+    case UNDO_REDO_OPERATIONS.BATCH_MOVE_BLOCKS: {
       const op = operation as BatchMoveBlocksOperation
       return op.data.moves.every((move) => Boolean(graph.blocksById[move.blockId]))
     }
-    case 'update-parent': {
+    case UNDO_REDO_OPERATIONS.UPDATE_PARENT: {
       const blockId = operation.data.blockId
       return Boolean(graph.blocksById[blockId])
     }
-    case 'batch-update-parent': {
+    case UNDO_REDO_OPERATIONS.BATCH_UPDATE_PARENT: {
       const op = operation as BatchUpdateParentOperation
       return op.data.updates.every((u) => Boolean(graph.blocksById[u.blockId]))
     }
-    case 'batch-remove-edges': {
+    case UNDO_REDO_OPERATIONS.BATCH_REMOVE_EDGES: {
       const op = operation as BatchRemoveEdgesOperation
       return op.data.edgeSnapshots.every((edge) => Boolean(graph.edgesById[edge.id]))
     }
-    case 'batch-add-edges': {
+    case UNDO_REDO_OPERATIONS.BATCH_ADD_EDGES: {
       const op = operation as BatchAddEdgesOperation
       return op.data.edgeSnapshots.every((edge) => !graph.edgesById[edge.id])
     }

@@ -1,19 +1,8 @@
 import type { Edge } from 'reactflow'
+import type { UNDO_REDO_OPERATIONS, UndoRedoOperation } from '@/socket/constants'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
-export type OperationType =
-  | 'batch-add-blocks'
-  | 'batch-remove-blocks'
-  | 'batch-add-edges'
-  | 'batch-remove-edges'
-  | 'batch-move-blocks'
-  | 'update-parent'
-  | 'batch-update-parent'
-  | 'batch-toggle-enabled'
-  | 'batch-toggle-handles'
-  | 'apply-diff'
-  | 'accept-diff'
-  | 'reject-diff'
+export type OperationType = UndoRedoOperation
 
 export interface BaseOperation {
   id: string
@@ -24,7 +13,7 @@ export interface BaseOperation {
 }
 
 export interface BatchAddBlocksOperation extends BaseOperation {
-  type: 'batch-add-blocks'
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_ADD_BLOCKS
   data: {
     blockSnapshots: BlockState[]
     edgeSnapshots: Edge[]
@@ -33,7 +22,7 @@ export interface BatchAddBlocksOperation extends BaseOperation {
 }
 
 export interface BatchRemoveBlocksOperation extends BaseOperation {
-  type: 'batch-remove-blocks'
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_REMOVE_BLOCKS
   data: {
     blockSnapshots: BlockState[]
     edgeSnapshots: Edge[]
@@ -42,21 +31,21 @@ export interface BatchRemoveBlocksOperation extends BaseOperation {
 }
 
 export interface BatchAddEdgesOperation extends BaseOperation {
-  type: 'batch-add-edges'
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_ADD_EDGES
   data: {
     edgeSnapshots: Edge[]
   }
 }
 
 export interface BatchRemoveEdgesOperation extends BaseOperation {
-  type: 'batch-remove-edges'
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_REMOVE_EDGES
   data: {
     edgeSnapshots: Edge[]
   }
 }
 
 export interface BatchMoveBlocksOperation extends BaseOperation {
-  type: 'batch-move-blocks'
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_MOVE_BLOCKS
   data: {
     moves: Array<{
       blockId: string
@@ -67,7 +56,7 @@ export interface BatchMoveBlocksOperation extends BaseOperation {
 }
 
 export interface UpdateParentOperation extends BaseOperation {
-  type: 'update-parent'
+  type: typeof UNDO_REDO_OPERATIONS.UPDATE_PARENT
   data: {
     blockId: string
     oldParentId?: string
@@ -79,7 +68,7 @@ export interface UpdateParentOperation extends BaseOperation {
 }
 
 export interface BatchUpdateParentOperation extends BaseOperation {
-  type: 'batch-update-parent'
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_UPDATE_PARENT
   data: {
     updates: Array<{
       blockId: string
@@ -93,7 +82,7 @@ export interface BatchUpdateParentOperation extends BaseOperation {
 }
 
 export interface BatchToggleEnabledOperation extends BaseOperation {
-  type: 'batch-toggle-enabled'
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_TOGGLE_ENABLED
   data: {
     blockIds: string[]
     previousStates: Record<string, boolean>
@@ -101,7 +90,7 @@ export interface BatchToggleEnabledOperation extends BaseOperation {
 }
 
 export interface BatchToggleHandlesOperation extends BaseOperation {
-  type: 'batch-toggle-handles'
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_TOGGLE_HANDLES
   data: {
     blockIds: string[]
     previousStates: Record<string, boolean>
@@ -109,7 +98,7 @@ export interface BatchToggleHandlesOperation extends BaseOperation {
 }
 
 export interface ApplyDiffOperation extends BaseOperation {
-  type: 'apply-diff'
+  type: typeof UNDO_REDO_OPERATIONS.APPLY_DIFF
   data: {
     baselineSnapshot: any // WorkflowState snapshot before diff
     proposedState: any // WorkflowState with diff applied
@@ -118,7 +107,7 @@ export interface ApplyDiffOperation extends BaseOperation {
 }
 
 export interface AcceptDiffOperation extends BaseOperation {
-  type: 'accept-diff'
+  type: typeof UNDO_REDO_OPERATIONS.ACCEPT_DIFF
   data: {
     beforeAccept: any // WorkflowState with diff markers
     afterAccept: any // WorkflowState without diff markers
@@ -128,7 +117,7 @@ export interface AcceptDiffOperation extends BaseOperation {
 }
 
 export interface RejectDiffOperation extends BaseOperation {
-  type: 'reject-diff'
+  type: typeof UNDO_REDO_OPERATIONS.REJECT_DIFF
   data: {
     beforeReject: any // WorkflowState with diff markers
     afterReject: any // WorkflowState baseline (after reject)
