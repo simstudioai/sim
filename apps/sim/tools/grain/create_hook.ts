@@ -20,6 +20,12 @@ export const grainCreateHookTool: ToolConfig<GrainCreateHookParams, GrainCreateH
       visibility: 'user-or-llm',
       description: 'Webhook endpoint URL (must respond 2xx)',
     },
+    hookType: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Type of webhook: "recording_added" or "upload_status"',
+    },
     filterBeforeDatetime: {
       type: 'string',
       required: false,
@@ -81,6 +87,7 @@ export const grainCreateHookTool: ToolConfig<GrainCreateHookParams, GrainCreateH
     body: (params) => {
       const body: Record<string, any> = {
         hook_url: params.hookUrl,
+        hook_type: params.hookType,
       }
 
       const filter: Record<string, any> = {}
@@ -146,6 +153,10 @@ export const grainCreateHookTool: ToolConfig<GrainCreateHookParams, GrainCreateH
     hook_url: {
       type: 'string',
       description: 'The webhook URL',
+    },
+    hook_type: {
+      type: 'string',
+      description: 'Type of hook: recording_added or upload_status',
     },
     filter: {
       type: 'object',

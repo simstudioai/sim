@@ -1197,6 +1197,7 @@ async function createGrainWebhookSubscription(
 
     const requestBody: Record<string, any> = {
       hook_url: notificationUrl,
+      hook_type: 'recording_added', // Required parameter - fires when a new recording is added
     }
 
     // Build include object based on configuration
@@ -1226,8 +1227,10 @@ async function createGrainWebhookSubscription(
 
     const responseBody = await grainResponse.json()
 
-    if (!grainResponse.ok || responseBody.error) {
+    if (!grainResponse.ok || responseBody.error || responseBody.errors) {
+      logger.warn('[App] Grain response body:', responseBody)
       const errorMessage =
+        responseBody.errors?.detail ||
         responseBody.error?.message ||
         responseBody.error ||
         responseBody.message ||

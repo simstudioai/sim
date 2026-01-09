@@ -51,6 +51,7 @@ export const grainListHooksTool: ToolConfig<GrainListHooksParams, GrainListHooks
           id: { type: 'string', description: 'Hook UUID' },
           enabled: { type: 'boolean', description: 'Whether hook is active' },
           hook_url: { type: 'string', description: 'Webhook URL' },
+          hook_type: { type: 'string', description: 'Type: recording_added or upload_status' },
           filter: { type: 'object', description: 'Applied filters' },
           include: { type: 'object', description: 'Included fields' },
           inserted_at: { type: 'string', description: 'Creation timestamp' },
