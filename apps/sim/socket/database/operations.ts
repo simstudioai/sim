@@ -703,25 +703,22 @@ async function handleBlocksOperationTx(
         `Batch toggling enabled state for ${blockIds.length} blocks in workflow ${workflowId}`
       )
 
-      for (const blockId of blockIds) {
-        const block = await tx
-          .select({ enabled: workflowBlocks.enabled })
-          .from(workflowBlocks)
-          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
-          .limit(1)
+      const blocks = await tx
+        .select({ id: workflowBlocks.id, enabled: workflowBlocks.enabled })
+        .from(workflowBlocks)
+        .where(and(eq(workflowBlocks.workflowId, workflowId), inArray(workflowBlocks.id, blockIds)))
 
-        if (block.length > 0) {
-          await tx
-            .update(workflowBlocks)
-            .set({
-              enabled: !block[0].enabled,
-              updatedAt: new Date(),
-            })
-            .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
-        }
+      for (const block of blocks) {
+        await tx
+          .update(workflowBlocks)
+          .set({
+            enabled: !block.enabled,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(workflowBlocks.id, block.id), eq(workflowBlocks.workflowId, workflowId)))
       }
 
-      logger.debug(`Batch toggled enabled state for ${blockIds.length} blocks`)
+      logger.debug(`Batch toggled enabled state for ${blocks.length} blocks`)
       break
     }
 
@@ -733,25 +730,22 @@ async function handleBlocksOperationTx(
 
       logger.info(`Batch toggling handles for ${blockIds.length} blocks in workflow ${workflowId}`)
 
-      for (const blockId of blockIds) {
-        const block = await tx
-          .select({ horizontalHandles: workflowBlocks.horizontalHandles })
-          .from(workflowBlocks)
-          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
-          .limit(1)
+      const blocks = await tx
+        .select({ id: workflowBlocks.id, horizontalHandles: workflowBlocks.horizontalHandles })
+        .from(workflowBlocks)
+        .where(and(eq(workflowBlocks.workflowId, workflowId), inArray(workflowBlocks.id, blockIds)))
 
-        if (block.length > 0) {
-          await tx
-            .update(workflowBlocks)
-            .set({
-              horizontalHandles: !block[0].horizontalHandles,
-              updatedAt: new Date(),
-            })
-            .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
-        }
+      for (const block of blocks) {
+        await tx
+          .update(workflowBlocks)
+          .set({
+            horizontalHandles: !block.horizontalHandles,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(workflowBlocks.id, block.id), eq(workflowBlocks.workflowId, workflowId)))
       }
 
-      logger.debug(`Batch toggled handles for ${blockIds.length} blocks`)
+      logger.debug(`Batch toggled handles for ${blocks.length} blocks`)
       break
     }
 

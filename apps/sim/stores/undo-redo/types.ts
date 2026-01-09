@@ -5,6 +5,7 @@ export type OperationType =
   | 'batch-add-blocks'
   | 'batch-remove-blocks'
   | 'add-edge'
+  | 'batch-add-edges'
   | 'batch-remove-edges'
   | 'add-subflow'
   | 'remove-subflow'
@@ -47,6 +48,13 @@ export interface AddEdgeOperation extends BaseOperation {
   type: 'add-edge'
   data: {
     edgeId: string
+  }
+}
+
+export interface BatchAddEdgesOperation extends BaseOperation {
+  type: 'batch-add-edges'
+  data: {
+    edgeSnapshots: Edge[]
   }
 }
 
@@ -159,6 +167,7 @@ export type Operation =
   | BatchAddBlocksOperation
   | BatchRemoveBlocksOperation
   | AddEdgeOperation
+  | BatchAddEdgesOperation
   | BatchRemoveEdgesOperation
   | AddSubflowOperation
   | RemoveSubflowOperation

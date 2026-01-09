@@ -6,6 +6,7 @@ import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-o
 import { useOperationQueue } from '@/stores/operation-queue/store'
 import {
   type BatchAddBlocksOperation,
+  type BatchAddEdgesOperation,
   type BatchMoveBlocksOperation,
   type BatchRemoveBlocksOperation,
   type BatchRemoveEdgesOperation,
@@ -141,7 +142,6 @@ export function useUndoRedo() {
         data: { edgeId },
       }
 
-      // Inverse is batch-remove-edges with a single edge
       const inverse: BatchRemoveEdgesOperation = {
         id: crypto.randomUUID(),
         type: 'batch-remove-edges',
@@ -176,10 +176,9 @@ export function useUndoRedo() {
         },
       }
 
-      // Inverse is batch-add-edges (using the snapshots to restore)
-      const inverse: BatchRemoveEdgesOperation = {
+      const inverse: BatchAddEdgesOperation = {
         id: crypto.randomUUID(),
-        type: 'batch-remove-edges',
+        type: 'batch-add-edges',
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
         userId,
