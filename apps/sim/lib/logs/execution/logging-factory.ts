@@ -76,7 +76,7 @@ export async function loadDeployedWorkflowStateForLogging(
     edges: deployedData.edges || [],
     loops: deployedData.loops || {},
     parallels: deployedData.parallels || {},
-    variables: deployedData.variables,
+    variables: deployedData.variables as WorkflowState['variables'],
   }
 }
 

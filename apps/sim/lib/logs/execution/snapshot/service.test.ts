@@ -105,7 +105,7 @@ describe('SnapshotService', () => {
           block1: {
             ...baseState.blocks.block1,
             // Different block state - we can change outputs to make it different
-            outputs: { response: { content: 'different result' } as Record<string, any> },
+            outputs: { response: { type: 'string', description: 'different result' } },
           },
         },
       }
@@ -177,7 +177,7 @@ describe('SnapshotService', () => {
               },
             },
             outputs: {
-              response: { content: 'Agent response' } as Record<string, any>,
+              response: { type: 'string', description: 'Agent response' },
             },
             enabled: true,
             horizontalHandles: true,

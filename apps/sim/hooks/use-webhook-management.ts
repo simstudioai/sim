@@ -302,7 +302,11 @@ export function useWebhookManagement({
     effectiveTriggerId: string | undefined,
     selectedCredentialId: string | null
   ): Promise<boolean> => {
-    const triggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
+    const triggerConfigRaw = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
+    const triggerConfig =
+      typeof triggerConfigRaw === 'object' && triggerConfigRaw !== null
+        ? (triggerConfigRaw as Record<string, unknown>)
+        : {}
 
     const isCredentialSet = selectedCredentialId?.startsWith(CREDENTIAL_SET_PREFIX)
     const credentialSetId = isCredentialSet

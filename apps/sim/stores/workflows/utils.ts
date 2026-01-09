@@ -271,7 +271,9 @@ export function mergeSubblockState(
 
           subAcc[subBlockId] = {
             ...subBlock,
-            value: storedValue !== undefined && storedValue !== null ? storedValue : subBlock.value,
+            value: (storedValue !== undefined && storedValue !== null
+              ? storedValue
+              : subBlock.value) as SubBlockState['value'],
           }
 
           return subAcc
@@ -288,7 +290,7 @@ export function mergeSubblockState(
           mergedSubBlocks[subBlockId] = {
             id: subBlockId,
             type: 'short-input', // Default type that's safe to use
-            value: value,
+            value: value as SubBlockState['value'],
           }
         }
       })
@@ -353,8 +355,9 @@ export async function mergeSubblockStateAsync(
             subBlockId,
             {
               ...subBlock,
-              value:
-                storedValue !== undefined && storedValue !== null ? storedValue : subBlock.value,
+              value: (storedValue !== undefined && storedValue !== null
+                ? storedValue
+                : subBlock.value) as SubBlockState['value'],
             },
           ] as const
         })
@@ -376,7 +379,7 @@ export async function mergeSubblockStateAsync(
             mergedSubBlocks[subBlockId] = {
               id: subBlockId,
               type: 'short-input',
-              value: value,
+              value: value as SubBlockState['value'],
             }
           }
         })

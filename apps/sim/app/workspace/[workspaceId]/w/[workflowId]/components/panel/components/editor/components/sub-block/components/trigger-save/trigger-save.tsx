@@ -43,10 +43,12 @@ export function TriggerSave({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isGeneratingTestUrl, setIsGeneratingTestUrl] = useState(false)
 
-  const storedTestUrl = useSubBlockStore((state) => state.getValue(blockId, 'testUrl'))
+  const storedTestUrl = useSubBlockStore((state) => state.getValue(blockId, 'testUrl')) as
+    | string
+    | null
   const storedTestUrlExpiresAt = useSubBlockStore((state) =>
     state.getValue(blockId, 'testUrlExpiresAt')
-  )
+  ) as string | null
 
   const isTestUrlExpired = useMemo(() => {
     if (!storedTestUrlExpiresAt) return true

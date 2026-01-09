@@ -608,7 +608,7 @@ export async function deployWorkflow(params: {
 }
 
 /** Input state for ID regeneration - partial to handle external sources */
-interface RegenerateStateInput {
+export interface RegenerateStateInput {
   blocks?: Record<string, BlockState>
   edges?: Edge[]
   loops?: Record<string, Loop>

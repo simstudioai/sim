@@ -11,10 +11,10 @@ import {
   USER_FILE_PROPERTY_TYPES,
 } from '@/lib/workflows/types'
 import { getBlock } from '@/blocks'
-import type { BlockConfig, OutputCondition } from '@/blocks/types'
+import type { BlockConfig, OutputCondition, OutputFieldDefinition } from '@/blocks/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
-type OutputDefinition = Record<string, unknown>
+type OutputDefinition = Record<string, OutputFieldDefinition>
 
 interface SubBlockWithValue {
   value?: unknown
@@ -233,7 +233,8 @@ export function getBlockOutputs(
     if (triggerId && isTriggerValid(triggerId)) {
       const trigger = getTrigger(triggerId)
       if (trigger.outputs) {
-        return trigger.outputs
+        // TriggerOutput is compatible with OutputFieldDefinition at runtime
+        return trigger.outputs as OutputDefinition
       }
     }
   }

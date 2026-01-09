@@ -1,5 +1,5 @@
 import type { Edge } from 'reactflow'
-import type { BlockOutput, SubBlockType } from '@/blocks/types'
+import type { OutputFieldDefinition, SubBlockType } from '@/blocks/types'
 import type { DeploymentStatus } from '@/stores/workflows/registry/types'
 
 export const SUBFLOW_TYPES = {
@@ -76,7 +76,7 @@ export interface BlockState {
   name: string
   position: Position
   subBlocks: Record<string, SubBlockState>
-  outputs: Record<string, BlockOutput>
+  outputs: Record<string, OutputFieldDefinition>
   enabled: boolean
   horizontalHandles?: boolean
   height?: number
