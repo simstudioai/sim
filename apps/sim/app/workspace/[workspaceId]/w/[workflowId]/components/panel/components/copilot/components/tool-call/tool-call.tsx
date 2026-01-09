@@ -906,7 +906,8 @@ function isSpecialToolCall(toolCall: CopilotToolCall): boolean {
     'edit_workflow',
     'build_workflow',
     'run_workflow',
-    'deploy_workflow',
+    'deploy_api',
+    'deploy_chat',
   ]
 
   return workflowOperationTools.includes(toolCall.name)

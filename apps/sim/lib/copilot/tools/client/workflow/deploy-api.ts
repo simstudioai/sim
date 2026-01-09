@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { Loader2, Rocket, X, XCircle } from 'lucide-react'
+import { Loader2, Rocket, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -9,35 +9,31 @@ import { getInputFormatExample } from '@/lib/workflows/operations/deployment-uti
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
-interface DeployWorkflowArgs {
+interface DeployApiArgs {
   action: 'deploy' | 'undeploy'
-  deployType?: 'api' | 'chat'
   workflowId?: string
 }
 
-interface ApiKeysData {
-  workspaceKeys: Array<{ id: string; name: string }>
-  personalKeys: Array<{ id: string; name: string }>
-}
-
-export class DeployWorkflowClientTool extends BaseClientTool {
-  static readonly id = 'deploy_workflow'
+/**
+ * Deploy API tool for deploying workflows as REST APIs.
+ * This tool handles both deploying and undeploying workflows via the API endpoint.
+ */
+export class DeployApiClientTool extends BaseClientTool {
+  static readonly id = 'deploy_api'
 
   constructor(toolCallId: string) {
-    super(toolCallId, DeployWorkflowClientTool.id, DeployWorkflowClientTool.metadata)
+    super(toolCallId, DeployApiClientTool.id, DeployApiClientTool.metadata)
   }
 
   /**
-   * Override to provide dynamic button text based on action and deployType
+   * Override to provide dynamic button text based on action
    */
   getInterruptDisplays(): BaseClientToolMetadata['interrupt'] | undefined {
-    // Get params from the copilot store
     const toolCallsById = useCopilotStore.getState().toolCallsById
     const toolCall = toolCallsById[this.toolCallId]
-    const params = toolCall?.params as DeployWorkflowArgs | undefined
+    const params = toolCall?.params as DeployApiArgs | undefined
 
     const action = params?.action || 'deploy'
-    const deployType = params?.deployType || 'api'
 
     // Check if workflow is already deployed
     const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
@@ -45,13 +41,10 @@ export class DeployWorkflowClientTool extends BaseClientTool {
       ? useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)?.isDeployed
       : false
 
-    let buttonText = action.charAt(0).toUpperCase() + action.slice(1)
+    let buttonText = action === 'undeploy' ? 'Undeploy' : 'Deploy'
 
-    // Change to "Redeploy" if already deployed
     if (action === 'deploy' && isAlreadyDeployed) {
       buttonText = 'Redeploy'
-    } else if (action === 'deploy' && deployType === 'chat') {
-      buttonText = 'Deploy as chat'
     }
 
     return {
@@ -63,19 +56,19 @@ export class DeployWorkflowClientTool extends BaseClientTool {
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
       [ClientToolCallState.generating]: {
-        text: 'Preparing to deploy workflow',
+        text: 'Preparing to deploy API',
         icon: Loader2,
       },
-      [ClientToolCallState.pending]: { text: 'Deploy workflow?', icon: Rocket },
-      [ClientToolCallState.executing]: { text: 'Deploying workflow', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Deployed workflow', icon: Rocket },
-      [ClientToolCallState.error]: { text: 'Failed to deploy workflow', icon: X },
+      [ClientToolCallState.pending]: { text: 'Deploy as API?', icon: Rocket },
+      [ClientToolCallState.executing]: { text: 'Deploying API', icon: Loader2 },
+      [ClientToolCallState.success]: { text: 'API deployed', icon: Rocket },
+      [ClientToolCallState.error]: { text: 'Failed to deploy API', icon: XCircle },
       [ClientToolCallState.aborted]: {
-        text: 'Aborted deploying workflow',
+        text: 'Aborted deploying API',
         icon: XCircle,
       },
       [ClientToolCallState.rejected]: {
-        text: 'Skipped deploying workflow',
+        text: 'Skipped deploying API',
         icon: XCircle,
       },
     },
@@ -85,7 +78,6 @@ export class DeployWorkflowClientTool extends BaseClientTool {
     },
     getDynamicText: (params, state) => {
       const action = params?.action === 'undeploy' ? 'undeploy' : 'deploy'
-      const deployType = params?.deployType || 'api'
 
       // Check if workflow is already deployed
       const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
@@ -93,48 +85,32 @@ export class DeployWorkflowClientTool extends BaseClientTool {
         ? useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)?.isDeployed
         : false
 
-      // Determine action text based on deployment status
       let actionText = action
       let actionTextIng = action === 'undeploy' ? 'undeploying' : 'deploying'
-      let actionTextPast = action === 'undeploy' ? 'undeployed' : 'deployed'
+      const actionTextPast = action === 'undeploy' ? 'undeployed' : 'deployed'
 
-      // If already deployed and action is deploy, change to redeploy
       if (action === 'deploy' && isAlreadyDeployed) {
         actionText = 'redeploy'
         actionTextIng = 'redeploying'
-        actionTextPast = 'redeployed'
       }
 
       const actionCapitalized = actionText.charAt(0).toUpperCase() + actionText.slice(1)
 
-      // Special text for chat deployment
-      const isChatDeploy = action === 'deploy' && deployType === 'chat'
-      const displayAction = isChatDeploy ? 'deploy as chat' : actionText
-      const displayActionCapitalized = isChatDeploy ? 'Deploy as chat' : actionCapitalized
-
       switch (state) {
         case ClientToolCallState.success:
-          return isChatDeploy
-            ? 'Opened chat deployment settings'
-            : `${actionCapitalized}ed workflow`
+          return `API ${actionTextPast}`
         case ClientToolCallState.executing:
-          return isChatDeploy
-            ? 'Opening chat deployment settings'
-            : `${actionCapitalized}ing workflow`
+          return `${actionCapitalized}ing API`
         case ClientToolCallState.generating:
-          return `Preparing to ${displayAction} workflow`
+          return `Preparing to ${actionText} API`
         case ClientToolCallState.pending:
-          return `${displayActionCapitalized} workflow?`
+          return `${actionCapitalized} API?`
         case ClientToolCallState.error:
-          return `Failed to ${displayAction} workflow`
+          return `Failed to ${actionText} API`
         case ClientToolCallState.aborted:
-          return isChatDeploy
-            ? 'Aborted opening chat deployment'
-            : `Aborted ${actionTextIng} workflow`
+          return `Aborted ${actionTextIng} API`
         case ClientToolCallState.rejected:
-          return isChatDeploy
-            ? 'Skipped opening chat deployment'
-            : `Skipped ${actionTextIng} workflow`
+          return `Skipped ${actionTextIng} API`
       }
       return undefined
     },
@@ -162,7 +138,7 @@ export class DeployWorkflowClientTool extends BaseClientTool {
 
       return workspaceKeys.length > 0 || personalKeys.length > 0
     } catch (error) {
-      const logger = createLogger('DeployWorkflowClientTool')
+      const logger = createLogger('DeployApiClientTool')
       logger.warn('Failed to check API keys:', error)
       return false
     }
@@ -175,23 +151,15 @@ export class DeployWorkflowClientTool extends BaseClientTool {
     window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'apikeys' } }))
   }
 
-  /**
-   * Opens the deploy modal to the chat tab
-   */
-  private openDeployModal(tab: 'api' | 'chat' = 'api'): void {
-    window.dispatchEvent(new CustomEvent('open-deploy-modal', { detail: { tab } }))
-  }
-
   async handleReject(): Promise<void> {
     await super.handleReject()
     this.setState(ClientToolCallState.rejected)
   }
 
-  async handleAccept(args?: DeployWorkflowArgs): Promise<void> {
-    const logger = createLogger('DeployWorkflowClientTool')
+  async handleAccept(args?: DeployApiArgs): Promise<void> {
+    const logger = createLogger('DeployApiClientTool')
     try {
       const action = args?.action || 'deploy'
-      const deployType = args?.deployType || 'api'
       const { activeWorkflowId, workflows } = useWorkflowRegistry.getState()
       const workflowId = args?.workflowId || activeWorkflowId
 
@@ -202,22 +170,6 @@ export class DeployWorkflowClientTool extends BaseClientTool {
       const workflow = workflows[workflowId]
       const workspaceId = workflow?.workspaceId
 
-      // For chat deployment, just open the deploy modal
-      if (action === 'deploy' && deployType === 'chat') {
-        this.setState(ClientToolCallState.success)
-        this.openDeployModal('chat')
-        await this.markToolComplete(
-          200,
-          'Opened chat deployment settings. Configure and deploy your workflow as a chat interface.',
-          {
-            action,
-            deployType,
-            openedModal: true,
-          }
-        )
-        return
-      }
-
       // For deploy action, check if user has API keys first
       if (action === 'deploy') {
         if (!workspaceId) {
@@ -227,10 +179,7 @@ export class DeployWorkflowClientTool extends BaseClientTool {
         const hasKeys = await this.hasApiKeys(workspaceId)
 
         if (!hasKeys) {
-          // Mark as rejected since we can't deploy without an API key
           this.setState(ClientToolCallState.rejected)
-
-          // Open the API keys modal to help user create one
           this.openApiKeysModal()
 
           await this.markToolComplete(
@@ -248,7 +197,6 @@ export class DeployWorkflowClientTool extends BaseClientTool {
 
       this.setState(ClientToolCallState.executing)
 
-      // Perform the deploy/undeploy action
       const endpoint = `/api/workflows/${workflowId}/deploy`
       const method = action === 'deploy' ? 'POST' : 'DELETE'
 
@@ -273,25 +221,21 @@ export class DeployWorkflowClientTool extends BaseClientTool {
       }
 
       if (action === 'deploy') {
-        // Generate the curl command for the deployed workflow (matching deploy modal format)
         const appUrl =
           typeof window !== 'undefined'
             ? window.location.origin
             : process.env.NEXT_PUBLIC_APP_URL || 'https://app.sim.ai'
-        const endpoint = `${appUrl}/api/workflows/${workflowId}/execute`
+        const apiEndpoint = `${appUrl}/api/workflows/${workflowId}/execute`
         const apiKeyPlaceholder = '$SIM_API_KEY'
 
-        // Get input format example (returns empty string if no inputs, or -d flag with example data)
         const inputExample = getInputFormatExample(false)
+        const curlCommand = `curl -X POST -H "X-API-Key: ${apiKeyPlaceholder}" -H "Content-Type: application/json"${inputExample} ${apiEndpoint}`
 
-        // Match the exact format from deploy modal
-        const curlCommand = `curl -X POST -H "X-API-Key: ${apiKeyPlaceholder}" -H "Content-Type: application/json"${inputExample} ${endpoint}`
-
-        successMessage = 'Workflow deployed successfully. You can now call it via the API.'
+        successMessage = 'Workflow deployed successfully as API. You can now call it via REST.'
 
         resultData = {
           ...resultData,
-          endpoint,
+          endpoint: apiEndpoint,
           curlCommand,
           apiKeyPlaceholder,
         }
@@ -316,18 +260,19 @@ export class DeployWorkflowClientTool extends BaseClientTool {
           setDeploymentStatus(workflowId, false, undefined, '')
         }
         const actionPast = action === 'undeploy' ? 'undeployed' : 'deployed'
-        logger.info(`Workflow ${actionPast} and registry updated`)
+        logger.info(`Workflow ${actionPast} as API and registry updated`)
       } catch (error) {
         logger.warn('Failed to update workflow registry:', error)
       }
     } catch (e: any) {
-      logger.error('Deploy/undeploy failed', { message: e?.message })
+      logger.error('Deploy API failed', { message: e?.message })
       this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'Failed to deploy/undeploy workflow')
+      await this.markToolComplete(500, e?.message || 'Failed to deploy API')
     }
   }
 
-  async execute(args?: DeployWorkflowArgs): Promise<void> {
+  async execute(args?: DeployApiArgs): Promise<void> {
     await this.handleAccept(args)
   }
 }
+

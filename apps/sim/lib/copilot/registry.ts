@@ -29,7 +29,11 @@ export const ToolIds = z.enum([
   'set_global_workflow_variables',
   'oauth_request_access',
   'get_trigger_blocks',
-  'deploy_workflow',
+  'deploy_api',
+  'deploy_chat',
+  'deploy_mcp',
+  'list_workspace_mcp_servers',
+  'create_workspace_mcp_server',
   'check_deployment_status',
   'navigate_ui',
   'knowledge_base',
@@ -78,9 +82,66 @@ export const ToolArgSchemas = {
     providerName: z.string(),
   }),
 
-  deploy_workflow: z.object({
+  deploy_api: z.object({
     action: z.enum(['deploy', 'undeploy']).optional().default('deploy'),
-    deployType: z.enum(['api', 'chat']).optional().default('api'),
+  }),
+
+  deploy_chat: z.object({
+    action: z.enum(['deploy', 'undeploy']).optional().default('deploy'),
+    identifier: z
+      .string()
+      .optional()
+      .describe('URL slug for the chat (lowercase letters, numbers, hyphens only)'),
+    title: z.string().optional().describe('Display title for the chat interface'),
+    description: z.string().optional().describe('Optional description for the chat'),
+    authType: z
+      .enum(['public', 'password', 'email', 'sso'])
+      .optional()
+      .default('public')
+      .describe('Authentication type: public, password, email, or sso'),
+    password: z.string().optional().describe('Password for password-protected chats'),
+    allowedEmails: z
+      .array(z.string())
+      .optional()
+      .describe('List of allowed emails/domains for email or SSO auth'),
+    welcomeMessage: z.string().optional().describe('Welcome message shown to users'),
+    outputConfigs: z
+      .array(
+        z.object({
+          blockId: z.string().describe('The block UUID'),
+          path: z.string().describe('The output path (e.g. "response", "response.content")'),
+        })
+      )
+      .optional()
+      .describe('Output configurations specifying which block outputs to display in chat'),
+  }),
+
+  deploy_mcp: z.object({
+    serverId: z
+      .string()
+      .describe('The MCP server ID to deploy to (get from list_workspace_mcp_servers)'),
+    workflowId: z.string().optional().describe('Optional workflow ID (defaults to active workflow)'),
+    toolName: z.string().optional().describe('Custom tool name (defaults to workflow name)'),
+    toolDescription: z.string().optional().describe('Custom tool description'),
+    parameterDescriptions: z
+      .array(
+        z.object({
+          name: z.string().describe('Parameter name'),
+          description: z.string().describe('Parameter description'),
+        })
+      )
+      .optional()
+      .describe('Parameter descriptions to include in the MCP tool schema'),
+  }),
+
+  list_workspace_mcp_servers: z.object({
+    workspaceId: z.string().optional().describe('Optional workspace ID (defaults to current)'),
+  }),
+
+  create_workspace_mcp_server: z.object({
+    name: z.string().describe('Name of the MCP server'),
+    description: z.string().optional().describe('Optional description for the server'),
+    workspaceId: z.string().optional().describe('Optional workspace ID (defaults to current)'),
   }),
 
   check_deployment_status: z.object({
@@ -359,7 +420,17 @@ export const ToolSSESchemas = {
   reason: toolCallSSEFor('reason', ToolArgSchemas.reason),
   // New
   oauth_request_access: toolCallSSEFor('oauth_request_access', ToolArgSchemas.oauth_request_access),
-  deploy_workflow: toolCallSSEFor('deploy_workflow', ToolArgSchemas.deploy_workflow),
+  deploy_api: toolCallSSEFor('deploy_api', ToolArgSchemas.deploy_api),
+  deploy_chat: toolCallSSEFor('deploy_chat', ToolArgSchemas.deploy_chat),
+  deploy_mcp: toolCallSSEFor('deploy_mcp', ToolArgSchemas.deploy_mcp),
+  list_workspace_mcp_servers: toolCallSSEFor(
+    'list_workspace_mcp_servers',
+    ToolArgSchemas.list_workspace_mcp_servers
+  ),
+  create_workspace_mcp_server: toolCallSSEFor(
+    'create_workspace_mcp_server',
+    ToolArgSchemas.create_workspace_mcp_server
+  ),
   check_deployment_status: toolCallSSEFor(
     'check_deployment_status',
     ToolArgSchemas.check_deployment_status
@@ -581,9 +652,8 @@ export const ToolResultSchemas = {
     }),
   }),
   reason: z.object({ reasoning: z.string() }),
-  deploy_workflow: z.object({
+  deploy_api: z.object({
     action: z.enum(['deploy', 'undeploy']).optional(),
-    deployType: z.enum(['api', 'chat']).optional(),
     isDeployed: z.boolean().optional(),
     deployedAt: z.string().optional(),
     needsApiKey: z.boolean().optional(),
@@ -591,14 +661,74 @@ export const ToolResultSchemas = {
     endpoint: z.string().optional(),
     curlCommand: z.string().optional(),
     apiKeyPlaceholder: z.string().optional(),
-    openedModal: z.boolean().optional(),
+  }),
+  deploy_chat: z.object({
+    success: z.boolean(),
+    action: z.enum(['deploy', 'undeploy']).optional(),
+    isDeployed: z.boolean().optional(),
+    chatId: z.string().optional(),
+    chatUrl: z.string().optional(),
+    identifier: z.string().optional(),
+    title: z.string().optional(),
+    authType: z.enum(['public', 'password', 'email', 'sso']).optional(),
+    message: z.string().optional(),
+    error: z.string().optional(),
+    errorCode: z
+      .enum(['IDENTIFIER_TAKEN', 'VALIDATION_ERROR', 'AUTH_ERROR', 'SERVER_ERROR'])
+      .optional(),
+  }),
+  deploy_mcp: z.object({
+    success: z.boolean(),
+    toolId: z.string().optional(),
+    toolName: z.string().optional(),
+    toolDescription: z.string().optional(),
+    serverId: z.string().optional(),
+    error: z.string().optional(),
+  }),
+  list_workspace_mcp_servers: z.object({
+    servers: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        description: z.string().nullable(),
+        toolCount: z.number(),
+        toolNames: z.array(z.string()),
+      })
+    ),
+    count: z.number(),
+  }),
+  create_workspace_mcp_server: z.object({
+    success: z.boolean(),
+    serverId: z.string().optional(),
+    serverName: z.string().optional(),
+    description: z.string().nullable().optional(),
+    error: z.string().optional(),
   }),
   check_deployment_status: z.object({
     isDeployed: z.boolean(),
-    deploymentTypes: z.array(z.string()),
-    apiDeployed: z.boolean(),
-    chatDeployed: z.boolean(),
-    deployedAt: z.string().nullable(),
+    deploymentTypes: z.array(z.enum(['api', 'chat', 'mcp'])),
+    api: z.object({
+      isDeployed: z.boolean(),
+      deployedAt: z.string().nullable(),
+      endpoint: z.string().nullable(),
+    }),
+    chat: z.object({
+      isDeployed: z.boolean(),
+      chatId: z.string().nullable(),
+      identifier: z.string().nullable(),
+      chatUrl: z.string().nullable(),
+    }),
+    mcp: z.object({
+      isDeployed: z.boolean(),
+      servers: z.array(
+        z.object({
+          serverId: z.string(),
+          serverName: z.string(),
+          toolName: z.string(),
+          toolDescription: z.string().nullable(),
+        })
+      ),
+    }),
   }),
   navigate_ui: z.object({
     destination: z.enum(['workflow', 'logs', 'templates', 'vector_db', 'settings']),

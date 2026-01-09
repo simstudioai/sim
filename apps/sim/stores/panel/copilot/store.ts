@@ -51,8 +51,12 @@ import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/regi
 import { GetCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-credentials'
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
 import { CheckDeploymentStatusClientTool } from '@/lib/copilot/tools/client/workflow/check-deployment-status'
-import { DeployWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/deploy-workflow'
+import { CreateWorkspaceMcpServerClientTool } from '@/lib/copilot/tools/client/workflow/create-workspace-mcp-server'
+import { DeployApiClientTool } from '@/lib/copilot/tools/client/workflow/deploy-api'
+import { DeployChatClientTool } from '@/lib/copilot/tools/client/workflow/deploy-chat'
+import { DeployMcpClientTool } from '@/lib/copilot/tools/client/workflow/deploy-mcp'
 import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
+import { ListWorkspaceMcpServersClientTool } from '@/lib/copilot/tools/client/workflow/list-workspace-mcp-servers'
 import { GetBlockOutputsClientTool } from '@/lib/copilot/tools/client/workflow/get-block-outputs'
 import { GetBlockUpstreamReferencesClientTool } from '@/lib/copilot/tools/client/workflow/get-block-upstream-references'
 import { GetUserWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/get-user-workflow'
@@ -130,7 +134,11 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   get_examples_rag: (id) => new GetExamplesRagClientTool(id),
   get_operations_examples: (id) => new GetOperationsExamplesClientTool(id),
   summarize_conversation: (id) => new SummarizeClientTool(id),
-  deploy_workflow: (id) => new DeployWorkflowClientTool(id),
+  deploy_api: (id) => new DeployApiClientTool(id),
+  deploy_chat: (id) => new DeployChatClientTool(id),
+  deploy_mcp: (id) => new DeployMcpClientTool(id),
+  list_workspace_mcp_servers: (id) => new ListWorkspaceMcpServersClientTool(id),
+  create_workspace_mcp_server: (id) => new CreateWorkspaceMcpServerClientTool(id),
   check_deployment_status: (id) => new CheckDeploymentStatusClientTool(id),
   navigate_ui: (id) => new NavigateUIClientTool(id),
   manage_custom_tool: (id) => new ManageCustomToolClientTool(id),
@@ -183,7 +191,11 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   oauth_request_access: (OAuthRequestAccessClientTool as any)?.metadata,
   get_operations_examples: (GetOperationsExamplesClientTool as any)?.metadata,
   summarize_conversation: (SummarizeClientTool as any)?.metadata,
-  deploy_workflow: (DeployWorkflowClientTool as any)?.metadata,
+  deploy_api: (DeployApiClientTool as any)?.metadata,
+  deploy_chat: (DeployChatClientTool as any)?.metadata,
+  deploy_mcp: (DeployMcpClientTool as any)?.metadata,
+  list_workspace_mcp_servers: (ListWorkspaceMcpServersClientTool as any)?.metadata,
+  create_workspace_mcp_server: (CreateWorkspaceMcpServerClientTool as any)?.metadata,
   check_deployment_status: (CheckDeploymentStatusClientTool as any)?.metadata,
   navigate_ui: (NavigateUIClientTool as any)?.metadata,
   manage_custom_tool: (ManageCustomToolClientTool as any)?.metadata,
