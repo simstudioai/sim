@@ -19,23 +19,30 @@ export const linearCreateProjectStatusTool: ToolConfig<
   },
 
   params: {
-    projectId: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'The project to create the status for',
-    },
     name: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description: 'Project status name',
     },
+    type: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'Status type: "backlog", "planned", "started", "paused", "completed", or "canceled"',
+    },
     color: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description: 'Status color (hex code)',
+    },
+    position: {
+      type: 'number',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Position in status list (e.g. 0, 1, 2...)',
     },
     description: {
       type: 'string',
@@ -48,12 +55,6 @@ export const linearCreateProjectStatusTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'Whether the status is indefinite',
-    },
-    position: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Position in status list',
     },
   },
 
@@ -71,9 +72,10 @@ export const linearCreateProjectStatusTool: ToolConfig<
     },
     body: (params) => {
       const input: Record<string, any> = {
-        projectId: params.projectId,
         name: params.name,
+        type: params.type,
         color: params.color,
+        position: params.position,
       }
 
       if (params.description != null && params.description !== '') {
@@ -81,9 +83,6 @@ export const linearCreateProjectStatusTool: ToolConfig<
       }
       if (params.indefinite != null) {
         input.indefinite = params.indefinite
-      }
-      if (params.position != null) {
-        input.position = params.position
       }
 
       return {
