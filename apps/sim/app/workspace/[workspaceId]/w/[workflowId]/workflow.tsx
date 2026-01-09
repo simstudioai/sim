@@ -748,13 +748,16 @@ const WorkflowContent = React.memo(() => {
   }, [contextMenuBlocks, collaborativeBatchToggleBlockHandles])
 
   const handleContextRemoveFromSubflow = useCallback(() => {
-    contextMenuBlocks.forEach((block) => {
-      if (block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')) {
-        window.dispatchEvent(
-          new CustomEvent('remove-from-subflow', { detail: { blockId: block.id } })
-        )
-      }
-    })
+    const blocksToRemove = contextMenuBlocks.filter(
+      (block) => block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')
+    )
+    if (blocksToRemove.length > 0) {
+      window.dispatchEvent(
+        new CustomEvent('remove-from-subflow', {
+          detail: { blockIds: blocksToRemove.map((b) => b.id) },
+        })
+      )
+    }
   }, [contextMenuBlocks])
 
   const handleContextOpenEditor = useCallback(() => {
@@ -921,20 +924,32 @@ const WorkflowContent = React.memo(() => {
   /** Handles ActionBar remove-from-subflow events. */
   useEffect(() => {
     const handleRemoveFromSubflow = (event: Event) => {
-      const customEvent = event as CustomEvent<{ blockId: string }>
-      const blockId = customEvent.detail?.blockId
-      if (!blockId) return
+      const customEvent = event as CustomEvent<{ blockIds: string[] }>
+      const blockIds = customEvent.detail?.blockIds
+      if (!blockIds || blockIds.length === 0) return
 
       try {
-        const currentBlock = blocks[blockId]
-        const parentId = currentBlock?.data?.parentId
-        if (!parentId) return
+        const validBlockIds = blockIds.filter((id) => {
+          const block = blocks[id]
+          return block?.data?.parentId
+        })
+        if (validBlockIds.length === 0) return
 
-        const edgesToRemove = edgesForDisplay.filter(
-          (e) => e.source === blockId || e.target === blockId
-        )
-        removeEdgesForNode(blockId, edgesToRemove)
-        updateNodeParent(blockId, null, edgesToRemove)
+        const movingNodeIds = new Set(validBlockIds)
+
+        const boundaryEdges = edgesForDisplay.filter((e) => {
+          const sourceInSelection = movingNodeIds.has(e.source)
+          const targetInSelection = movingNodeIds.has(e.target)
+          return sourceInSelection !== targetInSelection
+        })
+
+        for (const blockId of validBlockIds) {
+          const edgesForThisNode = boundaryEdges.filter(
+            (e) => e.source === blockId || e.target === blockId
+          )
+          removeEdgesForNode(blockId, edgesForThisNode)
+          updateNodeParent(blockId, null, edgesForThisNode)
+        }
       } catch (err) {
         logger.error('Failed to remove from subflow', { err })
       }
