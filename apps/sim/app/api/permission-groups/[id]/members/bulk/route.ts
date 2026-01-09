@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { member, permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, notInArray } from 'drizzle-orm'
+import { and, eq, inArray, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         and(
           eq(permissionGroup.organizationId, result.group.organizationId),
           inArray(permissionGroupMember.userId, usersToAdd),
-          notInArray(permissionGroupMember.permissionGroupId, [id])
+          ne(permissionGroupMember.permissionGroupId, id)
         )
       )
 

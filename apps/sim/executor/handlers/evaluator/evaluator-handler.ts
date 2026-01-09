@@ -38,7 +38,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
       bedrockRegion: inputs.bedrockRegion,
     }
 
-    await validateModelProvider(ctx.userId, evaluatorConfig.model)
+    await validateModelProvider(ctx.userId, evaluatorConfig.model, ctx)
 
     const providerId = getProviderFromModel(evaluatorConfig.model)
 

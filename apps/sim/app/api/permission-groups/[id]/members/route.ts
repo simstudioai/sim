@@ -110,42 +110,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       )
     }
 
-    const existingMembership = await db
-      .select({
-        id: permissionGroupMember.id,
-        permissionGroupId: permissionGroupMember.permissionGroupId,
-      })
-      .from(permissionGroupMember)
-      .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
-      .where(
-        and(
-          eq(permissionGroupMember.userId, userId),
-          eq(permissionGroup.organizationId, result.group.organizationId)
+    const newMember = await db.transaction(async (tx) => {
+      const existingMembership = await tx
+        .select({
+          id: permissionGroupMember.id,
+          permissionGroupId: permissionGroupMember.permissionGroupId,
+        })
+        .from(permissionGroupMember)
+        .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
+        .where(
+          and(
+            eq(permissionGroupMember.userId, userId),
+            eq(permissionGroup.organizationId, result.group.organizationId)
+          )
         )
-      )
-      .limit(1)
+        .limit(1)
 
-    if (existingMembership.length > 0) {
-      if (existingMembership[0].permissionGroupId === id) {
-        return NextResponse.json(
-          { error: 'User is already in this permission group' },
-          { status: 409 }
-        )
+      if (existingMembership.length > 0) {
+        if (existingMembership[0].permissionGroupId === id) {
+          throw new Error('ALREADY_IN_GROUP')
+        }
+        await tx
+          .delete(permissionGroupMember)
+          .where(eq(permissionGroupMember.id, existingMembership[0].id))
       }
-      await db
-        .delete(permissionGroupMember)
-        .where(eq(permissionGroupMember.id, existingMembership[0].id))
-    }
 
-    const newMember = {
-      id: crypto.randomUUID(),
-      permissionGroupId: id,
-      userId,
-      assignedBy: session.user.id,
-      assignedAt: new Date(),
-    }
+      const memberData = {
+        id: crypto.randomUUID(),
+        permissionGroupId: id,
+        userId,
+        assignedBy: session.user.id,
+        assignedAt: new Date(),
+      }
 
-    await db.insert(permissionGroupMember).values(newMember)
+      await tx.insert(permissionGroupMember).values(memberData)
+      return memberData
+    })
 
     logger.info('Added member to permission group', {
       permissionGroupId: id,
@@ -157,6 +157,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
+    }
+    if (error instanceof Error && error.message === 'ALREADY_IN_GROUP') {
+      return NextResponse.json(
+        { error: 'User is already in this permission group' },
+        { status: 409 }
+      )
     }
     logger.error('Error adding member to permission group', error)
     return NextResponse.json({ error: 'Failed to add member' }, { status: 500 })

@@ -7,6 +7,7 @@ import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/types'
+import type { ExecutionContext } from '@/executor/types'
 import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('PermissionCheck')
@@ -78,15 +79,38 @@ export async function getUserPermissionConfig(
   return parsePermissionGroupConfig(groupMembership.config)
 }
 
+export async function getPermissionConfig(
+  userId: string | undefined,
+  ctx?: ExecutionContext
+): Promise<PermissionGroupConfig | null> {
+  if (!userId) {
+    return null
+  }
+
+  if (ctx) {
+    if (ctx.permissionConfigLoaded) {
+      return ctx.permissionConfig ?? null
+    }
+
+    const config = await getUserPermissionConfig(userId)
+    ctx.permissionConfig = config
+    ctx.permissionConfigLoaded = true
+    return config
+  }
+
+  return getUserPermissionConfig(userId)
+}
+
 export async function validateModelProvider(
   userId: string | undefined,
-  model: string
+  model: string,
+  ctx?: ExecutionContext
 ): Promise<void> {
   if (!userId) {
     return
   }
 
-  const config = await getUserPermissionConfig(userId)
+  const config = await getPermissionConfig(userId, ctx)
 
   if (!config || config.allowedModelProviders === null) {
     return
@@ -102,13 +126,14 @@ export async function validateModelProvider(
 
 export async function validateBlockType(
   userId: string | undefined,
-  blockType: string
+  blockType: string,
+  ctx?: ExecutionContext
 ): Promise<void> {
   if (!userId) {
     return
   }
 
-  const config = await getUserPermissionConfig(userId)
+  const config = await getPermissionConfig(userId, ctx)
 
   if (!config || config.allowedIntegrations === null) {
     return
@@ -120,12 +145,15 @@ export async function validateBlockType(
   }
 }
 
-export async function validateMcpToolsAllowed(userId: string | undefined): Promise<void> {
+export async function validateMcpToolsAllowed(
+  userId: string | undefined,
+  ctx?: ExecutionContext
+): Promise<void> {
   if (!userId) {
     return
   }
 
-  const config = await getUserPermissionConfig(userId)
+  const config = await getPermissionConfig(userId, ctx)
 
   if (!config) {
     return
@@ -137,12 +165,15 @@ export async function validateMcpToolsAllowed(userId: string | undefined): Promi
   }
 }
 
-export async function validateCustomToolsAllowed(userId: string | undefined): Promise<void> {
+export async function validateCustomToolsAllowed(
+  userId: string | undefined,
+  ctx?: ExecutionContext
+): Promise<void> {
   if (!userId) {
     return
   }
 
-  const config = await getUserPermissionConfig(userId)
+  const config = await getPermissionConfig(userId, ctx)
 
   if (!config) {
     return

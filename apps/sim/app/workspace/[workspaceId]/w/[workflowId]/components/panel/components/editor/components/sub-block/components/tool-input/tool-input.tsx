@@ -7,6 +7,7 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Combobox,
+  type ComboboxOption,
   type ComboboxOptionGroup,
   Popover,
   PopoverContent,

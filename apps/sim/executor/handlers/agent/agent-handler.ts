@@ -62,7 +62,7 @@ export class AgentBlockHandler implements BlockHandler {
     const responseFormat = this.parseResponseFormat(filteredInputs.responseFormat)
     const model = filteredInputs.model || AGENT.DEFAULT_MODEL
 
-    await validateModelProvider(ctx.userId, model)
+    await validateModelProvider(ctx.userId, model, ctx)
 
     const providerId = getProviderFromModel(model)
     const formattedTools = await this.formatTools(ctx, filteredInputs.tools || [])
@@ -162,11 +162,11 @@ export class AgentBlockHandler implements BlockHandler {
     const hasCustomTools = tools.some((t) => t.type === 'custom-tool')
 
     if (hasMcpTools) {
-      await validateMcpToolsAllowed(ctx.userId)
+      await validateMcpToolsAllowed(ctx.userId, ctx)
     }
 
     if (hasCustomTools) {
-      await validateCustomToolsAllowed(ctx.userId)
+      await validateCustomToolsAllowed(ctx.userId, ctx)
     }
   }
 
@@ -240,7 +240,7 @@ export class AgentBlockHandler implements BlockHandler {
       otherTools.map(async (tool) => {
         try {
           if (tool.type && tool.type !== 'custom-tool' && tool.type !== 'mcp') {
-            await validateBlockType(ctx.userId, tool.type)
+            await validateBlockType(ctx.userId, tool.type, ctx)
           }
           if (tool.type === 'custom-tool' && (tool.schema || tool.customToolId)) {
             return await this.createCustomTool(ctx, tool)
