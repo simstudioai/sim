@@ -1,4 +1,3 @@
-import { buildMemoryKey } from '@/tools/memory/helpers'
 import type { MemoryResponse } from '@/tools/memory/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -24,11 +23,13 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
     role: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Role for agent memory (user, assistant, or system)',
     },
     content: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Content for agent memory',
     },
   },
@@ -41,52 +42,12 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
     }),
     body: (params) => {
       const workspaceId = params._context?.workspaceId
-
       if (!workspaceId) {
-        return {
-          _errorResponse: {
-            status: 400,
-            data: {
-              success: false,
-              error: {
-                message: 'workspaceId is required and must be provided in execution context',
-              },
-            },
-          },
-        }
+        throw new Error('workspaceId is required in execution context')
       }
 
       const conversationId = params.conversationId || params.id
-
-      if (!conversationId || conversationId.trim() === '') {
-        return {
-          _errorResponse: {
-            status: 400,
-            data: {
-              success: false,
-              error: {
-                message: 'conversationId or id is required',
-              },
-            },
-          },
-        }
-      }
-
-      if (!params.role || !params.content) {
-        return {
-          _errorResponse: {
-            status: 400,
-            data: {
-              success: false,
-              error: {
-                message: 'Role and content are required for agent memory',
-              },
-            },
-          },
-        }
-      }
-
-      const key = buildMemoryKey(conversationId)
+      const key = conversationId as string
 
       const body: Record<string, any> = {
         key,
