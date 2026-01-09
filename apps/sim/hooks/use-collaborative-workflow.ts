@@ -315,6 +315,13 @@ export function useCollaborativeWorkflow() {
               }
               break
             }
+            case 'batch-add-edges': {
+              const { edges } = payload
+              if (Array.isArray(edges)) {
+                edges.forEach((edge: Edge) => workflowStore.addEdge(edge))
+              }
+              break
+            }
           }
         } else if (target === 'subflow') {
           switch (operation) {
