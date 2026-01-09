@@ -313,7 +313,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
             </div>
           </ModalHeader>
 
-          <ModalBody className='!pb-[16px]'>
+          <ModalBody>
             <div className='min-h-0 flex-1 overflow-y-auto'>
               <div className='space-y-[8px]'>
                 <Label>
@@ -458,7 +458,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
       <Modal open={deleteTagDialogOpen} onOpenChange={setDeleteTagDialogOpen}>
         <ModalContent size='sm'>
           <ModalHeader>Delete Tag</ModalHeader>
-          <ModalBody className='!pb-[16px]'>
+          <ModalBody>
             <div className='space-y-[8px]'>
               <p className='text-[12px] text-[var(--text-secondary)]'>
                 Are you sure you want to delete the "{selectedTag?.displayName}" tag? This will
@@ -497,7 +497,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
       <Modal open={viewDocumentsDialogOpen} onOpenChange={setViewDocumentsDialogOpen}>
         <ModalContent size='sm'>
           <ModalHeader>Documents using "{selectedTag?.displayName}"</ModalHeader>
-          <ModalBody className='!pb-[16px]'>
+          <ModalBody>
             <div className='space-y-[8px]'>
               <p className='text-[12px] text-[var(--text-tertiary)]'>
                 {selectedTagUsage?.documentCount || 0} document

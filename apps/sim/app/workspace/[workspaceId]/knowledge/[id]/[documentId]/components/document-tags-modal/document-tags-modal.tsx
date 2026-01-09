@@ -399,7 +399,7 @@ export function DocumentTagsModal({
           </div>
         </ModalHeader>
 
-        <ModalBody className='!pb-[16px]'>
+        <ModalBody>
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='space-y-[8px]'>
               <Label>Tags</Label>

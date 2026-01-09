@@ -510,26 +510,40 @@ function IdentifierInput({
           error && 'border-[var(--text-error)]'
         )}
       >
-        <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] px-[8px] font-medium text-[var(--text-secondary)] text-sm dark:bg-[var(--surface-5)]'>
+        <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-[6px] pl-[8px] font-medium text-[var(--text-secondary)] text-sm dark:bg-[var(--surface-5)]'>
           {getDomainPrefix()}
         </div>
         <div className='relative flex-1'>
           <Input
             id='chat-url'
-            placeholder='company-name'
+            placeholder='my-chat'
             value={value}
             onChange={(e) => handleChange(e.target.value)}
             required
             disabled={disabled}
             className={cn(
               'rounded-none border-0 pl-0 shadow-none disabled:bg-transparent disabled:opacity-100',
-              isChecking && 'pr-[32px]'
+              (isChecking || (isValid && value)) && 'pr-[32px]'
             )}
           />
-          {isChecking && (
+          {isChecking ? (
             <div className='-translate-y-1/2 absolute top-1/2 right-2'>
               <Loader2 className='h-4 w-4 animate-spin text-[var(--text-tertiary)]' />
             </div>
+          ) : (
+            isValid &&
+            value && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <div className='-translate-y-1/2 absolute top-1/2 right-2'>
+                    <Check className='h-4 w-4 text-[var(--brand-tertiary-2)]' />
+                  </div>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span>Name is available</span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )
           )}
         </div>
       </div>

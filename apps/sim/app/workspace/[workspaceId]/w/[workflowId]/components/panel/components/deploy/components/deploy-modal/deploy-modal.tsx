@@ -18,13 +18,16 @@ import {
 import { getEnv } from '@/lib/core/config/env'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/api-keys/components'
 import { startsWithUuid } from '@/executor/constants'
+import { useApiKeys } from '@/hooks/queries/api-keys'
+import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { ApiDeploy } from './components/api/api'
 import { ChatDeploy, type ExistingChat } from './components/chat/chat'
-import { FormDeploy } from './components/form/form'
 import { GeneralDeploy } from './components/general/general'
 import { McpDeploy } from './components/mcp/mcp'
 import { TemplateDeploy } from './components/template/template'
@@ -106,6 +109,22 @@ export function DeployModal({
 
   const [chatSuccess, setChatSuccess] = useState(false)
   const [formSuccess, setFormSuccess] = useState(false)
+
+  const [isCreateKeyModalOpen, setIsCreateKeyModalOpen] = useState(false)
+  const userPermissions = useUserPermissionsContext()
+  const canManageWorkspaceKeys = userPermissions.canAdmin
+  const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
+  const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
+    workflowWorkspaceId || ''
+  )
+  const apiKeyWorkspaceKeys = apiKeysData?.workspaceKeys || []
+  const apiKeyPersonalKeys = apiKeysData?.personalKeys || []
+  const allowPersonalApiKeys =
+    workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true
+  const defaultKeyType = allowPersonalApiKeys ? 'personal' : 'workspace'
+  const isApiKeysLoading = isLoadingKeys || isLoadingSettings
+  const createButtonDisabled =
+    isApiKeysLoading || (!allowPersonalApiKeys && !canManageWorkspaceKeys)
 
   const getApiKeyLabel = (value?: string | null) => {
     if (value && value.trim().length > 0) {
@@ -577,7 +596,7 @@ export function DeployModal({
     <>
       <Modal open={open} onOpenChange={handleCloseModal}>
         <ModalContent size='lg' className='h-[76vh]'>
-          <ModalHeader>Deploy Workflow</ModalHeader>
+          <ModalHeader>Workflow Deployment</ModalHeader>
 
           <ModalTabs
             value={activeTab}
@@ -589,7 +608,7 @@ export function DeployModal({
               <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
               <ModalTabsTrigger value='mcp'>MCP</ModalTabsTrigger>
               <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
-              <ModalTabsTrigger value='form'>Form</ModalTabsTrigger>
+              {/* <ModalTabsTrigger value='form'>Form</ModalTabsTrigger> */}
               <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
             </ModalTabsList>
 
@@ -650,7 +669,7 @@ export function DeployModal({
                 )}
               </ModalTabsContent>
 
-              <ModalTabsContent value='form' className='h-full'>
+              {/* <ModalTabsContent value='form'>
                 {workflowId && (
                   <FormDeploy
                     workflowId={workflowId}
@@ -663,9 +682,9 @@ export function DeployModal({
                     onDeployed={handleFormDeployed}
                   />
                 )}
-              </ModalTabsContent>
+              </ModalTabsContent> */}
 
-              <ModalTabsContent value='mcp' className='h-full'>
+              <ModalTabsContent value='mcp'>
                 {workflowId && (
                   <McpDeploy
                     workflowId={workflowId}
@@ -690,6 +709,17 @@ export function DeployModal({
               onRedeploy={handleRedeploy}
               onUndeploy={() => setShowUndeployConfirm(true)}
             />
+          )}
+          {activeTab === 'api' && (
+            <ModalFooter className='items-center justify-end'>
+              <Button
+                variant='tertiary'
+                onClick={() => setIsCreateKeyModalOpen(true)}
+                disabled={createButtonDisabled}
+              >
+                Generate API Key
+              </Button>
+            </ModalFooter>
           )}
           {activeTab === 'chat' && (
             <ModalFooter className='items-center'>
@@ -776,7 +806,7 @@ export function DeployModal({
               </div>
             </ModalFooter>
           )}
-          {activeTab === 'form' && (
+          {/* {activeTab === 'form' && (
             <ModalFooter className='items-center'>
               <div className='flex gap-2'>
                 {formExists && (
@@ -809,7 +839,7 @@ export function DeployModal({
                 </Button>
               </div>
             </ModalFooter>
-          )}
+          )} */}
         </ModalContent>
       </Modal>
 
@@ -838,6 +868,16 @@ export function DeployModal({
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      <CreateApiKeyModal
+        open={isCreateKeyModalOpen}
+        onOpenChange={setIsCreateKeyModalOpen}
+        workspaceId={workflowWorkspaceId || ''}
+        existingKeyNames={[...apiKeyWorkspaceKeys, ...apiKeyPersonalKeys].map((k) => k.name)}
+        allowPersonalApiKeys={allowPersonalApiKeys}
+        canManageWorkspaceKeys={canManageWorkspaceKeys}
+        defaultKeyType={defaultKeyType}
+      />
     </>
   )
 }
@@ -911,7 +951,12 @@ function GeneralFooter({
     <ModalFooter className='items-center justify-between'>
       <StatusBadge isWarning={needsRedeployment} />
       <div className='flex items-center gap-2'>
-        <Button variant='default' onClick={onUndeploy} disabled={isUndeploying || isSubmitting}>
+        <Button
+          variant='default'
+          onClick={onUndeploy}
+          disabled={isUndeploying || isSubmitting}
+          className='px-[7px] py-[5px]'
+        >
           {isUndeploying ? 'Undeploying...' : 'Undeploy'}
         </Button>
         {needsRedeployment && (

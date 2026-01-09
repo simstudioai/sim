@@ -244,7 +244,7 @@ export default function Form({ identifier }: { identifier: string }) {
             <ThankYouScreen
               title={thankYouData.title}
               message={thankYouData.message}
-              primaryColor={primaryColor}
+              primaryColor={formConfig?.customizations?.primaryColor}
             />
           </div>
           {formConfig?.showBranding !== false ? (
@@ -307,6 +307,7 @@ export default function Form({ identifier }: { identifier: string }) {
                       primaryColor={primaryColor}
                       label={config?.label}
                       description={config?.description}
+                      required={config?.required}
                     />
                   )
                 })

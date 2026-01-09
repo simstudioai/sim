@@ -443,7 +443,7 @@ export function McpDeploy({
   return (
     <form
       id='mcp-deploy-form'
-      className='-mx-1 space-y-[12px] overflow-y-auto px-1'
+      className='-mx-1 space-y-[12px] px-1'
       onSubmit={(e) => {
         e.preventDefault()
         handleSave()

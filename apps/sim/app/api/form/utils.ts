@@ -195,9 +195,9 @@ export interface FormCustomizations {
 
 /**
  * Default form customizations
+ * Note: primaryColor is intentionally undefined to allow thank you screen to use its green default
  */
 export const DEFAULT_FORM_CUSTOMIZATIONS: FormCustomizations = {
-  primaryColor: '#3972F6',
   welcomeMessage: '',
   thankYouTitle: 'Thank you!',
   thankYouMessage: 'Your response has been submitted successfully.',

@@ -358,7 +358,6 @@ describe('Form API Utils', () => {
       const { DEFAULT_FORM_CUSTOMIZATIONS } = await import('@/app/api/form/utils')
 
       expect(DEFAULT_FORM_CUSTOMIZATIONS).toEqual({
-        primaryColor: '#3972F6',
         welcomeMessage: '',
         thankYouTitle: 'Thank you!',
         thankYouMessage: 'Your response has been submitted successfully.',

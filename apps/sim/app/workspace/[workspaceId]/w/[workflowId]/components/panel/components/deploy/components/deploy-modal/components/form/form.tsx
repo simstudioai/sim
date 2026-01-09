@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ChevronDown, ChevronRight, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Check, Eye, EyeOff, Loader2 } from 'lucide-react'
 import {
-  Badge,
   ButtonGroup,
   ButtonGroupItem,
   Input,
@@ -12,6 +11,7 @@ import {
   TagInput,
   type TagItem,
   Textarea,
+  Tooltip,
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { getEnv } from '@/lib/core/config/env'
@@ -21,6 +21,7 @@ import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { EmbedCodeGenerator } from './components/embed-code-generator'
+import { FormBuilder } from './components/form-builder'
 import { useFormDeployment } from './hooks/use-form-deployment'
 import { useIdentifierValidation } from './hooks/use-identifier-validation'
 
@@ -101,7 +102,6 @@ export function FormDeploy({
   const [inputFields, setInputFields] = useState<{ name: string; type: string }[]>([])
   const [showPasswordField, setShowPasswordField] = useState(false)
   const [fieldConfigs, setFieldConfigs] = useState<FieldConfig[]>([])
-  const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set())
   const [errors, setErrors] = useState<FormErrors>({})
   const [isIdentifierValid, setIsIdentifierValid] = useState(false)
 
@@ -248,22 +248,6 @@ export function FormDeploy({
     onSubmittingChange?.(isSubmitting)
     setFormSubmitting?.(isSubmitting)
   }, [isSubmitting, onSubmittingChange, setFormSubmitting])
-
-  const toggleFieldExpanded = (fieldName: string) => {
-    setExpandedFields((prev) => {
-      const next = new Set(prev)
-      if (next.has(fieldName)) {
-        next.delete(fieldName)
-      } else {
-        next.add(fieldName)
-      }
-      return next
-    })
-  }
-
-  const updateFieldConfig = (fieldName: string, updates: Partial<FieldConfig>) => {
-    setFieldConfigs((prev) => prev.map((f) => (f.name === fieldName ? { ...f, ...updates } : f)))
-  }
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -412,11 +396,7 @@ export function FormDeploy({
   const displayUrl = fullUrl.replace(/^https?:\/\//, '')
 
   return (
-    <form
-      id='form-deploy-form'
-      onSubmit={handleSubmit}
-      className='-mx-1 space-y-4 overflow-y-auto px-1'
-    >
+    <form id='form-deploy-form' onSubmit={handleSubmit} className='-mx-1 space-y-4 px-1'>
       <div className='space-y-[12px]'>
         {/* URL Input - matching chat style */}
         <div>
@@ -429,7 +409,7 @@ export function FormDeploy({
               (identifierError || errors.identifier) && 'border-[var(--text-error)]'
             )}
           >
-            <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] px-[8px] font-medium text-[var(--text-secondary)] text-sm'>
+            <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-[6px] pl-[8px] font-medium text-[var(--text-secondary)] text-sm'>
               {getDomainPrefix()}
             </div>
             <div className='relative flex-1'>
@@ -442,13 +422,28 @@ export function FormDeploy({
                 placeholder='my-form'
                 className={cn(
                   'rounded-none border-0 pl-0 shadow-none',
-                  isCheckingIdentifier && 'pr-[32px]'
+                  (isCheckingIdentifier || (identifierValidationPassed && identifier)) &&
+                    'pr-[32px]'
                 )}
               />
-              {isCheckingIdentifier && (
+              {isCheckingIdentifier ? (
                 <div className='-translate-y-1/2 absolute top-1/2 right-2'>
                   <Loader2 className='h-4 w-4 animate-spin text-[var(--text-tertiary)]' />
                 </div>
+              ) : (
+                identifierValidationPassed &&
+                identifier && (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <div className='-translate-y-1/2 absolute top-1/2 right-2'>
+                        <Check className='h-4 w-4 text-[var(--brand-tertiary-2)]' />
+                      </div>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content>
+                      <span>Name is available</span>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                )
               )}
             </div>
           </div>
@@ -476,96 +471,23 @@ export function FormDeploy({
           </p>
         </div>
 
-        {/* Title */}
+        {/* Form Builder Preview */}
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Title
+            Form builder
           </Label>
-          <Input
-            value={title}
-            onChange={(e) => {
-              setTitle(e.target.value)
+          <FormBuilder
+            title={title}
+            onTitleChange={(value: string) => {
+              setTitle(value)
               clearError('title')
             }}
-            placeholder='Contact Form'
+            description={description}
+            onDescriptionChange={setDescription}
+            fieldConfigs={fieldConfigs}
+            onFieldConfigsChange={setFieldConfigs}
+            titleError={errors.title}
           />
-          {errors.title && (
-            <p className='mt-[6.5px] text-[11px] text-[var(--text-error)]'>{errors.title}</p>
-          )}
-        </div>
-
-        {/* Description */}
-        <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Description
-          </Label>
-          <Input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder='Fill out the form below'
-          />
-          <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
-            Optional text shown below the form title
-          </p>
-        </div>
-
-        {/* Form Fields Configuration */}
-        <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Form fields
-          </Label>
-          <div className='space-y-[8px]'>
-            {fieldConfigs.map((config) => (
-              <div
-                key={config.name}
-                className='overflow-hidden rounded-[4px] border border-[var(--border-1)]'
-              >
-                <div
-                  className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'
-                  onClick={() => toggleFieldExpanded(config.name)}
-                >
-                  <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-                    {expandedFields.has(config.name) ? (
-                      <ChevronDown className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
-                    ) : (
-                      <ChevronRight className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
-                    )}
-                    <span className='truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
-                      {config.label || config.name}
-                    </span>
-                  </div>
-                  <Badge size='sm'>{config.type}</Badge>
-                </div>
-
-                {expandedFields.has(config.name) && (
-                  <div className='flex flex-col gap-[8px] border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
-                    <div className='flex flex-col gap-[6px]'>
-                      <Label className='text-[13px]'>Label</Label>
-                      <Input
-                        value={config.label}
-                        onChange={(e) => updateFieldConfig(config.name, { label: e.target.value })}
-                        placeholder='Enter display label'
-                      />
-                    </div>
-                    <div className='flex flex-col gap-[6px]'>
-                      <Label className='text-[13px]'>Description</Label>
-                      <Input
-                        value={config.description || ''}
-                        onChange={(e) =>
-                          updateFieldConfig(config.name, { description: e.target.value })
-                        }
-                        placeholder='Optional help text'
-                      />
-                    </div>
-                    <p className='text-[11px] text-[var(--text-secondary)]'>
-                      Maps to:{' '}
-                      <code className='rounded bg-[var(--surface-4)] px-1'>{config.name}</code>
-                    </p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* Access Control */}

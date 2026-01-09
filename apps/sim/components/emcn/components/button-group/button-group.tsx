@@ -104,7 +104,7 @@ const buttonGroupItemVariants = cva(
   {
     variants: {
       active: {
-        true: 'bg-[var(--brand-tertiary-2)] text-[var(--text-inverse)] border-[var(--brand-tertiary-2)] hover:brightness-110',
+        true: 'bg-[var(--brand-tertiary-2)] text-[var(--text-inverse)] border-[var(--brand-tertiary-2)] hover:brightness-106',
         false:
           'bg-[var(--surface-4)] text-[var(--text-secondary)] border-[var(--border)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-6)] hover:border-[var(--border-1)]',
       },

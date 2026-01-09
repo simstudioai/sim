@@ -21,6 +21,7 @@ interface FormFieldProps {
   primaryColor?: string
   label?: string
   description?: string
+  required?: boolean
 }
 
 function formatFileSize(bytes: number): string {
@@ -36,6 +37,7 @@ export function FormField({
   primaryColor,
   label,
   description,
+  required,
 }: FormFieldProps) {
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -50,6 +52,7 @@ export function FormField({
 
   const displayLabel = label || formatLabel(field.name)
   const placeholder = description || field.description || ''
+  const isRequired = required ?? field.required
 
   const handleFileDrop = useCallback(
     (e: React.DragEvent) => {
@@ -216,7 +219,7 @@ export function FormField({
     <div className='space-y-2'>
       <Label className={`${inter.className} font-medium text-[14px] text-foreground`}>
         {displayLabel}
-        {field.required && <span className='ml-0.5 text-red-500'>*</span>}
+        {isRequired && <span className='ml-0.5 text-[var(--text-error)]'>*</span>}
       </Label>
       {renderInput()}
     </div>
