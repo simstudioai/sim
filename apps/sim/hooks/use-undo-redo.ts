@@ -12,8 +12,8 @@ import {
   type BatchRemoveEdgesOperation,
   type BatchToggleEnabledOperation,
   type BatchToggleHandlesOperation,
+  type BatchUpdateParentOperation,
   createOperationEntry,
-  type Operation,
   runWithUndoRedoRecordingSuspended,
   type UpdateParentOperation,
   useUndoRedoStore,
@@ -132,14 +132,18 @@ export function useUndoRedo() {
       if (!activeWorkflowId) return
 
       const edgeSnapshot = workflowStore.edges.find((e) => e.id === edgeId)
+      if (!edgeSnapshot) {
+        logger.warn('Edge not found when recording add edge', { edgeId })
+        return
+      }
 
-      const operation: Operation = {
+      const operation: BatchAddEdgesOperation = {
         id: crypto.randomUUID(),
-        type: 'add-edge',
+        type: 'batch-add-edges',
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
         userId,
-        data: { edgeId },
+        data: { edgeSnapshots: [edgeSnapshot] },
       }
 
       const inverse: BatchRemoveEdgesOperation = {
@@ -148,9 +152,7 @@ export function useUndoRedo() {
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
         userId,
-        data: {
-          edgeSnapshots: edgeSnapshot ? [edgeSnapshot] : [],
-        },
+        data: { edgeSnapshots: [edgeSnapshot] },
       }
 
       const entry = createOperationEntry(operation, inverse)
@@ -292,6 +294,57 @@ export function useUndoRedo() {
         oldParentId,
         newParentId,
         edgeCount: affectedEdges?.length || 0,
+      })
+    },
+    [activeWorkflowId, userId, undoRedoStore]
+  )
+
+  const recordBatchUpdateParent = useCallback(
+    (
+      updates: Array<{
+        blockId: string
+        oldParentId?: string
+        newParentId?: string
+        oldPosition: { x: number; y: number }
+        newPosition: { x: number; y: number }
+        affectedEdges?: Edge[]
+      }>
+    ) => {
+      if (!activeWorkflowId || updates.length === 0) return
+
+      const operation: BatchUpdateParentOperation = {
+        id: crypto.randomUUID(),
+        type: 'batch-update-parent',
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: { updates },
+      }
+
+      const inverse: BatchUpdateParentOperation = {
+        id: crypto.randomUUID(),
+        type: 'batch-update-parent',
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: {
+          updates: updates.map((u) => ({
+            blockId: u.blockId,
+            oldParentId: u.newParentId,
+            newParentId: u.oldParentId,
+            oldPosition: u.newPosition,
+            newPosition: u.oldPosition,
+            affectedEdges: u.affectedEdges,
+          })),
+        },
+      }
+
+      const entry = createOperationEntry(operation, inverse)
+      undoRedoStore.push(activeWorkflowId, userId, entry)
+
+      logger.debug('Recorded batch update parent', {
+        updateCount: updates.length,
+        workflowId: activeWorkflowId,
       })
     },
     [activeWorkflowId, userId, undoRedoStore]
@@ -493,7 +546,7 @@ export function useUndoRedo() {
           break
         }
         case 'batch-remove-edges': {
-          // Undo add-edge: inverse is batch-remove-edges, so remove the edges
+          // Undo batch-add-edges: inverse is batch-remove-edges, so remove the edges
           const batchRemoveInverse = entry.inverse as BatchRemoveEdgesOperation
           const { edgeSnapshots } = batchRemoveInverse.data
 
@@ -514,7 +567,7 @@ export function useUndoRedo() {
             })
             edgesToRemove.forEach((id) => workflowStore.removeEdge(id))
           }
-          logger.debug('Undid add-edge', { edgeCount: edgesToRemove.length })
+          logger.debug('Undid batch-add-edges', { edgeCount: edgesToRemove.length })
           break
         }
         case 'batch-add-edges': {
@@ -575,12 +628,10 @@ export function useUndoRedo() {
           break
         }
         case 'update-parent': {
-          // Undo parent update means reverting to the old parent and position
           const updateOp = entry.inverse as UpdateParentOperation
           const { blockId, newParentId, newPosition, affectedEdges } = updateOp.data
 
           if (workflowStore.blocks[blockId]) {
-            // If we're moving back INTO a subflow, restore edges first
             if (newParentId && affectedEdges && affectedEdges.length > 0) {
               const edgesToAdd = affectedEdges.filter(
                 (e) => !workflowStore.edges.find((edge) => edge.id === e.id)
@@ -600,7 +651,6 @@ export function useUndoRedo() {
               }
             }
 
-            // Send position update to server
             addToQueue({
               id: crypto.randomUUID(),
               operation: {
@@ -663,6 +713,85 @@ export function useUndoRedo() {
           } else {
             logger.debug('Undo update-parent skipped; block missing', { blockId })
           }
+          break
+        }
+        case 'batch-update-parent': {
+          const batchUpdateOp = entry.inverse as BatchUpdateParentOperation
+          const { updates } = batchUpdateOp.data
+
+          const validUpdates = updates.filter((u) => workflowStore.blocks[u.blockId])
+          if (validUpdates.length === 0) {
+            logger.debug('Undo batch-update-parent skipped; no blocks exist')
+            break
+          }
+
+          // Process each update
+          for (const update of validUpdates) {
+            const { blockId, newParentId, newPosition, affectedEdges } = update
+
+            // Moving OUT of subflow (undoing insert) → restore edges first
+            if (!newParentId && affectedEdges && affectedEdges.length > 0) {
+              const edgesToAdd = affectedEdges.filter(
+                (e) => !workflowStore.edges.find((edge) => edge.id === e.id)
+              )
+              if (edgesToAdd.length > 0) {
+                addToQueue({
+                  id: crypto.randomUUID(),
+                  operation: {
+                    operation: 'batch-add-edges',
+                    target: 'edges',
+                    payload: { edges: edgesToAdd },
+                  },
+                  workflowId: activeWorkflowId,
+                  userId,
+                })
+                edgesToAdd.forEach((edge) => workflowStore.addEdge(edge))
+              }
+            }
+
+            // Moving INTO subflow (undoing removal) → remove edges first
+            if (newParentId && affectedEdges && affectedEdges.length > 0) {
+              affectedEdges.forEach((edge) => {
+                if (workflowStore.edges.find((e) => e.id === edge.id)) {
+                  workflowStore.removeEdge(edge.id)
+                }
+              })
+              addToQueue({
+                id: crypto.randomUUID(),
+                operation: {
+                  operation: 'batch-remove-edges',
+                  target: 'edges',
+                  payload: { edgeIds: affectedEdges.map((e) => e.id) },
+                },
+                workflowId: activeWorkflowId,
+                userId,
+              })
+            }
+
+            // Update position and parent locally
+            workflowStore.updateBlockPosition(blockId, newPosition)
+            workflowStore.updateParentId(blockId, newParentId || '', 'parent')
+          }
+
+          // Send batch update to server
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: 'batch-update-parent',
+              target: 'blocks',
+              payload: {
+                updates: validUpdates.map((u) => ({
+                  id: u.blockId,
+                  parentId: u.newParentId || '',
+                  position: u.newPosition,
+                })),
+              },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          logger.debug('Undid batch-update-parent', { updateCount: validUpdates.length })
           break
         }
         case 'batch-toggle-enabled': {
@@ -1001,29 +1130,6 @@ export function useUndoRedo() {
           existingBlockIds.forEach((id) => workflowStore.removeBlock(id))
           break
         }
-        case 'add-edge': {
-          const inv = entry.inverse as BatchRemoveEdgesOperation
-          const edgeSnapshots = inv.data.edgeSnapshots
-
-          const edgesToAdd = edgeSnapshots.filter(
-            (e) => !workflowStore.edges.find((edge) => edge.id === e.id)
-          )
-
-          if (edgesToAdd.length > 0) {
-            addToQueue({
-              id: opId,
-              operation: {
-                operation: 'batch-add-edges',
-                target: 'edges',
-                payload: { edges: edgesToAdd },
-              },
-              workflowId: activeWorkflowId,
-              userId,
-            })
-            edgesToAdd.forEach((edge) => workflowStore.addEdge(edge))
-          }
-          break
-        }
         case 'batch-remove-edges': {
           // Redo batch-remove-edges: remove all edges again
           const batchRemoveOp = entry.operation as BatchRemoveEdgesOperation
@@ -1197,6 +1303,85 @@ export function useUndoRedo() {
           } else {
             logger.debug('Redo update-parent skipped; block missing', { blockId })
           }
+          break
+        }
+        case 'batch-update-parent': {
+          const batchUpdateOp = entry.operation as BatchUpdateParentOperation
+          const { updates } = batchUpdateOp.data
+
+          const validUpdates = updates.filter((u) => workflowStore.blocks[u.blockId])
+          if (validUpdates.length === 0) {
+            logger.debug('Redo batch-update-parent skipped; no blocks exist')
+            break
+          }
+
+          // Process each update
+          for (const update of validUpdates) {
+            const { blockId, newParentId, newPosition, affectedEdges } = update
+
+            // Moving INTO subflow (redoing insert) → remove edges first
+            if (newParentId && affectedEdges && affectedEdges.length > 0) {
+              affectedEdges.forEach((edge) => {
+                if (workflowStore.edges.find((e) => e.id === edge.id)) {
+                  workflowStore.removeEdge(edge.id)
+                }
+              })
+              addToQueue({
+                id: crypto.randomUUID(),
+                operation: {
+                  operation: 'batch-remove-edges',
+                  target: 'edges',
+                  payload: { edgeIds: affectedEdges.map((e) => e.id) },
+                },
+                workflowId: activeWorkflowId,
+                userId,
+              })
+            }
+
+            // Update position and parent locally
+            workflowStore.updateBlockPosition(blockId, newPosition)
+            workflowStore.updateParentId(blockId, newParentId || '', 'parent')
+
+            // Moving OUT of subflow (redoing removal) → restore edges after
+            if (!newParentId && affectedEdges && affectedEdges.length > 0) {
+              const edgesToAdd = affectedEdges.filter(
+                (e) => !workflowStore.edges.find((edge) => edge.id === e.id)
+              )
+              if (edgesToAdd.length > 0) {
+                addToQueue({
+                  id: crypto.randomUUID(),
+                  operation: {
+                    operation: 'batch-add-edges',
+                    target: 'edges',
+                    payload: { edges: edgesToAdd },
+                  },
+                  workflowId: activeWorkflowId,
+                  userId,
+                })
+                edgesToAdd.forEach((edge) => workflowStore.addEdge(edge))
+              }
+            }
+          }
+
+          // Send batch update to server
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: 'batch-update-parent',
+              target: 'blocks',
+              payload: {
+                updates: validUpdates.map((u) => ({
+                  id: u.blockId,
+                  parentId: u.newParentId || '',
+                  position: u.newPosition,
+                })),
+              },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          logger.debug('Redid batch-update-parent', { updateCount: validUpdates.length })
           break
         }
         case 'batch-toggle-enabled': {
@@ -1573,6 +1758,7 @@ export function useUndoRedo() {
     recordBatchRemoveEdges,
     recordBatchMoveBlocks,
     recordUpdateParent,
+    recordBatchUpdateParent,
     recordBatchToggleEnabled,
     recordBatchToggleHandles,
     recordApplyDiff,

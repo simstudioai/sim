@@ -749,6 +749,77 @@ async function handleBlocksOperationTx(
       break
     }
 
+    case 'batch-update-parent': {
+      const { updates } = payload
+      if (!Array.isArray(updates) || updates.length === 0) {
+        return
+      }
+
+      logger.info(`Batch updating parent for ${updates.length} blocks in workflow ${workflowId}`)
+
+      for (const update of updates) {
+        const { id, parentId, position } = update
+        if (!id) continue
+
+        // Fetch current parent to update subflow node lists
+        const [existing] = await tx
+          .select({
+            id: workflowBlocks.id,
+            parentId: sql<string | null>`${workflowBlocks.data}->>'parentId'`,
+          })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, id), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        if (!existing) {
+          logger.warn(`Block ${id} not found for batch-update-parent`)
+          continue
+        }
+
+        const isRemovingFromParent = !parentId
+
+        // Get current data to update
+        const [currentBlock] = await tx
+          .select({ data: workflowBlocks.data })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, id), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        const currentData = currentBlock?.data || {}
+
+        // Update data with parentId and extent
+        const updatedData = isRemovingFromParent
+          ? {} // Clear data entirely when removing from parent
+          : {
+              ...currentData,
+              ...(parentId ? { parentId, extent: 'parent' } : {}),
+            }
+
+        // Update position and data
+        await tx
+          .update(workflowBlocks)
+          .set({
+            positionX: position?.x ?? currentBlock?.data?.positionX,
+            positionY: position?.y ?? currentBlock?.data?.positionY,
+            data: updatedData,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(workflowBlocks.id, id), eq(workflowBlocks.workflowId, workflowId)))
+
+        // If the block now has a parent, update the new parent's subflow node list
+        if (parentId) {
+          await updateSubflowNodeList(tx, workflowId, parentId)
+        }
+        // If the block had a previous parent, update that parent's node list as well
+        if (existing?.parentId && existing.parentId !== parentId) {
+          await updateSubflowNodeList(tx, workflowId, existing.parentId)
+        }
+      }
+
+      logger.debug(`Batch updated parent for ${updates.length} blocks`)
+      break
+    }
+
     default:
       throw new Error(`Unsupported blocks operation: ${operation}`)
   }

@@ -4,6 +4,7 @@ import type {
   BatchMoveBlocksOperation,
   BatchRemoveBlocksOperation,
   BatchRemoveEdgesOperation,
+  BatchUpdateParentOperation,
   Operation,
   OperationEntry,
 } from '@/stores/undo-redo/types'
@@ -44,18 +45,6 @@ export function createInverseOperation(operation: Operation): Operation {
         },
       } as BatchAddBlocksOperation
     }
-
-    case 'add-edge':
-      // Note: add-edge only stores edgeId. The full edge snapshot is stored
-      // in the inverse operation when recording. This function can't create
-      // a complete inverse without the snapshot.
-      return {
-        ...operation,
-        type: 'batch-remove-edges',
-        data: {
-          edgeSnapshots: [],
-        },
-      } as BatchRemoveEdgesOperation
 
     case 'batch-add-edges': {
       const op = operation as BatchAddEdgesOperation
@@ -106,6 +95,23 @@ export function createInverseOperation(operation: Operation): Operation {
           affectedEdges: operation.data.affectedEdges,
         },
       }
+
+    case 'batch-update-parent': {
+      const op = operation as BatchUpdateParentOperation
+      return {
+        ...operation,
+        data: {
+          updates: op.data.updates.map((u) => ({
+            blockId: u.blockId,
+            oldParentId: u.newParentId,
+            newParentId: u.oldParentId,
+            oldPosition: u.newPosition,
+            newPosition: u.oldPosition,
+            affectedEdges: u.affectedEdges,
+          })),
+        },
+      } as BatchUpdateParentOperation
+    }
 
     case 'apply-diff':
       return {

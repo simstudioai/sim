@@ -8,6 +8,7 @@ import type {
   BatchMoveBlocksOperation,
   BatchRemoveBlocksOperation,
   BatchRemoveEdgesOperation,
+  BatchUpdateParentOperation,
   Operation,
   OperationEntry,
   UndoRedoState,
@@ -101,6 +102,10 @@ function isOperationApplicable(
       const blockId = operation.data.blockId
       return Boolean(graph.blocksById[blockId])
     }
+    case 'batch-update-parent': {
+      const op = operation as BatchUpdateParentOperation
+      return op.data.updates.every((u) => Boolean(graph.blocksById[u.blockId]))
+    }
     case 'batch-remove-edges': {
       const op = operation as BatchRemoveEdgesOperation
       return op.data.edgeSnapshots.every((edge) => Boolean(graph.edgesById[edge.id]))
@@ -108,10 +113,6 @@ function isOperationApplicable(
     case 'batch-add-edges': {
       const op = operation as BatchAddEdgesOperation
       return op.data.edgeSnapshots.every((edge) => !graph.edgesById[edge.id])
-    }
-    case 'add-edge': {
-      const edgeId = operation.data.edgeId
-      return !graph.edgesById[edgeId]
     }
     default:
       return true

@@ -4,11 +4,11 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 export type OperationType =
   | 'batch-add-blocks'
   | 'batch-remove-blocks'
-  | 'add-edge'
   | 'batch-add-edges'
   | 'batch-remove-edges'
   | 'batch-move-blocks'
   | 'update-parent'
+  | 'batch-update-parent'
   | 'batch-toggle-enabled'
   | 'batch-toggle-handles'
   | 'apply-diff'
@@ -38,13 +38,6 @@ export interface BatchRemoveBlocksOperation extends BaseOperation {
     blockSnapshots: BlockState[]
     edgeSnapshots: Edge[]
     subBlockValues: Record<string, Record<string, unknown>>
-  }
-}
-
-export interface AddEdgeOperation extends BaseOperation {
-  type: 'add-edge'
-  data: {
-    edgeId: string
   }
 }
 
@@ -82,6 +75,20 @@ export interface UpdateParentOperation extends BaseOperation {
     oldPosition: { x: number; y: number }
     newPosition: { x: number; y: number }
     affectedEdges?: Edge[]
+  }
+}
+
+export interface BatchUpdateParentOperation extends BaseOperation {
+  type: 'batch-update-parent'
+  data: {
+    updates: Array<{
+      blockId: string
+      oldParentId?: string
+      newParentId?: string
+      oldPosition: { x: number; y: number }
+      newPosition: { x: number; y: number }
+      affectedEdges?: Edge[]
+    }>
   }
 }
 
@@ -133,11 +140,11 @@ export interface RejectDiffOperation extends BaseOperation {
 export type Operation =
   | BatchAddBlocksOperation
   | BatchRemoveBlocksOperation
-  | AddEdgeOperation
   | BatchAddEdgesOperation
   | BatchRemoveEdgesOperation
   | BatchMoveBlocksOperation
   | UpdateParentOperation
+  | BatchUpdateParentOperation
   | BatchToggleEnabledOperation
   | BatchToggleHandlesOperation
   | ApplyDiffOperation

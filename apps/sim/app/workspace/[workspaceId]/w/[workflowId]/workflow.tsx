@@ -447,6 +447,7 @@ const WorkflowContent = React.memo(() => {
     collaborativeBatchRemoveEdges,
     collaborativeBatchUpdatePositions,
     collaborativeUpdateParentId: updateParentId,
+    collaborativeBatchUpdateParent,
     collaborativeBatchAddBlocks,
     collaborativeBatchRemoveBlocks,
     collaborativeBatchToggleBlockEnabled,
@@ -2437,6 +2438,43 @@ const WorkflowContent = React.memo(() => {
           previousPositions: multiNodeDragStartRef.current,
         })
 
+        // Process parent updates for all selected nodes if dropping into a subflow
+        if (potentialParentId && potentialParentId !== dragStartParentId) {
+          // Filter out nodes that cannot be moved into subflows
+          const validNodes = selectedNodes.filter((n) => {
+            const block = blocks[n.id]
+            if (!block) return false
+            // Starter blocks cannot be in containers
+            if (n.data?.type === 'starter') return false
+            // Trigger blocks cannot be in containers
+            if (TriggerUtils.isTriggerBlock(block)) return false
+            // Subflow nodes (loop/parallel) cannot be nested
+            if (n.type === 'subflowNode') return false
+            return true
+          })
+
+          if (validNodes.length > 0) {
+            // Build updates for all valid nodes
+            const updates = validNodes.map((n) => {
+              const edgesToRemove = edgesForDisplay.filter(
+                (e) => e.source === n.id || e.target === n.id
+              )
+              return {
+                blockId: n.id,
+                newParentId: potentialParentId,
+                affectedEdges: edgesToRemove,
+              }
+            })
+
+            collaborativeBatchUpdateParent(updates)
+
+            logger.info('Batch moved nodes into subflow', {
+              targetParentId: potentialParentId,
+              nodeCount: validNodes.length,
+            })
+          }
+        }
+
         // Clear drag start state
         setDragStartPosition(null)
         setPotentialParentId(null)
@@ -2580,6 +2618,7 @@ const WorkflowContent = React.memo(() => {
       addNotification,
       activeWorkflowId,
       collaborativeBatchUpdatePositions,
+      collaborativeBatchUpdateParent,
     ]
   )
 
@@ -2594,9 +2633,157 @@ const WorkflowContent = React.memo(() => {
     requestAnimationFrame(() => setIsSelectionDragActive(false))
   }, [])
 
+  /** Captures initial positions when selection drag starts (for marquee-selected nodes). */
+  const onSelectionDragStart = useCallback(
+    (_event: React.MouseEvent, nodes: Node[]) => {
+      // Capture the parent ID of the first node as reference (they should all be in the same context)
+      if (nodes.length > 0) {
+        const firstNodeParentId = blocks[nodes[0].id]?.data?.parentId || null
+        setDragStartParentId(firstNodeParentId)
+      }
+
+      // Capture all selected nodes' positions for undo/redo
+      multiNodeDragStartRef.current.clear()
+      nodes.forEach((n) => {
+        const block = blocks[n.id]
+        if (block) {
+          multiNodeDragStartRef.current.set(n.id, {
+            x: n.position.x,
+            y: n.position.y,
+            parentId: block.data?.parentId,
+          })
+        }
+      })
+    },
+    [blocks]
+  )
+
+  /** Handles selection drag to detect potential parent containers for batch drops. */
+  const onSelectionDrag = useCallback(
+    (_event: React.MouseEvent, nodes: Node[]) => {
+      if (nodes.length === 0) return
+
+      // Filter out nodes that can't be placed in containers
+      const eligibleNodes = nodes.filter((n) => {
+        if (n.data?.type === 'starter') return false
+        if (n.type === 'subflowNode') return false
+        const block = blocks[n.id]
+        if (block && TriggerUtils.isTriggerBlock(block)) return false
+        return true
+      })
+
+      // If no eligible nodes, clear any potential parent
+      if (eligibleNodes.length === 0) {
+        if (potentialParentId) {
+          clearDragHighlights()
+          setPotentialParentId(null)
+        }
+        return
+      }
+
+      // Calculate bounding box of all dragged nodes using absolute positions
+      let minX = Number.POSITIVE_INFINITY
+      let minY = Number.POSITIVE_INFINITY
+      let maxX = Number.NEGATIVE_INFINITY
+      let maxY = Number.NEGATIVE_INFINITY
+
+      eligibleNodes.forEach((node) => {
+        const absolutePos = getNodeAbsolutePosition(node.id)
+        const block = blocks[node.id]
+        const width = BLOCK_DIMENSIONS.FIXED_WIDTH
+        const height = Math.max(
+          node.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
+          BLOCK_DIMENSIONS.MIN_HEIGHT
+        )
+
+        minX = Math.min(minX, absolutePos.x)
+        minY = Math.min(minY, absolutePos.y)
+        maxX = Math.max(maxX, absolutePos.x + width)
+        maxY = Math.max(maxY, absolutePos.y + height)
+      })
+
+      // Use bounding box for intersection detection
+      const selectionRect = { left: minX, right: maxX, top: minY, bottom: maxY }
+
+      // Find containers that intersect with the selection bounding box
+      const allNodes = getNodes()
+      const intersectingContainers = allNodes
+        .filter((containerNode) => {
+          if (containerNode.type !== 'subflowNode') return false
+          // Skip if any dragged node is this container
+          if (nodes.some((n) => n.id === containerNode.id)) return false
+
+          const containerAbsolutePos = getNodeAbsolutePosition(containerNode.id)
+          const containerRect = {
+            left: containerAbsolutePos.x,
+            right:
+              containerAbsolutePos.x +
+              (containerNode.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH),
+            top: containerAbsolutePos.y,
+            bottom:
+              containerAbsolutePos.y +
+              (containerNode.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
+          }
+
+          // Check intersection
+          return (
+            selectionRect.left < containerRect.right &&
+            selectionRect.right > containerRect.left &&
+            selectionRect.top < containerRect.bottom &&
+            selectionRect.bottom > containerRect.top
+          )
+        })
+        .map((n) => ({
+          container: n,
+          depth: getNodeDepth(n.id),
+          size:
+            (n.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH) *
+            (n.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
+        }))
+
+      if (intersectingContainers.length > 0) {
+        // Sort by depth first (deepest first), then by size
+        const sortedContainers = intersectingContainers.sort((a, b) => {
+          if (a.depth !== b.depth) return b.depth - a.depth
+          return a.size - b.size
+        })
+
+        const bestMatch = sortedContainers[0]
+
+        if (bestMatch.container.id !== potentialParentId) {
+          clearDragHighlights()
+          setPotentialParentId(bestMatch.container.id)
+
+          // Add highlight
+          const containerElement = document.querySelector(`[data-id="${bestMatch.container.id}"]`)
+          if (containerElement) {
+            if ((bestMatch.container.data as SubflowNodeData)?.kind === 'loop') {
+              containerElement.classList.add('loop-node-drag-over')
+            } else if ((bestMatch.container.data as SubflowNodeData)?.kind === 'parallel') {
+              containerElement.classList.add('parallel-node-drag-over')
+            }
+            document.body.style.cursor = 'copy'
+          }
+        }
+      } else if (potentialParentId) {
+        clearDragHighlights()
+        setPotentialParentId(null)
+      }
+    },
+    [
+      blocks,
+      getNodes,
+      potentialParentId,
+      getNodeAbsolutePosition,
+      getNodeDepth,
+      clearDragHighlights,
+    ]
+  )
+
   const onSelectionDragStop = useCallback(
     (_event: React.MouseEvent, nodes: any[]) => {
       requestAnimationFrame(() => setIsSelectionDragActive(false))
+      clearDragHighlights()
       if (nodes.length === 0) return
 
       const allNodes = getNodes()
@@ -2604,9 +2791,55 @@ const WorkflowContent = React.memo(() => {
       collaborativeBatchUpdatePositions(positionUpdates, {
         previousPositions: multiNodeDragStartRef.current,
       })
+
+      // Process parent updates if dropping into a subflow
+      if (potentialParentId && potentialParentId !== dragStartParentId) {
+        // Filter out nodes that cannot be moved into subflows
+        const validNodes = nodes.filter((n: Node) => {
+          const block = blocks[n.id]
+          if (!block) return false
+          if (n.data?.type === 'starter') return false
+          if (TriggerUtils.isTriggerBlock(block)) return false
+          if (n.type === 'subflowNode') return false
+          return true
+        })
+
+        if (validNodes.length > 0) {
+          const updates = validNodes.map((n: Node) => {
+            const edgesToRemove = edgesForDisplay.filter(
+              (e) => e.source === n.id || e.target === n.id
+            )
+            return {
+              blockId: n.id,
+              newParentId: potentialParentId,
+              affectedEdges: edgesToRemove,
+            }
+          })
+
+          collaborativeBatchUpdateParent(updates)
+
+          logger.info('Batch moved selection into subflow', {
+            targetParentId: potentialParentId,
+            nodeCount: validNodes.length,
+          })
+        }
+      }
+
+      // Clear drag state
+      setDragStartPosition(null)
+      setPotentialParentId(null)
       multiNodeDragStartRef.current.clear()
     },
-    [blocks, getNodes, collaborativeBatchUpdatePositions]
+    [
+      blocks,
+      getNodes,
+      collaborativeBatchUpdatePositions,
+      collaborativeBatchUpdateParent,
+      potentialParentId,
+      dragStartParentId,
+      edgesForDisplay,
+      clearDragHighlights,
+    ]
   )
 
   const onPaneClick = useCallback(() => {
@@ -2830,6 +3063,8 @@ const WorkflowContent = React.memo(() => {
               className={`workflow-container h-full transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
               onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
               onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
+              onSelectionDragStart={effectivePermissions.canEdit ? onSelectionDragStart : undefined}
+              onSelectionDrag={effectivePermissions.canEdit ? onSelectionDrag : undefined}
               onSelectionDragStop={effectivePermissions.canEdit ? onSelectionDragStop : undefined}
               onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}
               snapToGrid={snapToGrid}

@@ -315,11 +315,11 @@ export function useNodeUtilities(blocks: Record<string, any>) {
 
       childNodes.forEach((node) => {
         const { width: nodeWidth, height: nodeHeight } = getBlockDimensions(node.id)
-        // Use block position from store if available (more up-to-date)
-        const block = blocks[node.id]
-        const position = block?.position || node.position
-        maxRight = Math.max(maxRight, position.x + nodeWidth)
-        maxBottom = Math.max(maxBottom, position.y + nodeHeight)
+        // Use ReactFlow's node.position which is already in the correct coordinate system
+        // (relative to parent for child nodes). The store's block.position may be stale
+        // or still in absolute coordinates during parent updates.
+        maxRight = Math.max(maxRight, node.position.x + nodeWidth)
+        maxBottom = Math.max(maxBottom, node.position.y + nodeHeight)
       })
 
       const width = Math.max(

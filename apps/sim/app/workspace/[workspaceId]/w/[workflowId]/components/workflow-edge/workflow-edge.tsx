@@ -40,10 +40,7 @@ const WorkflowEdgeComponent = ({
   })
 
   const isSelected = data?.isSelected ?? false
-  const isInsideLoop = data?.isInsideLoop ?? false
-  const parentLoopId = data?.parentLoopId
 
-  // Combined store subscription to reduce subscription overhead
   const { diffAnalysis, isShowingDiff, isDiffReady } = useWorkflowDiffStore(
     useShallow((state) => ({
       diffAnalysis: state.diffAnalysis,
@@ -124,30 +121,14 @@ const WorkflowEdgeComponent = ({
 
   return (
     <>
-      <BaseEdge
-        path={edgePath}
-        data-testid='workflow-edge'
-        style={edgeStyle}
-        interactionWidth={30}
-        data-edge-id={id}
-        data-parent-loop-id={parentLoopId}
-        data-is-selected={isSelected ? 'true' : 'false'}
-        data-is-inside-loop={isInsideLoop ? 'true' : 'false'}
-      />
-      {/* Animate dash offset for edge movement effect */}
-      <animate
-        attributeName='stroke-dashoffset'
-        from={edgeDiffStatus === 'deleted' ? '15' : '10'}
-        to='0'
-        dur={edgeDiffStatus === 'deleted' ? '2s' : '1s'}
-        repeatCount='indefinite'
-      />
+      <BaseEdge path={edgePath} style={edgeStyle} interactionWidth={30} />
 
       {isSelected && (
         <EdgeLabelRenderer>
           <div
             className='nodrag nopan group flex h-[22px] w-[22px] cursor-pointer items-center justify-center transition-colors'
             style={{
+              position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
               zIndex: 100,

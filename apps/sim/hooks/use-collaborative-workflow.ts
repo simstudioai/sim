@@ -924,6 +924,71 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation, workflowStore]
   )
 
+  const collaborativeBatchUpdateParent = useCallback(
+    (
+      updates: Array<{
+        blockId: string
+        newParentId: string | null
+        affectedEdges: Edge[]
+      }>
+    ) => {
+      if (!isInActiveRoom()) {
+        logger.debug('Skipping batch update parent - not in active workflow')
+        return
+      }
+
+      if (updates.length === 0) return
+
+      const batchUpdates = updates.map((u) => {
+        const block = workflowStore.blocks[u.blockId]
+        const oldParentId = block?.data?.parentId
+        const oldPosition = block?.position || { x: 0, y: 0 }
+        const newPosition = oldPosition
+
+        return {
+          blockId: u.blockId,
+          oldParentId,
+          newParentId: u.newParentId || undefined,
+          oldPosition,
+          newPosition,
+          affectedEdges: u.affectedEdges,
+        }
+      })
+
+      for (const update of updates) {
+        if (update.affectedEdges.length > 0) {
+          update.affectedEdges.forEach((e) => workflowStore.removeEdge(e.id))
+        }
+        if (update.newParentId) {
+          workflowStore.updateParentId(update.blockId, update.newParentId, 'parent')
+        }
+      }
+
+      undoRedo.recordBatchUpdateParent(batchUpdates)
+
+      const operationId = crypto.randomUUID()
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: 'batch-update-parent',
+          target: 'blocks',
+          payload: {
+            updates: batchUpdates.map((u) => ({
+              id: u.blockId,
+              parentId: u.newParentId || '',
+              position: u.newPosition,
+            })),
+          },
+        },
+        workflowId: activeWorkflowId || '',
+        userId: session?.user?.id || 'unknown',
+      })
+
+      logger.debug('Batch updated parent for blocks', { updateCount: updates.length })
+    },
+    [isInActiveRoom, workflowStore, undoRedo, addToQueue, activeWorkflowId, session?.user?.id]
+  )
+
   const collaborativeToggleBlockAdvancedMode = useCallback(
     (id: string) => {
       const currentBlock = workflowStore.blocks[id]
@@ -1662,6 +1727,7 @@ export function useCollaborativeWorkflow() {
     collaborativeUpdateBlockName,
     collaborativeBatchToggleBlockEnabled,
     collaborativeUpdateParentId,
+    collaborativeBatchUpdateParent,
     collaborativeToggleBlockAdvancedMode,
     collaborativeToggleBlockTriggerMode,
     collaborativeBatchToggleBlockHandles,
