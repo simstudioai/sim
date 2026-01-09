@@ -25,6 +25,7 @@ import {
   MODELS_WITH_TEMPERATURE_SUPPORT,
   MODELS_WITH_VERBOSITY,
   PROVIDERS_WITH_TOOL_USAGE_CONTROL,
+  prepareToolExecution,
   prepareToolsWithUsageControl,
   shouldBillModelUsage,
   supportsTemperature,
@@ -975,6 +976,222 @@ describe('Tool Management', () => {
       const result = prepareToolsWithUsageControl(tools, providerTools, mockLogger)
 
       expect(result.toolChoice).toBe('auto')
+    })
+  })
+})
+
+describe('prepareToolExecution', () => {
+  describe('basic parameter merging', () => {
+    it.concurrent('should merge LLM args with user params', () => {
+      const tool = {
+        params: { apiKey: 'user-key', channel: '#general' },
+      }
+      const llmArgs = { message: 'Hello world', channel: '#random' }
+      const request = { workflowId: 'wf-123' }
+
+      const { toolParams } = prepareToolExecution(tool, llmArgs, request)
+
+      expect(toolParams.apiKey).toBe('user-key')
+      expect(toolParams.channel).toBe('#general') // User value wins
+      expect(toolParams.message).toBe('Hello world')
+    })
+
+    it.concurrent('should filter out empty string user params', () => {
+      const tool = {
+        params: { apiKey: 'user-key', channel: '' }, // Empty channel
+      }
+      const llmArgs = { message: 'Hello', channel: '#llm-channel' }
+      const request = {}
+
+      const { toolParams } = prepareToolExecution(tool, llmArgs, request)
+
+      expect(toolParams.apiKey).toBe('user-key')
+      expect(toolParams.channel).toBe('#llm-channel') // LLM value used since user is empty
+      expect(toolParams.message).toBe('Hello')
+    })
+  })
+
+  describe('inputMapping deep merge for workflow tools', () => {
+    it.concurrent('should deep merge inputMapping when user provides empty object', () => {
+      const tool = {
+        params: {
+          workflowId: 'child-workflow-123',
+          inputMapping: '{}', // Empty JSON string from UI
+        },
+      }
+      const llmArgs = {
+        inputMapping: { query: 'search term', limit: 10 },
+      }
+      const request = { workflowId: 'parent-workflow' }
+
+      const { toolParams } = prepareToolExecution(tool, llmArgs, request)
+
+      // LLM values should be used since user object is empty
+      expect(toolParams.inputMapping).toEqual({ query: 'search term', limit: 10 })
+      expect(toolParams.workflowId).toBe('child-workflow-123')
+    })
+
+    it.concurrent('should deep merge inputMapping with partial user values', () => {
+      const tool = {
+        params: {
+          workflowId: 'child-workflow',
+          inputMapping: '{"query": "", "customField": "user-value"}', // Partial values
+        },
+      }
+      const llmArgs = {
+        inputMapping: { query: 'llm-search', limit: 10 },
+      }
+      const request = {}
+
+      const { toolParams } = prepareToolExecution(tool, llmArgs, request)
+
+      // LLM fills empty query, user's customField preserved, LLM's limit included
+      expect(toolParams.inputMapping).toEqual({
+        query: 'llm-search',
+        limit: 10,
+        customField: 'user-value',
+      })
+    })
+
+    it.concurrent('should preserve non-empty user inputMapping values', () => {
+      const tool = {
+        params: {
+          workflowId: 'child-workflow',
+          inputMapping: '{"query": "user-search", "limit": 5}',
+        },
+      }
+      const llmArgs = {
+        inputMapping: { query: 'llm-search', limit: 10, extra: 'field' },
+      }
+      const request = {}
+
+      const { toolParams } = prepareToolExecution(tool, llmArgs, request)
+
+      // User values win, but LLM's extra field is included
+      expect(toolParams.inputMapping).toEqual({
+        query: 'user-search',
+        limit: 5,
+        extra: 'field',
+      })
+    })
+
+    it.concurrent('should handle inputMapping as object (not JSON string)', () => {
+      const tool = {
+        params: {
+          workflowId: 'child-workflow',
+          inputMapping: { query: '', customField: 'user-value' }, // Object, not string
+        },
+      }
+      const llmArgs = {
+        inputMapping: { query: 'llm-search', limit: 10 },
+      }
+      const request = {}
+
+      const { toolParams } = prepareToolExecution(tool, llmArgs, request)
+
+      expect(toolParams.inputMapping).toEqual({
+        query: 'llm-search',
+        limit: 10,
+        customField: 'user-value',
+      })
+    })
+
+    it.concurrent('should use LLM inputMapping when user does not provide it', () => {
+      const tool = {
+        params: { workflowId: 'child-workflow' }, // No inputMapping
+      }
+      const llmArgs = {
+        inputMapping: { query: 'llm-search', limit: 10 },
+      }
+      const request = {}
+
+      const { toolParams } = prepareToolExecution(tool, llmArgs, request)
+
+      expect(toolParams.inputMapping).toEqual({ query: 'llm-search', limit: 10 })
+    })
+
+    it.concurrent('should use user inputMapping when LLM does not provide it', () => {
+      const tool = {
+        params: {
+          workflowId: 'child-workflow',
+          inputMapping: '{"query": "user-search"}',
+        },
+      }
+      const llmArgs = {} // No inputMapping from LLM
+      const request = {}
+
+      const { toolParams } = prepareToolExecution(tool, llmArgs, request)
+
+      expect(toolParams.inputMapping).toEqual({ query: 'user-search' })
+    })
+
+    it.concurrent('should handle invalid JSON in user inputMapping gracefully', () => {
+      const tool = {
+        params: {
+          workflowId: 'child-workflow',
+          inputMapping: 'not valid json {',
+        },
+      }
+      const llmArgs = {
+        inputMapping: { query: 'llm-search' },
+      }
+      const request = {}
+
+      const { toolParams } = prepareToolExecution(tool, llmArgs, request)
+
+      // Should use LLM values since user JSON is invalid
+      expect(toolParams.inputMapping).toEqual({ query: 'llm-search' })
+    })
+
+    it.concurrent('should not affect other parameters - normal override behavior', () => {
+      const tool = {
+        params: { apiKey: 'user-key', channel: '#general' },
+      }
+      const llmArgs = { message: 'Hello', channel: '#random' }
+      const request = {}
+
+      const { toolParams } = prepareToolExecution(tool, llmArgs, request)
+
+      // Normal behavior: user values override LLM values
+      expect(toolParams.apiKey).toBe('user-key')
+      expect(toolParams.channel).toBe('#general') // User value wins
+      expect(toolParams.message).toBe('Hello')
+    })
+  })
+
+  describe('execution params context', () => {
+    it.concurrent('should include workflow context in executionParams', () => {
+      const tool = { params: { message: 'test' } }
+      const llmArgs = {}
+      const request = {
+        workflowId: 'wf-123',
+        workspaceId: 'ws-456',
+        chatId: 'chat-789',
+        userId: 'user-abc',
+      }
+
+      const { executionParams } = prepareToolExecution(tool, llmArgs, request)
+
+      expect(executionParams._context).toEqual({
+        workflowId: 'wf-123',
+        workspaceId: 'ws-456',
+        chatId: 'chat-789',
+        userId: 'user-abc',
+      })
+    })
+
+    it.concurrent('should include environment and workflow variables', () => {
+      const tool = { params: {} }
+      const llmArgs = {}
+      const request = {
+        environmentVariables: { API_KEY: 'secret' },
+        workflowVariables: { counter: 42 },
+      }
+
+      const { executionParams } = prepareToolExecution(tool, llmArgs, request)
+
+      expect(executionParams.envVars).toEqual({ API_KEY: 'secret' })
+      expect(executionParams.workflowVariables).toEqual({ counter: 42 })
     })
   })
 })

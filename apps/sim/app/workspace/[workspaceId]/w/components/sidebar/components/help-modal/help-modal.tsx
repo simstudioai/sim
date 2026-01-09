@@ -57,9 +57,11 @@ interface ImageWithPreview extends File {
 interface HelpModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  workflowId?: string
+  workspaceId: string
 }
 
-export function HelpModal({ open, onOpenChange }: HelpModalProps) {
+export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -370,18 +372,20 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
       setSubmitStatus(null)
 
       try {
-        // Prepare form data with images
         const formData = new FormData()
         formData.append('subject', data.subject)
         formData.append('message', data.message)
         formData.append('type', data.type)
+        formData.append('workspaceId', workspaceId)
+        formData.append('userAgent', navigator.userAgent)
+        if (workflowId) {
+          formData.append('workflowId', workflowId)
+        }
 
-        // Attach all images to form data
         images.forEach((image, index) => {
           formData.append(`image_${index}`, image)
         })
 
-        // Submit to API
         const response = await fetch('/api/help', {
           method: 'POST',
           body: formData,
@@ -392,11 +396,9 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
           throw new Error(errorData.error || 'Failed to submit help request')
         }
 
-        // Handle success
         setSubmitStatus('success')
         reset()
 
-        // Clean up resources
         images.forEach((image) => URL.revokeObjectURL(image.preview))
         setImages([])
       } catch (error) {
@@ -406,7 +408,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
         setIsSubmitting(false)
       }
     },
-    [images, reset]
+    [images, reset, workflowId, workspaceId]
   )
 
   /**
