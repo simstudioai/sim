@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createLogger } from '@sim/logger'
+import { useEffect, useMemo, useState } from 'react'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { Modal, ModalBody, ModalContent, ModalHeader } from '@/components/emcn'
 import { redactApiKeys } from '@/lib/core/security/redaction'
@@ -10,9 +9,8 @@ import {
   BlockDetailsSidebar,
   WorkflowPreview,
 } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { useExecutionSnapshot } from '@/hooks/queries/logs'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-
-const logger = createLogger('ExecutionSnapshot')
 
 interface TraceSpan {
   blockId?: string
@@ -45,25 +43,6 @@ function isMigratedWorkflowState(state: WorkflowState): state is MigratedWorkflo
   return (state as MigratedWorkflowState)._migrated === true
 }
 
-interface ExecutionSnapshotData {
-  executionId: string
-  workflowId: string
-  workflowState: WorkflowState | MigratedWorkflowState
-  executionMetadata: {
-    trigger: string
-    startedAt: string
-    endedAt?: string
-    totalDurationMs?: number
-
-    cost: {
-      total: number | null
-      input: number | null
-      output: number | null
-    }
-    totalTokens: number | null
-  }
-}
-
 interface ExecutionSnapshotProps {
   executionId: string
   traceSpans?: TraceSpan[]
@@ -85,83 +64,55 @@ export function ExecutionSnapshot({
   isOpen = false,
   onClose = () => {},
 }: ExecutionSnapshotProps) {
-  const [data, setData] = useState<ExecutionSnapshotData | null>(null)
-  const [blockExecutions, setBlockExecutions] = useState<Record<string, BlockExecutionData>>({})
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data, isLoading, error } = useExecutionSnapshot(executionId)
   const [pinnedBlockId, setPinnedBlockId] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (traceSpans && Array.isArray(traceSpans)) {
-      const blockExecutionMap: Record<string, BlockExecutionData> = {}
+  // Process traceSpans to create blockExecutions map
+  const blockExecutions = useMemo(() => {
+    if (!traceSpans || !Array.isArray(traceSpans)) return {}
 
-      const collectBlockSpans = (spans: TraceSpan[]): TraceSpan[] => {
-        const blockSpans: TraceSpan[] = []
+    const blockExecutionMap: Record<string, BlockExecutionData> = {}
 
-        for (const span of spans) {
-          if (span.blockId) {
-            blockSpans.push(span)
-          }
-          if (span.children && Array.isArray(span.children)) {
-            blockSpans.push(...collectBlockSpans(span.children))
-          }
+    const collectBlockSpans = (spans: TraceSpan[]): TraceSpan[] => {
+      const blockSpans: TraceSpan[] = []
+
+      for (const span of spans) {
+        if (span.blockId) {
+          blockSpans.push(span)
         }
-
-        return blockSpans
-      }
-
-      const allBlockSpans = collectBlockSpans(traceSpans)
-
-      for (const span of allBlockSpans) {
-        if (span.blockId && !blockExecutionMap[span.blockId]) {
-          blockExecutionMap[span.blockId] = {
-            input: redactApiKeys(span.input || {}),
-            output: redactApiKeys(span.output || {}),
-            status: span.status || 'unknown',
-            durationMs: span.duration || 0,
-          }
+        if (span.children && Array.isArray(span.children)) {
+          blockSpans.push(...collectBlockSpans(span.children))
         }
       }
 
-      setBlockExecutions(blockExecutionMap)
+      return blockSpans
     }
+
+    const allBlockSpans = collectBlockSpans(traceSpans)
+
+    for (const span of allBlockSpans) {
+      if (span.blockId && !blockExecutionMap[span.blockId]) {
+        blockExecutionMap[span.blockId] = {
+          input: redactApiKeys(span.input || {}),
+          output: redactApiKeys(span.output || {}),
+          status: span.status || 'unknown',
+          durationMs: span.duration || 0,
+        }
+      }
+    }
+
+    return blockExecutionMap
   }, [traceSpans])
 
+  // Reset pinned block when executionId changes
   useEffect(() => {
-    const abortController = new AbortController()
-
-    const fetchData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-
-        const response = await fetch(`/api/logs/execution/${executionId}`, {
-          signal: abortController.signal,
-        })
-        if (!response.ok) {
-          throw new Error(`Failed to fetch execution snapshot data: ${response.statusText}`)
-        }
-
-        const result = await response.json()
-        setData(result)
-        logger.debug(`Loaded execution snapshot data for execution: ${executionId}`)
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-        logger.error('Failed to fetch execution snapshot data:', err)
-        setError(errorMessage)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-
-    return () => abortController.abort()
+    setPinnedBlockId(null)
   }, [executionId])
 
+  const workflowState = data?.workflowState as WorkflowState | undefined
+
   const renderContent = () => {
-    if (loading) {
+    if (isLoading) {
       return (
         <div
           className={cn('flex items-center justify-center', className)}
@@ -183,24 +134,27 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-[8px] text-[var(--text-error)]'>
             <AlertCircle className='h-[16px] w-[16px]' />
-            <span className='text-[13px]'>Failed to load execution snapshot: {error}</span>
+            <span className='text-[13px]'>Failed to load execution snapshot: {error.message}</span>
           </div>
         </div>
       )
     }
 
-    if (!data) {
+    if (!data || !workflowState) {
       return (
         <div
           className={cn('flex items-center justify-center', className)}
           style={{ height, width }}
         >
-          <div className='text-[13px] text-[var(--text-secondary)]'>No data available</div>
+          <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
+            <Loader2 className='h-[16px] w-[16px] animate-spin' />
+            <span className='text-[13px]'>Loading execution snapshot...</span>
+          </div>
         </div>
       )
     }
 
-    if (isMigratedWorkflowState(data.workflowState)) {
+    if (isMigratedWorkflowState(workflowState)) {
       return (
         <div
           className={cn('flex flex-col items-center justify-center gap-[16px] p-[32px]', className)}
@@ -214,9 +168,7 @@ export function ExecutionSnapshot({
             This log was migrated from the old logging system. The workflow state at execution time
             is not available.
           </div>
-          <div className='text-[12px] text-[var(--text-tertiary)]'>
-            Note: {data.workflowState._note}
-          </div>
+          <div className='text-[12px] text-[var(--text-tertiary)]'>Note: {workflowState._note}</div>
         </div>
       )
     }
@@ -231,7 +183,7 @@ export function ExecutionSnapshot({
       >
         <div className='h-full flex-1'>
           <WorkflowPreview
-            workflowState={data.workflowState}
+            workflowState={workflowState}
             showSubBlocks={true}
             isPannable={true}
             defaultPosition={{ x: 0, y: 0 }}
@@ -244,12 +196,12 @@ export function ExecutionSnapshot({
             executedBlocks={blockExecutions}
           />
         </div>
-        {pinnedBlockId && data.workflowState.blocks[pinnedBlockId] && (
+        {pinnedBlockId && workflowState.blocks[pinnedBlockId] && (
           <BlockDetailsSidebar
-            block={data.workflowState.blocks[pinnedBlockId]}
+            block={workflowState.blocks[pinnedBlockId]}
             executionData={blockExecutions[pinnedBlockId]}
             allBlockExecutions={blockExecutions}
-            workflowBlocks={data.workflowState.blocks}
+            workflowBlocks={workflowState.blocks}
             isExecutionMode
           />
         )}

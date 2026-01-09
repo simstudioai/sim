@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Maximize2 } from 'lucide-react'
 import {
@@ -19,6 +19,7 @@ import {
   BlockDetailsSidebar,
   WorkflowPreview,
 } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { Versions } from './components'
 
@@ -59,45 +60,23 @@ export function GeneralDeploy({
   const [versionToLoad, setVersionToLoad] = useState<number | null>(null)
   const [versionToPromote, setVersionToPromote] = useState<number | null>(null)
 
-  const versionCacheRef = useRef<Map<number, WorkflowState>>(new Map())
-  const [, forceUpdate] = useState({})
-
   const selectedVersionInfo = versions.find((v) => v.version === selectedVersion)
   const versionToPromoteInfo = versions.find((v) => v.version === versionToPromote)
   const versionToLoadInfo = versions.find((v) => v.version === versionToLoad)
 
-  const cachedSelectedState =
-    selectedVersion !== null ? versionCacheRef.current.get(selectedVersion) : null
+  // React Query for fetching selected version state (with caching)
+  const { data: selectedVersionState } = useDeploymentVersionState(workflowId, selectedVersion)
 
-  const fetchSelectedVersionState = useCallback(
-    async (version: number) => {
-      if (!workflowId) return
-      if (versionCacheRef.current.has(version)) return
-
-      try {
-        const res = await fetch(`/api/workflows/${workflowId}/deployments/${version}`)
-        if (res.ok) {
-          const data = await res.json()
-          if (data.deployedState) {
-            versionCacheRef.current.set(version, data.deployedState)
-            forceUpdate({})
-          }
-        }
-      } catch (error) {
-        logger.error('Error fetching version state:', error)
-      }
-    },
-    [workflowId]
-  )
+  // React Query mutation for reverting to a version
+  const revertMutation = useRevertToVersion()
 
   useEffect(() => {
     if (selectedVersion !== null) {
-      fetchSelectedVersionState(selectedVersion)
       setPreviewMode('selected')
     } else {
       setPreviewMode('active')
     }
-  }, [selectedVersion, fetchSelectedVersionState])
+  }, [selectedVersion])
 
   const handleSelectVersion = useCallback((version: number | null) => {
     setSelectedVersion(version)
@@ -122,14 +101,7 @@ export function GeneralDeploy({
     setVersionToLoad(null)
 
     try {
-      const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}/revert`, {
-        method: 'POST',
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to load deployment')
-      }
-
+      await revertMutation.mutateAsync({ workflowId, version })
       onLoadDeploymentComplete()
     } catch (error) {
       logger.error('Failed to load deployment:', error)
@@ -152,11 +124,11 @@ export function GeneralDeploy({
   }
 
   const workflowToShow = useMemo(() => {
-    if (previewMode === 'selected' && cachedSelectedState) {
-      return cachedSelectedState
+    if (previewMode === 'selected' && selectedVersionState) {
+      return selectedVersionState
     }
     return deployedState
-  }, [previewMode, cachedSelectedState, deployedState])
+  }, [previewMode, selectedVersionState, deployedState])
 
   const showToggle = selectedVersion !== null && deployedState
 
@@ -241,8 +213,9 @@ export function GeneralDeploy({
                     <Button
                       type='button'
                       variant='default'
+                      size='sm'
                       onClick={() => setShowExpandedPreview(true)}
-                      className='absolute top-[8px] right-[8px] z-10 h-[28px] w-[28px] p-0'
+                      className='absolute top-[8px] right-[8px] z-10'
                     >
                       <Maximize2 className='h-[14px] w-[14px]' />
                     </Button>
@@ -351,7 +324,7 @@ export function GeneralDeploy({
                     showSubBlocks={true}
                     isPannable={true}
                     defaultPosition={{ x: 0, y: 0 }}
-                    defaultZoom={0.8}
+                    defaultZoom={0.6}
                     onNodeClick={(blockId) => {
                       setExpandedSelectedBlockId(
                         expandedSelectedBlockId === blockId ? null : blockId
