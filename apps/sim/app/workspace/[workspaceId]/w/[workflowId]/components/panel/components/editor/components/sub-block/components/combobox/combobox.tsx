@@ -135,7 +135,7 @@ export function ComboBox({
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   // Permission-based filtering for model dropdowns
-  const { isProviderAllowed } = usePermissionConfig()
+  const { isProviderAllowed, isLoading: isPermissionLoading } = usePermissionConfig()
 
   // Evaluate static options if provided as a function
   const staticOptions = useMemo(() => {
@@ -269,16 +269,34 @@ export function ComboBox({
     setStoreInitialized(true)
   }, [])
 
-  // Set default value once store is initialized and value is undefined
+  // Check if current value is valid (exists in allowed options)
+  const isValueValid = useMemo(() => {
+    if (value === null || value === undefined) return false
+    return evaluatedOptions.some((opt) => getOptionValue(opt) === value)
+  }, [value, evaluatedOptions, getOptionValue])
+
+  // Set default value once store is initialized and permissions are loaded
+  // Also reset if current value becomes invalid (e.g., provider was blocked)
   useEffect(() => {
-    if (
-      storeInitialized &&
-      (value === null || value === undefined) &&
-      defaultOptionValue !== undefined
-    ) {
+    if (isPermissionLoading) return
+    if (!storeInitialized) return
+    if (defaultOptionValue === undefined) return
+
+    const needsDefault = value === null || value === undefined
+    const needsReset = subBlockId === 'model' && value && !isValueValid
+
+    if (needsDefault || needsReset) {
       setStoreValue(defaultOptionValue)
     }
-  }, [storeInitialized, value, defaultOptionValue, setStoreValue])
+  }, [
+    storeInitialized,
+    value,
+    defaultOptionValue,
+    setStoreValue,
+    isPermissionLoading,
+    subBlockId,
+    isValueValid,
+  ])
 
   // Clear fetched options and hydrated option when dependencies change
   useEffect(() => {
