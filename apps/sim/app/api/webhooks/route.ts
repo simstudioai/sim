@@ -1179,7 +1179,7 @@ async function createGrainWebhookSubscription(
 ): Promise<string | undefined> {
   try {
     const { path, providerConfig } = webhookData
-    const { apiKey, includeHighlights, includeParticipants, includeAiSummary } =
+    const { apiKey, triggerId, includeHighlights, includeParticipants, includeAiSummary } =
       providerConfig || {}
 
     if (!apiKey) {
@@ -1191,13 +1191,38 @@ async function createGrainWebhookSubscription(
       )
     }
 
+    const hookTypeMap: Record<string, string> = {
+      grain_webhook: 'recording_added',
+      grain_recording_created: 'recording_added',
+      grain_recording_updated: 'recording_added',
+      grain_highlight_created: 'recording_added',
+      grain_highlight_updated: 'recording_added',
+      grain_story_created: 'recording_added',
+      grain_upload_status: 'upload_status',
+    }
+
+    const hookType = hookTypeMap[triggerId] ?? 'recording_added'
+    if (!hookTypeMap[triggerId]) {
+      logger.warn(
+        `[${requestId}] Unknown triggerId for Grain: ${triggerId}, defaulting to recording_added`,
+        {
+          webhookId: webhookData.id,
+        }
+      )
+    }
+
+    logger.info(`[${requestId}] Creating Grain webhook with hook_type: ${hookType}`, {
+      triggerId,
+      webhookId: webhookData.id,
+    })
+
     const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
 
     const grainApiUrl = 'https://api.grain.com/_/public-api/v2/hooks/create'
 
     const requestBody: Record<string, any> = {
       hook_url: notificationUrl,
-      hook_type: 'recording_added',
+      hook_type: hookType,
     }
 
     // Build include object based on configuration
