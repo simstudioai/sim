@@ -1,4 +1,4 @@
-import type { Node } from 'reactflow'
+import type { Edge, Node } from 'reactflow'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { clampPositionToContainer } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-node-utilities'
@@ -138,4 +138,44 @@ export function computeClampedPositionUpdates(
     id: node.id,
     position: getClampedPositionForNode(node.id, node.position, blocks, allNodes),
   }))
+}
+
+interface ParentUpdateEntry {
+  blockId: string
+  newParentId: string
+  affectedEdges: Edge[]
+}
+
+/**
+ * Computes parent update entries for nodes being moved into a subflow.
+ * Only includes "boundary edges" - edges that cross the selection boundary
+ * (one end inside selection, one end outside). Edges between nodes in the
+ * selection are preserved.
+ */
+export function computeParentUpdateEntries(
+  validNodes: Node[],
+  allEdges: Edge[],
+  targetParentId: string
+): ParentUpdateEntry[] {
+  const movingNodeIds = new Set(validNodes.map((n) => n.id))
+
+  // Find edges that cross the boundary (one end inside selection, one end outside)
+  // Edges between nodes in the selection should stay intact
+  const boundaryEdges = allEdges.filter((e) => {
+    const sourceInSelection = movingNodeIds.has(e.source)
+    const targetInSelection = movingNodeIds.has(e.target)
+    // Only remove if exactly one end is in the selection (crosses boundary)
+    return sourceInSelection !== targetInSelection
+  })
+
+  // Build updates for all valid nodes
+  return validNodes.map((n) => {
+    // Only include boundary edges connected to this specific node
+    const edgesForThisNode = boundaryEdges.filter((e) => e.source === n.id || e.target === n.id)
+    return {
+      blockId: n.id,
+      newParentId: targetParentId,
+      affectedEdges: edgesForThisNode,
+    }
+  })
 }
