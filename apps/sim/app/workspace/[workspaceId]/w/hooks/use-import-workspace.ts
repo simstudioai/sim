@@ -159,21 +159,36 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
               continue
             }
 
-            // Save variables if any
-            if (workflowData.variables && workflowData.variables.length > 0) {
-              const variablesPayload = workflowData.variables.map((v: any) => ({
-                id: typeof v.id === 'string' && v.id.trim() ? v.id : crypto.randomUUID(),
-                workflowId: newWorkflow.id,
-                name: v.name,
-                type: v.type,
-                value: v.value,
-              }))
+            // Save variables if any (handle both legacy Array and current Record formats)
+            if (workflowData.variables) {
+              // Convert to Record format for API (handles backwards compatibility with old Array exports)
+              const variablesArray = Array.isArray(workflowData.variables)
+                ? workflowData.variables
+                : Object.values(workflowData.variables)
 
-              await fetch(`/api/workflows/${newWorkflow.id}/variables`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ variables: variablesPayload }),
-              })
+              if (variablesArray.length > 0) {
+                const variablesRecord: Record<
+                  string,
+                  { id: string; workflowId: string; name: string; type: string; value: unknown }
+                > = {}
+
+                for (const v of variablesArray) {
+                  const id = typeof v.id === 'string' && v.id.trim() ? v.id : crypto.randomUUID()
+                  variablesRecord[id] = {
+                    id,
+                    workflowId: newWorkflow.id,
+                    name: v.name,
+                    type: v.type,
+                    value: v.value,
+                  }
+                }
+
+                await fetch(`/api/workflows/${newWorkflow.id}/variables`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ variables: variablesRecord }),
+                })
+              }
             }
 
             logger.info(`Imported workflow: ${workflowName}`)

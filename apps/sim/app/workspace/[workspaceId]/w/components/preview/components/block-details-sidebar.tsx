@@ -1,16 +1,19 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown as ChevronDownIcon, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, ChevronDown as ChevronDownIcon, X } from 'lucide-react'
 import { ReactFlowProvider } from 'reactflow'
-import { Badge, Button, ChevronDown, Code } from '@/components/emcn'
+import { Badge, Button, ChevronDown, Code, Input } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
+import { SnapshotContextMenu } from '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/components'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
+import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getBlock } from '@/blocks'
 import type { BlockConfig, BlockIcon, SubBlockConfig } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
+import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 /**
@@ -87,16 +90,37 @@ interface ResolvedConnection {
   fields: Array<{ path: string; value: string; tag: string }>
 }
 
+interface ExtractedReferences {
+  blockRefs: string[]
+  workflowVars: string[]
+  envVars: string[]
+}
+
 /**
  * Extract all variable references from nested subblock values
  */
-function extractAllReferencesFromSubBlocks(subBlockValues: Record<string, unknown>): string[] {
-  const refs = new Set<string>()
+function extractAllReferencesFromSubBlocks(
+  subBlockValues: Record<string, unknown>
+): ExtractedReferences {
+  const blockRefs = new Set<string>()
+  const workflowVars = new Set<string>()
+  const envVars = new Set<string>()
 
   const processValue = (value: unknown) => {
     if (typeof value === 'string') {
       const extracted = extractReferencePrefixes(value)
-      extracted.forEach((ref) => refs.add(ref.raw))
+      for (const ref of extracted) {
+        if (ref.prefix === 'variable') {
+          workflowVars.add(ref.raw)
+        } else {
+          blockRefs.add(ref.raw)
+        }
+      }
+
+      const envMatches = value.match(/\{\{([^}]+)\}\}/g)
+      if (envMatches) {
+        envMatches.forEach((match) => envVars.add(match))
+      }
     } else if (Array.isArray(value)) {
       value.forEach(processValue)
     } else if (value && typeof value === 'object') {
@@ -109,7 +133,11 @@ function extractAllReferencesFromSubBlocks(subBlockValues: Record<string, unknow
   }
 
   Object.values(subBlockValues).forEach(processValue)
-  return Array.from(refs)
+  return {
+    blockRefs: Array.from(blockRefs),
+    workflowVars: Array.from(workflowVars),
+    envVars: Array.from(envVars),
+  }
 }
 
 /**
@@ -133,13 +161,29 @@ interface ExecutionDataSectionProps {
   title: string
   data: unknown
   isError?: boolean
+  wrapText?: boolean
+  searchQuery?: string
+  currentMatchIndex?: number
+  onMatchCountChange?: (count: number) => void
+  contentRef?: React.RefObject<HTMLDivElement | null>
+  onContextMenu?: (e: React.MouseEvent) => void
 }
 
 /**
  * Collapsible section for execution data (input/output)
  * Uses Code.Viewer for proper syntax highlighting matching the logs UI
  */
-function ExecutionDataSection({ title, data, isError = false }: ExecutionDataSectionProps) {
+function ExecutionDataSection({
+  title,
+  data,
+  isError = false,
+  wrapText = true,
+  searchQuery,
+  currentMatchIndex = 0,
+  onMatchCountChange,
+  contentRef,
+  onContextMenu,
+}: ExecutionDataSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   const jsonString = useMemo(() => {
@@ -192,12 +236,17 @@ function ExecutionDataSection({ title, data, isError = false }: ExecutionDataSec
               <span className='text-[12px] text-[var(--text-tertiary)]'>No data</span>
             </div>
           ) : (
-            <Code.Viewer
-              code={jsonString}
-              language='json'
-              className='!bg-[var(--surface-3)] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
-              wrapText
-            />
+            <div onContextMenu={onContextMenu} ref={contentRef}>
+              <Code.Viewer
+                code={jsonString}
+                language='json'
+                className='!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
+                wrapText={wrapText}
+                searchQuery={searchQuery}
+                currentMatchIndex={currentMatchIndex}
+                onMatchCountChange={onMatchCountChange}
+              />
+            </div>
           )}
         </>
       )}
@@ -205,18 +254,40 @@ function ExecutionDataSection({ title, data, isError = false }: ExecutionDataSec
   )
 }
 
+interface ResolvedVariable {
+  ref: string
+  name: string
+  value: string
+}
+
+interface ConnectionsSectionProps {
+  connections: ResolvedConnection[]
+  workflowVars: ResolvedVariable[]
+  envVars: ResolvedVariable[]
+  onContextMenu?: (e: React.MouseEvent, value: string) => void
+}
+
 /**
  * Section showing resolved variable references - styled like the connections section in editor
  */
-function ResolvedConnectionsSection({ connections }: { connections: ResolvedConnection[] }) {
+function ConnectionsSection({
+  connections,
+  workflowVars,
+  envVars,
+  onContextMenu,
+}: ConnectionsSectionProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set())
+  const [expandedVariables, setExpandedVariables] = useState(true)
+  const [expandedEnvVars, setExpandedEnvVars] = useState(true)
 
   useEffect(() => {
     setExpandedBlocks(new Set(connections.map((c) => c.blockId)))
   }, [connections])
 
-  if (connections.length === 0) return null
+  const hasContent = connections.length > 0 || workflowVars.length > 0 || envVars.length > 0
+
+  if (!hasContent) return null
 
   const toggleBlock = (blockId: string) => {
     setExpandedBlocks((prev) => {
@@ -230,8 +301,14 @@ function ResolvedConnectionsSection({ connections }: { connections: ResolvedConn
     })
   }
 
+  const handleValueContextMenu = (e: React.MouseEvent, value: string) => {
+    if (value && value !== '—' && value !== '[REDACTED]' && onContextMenu) {
+      onContextMenu(e, value)
+    }
+  }
+
   return (
-    <div className='flex flex-shrink-0 flex-col border-[var(--border)] border-t'>
+    <div className='flex flex-col border-[var(--border)] border-t'>
       {/* Header with Chevron */}
       <div
         className='flex flex-shrink-0 cursor-pointer items-center gap-[8px] px-[10px] pt-[5px] pb-[5px]'
@@ -312,7 +389,8 @@ function ResolvedConnectionsSection({ connections }: { connections: ResolvedConn
                     {connection.fields.map((field) => (
                       <div
                         key={field.tag}
-                        className='group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                        className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                        onContextMenu={(e) => handleValueContextMenu(e, field.value)}
                       >
                         <span
                           className={cn(
@@ -322,7 +400,7 @@ function ResolvedConnectionsSection({ connections }: { connections: ResolvedConn
                         >
                           {field.path}
                         </span>
-                        <span className='min-w-0 flex-1 truncate text-[var(--text-tertiary)]'>
+                        <span className='min-w-0 break-all text-[var(--text-tertiary)]'>
                           {field.value}
                         </span>
                       </div>
@@ -332,6 +410,101 @@ function ResolvedConnectionsSection({ connections }: { connections: ResolvedConn
               </div>
             )
           })}
+
+          {/* Workflow Variables */}
+          {workflowVars.length > 0 && (
+            <div className='mb-[2px] last:mb-0'>
+              <div
+                className='group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                onClick={() => setExpandedVariables(!expandedVariables)}
+              >
+                <div className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px] bg-[#8B5CF6]'>
+                  <span className='font-bold text-[9px] text-white'>V</span>
+                </div>
+                <span
+                  className={cn(
+                    'truncate font-medium',
+                    'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                  )}
+                >
+                  Variables
+                </span>
+                <ChevronDownIcon
+                  className={cn(
+                    'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
+                    'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
+                    expandedVariables && 'rotate-180'
+                  )}
+                />
+              </div>
+              {expandedVariables && (
+                <div className='relative mt-[2px] ml-[12px] space-y-[2px] pl-[10px]'>
+                  <div className='pointer-events-none absolute top-[4px] bottom-[4px] left-0 w-px bg-[var(--border)]' />
+                  {workflowVars.map((v) => (
+                    <div
+                      key={v.ref}
+                      className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                      onContextMenu={(e) => handleValueContextMenu(e, v.value)}
+                    >
+                      <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
+                        {v.name}
+                      </span>
+                      <span className='min-w-0 break-all text-[var(--text-tertiary)]'>
+                        {v.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Environment Variables */}
+          {envVars.length > 0 && (
+            <div className='mb-[2px] last:mb-0'>
+              <div
+                className='group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                onClick={() => setExpandedEnvVars(!expandedEnvVars)}
+              >
+                <div className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px] bg-[#6B7280]'>
+                  <span className='font-bold text-[9px] text-white'>E</span>
+                </div>
+                <span
+                  className={cn(
+                    'truncate font-medium',
+                    'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                  )}
+                >
+                  Environment Variables
+                </span>
+                <ChevronDownIcon
+                  className={cn(
+                    'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
+                    'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
+                    expandedEnvVars && 'rotate-180'
+                  )}
+                />
+              </div>
+              {expandedEnvVars && (
+                <div className='relative mt-[2px] ml-[12px] space-y-[2px] pl-[10px]'>
+                  <div className='pointer-events-none absolute top-[4px] bottom-[4px] left-0 w-px bg-[var(--border)]' />
+                  {envVars.map((v) => (
+                    <div
+                      key={v.ref}
+                      className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                    >
+                      <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
+                        {v.name}
+                      </span>
+                      <span className='min-w-0 break-all text-[var(--text-tertiary)]'>
+                        {v.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -359,6 +532,13 @@ interface ExecutionData {
   durationMs?: number
 }
 
+interface WorkflowVariable {
+  id: string
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+  value: unknown
+}
+
 interface BlockDetailsSidebarProps {
   block: BlockState
   executionData?: ExecutionData
@@ -366,6 +546,8 @@ interface BlockDetailsSidebarProps {
   allBlockExecutions?: Record<string, ExecutionData>
   /** All workflow blocks for mapping block names to IDs */
   workflowBlocks?: Record<string, BlockState>
+  /** Workflow variables for resolving variable references */
+  workflowVariables?: Record<string, WorkflowVariable>
   /** When true, shows "Not Executed" badge if no executionData is provided */
   isExecutionMode?: boolean
   /** Optional close handler - if not provided, no close button is shown */
@@ -388,11 +570,94 @@ function BlockDetailsSidebarContent({
   executionData,
   allBlockExecutions,
   workflowBlocks,
+  workflowVariables,
   isExecutionMode = false,
   onClose,
 }: BlockDetailsSidebarProps) {
+  // Convert Record<string, Variable> to Array<Variable> for iteration
+  const normalizedWorkflowVariables = useMemo(() => {
+    if (!workflowVariables) return []
+    return Object.values(workflowVariables)
+  }, [workflowVariables])
+
   const blockConfig = getBlock(block.type) as BlockConfig | undefined
   const subBlockValues = block.subBlocks || {}
+
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  const {
+    wrapText,
+    toggleWrapText,
+    isSearchActive,
+    searchQuery,
+    setSearchQuery,
+    matchCount,
+    currentMatchIndex,
+    activateSearch,
+    closeSearch,
+    goToNextMatch,
+    goToPreviousMatch,
+    handleMatchCountChange,
+    searchInputRef,
+  } = useCodeViewerFeatures({ contentRef })
+
+  const {
+    isOpen: isContextMenuOpen,
+    position: contextMenuPosition,
+    menuRef: contextMenuRef,
+    handleContextMenu,
+    closeMenu: closeContextMenu,
+  } = useContextMenu()
+
+  const [contextMenuData, setContextMenuData] = useState({ content: '', copyOnly: false })
+
+  const openContextMenu = useCallback(
+    (e: React.MouseEvent, content: string, copyOnly: boolean) => {
+      setContextMenuData({ content, copyOnly })
+      handleContextMenu(e)
+    },
+    [handleContextMenu]
+  )
+
+  const handleExecutionContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      const parts: string[] = []
+      if (executionData?.input) {
+        parts.push(`// Input\n${formatValueAsJson(executionData.input)}`)
+      }
+      if (executionData?.output) {
+        parts.push(`// Output\n${formatValueAsJson(executionData.output)}`)
+      }
+      if (parts.length > 0) {
+        openContextMenu(e, parts.join('\n\n'), false)
+      }
+    },
+    [executionData, openContextMenu]
+  )
+
+  const handleSubblockContextMenu = useCallback(
+    (e: React.MouseEvent, config: SubBlockConfig) => {
+      if (config.password || config.type === 'oauth-input') return
+
+      const valueObj = subBlockValues[config.id]
+      const value =
+        valueObj && typeof valueObj === 'object' && 'value' in valueObj
+          ? (valueObj as { value: unknown }).value
+          : valueObj
+
+      if (value !== undefined && value !== null && value !== '') {
+        const content = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+        openContextMenu(e, content, true)
+      }
+    },
+    [subBlockValues, openContextMenu]
+  )
+
+  const handleCopy = useCallback(() => {
+    if (contextMenuData.content) {
+      navigator.clipboard.writeText(contextMenuData.content)
+    }
+  }, [contextMenuData.content])
 
   const blockNameToId = useMemo(() => {
     const map = new Map<string, string>()
@@ -432,18 +697,20 @@ function BlockDetailsSidebarContent({
     }
   }, [allBlockExecutions, workflowBlocks, blockNameToId])
 
-  // Group resolved variables by source block for display
+  const extractedRefs = useMemo(
+    () => extractAllReferencesFromSubBlocks(subBlockValues),
+    [subBlockValues]
+  )
+
   const resolvedConnections = useMemo((): ResolvedConnection[] => {
     if (!allBlockExecutions || !workflowBlocks) return []
 
-    const allRefs = extractAllReferencesFromSubBlocks(subBlockValues)
     const seen = new Set<string>()
     const blockMap = new Map<string, ResolvedConnection>()
 
-    for (const ref of allRefs) {
+    for (const ref of extractedRefs.blockRefs) {
       if (seen.has(ref)) continue
 
-      // Parse reference: <blockName.path.to.value>
       const inner = ref.slice(1, -1)
       const parts = inner.split('.')
       if (parts.length < 1) continue
@@ -461,7 +728,6 @@ function BlockDetailsSidebarContent({
 
       seen.add(ref)
 
-      // Get or create block entry
       if (!blockMap.has(blockId)) {
         blockMap.set(blockId, {
           blockId,
@@ -480,7 +746,35 @@ function BlockDetailsSidebarContent({
     }
 
     return Array.from(blockMap.values())
-  }, [subBlockValues, allBlockExecutions, workflowBlocks, blockNameToId, resolveReference])
+  }, [extractedRefs.blockRefs, allBlockExecutions, workflowBlocks, blockNameToId, resolveReference])
+
+  const resolvedWorkflowVars = useMemo((): ResolvedVariable[] => {
+    return extractedRefs.workflowVars.map((ref) => {
+      const inner = ref.slice(1, -1)
+      const parts = inner.split('.')
+      const varName = parts.slice(1).join('.')
+
+      let value = '—'
+      if (normalizedWorkflowVariables.length > 0) {
+        const normalizedVarName = normalizeName(varName)
+        const matchedVar = normalizedWorkflowVariables.find(
+          (v) => normalizeName(v.name) === normalizedVarName
+        )
+        if (matchedVar !== undefined) {
+          value = formatInlineValue(matchedVar.value)
+        }
+      }
+
+      return { ref, name: varName, value }
+    })
+  }, [extractedRefs.workflowVars, normalizedWorkflowVariables])
+
+  const resolvedEnvVars = useMemo((): ResolvedVariable[] => {
+    return extractedRefs.envVars.map((ref) => {
+      const varName = ref.slice(2, -2)
+      return { ref, name: varName, value: '[REDACTED]' }
+    })
+  }, [extractedRefs.envVars])
 
   if (!blockConfig) {
     return (
@@ -515,7 +809,7 @@ function BlockDetailsSidebarContent({
         : 'gray'
 
   return (
-    <div className='flex h-full w-80 flex-col overflow-hidden rounded-r-[8px] border-[var(--border)] border-l bg-[var(--surface-1)]'>
+    <div className='relative flex h-full w-80 flex-col overflow-hidden rounded-r-[8px] border-[var(--border)] border-l bg-[var(--surface-1)]'>
       {/* Header - styled like editor */}
       <div className='flex flex-shrink-0 items-center gap-[8px] bg-[var(--surface-4)] px-[12px] py-[8px]'>
         <div
@@ -583,7 +877,16 @@ function BlockDetailsSidebarContent({
 
             {/* Input Section */}
             {executionData.input !== undefined && (
-              <ExecutionDataSection title='Input' data={executionData.input} />
+              <ExecutionDataSection
+                title='Input'
+                data={executionData.input}
+                wrapText={wrapText}
+                searchQuery={isSearchActive ? searchQuery : undefined}
+                currentMatchIndex={currentMatchIndex}
+                onMatchCountChange={handleMatchCountChange}
+                contentRef={contentRef}
+                onContextMenu={handleExecutionContextMenu}
+              />
             )}
 
             {/* Divider between Input and Output */}
@@ -597,6 +900,12 @@ function BlockDetailsSidebarContent({
                 title={executionData.status === 'error' ? 'Error' : 'Output'}
                 data={executionData.output}
                 isError={executionData.status === 'error'}
+                wrapText={wrapText}
+                searchQuery={isSearchActive ? searchQuery : undefined}
+                currentMatchIndex={currentMatchIndex}
+                onMatchCountChange={handleMatchCountChange}
+                contentRef={contentRef}
+                onContextMenu={handleExecutionContextMenu}
               />
             )}
           </div>
@@ -628,7 +937,11 @@ function BlockDetailsSidebarContent({
           {visibleSubBlocks.length > 0 ? (
             <div className='flex flex-col'>
               {visibleSubBlocks.map((subBlockConfig, index) => (
-                <div key={subBlockConfig.id} className='subblock-row'>
+                <div
+                  key={subBlockConfig.id}
+                  className='subblock-row'
+                  onContextMenu={(e) => handleSubblockContextMenu(e, subBlockConfig)}
+                >
                   <SubBlock
                     blockId={block.id}
                     config={subBlockConfig}
@@ -658,12 +971,74 @@ function BlockDetailsSidebarContent({
             </div>
           )}
         </div>
+
+        {/* Connections Section */}
+        <ConnectionsSection
+          connections={resolvedConnections}
+          workflowVars={resolvedWorkflowVars}
+          envVars={resolvedEnvVars}
+          onContextMenu={(e, value) => openContextMenu(e, value, true)}
+        />
       </div>
 
-      {/* Resolved Variables Section - Pinned at bottom, outside scrollable area */}
-      {resolvedConnections.length > 0 && (
-        <ResolvedConnectionsSection connections={resolvedConnections} />
+      {/* Search Overlay */}
+      {isSearchActive && (
+        <div
+          className='absolute top-[40px] right-[8px] z-30 flex h-[34px] items-center gap-[6px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-1)] px-[6px] shadow-sm'
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Input
+            ref={searchInputRef}
+            type='text'
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder='Search...'
+            className='mr-[2px] h-[23px] w-[94px] text-[12px]'
+          />
+          <span
+            className={cn(
+              'min-w-[45px] text-center text-[11px]',
+              matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
+            )}
+          >
+            {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : '0/0'}
+          </span>
+          <Button
+            variant='ghost'
+            className='!p-1'
+            onClick={goToPreviousMatch}
+            disabled={matchCount === 0}
+            aria-label='Previous match'
+          >
+            <ArrowUp className='h-[12px] w-[12px]' />
+          </Button>
+          <Button
+            variant='ghost'
+            className='!p-1'
+            onClick={goToNextMatch}
+            disabled={matchCount === 0}
+            aria-label='Next match'
+          >
+            <ArrowDown className='h-[12px] w-[12px]' />
+          </Button>
+          <Button variant='ghost' className='!p-1' onClick={closeSearch} aria-label='Close search'>
+            <X className='h-[12px] w-[12px]' />
+          </Button>
+        </div>
       )}
+
+      {/* Context Menu */}
+      <SnapshotContextMenu
+        isOpen={isContextMenuOpen}
+        position={contextMenuPosition}
+        menuRef={contextMenuRef}
+        onClose={closeContextMenu}
+        onCopy={handleCopy}
+        onSearch={activateSearch}
+        wrapText={wrapText}
+        onToggleWrap={toggleWrapText}
+        copyOnly={contextMenuData.copyOnly}
+      />
     </div>
   )
 }

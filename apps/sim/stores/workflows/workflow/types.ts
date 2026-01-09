@@ -17,14 +17,14 @@ export interface LoopConfig {
   nodes: string[]
   iterations: number
   loopType: 'for' | 'forEach' | 'while' | 'doWhile'
-  forEachItems?: any[] | Record<string, any> | string
+  forEachItems?: unknown[] | Record<string, unknown> | string
   whileCondition?: string // JS expression that evaluates to boolean (for while loops)
   doWhileCondition?: string // JS expression that evaluates to boolean (for do-while loops)
 }
 
 export interface ParallelConfig {
   nodes: string[]
-  distribution?: any[] | Record<string, any> | string
+  distribution?: unknown[] | Record<string, unknown> | string
   parallelType?: 'count' | 'collection'
 }
 
@@ -137,6 +137,13 @@ export interface Parallel {
   parallelType?: 'count' | 'collection' // Explicit parallel type to avoid inference bugs
 }
 
+export interface Variable {
+  id: string
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+  value: unknown
+}
+
 export interface DragStartPosition {
   id: string
   x: number
@@ -156,12 +163,7 @@ export interface WorkflowState {
     description?: string
     exportedAt?: string
   }
-  variables?: Array<{
-    id: string
-    name: string
-    type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
-    value: any
-  }>
+  variables?: Record<string, Variable>
   isDeployed?: boolean
   deployedAt?: Date
   deploymentStatuses?: Record<string, DeploymentStatus>

@@ -726,7 +726,9 @@ export function Chat() {
     (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
-        handleSendMessage()
+        if (!isStreaming && !isExecuting) {
+          handleSendMessage()
+        }
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
         if (promptHistory.length > 0) {
@@ -749,7 +751,7 @@ export function Chat() {
         }
       }
     },
-    [handleSendMessage, promptHistory, historyIndex]
+    [handleSendMessage, promptHistory, historyIndex, isStreaming, isExecuting]
   )
 
   /**
@@ -1061,7 +1063,7 @@ export function Chat() {
                 onKeyDown={handleKeyPress}
                 placeholder={isDragOver ? 'Drop files here...' : 'Type a message...'}
                 className='w-full border-0 bg-transparent pr-[56px] pl-[4px] shadow-none focus-visible:ring-0 focus-visible:ring-offset-0'
-                disabled={!activeWorkflowId || isExecuting}
+                disabled={!activeWorkflowId}
               />
 
               {/* Buttons positioned absolutely on the right */}
@@ -1091,7 +1093,8 @@ export function Chat() {
                     disabled={
                       (!chatMessage.trim() && chatFiles.length === 0) ||
                       !activeWorkflowId ||
-                      isExecuting
+                      isExecuting ||
+                      isStreaming
                     }
                     className={cn(
                       'h-[22px] w-[22px] rounded-full p-0 transition-colors',

@@ -49,6 +49,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/hooks'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getBlock } from '@/blocks'
+import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
@@ -337,27 +338,34 @@ export function Terminal() {
   const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
   const [outputOptionsOpen, setOutputOptionsOpen] = useState(false)
 
-  // Output panel search state
-  const [isOutputSearchActive, setIsOutputSearchActive] = useState(false)
-  const [outputSearchQuery, setOutputSearchQuery] = useState('')
-  const [matchCount, setMatchCount] = useState(0)
-  const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
-  const outputSearchInputRef = useRef<HTMLInputElement>(null)
   const outputContentRef = useRef<HTMLDivElement>(null)
+  const {
+    isSearchActive: isOutputSearchActive,
+    searchQuery: outputSearchQuery,
+    setSearchQuery: setOutputSearchQuery,
+    matchCount,
+    currentMatchIndex,
+    activateSearch: activateOutputSearch,
+    closeSearch: closeOutputSearch,
+    goToNextMatch,
+    goToPreviousMatch,
+    handleMatchCountChange,
+    searchInputRef: outputSearchInputRef,
+  } = useCodeViewerFeatures({
+    contentRef: outputContentRef,
+    externalWrapText: wrapText,
+    onWrapTextChange: setWrapText,
+  })
 
-  // Training controls state
   const [isTrainingEnvEnabled, setIsTrainingEnvEnabled] = useState(false)
   const showTrainingControls = useGeneralStore((state) => state.showTrainingControls)
   const { isTraining, toggleModal: toggleTrainingModal, stopTraining } = useCopilotTrainingStore()
 
-  // Playground state
   const [isPlaygroundEnabled, setIsPlaygroundEnabled] = useState(false)
 
-  // Terminal resize hooks
   const { handleMouseDown } = useTerminalResize()
   const { handleMouseDown: handleOutputPanelResizeMouseDown } = useOutputPanelResize()
 
-  // Terminal filters hook
   const {
     filters,
     sortConfig,
@@ -370,12 +378,10 @@ export function Terminal() {
     hasActiveFilters,
   } = useTerminalFilters()
 
-  // Context menu state
   const [hasSelection, setHasSelection] = useState(false)
   const [contextMenuEntry, setContextMenuEntry] = useState<ConsoleEntry | null>(null)
   const [storedSelectionText, setStoredSelectionText] = useState('')
 
-  // Context menu hooks
   const {
     isOpen: isLogRowMenuOpen,
     position: logRowMenuPosition,
@@ -577,44 +583,6 @@ export function Terminal() {
     }
   }, [activeWorkflowId, clearWorkflowConsole])
 
-  const activateOutputSearch = useCallback(() => {
-    setIsOutputSearchActive(true)
-    setTimeout(() => {
-      outputSearchInputRef.current?.focus()
-    }, 0)
-  }, [])
-
-  const closeOutputSearch = useCallback(() => {
-    setIsOutputSearchActive(false)
-    setOutputSearchQuery('')
-    setMatchCount(0)
-    setCurrentMatchIndex(0)
-  }, [])
-
-  /**
-   * Navigates to the next match in the search results.
-   */
-  const goToNextMatch = useCallback(() => {
-    if (matchCount === 0) return
-    setCurrentMatchIndex((prev) => (prev + 1) % matchCount)
-  }, [matchCount])
-
-  /**
-   * Navigates to the previous match in the search results.
-   */
-  const goToPreviousMatch = useCallback(() => {
-    if (matchCount === 0) return
-    setCurrentMatchIndex((prev) => (prev - 1 + matchCount) % matchCount)
-  }, [matchCount])
-
-  /**
-   * Handles match count change from Code.Viewer.
-   */
-  const handleMatchCountChange = useCallback((count: number) => {
-    setMatchCount(count)
-    setCurrentMatchIndex(0)
-  }, [])
-
   const handleClearConsole = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -681,6 +649,14 @@ export function Terminal() {
       closeLogRowMenu()
     },
     [toggleRunId, closeLogRowMenu]
+  )
+
+  const handleCopyRunId = useCallback(
+    (runId: string) => {
+      navigator.clipboard.writeText(runId)
+      closeLogRowMenu()
+    },
+    [closeLogRowMenu]
   )
 
   const handleClearConsoleFromMenu = useCallback(() => {
@@ -885,66 +861,20 @@ export function Terminal() {
   }, [expandToLastHeight, selectedEntry, showInput, hasInputData, isExpanded])
 
   /**
-   * Handle Escape to close search or unselect entry
+   * Handle Escape to unselect entry (search close is handled by useCodeViewerFeatures)
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !isOutputSearchActive && selectedEntry) {
         e.preventDefault()
-        // First close search if active
-        if (isOutputSearchActive) {
-          closeOutputSearch()
-          return
-        }
-        // Then unselect entry
-        if (selectedEntry) {
-          setSelectedEntry(null)
-          setAutoSelectEnabled(true)
-        }
+        setSelectedEntry(null)
+        setAutoSelectEnabled(true)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEntry, isOutputSearchActive, closeOutputSearch])
-
-  /**
-   * Handle Enter/Shift+Enter for search navigation when search input is focused
-   */
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOutputSearchActive) return
-
-      const isSearchInputFocused = document.activeElement === outputSearchInputRef.current
-
-      if (e.key === 'Enter' && isSearchInputFocused && matchCount > 0) {
-        e.preventDefault()
-        if (e.shiftKey) {
-          goToPreviousMatch()
-        } else {
-          goToNextMatch()
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOutputSearchActive, matchCount, goToNextMatch, goToPreviousMatch])
-
-  /**
-   * Scroll to current match when it changes
-   */
-  useEffect(() => {
-    if (!isOutputSearchActive || matchCount === 0 || !outputContentRef.current) return
-
-    // Find all match elements and scroll to the current one
-    const matchElements = outputContentRef.current.querySelectorAll('[data-search-match]')
-    const currentElement = matchElements[currentMatchIndex]
-
-    if (currentElement) {
-      currentElement.scrollIntoView({ block: 'center' })
-    }
-  }, [currentMatchIndex, isOutputSearchActive, matchCount])
+  }, [selectedEntry, isOutputSearchActive])
 
   /**
    * Adjust output panel width when sidebar or panel width changes.
@@ -1414,25 +1344,16 @@ export function Terminal() {
                       </div>
 
                       {/* Run ID */}
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <span
-                            className={clsx(
-                              COLUMN_WIDTHS.RUN_ID,
-                              COLUMN_BASE_CLASS,
-                              'truncate font-medium font-mono text-[12px]'
-                            )}
-                            style={{ color: runIdColor?.text || '#D2D2D2' }}
-                          >
-                            {formatRunId(entry.executionId)}
-                          </span>
-                        </Tooltip.Trigger>
-                        {entry.executionId && (
-                          <Tooltip.Content>
-                            <span className='font-mono text-[11px]'>{entry.executionId}</span>
-                          </Tooltip.Content>
+                      <span
+                        className={clsx(
+                          COLUMN_WIDTHS.RUN_ID,
+                          COLUMN_BASE_CLASS,
+                          'truncate font-medium font-mono text-[12px]'
                         )}
-                      </Tooltip.Root>
+                        style={{ color: runIdColor?.text || '#D2D2D2' }}
+                      >
+                        {formatRunId(entry.executionId)}
+                      </span>
 
                       {/* Duration */}
                       <span
@@ -1837,6 +1758,7 @@ export function Terminal() {
         onFilterByBlock={handleFilterByBlock}
         onFilterByStatus={handleFilterByStatus}
         onFilterByRunId={handleFilterByRunId}
+        onCopyRunId={handleCopyRunId}
         onClearFilters={() => {
           clearFilters()
           closeLogRowMenu()

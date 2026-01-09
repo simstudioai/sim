@@ -165,7 +165,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
   const { data: organizationsData } = useOrganizations()
-  const { data: subscriptionData } = useSubscriptionData()
+  const { data: subscriptionData } = useSubscriptionData({ enabled: isBillingEnabled })
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders()
 
   const activeOrganization = organizationsData?.activeOrganization

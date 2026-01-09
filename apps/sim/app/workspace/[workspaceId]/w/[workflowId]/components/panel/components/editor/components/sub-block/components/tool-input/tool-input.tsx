@@ -902,7 +902,22 @@ export function ToolInput({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [usageControlPopoverIndex, setUsageControlPopoverIndex] = useState<number | null>(null)
-  const { data: customTools = [] } = useCustomTools(workspaceId)
+
+  const value = isPreview ? previewValue : storeValue
+
+  const selectedTools: StoredTool[] =
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value[0] !== null &&
+    typeof value[0]?.type === 'string'
+      ? (value as StoredTool[])
+      : []
+
+  const hasReferenceOnlyCustomTools = selectedTools.some(
+    (tool) => tool.type === 'custom-tool' && tool.customToolId && !tool.code
+  )
+  const shouldFetchCustomTools = !isPreview || hasReferenceOnlyCustomTools
+  const { data: customTools = [] } = useCustomTools(shouldFetchCustomTools ? workspaceId : '')
 
   const {
     mcpTools,
@@ -918,24 +933,15 @@ export function ToolInput({
   const mcpDataLoading = mcpLoading || mcpServersLoading
   const hasRefreshedRef = useRef(false)
 
-  const value = isPreview ? previewValue : storeValue
-
-  const selectedTools: StoredTool[] =
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value[0] !== null &&
-    typeof value[0]?.type === 'string'
-      ? (value as StoredTool[])
-      : []
-
   const hasMcpTools = selectedTools.some((tool) => tool.type === 'mcp')
 
   useEffect(() => {
+    if (isPreview) return
     if (hasMcpTools && !hasRefreshedRef.current) {
       hasRefreshedRef.current = true
       forceRefreshMcpTools(workspaceId)
     }
-  }, [hasMcpTools, forceRefreshMcpTools, workspaceId])
+  }, [hasMcpTools, forceRefreshMcpTools, workspaceId, isPreview])
 
   /**
    * Returns issue info for an MCP tool.

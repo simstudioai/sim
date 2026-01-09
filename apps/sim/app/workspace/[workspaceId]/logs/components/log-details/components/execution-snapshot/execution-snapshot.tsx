@@ -1,8 +1,18 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Loader2 } from 'lucide-react'
-import { Modal, ModalBody, ModalContent, ModalHeader } from '@/components/emcn'
+import { createPortal } from 'react-dom'
+import {
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalHeader,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverItem,
+} from '@/components/emcn'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -60,6 +70,45 @@ export function ExecutionSnapshot({
 }: ExecutionSnapshotProps) {
   const { data, isLoading, error } = useExecutionSnapshot(executionId)
   const [pinnedBlockId, setPinnedBlockId] = useState<string | null>(null)
+
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
+  const [contextMenuBlockId, setContextMenuBlockId] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  const closeMenu = useCallback(() => {
+    setIsMenuOpen(false)
+    setContextMenuBlockId(null)
+  }, [])
+
+  const handleCanvasContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenuBlockId(null)
+    setMenuPosition({ x: e.clientX, y: e.clientY })
+    setIsMenuOpen(true)
+  }, [])
+
+  const handleNodeContextMenu = useCallback(
+    (blockId: string, mousePosition: { x: number; y: number }) => {
+      setContextMenuBlockId(blockId)
+      setMenuPosition(mousePosition)
+      setIsMenuOpen(true)
+    },
+    []
+  )
+
+  const handleCopyExecutionId = useCallback(() => {
+    navigator.clipboard.writeText(executionId)
+    closeMenu()
+  }, [executionId, closeMenu])
+
+  const handleOpenDetails = useCallback(() => {
+    if (contextMenuBlockId) {
+      setPinnedBlockId(contextMenuBlockId)
+    }
+    closeMenu()
+  }, [contextMenuBlockId, closeMenu])
 
   const blockExecutions = useMemo(() => {
     if (!traceSpans || !Array.isArray(traceSpans)) return {}
@@ -173,7 +222,7 @@ export function ExecutionSnapshot({
           className
         )}
       >
-        <div className='h-full flex-1'>
+        <div className='h-full flex-1' onContextMenu={handleCanvasContextMenu}>
           <WorkflowPreview
             workflowState={workflowState}
             showSubBlocks={true}
@@ -183,6 +232,7 @@ export function ExecutionSnapshot({
             onNodeClick={(blockId) => {
               setPinnedBlockId((prev) => (prev === blockId ? null : blockId))
             }}
+            onNodeContextMenu={handleNodeContextMenu}
             cursorStyle='pointer'
             executedBlocks={blockExecutions}
           />
@@ -193,32 +243,72 @@ export function ExecutionSnapshot({
             executionData={blockExecutions[pinnedBlockId]}
             allBlockExecutions={blockExecutions}
             workflowBlocks={workflowState.blocks}
+            workflowVariables={workflowState.variables}
             isExecutionMode
+            onClose={() => setPinnedBlockId(null)}
           />
         )}
       </div>
     )
   }
 
+  const canvasContextMenu =
+    typeof document !== 'undefined'
+      ? createPortal(
+          <Popover
+            open={isMenuOpen}
+            onOpenChange={closeMenu}
+            variant='secondary'
+            size='sm'
+            colorScheme='inverted'
+          >
+            <PopoverAnchor
+              style={{
+                position: 'fixed',
+                left: `${menuPosition.x}px`,
+                top: `${menuPosition.y}px`,
+                width: '1px',
+                height: '1px',
+              }}
+            />
+            <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
+              {contextMenuBlockId && (
+                <PopoverItem onClick={handleOpenDetails}>Open Details</PopoverItem>
+              )}
+              <PopoverItem onClick={handleCopyExecutionId}>Copy Execution ID</PopoverItem>
+            </PopoverContent>
+          </Popover>,
+          document.body
+        )
+      : null
+
   if (isModal) {
     return (
-      <Modal
-        open={isOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPinnedBlockId(null)
-            onClose()
-          }
-        }}
-      >
-        <ModalContent size='full' className='flex h-[90vh] flex-col'>
-          <ModalHeader>Workflow State</ModalHeader>
+      <>
+        <Modal
+          open={isOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPinnedBlockId(null)
+              onClose()
+            }
+          }}
+        >
+          <ModalContent size='full' className='flex h-[90vh] flex-col'>
+            <ModalHeader>Workflow State</ModalHeader>
 
-          <ModalBody className='!p-0 min-h-0 flex-1'>{renderContent()}</ModalBody>
-        </ModalContent>
-      </Modal>
+            <ModalBody className='!p-0 min-h-0 flex-1'>{renderContent()}</ModalBody>
+          </ModalContent>
+        </Modal>
+        {canvasContextMenu}
+      </>
     )
   }
 
-  return renderContent()
+  return (
+    <>
+      {renderContent()}
+      {canvasContextMenu}
+    </>
+  )
 }

@@ -39,6 +39,8 @@ interface WorkflowPreviewProps {
   defaultZoom?: number
   fitPadding?: number
   onNodeClick?: (blockId: string, mousePosition: { x: number; y: number }) => void
+  /** Callback when a node is right-clicked */
+  onNodeContextMenu?: (blockId: string, mousePosition: { x: number; y: number }) => void
   /** Use lightweight blocks for better performance in template cards */
   lightweight?: boolean
   /** Cursor style to show when hovering the canvas */
@@ -108,6 +110,7 @@ export function WorkflowPreview({
   defaultZoom = 0.8,
   fitPadding = 0.25,
   onNodeClick,
+  onNodeContextMenu,
   lightweight = false,
   cursorStyle = 'grab',
   executedBlocks,
@@ -411,6 +414,15 @@ export function WorkflowPreview({
               ? (event, node) => {
                   logger.debug('Node clicked:', { nodeId: node.id, event })
                   onNodeClick(node.id, { x: event.clientX, y: event.clientY })
+                }
+              : undefined
+          }
+          onNodeContextMenu={
+            onNodeContextMenu
+              ? (event, node) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onNodeContextMenu(node.id, { x: event.clientX, y: event.clientY })
                 }
               : undefined
           }

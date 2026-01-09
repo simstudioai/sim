@@ -211,5 +211,113 @@ describe('SnapshotService', () => {
       const hash2 = service.computeStateHash(complexState)
       expect(hash).toBe(hash2)
     })
+
+    test('should include variables in hash computation', () => {
+      const stateWithVariables: WorkflowState = {
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+        variables: {
+          'var-1': {
+            id: 'var-1',
+            name: 'apiKey',
+            type: 'string',
+            value: 'secret123',
+          },
+        },
+      }
+
+      const stateWithoutVariables: WorkflowState = {
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+      }
+
+      const hashWith = service.computeStateHash(stateWithVariables)
+      const hashWithout = service.computeStateHash(stateWithoutVariables)
+
+      expect(hashWith).not.toBe(hashWithout)
+    })
+
+    test('should detect changes in variable values', () => {
+      const state1: WorkflowState = {
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+        variables: {
+          'var-1': {
+            id: 'var-1',
+            name: 'myVar',
+            type: 'string',
+            value: 'value1',
+          },
+        },
+      }
+
+      const state2: WorkflowState = {
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+        variables: {
+          'var-1': {
+            id: 'var-1',
+            name: 'myVar',
+            type: 'string',
+            value: 'value2', // Different value
+          },
+        },
+      }
+
+      const hash1 = service.computeStateHash(state1)
+      const hash2 = service.computeStateHash(state2)
+
+      expect(hash1).not.toBe(hash2)
+    })
+
+    test('should generate consistent hashes for states with variables', () => {
+      const stateWithVariables: WorkflowState = {
+        blocks: {
+          block1: {
+            id: 'block1',
+            name: 'Test',
+            type: 'agent',
+            position: { x: 0, y: 0 },
+            subBlocks: {},
+            outputs: {},
+            enabled: true,
+            horizontalHandles: true,
+            advancedMode: false,
+            height: 0,
+          },
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+        variables: {
+          'var-1': {
+            id: 'var-1',
+            name: 'testVar',
+            type: 'plain',
+            value: 'testValue',
+          },
+          'var-2': {
+            id: 'var-2',
+            name: 'anotherVar',
+            type: 'number',
+            value: 42,
+          },
+        },
+      }
+
+      const hash1 = service.computeStateHash(stateWithVariables)
+      const hash2 = service.computeStateHash(stateWithVariables)
+
+      expect(hash1).toBe(hash2)
+      expect(hash1).toHaveLength(64)
+    })
   })
 })
