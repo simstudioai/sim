@@ -31,6 +31,7 @@ import { CustomToolClientTool } from '@/lib/copilot/tools/client/other/custom-to
 import { DebugClientTool } from '@/lib/copilot/tools/client/other/debug'
 import { DeployClientTool } from '@/lib/copilot/tools/client/other/deploy'
 import { EditClientTool } from '@/lib/copilot/tools/client/other/edit'
+import { EvaluateClientTool } from '@/lib/copilot/tools/client/other/evaluate'
 import { InfoClientTool } from '@/lib/copilot/tools/client/other/info'
 import { KnowledgeClientTool } from '@/lib/copilot/tools/client/other/knowledge'
 import { MakeApiRequestClientTool } from '@/lib/copilot/tools/client/other/make-api-request'
@@ -98,6 +99,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   debug: (id) => new DebugClientTool(id),
   test: (id) => new TestClientTool(id),
   deploy: (id) => new DeployClientTool(id),
+  evaluate: (id) => new EvaluateClientTool(id),
   auth: (id) => new AuthClientTool(id),
   research: (id) => new ResearchClientTool(id),
   knowledge: (id) => new KnowledgeClientTool(id),
@@ -155,6 +157,7 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   debug: (DebugClientTool as any)?.metadata,
   test: (TestClientTool as any)?.metadata,
   deploy: (DeployClientTool as any)?.metadata,
+  evaluate: (EvaluateClientTool as any)?.metadata,
   auth: (AuthClientTool as any)?.metadata,
   research: (ResearchClientTool as any)?.metadata,
   knowledge: (KnowledgeClientTool as any)?.metadata,

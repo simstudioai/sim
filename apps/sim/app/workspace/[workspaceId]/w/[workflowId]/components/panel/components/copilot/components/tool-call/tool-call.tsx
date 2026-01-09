@@ -705,6 +705,8 @@ function getSubagentLabels(toolName: string, isStreaming: boolean): string {
       return isStreaming ? 'Testing' : 'Tested'
     case 'deploy':
       return isStreaming ? 'Deploying' : 'Deployed'
+    case 'evaluate':
+      return isStreaming ? 'Evaluating' : 'Evaluated'
     case 'auth':
       return isStreaming ? 'Authenticating' : 'Authenticated'
     case 'research':
@@ -1487,6 +1489,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     'debug',
     'test',
     'deploy',
+    'evaluate',
     'auth',
     'research',
     'knowledge',

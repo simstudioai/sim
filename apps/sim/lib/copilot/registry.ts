@@ -42,6 +42,7 @@ export const ToolIds = z.enum([
   'sleep',
   'get_block_outputs',
   'get_block_upstream_references',
+  'evaluate',
 ])
 export type ToolId = z.infer<typeof ToolIds>
 
@@ -361,6 +362,10 @@ export const ToolArgSchemas = {
         'Array of block UUIDs. Returns all upstream references (block outputs and variables) accessible to each block based on workflow connections.'
       ),
   }),
+
+  evaluate: z.object({
+    instruction: z.string().describe('Instructions for what to evaluate'),
+  }),
 } as const
 export type ToolArgSchemaMap = typeof ToolArgSchemas
 
@@ -445,6 +450,7 @@ export const ToolSSESchemas = {
     'get_block_upstream_references',
     ToolArgSchemas.get_block_upstream_references
   ),
+  evaluate: toolCallSSEFor('evaluate', ToolArgSchemas.evaluate),
 } as const
 export type ToolSSESchemaMap = typeof ToolSSESchemas
 
@@ -810,6 +816,10 @@ export const ToolResultSchemas = {
         ),
       })
     ),
+  }),
+  evaluate: z.object({
+    success: z.boolean(),
+    message: z.string().optional(),
   }),
 } as const
 export type ToolResultSchemaMap = typeof ToolResultSchemas
