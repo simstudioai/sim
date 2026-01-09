@@ -4,6 +4,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 
 interface TourArgs {
   instruction: string
@@ -31,6 +32,14 @@ export class TourClientTool extends BaseClientTool {
       [ClientToolCallState.rejected]: { text: 'Tour skipped', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Tour aborted', icon: XCircle },
     },
+    uiConfig: {
+      subagent: {
+        streamingLabel: 'Touring',
+        completedLabel: 'Tour complete',
+        shouldCollapse: true,
+        outputArtifacts: [],
+      },
+    },
   }
 
   /**
@@ -42,3 +51,6 @@ export class TourClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.executing)
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(TourClientTool.id, TourClientTool.metadata.uiConfig!)

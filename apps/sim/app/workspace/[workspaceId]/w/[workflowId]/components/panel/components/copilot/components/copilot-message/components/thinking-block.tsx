@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronUp } from 'lucide-react'
+import CopilotMarkdownRenderer from './markdown-renderer'
 
 /**
  * Max height for thinking content before internal scrolling kicks in
@@ -144,7 +145,7 @@ export function ThinkingBlock({
               return next
             })
           }}
-          className='mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
+          className='group mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
           type='button'
         >
           <span className='relative inline-block'>
@@ -173,8 +174,8 @@ export function ThinkingBlock({
           {hasContent && (
             <ChevronUp
               className={clsx(
-                'h-3 w-3 transition-transform',
-                isExpanded ? 'rotate-180' : 'rotate-90'
+                'h-3 w-3 transition-all group-hover:opacity-100',
+                isExpanded ? 'rotate-180 opacity-100' : 'rotate-90 opacity-0'
               )}
               aria-hidden='true'
             />
@@ -188,10 +189,10 @@ export function ThinkingBlock({
             isExpanded ? 'mt-1 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
           )}
         >
-          <pre className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-tertiary)] leading-[1.15rem]'>
-            {content}
-            <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[var(--text-tertiary)]' />
-          </pre>
+          <div className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-muted)] leading-none [&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-none [&_*]:!m-0 [&_*]:!p-0 [&_*]:!mb-0 [&_*]:!mt-0 [&_p]:!m-0 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_code]:!text-[11px] [&_ul]:!pl-4 [&_ul]:!my-0 [&_ol]:!pl-4 [&_ol]:!my-0 [&_li]:!my-0 [&_li]:!py-0 [&_br]:!leading-[0.5]'>
+            <CopilotMarkdownRenderer content={content} />
+            <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[var(--text-muted)]' />
+          </div>
         </div>
       </div>
     )
@@ -204,7 +205,7 @@ export function ThinkingBlock({
         onClick={() => {
           setIsExpanded((v) => !v)
         }}
-        className='mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
+        className='group mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
         type='button'
         disabled={!hasContent}
       >
@@ -212,8 +213,8 @@ export function ThinkingBlock({
         {hasContent && (
           <ChevronUp
             className={clsx(
-              'h-3 w-3 transition-transform',
-              isExpanded ? 'rotate-180' : 'rotate-90'
+              'h-3 w-3 transition-all group-hover:opacity-100',
+              isExpanded ? 'rotate-180 opacity-100' : 'rotate-90 opacity-0'
             )}
             aria-hidden='true'
           />
@@ -227,9 +228,9 @@ export function ThinkingBlock({
           isExpanded ? 'mt-1 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
-        <pre className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-tertiary)] leading-[1.15rem]'>
-          {content}
-        </pre>
+        <div className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-muted)] leading-none [&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-none [&_*]:!m-0 [&_*]:!p-0 [&_*]:!mb-0 [&_*]:!mt-0 [&_p]:!m-0 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_code]:!text-[11px] [&_ul]:!pl-4 [&_ul]:!my-0 [&_ol]:!pl-4 [&_ol]:!my-0 [&_li]:!my-0 [&_li]:!py-0 [&_br]:!leading-[0.5]'>
+          <CopilotMarkdownRenderer content={content} />
+        </div>
       </div>
     </div>
   )

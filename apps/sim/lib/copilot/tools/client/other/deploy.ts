@@ -4,6 +4,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 
 interface DeployArgs {
   instruction: string
@@ -31,6 +32,14 @@ export class DeployClientTool extends BaseClientTool {
       [ClientToolCallState.rejected]: { text: 'Deploy skipped', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Deploy aborted', icon: XCircle },
     },
+    uiConfig: {
+      subagent: {
+        streamingLabel: 'Deploying',
+        completedLabel: 'Deployed',
+        shouldCollapse: true,
+        outputArtifacts: [],
+      },
+    },
   }
 
   /**
@@ -42,3 +51,6 @@ export class DeployClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.executing)
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(DeployClientTool.id, DeployClientTool.metadata.uiConfig!)

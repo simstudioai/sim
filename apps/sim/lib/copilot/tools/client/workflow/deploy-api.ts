@@ -5,6 +5,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 import { getInputFormatExample } from '@/lib/workflows/operations/deployment-utils'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -75,6 +76,15 @@ export class DeployApiClientTool extends BaseClientTool {
     interrupt: {
       accept: { text: 'Deploy', icon: Rocket },
       reject: { text: 'Skip', icon: XCircle },
+    },
+    uiConfig: {
+      isSpecial: true,
+      interrupt: {
+        accept: { text: 'Deploy', icon: Rocket },
+        reject: { text: 'Skip', icon: XCircle },
+        showAllowOnce: true,
+        showAllowAlways: true,
+      },
     },
     getDynamicText: (params, state) => {
       const action = params?.action === 'undeploy' ? 'undeploy' : 'deploy'
@@ -275,4 +285,7 @@ export class DeployApiClientTool extends BaseClientTool {
     await this.handleAccept(args)
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(DeployApiClientTool.id, DeployApiClientTool.metadata.uiConfig!)
 

@@ -4,6 +4,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 
 interface EditArgs {
   instruction: string
@@ -31,6 +32,16 @@ export class EditClientTool extends BaseClientTool {
       [ClientToolCallState.rejected]: { text: 'Edit skipped', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Edit aborted', icon: XCircle },
     },
+    uiConfig: {
+      isSpecial: true,
+      subagent: {
+        streamingLabel: 'Editing',
+        completedLabel: 'Edited',
+        shouldCollapse: false, // Edit subagent stays expanded
+        outputArtifacts: ['edit_summary'],
+        hideThinkingText: true, // We show WorkflowEditSummary instead
+      },
+    },
   }
 
   /**
@@ -45,3 +56,6 @@ export class EditClientTool extends BaseClientTool {
     // when the edit subagent completes its work
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(EditClientTool.id, EditClientTool.metadata.uiConfig!)

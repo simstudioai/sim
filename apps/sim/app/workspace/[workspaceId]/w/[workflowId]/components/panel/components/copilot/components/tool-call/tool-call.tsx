@@ -7,6 +7,14 @@ import { Button, Code } from '@/components/emcn'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
+// Initialize all tool UI configs
+import '@/lib/copilot/tools/client/init-tool-configs'
+import {
+  getToolUIConfig,
+  isSpecialTool as isSpecialToolFromConfig,
+  getSubagentLabels as getSubagentLabelsFromConfig,
+  hasInterrupt as hasInterruptFromConfig,
+} from '@/lib/copilot/tools/client/ui-config'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 import { SmoothStreamingText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/smooth-streaming'
 import { ThinkingBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/thinking-block'
@@ -164,7 +172,7 @@ export function parseSpecialTags(content: string): ParsedTags {
 
 /**
  * PlanSteps component renders the workflow plan steps from the plan subagent
- * Only renders the title, not the full plan details
+ * Displays as a to-do list with checkmarks and strikethrough text
  */
 function PlanSteps({
   steps,
@@ -193,19 +201,35 @@ function PlanSteps({
 
   return (
     <div className='mt-2 overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-1)]'>
-      <div className='border-[var(--border-1)] border-b bg-[var(--surface-2)] px-2.5 py-2'>
-        <span className='font-medium font-season text-[12px] text-[var(--text-primary)]'>
-          Workflow Plan
+      <div className='flex items-center gap-2 border-[var(--border-1)] border-b bg-[var(--surface-2)] px-2.5 py-2'>
+        <svg
+          className='h-3.5 w-3.5 text-[var(--text-tertiary)]'
+          viewBox='0 0 24 24'
+          fill='none'
+          stroke='currentColor'
+          strokeWidth='2'
+          strokeLinecap='round'
+          strokeLinejoin='round'
+        >
+          {/* Three horizontal lines with circles at different positions */}
+          <line x1='4' y1='6' x2='20' y2='6' />
+          <circle cx='8' cy='6' r='2' fill='currentColor' />
+          <line x1='4' y1='12' x2='20' y2='12' />
+          <circle cx='16' cy='12' r='2' fill='currentColor' />
+          <line x1='4' y1='18' x2='20' y2='18' />
+          <circle cx='10' cy='18' r='2' fill='currentColor' />
+        </svg>
+        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>To-dos</span>
+        <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+          {sortedSteps.length}
         </span>
       </div>
-      <div className='divide-y divide-[var(--border-1)]'>
+      <div className='flex flex-col gap-2.5 px-2.5 py-2.5'>
         {sortedSteps.map(([num, title], index) => {
           const isLastStep = index === sortedSteps.length - 1
           return (
-            <div key={num} className='flex items-start gap-2.5 px-2.5 py-2'>
-              <div className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-3)] font-medium font-mono text-[11px] text-[var(--text-secondary)]'>
-                {num}
-              </div>
+            <div key={num} className='flex items-start gap-2'>
+              <div className='mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-[var(--border-2)]' />
               <div className='min-w-0 flex-1 text-[12px] text-[var(--text-secondary)] leading-5 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[11px] [&_p]:m-0 [&_p]:leading-5'>
                 {streaming && isLastStep ? (
                   <SmoothStreamingText content={title} isStreaming={true} />
@@ -797,51 +821,23 @@ const SUBAGENT_SCROLL_INTERVAL = 100
 
 /**
  * Get the outer collapse header label for completed subagent tools.
- * Returns the label to show when subagent is done (e.g., "Planned", "Thought")
+ * Uses the tool's UI config.
  */
 function getSubagentCompletionLabel(toolName: string): string {
-  switch (toolName) {
-    case 'plan':
-      return 'Planned'
-    default:
-      return 'Thought'
-  }
+  const labels = getSubagentLabelsFromConfig(toolName, false)
+  return labels?.completed ?? 'Thought'
 }
 
 /**
- * Get display labels for subagent tools (legacy - used in SubAgentContent)
+ * Get display labels for subagent tools.
+ * Uses the tool's UI config.
  */
 function getSubagentLabels(toolName: string, isStreaming: boolean): string {
-  switch (toolName) {
-    case 'plan':
-      return isStreaming ? 'Planning' : 'Planned'
-    case 'edit':
-      return isStreaming ? 'Editing' : 'Edited'
-    case 'debug':
-      return isStreaming ? 'Debugging' : 'Debugged'
-    case 'test':
-      return isStreaming ? 'Testing' : 'Tested'
-    case 'deploy':
-      return isStreaming ? 'Deploying' : 'Deployed'
-    case 'evaluate':
-      return isStreaming ? 'Evaluating' : 'Evaluated'
-    case 'auth':
-      return isStreaming ? 'Authenticating' : 'Authenticated'
-    case 'research':
-      return isStreaming ? 'Researching' : 'Researched'
-    case 'knowledge':
-      return isStreaming ? 'Managing knowledge' : 'Knowledge managed'
-    case 'custom_tool':
-      return isStreaming ? 'Managing custom tool' : 'Custom tool managed'
-    case 'tour':
-      return isStreaming ? 'Touring' : 'Tour complete'
-    case 'info':
-      return isStreaming ? 'Getting info' : 'Info retrieved'
-    case 'workflow':
-      return isStreaming ? 'Managing workflow' : 'Workflow managed'
-    default:
-      return isStreaming ? 'Processing' : 'Processed'
+  const labels = getSubagentLabelsFromConfig(toolName, isStreaming)
+  if (labels) {
+    return isStreaming ? labels.streaming : labels.completed
   }
+  return isStreaming ? 'Processing' : 'Processed'
 }
 
 /**
@@ -915,7 +911,7 @@ function SubAgentContent({
             return next
           })
         }}
-        className='mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
+        className='group mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
         type='button'
         disabled={!hasContent}
       >
@@ -947,8 +943,8 @@ function SubAgentContent({
         {hasContent && (
           <ChevronUp
             className={clsx(
-              'h-3 w-3 transition-transform',
-              isExpanded ? 'rotate-180' : 'rotate-90'
+              'h-3 w-3 transition-all group-hover:opacity-100',
+              isExpanded ? 'rotate-180 opacity-100' : 'rotate-90 opacity-0'
             )}
             aria-hidden='true'
           />
@@ -1193,14 +1189,14 @@ function SubagentContentRenderer({
     <div className='w-full'>
       <button
         onClick={() => setIsExpanded((v) => !v)}
-        className='mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
+        className='group mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
         type='button'
       >
         <span className='text-[var(--text-tertiary)]'>{durationText}</span>
         <ChevronUp
           className={clsx(
-            'h-3 w-3 transition-transform',
-            isExpanded ? 'rotate-180' : 'rotate-90'
+            'h-3 w-3 transition-all group-hover:opacity-100',
+            isExpanded ? 'rotate-180 opacity-100' : 'rotate-90 opacity-0'
           )}
           aria-hidden='true'
         />
@@ -1223,18 +1219,10 @@ function SubagentContentRenderer({
 
 /**
  * Determines if a tool call is "special" and should display with gradient styling.
- * Only workflow operation tools (edit, build, run, deploy) get the purple gradient.
+ * Uses the tool's UI config.
  */
 function isSpecialToolCall(toolCall: CopilotToolCall): boolean {
-  const workflowOperationTools = [
-    'edit_workflow',
-    'build_workflow',
-    'run_workflow',
-    'deploy_api',
-    'deploy_chat',
-  ]
-
-  return workflowOperationTools.includes(toolCall.name)
+  return isSpecialToolFromConfig(toolCall.name)
 }
 
 /**
@@ -1468,29 +1456,27 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
         key={`${type}-${change.blockId}`}
         className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-1)]'
       >
-        {/* Block header */}
-        <div className='flex items-center justify-between px-2.5 py-2'>
-          <div className='flex items-center gap-2'>
-            {/* Toolbar-style icon: colored square with white icon */}
-            <div
-              className='flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-[3px]'
-              style={{ background: bgColor }}
-            >
-              {Icon && <Icon className='h-[10px] w-[10px] text-white' />}
-            </div>
-            <span
-              className={`font-medium font-season text-[12px] ${type === 'delete' ? 'text-[var(--text-tertiary)] line-through' : 'text-[var(--text-primary)]'}`}
-            >
-              {change.blockName}
-            </span>
+        {/* Block header - gray background like plan/table headers */}
+        <div className='flex items-center bg-[var(--surface-2)] px-2.5 py-2'>
+          {/* Toolbar-style icon: colored square with white icon */}
+          <div
+            className='flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-[3px]'
+            style={{ background: bgColor }}
+          >
+            {Icon && <Icon className='h-[10px] w-[10px] text-white' />}
           </div>
-          {/* Action icon in top right */}
-          <span className={`font-bold font-mono text-[14px] ${color}`}>{symbol}</span>
+          <span
+            className={`ml-2 font-medium font-season text-[12px] ${type === 'delete' ? 'text-[var(--text-tertiary)] line-through' : 'text-[var(--text-primary)]'}`}
+          >
+            {change.blockName}
+          </span>
+          {/* Action icon next to block name */}
+          <span className={`ml-1.5 font-bold font-mono text-[12px] ${color}`}>{symbol}</span>
         </div>
 
-        {/* Subblock details - uses same title and value formatting as canvas */}
+        {/* Subblock details - dark background like table/plan body */}
         {subBlocksToShow && subBlocksToShow.length > 0 && (
-          <div className='border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 py-1.5'>
+          <div className='border-[var(--border-1)] border-t px-2.5 py-1.5'>
             {subBlocksToShow.map((sb) => {
               // Mask password fields like the canvas does
               const displayValue = sb.isPassword ? '•••' : getDisplayValue(sb.value)
@@ -1533,6 +1519,12 @@ function isIntegrationTool(toolName: string): boolean {
 }
 
 function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
+  // First check UI config for interrupt
+  if (hasInterruptFromConfig(toolCall.name) && toolCall.state === 'pending') {
+    return true
+  }
+
+  // Then check instance-level interrupt
   const instance = getClientTool(toolCall.id)
   let hasInterrupt = !!instance?.getInterruptDisplays?.()
   if (!hasInterrupt) {
@@ -1895,21 +1887,39 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   if (!isClientTool && !isIntegrationToolInBuildMode) {
     return null
   }
+  // Check if tool has params table config (meaning it's expandable)
+  const hasParamsTable = !!getToolUIConfig(toolCall.name)?.paramsTable
   const isExpandableTool =
+    hasParamsTable ||
     toolCall.name === 'make_api_request' ||
     toolCall.name === 'set_global_workflow_variables' ||
     toolCall.name === 'run_workflow'
 
   const showButtons = shouldShowRunSkipButtons(toolCall)
+
+  // Check UI config for secondary action
+  const toolUIConfig = getToolUIConfig(toolCall.name)
+  const secondaryAction = toolUIConfig?.secondaryAction
+  const showSecondaryAction =
+    secondaryAction &&
+    secondaryAction.showInStates.includes(toolCall.state as ClientToolCallState)
+
+  // Legacy fallbacks for tools that haven't migrated to UI config
   const showMoveToBackground =
-    toolCall.name === 'run_workflow' &&
-    (toolCall.state === (ClientToolCallState.executing as any) ||
-      toolCall.state === ('executing' as any))
+    showSecondaryAction && secondaryAction?.text === 'Move to Background'
+      ? true
+      : !secondaryAction &&
+        toolCall.name === 'run_workflow' &&
+        (toolCall.state === (ClientToolCallState.executing as any) ||
+          toolCall.state === ('executing' as any))
 
   const showWake =
-    toolCall.name === 'sleep' &&
-    (toolCall.state === (ClientToolCallState.executing as any) ||
-      toolCall.state === ('executing' as any))
+    showSecondaryAction && secondaryAction?.text === 'Wake'
+      ? true
+      : !secondaryAction &&
+        toolCall.name === 'sleep' &&
+        (toolCall.state === (ClientToolCallState.executing as any) ||
+          toolCall.state === ('executing' as any))
 
   const handleStateChange = (state: any) => {
     forceUpdate({})
@@ -2262,8 +2272,12 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     return null
   }
 
-  // Special handling for set_environment_variables - always stacked, always expanded
-  if (toolCall.name === 'set_environment_variables' && toolCall.state === 'pending') {
+  // Special handling for tools with alwaysExpanded config (e.g., set_environment_variables)
+  const isAlwaysExpanded = toolUIConfig?.alwaysExpanded
+  if (
+    (isAlwaysExpanded || toolCall.name === 'set_environment_variables') &&
+    toolCall.state === 'pending'
+  ) {
     const isEnvVarsClickable = isAutoAllowed
 
     const handleEnvVarsClick = () => {
@@ -2313,8 +2327,8 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     )
   }
 
-  // Special rendering for function_execute - show code block
-  if (toolCall.name === 'function_execute') {
+  // Special rendering for tools with 'code' customRenderer (e.g., function_execute)
+  if (toolUIConfig?.customRenderer === 'code' || toolCall.name === 'function_execute') {
     const code = params.code || ''
     const isFunctionExecuteClickable = isAutoAllowed
 

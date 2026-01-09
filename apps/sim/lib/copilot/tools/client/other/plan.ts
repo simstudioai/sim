@@ -4,6 +4,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 
 interface PlanArgs {
   request: string
@@ -31,6 +32,14 @@ export class PlanClientTool extends BaseClientTool {
       [ClientToolCallState.rejected]: { text: 'Plan skipped', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Plan aborted', icon: XCircle },
     },
+    uiConfig: {
+      subagent: {
+        streamingLabel: 'Planning',
+        completedLabel: 'Planned',
+        shouldCollapse: true,
+        outputArtifacts: ['plan'],
+      },
+    },
   }
 
   /**
@@ -45,3 +54,6 @@ export class PlanClientTool extends BaseClientTool {
     // when the plan subagent completes its work
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(PlanClientTool.id, PlanClientTool.metadata.uiConfig!)

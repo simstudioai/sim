@@ -4,6 +4,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 
 interface CustomToolArgs {
   instruction: string
@@ -31,6 +32,14 @@ export class CustomToolClientTool extends BaseClientTool {
       [ClientToolCallState.rejected]: { text: 'Custom tool skipped', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Custom tool aborted', icon: XCircle },
     },
+    uiConfig: {
+      subagent: {
+        streamingLabel: 'Managing custom tool',
+        completedLabel: 'Custom tool managed',
+        shouldCollapse: true,
+        outputArtifacts: [],
+      },
+    },
   }
 
   /**
@@ -42,3 +51,6 @@ export class CustomToolClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.executing)
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(CustomToolClientTool.id, CustomToolClientTool.metadata.uiConfig!)

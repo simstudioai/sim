@@ -5,6 +5,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -84,6 +85,15 @@ export class DeployChatClientTool extends BaseClientTool {
     interrupt: {
       accept: { text: 'Deploy Chat', icon: MessageSquare },
       reject: { text: 'Skip', icon: XCircle },
+    },
+    uiConfig: {
+      isSpecial: true,
+      interrupt: {
+        accept: { text: 'Deploy Chat', icon: MessageSquare },
+        reject: { text: 'Skip', icon: XCircle },
+        showAllowOnce: true,
+        showAllowAlways: true,
+      },
     },
     getDynamicText: (params, state) => {
       const action = params?.action === 'undeploy' ? 'undeploy' : 'deploy'
@@ -350,4 +360,7 @@ export class DeployChatClientTool extends BaseClientTool {
     await this.handleAccept(args)
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(DeployChatClientTool.id, DeployChatClientTool.metadata.uiConfig!)
 

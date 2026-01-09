@@ -4,6 +4,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 
 interface ResearchArgs {
   instruction: string
@@ -31,6 +32,14 @@ export class ResearchClientTool extends BaseClientTool {
       [ClientToolCallState.rejected]: { text: 'Research skipped', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Research aborted', icon: XCircle },
     },
+    uiConfig: {
+      subagent: {
+        streamingLabel: 'Researching',
+        completedLabel: 'Researched',
+        shouldCollapse: true,
+        outputArtifacts: [],
+      },
+    },
   }
 
   /**
@@ -42,3 +51,6 @@ export class ResearchClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.executing)
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(ResearchClientTool.id, ResearchClientTool.metadata.uiConfig!)

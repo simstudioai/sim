@@ -5,6 +5,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
 import { stripWorkflowDiffMarkers } from '@/lib/workflows/diff'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
@@ -123,6 +124,10 @@ export class EditWorkflowClientTool extends BaseClientTool {
       [ClientToolCallState.rejected]: { text: 'Rejected workflow changes', icon: Grid2x2X },
       [ClientToolCallState.aborted]: { text: 'Aborted editing your workflow', icon: MinusCircle },
       [ClientToolCallState.pending]: { text: 'Editing your workflow', icon: Loader2 },
+    },
+    uiConfig: {
+      isSpecial: true,
+      customRenderer: 'edit_summary',
     },
     getDynamicText: (params, state) => {
       const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
@@ -412,3 +417,6 @@ export class EditWorkflowClientTool extends BaseClientTool {
     })
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(EditWorkflowClientTool.id, EditWorkflowClientTool.metadata.uiConfig!)

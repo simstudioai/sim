@@ -4,6 +4,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 
 interface KnowledgeArgs {
   instruction: string
@@ -31,6 +32,14 @@ export class KnowledgeClientTool extends BaseClientTool {
       [ClientToolCallState.rejected]: { text: 'Knowledge skipped', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Knowledge aborted', icon: XCircle },
     },
+    uiConfig: {
+      subagent: {
+        streamingLabel: 'Managing knowledge',
+        completedLabel: 'Knowledge managed',
+        shouldCollapse: true,
+        outputArtifacts: [],
+      },
+    },
   }
 
   /**
@@ -42,3 +51,6 @@ export class KnowledgeClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.executing)
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(KnowledgeClientTool.id, KnowledgeClientTool.metadata.uiConfig!)

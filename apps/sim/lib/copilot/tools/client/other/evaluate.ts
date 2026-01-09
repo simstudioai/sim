@@ -4,6 +4,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 
 interface EvaluateArgs {
   instruction: string
@@ -31,6 +32,14 @@ export class EvaluateClientTool extends BaseClientTool {
       [ClientToolCallState.rejected]: { text: 'Evaluation skipped', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Evaluation aborted', icon: XCircle },
     },
+    uiConfig: {
+      subagent: {
+        streamingLabel: 'Evaluating',
+        completedLabel: 'Evaluated',
+        shouldCollapse: true,
+        outputArtifacts: [],
+      },
+    },
   }
 
   /**
@@ -43,3 +52,5 @@ export class EvaluateClientTool extends BaseClientTool {
   }
 }
 
+// Register UI config at module load
+registerToolUIConfig(EvaluateClientTool.id, EvaluateClientTool.metadata.uiConfig!)

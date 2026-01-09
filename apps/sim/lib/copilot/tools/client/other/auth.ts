@@ -4,6 +4,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 
 interface AuthArgs {
   instruction: string
@@ -31,6 +32,14 @@ export class AuthClientTool extends BaseClientTool {
       [ClientToolCallState.rejected]: { text: 'Auth skipped', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Auth aborted', icon: XCircle },
     },
+    uiConfig: {
+      subagent: {
+        streamingLabel: 'Authenticating',
+        completedLabel: 'Authenticated',
+        shouldCollapse: true,
+        outputArtifacts: [],
+      },
+    },
   }
 
   /**
@@ -42,3 +51,6 @@ export class AuthClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.executing)
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(AuthClientTool.id, AuthClientTool.metadata.uiConfig!)

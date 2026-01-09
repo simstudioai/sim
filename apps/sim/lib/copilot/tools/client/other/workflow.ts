@@ -4,6 +4,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 
 interface WorkflowArgs {
   instruction: string
@@ -31,6 +32,14 @@ export class WorkflowClientTool extends BaseClientTool {
       [ClientToolCallState.rejected]: { text: 'Workflow skipped', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Workflow aborted', icon: XCircle },
     },
+    uiConfig: {
+      subagent: {
+        streamingLabel: 'Managing workflow',
+        completedLabel: 'Workflow managed',
+        shouldCollapse: true,
+        outputArtifacts: [],
+      },
+    },
   }
 
   /**
@@ -42,3 +51,6 @@ export class WorkflowClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.executing)
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(WorkflowClientTool.id, WorkflowClientTool.metadata.uiConfig!)

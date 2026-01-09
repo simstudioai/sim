@@ -5,6 +5,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
 
 interface MakeApiRequestArgs {
@@ -35,6 +36,23 @@ export class MakeApiRequestClientTool extends BaseClientTool {
     interrupt: {
       accept: { text: 'Execute', icon: Globe2 },
       reject: { text: 'Skip', icon: MinusCircle },
+    },
+    uiConfig: {
+      interrupt: {
+        accept: { text: 'Execute', icon: Globe2 },
+        reject: { text: 'Skip', icon: MinusCircle },
+        showAllowOnce: true,
+        showAllowAlways: true,
+      },
+      paramsTable: {
+        columns: [
+          { key: 'method', label: 'Method', width: '26%', editable: true, mono: true },
+          { key: 'url', label: 'Endpoint', width: '74%', editable: true, mono: true },
+        ],
+        extractRows: (params) => {
+          return [['request', (params.method || 'GET').toUpperCase(), params.url || '']]
+        },
+      },
     },
     getDynamicText: (params, state) => {
       if (params?.url && typeof params.url === 'string') {
@@ -110,3 +128,6 @@ export class MakeApiRequestClientTool extends BaseClientTool {
     await this.handleAccept(args)
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(MakeApiRequestClientTool.id, MakeApiRequestClientTool.metadata.uiConfig!)

@@ -5,6 +5,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -60,6 +61,15 @@ export class DeployMcpClientTool extends BaseClientTool {
     interrupt: {
       accept: { text: 'Deploy', icon: Server },
       reject: { text: 'Skip', icon: XCircle },
+    },
+    uiConfig: {
+      isSpecial: true,
+      interrupt: {
+        accept: { text: 'Deploy', icon: Server },
+        reject: { text: 'Skip', icon: XCircle },
+        showAllowOnce: true,
+        showAllowAlways: true,
+      },
     },
     getDynamicText: (params, state) => {
       const toolName = params?.toolName || 'workflow'
@@ -195,4 +205,7 @@ export class DeployMcpClientTool extends BaseClientTool {
     await this.handleAccept(args)
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(DeployMcpClientTool.id, DeployMcpClientTool.metadata.uiConfig!)
 

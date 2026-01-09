@@ -4,6 +4,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 
 interface InfoArgs {
   instruction: string
@@ -31,6 +32,14 @@ export class InfoClientTool extends BaseClientTool {
       [ClientToolCallState.rejected]: { text: 'Info skipped', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Info aborted', icon: XCircle },
     },
+    uiConfig: {
+      subagent: {
+        streamingLabel: 'Getting info',
+        completedLabel: 'Info retrieved',
+        shouldCollapse: true,
+        outputArtifacts: [],
+      },
+    },
   }
 
   /**
@@ -42,3 +51,6 @@ export class InfoClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.executing)
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(InfoClientTool.id, InfoClientTool.metadata.uiConfig!)

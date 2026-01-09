@@ -4,6 +4,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 
 interface DebugArgs {
   error_description: string
@@ -32,6 +33,14 @@ export class DebugClientTool extends BaseClientTool {
       [ClientToolCallState.rejected]: { text: 'Debug skipped', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Debug aborted', icon: XCircle },
     },
+    uiConfig: {
+      subagent: {
+        streamingLabel: 'Debugging',
+        completedLabel: 'Debugged',
+        shouldCollapse: true,
+        outputArtifacts: [],
+      },
+    },
   }
 
   /**
@@ -46,3 +55,6 @@ export class DebugClientTool extends BaseClientTool {
     // when the debug subagent completes its work
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(DebugClientTool.id, DebugClientTool.metadata.uiConfig!)
