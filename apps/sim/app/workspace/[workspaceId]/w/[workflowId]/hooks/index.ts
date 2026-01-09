@@ -1,6 +1,7 @@
 export {
   clearDragHighlights,
   computeClampedPositionUpdates,
+  computeParentUpdateEntries,
   getClampedPositionForNode,
   isInEditableElement,
   selectNodesDeferred,

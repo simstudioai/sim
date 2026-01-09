@@ -2286,9 +2286,6 @@ const WorkflowContent = React.memo(() => {
           // Only consider container nodes that aren't the dragged node
           if (n.type !== 'subflowNode' || n.id === node.id) return false
 
-          // Skip if this container is already the parent of the node being dragged
-          if (n.id === currentParentId) return false
-
           // Get the container's absolute position
           const containerAbsolutePos = getNodeAbsolutePosition(n.id)
 
@@ -2439,32 +2436,55 @@ const WorkflowContent = React.memo(() => {
           previousPositions: multiNodeDragStartRef.current,
         })
 
-        // Process parent updates for all selected nodes if dropping into a subflow
-        if (potentialParentId && potentialParentId !== dragStartParentId) {
-          // Filter out nodes that cannot be moved into subflows
-          const validNodes = selectedNodes.filter((n) => {
-            const block = blocks[n.id]
-            if (!block) return false
-            // Starter blocks cannot be in containers
-            if (n.data?.type === 'starter') return false
-            // Trigger blocks cannot be in containers
-            if (TriggerUtils.isTriggerBlock(block)) return false
-            // Subflow nodes (loop/parallel) cannot be nested
-            if (n.type === 'subflowNode') return false
+        // Process parent updates for nodes whose parent is changing
+        // Check each node individually - don't rely on dragStartParentId since
+        // multi-node selections can contain nodes from different parents
+        const selectedNodeIds = new Set(selectedNodes.map((n) => n.id))
+        const nodesNeedingParentUpdate = selectedNodes.filter((n) => {
+          const block = blocks[n.id]
+          if (!block) return false
+          const currentParent = block.data?.parentId || null
+          // Skip if the node's parent is also being moved (keep children with their parent)
+          if (currentParent && selectedNodeIds.has(currentParent)) return false
+          // Node needs update if current parent !== target parent
+          return currentParent !== potentialParentId
+        })
+
+        if (nodesNeedingParentUpdate.length > 0) {
+          // Filter out nodes that cannot be moved into subflows (when target is a subflow)
+          const validNodes = nodesNeedingParentUpdate.filter((n) => {
+            // These restrictions only apply when moving INTO a subflow
+            if (potentialParentId) {
+              if (n.data?.type === 'starter') return false
+              const block = blocks[n.id]
+              if (block && TriggerUtils.isTriggerBlock(block)) return false
+              if (n.type === 'subflowNode') return false
+            }
             return true
           })
 
           if (validNodes.length > 0) {
+            // Use boundary edge logic - only remove edges crossing the boundary
+            const movingNodeIds = new Set(validNodes.map((n) => n.id))
+            const boundaryEdges = edgesForDisplay.filter((e) => {
+              const sourceInSelection = movingNodeIds.has(e.source)
+              const targetInSelection = movingNodeIds.has(e.target)
+              return sourceInSelection !== targetInSelection
+            })
+
             const rawUpdates = validNodes.map((n) => {
-              const edgesToRemove = edgesForDisplay.filter(
+              const edgesForThisNode = boundaryEdges.filter(
                 (e) => e.source === n.id || e.target === n.id
               )
-              const newPosition = calculateRelativePosition(n.id, potentialParentId, true)
+              // Use relative position when moving into a container, absolute position when moving to root
+              const newPosition = potentialParentId
+                ? calculateRelativePosition(n.id, potentialParentId, true)
+                : getNodeAbsolutePosition(n.id)
               return {
                 blockId: n.id,
                 newParentId: potentialParentId,
                 newPosition,
-                affectedEdges: edgesToRemove,
+                affectedEdges: edgesForThisNode,
               }
             })
 
@@ -2494,7 +2514,7 @@ const WorkflowContent = React.memo(() => {
                   return {
                     ...node,
                     position: update.newPosition,
-                    parentId: update.newParentId,
+                    parentId: update.newParentId ?? undefined,
                   }
                 }
                 return node
@@ -2503,7 +2523,7 @@ const WorkflowContent = React.memo(() => {
 
             resizeLoopNodesWrapper()
 
-            logger.info('Batch moved nodes into subflow', {
+            logger.info('Batch moved nodes to new parent', {
               targetParentId: potentialParentId,
               nodeCount: validNodes.length,
             })
@@ -2631,6 +2651,30 @@ const WorkflowContent = React.memo(() => {
         edgesToAdd.forEach((edge) => addEdge(edge))
 
         window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: false } }))
+      } else if (!potentialParentId && dragStartParentId) {
+        // Moving OUT of a subflow to canvas
+        // Remove edges connected to this node since it's leaving its parent
+        const edgesToRemove = edgesForDisplay.filter(
+          (e) => e.source === node.id || e.target === node.id
+        )
+
+        if (edgesToRemove.length > 0) {
+          removeEdgesForNode(node.id, edgesToRemove)
+
+          logger.info('Removed edges when moving node out of subflow', {
+            blockId: node.id,
+            sourceParentId: dragStartParentId,
+            edgeCount: edgesToRemove.length,
+          })
+        }
+
+        // Clear the parent relationship
+        updateNodeParent(node.id, null, edgesToRemove)
+
+        logger.info('Moved node out of subflow', {
+          blockId: node.id,
+          sourceParentId: dragStartParentId,
+        })
       }
 
       // Reset state
@@ -2829,29 +2873,55 @@ const WorkflowContent = React.memo(() => {
         previousPositions: multiNodeDragStartRef.current,
       })
 
-      // Process parent updates if dropping into a subflow
-      if (potentialParentId && potentialParentId !== dragStartParentId) {
-        // Filter out nodes that cannot be moved into subflows
-        const validNodes = nodes.filter((n: Node) => {
-          const block = blocks[n.id]
-          if (!block) return false
-          if (n.data?.type === 'starter') return false
-          if (TriggerUtils.isTriggerBlock(block)) return false
-          if (n.type === 'subflowNode') return false
+      // Process parent updates for nodes whose parent is changing
+      // Check each node individually - don't rely on dragStartParentId since
+      // multi-node selections can contain nodes from different parents
+      const selectedNodeIds = new Set(nodes.map((n: Node) => n.id))
+      const nodesNeedingParentUpdate = nodes.filter((n: Node) => {
+        const block = blocks[n.id]
+        if (!block) return false
+        const currentParent = block.data?.parentId || null
+        // Skip if the node's parent is also being moved (keep children with their parent)
+        if (currentParent && selectedNodeIds.has(currentParent)) return false
+        // Node needs update if current parent !== target parent
+        return currentParent !== potentialParentId
+      })
+
+      if (nodesNeedingParentUpdate.length > 0) {
+        // Filter out nodes that cannot be moved into subflows (when target is a subflow)
+        const validNodes = nodesNeedingParentUpdate.filter((n: Node) => {
+          // These restrictions only apply when moving INTO a subflow
+          if (potentialParentId) {
+            if (n.data?.type === 'starter') return false
+            const block = blocks[n.id]
+            if (block && TriggerUtils.isTriggerBlock(block)) return false
+            if (n.type === 'subflowNode') return false
+          }
           return true
         })
 
         if (validNodes.length > 0) {
+          // Use boundary edge logic - only remove edges crossing the boundary
+          const movingNodeIds = new Set(validNodes.map((n: Node) => n.id))
+          const boundaryEdges = edgesForDisplay.filter((e) => {
+            const sourceInSelection = movingNodeIds.has(e.source)
+            const targetInSelection = movingNodeIds.has(e.target)
+            return sourceInSelection !== targetInSelection
+          })
+
           const rawUpdates = validNodes.map((n: Node) => {
-            const edgesToRemove = edgesForDisplay.filter(
+            const edgesForThisNode = boundaryEdges.filter(
               (e) => e.source === n.id || e.target === n.id
             )
-            const newPosition = calculateRelativePosition(n.id, potentialParentId, true)
+            // Use relative position when moving into a container, absolute position when moving to root
+            const newPosition = potentialParentId
+              ? calculateRelativePosition(n.id, potentialParentId, true)
+              : getNodeAbsolutePosition(n.id)
             return {
               blockId: n.id,
               newParentId: potentialParentId,
               newPosition,
-              affectedEdges: edgesToRemove,
+              affectedEdges: edgesForThisNode,
             }
           })
 
@@ -2881,7 +2951,7 @@ const WorkflowContent = React.memo(() => {
                 return {
                   ...node,
                   position: update.newPosition,
-                  parentId: update.newParentId,
+                  parentId: update.newParentId ?? undefined,
                 }
               }
               return node
@@ -2890,7 +2960,7 @@ const WorkflowContent = React.memo(() => {
 
           resizeLoopNodesWrapper()
 
-          logger.info('Batch moved selection into subflow', {
+          logger.info('Batch moved selection to new parent', {
             targetParentId: potentialParentId,
             nodeCount: validNodes.length,
           })
@@ -2910,7 +2980,6 @@ const WorkflowContent = React.memo(() => {
       calculateRelativePosition,
       resizeLoopNodesWrapper,
       potentialParentId,
-      dragStartParentId,
       edgesForDisplay,
       clearDragHighlights,
     ]
@@ -2995,7 +3064,6 @@ const WorkflowContent = React.memo(() => {
 
   /** Transforms edges to include selection state and delete handlers. Memoized to prevent re-renders. */
   const edgesWithSelection = useMemo(() => {
-    // Build node lookup map once - O(n) instead of O(n) per edge
     const nodeMap = new Map(displayNodes.map((n) => [n.id, n]))
 
     return edgesForDisplay.map((edge) => {

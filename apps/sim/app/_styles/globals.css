@@ -51,9 +51,11 @@
   border: 1px solid var(--brand-secondary) !important;
 }
 
-.react-flow__nodesselection-rect {
+.react-flow__nodesselection-rect,
+.react-flow__nodesselection {
   background: transparent !important;
   border: none !important;
+  pointer-events: none !important;
 }
 
 /**
