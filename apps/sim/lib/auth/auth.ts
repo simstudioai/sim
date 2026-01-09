@@ -2188,8 +2188,6 @@ export const auth = betterAuth({
                 try {
                   resolvedSubscription = await ensureOrganizationForTeamSubscription(subscription)
                 } catch (orgError) {
-                  // Critical: Log detailed error for manual investigation
-                  // This can happen if user joined another org between checkout start and completion
                   logger.error(
                     '[onSubscriptionComplete] Failed to ensure organization for team subscription',
                     {
@@ -2200,8 +2198,6 @@ export const auth = betterAuth({
                       stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
                   )
-                  // Re-throw to signal webhook failure - Stripe will retry
-                  // This ensures we don't leave subscriptions in broken state silently
                   throw orgError
                 }
 
@@ -2228,8 +2224,6 @@ export const auth = betterAuth({
                 try {
                   resolvedSubscription = await ensureOrganizationForTeamSubscription(subscription)
                 } catch (orgError) {
-                  // Log but don't throw - subscription updates should still process other logic
-                  // The subscription may have been created with user ID if org creation failed initially
                   logger.error(
                     '[onSubscriptionUpdate] Failed to ensure organization for team subscription',
                     {
@@ -2239,7 +2233,6 @@ export const auth = betterAuth({
                       error: orgError instanceof Error ? orgError.message : String(orgError),
                     }
                   )
-                  // Continue with original subscription - don't block other updates
                 }
 
                 try {
