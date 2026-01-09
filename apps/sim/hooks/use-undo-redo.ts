@@ -492,50 +492,53 @@ export function useUndoRedo() {
           break
         }
         case 'batch-remove-edges': {
+          // Undo add-edge: inverse is batch-remove-edges, so remove the edges
           const batchRemoveInverse = entry.inverse as BatchRemoveEdgesOperation
           const { edgeSnapshots } = batchRemoveInverse.data
 
-          if (entry.operation.type === 'add-edge') {
-            // Undo add-edge: remove the edges that were added
-            const edgesToRemove = edgeSnapshots
-              .filter((e) => workflowStore.edges.find((edge) => edge.id === e.id))
-              .map((e) => e.id)
+          const edgesToRemove = edgeSnapshots
+            .filter((e) => workflowStore.edges.find((edge) => edge.id === e.id))
+            .map((e) => e.id)
 
-            if (edgesToRemove.length > 0) {
-              addToQueue({
-                id: opId,
-                operation: {
-                  operation: 'batch-remove-edges',
-                  target: 'edges',
-                  payload: { ids: edgesToRemove },
-                },
-                workflowId: activeWorkflowId,
-                userId,
-              })
-              edgesToRemove.forEach((id) => workflowStore.removeEdge(id))
-            }
-            logger.debug('Undid add-edge', { edgeCount: edgesToRemove.length })
-          } else {
-            // Undo batch-remove-edges: add edges back
-            const edgesToAdd = edgeSnapshots.filter(
-              (e) => !workflowStore.edges.find((edge) => edge.id === e.id)
-            )
-
-            if (edgesToAdd.length > 0) {
-              addToQueue({
-                id: opId,
-                operation: {
-                  operation: 'batch-add-edges',
-                  target: 'edges',
-                  payload: { edges: edgesToAdd },
-                },
-                workflowId: activeWorkflowId,
-                userId,
-              })
-              edgesToAdd.forEach((edge) => workflowStore.addEdge(edge))
-            }
-            logger.debug('Undid batch-remove-edges', { edgeCount: edgesToAdd.length })
+          if (edgesToRemove.length > 0) {
+            addToQueue({
+              id: opId,
+              operation: {
+                operation: 'batch-remove-edges',
+                target: 'edges',
+                payload: { ids: edgesToRemove },
+              },
+              workflowId: activeWorkflowId,
+              userId,
+            })
+            edgesToRemove.forEach((id) => workflowStore.removeEdge(id))
           }
+          logger.debug('Undid add-edge', { edgeCount: edgesToRemove.length })
+          break
+        }
+        case 'batch-add-edges': {
+          // Undo batch-remove-edges: inverse is batch-add-edges, so add edges back
+          const batchAddInverse = entry.inverse as BatchAddEdgesOperation
+          const { edgeSnapshots } = batchAddInverse.data
+
+          const edgesToAdd = edgeSnapshots.filter(
+            (e) => !workflowStore.edges.find((edge) => edge.id === e.id)
+          )
+
+          if (edgesToAdd.length > 0) {
+            addToQueue({
+              id: opId,
+              operation: {
+                operation: 'batch-add-edges',
+                target: 'edges',
+                payload: { edges: edgesToAdd },
+              },
+              workflowId: activeWorkflowId,
+              userId,
+            })
+            edgesToAdd.forEach((edge) => workflowStore.addEdge(edge))
+          }
+          logger.debug('Undid batch-remove-edges', { edgeCount: edgesToAdd.length })
           break
         }
         case 'batch-move-blocks': {
@@ -1044,6 +1047,32 @@ export function useUndoRedo() {
           }
 
           logger.debug('Redid batch-remove-edges', { edgeCount: edgesToRemove.length })
+          break
+        }
+        case 'batch-add-edges': {
+          // Redo batch-add-edges: add all edges again
+          const batchAddOp = entry.operation as BatchAddEdgesOperation
+          const { edgeSnapshots } = batchAddOp.data
+
+          const edgesToAdd = edgeSnapshots.filter(
+            (e) => !workflowStore.edges.find((edge) => edge.id === e.id)
+          )
+
+          if (edgesToAdd.length > 0) {
+            addToQueue({
+              id: opId,
+              operation: {
+                operation: 'batch-add-edges',
+                target: 'edges',
+                payload: { edges: edgesToAdd },
+              },
+              workflowId: activeWorkflowId,
+              userId,
+            })
+            edgesToAdd.forEach((edge) => workflowStore.addEdge(edge))
+          }
+
+          logger.debug('Redid batch-add-edges', { edgeCount: edgesToAdd.length })
           break
         }
         case 'batch-move-blocks': {
