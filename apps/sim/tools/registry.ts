@@ -1167,6 +1167,7 @@ import {
   sshWriteFileContentTool,
 } from '@/tools/ssh'
 import { stagehandAgentTool, stagehandExtractTool } from '@/tools/stagehand'
+import { commandExecTool } from '@/tools/command'
 import {
   stripeCancelPaymentIntentTool,
   stripeCancelSubscriptionTool,
@@ -2020,6 +2021,8 @@ export const tools: Record<string, ToolConfig> = {
   thinking_tool: thinkingTool,
   stagehand_extract: stagehandExtractTool,
   stagehand_agent: stagehandAgentTool,
+  opencode_chat: opencodeChatTool,
+  command_exec: commandExecTool,
   mem0_add_memories: mem0AddMemoriesTool,
   mem0_search_memories: mem0SearchMemoriesTool,
   mem0_get_memories: mem0GetMemoriesTool,
