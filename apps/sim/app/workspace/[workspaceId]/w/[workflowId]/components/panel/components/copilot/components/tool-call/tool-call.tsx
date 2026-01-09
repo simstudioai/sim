@@ -252,7 +252,7 @@ export function OptionsSelector({
   if (sortedOptions.length === 0) return null
 
   return (
-    <div ref={containerRef} className='mt-3 flex flex-col gap-1 pb-1'>
+    <div ref={containerRef} className='mt-3 flex flex-col gap-0.5 pb-0.5'>
       {sortedOptions.map((option, index) => {
         const isHovered = index === hoveredIndex && !isLocked
         const isChosen = option.key === chosenKey
@@ -271,7 +271,7 @@ export function OptionsSelector({
               if (!isLocked && !streaming) setHoveredIndex(index)
             }}
             className={clsx(
-              'group flex cursor-pointer items-start gap-2.5 rounded-[8px] p-1',
+              'group flex cursor-pointer items-start gap-2 rounded-[6px] px-1 py-0.5',
               'hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
               disabled && 'cursor-not-allowed opacity-50',
               streaming && 'pointer-events-none',
