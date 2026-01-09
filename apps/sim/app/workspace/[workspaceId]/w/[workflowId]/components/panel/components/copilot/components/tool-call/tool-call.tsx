@@ -1025,34 +1025,63 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
       const inputs = op.params.inputs as Record<string, unknown>
       const blockConfig = getBlock(blockType)
 
-      // Filter visible subblocks from config (same logic as canvas)
-      const visibleSubBlocks =
-        blockConfig?.subBlocks?.filter((sb) => {
-          // Skip hidden subblocks
-          if (sb.hidden) return false
-          if (sb.hideFromPreview) return false
-          // Skip advanced mode subblocks (not visible by default)
-          if (sb.mode === 'advanced') return false
-          // Skip trigger mode subblocks
-          if (sb.mode === 'trigger') return false
-          return true
-        }) ?? []
-
-      // Build subBlocks array respecting config order
+      // Build subBlocks array
       const subBlocks: SubBlockPreview[] = []
 
-      // Add subblocks that are visible in config, in config order
-      for (const subBlockConfig of visibleSubBlocks) {
-        if (subBlockConfig.id in inputs) {
-          const value = inputs[subBlockConfig.id]
-          // Skip empty values and connections
-          if (value === null || value === undefined || value === '') continue
-          subBlocks.push({
-            id: subBlockConfig.id,
-            title: subBlockConfig.title ?? subBlockConfig.id,
-            value,
-            isPassword: subBlockConfig.password === true,
-          })
+      // Special handling for condition blocks - parse conditions JSON and render as separate rows
+      // This matches how the canvas renders condition blocks with "if", "else if", "else" rows
+      if (blockType === 'condition' && 'conditions' in inputs) {
+        const conditionsValue = inputs.conditions
+        const raw = typeof conditionsValue === 'string' ? conditionsValue : undefined
+
+        try {
+          if (raw) {
+            const parsed = JSON.parse(raw) as unknown
+            if (Array.isArray(parsed)) {
+              parsed.forEach((item: unknown, index: number) => {
+                const conditionItem = item as { id?: string; value?: unknown }
+                const title = index === 0 ? 'if' : index === parsed.length - 1 ? 'else' : 'else if'
+                subBlocks.push({
+                  id: conditionItem?.id ?? `cond-${index}`,
+                  title,
+                  value: typeof conditionItem?.value === 'string' ? conditionItem.value : '',
+                  isPassword: false,
+                })
+              })
+            }
+          }
+        } catch {
+          // Fallback: show default if/else
+          subBlocks.push({ id: 'if', title: 'if', value: '', isPassword: false })
+          subBlocks.push({ id: 'else', title: 'else', value: '', isPassword: false })
+        }
+      } else {
+        // Filter visible subblocks from config (same logic as canvas)
+        const visibleSubBlocks =
+          blockConfig?.subBlocks?.filter((sb) => {
+            // Skip hidden subblocks
+            if (sb.hidden) return false
+            if (sb.hideFromPreview) return false
+            // Skip advanced mode subblocks (not visible by default)
+            if (sb.mode === 'advanced') return false
+            // Skip trigger mode subblocks
+            if (sb.mode === 'trigger') return false
+            return true
+          }) ?? []
+
+        // Add subblocks that are visible in config, in config order
+        for (const subBlockConfig of visibleSubBlocks) {
+          if (subBlockConfig.id in inputs) {
+            const value = inputs[subBlockConfig.id]
+            // Skip empty values and connections
+            if (value === null || value === undefined || value === '') continue
+            subBlocks.push({
+              id: subBlockConfig.id,
+              title: subBlockConfig.title ?? subBlockConfig.id,
+              value,
+              isPassword: subBlockConfig.password === true,
+            })
+          }
         }
       }
 
