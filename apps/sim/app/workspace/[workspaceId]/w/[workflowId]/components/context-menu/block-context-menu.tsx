@@ -118,7 +118,7 @@ export function BlockContextMenu({
             {getToggleEnabledLabel()}
           </PopoverItem>
         )}
-        {!allNoteBlocks && (
+        {!allNoteBlocks && !isSubflow && (
           <PopoverItem
             disabled={disableEdit}
             onClick={() => {
