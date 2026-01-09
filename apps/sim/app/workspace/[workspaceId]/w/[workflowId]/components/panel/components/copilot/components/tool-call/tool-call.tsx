@@ -166,7 +166,14 @@ export function parseSpecialTags(content: string): ParsedTags {
  * PlanSteps component renders the workflow plan steps from the plan subagent
  * Only renders the title, not the full plan details
  */
-function PlanSteps({ steps }: { steps: Record<string, PlanStep> }) {
+function PlanSteps({
+  steps,
+  streaming = false,
+}: {
+  steps: Record<string, PlanStep>
+  /** When true, uses smooth streaming animation for step titles */
+  streaming?: boolean
+}) {
   const sortedSteps = useMemo(() => {
     return Object.entries(steps)
       .sort(([a], [b]) => {
@@ -192,16 +199,23 @@ function PlanSteps({ steps }: { steps: Record<string, PlanStep> }) {
         </span>
       </div>
       <div className='divide-y divide-[var(--border-1)]'>
-        {sortedSteps.map(([num, title]) => (
-          <div key={num} className='flex items-start gap-2.5 px-2.5 py-2'>
-            <div className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-3)] font-medium font-mono text-[11px] text-[var(--text-secondary)]'>
-              {num}
+        {sortedSteps.map(([num, title], index) => {
+          const isLastStep = index === sortedSteps.length - 1
+          return (
+            <div key={num} className='flex items-start gap-2.5 px-2.5 py-2'>
+              <div className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-3)] font-medium font-mono text-[11px] text-[var(--text-secondary)]'>
+                {num}
+              </div>
+              <div className='min-w-0 flex-1 text-[12px] text-[var(--text-secondary)] leading-5 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[11px] [&_p]:m-0 [&_p]:leading-5'>
+                {streaming && isLastStep ? (
+                  <SmoothStreamingText content={title} isStreaming={true} />
+                ) : (
+                  <CopilotMarkdownRenderer content={title} />
+                )}
+              </div>
             </div>
-            <div className='min-w-0 flex-1 text-[12px] text-[var(--text-secondary)] leading-5 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[11px] [&_p]:m-0 [&_p]:leading-5'>
-              <CopilotMarkdownRenderer content={title} />
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -983,7 +997,7 @@ function SubAgentContent({
             .join('')
           const parsed = parseSpecialTags(allText)
           if (parsed.plan && Object.keys(parsed.plan).length > 0) {
-            return <PlanSteps steps={parsed.plan} />
+            return <PlanSteps steps={parsed.plan} streaming={!isThinkingDone} />
           }
           return null
         })()}
@@ -1032,7 +1046,7 @@ function SubAgentThinkingContent({
         />
       )}
       {allParsed.plan && Object.keys(allParsed.plan).length > 0 && (
-        <PlanSteps steps={allParsed.plan} />
+        <PlanSteps steps={allParsed.plan} streaming={isStreaming} />
       )}
     </div>
   )
@@ -1168,7 +1182,7 @@ function SubagentContentRenderer({
     return (
       <div className='w-full'>
         {renderCollapsibleContent()}
-        {hasPlan && <PlanSteps steps={allParsed.plan!} />}
+        {hasPlan && <PlanSteps steps={allParsed.plan!} streaming={isStreaming} />}
       </div>
     )
   }
@@ -1364,7 +1378,7 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
           subBlocks.push({ id: 'else', title: 'else', value: '', isPassword: false })
         }
       } else {
-        // Filter visible subblocks from config (same logic as canvas)
+        // Filter visible subblocks from config (same logic as canvas preview)
         const visibleSubBlocks =
           blockConfig?.subBlocks?.filter((sb) => {
             // Skip hidden subblocks
@@ -1377,12 +1391,19 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
             return true
           }) ?? []
 
-        // Add subblocks that are visible in config, in config order
+        // Track seen ids to dedupe (same pattern as canvas preview using id as key)
+        const seenIds = new Set<string>()
+
+        // Add subblocks that are visible in config, in config order (first config per id wins)
         for (const subBlockConfig of visibleSubBlocks) {
+          // Skip if we've already added this id (handles configs with same id but different conditions)
+          if (seenIds.has(subBlockConfig.id)) continue
+
           if (subBlockConfig.id in inputs) {
             const value = inputs[subBlockConfig.id]
             // Skip empty values and connections
             if (value === null || value === undefined || value === '') continue
+            seenIds.add(subBlockConfig.id)
             subBlocks.push({
               id: subBlockConfig.id,
               title: subBlockConfig.title ?? subBlockConfig.id,
