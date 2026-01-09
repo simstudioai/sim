@@ -303,6 +303,7 @@ const WorkflowContent = React.memo(() => {
   const {
     getNodeDepth,
     getNodeAbsolutePosition,
+    calculateRelativePosition,
     isPointInLoopNode,
     resizeLoopNodes,
     updateNodeParent: updateNodeParentUtil,
@@ -2442,19 +2443,53 @@ const WorkflowContent = React.memo(() => {
           })
 
           if (validNodes.length > 0) {
-            // Build updates for all valid nodes
-            const updates = validNodes.map((n) => {
+            const rawUpdates = validNodes.map((n) => {
               const edgesToRemove = edgesForDisplay.filter(
                 (e) => e.source === n.id || e.target === n.id
               )
+              const newPosition = calculateRelativePosition(n.id, potentialParentId, true)
               return {
                 blockId: n.id,
                 newParentId: potentialParentId,
+                newPosition,
                 affectedEdges: edgesToRemove,
               }
             })
 
+            const minX = Math.min(...rawUpdates.map((u) => u.newPosition.x))
+            const minY = Math.min(...rawUpdates.map((u) => u.newPosition.y))
+
+            const targetMinX = CONTAINER_DIMENSIONS.LEFT_PADDING
+            const targetMinY = CONTAINER_DIMENSIONS.HEADER_HEIGHT + CONTAINER_DIMENSIONS.TOP_PADDING
+
+            const shiftX = minX < targetMinX ? targetMinX - minX : 0
+            const shiftY = minY < targetMinY ? targetMinY - minY : 0
+
+            const updates = rawUpdates.map((u) => ({
+              ...u,
+              newPosition: {
+                x: u.newPosition.x + shiftX,
+                y: u.newPosition.y + shiftY,
+              },
+            }))
+
             collaborativeBatchUpdateParent(updates)
+
+            setDisplayNodes((nodes) =>
+              nodes.map((node) => {
+                const update = updates.find((u) => u.blockId === node.id)
+                if (update) {
+                  return {
+                    ...node,
+                    position: update.newPosition,
+                    parentId: update.newParentId,
+                  }
+                }
+                return node
+              })
+            )
+
+            resizeLoopNodesWrapper()
 
             logger.info('Batch moved nodes into subflow', {
               targetParentId: potentialParentId,
@@ -2601,6 +2636,8 @@ const WorkflowContent = React.memo(() => {
       edgesForDisplay,
       removeEdgesForNode,
       getNodeAbsolutePosition,
+      calculateRelativePosition,
+      resizeLoopNodesWrapper,
       getDragStartPosition,
       setDragStartPosition,
       addNotification,
@@ -2793,18 +2830,53 @@ const WorkflowContent = React.memo(() => {
         })
 
         if (validNodes.length > 0) {
-          const updates = validNodes.map((n: Node) => {
+          const rawUpdates = validNodes.map((n: Node) => {
             const edgesToRemove = edgesForDisplay.filter(
               (e) => e.source === n.id || e.target === n.id
             )
+            const newPosition = calculateRelativePosition(n.id, potentialParentId, true)
             return {
               blockId: n.id,
               newParentId: potentialParentId,
+              newPosition,
               affectedEdges: edgesToRemove,
             }
           })
 
+          const minX = Math.min(...rawUpdates.map((u) => u.newPosition.x))
+          const minY = Math.min(...rawUpdates.map((u) => u.newPosition.y))
+
+          const targetMinX = CONTAINER_DIMENSIONS.LEFT_PADDING
+          const targetMinY = CONTAINER_DIMENSIONS.HEADER_HEIGHT + CONTAINER_DIMENSIONS.TOP_PADDING
+
+          const shiftX = minX < targetMinX ? targetMinX - minX : 0
+          const shiftY = minY < targetMinY ? targetMinY - minY : 0
+
+          const updates = rawUpdates.map((u) => ({
+            ...u,
+            newPosition: {
+              x: u.newPosition.x + shiftX,
+              y: u.newPosition.y + shiftY,
+            },
+          }))
+
           collaborativeBatchUpdateParent(updates)
+
+          setDisplayNodes((nodes) =>
+            nodes.map((node) => {
+              const update = updates.find((u) => u.blockId === node.id)
+              if (update) {
+                return {
+                  ...node,
+                  position: update.newPosition,
+                  parentId: update.newParentId,
+                }
+              }
+              return node
+            })
+          )
+
+          resizeLoopNodesWrapper()
 
           logger.info('Batch moved selection into subflow', {
             targetParentId: potentialParentId,
@@ -2823,6 +2895,8 @@ const WorkflowContent = React.memo(() => {
       getNodes,
       collaborativeBatchUpdatePositions,
       collaborativeBatchUpdateParent,
+      calculateRelativePosition,
+      resizeLoopNodesWrapper,
       potentialParentId,
       dragStartParentId,
       edgesForDisplay,

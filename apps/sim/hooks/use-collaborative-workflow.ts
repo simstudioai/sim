@@ -929,6 +929,7 @@ export function useCollaborativeWorkflow() {
       updates: Array<{
         blockId: string
         newParentId: string | null
+        newPosition: { x: number; y: number }
         affectedEdges: Edge[]
       }>
     ) => {
@@ -943,14 +944,13 @@ export function useCollaborativeWorkflow() {
         const block = workflowStore.blocks[u.blockId]
         const oldParentId = block?.data?.parentId
         const oldPosition = block?.position || { x: 0, y: 0 }
-        const newPosition = oldPosition
 
         return {
           blockId: u.blockId,
           oldParentId,
           newParentId: u.newParentId || undefined,
           oldPosition,
-          newPosition,
+          newPosition: u.newPosition,
           affectedEdges: u.affectedEdges,
         }
       })
@@ -959,6 +959,7 @@ export function useCollaborativeWorkflow() {
         if (update.affectedEdges.length > 0) {
           update.affectedEdges.forEach((e) => workflowStore.removeEdge(e.id))
         }
+        workflowStore.updateBlockPosition(update.blockId, update.newPosition)
         if (update.newParentId) {
           workflowStore.updateParentId(update.blockId, update.newParentId, 'parent')
         }

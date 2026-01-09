@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { useReactFlow } from 'reactflow'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { getBlock } from '@/blocks/registry'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('NodeUtilities')
 
@@ -208,28 +209,30 @@ export function useNodeUtilities(blocks: Record<string, any>) {
    * to the content area bounds (after header and padding).
    * @param nodeId ID of the node being repositioned
    * @param newParentId ID of the new parent
+   * @param skipClamping If true, returns raw relative position without clamping to container bounds
    * @returns Relative position coordinates {x, y} within the parent
    */
   const calculateRelativePosition = useCallback(
-    (nodeId: string, newParentId: string): { x: number; y: number } => {
+    (nodeId: string, newParentId: string, skipClamping?: boolean): { x: number; y: number } => {
       const nodeAbsPos = getNodeAbsolutePosition(nodeId)
       const parentAbsPos = getNodeAbsolutePosition(newParentId)
-      const parentNode = getNodes().find((n) => n.id === newParentId)
 
-      // Calculate raw relative position (relative to parent origin)
       const rawPosition = {
         x: nodeAbsPos.x - parentAbsPos.x,
         y: nodeAbsPos.y - parentAbsPos.y,
       }
 
-      // Get container and block dimensions
+      if (skipClamping) {
+        return rawPosition
+      }
+
+      const parentNode = getNodes().find((n) => n.id === newParentId)
       const containerDimensions = {
         width: parentNode?.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
         height: parentNode?.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
       }
       const blockDimensions = getBlockDimensions(nodeId)
 
-      // Clamp position to keep block inside content area
       return clampPositionToContainer(rawPosition, containerDimensions, blockDimensions)
     },
     [getNodeAbsolutePosition, getNodes, getBlockDimensions]
@@ -298,12 +301,12 @@ export function useNodeUtilities(blocks: Record<string, any>) {
    */
   const calculateLoopDimensions = useCallback(
     (nodeId: string): { width: number; height: number } => {
-      // Check both React Flow's node.parentId AND blocks store's data.parentId
-      // This ensures we catch children even if React Flow hasn't re-rendered yet
-      const childNodes = getNodes().filter(
-        (node) => node.parentId === nodeId || blocks[node.id]?.data?.parentId === nodeId
+      const currentBlocks = useWorkflowStore.getState().blocks
+      const childBlockIds = Object.keys(currentBlocks).filter(
+        (id) => currentBlocks[id]?.data?.parentId === nodeId
       )
-      if (childNodes.length === 0) {
+
+      if (childBlockIds.length === 0) {
         return {
           width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
           height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
@@ -313,30 +316,28 @@ export function useNodeUtilities(blocks: Record<string, any>) {
       let maxRight = 0
       let maxBottom = 0
 
-      childNodes.forEach((node) => {
-        const { width: nodeWidth, height: nodeHeight } = getBlockDimensions(node.id)
-        // Use ReactFlow's node.position which is already in the correct coordinate system
-        // (relative to parent for child nodes). The store's block.position may be stale
-        // or still in absolute coordinates during parent updates.
-        maxRight = Math.max(maxRight, node.position.x + nodeWidth)
-        maxBottom = Math.max(maxBottom, node.position.y + nodeHeight)
-      })
+      for (const childId of childBlockIds) {
+        const child = currentBlocks[childId]
+        if (!child?.position) continue
+
+        const { width: childWidth, height: childHeight } = getBlockDimensions(childId)
+
+        maxRight = Math.max(maxRight, child.position.x + childWidth)
+        maxBottom = Math.max(maxBottom, child.position.y + childHeight)
+      }
 
       const width = Math.max(
         CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-        CONTAINER_DIMENSIONS.LEFT_PADDING + maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
+        maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
       )
       const height = Math.max(
         CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-        CONTAINER_DIMENSIONS.HEADER_HEIGHT +
-          CONTAINER_DIMENSIONS.TOP_PADDING +
-          maxBottom +
-          CONTAINER_DIMENSIONS.BOTTOM_PADDING
+        maxBottom + CONTAINER_DIMENSIONS.BOTTOM_PADDING
       )
 
       return { width, height }
     },
-    [getNodes, getBlockDimensions, blocks]
+    [getBlockDimensions]
   )
 
   /**
@@ -345,29 +346,27 @@ export function useNodeUtilities(blocks: Record<string, any>) {
    */
   const resizeLoopNodes = useCallback(
     (updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void) => {
-      const containerNodes = getNodes()
-        .filter((node) => node.type && isContainerType(node.type))
-        .map((node) => ({
-          ...node,
-          depth: getNodeDepth(node.id),
+      const currentBlocks = useWorkflowStore.getState().blocks
+      const containerBlocks = Object.entries(currentBlocks)
+        .filter(([, block]) => block?.type && isContainerType(block.type))
+        .map(([id, block]) => ({
+          id,
+          block,
+          depth: getNodeDepth(id),
         }))
-        // Sort by depth descending - process innermost containers first
-        // so their dimensions are correct when outer containers calculate sizes
         .sort((a, b) => b.depth - a.depth)
 
-      containerNodes.forEach((node) => {
-        const dimensions = calculateLoopDimensions(node.id)
-        // Get current dimensions from the blocks store rather than React Flow's potentially stale state
-        const currentWidth = blocks[node.id]?.data?.width
-        const currentHeight = blocks[node.id]?.data?.height
+      for (const { id, block } of containerBlocks) {
+        const dimensions = calculateLoopDimensions(id)
+        const currentWidth = block?.data?.width
+        const currentHeight = block?.data?.height
 
-        // Only update if dimensions actually changed to avoid unnecessary re-renders
         if (dimensions.width !== currentWidth || dimensions.height !== currentHeight) {
-          updateNodeDimensions(node.id, dimensions)
+          updateNodeDimensions(id, dimensions)
         }
-      })
+      }
     },
-    [getNodes, isContainerType, getNodeDepth, calculateLoopDimensions, blocks]
+    [isContainerType, getNodeDepth, calculateLoopDimensions]
   )
 
   /**
