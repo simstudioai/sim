@@ -21,7 +21,7 @@ interface UseBlockVisualProps {
 
 /**
  * Provides visual state and interaction handlers for workflow blocks.
- * Computes ring styling based on execution, focus, diff, and run path states.
+ * Computes ring styling based on execution, diff, deletion, and run path states.
  * In preview mode, all interactive and execution-related visual states are disabled.
  *
  * @param props - The hook properties
@@ -46,8 +46,6 @@ export function useBlockVisual({ blockId, data, isPending = false }: UseBlockVis
   const runPathStatus = isPreview ? undefined : lastRunPath.get(blockId)
 
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
-  const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
-  const isFocused = isPreview ? false : currentBlockId === blockId
 
   const handleClick = useCallback(() => {
     if (!isPreview) {
@@ -60,12 +58,11 @@ export function useBlockVisual({ blockId, data, isPending = false }: UseBlockVis
       getBlockRingStyles({
         isActive,
         isPending: isPreview ? false : isPending,
-        isFocused,
         isDeletedBlock: isPreview ? false : isDeletedBlock,
         diffStatus: isPreview ? undefined : diffStatus,
         runPathStatus,
       }),
-    [isActive, isPending, isFocused, isDeletedBlock, diffStatus, runPathStatus, isPreview]
+    [isActive, isPending, isDeletedBlock, diffStatus, runPathStatus, isPreview]
   )
 
   return {

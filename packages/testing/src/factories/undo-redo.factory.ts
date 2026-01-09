@@ -10,7 +10,7 @@ export type OperationType =
   | 'batch-remove-blocks'
   | 'add-edge'
   | 'remove-edge'
-  | 'move-block'
+  | 'batch-move-blocks'
   | 'update-parent'
 
 /**
@@ -25,14 +25,16 @@ export interface BaseOperation {
 }
 
 /**
- * Move block operation data.
+ * Batch move blocks operation data.
  */
-export interface MoveBlockOperation extends BaseOperation {
-  type: 'move-block'
+export interface BatchMoveBlocksOperation extends BaseOperation {
+  type: 'batch-move-blocks'
   data: {
-    blockId: string
-    before: { x: number; y: number; parentId?: string }
-    after: { x: number; y: number; parentId?: string }
+    moves: Array<{
+      blockId: string
+      before: { x: number; y: number; parentId?: string }
+      after: { x: number; y: number; parentId?: string }
+    }>
   }
 }
 
@@ -95,7 +97,7 @@ export type Operation =
   | BatchRemoveBlocksOperation
   | AddEdgeOperation
   | RemoveEdgeOperation
-  | MoveBlockOperation
+  | BatchMoveBlocksOperation
   | UpdateParentOperation
 
 /**
@@ -275,7 +277,7 @@ interface MoveBlockOptions extends OperationEntryOptions {
 }
 
 /**
- * Creates a mock move-block operation entry.
+ * Creates a mock batch-move-blocks operation entry for a single block.
  */
 export function createMoveBlockEntry(blockId: string, options: MoveBlockOptions = {}): any {
   const {
@@ -293,19 +295,19 @@ export function createMoveBlockEntry(blockId: string, options: MoveBlockOptions 
     createdAt,
     operation: {
       id: nanoid(8),
-      type: 'move-block',
+      type: 'batch-move-blocks',
       timestamp,
       workflowId,
       userId,
-      data: { blockId, before, after },
+      data: { moves: [{ blockId, before, after }] },
     },
     inverse: {
       id: nanoid(8),
-      type: 'move-block',
+      type: 'batch-move-blocks',
       timestamp,
       workflowId,
       userId,
-      data: { blockId, before: after, after: before },
+      data: { moves: [{ blockId, before: after, after: before }] },
     },
   }
 }

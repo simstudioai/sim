@@ -5,7 +5,6 @@ const PositionSchema = z.object({
   y: z.number(),
 })
 
-// Schema for auto-connect edge data
 const AutoConnectEdgeSchema = z.object({
   id: z.string(),
   source: z.string(),
@@ -148,12 +147,66 @@ export const BatchRemoveBlocksSchema = z.object({
   operationId: z.string().optional(),
 })
 
+export const BatchRemoveEdgesSchema = z.object({
+  operation: z.literal('batch-remove-edges'),
+  target: z.literal('edges'),
+  payload: z.object({
+    ids: z.array(z.string()),
+  }),
+  timestamp: z.number(),
+  operationId: z.string().optional(),
+})
+
+export const BatchAddEdgesSchema = z.object({
+  operation: z.literal('batch-add-edges'),
+  target: z.literal('edges'),
+  payload: z.object({
+    edges: z.array(
+      z.object({
+        id: z.string(),
+        source: z.string(),
+        target: z.string(),
+        sourceHandle: z.string().nullable().optional(),
+        targetHandle: z.string().nullable().optional(),
+      })
+    ),
+  }),
+  timestamp: z.number(),
+  operationId: z.string().optional(),
+})
+
+export const BatchToggleEnabledSchema = z.object({
+  operation: z.literal('batch-toggle-enabled'),
+  target: z.literal('blocks'),
+  payload: z.object({
+    blockIds: z.array(z.string()),
+    previousStates: z.record(z.boolean()),
+  }),
+  timestamp: z.number(),
+  operationId: z.string().optional(),
+})
+
+export const BatchToggleHandlesSchema = z.object({
+  operation: z.literal('batch-toggle-handles'),
+  target: z.literal('blocks'),
+  payload: z.object({
+    blockIds: z.array(z.string()),
+    previousStates: z.record(z.boolean()),
+  }),
+  timestamp: z.number(),
+  operationId: z.string().optional(),
+})
+
 export const WorkflowOperationSchema = z.union([
   BlockOperationSchema,
   BatchPositionUpdateSchema,
   BatchAddBlocksSchema,
   BatchRemoveBlocksSchema,
+  BatchToggleEnabledSchema,
+  BatchToggleHandlesSchema,
   EdgeOperationSchema,
+  BatchAddEdgesSchema,
+  BatchRemoveEdgesSchema,
   SubflowOperationSchema,
   VariableOperationSchema,
   WorkflowStateOperationSchema,

@@ -317,6 +317,122 @@ export function setupOperationsHandlers(
         return
       }
 
+      if (target === 'edges' && operation === 'batch-remove-edges') {
+        await persistWorkflowOperation(workflowId, {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          userId: session.userId,
+        })
+
+        room.lastModified = Date.now()
+
+        socket.to(workflowId).emit('workflow-operation', {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          senderId: socket.id,
+          userId: session.userId,
+          userName: session.userName,
+          metadata: { workflowId, operationId: crypto.randomUUID() },
+        })
+
+        if (operationId) {
+          socket.emit('operation-confirmed', { operationId, serverTimestamp: Date.now() })
+        }
+
+        return
+      }
+
+      if (target === 'blocks' && operation === 'batch-toggle-enabled') {
+        await persistWorkflowOperation(workflowId, {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          userId: session.userId,
+        })
+
+        room.lastModified = Date.now()
+
+        socket.to(workflowId).emit('workflow-operation', {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          senderId: socket.id,
+          userId: session.userId,
+          userName: session.userName,
+          metadata: { workflowId, operationId: crypto.randomUUID() },
+        })
+
+        if (operationId) {
+          socket.emit('operation-confirmed', { operationId, serverTimestamp: Date.now() })
+        }
+
+        return
+      }
+
+      if (target === 'blocks' && operation === 'batch-toggle-handles') {
+        await persistWorkflowOperation(workflowId, {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          userId: session.userId,
+        })
+
+        room.lastModified = Date.now()
+
+        socket.to(workflowId).emit('workflow-operation', {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          senderId: socket.id,
+          userId: session.userId,
+          userName: session.userName,
+          metadata: { workflowId, operationId: crypto.randomUUID() },
+        })
+
+        if (operationId) {
+          socket.emit('operation-confirmed', { operationId, serverTimestamp: Date.now() })
+        }
+
+        return
+      }
+
+      if (target === 'edges' && operation === 'batch-add-edges') {
+        await persistWorkflowOperation(workflowId, {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          userId: session.userId,
+        })
+
+        room.lastModified = Date.now()
+
+        socket.to(workflowId).emit('workflow-operation', {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          senderId: socket.id,
+          userId: session.userId,
+          userName: session.userName,
+          metadata: { workflowId, operationId: crypto.randomUUID() },
+        })
+
+        if (operationId) {
+          socket.emit('operation-confirmed', { operationId, serverTimestamp: Date.now() })
+        }
+
+        return
+      }
+
       // For non-position operations, persist first then broadcast
       await persistWorkflowOperation(workflowId, {
         operation,

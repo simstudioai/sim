@@ -751,7 +751,7 @@ describe('useUndoRedoStore', () => {
       expect(getStackSizes(workflowId, userId).undoSize).toBe(3)
 
       const moveEntry = undo(workflowId, userId)
-      expect(moveEntry?.operation.type).toBe('move-block')
+      expect(moveEntry?.operation.type).toBe('batch-move-blocks')
 
       const parentEntry = undo(workflowId, userId)
       expect(parentEntry?.operation.type).toBe('update-parent')

@@ -20,8 +20,6 @@ import type { BlockState, Loop, Parallel, Position } from '@/stores/workflows/wo
 
 const logger = createLogger('CollaborativeWorkflow')
 
-const WEBHOOK_SUBBLOCK_FIELDS = ['webhookId', 'triggerPath']
-
 export function useCollaborativeWorkflow() {
   const undoRedo = useUndoRedo()
   const isUndoRedoInProgress = useRef(false)
@@ -33,7 +31,7 @@ export function useCollaborativeWorkflow() {
       const { blockId, before, after } = e.detail || {}
       if (!blockId || !before || !after) return
       if (isUndoRedoInProgress.current) return
-      undoRedo.recordMove(blockId, before, after)
+      undoRedo.recordBatchMoveBlocks([{ blockId, before, after }])
     }
 
     const parentUpdateHandler = (e: any) => {
@@ -287,6 +285,34 @@ export function useCollaborativeWorkflow() {
                   undoRedoStore.pruneInvalidEntries(workflowId, userId, graph)
                 }
               })
+              break
+            }
+          }
+        } else if (target === 'edges') {
+          switch (operation) {
+            case 'batch-remove-edges': {
+              const { ids } = payload
+              if (Array.isArray(ids)) {
+                ids.forEach((id: string) => {
+                  workflowStore.removeEdge(id)
+                })
+
+                const updatedBlocks = useWorkflowStore.getState().blocks
+                const updatedEdges = useWorkflowStore.getState().edges
+                const graph = {
+                  blocksById: updatedBlocks,
+                  edgesById: Object.fromEntries(updatedEdges.map((e) => [e.id, e])),
+                }
+
+                const undoRedoStore = useUndoRedoStore.getState()
+                const stackKeys = Object.keys(undoRedoStore.stacks)
+                stackKeys.forEach((key) => {
+                  const [wfId, uId] = key.split(':')
+                  if (wfId === activeWorkflowId) {
+                    undoRedoStore.pruneInvalidEntries(wfId, uId, graph)
+                  }
+                })
+              }
               break
             }
           }
@@ -722,7 +748,12 @@ export function useCollaborativeWorkflow() {
   )
 
   const collaborativeBatchUpdatePositions = useCallback(
-    (updates: Array<{ id: string; position: Position }>) => {
+    (
+      updates: Array<{ id: string; position: Position }>,
+      options?: {
+        previousPositions?: Map<string, { x: number; y: number; parentId?: string }>
+      }
+    ) => {
       if (!isInActiveRoom()) {
         logger.debug('Skipping batch position update - not in active workflow')
         return
@@ -746,8 +777,31 @@ export function useCollaborativeWorkflow() {
       updates.forEach(({ id, position }) => {
         workflowStore.updateBlockPosition(id, position)
       })
+
+      if (options?.previousPositions && options.previousPositions.size > 0) {
+        const moves = updates
+          .filter((u) => options.previousPositions!.has(u.id))
+          .map((u) => {
+            const prev = options.previousPositions!.get(u.id)!
+            const block = workflowStore.blocks[u.id]
+            return {
+              blockId: u.id,
+              before: prev,
+              after: {
+                x: u.position.x,
+                y: u.position.y,
+                parentId: block?.data?.parentId,
+              },
+            }
+          })
+          .filter((m) => m.before.x !== m.after.x || m.before.y !== m.after.y)
+
+        if (moves.length > 0) {
+          undoRedo.recordBatchMoveBlocks(moves)
+        }
+      }
     },
-    [addToQueue, activeWorkflowId, session?.user?.id, isInActiveRoom, workflowStore]
+    [addToQueue, activeWorkflowId, session?.user?.id, isInActiveRoom, workflowStore, undoRedo]
   )
 
   const collaborativeUpdateBlockName = useCallback(
@@ -822,13 +876,43 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation, workflowStore, addToQueue, activeWorkflowId, session?.user?.id]
   )
 
-  const collaborativeToggleBlockEnabled = useCallback(
-    (id: string) => {
-      executeQueuedOperation('toggle-enabled', 'block', { id }, () =>
+  const collaborativeBatchToggleBlockEnabled = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return
+
+      const previousStates: Record<string, boolean> = {}
+      const validIds: string[] = []
+
+      for (const id of ids) {
+        const block = workflowStore.blocks[id]
+        if (block) {
+          previousStates[id] = block.enabled
+          validIds.push(id)
+        }
+      }
+
+      if (validIds.length === 0) return
+
+      const operationId = crypto.randomUUID()
+
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: 'batch-toggle-enabled',
+          target: 'blocks',
+          payload: { blockIds: validIds, previousStates },
+        },
+        workflowId: activeWorkflowId || '',
+        userId: session?.user?.id || 'unknown',
+      })
+
+      for (const id of validIds) {
         workflowStore.toggleBlockEnabled(id)
-      )
+      }
+
+      undoRedo.recordBatchToggleEnabled(validIds, previousStates)
     },
-    [executeQueuedOperation, workflowStore]
+    [addToQueue, activeWorkflowId, session?.user?.id, workflowStore, undoRedo]
   )
 
   const collaborativeUpdateParentId = useCallback(
@@ -888,27 +972,48 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation, workflowStore]
   )
 
-  const collaborativeToggleBlockHandles = useCallback(
-    (id: string) => {
-      const currentBlock = workflowStore.blocks[id]
-      if (!currentBlock) return
+  const collaborativeBatchToggleBlockHandles = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return
 
-      const newHorizontalHandles = !currentBlock.horizontalHandles
+      const previousStates: Record<string, boolean> = {}
+      const validIds: string[] = []
 
-      executeQueuedOperation(
-        'toggle-handles',
-        'block',
-        { id, horizontalHandles: newHorizontalHandles },
-        () => workflowStore.toggleBlockHandles(id)
-      )
+      for (const id of ids) {
+        const block = workflowStore.blocks[id]
+        if (block) {
+          previousStates[id] = block.horizontalHandles ?? false
+          validIds.push(id)
+        }
+      }
+
+      if (validIds.length === 0) return
+
+      const operationId = crypto.randomUUID()
+
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: 'batch-toggle-handles',
+          target: 'blocks',
+          payload: { blockIds: validIds, previousStates },
+        },
+        workflowId: activeWorkflowId || '',
+        userId: session?.user?.id || 'unknown',
+      })
+
+      for (const id of validIds) {
+        workflowStore.toggleBlockHandles(id)
+      }
+
+      undoRedo.recordBatchToggleHandles(validIds, previousStates)
     },
-    [executeQueuedOperation, workflowStore]
+    [addToQueue, activeWorkflowId, session?.user?.id, workflowStore, undoRedo]
   )
 
   const collaborativeAddEdge = useCallback(
     (edge: Edge) => {
       executeQueuedOperation('add', 'edge', edge, () => workflowStore.addEdge(edge))
-      // Only record edge addition if it's not part of a parent update operation
       if (!skipEdgeRecording.current) {
         undoRedo.recordAddEdge(edge.id)
       }
@@ -920,13 +1025,11 @@ export function useCollaborativeWorkflow() {
     (edgeId: string) => {
       const edge = workflowStore.edges.find((e) => e.id === edgeId)
 
-      // Skip if edge doesn't exist (already removed during cascade deletion)
       if (!edge) {
         logger.debug('Edge already removed, skipping operation', { edgeId })
         return
       }
 
-      // Check if the edge's source and target blocks still exist
       const sourceExists = workflowStore.blocks[edge.source]
       const targetExists = workflowStore.blocks[edge.target]
 
@@ -939,9 +1042,8 @@ export function useCollaborativeWorkflow() {
         return
       }
 
-      // Only record edge removal if it's not part of a parent update operation
       if (!skipEdgeRecording.current) {
-        undoRedo.recordRemoveEdge(edgeId, edge)
+        undoRedo.recordBatchRemoveEdges([edge])
       }
 
       executeQueuedOperation('remove', 'edge', { id: edgeId }, () =>
@@ -951,11 +1053,64 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation, workflowStore, undoRedo]
   )
 
+  const collaborativeBatchRemoveEdges = useCallback(
+    (edgeIds: string[], options?: { skipUndoRedo?: boolean }) => {
+      if (!isInActiveRoom()) {
+        logger.debug('Skipping batch remove edges - not in active workflow')
+        return false
+      }
+
+      if (edgeIds.length === 0) return false
+
+      const edgeSnapshots: Edge[] = []
+      const validEdgeIds: string[] = []
+
+      for (const edgeId of edgeIds) {
+        const edge = workflowStore.edges.find((e) => e.id === edgeId)
+        if (edge) {
+          const sourceExists = workflowStore.blocks[edge.source]
+          const targetExists = workflowStore.blocks[edge.target]
+          if (sourceExists && targetExists) {
+            edgeSnapshots.push(edge)
+            validEdgeIds.push(edgeId)
+          }
+        }
+      }
+
+      if (validEdgeIds.length === 0) {
+        logger.debug('No valid edges to remove')
+        return false
+      }
+
+      const operationId = crypto.randomUUID()
+
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: 'batch-remove-edges',
+          target: 'edges',
+          payload: { ids: validEdgeIds },
+        },
+        workflowId: activeWorkflowId || '',
+        userId: session?.user?.id || 'unknown',
+      })
+
+      validEdgeIds.forEach((id) => workflowStore.removeEdge(id))
+
+      if (!options?.skipUndoRedo && edgeSnapshots.length > 0) {
+        undoRedo.recordBatchRemoveEdges(edgeSnapshots)
+      }
+
+      logger.info('Batch removed edges', { count: validEdgeIds.length })
+      return true
+    },
+    [isInActiveRoom, workflowStore, addToQueue, activeWorkflowId, session, undoRedo]
+  )
+
   const collaborativeSetSubblockValue = useCallback(
     (blockId: string, subblockId: string, value: any, options?: { _visited?: Set<string> }) => {
       if (isApplyingRemoteChange.current) return
 
-      // Skip socket operations when viewing baseline diff
       if (isBaselineDiffView) {
         logger.debug('Skipping collaborative subblock update while viewing baseline diff')
         return
@@ -971,13 +1126,10 @@ export function useCollaborativeWorkflow() {
         return
       }
 
-      // Generate operation ID for queue tracking
       const operationId = crypto.randomUUID()
 
-      // Get fresh activeWorkflowId from store to avoid stale closure
       const currentActiveWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
 
-      // Add to queue for retry mechanism
       addToQueue({
         id: operationId,
         operation: {
@@ -989,10 +1141,8 @@ export function useCollaborativeWorkflow() {
         userId: session?.user?.id || 'unknown',
       })
 
-      // Apply locally first (immediate UI feedback)
       subBlockStore.setValue(blockId, subblockId, value)
 
-      // Declarative clearing: clear sub-blocks that depend on this subblockId
       try {
         const visited = options?._visited || new Set<string>()
         if (visited.has(subblockId)) return
@@ -1004,9 +1154,7 @@ export function useCollaborativeWorkflow() {
             (sb: any) => Array.isArray(sb.dependsOn) && sb.dependsOn.includes(subblockId)
           )
           for (const dep of dependents) {
-            // Skip clearing if the dependent is the same field
             if (!dep?.id || dep.id === subblockId) continue
-            // Cascade using the same collaborative path so it emits and further cascades
             collaborativeSetSubblockValue(blockId, dep.id, '', { _visited: visited })
           }
         }
@@ -1512,15 +1660,16 @@ export function useCollaborativeWorkflow() {
     // Collaborative operations
     collaborativeBatchUpdatePositions,
     collaborativeUpdateBlockName,
-    collaborativeToggleBlockEnabled,
+    collaborativeBatchToggleBlockEnabled,
     collaborativeUpdateParentId,
     collaborativeToggleBlockAdvancedMode,
     collaborativeToggleBlockTriggerMode,
-    collaborativeToggleBlockHandles,
+    collaborativeBatchToggleBlockHandles,
     collaborativeBatchAddBlocks,
     collaborativeBatchRemoveBlocks,
     collaborativeAddEdge,
     collaborativeRemoveEdge,
+    collaborativeBatchRemoveEdges,
     collaborativeSetSubblockValue,
     collaborativeSetTagSelection,
 
