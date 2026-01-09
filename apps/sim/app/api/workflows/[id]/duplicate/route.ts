@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 
@@ -45,6 +46,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       folderId,
       requestId,
     })
+
+    try {
+      PlatformEvents.workflowDuplicated({
+        sourceWorkflowId,
+        newWorkflowId: result.id,
+        workspaceId,
+      })
+    } catch {
+      // Telemetry should not fail the operation
+    }
 
     const elapsed = Date.now() - startTime
     logger.info(

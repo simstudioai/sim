@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
-import { account, webhook, workflow } from '@sim/db/schema'
+import { account, credentialSet, webhook, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { htmlToText } from 'html-to-text'
 import { nanoid } from 'nanoid'
+import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing'
 import { pollingIdempotency } from '@/lib/core/idempotency'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -192,12 +193,38 @@ export async function pollOutlookWebhooks() {
         const metadata = webhookData.providerConfig as any
         const credentialId: string | undefined = metadata?.credentialId
         const userId: string | undefined = metadata?.userId
+        const credentialSetId: string | undefined = metadata?.credentialSetId
 
         if (!credentialId && !userId) {
           logger.error(`[${requestId}] Missing credentialId and userId for webhook ${webhookId}`)
           await markWebhookFailed(webhookId)
           failureCount++
           return
+        }
+
+        if (credentialSetId) {
+          const [cs] = await db
+            .select({ organizationId: credentialSet.organizationId })
+            .from(credentialSet)
+            .where(eq(credentialSet.id, credentialSetId))
+            .limit(1)
+
+          if (cs?.organizationId) {
+            const hasAccess = await isOrganizationOnTeamOrEnterprisePlan(cs.organizationId)
+            if (!hasAccess) {
+              logger.error(
+                `[${requestId}] Polling Group plan restriction: Your current plan does not support Polling Groups. Upgrade to Team or Enterprise to use this feature.`,
+                {
+                  webhookId,
+                  credentialSetId,
+                  organizationId: cs.organizationId,
+                }
+              )
+              await markWebhookFailed(webhookId)
+              failureCount++
+              return
+            }
+          }
         }
 
         let accessToken: string | null = null
@@ -359,7 +386,19 @@ async function fetchNewOutlookEmails(
     const data = await response.json()
     const emails = data.value || []
 
-    const filteredEmails = filterEmailsByFolder(emails, config)
+    let resolvedFolderIds: Map<string, string> | undefined
+    if (config.folderIds && config.folderIds.length > 0) {
+      const hasWellKnownFolders = config.folderIds.some(isWellKnownFolderName)
+      if (hasWellKnownFolders) {
+        resolvedFolderIds = await resolveWellKnownFolderIds(
+          accessToken,
+          config.folderIds,
+          requestId
+        )
+      }
+    }
+
+    const filteredEmails = filterEmailsByFolder(emails, config, resolvedFolderIds)
 
     logger.info(
       `[${requestId}] Fetched ${emails.length} emails, ${filteredEmails.length} after filtering`
@@ -373,18 +412,103 @@ async function fetchNewOutlookEmails(
   }
 }
 
+const OUTLOOK_WELL_KNOWN_FOLDERS = new Set([
+  'inbox',
+  'drafts',
+  'sentitems',
+  'deleteditems',
+  'junkemail',
+  'archive',
+  'outbox',
+])
+
+function isWellKnownFolderName(folderId: string): boolean {
+  return OUTLOOK_WELL_KNOWN_FOLDERS.has(folderId.toLowerCase())
+}
+
+async function resolveWellKnownFolderId(
+  accessToken: string,
+  folderName: string,
+  requestId: string
+): Promise<string | null> {
+  try {
+    const response = await fetch(`https://graph.microsoft.com/v1.0/me/mailFolders/${folderName}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      logger.warn(
+        `[${requestId}] Failed to resolve well-known folder '${folderName}': ${response.status}`
+      )
+      return null
+    }
+
+    const folder = await response.json()
+    return folder.id || null
+  } catch (error) {
+    logger.error(`[${requestId}] Error resolving well-known folder '${folderName}':`, error)
+    return null
+  }
+}
+
+async function resolveWellKnownFolderIds(
+  accessToken: string,
+  folderIds: string[],
+  requestId: string
+): Promise<Map<string, string>> {
+  const resolvedIds = new Map<string, string>()
+
+  const wellKnownFolders = folderIds.filter(isWellKnownFolderName)
+  if (wellKnownFolders.length === 0) {
+    return resolvedIds
+  }
+
+  const resolutions = await Promise.all(
+    wellKnownFolders.map(async (folderName) => {
+      const actualId = await resolveWellKnownFolderId(accessToken, folderName, requestId)
+      return { folderName, actualId }
+    })
+  )
+
+  for (const { folderName, actualId } of resolutions) {
+    if (actualId) {
+      resolvedIds.set(folderName.toLowerCase(), actualId)
+    }
+  }
+
+  logger.info(
+    `[${requestId}] Resolved ${resolvedIds.size}/${wellKnownFolders.length} well-known folders`
+  )
+
+  return resolvedIds
+}
+
 function filterEmailsByFolder(
   emails: OutlookEmail[],
-  config: OutlookWebhookConfig
+  config: OutlookWebhookConfig,
+  resolvedFolderIds?: Map<string, string>
 ): OutlookEmail[] {
   if (!config.folderIds || !config.folderIds.length) {
     return emails
   }
 
+  const actualFolderIds = config.folderIds.map((configFolder) => {
+    if (resolvedFolderIds && isWellKnownFolderName(configFolder)) {
+      const resolvedId = resolvedFolderIds.get(configFolder.toLowerCase())
+      if (resolvedId) {
+        return resolvedId
+      }
+    }
+    return configFolder
+  })
+
   return emails.filter((email) => {
     const emailFolderId = email.parentFolderId
-    const hasMatchingFolder = config.folderIds!.some((configFolder) =>
-      emailFolderId.toLowerCase().includes(configFolder.toLowerCase())
+    const hasMatchingFolder = actualFolderIds.some(
+      (folderId) => emailFolderId.toLowerCase() === folderId.toLowerCase()
     )
 
     return config.folderFilterBehavior === 'INCLUDE' ? hasMatchingFolder : !hasMatchingFolder

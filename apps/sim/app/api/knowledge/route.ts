@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
 
@@ -93,6 +94,16 @@ export async function POST(req: NextRequest) {
       }
 
       const newKnowledgeBase = await createKnowledgeBase(createData, requestId)
+
+      try {
+        PlatformEvents.knowledgeBaseCreated({
+          knowledgeBaseId: newKnowledgeBase.id,
+          name: validatedData.name,
+          workspaceId: validatedData.workspaceId,
+        })
+      } catch {
+        // Telemetry should not fail the operation
+      }
 
       logger.info(
         `[${requestId}] Knowledge base created: ${newKnowledgeBase.id} for user ${session.user.id}`

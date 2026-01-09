@@ -1,0 +1,75 @@
+---
+title: Enterprise
+description: Enterprise features for organizations with advanced security and compliance requirements
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Sim Studio Enterprise provides advanced features for organizations with enhanced security, compliance, and management requirements.
+
+---
+
+## Bring Your Own Key (BYOK)
+
+Use your own API keys for AI model providers instead of Sim Studio's hosted keys.
+
+### Supported Providers
+
+| Provider | Usage |
+|----------|-------|
+| OpenAI | Knowledge Base embeddings, Agent block |
+| Anthropic | Agent block |
+| Google | Agent block |
+| Mistral | Knowledge Base OCR |
+
+### Setup
+
+1. Navigate to **Settings** → **BYOK** in your workspace
+2. Click **Add Key** for your provider
+3. Enter your API key and save
+
+<Callout type="warn">
+  BYOK keys are encrypted at rest. Only organization admins and owners can manage keys.
+</Callout>
+
+When configured, workflows use your key instead of Sim Studio's hosted keys. If removed, workflows automatically fall back to hosted keys.
+
+---
+
+## Single Sign-On (SSO)
+
+Enterprise authentication with SAML 2.0 and OIDC support for centralized identity management.
+
+### Supported Providers
+
+- Okta
+- Azure AD / Entra ID
+- Google Workspace
+- OneLogin
+- Any SAML 2.0 or OIDC provider
+
+### Setup
+
+1. Navigate to **Settings** → **SSO** in your workspace
+2. Choose your identity provider
+3. Configure the connection using your IdP's metadata
+4. Enable SSO for your organization
+
+<Callout type="info">
+  Once SSO is enabled, team members authenticate through your identity provider instead of email/password.
+</Callout>
+
+---
+
+## Self-Hosted
+
+For self-hosted deployments, enterprise features can be enabled via environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | Single Sign-On with SAML/OIDC |
+| `CREDENTIAL_SETS_ENABLED`, `NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED` | Polling Groups for email triggers |
+
+<Callout type="warn">
+  BYOK is only available on hosted Sim Studio. Self-hosted deployments configure AI provider keys directly via environment variables.
+</Callout>

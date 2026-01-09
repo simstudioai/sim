@@ -18,6 +18,7 @@ interface LogRowContextMenuProps {
   log: WorkflowLog | null
   onCopyExecutionId: () => void
   onOpenWorkflow: () => void
+  onOpenPreview: () => void
   onToggleWorkflowFilter: () => void
   onClearAllFilters: () => void
   isFilteredByThisWorkflow: boolean
@@ -36,6 +37,7 @@ export function LogRowContextMenu({
   log,
   onCopyExecutionId,
   onOpenWorkflow,
+  onOpenPreview,
   onToggleWorkflowFilter,
   onClearAllFilters,
   isFilteredByThisWorkflow,
@@ -77,6 +79,15 @@ export function LogRowContextMenu({
           }}
         >
           Open Workflow
+        </PopoverItem>
+        <PopoverItem
+          disabled={!hasExecutionId}
+          onClick={() => {
+            onOpenPreview()
+            onClose()
+          }}
+        >
+          Open Preview
         </PopoverItem>
 
         {/* Filter actions */}

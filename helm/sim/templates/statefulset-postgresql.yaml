@@ -65,6 +65,7 @@ data:
   POSTGRES_USER: {{ .Values.postgresql.auth.username | quote }}
   PGDATA: "/var/lib/postgresql/data/pgdata"
 
+{{- if (include "sim.createPostgresqlSecret" .) }}
 ---
 # Secret for PostgreSQL password
 apiVersion: v1
@@ -77,6 +78,7 @@ metadata:
 type: Opaque
 data:
   POSTGRES_PASSWORD: {{ .Values.postgresql.auth.password | b64enc }}
+{{- end }}
 
 ---
 # StatefulSet for PostgreSQL
@@ -128,7 +130,7 @@ spec:
             - configMapRef:
                 name: {{ include "sim.fullname" . }}-postgresql-env
             - secretRef:
-                name: {{ include "sim.fullname" . }}-postgresql-secret
+                name: {{ include "sim.postgresqlSecretName" . }}
           {{- if .Values.postgresql.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.postgresql.livenessProbe | nindent 12 }}

@@ -12,6 +12,9 @@ export const logKeys = {
   detail: (logId: string | undefined) => [...logKeys.details(), logId ?? ''] as const,
   dashboard: (workspaceId: string | undefined, filters: Record<string, unknown>) =>
     [...logKeys.all, 'dashboard', workspaceId ?? '', filters] as const,
+  executionSnapshots: () => [...logKeys.all, 'executionSnapshot'] as const,
+  executionSnapshot: (executionId: string | undefined) =>
+    [...logKeys.executionSnapshots(), executionId ?? ''] as const,
 }
 
 interface LogFilters {
@@ -194,5 +197,47 @@ export function useDashboardLogs(
     refetchInterval: options?.refetchInterval ?? false,
     staleTime: 0,
     placeholderData: keepPreviousData,
+  })
+}
+
+export interface ExecutionSnapshotData {
+  executionId: string
+  workflowId: string
+  workflowState: Record<string, unknown>
+  executionMetadata: {
+    trigger: string
+    startedAt: string
+    endedAt?: string
+    totalDurationMs?: number
+    cost: {
+      total: number | null
+      input: number | null
+      output: number | null
+    }
+    totalTokens: number | null
+  }
+}
+
+async function fetchExecutionSnapshot(executionId: string): Promise<ExecutionSnapshotData> {
+  const response = await fetch(`/api/logs/execution/${executionId}`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch execution snapshot: ${response.statusText}`)
+  }
+
+  const data = await response.json()
+  if (!data) {
+    throw new Error('No execution snapshot data returned')
+  }
+
+  return data
+}
+
+export function useExecutionSnapshot(executionId: string | undefined) {
+  return useQuery({
+    queryKey: logKeys.executionSnapshot(executionId),
+    queryFn: () => fetchExecutionSnapshot(executionId as string),
+    enabled: Boolean(executionId),
+    staleTime: 5 * 60 * 1000, // 5 minutes - execution snapshots don't change
   })
 }

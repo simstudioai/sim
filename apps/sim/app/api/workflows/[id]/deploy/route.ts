@@ -217,10 +217,8 @@ export async function DELETE(
     logger.info(`[${requestId}] Workflow undeployed successfully: ${id}`)
 
     try {
-      const { trackPlatformEvent } = await import('@/lib/core/telemetry')
-      trackPlatformEvent('platform.workflow.undeployed', {
-        'workflow.id': id,
-      })
+      const { PlatformEvents } = await import('@/lib/core/telemetry')
+      PlatformEvents.workflowUndeployed({ workflowId: id })
     } catch (_e) {
       // Silently fail
     }

@@ -10,6 +10,8 @@ import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('useWebhookManagement')
 
+const CREDENTIAL_SET_PREFIX = 'credentialSet:'
+
 interface UseWebhookManagementProps {
   blockId: string
   triggerId?: string
@@ -169,7 +171,22 @@ export function useWebhookManagement({
             if (webhook.providerConfig) {
               const effectiveTriggerId = resolveEffectiveTriggerId(blockId, triggerId, webhook)
 
-              useSubBlockStore.getState().setValue(blockId, 'triggerConfig', webhook.providerConfig)
+              // Filter out runtime/system fields from providerConfig before storing as triggerConfig
+              // These fields are managed by the system and should not be included in change detection
+              const {
+                credentialId: _credId,
+                credentialSetId: _credSetId,
+                userId: _userId,
+                historyId: _historyId,
+                lastCheckedTimestamp: _lastChecked,
+                setupCompleted: _setupCompleted,
+                externalId: _externalId,
+                triggerId: _triggerId,
+                blockId: _blockId,
+                ...userConfigurableFields
+              } = webhook.providerConfig as Record<string, unknown>
+
+              useSubBlockStore.getState().setValue(blockId, 'triggerConfig', userConfigurableFields)
 
               if (effectiveTriggerId) {
                 populateTriggerFieldsFromConfig(blockId, webhook.providerConfig, effectiveTriggerId)
@@ -220,9 +237,17 @@ export function useWebhookManagement({
     }
 
     const triggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
+
+    const isCredentialSet = selectedCredentialId?.startsWith(CREDENTIAL_SET_PREFIX)
+    const credentialSetId = isCredentialSet
+      ? selectedCredentialId!.slice(CREDENTIAL_SET_PREFIX.length)
+      : undefined
+    const credentialId = isCredentialSet ? undefined : selectedCredentialId
+
     const webhookConfig = {
       ...(triggerConfig || {}),
-      ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
+      ...(credentialId ? { credentialId } : {}),
+      ...(credentialSetId ? { credentialSetId } : {}),
       triggerId: effectiveTriggerId,
     }
 
@@ -279,13 +304,20 @@ export function useWebhookManagement({
   ): Promise<boolean> => {
     const triggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
 
+    const isCredentialSet = selectedCredentialId?.startsWith(CREDENTIAL_SET_PREFIX)
+    const credentialSetId = isCredentialSet
+      ? selectedCredentialId!.slice(CREDENTIAL_SET_PREFIX.length)
+      : undefined
+    const credentialId = isCredentialSet ? undefined : selectedCredentialId
+
     const response = await fetch(`/api/webhooks/${webhookIdToUpdate}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         providerConfig: {
           ...triggerConfig,
-          ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
+          ...(credentialId ? { credentialId } : {}),
+          ...(credentialSetId ? { credentialSetId } : {}),
           triggerId: effectiveTriggerId,
         },
       }),

@@ -18,6 +18,7 @@ import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { useUserPermissionsContext } from '../providers/workspace-permissions-provider'
 import {
   Dashboard,
+  ExecutionSnapshot,
   LogDetails,
   LogRowContextMenu,
   LogsList,
@@ -59,8 +60,7 @@ export default function Logs() {
     setWorkspaceId(workspaceId)
   }, [workspaceId, setWorkspaceId])
 
-  const [selectedLog, setSelectedLog] = useState<WorkflowLog | null>(null)
-  const [selectedLogIndex, setSelectedLogIndex] = useState<number>(-1)
+  const [selectedLogId, setSelectedLogId] = useState<string | null>(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
   const loaderRef = useRef<HTMLDivElement>(null)
@@ -89,6 +89,12 @@ export default function Logs() {
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
   const [contextMenuLog, setContextMenuLog] = useState<WorkflowLog | null>(null)
   const contextMenuRef = useRef<HTMLDivElement>(null)
+
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [previewLogId, setPreviewLogId] = useState<string | null>(null)
+
+  const activeLogId = isPreviewOpen ? previewLogId : selectedLogId
+  const activeLogQuery = useLogDetail(activeLogId ?? undefined)
 
   const logFilters = useMemo(
     () => ({
@@ -129,18 +135,22 @@ export default function Logs() {
     refetchInterval: isLive ? 5000 : false,
   })
 
-  const logDetailQuery = useLogDetail(selectedLog?.id)
-
-  const mergedSelectedLog = useMemo(() => {
-    if (!selectedLog) return null
-    if (!logDetailQuery.data) return selectedLog
-    return { ...selectedLog, ...logDetailQuery.data }
-  }, [selectedLog, logDetailQuery.data])
-
   const logs = useMemo(() => {
     if (!logsQuery.data?.pages) return []
     return logsQuery.data.pages.flatMap((page) => page.logs)
   }, [logsQuery.data?.pages])
+
+  const selectedLogIndex = useMemo(
+    () => (selectedLogId ? logs.findIndex((l) => l.id === selectedLogId) : -1),
+    [logs, selectedLogId]
+  )
+  const selectedLogFromList = selectedLogIndex >= 0 ? logs[selectedLogIndex] : null
+
+  const selectedLog = useMemo(() => {
+    if (!selectedLogFromList) return null
+    if (!activeLogQuery.data || isPreviewOpen) return selectedLogFromList
+    return { ...selectedLogFromList, ...activeLogQuery.data }
+  }, [selectedLogFromList, activeLogQuery.data, isPreviewOpen])
 
   useFolders(workspaceId)
 
@@ -150,89 +160,40 @@ export default function Logs() {
     }
   }, [debouncedSearchQuery, setStoreSearchQuery])
 
-  const prevSelectedLogRef = useRef<WorkflowLog | null>(null)
-
   useEffect(() => {
-    if (!selectedLog?.id || logs.length === 0) return
-
-    const updatedLog = logs.find((l) => l.id === selectedLog.id)
-    if (!updatedLog) return
-
-    const prevLog = prevSelectedLogRef.current
-
-    const hasStatusChange =
-      prevLog?.id === updatedLog.id &&
-      (updatedLog.duration !== prevLog.duration || updatedLog.status !== prevLog.status)
-
-    if (updatedLog !== selectedLog) {
-      setSelectedLog(updatedLog)
-      prevSelectedLogRef.current = updatedLog
-    }
-
-    const newIndex = logs.findIndex((l) => l.id === selectedLog.id)
-    if (newIndex !== selectedLogIndex) {
-      setSelectedLogIndex(newIndex)
-    }
-
-    if (hasStatusChange) {
-      logDetailQuery.refetch()
-    }
-  }, [logs, selectedLog?.id, selectedLogIndex, logDetailQuery])
-
-  useEffect(() => {
-    if (!isLive || !selectedLog?.id) return
-
-    const interval = setInterval(() => {
-      logDetailQuery.refetch()
-    }, 5000)
-
+    if (!isLive || !selectedLogId) return
+    const interval = setInterval(() => activeLogQuery.refetch(), 5000)
     return () => clearInterval(interval)
-  }, [isLive, selectedLog?.id, logDetailQuery])
+  }, [isLive, selectedLogId, activeLogQuery])
 
   const handleLogClick = useCallback(
     (log: WorkflowLog) => {
-      if (selectedLog?.id === log.id && isSidebarOpen) {
+      if (selectedLogId === log.id && isSidebarOpen) {
         setIsSidebarOpen(false)
-        setSelectedLog(null)
-        setSelectedLogIndex(-1)
-        prevSelectedLogRef.current = null
+        setSelectedLogId(null)
         return
       }
-
-      setSelectedLog(log)
-      prevSelectedLogRef.current = log
-      const index = logs.findIndex((l) => l.id === log.id)
-      setSelectedLogIndex(index)
+      setSelectedLogId(log.id)
       setIsSidebarOpen(true)
     },
-    [selectedLog?.id, isSidebarOpen, logs]
+    [selectedLogId, isSidebarOpen]
   )
 
   const handleNavigateNext = useCallback(() => {
     if (selectedLogIndex < logs.length - 1) {
-      const nextIndex = selectedLogIndex + 1
-      setSelectedLogIndex(nextIndex)
-      const nextLog = logs[nextIndex]
-      setSelectedLog(nextLog)
-      prevSelectedLogRef.current = nextLog
+      setSelectedLogId(logs[selectedLogIndex + 1].id)
     }
   }, [selectedLogIndex, logs])
 
   const handleNavigatePrev = useCallback(() => {
     if (selectedLogIndex > 0) {
-      const prevIndex = selectedLogIndex - 1
-      setSelectedLogIndex(prevIndex)
-      const prevLog = logs[prevIndex]
-      setSelectedLog(prevLog)
-      prevSelectedLogRef.current = prevLog
+      setSelectedLogId(logs[selectedLogIndex - 1].id)
     }
   }, [selectedLogIndex, logs])
 
   const handleCloseSidebar = useCallback(() => {
     setIsSidebarOpen(false)
-    setSelectedLog(null)
-    setSelectedLogIndex(-1)
-    prevSelectedLogRef.current = null
+    setSelectedLogId(null)
   }, [])
 
   const handleLogContextMenu = useCallback((e: React.MouseEvent, log: WorkflowLog) => {
@@ -271,6 +232,13 @@ export default function Logs() {
     setSearchQuery('')
   }, [resetFilters, setSearchQuery])
 
+  const handleOpenPreview = useCallback(() => {
+    if (contextMenuLog?.id) {
+      setPreviewLogId(contextMenuLog.id)
+      setIsPreviewOpen(true)
+    }
+  }, [contextMenuLog])
+
   const contextMenuWorkflowId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
   const isFilteredByThisWorkflow = Boolean(
     contextMenuWorkflowId && workflowIds.length === 1 && workflowIds[0] === contextMenuWorkflowId
@@ -298,10 +266,10 @@ export default function Logs() {
     setIsVisuallyRefreshing(true)
     setTimeout(() => setIsVisuallyRefreshing(false), REFRESH_SPINNER_DURATION_MS)
     logsQuery.refetch()
-    if (selectedLog?.id) {
-      logDetailQuery.refetch()
+    if (selectedLogId) {
+      activeLogQuery.refetch()
     }
-  }, [logsQuery, logDetailQuery, selectedLog?.id])
+  }, [logsQuery, activeLogQuery, selectedLogId])
 
   const handleToggleLive = useCallback(() => {
     const newIsLive = !isLive
@@ -393,9 +361,7 @@ export default function Logs() {
 
       if (selectedLogIndex === -1 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault()
-        setSelectedLogIndex(0)
-        setSelectedLog(logs[0])
-        prevSelectedLogRef.current = logs[0]
+        setSelectedLogId(logs[0].id)
         return
       }
 
@@ -409,7 +375,7 @@ export default function Logs() {
         handleNavigateNext()
       }
 
-      if (e.key === 'Enter' && selectedLog) {
+      if (e.key === 'Enter' && selectedLogId) {
         e.preventDefault()
         setIsSidebarOpen(!isSidebarOpen)
       }
@@ -417,7 +383,7 @@ export default function Logs() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [logs, selectedLogIndex, isSidebarOpen, selectedLog, handleNavigateNext, handleNavigatePrev])
+  }, [logs, selectedLogIndex, isSidebarOpen, selectedLogId, handleNavigateNext, handleNavigatePrev])
 
   const isDashboardView = viewMode === 'dashboard'
 
@@ -509,7 +475,7 @@ export default function Logs() {
                 ) : (
                   <LogsList
                     logs={logs}
-                    selectedLogId={selectedLog?.id ?? null}
+                    selectedLogId={selectedLogId}
                     onLogClick={handleLogClick}
                     onLogContextMenu={handleLogContextMenu}
                     selectedRowRef={selectedRowRef}
@@ -524,7 +490,7 @@ export default function Logs() {
 
             {/* Log Details - rendered inside table container */}
             <LogDetails
-              log={mergedSelectedLog}
+              log={selectedLog}
               isOpen={isSidebarOpen}
               onClose={handleCloseSidebar}
               onNavigateNext={handleNavigateNext}
@@ -550,11 +516,25 @@ export default function Logs() {
         log={contextMenuLog}
         onCopyExecutionId={handleCopyExecutionId}
         onOpenWorkflow={handleOpenWorkflow}
+        onOpenPreview={handleOpenPreview}
         onToggleWorkflowFilter={handleToggleWorkflowFilter}
         onClearAllFilters={handleClearAllFilters}
         isFilteredByThisWorkflow={isFilteredByThisWorkflow}
         hasActiveFilters={filtersActive}
       />
+
+      {isPreviewOpen && activeLogQuery.data?.executionId && (
+        <ExecutionSnapshot
+          executionId={activeLogQuery.data.executionId}
+          traceSpans={activeLogQuery.data.executionData?.traceSpans}
+          isModal
+          isOpen={isPreviewOpen}
+          onClose={() => {
+            setIsPreviewOpen(false)
+            setPreviewLogId(null)
+          }}
+        />
+      )}
     </div>
   )
 }

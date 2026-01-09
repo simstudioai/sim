@@ -454,13 +454,6 @@ export interface LinearListProjectUpdatesParams {
   accessToken?: string
 }
 
-export interface LinearCreateProjectLinkParams {
-  projectId: string
-  url: string
-  label?: string
-  accessToken?: string
-}
-
 export interface LinearListNotificationsParams {
   first?: number
   after?: string
@@ -843,19 +836,6 @@ export interface LinearListProjectUpdatesResponse extends ToolResponse {
   }
 }
 
-export interface LinearProjectLink {
-  id: string
-  url: string
-  label: string
-  createdAt: string
-}
-
-export interface LinearCreateProjectLinkResponse extends ToolResponse {
-  output: {
-    link?: LinearProjectLink
-  }
-}
-
 export interface LinearNotification {
   id: string
   type: string
@@ -1205,7 +1185,6 @@ export interface LinearProjectLabel {
 }
 
 export interface LinearCreateProjectLabelParams {
-  projectId: string
   name: string
   color?: string
   description?: string
@@ -1358,12 +1337,12 @@ export interface LinearProjectStatus {
 }
 
 export interface LinearCreateProjectStatusParams {
-  projectId: string
   name: string
+  type: 'backlog' | 'planned' | 'started' | 'paused' | 'completed' | 'canceled'
   color: string
+  position: number
   description?: string
   indefinite?: boolean
-  position?: number
   accessToken?: string
 }
 
@@ -1468,7 +1447,6 @@ export type LinearResponse =
   | LinearListFavoritesResponse
   | LinearCreateProjectUpdateResponse
   | LinearListProjectUpdatesResponse
-  | LinearCreateProjectLinkResponse
   | LinearListNotificationsResponse
   | LinearUpdateNotificationResponse
   | LinearCreateCustomerResponse

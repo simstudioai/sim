@@ -8,6 +8,7 @@ export type EmailSubjectType =
   | 'reset-password'
   | 'invitation'
   | 'batch-invitation'
+  | 'polling-group-invitation'
   | 'help-confirmation'
   | 'enterprise-subscription'
   | 'usage-threshold'
@@ -38,6 +39,8 @@ export function getEmailSubject(type: EmailSubjectType): string {
       return `You've been invited to join a team on ${brandName}`
     case 'batch-invitation':
       return `You've been invited to join a team and workspaces on ${brandName}`
+    case 'polling-group-invitation':
+      return `You've been invited to join an email polling group on ${brandName}`
     case 'help-confirmation':
       return 'Your request has been received'
     case 'enterprise-subscription':

@@ -140,12 +140,12 @@ export const POST = withMcpAuth('write')(
       )
 
       try {
-        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
-        trackPlatformEvent('platform.mcp.server_added', {
-          'mcp.server_id': serverId,
-          'mcp.server_name': body.name,
-          'mcp.transport': body.transport,
-          'workspace.id': workspaceId,
+        const { PlatformEvents } = await import('@/lib/core/telemetry')
+        PlatformEvents.mcpServerAdded({
+          serverId,
+          serverName: body.name,
+          transport: body.transport,
+          workspaceId,
         })
       } catch (_e) {
         // Silently fail

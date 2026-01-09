@@ -181,8 +181,15 @@ Database URL for internal PostgreSQL
 
 {{/*
 Validate required secrets and reject default placeholder values
+Skip validation when using existing secrets or External Secrets Operator
 */}}
 {{- define "sim.validateSecrets" -}}
+{{- $useExistingAppSecret := and .Values.app.secrets .Values.app.secrets.existingSecret .Values.app.secrets.existingSecret.enabled }}
+{{- $useExternalSecrets := and .Values.externalSecrets .Values.externalSecrets.enabled }}
+{{- $useExistingPostgresSecret := and .Values.postgresql.auth.existingSecret .Values.postgresql.auth.existingSecret.enabled }}
+{{- $useExistingExternalDbSecret := and .Values.externalDatabase.existingSecret .Values.externalDatabase.existingSecret.enabled }}
+{{- /* App secrets validation - skip if using existing secret or ESO */ -}}
+{{- if not (or $useExistingAppSecret $useExternalSecrets) }}
 {{- if and .Values.app.enabled (not .Values.app.env.BETTER_AUTH_SECRET) }}
 {{- fail "app.env.BETTER_AUTH_SECRET is required for production deployment" }}
 {{- end }}
@@ -198,21 +205,124 @@ Validate required secrets and reject default placeholder values
 {{- if and .Values.realtime.enabled (eq .Values.realtime.env.BETTER_AUTH_SECRET "CHANGE-ME-32-CHAR-SECRET-FOR-PRODUCTION-USE") }}
 {{- fail "realtime.env.BETTER_AUTH_SECRET must not use the default placeholder value. Generate a secure secret with: openssl rand -hex 32" }}
 {{- end }}
+{{- end }}
+{{- /* PostgreSQL password validation - skip if using existing secret or ESO */ -}}
+{{- if not (or $useExistingPostgresSecret $useExternalSecrets) }}
 {{- if and .Values.postgresql.enabled (not .Values.postgresql.auth.password) }}
 {{- fail "postgresql.auth.password is required when using internal PostgreSQL" }}
 {{- end }}
 {{- if and .Values.postgresql.enabled (eq .Values.postgresql.auth.password "CHANGE-ME-SECURE-PASSWORD") }}
 {{- fail "postgresql.auth.password must not use the default placeholder value. Set a secure password for production" }}
 {{- end }}
-{{- if and .Values.postgresql.enabled (not (regexMatch "^[a-zA-Z0-9._-]+$" .Values.postgresql.auth.password)) }}
+{{- if and .Values.postgresql.enabled .Values.postgresql.auth.password (not (regexMatch "^[a-zA-Z0-9._-]+$" .Values.postgresql.auth.password)) }}
 {{- fail "postgresql.auth.password must only contain alphanumeric characters, hyphens, underscores, or periods to ensure DATABASE_URL compatibility. Generate with: openssl rand -base64 16 | tr -d '/+='" }}
 {{- end }}
+{{- end }}
+{{- /* External database password validation - skip if using existing secret or ESO */ -}}
+{{- if not (or $useExistingExternalDbSecret $useExternalSecrets) }}
 {{- if and .Values.externalDatabase.enabled (not .Values.externalDatabase.password) }}
 {{- fail "externalDatabase.password is required when using external database" }}
 {{- end }}
 {{- if and .Values.externalDatabase.enabled .Values.externalDatabase.password (not (regexMatch "^[a-zA-Z0-9._-]+$" .Values.externalDatabase.password)) }}
 {{- fail "externalDatabase.password must only contain alphanumeric characters, hyphens, underscores, or periods to ensure DATABASE_URL compatibility." }}
 {{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+Get the app secrets name
+Returns the name of the secret containing app credentials (auth, encryption keys)
+*/}}
+{{- define "sim.appSecretName" -}}
+{{- if and .Values.app.secrets .Values.app.secrets.existingSecret .Values.app.secrets.existingSecret.enabled -}}
+{{- .Values.app.secrets.existingSecret.name -}}
+{{- else -}}
+{{- printf "%s-app-secrets" (include "sim.fullname" .) -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Get the PostgreSQL secret name
+Returns the name of the secret containing PostgreSQL password
+*/}}
+{{- define "sim.postgresqlSecretName" -}}
+{{- if and .Values.postgresql.auth.existingSecret .Values.postgresql.auth.existingSecret.enabled -}}
+{{- .Values.postgresql.auth.existingSecret.name -}}
+{{- else -}}
+{{- printf "%s-postgresql-secret" (include "sim.fullname" .) -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Get the PostgreSQL password key name
+Returns the key name in the secret that contains the password
+*/}}
+{{- define "sim.postgresqlPasswordKey" -}}
+{{- if and .Values.postgresql.auth.existingSecret .Values.postgresql.auth.existingSecret.enabled -}}
+{{- .Values.postgresql.auth.existingSecret.passwordKey | default "POSTGRES_PASSWORD" -}}
+{{- else -}}
+{{- print "POSTGRES_PASSWORD" -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Get the external database secret name
+Returns the name of the secret containing external database password
+*/}}
+{{- define "sim.externalDbSecretName" -}}
+{{- if and .Values.externalDatabase.existingSecret .Values.externalDatabase.existingSecret.enabled -}}
+{{- .Values.externalDatabase.existingSecret.name -}}
+{{- else -}}
+{{- printf "%s-external-db-secret" (include "sim.fullname" .) -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Get the external database password key name
+Returns the key name in the secret that contains the password
+*/}}
+{{- define "sim.externalDbPasswordKey" -}}
+{{- if and .Values.externalDatabase.existingSecret .Values.externalDatabase.existingSecret.enabled -}}
+{{- .Values.externalDatabase.existingSecret.passwordKey | default "EXTERNAL_DB_PASSWORD" -}}
+{{- else -}}
+{{- print "EXTERNAL_DB_PASSWORD" -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Check if app secrets should be created by the chart
+Returns true if we should create the app secrets (not using existing or ESO)
+*/}}
+{{- define "sim.createAppSecrets" -}}
+{{- $useExistingAppSecret := and .Values.app.secrets .Values.app.secrets.existingSecret .Values.app.secrets.existingSecret.enabled }}
+{{- $useExternalSecrets := and .Values.externalSecrets .Values.externalSecrets.enabled }}
+{{- if not (or $useExistingAppSecret $useExternalSecrets) -}}
+true
+{{- end -}}
+{{- end }}
+
+{{/*
+Check if PostgreSQL secret should be created by the chart
+Returns true if we should create the PostgreSQL secret (not using existing or ESO)
+*/}}
+{{- define "sim.createPostgresqlSecret" -}}
+{{- $useExistingSecret := and .Values.postgresql.auth.existingSecret .Values.postgresql.auth.existingSecret.enabled }}
+{{- $useExternalSecrets := and .Values.externalSecrets .Values.externalSecrets.enabled }}
+{{- if not (or $useExistingSecret $useExternalSecrets) -}}
+true
+{{- end -}}
+{{- end }}
+
+{{/*
+Check if external database secret should be created by the chart
+Returns true if we should create the external database secret (not using existing or ESO)
+*/}}
+{{- define "sim.createExternalDbSecret" -}}
+{{- $useExistingSecret := and .Values.externalDatabase.existingSecret .Values.externalDatabase.existingSecret.enabled }}
+{{- $useExternalSecrets := and .Values.externalSecrets .Values.externalSecrets.enabled }}
+{{- if not (or $useExistingSecret $useExternalSecrets) -}}
+true
+{{- end -}}
 {{- end }}
 
 {{/*

@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { auth } from '@/lib/auth'
+import { auth, getSession } from '@/lib/auth'
+import { hasSSOAccess } from '@/lib/billing'
 import { env } from '@/lib/core/config/env'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 
@@ -63,8 +64,20 @@ const ssoRegistrationSchema = z.discriminatedUnion('providerType', [
 
 export async function POST(request: NextRequest) {
   try {
+    // SSO plugin must be enabled in Better Auth
     if (!env.SSO_ENABLED) {
       return NextResponse.json({ error: 'SSO is not enabled' }, { status: 400 })
+    }
+
+    // Check plan access (enterprise) or env var override
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    const hasAccess = await hasSSOAccess(session.user.id)
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'SSO requires an Enterprise plan' }, { status: 403 })
     }
 
     const rawBody = await request.json()

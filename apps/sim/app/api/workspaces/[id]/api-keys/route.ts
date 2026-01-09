@@ -7,6 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { getSession } from '@/lib/auth'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -147,6 +148,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         createdAt: apiKey.createdAt,
       })
 
+    try {
+      PlatformEvents.apiKeyGenerated({
+        userId: userId,
+        keyName: name,
+      })
+    } catch {
+      // Telemetry should not fail the operation
+    }
+
     logger.info(`[${requestId}] Created workspace API key: ${name} in workspace ${workspaceId}`)
 
     return NextResponse.json({
@@ -197,6 +207,17 @@ export async function DELETE(
           inArray(apiKey.id, keys)
         )
       )
+
+    try {
+      for (const keyId of keys) {
+        PlatformEvents.apiKeyRevoked({
+          userId: userId,
+          keyId: keyId,
+        })
+      }
+    } catch {
+      // Telemetry should not fail the operation
+    }
 
     logger.info(
       `[${requestId}] Deleted ${deletedCount} workspace API keys from workspace ${workspaceId}`

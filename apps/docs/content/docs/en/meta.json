@@ -15,6 +15,7 @@
     "permissions",
     "sdks",
     "self-hosting",
+    "./enterprise/index",
     "./keyboard-shortcuts/index"
   ],
   "defaultOpen": false

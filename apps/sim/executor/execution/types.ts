@@ -17,6 +17,7 @@ export interface ExecutionMetadata {
   isClientSession?: boolean
   pendingBlocks?: string[]
   resumeFromSnapshot?: boolean
+  credentialAccountUserId?: string
   workflowStateOverride?: {
     blocks: Record<string, any>
     edges: Edge[]
