@@ -258,6 +258,8 @@ export function ExecutionSnapshot({
             allBlockExecutions={blockExecutions}
             workflowBlocks={workflowState.blocks}
             workflowVariables={workflowState.variables}
+            loops={workflowState.loops}
+            parallels={workflowState.parallels}
             isExecutionMode
             onClose={() => setPinnedBlockId(null)}
           />

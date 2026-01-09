@@ -1,9 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, ChevronDown as ChevronDownIcon, ChevronUp, X } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown as ChevronDownIcon,
+  ChevronUp,
+  RepeatIcon,
+  SplitIcon,
+  X,
+} from 'lucide-react'
 import { ReactFlowProvider } from 'reactflow'
-import { Badge, Button, ChevronDown, Code, Input } from '@/components/emcn'
+import { Badge, Button, ChevronDown, Code, Combobox, Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import { SnapshotContextMenu } from '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/components'
@@ -14,7 +22,7 @@ import type { BlockConfig, BlockIcon, SubBlockConfig } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
-import type { BlockState } from '@/stores/workflows/workflow/types'
+import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 
 /**
  * Evaluate whether a subblock's condition is met based on current values.
@@ -547,6 +555,165 @@ function IconComponent({
   return <Icon className={className} />
 }
 
+/**
+ * Configuration for subflow types (loop and parallel) - matches use-subflow-editor.ts
+ */
+const SUBFLOW_CONFIG = {
+  loop: {
+    typeLabels: {
+      for: 'For Loop',
+      forEach: 'For Each',
+      while: 'While Loop',
+      doWhile: 'Do While Loop',
+    },
+    maxIterations: 1000,
+  },
+  parallel: {
+    typeLabels: {
+      count: 'Parallel Count',
+      collection: 'Parallel Each',
+    },
+    maxIterations: 20,
+  },
+} as const
+
+interface SubflowConfigDisplayProps {
+  block: BlockState
+  loop?: Loop
+  parallel?: Parallel
+}
+
+/**
+ * Display subflow (loop/parallel) configuration in preview mode.
+ * Matches the exact UI structure of SubflowEditor.
+ */
+function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayProps) {
+  const isLoop = block.type === 'loop'
+  const config = isLoop ? SUBFLOW_CONFIG.loop : SUBFLOW_CONFIG.parallel
+
+  // Determine current type
+  const currentType = isLoop
+    ? loop?.loopType || (block.data?.loopType as string) || 'for'
+    : parallel?.parallelType || (block.data?.parallelType as string) || 'count'
+
+  // Build type options for combobox - matches SubflowEditor
+  const typeOptions = Object.entries(config.typeLabels).map(([value, label]) => ({
+    value,
+    label,
+  }))
+
+  // Determine mode
+  const isCountMode = currentType === 'for' || currentType === 'count'
+  const isConditionMode = currentType === 'while' || currentType === 'doWhile'
+
+  // Get iterations value
+  const iterations = isLoop
+    ? (loop?.iterations ?? (block.data?.count as number) ?? 5)
+    : (parallel?.count ?? (block.data?.count as number) ?? 1)
+
+  // Get collection/condition value
+  const getEditorValue = (): string => {
+    if (isConditionMode && isLoop) {
+      if (currentType === 'while') {
+        return loop?.whileCondition || (block.data?.whileCondition as string) || ''
+      }
+      return loop?.doWhileCondition || (block.data?.doWhileCondition as string) || ''
+    }
+
+    if (isLoop) {
+      const items = loop?.forEachItems ?? block.data?.collection
+      return typeof items === 'string' ? items : JSON.stringify(items) || ''
+    }
+
+    const distribution = parallel?.distribution ?? block.data?.collection
+    return typeof distribution === 'string' ? distribution : JSON.stringify(distribution) || ''
+  }
+
+  const editorValue = getEditorValue()
+
+  // Get label for configuration field - matches SubflowEditor exactly
+  const getConfigLabel = (): string => {
+    if (isCountMode) {
+      return `${isLoop ? 'Loop' : 'Parallel'} Iterations`
+    }
+    if (isConditionMode) {
+      return 'While Condition'
+    }
+    return `${isLoop ? 'Collection' : 'Parallel'} Items`
+  }
+
+  return (
+    <div className='flex-1 overflow-y-auto overflow-x-hidden pt-[5px] pb-[8px]'>
+      {/* Type Selection - matches SubflowEditor */}
+      <div>
+        <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          {isLoop ? 'Loop Type' : 'Parallel Type'}
+        </Label>
+        <Combobox
+          options={typeOptions}
+          value={currentType}
+          onChange={() => {}}
+          disabled
+          placeholder='Select type...'
+        />
+      </div>
+
+      {/* Dashed Line Separator - matches SubflowEditor */}
+      <div className='px-[2px] pt-[16px] pb-[10px]'>
+        <div
+          className='h-[1.25px]'
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
+          }}
+        />
+      </div>
+
+      {/* Configuration - matches SubflowEditor */}
+      <div>
+        <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          {getConfigLabel()}
+        </Label>
+
+        {isCountMode ? (
+          <div>
+            <Input
+              type='text'
+              value={iterations.toString()}
+              onChange={() => {}}
+              disabled
+              className='mb-[4px]'
+            />
+            <div className='text-[10px] text-muted-foreground'>
+              Enter a number between 1 and {config.maxIterations}
+            </div>
+          </div>
+        ) : (
+          <div className='relative'>
+            <Code.Container>
+              <Code.Content>
+                <Code.Placeholder gutterWidth={0} show={editorValue.length === 0}>
+                  {isConditionMode ? '<counter.value> < 10' : "['item1', 'item2', 'item3']"}
+                </Code.Placeholder>
+                <div
+                  className='min-h-[24px] whitespace-pre-wrap break-all px-[12px] py-[8px] font-mono text-[13px] text-[var(--text-secondary)]'
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {editorValue || (
+                    <span className='text-[var(--text-tertiary)]'>
+                      {isConditionMode ? '<counter.value> < 10' : "['item1', 'item2', 'item3']"}
+                    </span>
+                  )}
+                </div>
+              </Code.Content>
+            </Code.Container>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 interface ExecutionData {
   input?: unknown
   output?: unknown
@@ -570,6 +737,10 @@ interface BlockDetailsSidebarProps {
   workflowBlocks?: Record<string, BlockState>
   /** Workflow variables for resolving variable references */
   workflowVariables?: Record<string, WorkflowVariable>
+  /** Loop configurations for subflow blocks */
+  loops?: Record<string, Loop>
+  /** Parallel configurations for subflow blocks */
+  parallels?: Record<string, Parallel>
   /** When true, shows "Not Executed" badge if no executionData is provided */
   isExecutionMode?: boolean
   /** Optional close handler - if not provided, no close button is shown */
@@ -600,6 +771,8 @@ function BlockDetailsSidebarContent({
   allBlockExecutions,
   workflowBlocks,
   workflowVariables,
+  loops,
+  parallels,
   isExecutionMode = false,
   onClose,
 }: BlockDetailsSidebarProps) {
@@ -867,6 +1040,71 @@ function BlockDetailsSidebarContent({
       return { ref, name: varName, value: '[REDACTED]' }
     })
   }, [extractedRefs.envVars])
+
+  // Check if this is a subflow block (loop or parallel)
+  const isSubflow = block.type === 'loop' || block.type === 'parallel'
+  const loopConfig = block.type === 'loop' ? loops?.[block.id] : undefined
+  const parallelConfig = block.type === 'parallel' ? parallels?.[block.id] : undefined
+
+  // Handle subflow blocks
+  if (isSubflow) {
+    const isLoop = block.type === 'loop'
+    const SubflowIcon = isLoop ? RepeatIcon : SplitIcon
+    const subflowBgColor = isLoop ? '#2FB3FF' : '#FEE12B'
+    const subflowName = block.name || (isLoop ? 'Loop' : 'Parallel')
+
+    return (
+      <div className='relative flex h-full w-80 flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+        {/* Header - styled like subflow header */}
+        <div className='mx-[-1px] flex flex-shrink-0 items-center gap-[8px] rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-[12px] py-[6px]'>
+          <div
+            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
+            style={{ backgroundColor: subflowBgColor }}
+          >
+            <SubflowIcon className='h-[12px] w-[12px] text-white' />
+          </div>
+          <span className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
+            {subflowName}
+          </span>
+          {onClose && (
+            <Button variant='ghost' className='!p-[4px] flex-shrink-0' onClick={onClose}>
+              <X className='h-[14px] w-[14px]' />
+            </Button>
+          )}
+        </div>
+
+        {/* Subflow Configuration */}
+        <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
+          <div className='flex-1 overflow-y-auto overflow-x-hidden'>
+            <div className='readonly-preview px-[8px]'>
+              {/* CSS override to show full opacity and prevent interaction instead of dimmed disabled state */}
+              <style>{`
+                .readonly-preview,
+                .readonly-preview * {
+                  cursor: default !important;
+                }
+                .readonly-preview [disabled],
+                .readonly-preview [data-disabled],
+                .readonly-preview input,
+                .readonly-preview textarea,
+                .readonly-preview [role="combobox"],
+                .readonly-preview [role="slider"],
+                .readonly-preview [role="switch"],
+                .readonly-preview [role="checkbox"] {
+                  opacity: 1 !important;
+                  pointer-events: none;
+                }
+                .readonly-preview .opacity-50 {
+                  opacity: 1 !important;
+                }
+              `}</style>
+              <SubflowConfigDisplay block={block} loop={loopConfig} parallel={parallelConfig} />
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (!blockConfig) {
     return (

@@ -14,16 +14,86 @@ import 'reactflow/dist/style.css'
 
 import { createLogger } from '@sim/logger'
 import { cn } from '@/lib/core/utils/cn'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
+import { estimateBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-node-utilities'
 import { WorkflowPreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview/components/block'
 import { WorkflowPreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/subflow'
 import { getBlock } from '@/blocks'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowPreview')
+
+/**
+ * Gets block dimensions for preview purposes.
+ * For containers, uses stored dimensions or defaults.
+ * For regular blocks, uses stored height or estimates based on type.
+ */
+function getPreviewBlockDimensions(block: BlockState): { width: number; height: number } {
+  if (block.type === 'loop' || block.type === 'parallel') {
+    return {
+      width: block.data?.width
+        ? Math.max(block.data.width, CONTAINER_DIMENSIONS.MIN_WIDTH)
+        : CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+      height: block.data?.height
+        ? Math.max(block.data.height, CONTAINER_DIMENSIONS.MIN_HEIGHT)
+        : CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+    }
+  }
+
+  if (block.height) {
+    return {
+      width: BLOCK_DIMENSIONS.FIXED_WIDTH,
+      height: Math.max(block.height, BLOCK_DIMENSIONS.MIN_HEIGHT),
+    }
+  }
+
+  return estimateBlockDimensions(block.type)
+}
+
+/**
+ * Calculates container dimensions based on child block positions and sizes.
+ * Mirrors the logic from useNodeUtilities.calculateLoopDimensions.
+ */
+function calculateContainerDimensions(
+  containerId: string,
+  blocks: Record<string, BlockState>
+): { width: number; height: number } {
+  const childBlocks = Object.values(blocks).filter((block) => block?.data?.parentId === containerId)
+
+  if (childBlocks.length === 0) {
+    return {
+      width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+      height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+    }
+  }
+
+  let maxRight = 0
+  let maxBottom = 0
+
+  for (const child of childBlocks) {
+    if (!child?.position) continue
+
+    const { width: childWidth, height: childHeight } = getPreviewBlockDimensions(child)
+
+    maxRight = Math.max(maxRight, child.position.x + childWidth)
+    maxBottom = Math.max(maxBottom, child.position.y + childHeight)
+  }
+
+  const width = Math.max(
+    CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+    maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
+  )
+  const height = Math.max(
+    CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+    maxBottom + CONTAINER_DIMENSIONS.BOTTOM_PADDING
+  )
+
+  return { width, height }
+}
 
 /**
  * Finds the leftmost block ID from a workflow state.
@@ -216,6 +286,8 @@ export function WorkflowPreview({
 
       if (lightweight) {
         if (block.type === 'loop' || block.type === 'parallel') {
+          const isSelected = selectedBlockId === blockId
+          const dimensions = calculateContainerDimensions(blockId, workflowState.blocks)
           nodeArray.push({
             id: blockId,
             type: 'subflowNode',
@@ -223,9 +295,10 @@ export function WorkflowPreview({
             draggable: false,
             data: {
               name: block.name,
-              width: block.data?.width || 500,
-              height: block.data?.height || 300,
+              width: dimensions.width,
+              height: dimensions.height,
               kind: block.type as 'loop' | 'parallel',
+              isPreviewSelected: isSelected,
             },
           })
           return
@@ -254,6 +327,8 @@ export function WorkflowPreview({
           type: 'workflowBlock',
           position: absolutePosition,
           draggable: false,
+          // Blocks inside subflows need higher z-index to appear above the container
+          zIndex: block.data?.parentId ? 10 : undefined,
           data: {
             type: block.type,
             name: block.name,
@@ -268,6 +343,8 @@ export function WorkflowPreview({
       }
 
       if (block.type === 'loop') {
+        const isSelected = selectedBlockId === blockId
+        const dimensions = calculateContainerDimensions(blockId, workflowState.blocks)
         nodeArray.push({
           id: blockId,
           type: 'subflowNode',
@@ -278,10 +355,11 @@ export function WorkflowPreview({
           data: {
             ...block.data,
             name: block.name,
-            width: block.data?.width || 500,
-            height: block.data?.height || 300,
+            width: dimensions.width,
+            height: dimensions.height,
             state: 'valid',
             isPreview: true,
+            isPreviewSelected: isSelected,
             kind: 'loop',
           },
         })
@@ -289,6 +367,8 @@ export function WorkflowPreview({
       }
 
       if (block.type === 'parallel') {
+        const isSelected = selectedBlockId === blockId
+        const dimensions = calculateContainerDimensions(blockId, workflowState.blocks)
         nodeArray.push({
           id: blockId,
           type: 'subflowNode',
@@ -299,10 +379,11 @@ export function WorkflowPreview({
           data: {
             ...block.data,
             name: block.name,
-            width: block.data?.width || 500,
-            height: block.data?.height || 300,
+            width: dimensions.width,
+            height: dimensions.height,
             state: 'valid',
             isPreview: true,
+            isPreviewSelected: isSelected,
             kind: 'parallel',
           },
         })
@@ -340,6 +421,8 @@ export function WorkflowPreview({
         type: nodeType,
         position: absolutePosition,
         draggable: false,
+        // Blocks inside subflows need higher z-index to appear above the container
+        zIndex: block.data?.parentId ? 10 : undefined,
         data: {
           type: block.type,
           config: blockConfig,
