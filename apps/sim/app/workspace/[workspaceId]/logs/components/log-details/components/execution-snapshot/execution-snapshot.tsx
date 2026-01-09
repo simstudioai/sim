@@ -28,17 +28,11 @@ interface BlockExecutionData {
   durationMs: number
 }
 
-/**
- * Migrated logs have special properties to indicate they came from the old logging system
- */
 interface MigratedWorkflowState extends WorkflowState {
   _migrated: true
   _note?: string
 }
 
-/**
- * Type guard to check if a workflow state is from a migrated log
- */
 function isMigratedWorkflowState(state: WorkflowState): state is MigratedWorkflowState {
   return (state as MigratedWorkflowState)._migrated === true
 }
@@ -67,7 +61,6 @@ export function ExecutionSnapshot({
   const { data, isLoading, error } = useExecutionSnapshot(executionId)
   const [pinnedBlockId, setPinnedBlockId] = useState<string | null>(null)
 
-  // Process traceSpans to create blockExecutions map
   const blockExecutions = useMemo(() => {
     if (!traceSpans || !Array.isArray(traceSpans)) return {}
 
@@ -104,7 +97,6 @@ export function ExecutionSnapshot({
     return blockExecutionMap
   }, [traceSpans])
 
-  // Reset pinned block when executionId changes
   useEffect(() => {
     setPinnedBlockId(null)
   }, [executionId])
@@ -189,7 +181,6 @@ export function ExecutionSnapshot({
             defaultPosition={{ x: 0, y: 0 }}
             defaultZoom={0.8}
             onNodeClick={(blockId) => {
-              // Toggle: clicking same block closes sidebar, clicking different block switches
               setPinnedBlockId((prev) => (prev === blockId ? null : blockId))
             }}
             cursorStyle='pointer'
@@ -211,7 +202,15 @@ export function ExecutionSnapshot({
 
   if (isModal) {
     return (
-      <Modal open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <Modal
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPinnedBlockId(null)
+            onClose()
+          }
+        }}
+      >
         <ModalContent size='full' className='flex h-[90vh] flex-col'>
           <ModalHeader>Workflow State</ModalHeader>
 

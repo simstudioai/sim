@@ -55,13 +55,11 @@ const WorkflowEdgeComponent = ({
 
   const dataSourceHandle = (data as { sourceHandle?: string } | undefined)?.sourceHandle
   const isErrorEdge = (sourceHandle ?? dataSourceHandle) === 'error'
-  // Check for execution status from both live execution store and preview data
   const previewExecutionStatus = (
     data as { executionStatus?: 'success' | 'error' | 'not-executed' } | undefined
   )?.executionStatus
   const edgeRunStatus = previewExecutionStatus || lastRunEdges.get(id)
 
-  // Memoize diff status calculation to avoid recomputing on every render
   const edgeDiffStatus = useMemo((): EdgeDiffStatus => {
     if (data?.isDeleted) return 'deleted'
     if (!diffAnalysis?.edge_diff || !isDiffReady) return null
@@ -88,7 +86,6 @@ const WorkflowEdgeComponent = ({
     targetHandle,
   ])
 
-  // Memoize edge style to prevent object recreation
   const edgeStyle = useMemo(() => {
     let color = 'var(--workflow-edge)'
     let opacity = 1
@@ -160,7 +157,6 @@ const WorkflowEdgeComponent = ({
               e.stopPropagation()
 
               if (data?.onDelete) {
-                // Pass this specific edge's ID to the delete function
                 data.onDelete(id)
               }
             }}

@@ -64,10 +64,8 @@ export function GeneralDeploy({
   const versionToPromoteInfo = versions.find((v) => v.version === versionToPromote)
   const versionToLoadInfo = versions.find((v) => v.version === versionToLoad)
 
-  // React Query for fetching selected version state (with caching)
   const { data: selectedVersionState } = useDeploymentVersionState(workflowId, selectedVersion)
 
-  // React Query mutation for reverting to a version
   const revertMutation = useRevertToVersion()
 
   useEffect(() => {
@@ -95,7 +93,6 @@ export function GeneralDeploy({
   const confirmLoadDeployment = async () => {
     if (!workflowId || versionToLoad === null) return
 
-    // Close modal immediately for snappy UX
     setShowLoadDialog(false)
     const version = versionToLoad
     setVersionToLoad(null)
@@ -111,7 +108,6 @@ export function GeneralDeploy({
   const confirmPromoteToLive = async () => {
     if (versionToPromote === null) return
 
-    // Close modal immediately for snappy UX
     setShowPromoteDialog(false)
     const version = versionToPromote
     setVersionToPromote(null)
@@ -132,7 +128,6 @@ export function GeneralDeploy({
 
   const showToggle = selectedVersion !== null && deployedState
 
-  // Only show skeleton on initial load when we have no deployed data
   const hasDeployedData = deployedState && Object.keys(deployedState.blocks || {}).length > 0
   const showLoadingSkeleton = isLoadingDeployedState && !hasDeployedData
 

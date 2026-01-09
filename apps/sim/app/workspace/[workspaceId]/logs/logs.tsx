@@ -93,7 +93,6 @@ export default function Logs() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [previewLogId, setPreviewLogId] = useState<string | null>(null)
 
-  // Single query for the "active" log detail - used by both sidebar and preview
   const activeLogId = isPreviewOpen ? previewLogId : selectedLogId
   const activeLogQuery = useLogDetail(activeLogId ?? undefined)
 
@@ -141,14 +140,12 @@ export default function Logs() {
     return logsQuery.data.pages.flatMap((page) => page.logs)
   }, [logsQuery.data?.pages])
 
-  // Derive selected log and index from the logs array
   const selectedLogIndex = useMemo(
     () => (selectedLogId ? logs.findIndex((l) => l.id === selectedLogId) : -1),
     [logs, selectedLogId]
   )
   const selectedLogFromList = selectedLogIndex >= 0 ? logs[selectedLogIndex] : null
 
-  // Merge list data with detail query data for sidebar
   const selectedLog = useMemo(() => {
     if (!selectedLogFromList) return null
     if (!activeLogQuery.data || isPreviewOpen) return selectedLogFromList
@@ -163,7 +160,6 @@ export default function Logs() {
     }
   }, [debouncedSearchQuery, setStoreSearchQuery])
 
-  // Refetch detail when live mode is active
   useEffect(() => {
     if (!isLive || !selectedLogId) return
     const interval = setInterval(() => activeLogQuery.refetch(), 5000)
@@ -363,7 +359,6 @@ export default function Logs() {
       if (isSearchOpenRef.current) return
       if (logs.length === 0) return
 
-      // Select first log if none selected and arrow key pressed
       if (selectedLogIndex === -1 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault()
         setSelectedLogId(logs[0].id)
