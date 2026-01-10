@@ -509,11 +509,12 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             )}
 
             {/* Options selector when agent presents choices - streams in but disabled until complete */}
+            {/* Disabled for previous messages (not isLastMessage) so only the latest options are interactive */}
             {parsedTags?.options && Object.keys(parsedTags.options).length > 0 && (
               <OptionsSelector
                 options={parsedTags.options}
                 onSelect={handleOptionSelect}
-                disabled={isSendingMessage || isStreaming}
+                disabled={!isLastMessage || isSendingMessage || isStreaming}
                 enableKeyboardNav={
                   isLastMessage && !isStreaming && parsedTags.optionsComplete === true
                 }
