@@ -290,12 +290,12 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
         .where(eq(member.organizationId, organizationId))
 
       if (members.length > 0) {
-        for (const member of members) {
+        for (const m of members) {
           try {
-            await syncUsageLimitsFromSubscription(member.userId)
+            await syncUsageLimitsFromSubscription(m.userId)
           } catch (memberError) {
             logger.error('Failed to sync usage limits for organization member', {
-              userId: member.userId,
+              userId: m.userId,
               organizationId,
               subscriptionId: subscription.id,
               error: memberError,
