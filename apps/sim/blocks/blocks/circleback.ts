@@ -10,6 +10,7 @@ export const CirclebackBlock: BlockConfig = {
     'Receive meeting notes, action items, transcripts, and recordings when meetings are processed. Circleback uses webhooks to push data to your workflows.',
   category: 'triggers',
   bgColor: 'linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)',
+  docsLink: 'https://docs.sim.ai/tools/circleback',
   icon: CirclebackIcon,
   triggerAllowed: true,
 
