@@ -1,4 +1,5 @@
 import type { GoogleVaultListMattersHoldsParams } from '@/tools/google_vault/types'
+import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams> = {
@@ -42,7 +43,8 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
   transformResponse: async (response: Response, params?: GoogleVaultListMattersHoldsParams) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to list holds')
+      const errorMessage = data.error?.message || 'Failed to list holds'
+      throw new Error(enhanceGoogleVaultError(errorMessage))
     }
     if (params?.holdId) {
       return { success: true, output: { hold: data } }

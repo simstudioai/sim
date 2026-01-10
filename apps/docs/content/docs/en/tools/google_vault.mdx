@@ -31,6 +31,9 @@ Create an export in a matter
 | `corpus` | string | Yes | Data corpus to export \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
 | `accountEmails` | string | No | Comma-separated list of user emails to scope export |
 | `orgUnitId` | string | No | Organization unit ID to scope export \(alternative to emails\) |
+| `startTime` | string | No | Start time for date filtering \(ISO 8601 format, e.g., 2024-01-01T00:00:00Z\) |
+| `endTime` | string | No | End time for date filtering \(ISO 8601 format, e.g., 2024-12-31T23:59:59Z\) |
+| `terms` | string | No | Search query terms to filter exported content |
 
 #### Output
 
@@ -91,6 +94,10 @@ Create a hold in a matter
 | `corpus` | string | Yes | Data corpus to hold \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
 | `accountEmails` | string | No | Comma-separated list of user emails to put on hold |
 | `orgUnitId` | string | No | Organization unit ID to put on hold \(alternative to accounts\) |
+| `terms` | string | No | Search terms to filter held content \(for MAIL and GROUPS corpus\) |
+| `startTime` | string | No | Start time for date filtering \(ISO 8601 format, for MAIL and GROUPS corpus\) |
+| `endTime` | string | No | End time for date filtering \(ISO 8601 format, for MAIL and GROUPS corpus\) |
+| `includeSharedDrives` | boolean | No | Include files in shared drives \(for DRIVE corpus\) |
 
 #### Output
 

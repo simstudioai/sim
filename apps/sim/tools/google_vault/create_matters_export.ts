@@ -1,8 +1,7 @@
 import type { GoogleVaultCreateMattersExportParams } from '@/tools/google_vault/types'
+import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
 
-// matters.exports.create
-// POST https://vault.googleapis.com/v1/matters/{matterId}/exports
 export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportParams> = {
   id: 'create_matters_export',
   name: 'Vault Create Export (by Matter)',
@@ -36,6 +35,24 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
       visibility: 'user-only',
       description: 'Organization unit ID to scope export (alternative to emails)',
     },
+    startTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Start time for date filtering (ISO 8601 format, e.g., 2024-01-01T00:00:00Z)',
+    },
+    endTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'End time for date filtering (ISO 8601 format, e.g., 2024-12-31T23:59:59Z)',
+    },
+    terms: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Search query terms to filter exported content',
+    },
   },
 
   request: {
@@ -46,7 +63,6 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      // Handle accountEmails - can be string (comma-separated) or array
       let emails: string[] = []
       if (params.accountEmails) {
         if (Array.isArray(params.accountEmails)) {
@@ -75,7 +91,6 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
         terms: params.terms || undefined,
         startTime: params.startTime || undefined,
         endTime: params.endTime || undefined,
-        timeZone: params.timeZone || undefined,
         ...scope,
       }
 
@@ -89,7 +104,8 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to create export')
+      const errorMessage = data.error?.message || 'Failed to create export'
+      throw new Error(enhanceGoogleVaultError(errorMessage))
     }
     return { success: true, output: { export: data } }
   },
