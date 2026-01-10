@@ -320,6 +320,7 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
   subBlocks: SubBlockConfig[]
   triggerAllowed?: boolean
   authMode?: AuthMode
+  singleInstance?: boolean
   tools: {
     access: string[]
     config?: {

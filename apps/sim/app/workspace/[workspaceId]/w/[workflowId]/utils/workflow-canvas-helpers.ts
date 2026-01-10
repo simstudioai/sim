@@ -23,7 +23,8 @@ interface TriggerValidationResult {
 }
 
 /**
- * Validates that pasting/duplicating trigger blocks won't violate constraints.
+ * Validates that pasting/duplicating blocks won't violate constraints.
+ * Checks both trigger constraints and single-instance block constraints.
  * Returns validation result with error message if invalid.
  */
 export function validateTriggerPaste(
@@ -42,6 +43,13 @@ export function validateTriggerPaste(
             : `A workflow can only have one ${issue.triggerName} trigger block. ${action === 'paste' ? 'Please remove the existing one before pasting.' : 'Cannot duplicate.'}`
         return { isValid: false, message }
       }
+    }
+
+    const singleInstanceIssue = TriggerUtils.getSingleInstanceBlockIssue(existingBlocks, block.type)
+    if (singleInstanceIssue) {
+      const actionText = action === 'paste' ? 'paste' : 'duplicate'
+      const message = `A workflow can only have one ${singleInstanceIssue.blockName} block. ${action === 'paste' ? 'Please remove the existing one before pasting.' : `Cannot ${actionText}.`}`
+      return { isValid: false, message }
     }
   }
   return { isValid: true }

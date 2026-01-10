@@ -17,6 +17,7 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
   category: 'blocks',
   bgColor: '#2F55FF',
   icon: ResponseIcon,
+  singleInstance: true,
   subBlocks: [
     {
       id: 'dataMode',

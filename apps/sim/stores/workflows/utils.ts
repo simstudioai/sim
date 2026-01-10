@@ -41,6 +41,10 @@ export function getUniqueBlockName(baseName: string, existingBlocks: Record<stri
     return 'Start'
   }
 
+  if (normalizedBaseName === 'response') {
+    return 'Response'
+  }
+
   const baseNameMatch = baseName.match(/^(.*?)(\s+\d+)?$/)
   const namePrefix = baseNameMatch ? baseNameMatch[1].trim() : baseName
 
