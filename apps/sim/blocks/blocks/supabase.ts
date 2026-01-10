@@ -402,6 +402,38 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       type: 'short-input',
       placeholder: 'column_name (add DESC for descending)',
       condition: { field: 'operation', value: 'query' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Supabase order by clause based on the user's description.
+
+### FORMAT
+column_name [ASC|DESC]
+
+### RULES
+- Column name only: sorts ascending by default
+- Add DESC after column name for descending order
+- Add ASC after column name for ascending order (explicit)
+- Column names are case-sensitive and should match your database schema
+
+### COMMON PATTERNS
+- Newest first: created_at DESC
+- Oldest first: created_at ASC
+- Alphabetical: name
+- Reverse alphabetical: name DESC
+- Highest value first: price DESC
+- Lowest value first: price ASC
+
+### EXAMPLES
+- "sort by start time newest first" -> start_time DESC
+- "order by name alphabetically" -> name
+- "sort by created date oldest first" -> created_at ASC
+- "highest scores first" -> score DESC
+- "sort by updated timestamp descending" -> updated_at DESC
+- "order by email" -> email
+
+Return ONLY the order by expression - no explanations, no extra text.`,
+        placeholder: 'Describe how to sort (e.g., "newest first by created_at")...',
+      },
     },
     // Optional limit for query operation
     {

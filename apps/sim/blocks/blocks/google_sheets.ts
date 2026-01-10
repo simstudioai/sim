@@ -73,6 +73,33 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       title: 'Range',
       type: 'short-input',
       placeholder: 'Sheet name and cell range (e.g., Sheet1!A1:D10)',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a valid Google Sheets range based on the user's description.
+
+### VALID FORMATS
+1. Sheet name only (for appending to end): Sheet1
+2. Full range (for reading/writing specific cells): Sheet1!A1:D10
+
+### RANGE RULES
+- Sheet names with spaces must be quoted: 'My Sheet'!A1:B10
+- Column letters are uppercase: A, B, C, ... Z, AA, AB, etc.
+- Row numbers start at 1 (not 0)
+- Range format: SheetName!StartCell:EndCell (e.g., Sheet1!A2:C10)
+- For a single column: Sheet1!A:A
+- For a single row: Sheet1!1:1
+
+### EXAMPLES
+- "the first sheet" -> Sheet1
+- "data sheet from A1 to E100" -> 'Data Sheet'!A1:E100
+- "append to orders sheet" -> Orders
+- "cells A1 through C50 on Sheet2" -> Sheet2!A1:C50
+- "column A of inventory" -> Inventory!A:A
+- "just the headers row" -> Sheet1!1:1
+
+Return ONLY the range string - no explanations, no quotes around the entire output, no extra text.`,
+        placeholder: 'Describe the range (e.g., "all data from Sheet1" or "A1 to D50")...',
+      },
     },
     // Write-specific Fields
     {
