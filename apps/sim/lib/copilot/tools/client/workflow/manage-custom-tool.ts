@@ -7,7 +7,7 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { useCustomToolsStore } from '@/stores/custom-tools'
-import { useCopilotStore } from '@/stores/panel'
+import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface CustomToolSchema {
