@@ -1961,27 +1961,37 @@ const WorkflowContent = React.memo(() => {
 
         const movingNodeIds = new Set(validBlockIds)
 
+        // Find boundary edges (edges that cross the subflow boundary)
         const boundaryEdges = edgesForDisplay.filter((e) => {
           const sourceInSelection = movingNodeIds.has(e.source)
           const targetInSelection = movingNodeIds.has(e.target)
           return sourceInSelection !== targetInSelection
         })
 
-        // Collect absolute positions BEFORE updating parents
+        // Collect absolute positions BEFORE any mutations
         const absolutePositions = new Map<string, { x: number; y: number }>()
         for (const blockId of validBlockIds) {
           absolutePositions.set(blockId, getNodeAbsolutePosition(blockId))
         }
 
-        for (const blockId of validBlockIds) {
+        // Build batch update with all blocks and their affected edges
+        const updates = validBlockIds.map((blockId) => {
+          const absolutePosition = absolutePositions.get(blockId)!
           const edgesForThisNode = boundaryEdges.filter(
             (e) => e.source === blockId || e.target === blockId
           )
-          removeEdgesForNode(blockId, edgesForThisNode)
-          updateNodeParent(blockId, null, edgesForThisNode)
-        }
+          return {
+            blockId,
+            newParentId: null,
+            newPosition: absolutePosition,
+            affectedEdges: edgesForThisNode,
+          }
+        })
 
-        // Immediately update displayNodes to prevent React Flow from using stale parent data
+        // Single atomic batch update (handles edge removal + parent update + undo/redo)
+        collaborativeBatchUpdateParent(updates)
+
+        // Update displayNodes once to prevent React Flow from using stale parent data
         setDisplayNodes((nodes) =>
           nodes.map((n) => {
             const absPos = absolutePositions.get(n.id)
@@ -1996,6 +2006,8 @@ const WorkflowContent = React.memo(() => {
             return n
           })
         )
+
+        // Note: Container resize happens automatically via the derivedNodes effect
       } catch (err) {
         logger.error('Failed to remove from subflow', { err })
       }
@@ -2004,7 +2016,7 @@ const WorkflowContent = React.memo(() => {
     window.addEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
     return () =>
       window.removeEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
-  }, [blocks, edgesForDisplay, removeEdgesForNode, updateNodeParent, getNodeAbsolutePosition])
+  }, [blocks, edgesForDisplay, getNodeAbsolutePosition, collaborativeBatchUpdateParent])
 
   /** Handles node position changes - updates local state for smooth drag, syncs to store only on drag end. */
   const onNodesChange = useCallback((changes: NodeChange[]) => {

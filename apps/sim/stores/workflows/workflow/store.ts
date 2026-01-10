@@ -283,12 +283,21 @@ export const useWorkflowStore = create<WorkflowStore>()(
           const block = newBlocks[update.id]
           if (!block) continue
 
+          // Compute new data based on whether we're adding or removing a parent
+          let newData = block.data
+          if (update.parentId) {
+            // Adding/changing parent - set parentId and extent
+            newData = { ...block.data, parentId: update.parentId, extent: 'parent' as const }
+          } else if (block.data?.parentId) {
+            // Removing parent - clear parentId and extent
+            const { parentId: _removed, extent: _removedExtent, ...restData } = block.data
+            newData = restData
+          }
+
           newBlocks[update.id] = {
             ...block,
             position: update.position,
-            data: update.parentId
-              ? { ...block.data, parentId: update.parentId, extent: 'parent' }
-              : block.data,
+            data: newData,
           }
         }
 
