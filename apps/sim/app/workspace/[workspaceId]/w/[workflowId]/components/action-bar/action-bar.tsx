@@ -19,6 +19,7 @@ import {
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
+import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useGeneralStore } from '@/stores/settings/general'
@@ -26,7 +27,9 @@ import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 export function ActionBar() {
-  const { zoomIn, zoomOut, fitView } = useReactFlow()
+  const reactFlowInstance = useReactFlow()
+  const { zoomIn, zoomOut } = reactFlowInstance
+  const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
   const { mode, setMode } = useCanvasModeStore()
   const { undo, redo } = useCollaborativeWorkflow()
   const showActionBar = useGeneralStore((s) => s.showActionBar)
@@ -61,7 +64,7 @@ export function ActionBar() {
   return (
     <>
       <div
-        className='fixed bottom-[calc(var(--terminal-height)+12px)] left-[calc(var(--sidebar-width)+12px)] z-10 flex h-[36px] items-center gap-[2px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] p-[4px] shadow-sm transition-[left,bottom] duration-100 ease-out'
+        className='fixed bottom-[calc(var(--terminal-height)+16px)] left-[calc(var(--sidebar-width)+16px)] z-10 flex h-[36px] items-center gap-[2px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] p-[4px] shadow-sm transition-[left,bottom] duration-100 ease-out'
         onContextMenu={handleContextMenu}
       >
         <Tooltip.Root>
@@ -149,7 +152,7 @@ export function ActionBar() {
             <Button
               variant='ghost'
               className='h-[28px] w-[28px] p-0'
-              onClick={() => fitView({ padding: 0.3, duration: 300 })}
+              onClick={() => fitViewToBounds({ padding: 0.1, duration: 300 })}
             >
               <Expand className='h-[16px] w-[16px]' />
             </Button>

@@ -64,6 +64,7 @@ import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
+import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
@@ -227,7 +228,9 @@ const WorkflowContent = React.memo(() => {
 
   const params = useParams()
   const router = useRouter()
-  const { screenToFlowPosition, getNodes, setNodes, fitView, getIntersectingNodes } = useReactFlow()
+  const reactFlowInstance = useReactFlow()
+  const { screenToFlowPosition, getNodes, setNodes, getIntersectingNodes } = reactFlowInstance
+  const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
   const { emitCursorUpdate } = useSocket()
 
   const workspaceId = params.workspaceId as string
@@ -1516,10 +1519,10 @@ const WorkflowContent = React.memo(() => {
             foundNodes: changedNodes.length,
           })
           requestAnimationFrame(() => {
-            fitView({
+            fitViewToBounds({
               nodes: changedNodes,
               duration: 600,
-              padding: 0.3,
+              padding: 0.1,
               minZoom: 0.5,
               maxZoom: 1.0,
             })
@@ -1527,18 +1530,18 @@ const WorkflowContent = React.memo(() => {
         } else {
           logger.info('Diff ready - no changed nodes found, fitting all')
           requestAnimationFrame(() => {
-            fitView({ padding: 0.3, duration: 600 })
+            fitViewToBounds({ padding: 0.1, duration: 600 })
           })
         }
       } else {
         logger.info('Diff ready - no changed blocks, fitting all')
         requestAnimationFrame(() => {
-          fitView({ padding: 0.3, duration: 600 })
+          fitViewToBounds({ padding: 0.1, duration: 600 })
         })
       }
     }
     prevDiffReadyRef.current = isDiffReady
-  }, [isDiffReady, diffAnalysis, fitView, getNodes])
+  }, [isDiffReady, diffAnalysis, fitViewToBounds, getNodes])
 
   /** Displays trigger warning notifications. */
   useEffect(() => {
@@ -3348,9 +3351,9 @@ const WorkflowContent = React.memo(() => {
               edgeTypes={edgeTypes}
               onDrop={effectivePermissions.canEdit ? onDrop : undefined}
               onDragOver={effectivePermissions.canEdit ? onDragOver : undefined}
-              onInit={(instance) => {
+              onInit={() => {
                 requestAnimationFrame(() => {
-                  instance.fitView(reactFlowFitViewOptions)
+                  fitViewToBounds({ padding: 0.1, maxZoom: 1.0 })
                   setIsCanvasReady(true)
                 })
               }}
