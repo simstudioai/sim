@@ -86,6 +86,62 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
         field: 'operation',
         value: 'make_call',
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate TwiML (Twilio Markup Language) for outbound voice calls based on the user's description.
+
+### IMPORTANT: Use SQUARE BRACKETS instead of angle brackets
+- Use [Tag] instead of <Tag>
+- Use [/Tag] instead of </Tag>
+- Use [Tag/] for self-closing tags instead of <Tag/>
+
+### COMMON TWIML VERBS
+
+**[Say]** - Text-to-speech
+[Say voice="alice"]Hello, this is an automated call.[/Say]
+- Voices: alice, man, woman, Polly.Joanna, Polly.Matthew, etc.
+
+**[Play]** - Play audio file
+[Play]https://example.com/audio.mp3[/Play]
+
+**[Record]** - Record caller's voice
+[Record maxLength="120" transcribe="true"/]
+- transcribe="true" to get text transcription
+
+**[Gather]** - Collect keypad input or speech
+[Gather input="dtmf speech" timeout="5" numDigits="1"]
+  [Say]Press 1 to confirm, 2 to cancel.[/Say]
+[/Gather]
+
+**[Dial]** - Connect to another number
+[Dial]+14155551234[/Dial]
+
+**[Pause]** - Add silence
+[Pause length="2"/]
+
+**[Hangup]** - End the call
+[Hangup/]
+
+### EXAMPLES
+
+"say hello and deliver a reminder message"
+-> [Response][Say voice="alice"]Hello! This is a reminder about your appointment tomorrow at 2 PM. Press 1 to confirm or 2 to reschedule.[/Say][Gather input="dtmf" timeout="10" numDigits="1"/][/Response]
+
+"play a recorded message"
+-> [Response][Play]https://example.com/message.mp3[/Play][/Response]
+
+"say a message and record their response"
+-> [Response][Say voice="alice"]Hello! Please leave your feedback after the beep.[/Say][Record maxLength="60" transcribe="true"/][Say voice="alice"]Thank you for your feedback. Goodbye.[/Say][/Response]
+
+"simple greeting message"
+-> [Response][Say voice="alice"]Hello! This is an automated call from your service provider. Have a great day![/Say][/Response]
+
+"ask a yes or no question"
+-> [Response][Say voice="alice"]Hello! Would you like to receive updates? Press 1 for yes, or 2 for no.[/Say][Gather input="dtmf" timeout="10" numDigits="1"/][Say voice="alice"]We didn't receive your response. Goodbye.[/Say][/Response]
+
+Return ONLY the TwiML with square brackets - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe what the call should say or do...',
+      },
     },
     {
       id: 'record',

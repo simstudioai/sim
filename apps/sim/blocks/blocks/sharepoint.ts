@@ -132,14 +132,108 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       type: 'short-input',
       placeholder: "Template (e.g., 'genericList')",
       condition: { field: 'operation', value: 'create_list' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a SharePoint list template name based on the user's description.
+
+### AVAILABLE TEMPLATES
+- genericList - Standard list for general data (default)
+- documentLibrary - For storing and managing documents
+- survey - For creating surveys and polls
+- links - For storing hyperlinks
+- announcements - For news and announcements
+- contacts - For contact information (name, email, phone)
+- events - For calendar events and scheduling
+- tasks - For task tracking and project management
+- discussionBoard - For team discussions and forums
+- pictureLibrary - For storing images and photos
+- issue - For issue/bug tracking
+
+### EXAMPLES
+- "I want to track tasks" -> tasks
+- "store documents" -> documentLibrary
+- "team announcements" -> announcements
+- "contact list" -> contacts
+- "calendar events" -> events
+- "general data" -> genericList
+- "bug tracking" -> issue
+- "photo gallery" -> pictureLibrary
+
+Return ONLY the template name - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe what kind of list you need...',
+      },
     },
 
     {
       id: 'pageContent',
-      title: 'Page Content',
+      title: 'Column Definitions',
       type: 'long-input',
-      placeholder: 'Provide page content',
+      placeholder: 'Optional: Define custom columns as JSON array',
       condition: { field: 'operation', value: ['create_list'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of SharePoint list column definitions based on the user's description.
+
+### FORMAT
+A JSON array of column definition objects. Each column needs at minimum a "name" and column type properties.
+
+### COLUMN TYPES AND PROPERTIES
+
+**Text Column:**
+{"name": "ColumnName", "text": {}}
+- For single line of text
+
+**Multi-line Text:**
+{"name": "ColumnName", "text": {"allowMultipleLines": true}}
+
+**Number Column:**
+{"name": "ColumnName", "number": {}}
+- Optional: "minimum", "maximum", "decimalPlaces"
+
+**DateTime Column:**
+{"name": "ColumnName", "dateTime": {"format": "dateOnly"}}
+- format: "dateOnly" or "dateTime"
+
+**Boolean (Yes/No):**
+{"name": "ColumnName", "boolean": {}}
+
+**Choice Column:**
+{"name": "ColumnName", "choice": {"choices": ["Option1", "Option2", "Option3"]}}
+
+**Person Column:**
+{"name": "ColumnName", "personOrGroup": {}}
+
+**Currency:**
+{"name": "ColumnName", "currency": {"locale": "en-US"}}
+
+### EXAMPLES
+
+"add columns for status (choice: Active, Completed, On Hold), due date, and priority number"
+-> [
+  {"name": "Status", "choice": {"choices": ["Active", "Completed", "On Hold"]}},
+  {"name": "DueDate", "dateTime": {"format": "dateOnly"}},
+  {"name": "Priority", "number": {"minimum": 1, "maximum": 5}}
+]
+
+"text column for description, yes/no for completed, date for start"
+-> [
+  {"name": "Description", "text": {"allowMultipleLines": true}},
+  {"name": "Completed", "boolean": {}},
+  {"name": "StartDate", "dateTime": {"format": "dateOnly"}}
+]
+
+"assignee (person), budget (currency), category (choice: Marketing, Sales, Engineering)"
+-> [
+  {"name": "Assignee", "personOrGroup": {}},
+  {"name": "Budget", "currency": {"locale": "en-US"}},
+  {"name": "Category", "choice": {"choices": ["Marketing", "Sales", "Engineering"]}}
+]
+
+Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
+        placeholder:
+          'Describe the columns you want to add (e.g., "status dropdown, due date, priority number")...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'listDescription',
@@ -164,9 +258,50 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       id: 'listItemFields',
       title: 'List Item Fields',
       type: 'long-input',
-      placeholder: 'Enter list item fields',
+      placeholder:
+        'Enter list item fields as JSON (e.g., {"Title": "My Item", "Status": "Active"})',
       canonicalParamId: 'listItemFields',
       condition: { field: 'operation', value: ['update_list', 'add_list_items'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for SharePoint list item fields based on the user's description.
+
+### FORMAT
+A JSON object where keys are column internal names and values are the data to set.
+
+### RULES
+- Use the column's internal name (often same as display name, but spaces become _x0020_)
+- Common field names: Title, Status, Description, Priority, DueDate, AssignedTo, Category
+- Date fields should use ISO 8601 format: "2024-01-15" or "2024-01-15T10:30:00Z"
+- Number fields should be numeric, not strings
+- Boolean fields use true/false
+- Choice fields use the exact choice value as a string
+- Person fields use the person's email or ID
+
+### READ-ONLY FIELDS (automatically filtered out)
+Id, UniqueId, GUID, Created, Modified, Author, Editor, ContentTypeId
+
+### EXAMPLES
+
+"set title to Project Alpha and status to In Progress"
+-> {"Title": "Project Alpha", "Status": "In Progress"}
+
+"update priority to high and due date to next Friday"
+-> {"Priority": "High", "DueDate": "2024-01-19"}
+
+"add task with title Review Document, assigned to john@company.com"
+-> {"Title": "Review Document", "AssignedToLookupId": "john@company.com"}
+
+"create contact with name John Smith, email john@example.com, phone 555-1234"
+-> {"Title": "John Smith", "Email": "john@example.com", "WorkPhone": "555-1234"}
+
+"set completed to true and notes to Task finished successfully"
+-> {"Completed": true, "Notes": "Task finished successfully"}
+
+Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the fields and values you want to set...',
+        generationType: 'json-object',
+      },
     },
 
     // Upload File operation fields
