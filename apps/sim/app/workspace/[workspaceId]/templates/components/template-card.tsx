@@ -109,8 +109,6 @@ function normalizeWorkflowState(input?: any): WorkflowState | null {
     lastUpdate: input.lastUpdate,
     metadata: input.metadata,
     variables: input.variables,
-    isDeployed: input.isDeployed,
-    deployedAt: input.deployedAt,
     deploymentStatuses: input.deploymentStatuses,
     needsRedeployment: input.needsRedeployment,
     dragStartPosition: input.dragStartPosition ?? null,
@@ -210,7 +208,6 @@ function TemplateCardInner({
         {normalizedState && isInView ? (
           <WorkflowPreview
             workflowState={normalizedState}
-            showSubBlocks={false}
             height={180}
             width='100%'
             isPannable={false}

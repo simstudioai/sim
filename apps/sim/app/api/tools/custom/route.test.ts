@@ -1,14 +1,14 @@
-import { NextRequest } from 'next/server'
 /**
  * Tests for custom tools API routes
  *
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
+import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
 describe('Custom Tools API Routes', () => {
-  // Sample data for testing
   const sampleTools = [
     {
       id: 'tool-1',
@@ -66,7 +66,6 @@ describe('Custom Tools API Routes', () => {
     },
   ]
 
-  // Mock implementation stubs
   const mockSelect = vi.fn()
   const mockFrom = vi.fn()
   const mockWhere = vi.fn()
@@ -82,13 +81,9 @@ describe('Custom Tools API Routes', () => {
   beforeEach(() => {
     vi.resetModules()
 
-    // Reset all mock implementations
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })
-    // where() can be called with orderBy(), limit(), or directly awaited
-    // Create a mock query builder that supports all patterns
     mockWhere.mockImplementation((condition) => {
-      // Return an object that is both awaitable and has orderBy() and limit() methods
       const queryBuilder = {
         orderBy: mockOrderBy,
         limit: mockLimit,
@@ -101,7 +96,6 @@ describe('Custom Tools API Routes', () => {
       return queryBuilder
     })
     mockOrderBy.mockImplementation(() => {
-      // orderBy returns an awaitable query builder
       const queryBuilder = {
         limit: mockLimit,
         then: (resolve: (value: typeof sampleTools) => void) => {
@@ -119,7 +113,6 @@ describe('Custom Tools API Routes', () => {
     mockSet.mockReturnValue({ where: mockWhere })
     mockDelete.mockReturnValue({ where: mockWhere })
 
-    // Mock database
     vi.doMock('@sim/db', () => ({
       db: {
         select: mockSelect,
@@ -127,14 +120,11 @@ describe('Custom Tools API Routes', () => {
         update: mockUpdate,
         delete: mockDelete,
         transaction: vi.fn().mockImplementation(async (callback) => {
-          // Execute the callback with a transaction object that has the same methods
-          // Create transaction-specific mocks that follow the same pattern
           const txMockSelect = vi.fn().mockReturnValue({ from: mockFrom })
           const txMockInsert = vi.fn().mockReturnValue({ values: mockValues })
           const txMockUpdate = vi.fn().mockReturnValue({ set: mockSet })
           const txMockDelete = vi.fn().mockReturnValue({ where: mockWhere })
 
-          // Transaction where() should also support the query builder pattern with orderBy
           const txMockOrderBy = vi.fn().mockImplementation(() => {
             const queryBuilder = {
               limit: mockLimit,
@@ -160,7 +150,6 @@ describe('Custom Tools API Routes', () => {
             return queryBuilder
           })
 
-          // Update mockFrom to return txMockWhere for transaction queries
           const txMockFrom = vi.fn().mockReturnValue({ where: txMockWhere })
           txMockSelect.mockReturnValue({ from: txMockFrom })
 
@@ -174,7 +163,6 @@ describe('Custom Tools API Routes', () => {
       },
     }))
 
-    // Mock schema
     vi.doMock('@sim/db/schema', () => ({
       customTools: {
         id: 'id',
@@ -189,12 +177,10 @@ describe('Custom Tools API Routes', () => {
       },
     }))
 
-    // Mock authentication
     vi.doMock('@/lib/auth', () => ({
       getSession: vi.fn().mockResolvedValue(mockSession),
     }))
 
-    // Mock hybrid auth
     vi.doMock('@/lib/auth/hybrid', () => ({
       checkHybridAuth: vi.fn().mockResolvedValue({
         success: true,
@@ -203,22 +189,12 @@ describe('Custom Tools API Routes', () => {
       }),
     }))
 
-    // Mock permissions
     vi.doMock('@/lib/workspaces/permissions/utils', () => ({
       getUserEntityPermissions: vi.fn().mockResolvedValue('admin'),
     }))
 
-    // Mock logger
-    vi.doMock('@sim/logger', () => ({
-      createLogger: vi.fn().mockReturnValue({
-        info: vi.fn(),
-        error: vi.fn(),
-        warn: vi.fn(),
-        debug: vi.fn(),
-      }),
-    }))
+    vi.doMock('@sim/logger', () => loggerMock)
 
-    // Mock drizzle-orm functions
     vi.doMock('drizzle-orm', async () => {
       const actual = await vi.importActual('drizzle-orm')
       return {
@@ -232,12 +208,10 @@ describe('Custom Tools API Routes', () => {
       }
     })
 
-    // Mock utils
     vi.doMock('@/lib/core/utils/request', () => ({
       generateRequestId: vi.fn().mockReturnValue('test-request-id'),
     }))
 
-    // Mock custom tools operations
     vi.doMock('@/lib/workflows/custom-tools/operations', () => ({
       upsertCustomTools: vi.fn().mockResolvedValue(sampleTools),
     }))
@@ -252,29 +226,23 @@ describe('Custom Tools API Routes', () => {
    */
   describe('GET /api/tools/custom', () => {
     it('should return tools for authenticated user with workspaceId', async () => {
-      // Create mock request with workspaceId
       const req = new NextRequest(
         'http://localhost:3000/api/tools/custom?workspaceId=workspace-123'
       )
 
-      // Simulate DB returning tools with orderBy chain
       mockWhere.mockReturnValueOnce({
         orderBy: mockOrderBy.mockReturnValueOnce(Promise.resolve(sampleTools)),
       })
 
-      // Import handler after mocks are set up
       const { GET } = await import('@/app/api/tools/custom/route')
 
-      // Call the handler
       const response = await GET(req)
       const data = await response.json()
 
-      // Verify response
       expect(response.status).toBe(200)
       expect(data).toHaveProperty('data')
       expect(data.data).toEqual(sampleTools)
 
-      // Verify DB query
       expect(mockSelect).toHaveBeenCalled()
       expect(mockFrom).toHaveBeenCalled()
       expect(mockWhere).toHaveBeenCalled()
@@ -282,12 +250,10 @@ describe('Custom Tools API Routes', () => {
     })
 
     it('should handle unauthorized access', async () => {
-      // Create mock request
       const req = new NextRequest(
         'http://localhost:3000/api/tools/custom?workspaceId=workspace-123'
       )
 
-      // Mock hybrid auth to return unauthorized
       vi.doMock('@/lib/auth/hybrid', () => ({
         checkHybridAuth: vi.fn().mockResolvedValue({
           success: false,
@@ -295,26 +261,20 @@ describe('Custom Tools API Routes', () => {
         }),
       }))
 
-      // Import handler after mocks are set up
       const { GET } = await import('@/app/api/tools/custom/route')
 
-      // Call the handler
       const response = await GET(req)
       const data = await response.json()
 
-      // Verify response
       expect(response.status).toBe(401)
       expect(data).toHaveProperty('error', 'Unauthorized')
     })
 
     it('should handle workflowId parameter', async () => {
-      // Create mock request with workflowId parameter
       const req = new NextRequest('http://localhost:3000/api/tools/custom?workflowId=workflow-123')
 
-      // Mock workflow lookup to return workspaceId (for limit(1) call)
       mockLimit.mockResolvedValueOnce([{ workspaceId: 'workspace-123' }])
 
-      // Mock the where() call for fetching tools (returns awaitable query builder)
       mockWhere.mockImplementationOnce((condition) => {
         const queryBuilder = {
           limit: mockLimit,
@@ -327,18 +287,14 @@ describe('Custom Tools API Routes', () => {
         return queryBuilder
       })
 
-      // Import handler after mocks are set up
       const { GET } = await import('@/app/api/tools/custom/route')
 
-      // Call the handler
       const response = await GET(req)
       const data = await response.json()
 
-      // Verify response
       expect(response.status).toBe(200)
       expect(data).toHaveProperty('data')
 
-      // Verify DB query was called
       expect(mockWhere).toHaveBeenCalled()
     })
   })
@@ -348,7 +304,6 @@ describe('Custom Tools API Routes', () => {
    */
   describe('POST /api/tools/custom', () => {
     it('should reject unauthorized requests', async () => {
-      // Mock hybrid auth to return unauthorized
       vi.doMock('@/lib/auth/hybrid', () => ({
         checkHybridAuth: vi.fn().mockResolvedValue({
           success: false,
@@ -356,39 +311,29 @@ describe('Custom Tools API Routes', () => {
         }),
       }))
 
-      // Create mock request
       const req = createMockRequest('POST', { tools: [], workspaceId: 'workspace-123' })
 
-      // Import handler after mocks are set up
       const { POST } = await import('@/app/api/tools/custom/route')
 
-      // Call the handler
       const response = await POST(req)
       const data = await response.json()
 
-      // Verify response
       expect(response.status).toBe(401)
       expect(data).toHaveProperty('error', 'Unauthorized')
     })
 
     it('should validate request data', async () => {
-      // Create invalid tool data (missing required fields)
       const invalidTool = {
-        // Missing title, schema
         code: 'return "invalid";',
       }
 
-      // Create mock request with invalid tool and workspaceId
       const req = createMockRequest('POST', { tools: [invalidTool], workspaceId: 'workspace-123' })
 
-      // Import handler after mocks are set up
       const { POST } = await import('@/app/api/tools/custom/route')
 
-      // Call the handler
       const response = await POST(req)
       const data = await response.json()
 
-      // Verify response
       expect(response.status).toBe(400)
       expect(data).toHaveProperty('error', 'Invalid request data')
       expect(data).toHaveProperty('details')
@@ -400,96 +345,74 @@ describe('Custom Tools API Routes', () => {
    */
   describe('DELETE /api/tools/custom', () => {
     it('should delete a workspace-scoped tool by ID', async () => {
-      // Mock finding existing workspace-scoped tool
       mockLimit.mockResolvedValueOnce([sampleTools[0]])
 
-      // Create mock request with ID and workspaceId parameters
       const req = new NextRequest(
         'http://localhost:3000/api/tools/custom?id=tool-1&workspaceId=workspace-123'
       )
 
-      // Import handler after mocks are set up
       const { DELETE } = await import('@/app/api/tools/custom/route')
 
-      // Call the handler
       const response = await DELETE(req)
       const data = await response.json()
 
-      // Verify response
       expect(response.status).toBe(200)
       expect(data).toHaveProperty('success', true)
 
-      // Verify delete was called with correct parameters
       expect(mockDelete).toHaveBeenCalled()
       expect(mockWhere).toHaveBeenCalled()
     })
 
     it('should reject requests missing tool ID', async () => {
-      // Create mock request without ID parameter
       const req = createMockRequest('DELETE')
 
-      // Import handler after mocks are set up
       const { DELETE } = await import('@/app/api/tools/custom/route')
 
-      // Call the handler
       const response = await DELETE(req)
       const data = await response.json()
 
-      // Verify response
       expect(response.status).toBe(400)
       expect(data).toHaveProperty('error', 'Tool ID is required')
     })
 
     it('should handle tool not found', async () => {
-      // Mock tool not found
       mockLimit.mockResolvedValueOnce([])
 
-      // Create mock request with non-existent ID
       const req = new NextRequest('http://localhost:3000/api/tools/custom?id=non-existent')
 
-      // Import handler after mocks are set up
       const { DELETE } = await import('@/app/api/tools/custom/route')
 
-      // Call the handler
       const response = await DELETE(req)
       const data = await response.json()
 
-      // Verify response
       expect(response.status).toBe(404)
       expect(data).toHaveProperty('error', 'Tool not found')
     })
 
     it('should prevent unauthorized deletion of user-scoped tool', async () => {
-      // Mock hybrid auth for the DELETE request
       vi.doMock('@/lib/auth/hybrid', () => ({
         checkHybridAuth: vi.fn().mockResolvedValue({
           success: true,
-          userId: 'user-456', // Different user
+          userId: 'user-456',
           authType: 'session',
         }),
       }))
 
-      // Mock finding user-scoped tool (no workspaceId) that belongs to user-123
       const userScopedTool = { ...sampleTools[0], workspaceId: null, userId: 'user-123' }
       mockLimit.mockResolvedValueOnce([userScopedTool])
 
-      // Create mock request (no workspaceId for user-scoped tool)
       const req = new NextRequest('http://localhost:3000/api/tools/custom?id=tool-1')
 
-      // Import handler after mocks are set up
       const { DELETE } = await import('@/app/api/tools/custom/route')
 
-      // Call the handler
       const response = await DELETE(req)
       const data = await response.json()
 
-      // Verify response
       expect(response.status).toBe(403)
       expect(data).toHaveProperty('error', 'Access denied')
     })
 
     it('should reject unauthorized requests', async () => {
-      // Mock hybrid auth to return unauthorized
       vi.doMock('@/lib/auth/hybrid', () => ({
         checkHybridAuth: vi.fn().mockResolvedValue({
           success: false,
@@ -497,17 +420,13 @@ describe('Custom Tools API Routes', () => {
         }),
       }))
 
-      // Create mock request
       const req = new NextRequest('http://localhost:3000/api/tools/custom?id=tool-1')
 
-      // Import handler after mocks are set up
       const { DELETE } = await import('@/app/api/tools/custom/route')
 
-      // Call the handler
       const response = await DELETE(req)
       const data = await response.json()
 
-      // Verify response
       expect(response.status).toBe(401)
       expect(data).toHaveProperty('error', 'Unauthorized')
     })

@@ -1,4 +1,5 @@
 import type { TraceSpan } from '@/lib/logs/types'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
@@ -151,6 +152,9 @@ export interface ExecutionContext {
   executionId?: string
   userId?: string
   isDeployedContext?: boolean
+
+  permissionConfig?: PermissionGroupConfig | null
+  permissionConfigLoaded?: boolean
 
   blockStates: ReadonlyMap<string, BlockState>
   executedBlocks: ReadonlySet<string>

@@ -1,0 +1,136 @@
+---
+title: Form Deployment
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Deploy your workflow as an embeddable form that users can fill out on your website or share via link. Form submissions trigger your workflow with the `form` trigger type.
+
+## Overview
+
+Form deployment turns your workflow's Input Format into a responsive form that can be:
+- Shared via a direct link (e.g., `https://sim.ai/form/my-survey`)
+- Embedded in any website using an iframe
+
+When a user submits the form, it triggers your workflow with the form data.
+
+<Callout type="info">
+Forms derive their fields from your workflow's Start block Input Format. Each field becomes a form input with the appropriate type.
+</Callout>
+
+## Creating a Form
+
+1. Open your workflow and click **Deploy**
+2. Select the **Form** tab
+3. Configure:
+   - **URL**: Unique identifier (e.g., `contact-form` → `sim.ai/form/contact-form`)
+   - **Title**: Form heading
+   - **Description**: Optional subtitle
+   - **Form Fields**: Customize labels and descriptions for each field
+   - **Authentication**: Public, password-protected, or email whitelist
+   - **Thank You Message**: Shown after submission
+4. Click **Launch**
+
+## Field Type Mapping
+
+| Input Format Type | Form Field |
+|------------------|------------|
+| `string` | Text input |
+| `number` | Number input |
+| `boolean` | Toggle switch |
+| `object` | JSON editor |
+| `array` | JSON array editor |
+| `files` | File upload |
+
+## Access Control
+
+| Mode | Description |
+|------|-------------|
+| **Public** | Anyone with the link can submit |
+| **Password** | Users must enter a password |
+| **Email Whitelist** | Only specified emails/domains can submit |
+
+For email whitelist:
+- Exact: `user@example.com`
+- Domain: `@example.com` (all emails from domain)
+
+## Embedding
+
+### Direct Link
+
+```
+https://sim.ai/form/your-identifier
+```
+
+### Iframe
+
+```html
+<iframe
+  src="https://sim.ai/form/your-identifier"
+  width="100%"
+  height="600"
+  frameborder="0"
+  title="Form"
+></iframe>
+```
+
+## API Submission
+
+Submit forms programmatically:
+
+<Tabs items={['cURL', 'TypeScript']}>
+  <Tab value="cURL">
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{
+    "formData": {
+      "name": "John Doe",
+      "email": "john@example.com"
+    }
+  }'
+```
+  </Tab>
+  <Tab value="TypeScript">
+```typescript
+const response = await fetch('https://sim.ai/api/form/your-identifier', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    formData: {
+      name: 'John Doe',
+      email: 'john@example.com'
+    }
+  })
+});
+
+const result = await response.json();
+// { success: true, data: { executionId: '...' } }
+```
+  </Tab>
+</Tabs>
+
+### Protected Forms
+
+For password-protected forms:
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{ "password": "secret", "formData": { "name": "John" } }'
+```
+
+For email-protected forms:
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "allowed@example.com", "formData": { "name": "John" } }'
+```
+
+## Troubleshooting
+
+**"No input fields configured"** - Add Input Format fields to your Start block.
+
+**Form not loading in iframe** - Check your site's CSP allows iframes from `sim.ai`.
+
+**Submissions failing** - Verify the identifier is correct and required fields are filled.

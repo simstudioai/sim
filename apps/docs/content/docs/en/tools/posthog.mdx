@@ -79,30 +79,6 @@ Capture multiple events at once in PostHog. Use this for bulk event ingestion to
 | `status` | string | Status message indicating whether the batch was captured successfully |
 | `eventsProcessed` | number | Number of events processed in the batch |
 
-### `posthog_list_events`
-
-List events in PostHog. Note: This endpoint is deprecated but kept for backwards compatibility. For production use, prefer the Query endpoint with HogQL.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `personalApiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
-| `region` | string | No | PostHog region: us \(default\) or eu |
-| `projectId` | string | Yes | PostHog Project ID |
-| `limit` | number | No | Number of events to return \(default: 100, max: 100\) |
-| `offset` | number | No | Number of events to skip for pagination |
-| `event` | string | No | Filter by specific event name |
-| `distinctId` | string | No | Filter by specific distinct_id |
-| `before` | string | No | ISO 8601 timestamp - only return events before this time |
-| `after` | string | No | ISO 8601 timestamp - only return events after this time |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `events` | array | List of events with their properties and metadata |
-
 ### `posthog_list_persons`
 
 List persons (users) in PostHog. Returns user profiles with their properties and distinct IDs.

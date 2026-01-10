@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
-import type { OpenRouterModelInfo, ProvidersStore } from '@/stores/providers/types'
+import type { OpenRouterModelInfo, ProvidersStore } from './types'
 
 const logger = createLogger('ProvidersStore')
 

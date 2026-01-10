@@ -1,3 +1,4 @@
+export { AccessControl } from './access-control/access-control'
 export { ApiKeys } from './api-keys/api-keys'
 export { BYOK } from './byok/byok'
 export { Copilot } from './copilot/copilot'

@@ -57,9 +57,11 @@ interface ImageWithPreview extends File {
 interface HelpModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  workflowId?: string
+  workspaceId: string
 }
 
-export function HelpModal({ open, onOpenChange }: HelpModalProps) {
+export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -370,18 +372,20 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
       setSubmitStatus(null)
 
       try {
-        // Prepare form data with images
         const formData = new FormData()
         formData.append('subject', data.subject)
         formData.append('message', data.message)
         formData.append('type', data.type)
+        formData.append('workspaceId', workspaceId)
+        formData.append('userAgent', navigator.userAgent)
+        if (workflowId) {
+          formData.append('workflowId', workflowId)
+        }
 
-        // Attach all images to form data
         images.forEach((image, index) => {
           formData.append(`image_${index}`, image)
         })
 
-        // Submit to API
         const response = await fetch('/api/help', {
           method: 'POST',
           body: formData,
@@ -392,11 +396,9 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
           throw new Error(errorData.error || 'Failed to submit help request')
         }
 
-        // Handle success
         setSubmitStatus('success')
         reset()
 
-        // Clean up resources
         images.forEach((image) => URL.revokeObjectURL(image.preview))
         setImages([])
       } catch (error) {
@@ -406,7 +408,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
         setIsSubmitting(false)
       }
     },
-    [images, reset]
+    [images, reset, workflowId, workspaceId]
   )
 
   /**
@@ -422,7 +424,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
         <ModalHeader>Help &amp; Support</ModalHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
-          <ModalBody className='!pb-[16px]'>
+          <ModalBody>
             <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
               <div className='space-y-[12px]'>
                 <div className='flex flex-col gap-[8px]'>
@@ -472,9 +474,9 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                     className={cn(
-                      '!bg-[var(--surface-1)] hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--c-575757)] border-dashed py-[10px]',
+                      '!bg-[var(--surface-1)] hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-[10px]',
                       {
-                        'border-[var(--brand-primary-hex)]': isDragging,
+                        'border-[var(--surface-7)]': isDragging,
                       }
                     )}
                   >

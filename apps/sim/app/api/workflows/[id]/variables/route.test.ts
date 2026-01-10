@@ -207,9 +207,15 @@ describe('Workflow Variables API Route', () => {
         update: { results: [{}] },
       })
 
-      const variables = [
-        { id: 'var-1', workflowId: 'workflow-123', name: 'test', type: 'string', value: 'hello' },
-      ]
+      const variables = {
+        'var-1': {
+          id: 'var-1',
+          workflowId: 'workflow-123',
+          name: 'test',
+          type: 'string',
+          value: 'hello',
+        },
+      }
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables', {
         method: 'POST',
@@ -242,9 +248,15 @@ describe('Workflow Variables API Route', () => {
         isWorkspaceOwner: false,
       })
 
-      const variables = [
-        { id: 'var-1', workflowId: 'workflow-123', name: 'test', type: 'string', value: 'hello' },
-      ]
+      const variables = {
+        'var-1': {
+          id: 'var-1',
+          workflowId: 'workflow-123',
+          name: 'test',
+          type: 'string',
+          value: 'hello',
+        },
+      }
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables', {
         method: 'POST',
@@ -277,7 +289,6 @@ describe('Workflow Variables API Route', () => {
         isWorkspaceOwner: false,
       })
 
-      // Invalid data - missing required fields
       const invalidData = { variables: [{ name: 'test' }] }
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables', {

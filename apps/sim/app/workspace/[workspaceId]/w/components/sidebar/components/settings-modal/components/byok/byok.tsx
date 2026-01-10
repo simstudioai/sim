@@ -193,14 +193,14 @@ export function BYOK() {
                       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                         <span className='font-medium text-[14px]'>{provider.name}</span>
                         <p className='truncate text-[13px] text-[var(--text-muted)]'>
-                          {existingKey ? existingKey.maskedKey : provider.description}
+                          {provider.description}
                         </p>
                       </div>
                     </div>
 
                     {existingKey ? (
                       <div className='flex flex-shrink-0 items-center gap-[8px]'>
-                        <Button variant='ghost' onClick={() => openEditModal(provider.id)}>
+                        <Button variant='default' onClick={() => openEditModal(provider.id)}>
                           Update
                         </Button>
                         <Button

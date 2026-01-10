@@ -5,7 +5,7 @@ import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { checkTagTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useTagSelection } from '@/hooks/use-tag-selection'
+import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 
 const logger = createLogger('useSubBlockInput')
 

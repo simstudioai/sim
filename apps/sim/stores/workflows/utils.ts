@@ -271,7 +271,9 @@ export function mergeSubblockState(
 
           subAcc[subBlockId] = {
             ...subBlock,
-            value: storedValue !== undefined && storedValue !== null ? storedValue : subBlock.value,
+            value: (storedValue !== undefined && storedValue !== null
+              ? storedValue
+              : subBlock.value) as SubBlockState['value'],
           }
 
           return subAcc
@@ -288,7 +290,7 @@ export function mergeSubblockState(
           mergedSubBlocks[subBlockId] = {
             id: subBlockId,
             type: 'short-input', // Default type that's safe to use
-            value: value,
+            value: value as SubBlockState['value'],
           }
         }
       })
@@ -353,8 +355,9 @@ export async function mergeSubblockStateAsync(
             subBlockId,
             {
               ...subBlock,
-              value:
-                storedValue !== undefined && storedValue !== null ? storedValue : subBlock.value,
+              value: (storedValue !== undefined && storedValue !== null
+                ? storedValue
+                : subBlock.value) as SubBlockState['value'],
             },
           ] as const
         })
@@ -376,7 +379,7 @@ export async function mergeSubblockStateAsync(
             mergedSubBlocks[subBlockId] = {
               id: subBlockId,
               type: 'short-input',
-              value: value,
+              value: value as SubBlockState['value'],
             }
           }
         })
@@ -425,14 +428,8 @@ function updateBlockReferences(
   clearTriggerRuntimeValues = false
 ): void {
   Object.entries(blocks).forEach(([_, block]) => {
-    if (block.data?.parentId) {
-      const newParentId = idMap.get(block.data.parentId)
-      if (newParentId) {
-        block.data = { ...block.data, parentId: newParentId }
-      } else {
-        block.data = { ...block.data, parentId: undefined, extent: undefined }
-      }
-    }
+    // NOTE: parentId remapping is handled in regenerateBlockIds' second pass.
+    // Do NOT remap parentId here as it would incorrectly clear already-mapped IDs.
 
     if (block.subBlocks) {
       Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]) => {
@@ -462,12 +459,26 @@ export function regenerateWorkflowIds(
   const nameMap = new Map<string, string>()
   const newBlocks: Record<string, BlockState> = {}
 
+  // First pass: generate new IDs
   Object.entries(workflowState.blocks).forEach(([oldId, block]) => {
     const newId = uuidv4()
     blockIdMap.set(oldId, newId)
     const oldNormalizedName = normalizeName(block.name)
     nameMap.set(oldNormalizedName, oldNormalizedName)
     newBlocks[newId] = { ...block, id: newId }
+  })
+
+  // Second pass: update parentId references
+  Object.values(newBlocks).forEach((block) => {
+    if (block.data?.parentId) {
+      const newParentId = blockIdMap.get(block.data.parentId)
+      if (newParentId) {
+        block.data = { ...block.data, parentId: newParentId }
+      } else {
+        // Parent not in the workflow, clear the relationship
+        block.data = { ...block.data, parentId: undefined, extent: undefined }
+      }
+    }
   })
 
   const newEdges = workflowState.edges.map((edge) => ({
@@ -532,6 +543,7 @@ export function regenerateBlockIds(
   // Track all blocks for name uniqueness (existing + newly processed)
   const allBlocksForNaming = { ...existingBlockNames }
 
+  // First pass: generate new IDs and names for all blocks
   Object.entries(blocks).forEach(([oldId, block]) => {
     const newId = uuidv4()
     blockIdMap.set(oldId, newId)
@@ -541,17 +553,22 @@ export function regenerateBlockIds(
     const newNormalizedName = normalizeName(newName)
     nameMap.set(oldNormalizedName, newNormalizedName)
 
-    const isNested = !!block.data?.parentId
+    // Check if this block has a parent that's also being copied
+    // If so, it's a nested block and should keep its relative position (no offset)
+    // Only top-level blocks (no parent in the paste set) get the position offset
+    const hasParentInPasteSet = block.data?.parentId && blocks[block.data.parentId]
+    const newPosition = hasParentInPasteSet
+      ? { x: block.position.x, y: block.position.y } // Keep relative position
+      : { x: block.position.x + positionOffset.x, y: block.position.y + positionOffset.y }
+
+    // Placeholder block - we'll update parentId in second pass
     const newBlock: BlockState = {
       ...block,
       id: newId,
       name: newName,
-      position: isNested
-        ? block.position
-        : {
-            x: block.position.x + positionOffset.x,
-            y: block.position.y + positionOffset.y,
-          },
+      position: newPosition,
+      // Temporarily keep data as-is, we'll fix parentId in second pass
+      data: block.data ? { ...block.data } : block.data,
     }
 
     newBlocks[newId] = newBlock
@@ -560,6 +577,25 @@ export function regenerateBlockIds(
 
     if (subBlockValues[oldId]) {
       newSubBlockValues[newId] = JSON.parse(JSON.stringify(subBlockValues[oldId]))
+    }
+  })
+
+  // Second pass: update parentId references for nested blocks
+  // If a block's parent is also being pasted, map to new parentId; otherwise clear it
+  Object.entries(newBlocks).forEach(([, block]) => {
+    if (block.data?.parentId) {
+      const oldParentId = block.data.parentId
+      const newParentId = blockIdMap.get(oldParentId)
+
+      if (newParentId) {
+        block.data = {
+          ...block.data,
+          parentId: newParentId,
+          extent: 'parent',
+        }
+      } else {
+        block.data = { ...block.data, parentId: undefined, extent: undefined }
+      }
     }
   })
 

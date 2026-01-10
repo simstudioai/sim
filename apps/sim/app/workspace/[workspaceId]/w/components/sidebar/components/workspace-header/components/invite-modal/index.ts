@@ -1,4 +1,3 @@
-export { EmailTag } from './components/email-tag'
 export { PermissionSelector } from './components/permission-selector'
 export { PermissionsTable } from './components/permissions-table'
 export { PermissionsTableSkeleton } from './components/permissions-table-skeleton'

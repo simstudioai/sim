@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { ExternalLink, Users } from 'lucide-react'
 import { Button, Combobox } from '@/components/emcn/components'
 import { getSubscriptionStatus } from '@/lib/billing/client'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { getPollingProviderFromOAuth } from '@/lib/credential-sets/providers'
 import {
   getCanonicalScopesForProvider,
@@ -26,6 +27,7 @@ import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CredentialSelector')
+const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 interface CredentialSelectorProps {
   blockId: string
@@ -54,7 +56,7 @@ export function CredentialSelector({
   const supportsCredentialSets = subBlock.supportsCredentialSets || false
 
   const { data: organizationsData } = useOrganizations()
-  const { data: subscriptionData } = useSubscriptionData()
+  const { data: subscriptionData } = useSubscriptionData({ enabled: isBillingEnabled })
   const activeOrganization = organizationsData?.activeOrganization
   const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
   const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise

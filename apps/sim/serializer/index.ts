@@ -218,7 +218,7 @@ export class Serializer {
         position: block.position,
         config: {
           tool: '', // Loop blocks don't have tools
-          params: block.data || {}, // Preserve the block data (parallelType, count, etc.)
+          params: (block.data || {}) as Record<string, unknown>, // Preserve the block data (parallelType, count, etc.)
         },
         inputs: {},
         outputs: block.outputs,

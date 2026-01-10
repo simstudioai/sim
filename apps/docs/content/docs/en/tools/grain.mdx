@@ -162,6 +162,7 @@ Create a webhook to receive recording events
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
 | `hookUrl` | string | Yes | Webhook endpoint URL \(must respond 2xx\) |
+| `hookType` | string | Yes | Type of webhook: "recording_added" or "upload_status" |
 | `filterBeforeDatetime` | string | No | Filter: recordings before this date |
 | `filterAfterDatetime` | string | No | Filter: recordings after this date |
 | `filterParticipantScope` | string | No | Filter: "internal" or "external" |
@@ -178,6 +179,7 @@ Create a webhook to receive recording events
 | `id` | string | Hook UUID |
 | `enabled` | boolean | Whether hook is active |
 | `hook_url` | string | The webhook URL |
+| `hook_type` | string | Type of hook: recording_added or upload_status |
 | `filter` | object | Applied filters |
 | `include` | object | Included fields |
 | `inserted_at` | string | ISO8601 creation timestamp |

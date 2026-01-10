@@ -26,7 +26,7 @@ const getCurrentVLLMModels = () => {
   return useProvidersStore.getState().providers.vllm.models
 }
 
-import { useProvidersStore } from '@/stores/providers/store'
+import { useProvidersStore } from '@/stores/providers'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgentBlock')

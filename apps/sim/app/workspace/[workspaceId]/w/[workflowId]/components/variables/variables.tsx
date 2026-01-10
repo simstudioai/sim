@@ -26,7 +26,7 @@ import {
   usePreventZoom,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useVariablesStore as usePanelVariablesStore } from '@/stores/panel/variables/store'
+import { useVariablesStore as usePanelVariablesStore } from '@/stores/panel'
 import {
   getVariablesPosition,
   MAX_VARIABLES_HEIGHT,

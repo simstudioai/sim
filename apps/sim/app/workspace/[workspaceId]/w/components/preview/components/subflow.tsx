@@ -10,6 +10,8 @@ interface WorkflowPreviewSubflowData {
   width?: number
   height?: number
   kind: 'loop' | 'parallel'
+  /** Whether this subflow is selected in preview mode */
+  isPreviewSelected?: boolean
 }
 
 /**
@@ -19,7 +21,7 @@ interface WorkflowPreviewSubflowData {
  * Used in template cards and other preview contexts for performance.
  */
 function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowData>) {
-  const { name, width = 500, height = 300, kind } = data
+  const { name, width = 500, height = 300, kind, isPreviewSelected = false } = data
 
   const isLoop = kind === 'loop'
   const BlockIcon = isLoop ? RepeatIcon : SplitIcon
@@ -42,6 +44,11 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
         height,
       }}
     >
+      {/* Selection ring overlay */}
+      {isPreviewSelected && (
+        <div className='pointer-events-none absolute inset-0 z-40 rounded-[8px] ring-[1.75px] ring-[var(--brand-secondary)]' />
+      )}
+
       {/* Target handle on left (input to the subflow) */}
       <Handle
         type='target'
@@ -55,29 +62,37 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
         }}
       />
 
-      {/* Header - matches actual subflow header */}
-      <div className='flex items-center gap-[10px] rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px]'>
-        <div
-          className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
-          style={{ backgroundColor: blockIconBg }}
-        >
-          <BlockIcon className='h-[16px] w-[16px] text-white' />
+      {/* Header - matches actual subflow header structure */}
+      <div className='flex items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
+          <div
+            className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
+            style={{ backgroundColor: blockIconBg }}
+          >
+            <BlockIcon className='h-[16px] w-[16px] text-white' />
+          </div>
+          <span className='font-medium text-[16px]' title={blockName}>
+            {blockName}
+          </span>
         </div>
-        <span className='font-medium text-[16px]' title={blockName}>
-          {blockName}
-        </span>
       </div>
 
-      {/* Start handle inside - connects to first block in subflow */}
-      <div className='absolute top-[56px] left-[16px] flex items-center justify-center rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] px-[12px] py-[6px]'>
-        <span className='font-medium text-[14px] text-white'>Start</span>
-        <Handle
-          type='source'
-          position={Position.Right}
-          id={startHandleId}
-          className={rightHandleClass}
-          style={{ right: '-8px', top: '50%', transform: 'translateY(-50%)' }}
-        />
+      {/* Content area - matches workflow structure */}
+      <div
+        className='h-[calc(100%-50px)] pt-[16px] pr-[80px] pb-[16px] pl-[16px]'
+        style={{ position: 'relative' }}
+      >
+        {/* Subflow Start - connects to first block in subflow */}
+        <div className='absolute top-[16px] left-[16px] flex items-center justify-center rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] px-[12px] py-[6px]'>
+          <span className='font-medium text-[14px] text-[var(--text-primary)]'>Start</span>
+          <Handle
+            type='source'
+            position={Position.Right}
+            id={startHandleId}
+            className={rightHandleClass}
+            style={{ right: '-8px', top: '50%', transform: 'translateY(-50%)' }}
+          />
+        </div>
       </div>
 
       {/* End source handle on right (output from the subflow) */}

@@ -31,6 +31,7 @@ interface LogRowContextMenuProps {
   onFilterByBlock: (blockId: string) => void
   onFilterByStatus: (status: 'error' | 'info') => void
   onFilterByRunId: (runId: string) => void
+  onCopyRunId: (runId: string) => void
   onClearFilters: () => void
   onClearConsole: () => void
   hasActiveFilters: boolean
@@ -50,6 +51,7 @@ export function LogRowContextMenu({
   onFilterByBlock,
   onFilterByStatus,
   onFilterByRunId,
+  onCopyRunId,
   onClearFilters,
   onClearConsole,
   hasActiveFilters,
@@ -64,7 +66,7 @@ export function LogRowContextMenu({
   return (
     <Popover
       open={isOpen}
-      onOpenChange={onClose}
+      onOpenChange={(open) => !open && onClose()}
       variant='secondary'
       size='sm'
       colorScheme='inverted'
@@ -79,18 +81,18 @@ export function LogRowContextMenu({
         }}
       />
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-        {/* Clear filters at top when active */}
-        {hasActiveFilters && (
+        {/* Copy actions */}
+        {entry && hasRunId && (
           <>
             <PopoverItem
               onClick={() => {
-                onClearFilters()
+                onCopyRunId(entry.executionId!)
                 onClose()
               }}
             >
-              Clear All Filters
+              Copy Run ID
             </PopoverItem>
-            {entry && <PopoverDivider />}
+            <PopoverDivider />
           </>
         )}
 
@@ -127,6 +129,18 @@ export function LogRowContextMenu({
               </PopoverItem>
             )}
           </>
+        )}
+
+        {/* Clear filters */}
+        {hasActiveFilters && (
+          <PopoverItem
+            onClick={() => {
+              onClearFilters()
+              onClose()
+            }}
+          >
+            Clear All Filters
+          </PopoverItem>
         )}
 
         {/* Destructive action */}

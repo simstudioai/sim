@@ -8,7 +8,7 @@ import {
   WORKFLOW_EXECUTION_TIMEOUT_MS,
 } from '@/lib/copilot/tools/client/base-tool'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
-import { useExecutionStore } from '@/stores/execution/store'
+import { useExecutionStore } from '@/stores/execution'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface RunWorkflowArgs {

@@ -1,24 +1,23 @@
 'use client'
 
-import { type KeyboardEvent, useEffect, useState } from 'react'
+import { type KeyboardEvent, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
+import AuthBackground from '@/app/(auth)/components/auth-background'
+import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Nav from '@/app/(landing)/components/nav/nav'
 
 const logger = createLogger('SSOAuth')
 
 interface SSOAuthProps {
   identifier: string
-  onAuthSuccess: () => void
-  title?: string
-  primaryColor?: string
 }
 
 const validateEmailField = (emailValue: string): string[] => {
@@ -37,45 +36,12 @@ const validateEmailField = (emailValue: string): string[] => {
   return errors
 }
 
-export default function SSOAuth({
-  identifier,
-  onAuthSuccess,
-  title = 'chat',
-  primaryColor = 'var(--brand-primary-hover-hex)',
-}: SSOAuthProps) {
+export default function SSOAuth({ identifier }: SSOAuthProps) {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
-  const [buttonClass, setButtonClass] = useState('auth-button-gradient')
   const [isLoading, setIsLoading] = useState(false)
-
-  useEffect(() => {
-    const checkCustomBrand = () => {
-      const computedStyle = getComputedStyle(document.documentElement)
-      const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
-
-      if (brandAccent && brandAccent !== '#6f3dfa') {
-        setButtonClass('auth-button-custom')
-      } else {
-        setButtonClass('auth-button-gradient')
-      }
-    }
-
-    checkCustomBrand()
-
-    window.addEventListener('resize', checkCustomBrand)
-    const observer = new MutationObserver(checkCustomBrand)
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['style', 'class'],
-    })
-
-    return () => {
-      window.removeEventListener('resize', checkCustomBrand)
-      observer.disconnect()
-    }
-  }, [])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -133,32 +99,30 @@ export default function SSOAuth({
   }
 
   return (
-    <div className='bg-white'>
-      <Nav variant='auth' />
-      <div className='flex min-h-[calc(100vh-120px)] items-center justify-center px-4'>
-        <div className='w-full max-w-[410px]'>
-          <div className='flex flex-col items-center justify-center'>
-            {/* Header */}
-            <div className='space-y-1 text-center'>
-              <h1
-                className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
-              >
-                SSO Authentication
-              </h1>
-              <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
-                This chat requires SSO authentication
-              </p>
-            </div>
+    <AuthBackground>
+      <main className='relative flex min-h-screen flex-col text-foreground'>
+        <Nav hideAuthButtons={true} variant='auth' />
+        <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
+          <div className='w-full max-w-lg px-4'>
+            <div className='flex flex-col items-center justify-center'>
+              <div className='space-y-1 text-center'>
+                <h1
+                  className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
+                >
+                  SSO Authentication
+                </h1>
+                <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+                  This chat requires SSO authentication
+                </p>
+              </div>
 
-            {/* Form */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault()
-                handleAuthenticate()
-              }}
-              className={`${inter.className} mt-8 w-full space-y-8`}
-            >
-              <div className='space-y-6'>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  handleAuthenticate()
+                }}
+                className={`${inter.className} mt-8 w-full max-w-[410px] space-y-6`}
+              >
                 <div className='space-y-2'>
                   <div className='flex items-center justify-between'>
                     <Label htmlFor='email'>Work Email</Label>
@@ -191,19 +155,16 @@ export default function SSOAuth({
                     </div>
                   )}
                 </div>
-              </div>
 
-              <Button
-                type='submit'
-                className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
-                disabled={isLoading}
-              >
-                {isLoading ? 'Redirecting to SSO...' : 'Continue with SSO'}
-              </Button>
-            </form>
+                <BrandedButton type='submit' loading={isLoading} loadingText='Redirecting to SSO'>
+                  Continue with SSO
+                </BrandedButton>
+              </form>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+        <SupportFooter position='absolute' />
+      </main>
+    </AuthBackground>
   )
 }

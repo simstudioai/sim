@@ -34,6 +34,7 @@ import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
 import { addUserToOrganization } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -221,14 +222,14 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       userId: body.userId,
       organizationId,
       role: body.role,
+      skipBillingLogic: !isBillingEnabled,
     })
 
     if (!result.success) {
       return badRequestResponse(result.error || 'Failed to add member')
     }
 
-    // Sync Pro subscription cancellation with Stripe (same as invitation flow)
-    if (result.billingActions.proSubscriptionToCancel?.stripeSubscriptionId) {
+    if (isBillingEnabled && result.billingActions.proSubscriptionToCancel?.stripeSubscriptionId) {
       try {
         const stripe = requireStripeClient()
         await stripe.subscriptions.update(

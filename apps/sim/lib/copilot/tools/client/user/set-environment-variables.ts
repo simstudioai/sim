@@ -6,7 +6,7 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { useEnvironmentStore } from '@/stores/settings/environment'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface SetEnvArgs {

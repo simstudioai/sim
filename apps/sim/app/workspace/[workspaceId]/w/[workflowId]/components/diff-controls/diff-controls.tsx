@@ -4,7 +4,7 @@ import clsx from 'clsx'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
+import { useCopilotStore } from '@/stores/panel'
 import { useTerminalStore } from '@/stores/terminal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -109,12 +109,7 @@ export const DiffControls = memo(function DiffControls() {
         loops: rawState.loops || {},
         parallels: rawState.parallels || {},
         lastSaved: rawState.lastSaved || Date.now(),
-        isDeployed: rawState.isDeployed || false,
         deploymentStatuses: rawState.deploymentStatuses || {},
-        // Only include deployedAt if it's a valid date, never include null/undefined
-        ...(rawState.deployedAt && rawState.deployedAt instanceof Date
-          ? { deployedAt: rawState.deployedAt }
-          : {}),
       }
 
       logger.info('Prepared complete workflow state for checkpoint', {

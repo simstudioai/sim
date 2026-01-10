@@ -13,7 +13,7 @@ import type {
   TimeSegment,
 } from '@/providers/types'
 import { calculateCost, prepareToolExecution } from '@/providers/utils'
-import { useProvidersStore } from '@/stores/providers/store'
+import { useProvidersStore } from '@/stores/providers'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('OllamaProvider')

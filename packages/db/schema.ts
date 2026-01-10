@@ -796,6 +796,43 @@ export const chat = pgTable(
   }
 )
 
+export const form = pgTable(
+  'form',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    identifier: text('identifier').notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
+    isActive: boolean('is_active').notNull().default(true),
+
+    // UI/UX Customizations
+    // { primaryColor, welcomeMessage, thankYouTitle, thankYouMessage, logoUrl }
+    customizations: json('customizations').default('{}'),
+
+    // Authentication options (following chat pattern)
+    authType: text('auth_type').notNull().default('public'), // 'public', 'password', 'email'
+    password: text('password'), // Stored encrypted, populated when authType is 'password'
+    allowedEmails: json('allowed_emails').default('[]'), // Array of allowed emails or domains
+
+    // Branding
+    showBranding: boolean('show_branding').notNull().default(true),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    identifierIdx: uniqueIndex('form_identifier_idx').on(table.identifier),
+    workflowIdIdx: index('form_workflow_id_idx').on(table.workflowId),
+    userIdIdx: index('form_user_id_idx').on(table.userId),
+  })
+)
+
 export const organization = pgTable('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -1875,5 +1912,50 @@ export const credentialSetInvitation = pgTable(
     tokenIdx: index('credential_set_invitation_token_idx').on(table.token),
     statusIdx: index('credential_set_invitation_status_idx').on(table.status),
     expiresAtIdx: index('credential_set_invitation_expires_at_idx').on(table.expiresAt),
+  })
+)
+
+export const permissionGroup = pgTable(
+  'permission_group',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    config: jsonb('config').notNull().default('{}'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationIdIdx: index('permission_group_organization_id_idx').on(table.organizationId),
+    createdByIdx: index('permission_group_created_by_idx').on(table.createdBy),
+    orgNameUnique: uniqueIndex('permission_group_org_name_unique').on(
+      table.organizationId,
+      table.name
+    ),
+  })
+)
+
+export const permissionGroupMember = pgTable(
+  'permission_group_member',
+  {
+    id: text('id').primaryKey(),
+    permissionGroupId: text('permission_group_id')
+      .notNull()
+      .references(() => permissionGroup.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    assignedBy: text('assigned_by').references(() => user.id, { onDelete: 'set null' }),
+    assignedAt: timestamp('assigned_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    permissionGroupIdIdx: index('permission_group_member_group_id_idx').on(table.permissionGroupId),
+    userIdUnique: uniqueIndex('permission_group_member_user_id_unique').on(table.userId),
   })
 )

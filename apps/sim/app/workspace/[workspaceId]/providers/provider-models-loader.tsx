@@ -8,8 +8,7 @@ import {
   updateOpenRouterProviderModels,
   updateVLLMProviderModels,
 } from '@/providers/utils'
-import { useProvidersStore } from '@/stores/providers/store'
-import type { ProviderName } from '@/stores/providers/types'
+import { type ProviderName, useProvidersStore } from '@/stores/providers'
 
 const logger = createLogger('ProviderModelsLoader')
 

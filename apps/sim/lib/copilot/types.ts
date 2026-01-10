@@ -53,7 +53,7 @@ export interface ParsedMessageContent {
 
 import type { ProviderId } from '@/providers/types'
 // Copilot Tools Type Definitions (from workspace copilot lib)
-import type { CopilotToolCall, ToolState } from '@/stores/panel/copilot/types'
+import type { CopilotToolCall, ToolState } from '@/stores/panel'
 
 export type NotificationStatus =
   | 'pending'

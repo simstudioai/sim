@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useShallow } from 'zustand/react/shallow'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -92,6 +93,8 @@ interface UseMentionDataProps {
 export function useMentionData(props: UseMentionDataProps) {
   const { workflowId, workspaceId } = props
 
+  const { config, isBlockAllowed } = usePermissionConfig()
+
   const [pastChats, setPastChats] = useState<PastChat[]>([])
   const [isLoadingPastChats, setIsLoadingPastChats] = useState(false)
 
@@ -100,6 +103,11 @@ export function useMentionData(props: UseMentionDataProps) {
 
   const [blocksList, setBlocksList] = useState<BlockItem[]>([])
   const [isLoadingBlocks, setIsLoadingBlocks] = useState(false)
+
+  // Reset blocks list when permission config changes
+  useEffect(() => {
+    setBlocksList([])
+  }, [config.allowedIntegrations])
 
   const [templatesList, setTemplatesList] = useState<TemplateItem[]>([])
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
@@ -252,7 +260,13 @@ export function useMentionData(props: UseMentionDataProps) {
       const { getAllBlocks } = await import('@/blocks')
       const all = getAllBlocks()
       const regularBlocks = all
-        .filter((b: any) => b.type !== 'starter' && !b.hideFromToolbar && b.category === 'blocks')
+        .filter(
+          (b: any) =>
+            b.type !== 'starter' &&
+            !b.hideFromToolbar &&
+            b.category === 'blocks' &&
+            isBlockAllowed(b.type)
+        )
         .map((b: any) => ({
           id: b.type,
           name: b.name || b.type,
@@ -262,7 +276,13 @@ export function useMentionData(props: UseMentionDataProps) {
         .sort((a: any, b: any) => a.name.localeCompare(b.name))
 
       const toolBlocks = all
-        .filter((b: any) => b.type !== 'starter' && !b.hideFromToolbar && b.category === 'tools')
+        .filter(
+          (b: any) =>
+            b.type !== 'starter' &&
+            !b.hideFromToolbar &&
+            b.category === 'tools' &&
+            isBlockAllowed(b.type)
+        )
         .map((b: any) => ({
           id: b.type,
           name: b.name || b.type,
@@ -276,7 +296,7 @@ export function useMentionData(props: UseMentionDataProps) {
     } finally {
       setIsLoadingBlocks(false)
     }
-  }, [isLoadingBlocks, blocksList.length])
+  }, [isLoadingBlocks, blocksList.length, isBlockAllowed])
 
   /**
    * Ensures templates are loaded

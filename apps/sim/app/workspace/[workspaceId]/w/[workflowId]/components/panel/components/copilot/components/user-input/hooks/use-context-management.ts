@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { ChatContext } from '@/stores/panel/copilot/types'
+import type { ChatContext } from '@/stores/panel'
 
 interface UseContextManagementProps {
   /** Current message text */

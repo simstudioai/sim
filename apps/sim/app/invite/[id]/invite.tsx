@@ -400,7 +400,6 @@ export default function Invite() {
                     label: 'I already have an account',
                     onClick: () =>
                       router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`),
-                    variant: 'outline' as const,
                   },
                 ]
               : [
@@ -413,7 +412,6 @@ export default function Invite() {
                     label: 'Create an account',
                     onClick: () =>
                       router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true&new=true`),
-                    variant: 'outline' as const,
                   },
                 ]),
             {
@@ -454,12 +452,10 @@ export default function Invite() {
               {
                 label: 'Manage Team Settings',
                 onClick: () => router.push('/workspace'),
-                variant: 'default' as const,
               },
               {
                 label: 'Return to Home',
                 onClick: () => router.push('/'),
-                variant: 'ghost' as const,
               },
             ]}
           />
@@ -483,12 +479,10 @@ export default function Invite() {
                   await client.signOut()
                   router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`)
                 },
-                variant: 'default' as const,
               },
               {
                 label: 'Return to Home',
                 onClick: () => router.push('/'),
-                variant: 'ghost' as const,
               },
             ]}
           />
@@ -509,17 +503,14 @@ export default function Invite() {
               {
                 label: 'Sign in to continue',
                 onClick: () => router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`),
-                variant: 'default' as const,
               },
               {
                 label: 'Create an account',
                 onClick: () => router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true`),
-                variant: 'outline' as const,
               },
               {
                 label: 'Return to Home',
                 onClick: () => router.push('/'),
-                variant: 'ghost' as const,
               },
             ]}
           />
@@ -531,21 +522,18 @@ export default function Invite() {
     const actions: Array<{
       label: string
       onClick: () => void
-      variant?: 'default' | 'outline' | 'ghost'
     }> = []
 
     if (error.canRetry) {
       actions.push({
         label: 'Try Again',
         onClick: () => window.location.reload(),
-        variant: 'default' as const,
       })
     }
 
     actions.push({
       label: 'Return to Home',
       onClick: () => router.push('/'),
-      variant: error.canRetry ? ('ghost' as const) : ('default' as const),
     })
 
     return (
@@ -601,7 +589,6 @@ export default function Invite() {
           {
             label: 'Return to Home',
             onClick: () => router.push('/'),
-            variant: 'ghost',
           },
         ]}
       />

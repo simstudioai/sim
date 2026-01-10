@@ -851,24 +851,6 @@ List all status updates for a project in Linear
 | --------- | ---- | ----------- |
 | `updates` | array | Array of project updates |
 
-### `linear_create_project_link`
-
-Add an external link to a project in Linear
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Project ID to add link to |
-| `url` | string | Yes | URL of the external link |
-| `label` | string | No | Link label/title |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `link` | object | The created project link |
-
 ### `linear_list_notifications`
 
 List notifications for the current user in Linear
@@ -1246,7 +1228,6 @@ Create a new project label in Linear
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | The project for this label |
 | `name` | string | Yes | Project label name |
 | `color` | string | No | Label color \(hex code\) |
 | `description` | string | No | Label description |
@@ -1424,12 +1405,12 @@ Create a new project status in Linear
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | The project to create the status for |
 | `name` | string | Yes | Project status name |
+| `type` | string | Yes | Status type: "backlog", "planned", "started", "paused", "completed", or "canceled" |
 | `color` | string | Yes | Status color \(hex code\) |
+| `position` | number | Yes | Position in status list \(e.g. 0, 1, 2...\) |
 | `description` | string | No | Status description |
 | `indefinite` | boolean | No | Whether the status is indefinite |
-| `position` | number | No | Position in status list |
 
 #### Output
 

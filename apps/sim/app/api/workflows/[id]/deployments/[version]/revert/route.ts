@@ -74,8 +74,6 @@ export async function POST(
       loops: deployedState.loops || {},
       parallels: deployedState.parallels || {},
       lastSaved: Date.now(),
-      isDeployed: true,
-      deployedAt: new Date(),
       deploymentStatuses: deployedState.deploymentStatuses || {},
     })
 
@@ -88,7 +86,6 @@ export async function POST(
       .set({ lastSynced: new Date(), updatedAt: new Date() })
       .where(eq(workflow.id, id))
 
-    // Sync MCP tools with the reverted version's parameter schema
     await syncMcpToolsForWorkflow({
       workflowId: id,
       requestId,

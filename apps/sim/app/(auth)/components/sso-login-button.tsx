@@ -34,7 +34,7 @@ export function SSOLoginButton({
   }
 
   const primaryBtnClasses = cn(
-    primaryClassName || 'auth-button-gradient',
+    primaryClassName || 'branded-button-gradient',
     'flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200'
   )
 

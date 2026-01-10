@@ -3,7 +3,7 @@
  */
 
 import type { Workspace } from '@/lib/workspaces/organization/types'
-import type { WorkflowFolder } from '@/stores/folders/store'
+import type { WorkflowFolder } from '@/stores/folders/types'
 
 export interface NameableEntity {
   name: string

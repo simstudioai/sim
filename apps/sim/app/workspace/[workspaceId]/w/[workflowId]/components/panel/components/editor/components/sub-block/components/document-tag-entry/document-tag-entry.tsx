@@ -19,8 +19,8 @@ import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
-import { useTagSelection } from '@/hooks/use-tag-selection'
+import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
+import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 
 interface DocumentTag {
   id: string
@@ -225,7 +225,7 @@ export function DocumentTagEntry({
    */
   const renderTagHeader = (tag: DocumentTag, index: number) => (
     <div
-      className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'
+      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-[10px] py-[5px]'
       onClick={() => toggleCollapse(tag.id)}
     >
       <div className='flex min-w-0 flex-1 items-center gap-[8px]'>

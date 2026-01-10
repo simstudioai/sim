@@ -2,6 +2,7 @@
 
 import type React from 'react'
 import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import posthog from 'posthog-js'
 import { client } from '@/lib/auth/auth-client'
 
@@ -35,12 +36,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppSession>(null)
   const [isPending, setIsPending] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const queryClient = useQueryClient()
 
-  const loadSession = useCallback(async () => {
+  const loadSession = useCallback(async (bypassCache = false) => {
     try {
       setIsPending(true)
       setError(null)
-      const res = await client.getSession()
+      const res = bypassCache
+        ? await client.getSession({ query: { disableCookieCache: true } })
+        : await client.getSession()
       setData(res?.data ?? null)
     } catch (e) {
       setError(e instanceof Error ? e : new Error('Failed to fetch session'))
@@ -50,8 +54,25 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
-    loadSession()
-  }, [loadSession])
+    // Check if user was redirected after plan upgrade
+    const params = new URLSearchParams(window.location.search)
+    const wasUpgraded = params.get('upgraded') === 'true'
+
+    if (wasUpgraded) {
+      params.delete('upgraded')
+      const newUrl = params.toString()
+        ? `${window.location.pathname}?${params.toString()}`
+        : window.location.pathname
+      window.history.replaceState({}, '', newUrl)
+    }
+
+    loadSession(wasUpgraded).then(() => {
+      if (wasUpgraded) {
+        queryClient.invalidateQueries({ queryKey: ['organizations'] })
+        queryClient.invalidateQueries({ queryKey: ['subscription'] })
+      }
+    })
+  }, [loadSession, queryClient])
 
   useEffect(() => {
     if (isPending || typeof posthog.identify !== 'function') {

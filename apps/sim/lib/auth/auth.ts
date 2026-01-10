@@ -50,6 +50,7 @@ import {
   isEmailPasswordEnabled,
   isEmailVerificationEnabled,
   isHosted,
+  isOrganizationsEnabled,
   isRegistrationDisabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -2184,8 +2185,22 @@ export const auth = betterAuth({
                   status: subscription.status,
                 })
 
-                const resolvedSubscription =
-                  await ensureOrganizationForTeamSubscription(subscription)
+                let resolvedSubscription = subscription
+                try {
+                  resolvedSubscription = await ensureOrganizationForTeamSubscription(subscription)
+                } catch (orgError) {
+                  logger.error(
+                    '[onSubscriptionComplete] Failed to ensure organization for team subscription',
+                    {
+                      subscriptionId: subscription.id,
+                      referenceId: subscription.referenceId,
+                      plan: subscription.plan,
+                      error: orgError instanceof Error ? orgError.message : String(orgError),
+                      stack: orgError instanceof Error ? orgError.stack : undefined,
+                    }
+                  )
+                  throw orgError
+                }
 
                 await handleSubscriptionCreated(resolvedSubscription)
 
@@ -2206,8 +2221,22 @@ export const auth = betterAuth({
                   plan: subscription.plan,
                 })
 
-                const resolvedSubscription =
-                  await ensureOrganizationForTeamSubscription(subscription)
+                let resolvedSubscription = subscription
+                try {
+                  resolvedSubscription = await ensureOrganizationForTeamSubscription(subscription)
+                } catch (orgError) {
+                  logger.error(
+                    '[onSubscriptionUpdate] Failed to ensure organization for team subscription',
+                    {
+                      subscriptionId: subscription.id,
+                      referenceId: subscription.referenceId,
+                      plan: subscription.plan,
+                      error: orgError instanceof Error ? orgError.message : String(orgError),
+                      stack: orgError instanceof Error ? orgError.stack : undefined,
+                    }
+                  )
+                  throw orgError
+                }
 
                 try {
                   await syncSubscriptionUsageLimits(resolvedSubscription)
@@ -2324,8 +2353,15 @@ export const auth = betterAuth({
               }
             },
           }),
+        ]
+      : []),
+    ...(isOrganizationsEnabled
+      ? [
           organization({
             allowUserToCreateOrganization: async (user) => {
+              if (!isBillingEnabled) {
+                return true
+              }
               const dbSubscriptions = await db
                 .select()
                 .from(schema.subscription)

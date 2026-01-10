@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "simstudio",
@@ -249,6 +250,7 @@
       "dependencies": {
         "drizzle-orm": "^0.44.5",
         "postgres": "^3.4.5",
+        "uuid": "^11.1.0",
         "zod": "^3.24.2",
       },
       "devDependencies": {

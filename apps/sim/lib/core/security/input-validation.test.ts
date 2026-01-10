@@ -1,3 +1,4 @@
+import { loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 import {
   createPinnedUrl,
@@ -19,14 +20,7 @@ import {
 } from '@/lib/core/security/input-validation'
 import { sanitizeForLogging } from '@/lib/core/security/redaction'
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 describe('validatePathSegment', () => {
   describe('valid inputs', () => {

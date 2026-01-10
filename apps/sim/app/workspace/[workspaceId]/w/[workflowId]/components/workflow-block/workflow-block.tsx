@@ -32,12 +32,12 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
+import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth-credentials'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useKnowledgeBase } from '@/hooks/use-knowledge'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
-import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useVariablesStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -624,7 +624,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     if (!activeWorkflowId) return
     const current = useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id]
     if (!current) return
-    const cred = current.credential?.value as string | undefined
+    const credValue = current.credential
+    const cred =
+      typeof credValue === 'object' && credValue !== null && 'value' in credValue
+        ? ((credValue as { value?: unknown }).value as string | undefined)
+        : (credValue as string | undefined)
     if (prevCredRef.current !== cred) {
       prevCredRef.current = cred
       const keys = Object.keys(current)

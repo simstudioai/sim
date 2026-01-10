@@ -19,7 +19,9 @@ export function ScheduleInfo({ blockId, isPreview = false }: ScheduleInfoProps) 
   const params = useParams()
   const workflowId = params.workflowId as string
 
-  const scheduleTimezone = useSubBlockStore((state) => state.getValue(blockId, 'timezone'))
+  const scheduleTimezone = useSubBlockStore((state) => state.getValue(blockId, 'timezone')) as
+    | string
+    | undefined
 
   const { data: schedule, isLoading } = useScheduleQuery(workflowId, blockId, {
     enabled: !isPreview,

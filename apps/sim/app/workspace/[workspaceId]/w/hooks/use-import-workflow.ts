@@ -6,11 +6,11 @@ import {
   extractWorkflowName,
   extractWorkflowsFromFiles,
   extractWorkflowsFromZip,
+  parseWorkflowJson,
 } from '@/lib/workflows/operations/import-export'
 import { folderKeys, useCreateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow, workflowKeys } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import { parseWorkflowJson } from '@/stores/workflows/json/importer'
 
 const logger = createLogger('useImportWorkflow')
 
@@ -79,21 +79,36 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
         body: JSON.stringify(workflowData),
       })
 
-      // Save variables if any
-      if (workflowData.variables && workflowData.variables.length > 0) {
-        const variablesPayload = workflowData.variables.map((v: any) => ({
-          id: typeof v.id === 'string' && v.id.trim() ? v.id : crypto.randomUUID(),
-          workflowId: newWorkflowId,
-          name: v.name,
-          type: v.type,
-          value: v.value,
-        }))
+      // Save variables if any (handle both legacy Array and current Record formats)
+      if (workflowData.variables) {
+        // Convert to Record format for API (handles backwards compatibility with old Array exports)
+        const variablesArray = Array.isArray(workflowData.variables)
+          ? workflowData.variables
+          : Object.values(workflowData.variables)
 
-        await fetch(`/api/workflows/${newWorkflowId}/variables`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ variables: variablesPayload }),
-        })
+        if (variablesArray.length > 0) {
+          const variablesRecord: Record<
+            string,
+            { id: string; workflowId: string; name: string; type: string; value: unknown }
+          > = {}
+
+          for (const v of variablesArray) {
+            const id = typeof v.id === 'string' && v.id.trim() ? v.id : crypto.randomUUID()
+            variablesRecord[id] = {
+              id,
+              workflowId: newWorkflowId,
+              name: v.name,
+              type: v.type,
+              value: v.value,
+            }
+          }
+
+          await fetch(`/api/workflows/${newWorkflowId}/variables`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ variables: variablesRecord }),
+          })
+        }
       }
 
       logger.info(`Imported workflow: ${workflowName}`)

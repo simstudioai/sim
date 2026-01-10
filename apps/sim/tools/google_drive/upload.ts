@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { GoogleDriveToolParams, GoogleDriveUploadResponse } from '@/tools/google_drive/types'
 import {
+  ALL_FILE_FIELDS,
   GOOGLE_WORKSPACE_MIME_TYPES,
   handleSheetsFormat,
   SOURCE_MIME_TYPES,
@@ -12,7 +13,7 @@ const logger = createLogger('GoogleDriveUploadTool')
 export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResponse> = {
   id: 'google_drive_upload',
   name: 'Upload to Google Drive',
-  description: 'Upload a file to Google Drive',
+  description: 'Upload a file to Google Drive with complete metadata returned',
   version: '1.0',
 
   oauth: {
@@ -228,8 +229,9 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
         }
       }
 
+      // Fetch complete file metadata with all fields
       const finalFileResponse = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true&fields=id,name,mimeType,webViewLink,webContentLink,size,createdTime,modifiedTime,parents`,
+        `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true&fields=${ALL_FILE_FIELDS}`,
         {
           headers: {
             Authorization: authHeader,
@@ -242,17 +244,7 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
       return {
         success: true,
         output: {
-          file: {
-            id: finalFile.id,
-            name: finalFile.name,
-            mimeType: finalFile.mimeType,
-            webViewLink: finalFile.webViewLink,
-            webContentLink: finalFile.webContentLink,
-            size: finalFile.size,
-            createdTime: finalFile.createdTime,
-            modifiedTime: finalFile.modifiedTime,
-            parents: finalFile.parents,
-          },
+          file: finalFile,
         },
       }
     } catch (error: any) {
@@ -265,6 +257,80 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
   },
 
   outputs: {
-    file: { type: 'json', description: 'Uploaded file metadata including ID, name, and links' },
+    file: {
+      type: 'object',
+      description: 'Complete uploaded file metadata from Google Drive',
+      properties: {
+        // Basic Info
+        id: { type: 'string', description: 'Google Drive file ID' },
+        name: { type: 'string', description: 'File name' },
+        mimeType: { type: 'string', description: 'MIME type' },
+        kind: { type: 'string', description: 'Resource type identifier' },
+        description: { type: 'string', description: 'File description' },
+        originalFilename: { type: 'string', description: 'Original uploaded filename' },
+        fullFileExtension: { type: 'string', description: 'Full file extension' },
+        fileExtension: { type: 'string', description: 'File extension' },
+        // Ownership & Sharing
+        owners: { type: 'json', description: 'List of file owners' },
+        permissions: { type: 'json', description: 'File permissions' },
+        permissionIds: { type: 'json', description: 'Permission IDs' },
+        shared: { type: 'boolean', description: 'Whether file is shared' },
+        ownedByMe: { type: 'boolean', description: 'Whether owned by current user' },
+        writersCanShare: { type: 'boolean', description: 'Whether writers can share' },
+        viewersCanCopyContent: { type: 'boolean', description: 'Whether viewers can copy' },
+        copyRequiresWriterPermission: {
+          type: 'boolean',
+          description: 'Whether copy requires writer permission',
+        },
+        sharingUser: { type: 'json', description: 'User who shared the file' },
+        // Labels/Tags
+        starred: { type: 'boolean', description: 'Whether file is starred' },
+        trashed: { type: 'boolean', description: 'Whether file is in trash' },
+        explicitlyTrashed: { type: 'boolean', description: 'Whether explicitly trashed' },
+        properties: { type: 'json', description: 'Custom properties' },
+        appProperties: { type: 'json', description: 'App-specific properties' },
+        // Timestamps
+        createdTime: { type: 'string', description: 'File creation time' },
+        modifiedTime: { type: 'string', description: 'Last modification time' },
+        modifiedByMeTime: { type: 'string', description: 'When modified by current user' },
+        viewedByMeTime: { type: 'string', description: 'When last viewed by current user' },
+        sharedWithMeTime: { type: 'string', description: 'When shared with current user' },
+        // User Info
+        lastModifyingUser: { type: 'json', description: 'User who last modified the file' },
+        viewedByMe: { type: 'boolean', description: 'Whether viewed by current user' },
+        modifiedByMe: { type: 'boolean', description: 'Whether modified by current user' },
+        // Links
+        webViewLink: { type: 'string', description: 'URL to view in browser' },
+        webContentLink: { type: 'string', description: 'Direct download URL' },
+        iconLink: { type: 'string', description: 'URL to file icon' },
+        thumbnailLink: { type: 'string', description: 'URL to thumbnail' },
+        exportLinks: { type: 'json', description: 'Export format links' },
+        // Size & Storage
+        size: { type: 'string', description: 'File size in bytes' },
+        quotaBytesUsed: { type: 'string', description: 'Storage quota used' },
+        // Checksums
+        md5Checksum: { type: 'string', description: 'MD5 hash' },
+        sha1Checksum: { type: 'string', description: 'SHA-1 hash' },
+        sha256Checksum: { type: 'string', description: 'SHA-256 hash' },
+        // Hierarchy & Location
+        parents: { type: 'json', description: 'Parent folder IDs' },
+        spaces: { type: 'json', description: 'Spaces containing file' },
+        driveId: { type: 'string', description: 'Shared drive ID' },
+        // Capabilities
+        capabilities: { type: 'json', description: 'User capabilities on file' },
+        // Versions
+        version: { type: 'string', description: 'Version number' },
+        headRevisionId: { type: 'string', description: 'Head revision ID' },
+        // Media Metadata
+        hasThumbnail: { type: 'boolean', description: 'Whether has thumbnail' },
+        thumbnailVersion: { type: 'string', description: 'Thumbnail version' },
+        imageMediaMetadata: { type: 'json', description: 'Image-specific metadata' },
+        videoMediaMetadata: { type: 'json', description: 'Video-specific metadata' },
+        // Other
+        isAppAuthorized: { type: 'boolean', description: 'Whether created by requesting app' },
+        contentRestrictions: { type: 'json', description: 'Content restrictions' },
+        linkShareMetadata: { type: 'json', description: 'Link share metadata' },
+      },
+    },
   },
 }

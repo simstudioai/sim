@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import type { General, GeneralStore } from '@/stores/settings/general/types'
+import type { General, GeneralStore } from './types'
 
 const logger = createLogger('GeneralStore')
 

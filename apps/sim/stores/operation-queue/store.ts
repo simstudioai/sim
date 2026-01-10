@@ -1,40 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
+import type { OperationQueueState, QueuedOperation } from './types'
 
 const logger = createLogger('OperationQueue')
-
-export interface QueuedOperation {
-  id: string
-  operation: {
-    operation: string
-    target: string
-    payload: any
-  }
-  workflowId: string
-  timestamp: number
-  retryCount: number
-  status: 'pending' | 'processing' | 'confirmed' | 'failed'
-  userId: string
-}
-
-interface OperationQueueState {
-  operations: QueuedOperation[]
-  isProcessing: boolean
-  hasOperationError: boolean
-
-  addToQueue: (operation: Omit<QueuedOperation, 'timestamp' | 'retryCount' | 'status'>) => void
-  confirmOperation: (operationId: string) => void
-  failOperation: (operationId: string, retryable?: boolean) => void
-  handleOperationTimeout: (operationId: string) => void
-  processNextOperation: () => void
-  cancelOperationsForBlock: (blockId: string) => void
-  cancelOperationsForVariable: (variableId: string) => void
-
-  cancelOperationsForWorkflow: (workflowId: string) => void
-
-  triggerOfflineMode: () => void
-  clearError: () => void
-}
 
 const retryTimeouts = new Map<string, NodeJS.Timeout>()
 const operationTimeouts = new Map<string, NodeJS.Timeout>()

@@ -1,14 +1,15 @@
 'use client'
 
-import { type KeyboardEvent, useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Paperclip, Plus, Search, X } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
   Badge,
   Button,
+  type FileInputOptions,
   Input,
   Label,
   Modal,
@@ -16,6 +17,8 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  TagInput,
+  type TagItem,
 } from '@/components/emcn'
 import { GmailIcon, OutlookIcon } from '@/components/icons'
 import { Input as BaseInput, Skeleton } from '@/components/ui'
@@ -26,7 +29,6 @@ import { getProviderDisplayName, type PollingProvider } from '@/lib/credential-s
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { getUserRole } from '@/lib/workspaces/organization'
-import { EmailTag } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import {
   type CredentialSet,
   useAcceptCredentialSetInvitation,
@@ -111,12 +113,8 @@ export function CredentialSets() {
   const [newSetDescription, setNewSetDescription] = useState('')
   const [newSetProvider, setNewSetProvider] = useState<PollingProvider>('google-email')
   const [createError, setCreateError] = useState<string | null>(null)
-  const [emails, setEmails] = useState<string[]>([])
-  const [invalidEmails, setInvalidEmails] = useState<string[]>([])
-  const [duplicateEmails, setDuplicateEmails] = useState<string[]>([])
-  const [inputValue, setInputValue] = useState('')
-  const [isDragging, setIsDragging] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [emailItems, setEmailItems] = useState<TagItem[]>([])
+  const [emailError, setEmailError] = useState<string | null>(null)
   const [leavingMembership, setLeavingMembership] = useState<{
     credentialSetId: string
     name: string
@@ -137,12 +135,6 @@ export function CredentialSets() {
   const [resendingInvitations, setResendingInvitations] = useState<Set<string>>(new Set())
   const [resendCooldowns, setResendCooldowns] = useState<Record<string, number>>({})
 
-  const extractEmailsFromText = useCallback((text: string): string[] => {
-    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
-    const matches = text.match(emailRegex) || []
-    return [...new Set(matches.map((e) => e.toLowerCase()))]
-  }, [])
-
   const addEmail = useCallback(
     (email: string) => {
       if (!email.trim()) return false
@@ -151,11 +143,7 @@ export function CredentialSets() {
       const validation = quickValidateEmail(normalized)
       const isValid = validation.isValid
 
-      if (
-        emails.includes(normalized) ||
-        invalidEmails.includes(normalized) ||
-        duplicateEmails.includes(normalized)
-      ) {
+      if (emailItems.some((item) => item.value === normalized)) {
         return false
       }
 
@@ -163,11 +151,7 @@ export function CredentialSets() {
         (inv) => inv.email?.toLowerCase() === normalized
       )
       if (isPendingInvitation) {
-        setDuplicateEmails((prev) => {
-          if (prev.includes(normalized)) return prev
-          return [...prev, normalized]
-        })
-        setInputValue('')
+        setEmailError(`${normalized} already has a pending invitation`)
         return false
       }
 
@@ -175,158 +159,36 @@ export function CredentialSets() {
         (m) => m.userEmail?.toLowerCase() === normalized && m.status === 'active'
       )
       if (isActiveMember) {
-        setDuplicateEmails((prev) => {
-          if (prev.includes(normalized)) return prev
-          return [...prev, normalized]
-        })
-        setInputValue('')
+        setEmailError(`${normalized} is already a member of this group`)
         return false
       }
 
-      if (!isValid) {
-        setInvalidEmails((prev) => {
-          if (prev.includes(normalized)) return prev
-          return [...prev, normalized]
-        })
-        setInputValue('')
-        return false
+      setEmailItems((prev) => [...prev, { value: normalized, isValid }])
+
+      if (isValid) {
+        setEmailError(null)
       }
 
-      setEmails((prev) => {
-        if (prev.includes(normalized)) return prev
-        return [...prev, normalized]
-      })
-      setInputValue('')
-      return true
+      return isValid
     },
-    [emails, invalidEmails, duplicateEmails, pendingInvitations, members]
+    [emailItems, pendingInvitations, members]
   )
 
-  const removeEmail = useCallback((index: number) => {
-    setEmails((prev) => prev.filter((_, i) => i !== index))
+  const removeEmailItem = useCallback((_value: string, index: number, _isValid: boolean) => {
+    setEmailItems((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
-  const removeInvalidEmail = useCallback((index: number) => {
-    setInvalidEmails((prev) => prev.filter((_, i) => i !== index))
-  }, [])
-
-  const removeDuplicateEmail = useCallback((index: number) => {
-    setDuplicateEmails((prev) => prev.filter((_, i) => i !== index))
-  }, [])
-
-  const handleEmailKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter') {
-        e.preventDefault()
-        if (inputValue.trim()) {
-          addEmail(inputValue)
-        }
-        return
-      }
-
-      if ([',', ' '].includes(e.key) && inputValue.trim()) {
-        e.preventDefault()
-        addEmail(inputValue)
-      }
-
-      if (e.key === 'Backspace' && !inputValue) {
-        if (duplicateEmails.length > 0) {
-          removeDuplicateEmail(duplicateEmails.length - 1)
-        } else if (invalidEmails.length > 0) {
-          removeInvalidEmail(invalidEmails.length - 1)
-        } else if (emails.length > 0) {
-          removeEmail(emails.length - 1)
-        }
-      }
-    },
-    [
-      inputValue,
-      addEmail,
-      duplicateEmails,
-      invalidEmails,
-      emails,
-      removeDuplicateEmail,
-      removeInvalidEmail,
-      removeEmail,
-    ]
-  )
-
-  const handleEmailPaste = useCallback(
-    (e: React.ClipboardEvent<HTMLInputElement>) => {
-      e.preventDefault()
-      const pastedText = e.clipboardData.getData('text')
-      const pastedEmails = extractEmailsFromText(pastedText)
-
-      pastedEmails.forEach((email) => {
-        addEmail(email)
-      })
-    },
-    [addEmail, extractEmailsFromText]
-  )
-
-  const handleFileDrop = useCallback(
-    async (file: File) => {
-      try {
-        const text = await file.text()
-        const extractedEmails = extractEmailsFromText(text)
-        extractedEmails.forEach((email) => {
-          addEmail(email)
-        })
-      } catch (error) {
-        logger.error('Error reading dropped file', error)
-      }
-    },
-    [extractEmailsFromText, addEmail]
-  )
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    e.dataTransfer.dropEffect = 'copy'
-    setIsDragging(true)
-  }, [])
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-  }, [])
-
-  const handleDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setIsDragging(false)
-
-      const files = Array.from(e.dataTransfer.files)
-      const validFiles = files.filter(
-        (f) =>
-          f.type === 'text/csv' ||
-          f.type === 'text/plain' ||
-          f.name.endsWith('.csv') ||
-          f.name.endsWith('.txt')
-      )
-
-      for (const file of validFiles) {
-        await handleFileDrop(file)
-      }
-    },
-    [handleFileDrop]
-  )
-
-  const handleFileInputChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files
-      if (!files) return
-
-      for (const file of Array.from(files)) {
-        await handleFileDrop(file)
-      }
-
-      // Reset input so the same file can be selected again
-      e.target.value = ''
-    },
-    [handleFileDrop]
+  const fileInputOptions: FileInputOptions = useMemo(
+    () => ({
+      enabled: true,
+      accept: '.csv,.txt,text/csv,text/plain',
+      extractValues: (text: string) => {
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
+        const matches = text.match(emailRegex) || []
+        return [...new Set(matches.map((e) => e.toLowerCase()))]
+      },
+    }),
+    []
   )
 
   const handleRemoveMember = useCallback(
@@ -398,31 +260,29 @@ export function CredentialSets() {
     }
   }, [newSetName, newSetDescription, newSetProvider, activeOrganization?.id, createCredentialSet])
 
+  const validEmails = useMemo(
+    () => emailItems.filter((item) => item.isValid).map((item) => item.value),
+    [emailItems]
+  )
+
   const handleInviteMembers = useCallback(async () => {
     if (!viewingSet?.id) return
 
-    // Add any pending input value first
-    if (inputValue.trim()) {
-      addEmail(inputValue)
-    }
-
-    if (emails.length === 0) return
+    if (validEmails.length === 0) return
 
     try {
-      for (const email of emails) {
+      for (const email of validEmails) {
         await createInvitation.mutateAsync({
           credentialSetId: viewingSet.id,
           email,
         })
       }
-      setEmails([])
-      setInvalidEmails([])
-      setDuplicateEmails([])
-      setInputValue('')
+      setEmailItems([])
+      setEmailError(null)
     } catch (error) {
       logger.error('Failed to create invitations', error)
     }
-  }, [viewingSet?.id, emails, inputValue, addEmail, createInvitation])
+  }, [viewingSet?.id, validEmails, createInvitation])
 
   const handleCloseCreateModal = useCallback(() => {
     setShowCreateModal(false)
@@ -434,10 +294,8 @@ export function CredentialSets() {
 
   const handleBackToList = useCallback(() => {
     setViewingSet(null)
-    setEmails([])
-    setInvalidEmails([])
-    setDuplicateEmails([])
-    setInputValue('')
+    setEmailItems([])
+    setEmailError(null)
   }, [])
 
   const handleCancelInvitation = useCallback(
@@ -616,100 +474,27 @@ export function CredentialSets() {
               </div>
 
               {/* Invite Section - Email Tags Input */}
-              <div className='flex items-center gap-[8px]'>
-                <input
-                  ref={fileInputRef}
-                  type='file'
-                  accept='.csv,.txt,text/csv,text/plain'
-                  onChange={handleFileInputChange}
-                  className='hidden'
-                />
-                <div
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  className={cn(
-                    'relative flex min-h-9 flex-1 flex-wrap items-center gap-x-[8px] gap-y-[4px] rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[6px] py-[4px] transition-colors focus-within:outline-none',
-                    isDragging && 'border-[var(--border)] border-dashed bg-[var(--surface-5)]'
-                  )}
-                >
-                  {isDragging && (
-                    <div className='absolute inset-0 flex items-center justify-center rounded-[4px] bg-[var(--surface-5)]/90'>
-                      <span className='text-[13px] text-[var(--text-tertiary)]'>
-                        Drop file here
-                      </span>
-                    </div>
-                  )}
-                  {invalidEmails.map((email, index) => (
-                    <EmailTag
-                      key={`invalid-${index}`}
-                      email={email}
-                      onRemove={() => removeInvalidEmail(index)}
-                      disabled={createInvitation.isPending}
-                      isInvalid={true}
-                    />
-                  ))}
-                  {duplicateEmails.map((email, index) => (
-                    <div
-                      key={`duplicate-${index}`}
-                      className='flex w-auto items-center gap-[4px] rounded-[4px] border border-amber-500 bg-amber-500/10 px-[6px] py-[2px] text-[12px] text-amber-600 dark:bg-amber-500/20 dark:text-amber-400'
-                    >
-                      <span className='max-w-[200px] truncate'>{email}</span>
-                      <span className='text-[11px] opacity-70'>duplicate</span>
-                      {!createInvitation.isPending && (
-                        <button
-                          type='button'
-                          onClick={() => removeDuplicateEmail(index)}
-                          className='flex-shrink-0 text-amber-600 transition-colors hover:text-amber-700 focus:outline-none dark:text-amber-400 dark:hover:text-amber-300'
-                          aria-label={`Remove ${email}`}
-                        >
-                          <X className='h-[12px] w-[12px] translate-y-[0.2px]' />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {emails.map((email, index) => (
-                    <EmailTag
-                      key={`valid-${index}`}
-                      email={email}
-                      onRemove={() => removeEmail(index)}
-                      disabled={createInvitation.isPending}
-                    />
-                  ))}
-                  <div className='relative flex flex-1 items-center'>
-                    <input
-                      type='text'
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      onKeyDown={handleEmailKeyDown}
-                      onPaste={handleEmailPaste}
-                      onBlur={() => inputValue.trim() && addEmail(inputValue)}
-                      placeholder={
-                        emails.length > 0 || invalidEmails.length > 0 || duplicateEmails.length > 0
-                          ? 'Add another email'
-                          : 'Enter email addresses'
-                      }
-                      className='h-6 min-w-[140px] flex-1 border-none bg-transparent p-0 pl-[4px] text-[13px] outline-none placeholder:text-[var(--text-tertiary)]'
-                      disabled={createInvitation.isPending}
-                    />
-                    <button
-                      type='button'
-                      onClick={() => fileInputRef.current?.click()}
-                      className='ml-[4px] flex-shrink-0 text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]'
-                    >
-                      <Paperclip className='h-[14px] w-[14px]' strokeWidth={2} />
-                    </button>
-                  </div>
+              <div className='flex flex-col gap-[4px]'>
+                <div className='flex items-center gap-[8px]'>
+                  <TagInput
+                    items={emailItems}
+                    onAdd={(value) => addEmail(value)}
+                    onRemove={removeEmailItem}
+                    placeholder='Enter email addresses'
+                    placeholderWithTags='Add another email'
+                    disabled={createInvitation.isPending}
+                    fileInputOptions={fileInputOptions}
+                    className='flex-1'
+                  />
+                  <Button
+                    variant='default'
+                    onClick={handleInviteMembers}
+                    disabled={createInvitation.isPending || validEmails.length === 0}
+                  >
+                    {createInvitation.isPending ? 'Sending...' : 'Invite'}
+                  </Button>
                 </div>
-                <Button
-                  variant='default'
-                  onClick={handleInviteMembers}
-                  disabled={
-                    createInvitation.isPending || (emails.length === 0 && !inputValue.trim())
-                  }
-                >
-                  {createInvitation.isPending ? 'Sending...' : 'Invite'}
-                </Button>
+                {emailError && <p className='text-[12px] text-[var(--text-error)]'>{emailError}</p>}
               </div>
 
               {/* Members List - styled like team members */}
@@ -1018,11 +803,11 @@ export function CredentialSets() {
                             </div>
                           </div>
                           <div className='flex items-center gap-[8px]'>
-                            <Button variant='ghost' onClick={() => setViewingSet(set)}>
+                            <Button variant='default' onClick={() => setViewingSet(set)}>
                               Details
                             </Button>
                             <Button
-                              variant='destructive'
+                              variant='ghost'
                               onClick={() => handleDeleteClick(set)}
                               disabled={deletingSetIds.has(set.id)}
                             >

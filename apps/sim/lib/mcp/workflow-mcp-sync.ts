@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-utils'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { extractInputFormatFromBlocks, generateToolInputSchema } from './workflow-tool-schema'
 
 const logger = createLogger('WorkflowMcpSync')
@@ -59,7 +60,7 @@ export async function syncMcpToolsForWorkflow(options: SyncOptions): Promise<voi
     }
 
     // Check if workflow has a valid start block
-    if (!hasValidStartBlockInState(workflowState)) {
+    if (!hasValidStartBlockInState(workflowState as WorkflowState | null)) {
       await db.delete(workflowMcpTool).where(eq(workflowMcpTool.workflowId, workflowId))
       logger.info(
         `[${requestId}] Removed ${tools.length} MCP tool(s) - workflow has no start block (${context}): ${workflowId}`

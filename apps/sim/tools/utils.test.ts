@@ -13,7 +13,7 @@ import {
 
 vi.mock('@sim/logger', () => loggerMock)
 
-vi.mock('@/stores/settings/environment/store', () => {
+vi.mock('@/stores/settings/environment', () => {
   const mockStore = {
     getAllVariables: vi.fn().mockReturnValue({
       API_KEY: { value: 'mock-api-key' },

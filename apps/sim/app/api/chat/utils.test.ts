@@ -1,3 +1,4 @@
+import { databaseMock, loggerMock } from '@sim/testing'
 import type { NextResponse } from 'next/server'
 /**
  * Tests for chat API utils
@@ -5,14 +6,9 @@ import type { NextResponse } from 'next/server'
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { env } from '@/lib/core/config/env'
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(),
-    update: vi.fn(),
-  },
-}))
+vi.mock('@sim/db', () => databaseMock)
+vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/logs/execution/logging-session', () => ({
   LoggingSession: vi.fn().mockImplementation(() => ({
@@ -52,19 +48,10 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
 
 describe('Chat API Utils', () => {
   beforeEach(() => {
-    vi.doMock('@sim/logger', () => ({
-      createLogger: vi.fn().mockReturnValue({
-        info: vi.fn(),
-        error: vi.fn(),
-        warn: vi.fn(),
-        debug: vi.fn(),
-      }),
-    }))
-
     vi.stubGlobal('process', {
       ...process,
       env: {
-        ...env,
+        ...process.env,
         NODE_ENV: 'development',
       },
     })
@@ -75,8 +62,8 @@ describe('Chat API Utils', () => {
   })
 
   describe('Auth token utils', () => {
-    it('should validate auth tokens', async () => {
-      const { validateAuthToken } = await import('@/app/api/chat/utils')
+    it.concurrent('should validate auth tokens', async () => {
+      const { validateAuthToken } = await import('@/lib/core/security/deployment')
 
       const chatId = 'test-chat-id'
       const type = 'password'
@@ -92,8 +79,8 @@ describe('Chat API Utils', () => {
       expect(isInvalidChat).toBe(false)
     })
 
-    it('should reject expired tokens', async () => {
-      const { validateAuthToken } = await import('@/app/api/chat/utils')
+    it.concurrent('should reject expired tokens', async () => {
+      const { validateAuthToken } = await import('@/lib/core/security/deployment')
 
       const chatId = 'test-chat-id'
       const expiredToken = Buffer.from(
@@ -136,7 +123,7 @@ describe('Chat API Utils', () => {
 
   describe('CORS handling', () => {
     it('should add CORS headers for localhost in development', async () => {
-      const { addCorsHeaders } = await import('@/app/api/chat/utils')
+      const { addCorsHeaders } = await import('@/lib/core/security/deployment')
 
       const mockRequest = {
         headers: {
@@ -343,7 +330,7 @@ describe('Chat API Utils', () => {
   })
 
   describe('Execution Result Processing', () => {
-    it('should process logs regardless of overall success status', () => {
+    it.concurrent('should process logs regardless of overall success status', () => {
       const executionResult = {
         success: false,
         output: {},
@@ -381,7 +368,7 @@ describe('Chat API Utils', () => {
       expect(executionResult.logs[1].error).toBe('Agent 2 failed')
     })
 
-    it('should handle ExecutionResult vs StreamingExecution types correctly', () => {
+    it.concurrent('should handle ExecutionResult vs StreamingExecution types correctly', () => {
       const executionResult = {
         success: true,
         output: { content: 'test' },

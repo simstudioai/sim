@@ -7,7 +7,6 @@ import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
-import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { getUniqueBlockName, mergeSubblockState, normalizeName } from '@/stores/workflows/utils'
@@ -97,10 +96,6 @@ const initialState = {
   loops: {},
   parallels: {},
   lastSaved: undefined,
-  // Legacy deployment fields (keeping for compatibility but they will be deprecated)
-  isDeployed: false,
-  deployedAt: undefined,
-  // New field for per-workflow deployment tracking
   deploymentStatuses: {},
   needsRedeployment: false,
 }
@@ -243,25 +238,12 @@ export const useWorkflowStore = create<WorkflowStore>()(
         get().updateLastSaved()
       },
 
-      updateBlockPosition: (id: string, position: Position) => {
-        set((state) => ({
-          blocks: {
-            ...state.blocks,
-            [id]: {
-              ...state.blocks[id],
-              position,
-            },
-          },
-        }))
-      },
-
       updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => {
         set((state) => {
-          // Check if the block exists before trying to update it
           const block = state.blocks[id]
           if (!block) {
             logger.warn(`Cannot update dimensions: Block ${id} not found in workflow store`)
-            return state // Return unchanged state
+            return state
           }
 
           return {
@@ -285,214 +267,290 @@ export const useWorkflowStore = create<WorkflowStore>()(
           }
         })
         get().updateLastSaved()
-        // Note: Socket.IO handles real-time sync automatically
       },
 
-      updateParentId: (id: string, parentId: string, extent: 'parent') => {
-        const block = get().blocks[id]
-        if (!block) {
-          logger.warn(`Cannot set parent: Block ${id} not found`)
-          return
+      batchUpdateBlocksWithParent: (
+        updates: Array<{
+          id: string
+          position: { x: number; y: number }
+          parentId?: string
+        }>
+      ) => {
+        const currentBlocks = get().blocks
+        const newBlocks = { ...currentBlocks }
+
+        for (const update of updates) {
+          const block = newBlocks[update.id]
+          if (!block) continue
+
+          // Compute new data based on whether we're adding or removing a parent
+          let newData = block.data
+          if (update.parentId) {
+            // Adding/changing parent - set parentId and extent
+            newData = { ...block.data, parentId: update.parentId, extent: 'parent' as const }
+          } else if (block.data?.parentId) {
+            // Removing parent - clear parentId and extent
+            const { parentId: _removed, extent: _removedExtent, ...restData } = block.data
+            newData = restData
+          }
+
+          newBlocks[update.id] = {
+            ...block,
+            position: update.position,
+            data: newData,
+          }
         }
 
-        logger.info('UpdateParentId called:', {
-          blockId: id,
-          blockName: block.name,
-          blockType: block.type,
-          newParentId: parentId,
-          extent,
-          currentParentId: block.data?.parentId,
+        set({
+          blocks: newBlocks,
+          edges: [...get().edges],
+          loops: generateLoopBlocks(newBlocks),
+          parallels: generateParallelBlocks(newBlocks),
+        })
+      },
+
+      batchUpdatePositions: (updates: Array<{ id: string; position: Position }>) => {
+        const newBlocks = { ...get().blocks }
+        for (const { id, position } of updates) {
+          if (newBlocks[id]) {
+            newBlocks[id] = { ...newBlocks[id], position }
+          }
+        }
+        set({ blocks: newBlocks })
+      },
+
+      batchAddBlocks: (
+        blocks: Array<{
+          id: string
+          type: string
+          name: string
+          position: Position
+          subBlocks: Record<string, SubBlockState>
+          outputs: Record<string, any>
+          enabled: boolean
+          horizontalHandles?: boolean
+          advancedMode?: boolean
+          triggerMode?: boolean
+          height?: number
+          data?: Record<string, any>
+        }>,
+        edges?: Edge[],
+        subBlockValues?: Record<string, Record<string, unknown>>
+      ) => {
+        const currentBlocks = get().blocks
+        const currentEdges = get().edges
+        const newBlocks = { ...currentBlocks }
+        const newEdges = [...currentEdges]
+
+        for (const block of blocks) {
+          newBlocks[block.id] = {
+            id: block.id,
+            type: block.type,
+            name: block.name,
+            position: block.position,
+            subBlocks: block.subBlocks,
+            outputs: block.outputs,
+            enabled: block.enabled ?? true,
+            horizontalHandles: block.horizontalHandles ?? true,
+            advancedMode: block.advancedMode ?? false,
+            triggerMode: block.triggerMode ?? false,
+            height: block.height ?? 0,
+            data: block.data,
+          }
+        }
+
+        if (edges && edges.length > 0) {
+          const existingEdgeIds = new Set(currentEdges.map((e) => e.id))
+          for (const edge of edges) {
+            if (!existingEdgeIds.has(edge.id)) {
+              newEdges.push({
+                id: edge.id || crypto.randomUUID(),
+                source: edge.source,
+                target: edge.target,
+                sourceHandle: edge.sourceHandle,
+                targetHandle: edge.targetHandle,
+                type: edge.type || 'default',
+                data: edge.data || {},
+              })
+            }
+          }
+        }
+
+        set({
+          blocks: newBlocks,
+          edges: newEdges,
+          loops: generateLoopBlocks(newBlocks),
+          parallels: generateParallelBlocks(newBlocks),
         })
 
-        // Skip if the parent ID hasn't changed
-        if (block.data?.parentId === parentId) {
-          logger.info('Parent ID unchanged, skipping update')
-          return
-        }
-
-        // Store current absolute position
-        const absolutePosition = { ...block.position }
-
-        // Handle empty or null parentId (removing from parent)
-        // On removal, clear the data JSON entirely per normalized DB contract
-        const newData = !parentId
-          ? {}
-          : {
-              ...block.data,
-              parentId,
-              extent,
+        if (subBlockValues && Object.keys(subBlockValues).length > 0) {
+          const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+          if (activeWorkflowId) {
+            const subBlockStore = useSubBlockStore.getState()
+            const updatedWorkflowValues = {
+              ...(subBlockStore.workflowValues[activeWorkflowId] || {}),
             }
 
-        // For removal we already set data to {}; for setting a parent keep as-is
+            for (const [blockId, values] of Object.entries(subBlockValues)) {
+              updatedWorkflowValues[blockId] = {
+                ...(updatedWorkflowValues[blockId] || {}),
+                ...values,
+              }
+            }
 
-        const newState = {
-          blocks: {
-            ...get().blocks,
-            [id]: {
-              ...block,
-              position: absolutePosition,
-              data: newData,
-            },
-          },
-          edges: [...get().edges],
-          loops: { ...get().loops },
-          parallels: { ...get().parallels },
+            useSubBlockStore.setState((state) => ({
+              workflowValues: {
+                ...state.workflowValues,
+                [activeWorkflowId]: updatedWorkflowValues,
+              },
+            }))
+          }
         }
 
-        logger.info('[WorkflowStore/updateParentId] Updated parentId relationship:', {
-          blockId: id,
-          newParentId: parentId || 'None (removed parent)',
-          keepingPosition: absolutePosition,
-        })
-
-        set(newState)
         get().updateLastSaved()
-        // Note: Socket.IO handles real-time sync automatically
       },
 
-      removeBlock: (id: string) => {
-        // First, clean up any subblock values for this block
-        const subBlockStore = useSubBlockStore.getState()
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+      batchRemoveBlocks: (ids: string[]) => {
+        const currentBlocks = get().blocks
+        const currentEdges = get().edges
+        const newBlocks = { ...currentBlocks }
 
-        const newState = {
-          blocks: { ...get().blocks },
-          edges: [...get().edges].filter((edge) => edge.source !== id && edge.target !== id),
-          loops: { ...get().loops },
-          parallels: { ...get().parallels },
-        }
+        const blocksToRemove = new Set<string>(ids)
 
-        // Find and remove all child blocks if this is a parent node
-        const blocksToRemove = new Set([id])
-
-        // Recursively find all descendant blocks (children, grandchildren, etc.)
         const findAllDescendants = (parentId: string) => {
-          Object.entries(newState.blocks).forEach(([blockId, block]) => {
+          Object.entries(newBlocks).forEach(([blockId, block]) => {
             if (block.data?.parentId === parentId) {
               blocksToRemove.add(blockId)
-              // Recursively find this block's children
               findAllDescendants(blockId)
             }
           })
         }
 
-        // Start recursive search from the target block
-        findAllDescendants(id)
-
-        logger.info('Found blocks to remove:', {
-          targetId: id,
-          totalBlocksToRemove: Array.from(blocksToRemove),
-          includesHierarchy: blocksToRemove.size > 1,
-        })
-
-        // Clean up subblock values before removing the block
-        if (activeWorkflowId && subBlockStore.workflowValues) {
-          const updatedWorkflowValues = {
-            ...(subBlockStore.workflowValues[activeWorkflowId] || {}),
-          }
-
-          // Remove values for all blocks being deleted
-          blocksToRemove.forEach((blockId) => {
-            delete updatedWorkflowValues[blockId]
-          })
-
-          // Update subblock store
-          useSubBlockStore.setState((state) => ({
-            workflowValues: {
-              ...state.workflowValues,
-              [activeWorkflowId]: updatedWorkflowValues,
-            },
-          }))
+        for (const id of ids) {
+          findAllDescendants(id)
         }
 
-        // Remove all edges connected to any of the blocks being removed
-        newState.edges = newState.edges.filter(
+        const newEdges = currentEdges.filter(
           (edge) => !blocksToRemove.has(edge.source) && !blocksToRemove.has(edge.target)
         )
 
-        // Delete all blocks marked for removal
         blocksToRemove.forEach((blockId) => {
-          delete newState.blocks[blockId]
+          delete newBlocks[blockId]
         })
 
-        set(newState)
-        get().updateLastSaved()
-        // Note: Socket.IO handles real-time sync automatically
-      },
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (activeWorkflowId) {
+          const subBlockStore = useSubBlockStore.getState()
+          if (subBlockStore.workflowValues[activeWorkflowId]) {
+            const updatedWorkflowValues = {
+              ...subBlockStore.workflowValues[activeWorkflowId],
+            }
 
-      addEdge: (edge: Edge) => {
-        // Prevent connections to/from annotation-only blocks (non-executable)
-        const sourceBlock = get().blocks[edge.source]
-        const targetBlock = get().blocks[edge.target]
+            blocksToRemove.forEach((blockId) => {
+              delete updatedWorkflowValues[blockId]
+            })
 
-        if (isAnnotationOnlyBlock(sourceBlock?.type) || isAnnotationOnlyBlock(targetBlock?.type)) {
-          return
+            useSubBlockStore.setState((state) => ({
+              workflowValues: {
+                ...state.workflowValues,
+                [activeWorkflowId]: updatedWorkflowValues,
+              },
+            }))
+          }
         }
 
-        // Prevent self-connections and cycles
-        if (wouldCreateCycle(get().edges, edge.source, edge.target)) {
-          logger.warn('Prevented edge that would create a cycle', {
+        set({
+          blocks: newBlocks,
+          edges: newEdges,
+          loops: generateLoopBlocks(newBlocks),
+          parallels: generateParallelBlocks(newBlocks),
+        })
+
+        get().updateLastSaved()
+      },
+
+      batchToggleEnabled: (ids: string[]) => {
+        const newBlocks = { ...get().blocks }
+        for (const id of ids) {
+          if (newBlocks[id]) {
+            newBlocks[id] = { ...newBlocks[id], enabled: !newBlocks[id].enabled }
+          }
+        }
+        set({ blocks: newBlocks, edges: [...get().edges] })
+        get().updateLastSaved()
+      },
+
+      batchToggleHandles: (ids: string[]) => {
+        const newBlocks = { ...get().blocks }
+        for (const id of ids) {
+          if (newBlocks[id]) {
+            newBlocks[id] = {
+              ...newBlocks[id],
+              horizontalHandles: !newBlocks[id].horizontalHandles,
+            }
+          }
+        }
+        set({ blocks: newBlocks, edges: [...get().edges] })
+        get().updateLastSaved()
+      },
+
+      batchAddEdges: (edges: Edge[]) => {
+        const currentEdges = get().edges
+        const newEdges = [...currentEdges]
+        const existingEdgeIds = new Set(currentEdges.map((e) => e.id))
+        // Track existing connections to prevent duplicates (same source->target)
+        const existingConnections = new Set(currentEdges.map((e) => `${e.source}->${e.target}`))
+
+        for (const edge of edges) {
+          // Skip if edge ID already exists
+          if (existingEdgeIds.has(edge.id)) continue
+
+          // Skip self-referencing edges
+          if (edge.source === edge.target) continue
+
+          // Skip if connection already exists (same source and target)
+          const connectionKey = `${edge.source}->${edge.target}`
+          if (existingConnections.has(connectionKey)) continue
+
+          // Skip if would create a cycle
+          if (wouldCreateCycle([...newEdges], edge.source, edge.target)) continue
+
+          newEdges.push({
+            id: edge.id || crypto.randomUUID(),
             source: edge.source,
             target: edge.target,
+            sourceHandle: edge.sourceHandle,
+            targetHandle: edge.targetHandle,
+            type: edge.type || 'default',
+            data: edge.data || {},
           })
-          return
+          existingEdgeIds.add(edge.id)
+          existingConnections.add(connectionKey)
         }
 
-        // Check for duplicate connections
-        const isDuplicate = get().edges.some(
-          (existingEdge) =>
-            existingEdge.source === edge.source &&
-            existingEdge.target === edge.target &&
-            existingEdge.sourceHandle === edge.sourceHandle &&
-            existingEdge.targetHandle === edge.targetHandle
-        )
-
-        // If it's a duplicate connection, return early without adding the edge
-        if (isDuplicate) {
-          return
-        }
-
-        const newEdge: Edge = {
-          id: edge.id || crypto.randomUUID(),
-          source: edge.source,
-          target: edge.target,
-          sourceHandle: edge.sourceHandle,
-          targetHandle: edge.targetHandle,
-          type: edge.type || 'default',
-          data: edge.data || {},
-        }
-
-        const newEdges = [...get().edges, newEdge]
-
-        const newState = {
-          blocks: { ...get().blocks },
+        const blocks = get().blocks
+        set({
+          blocks: { ...blocks },
           edges: newEdges,
-          loops: generateLoopBlocks(get().blocks),
-          parallels: get().generateParallelBlocks(),
-        }
+          loops: generateLoopBlocks(blocks),
+          parallels: generateParallelBlocks(blocks),
+        })
 
-        set(newState)
         get().updateLastSaved()
       },
 
-      removeEdge: (edgeId: string) => {
-        // Validate the edge exists
-        const edgeToRemove = get().edges.find((edge) => edge.id === edgeId)
-        if (!edgeToRemove) {
-          logger.warn(`Attempted to remove non-existent edge: ${edgeId}`)
-          return
-        }
+      batchRemoveEdges: (ids: string[]) => {
+        const idsSet = new Set(ids)
+        const newEdges = get().edges.filter((e) => !idsSet.has(e.id))
+        const blocks = get().blocks
 
-        const newEdges = get().edges.filter((edge) => edge.id !== edgeId)
-
-        const newState = {
-          blocks: { ...get().blocks },
+        set({
+          blocks: { ...blocks },
           edges: newEdges,
-          loops: generateLoopBlocks(get().blocks),
-          parallels: get().generateParallelBlocks(),
-        }
+          loops: generateLoopBlocks(blocks),
+          parallels: generateParallelBlocks(blocks),
+        })
 
-        set(newState)
         get().updateLastSaved()
       },
 
@@ -505,16 +563,13 @@ export const useWorkflowStore = create<WorkflowStore>()(
           lastSaved: Date.now(),
         }
         set(newState)
-        // Note: Socket.IO handles real-time sync automatically
         return newState
       },
 
       updateLastSaved: () => {
         set({ lastSaved: Date.now() })
-        // Note: Socket.IO handles real-time sync automatically
       },
 
-      // Add method to get current workflow state (eliminates duplication in diff store)
       getWorkflowState: (): WorkflowState => {
         const state = get()
         return {
@@ -523,8 +578,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           loops: state.loops,
           parallels: state.parallels,
           lastSaved: state.lastSaved,
-          isDeployed: state.isDeployed,
-          deployedAt: state.deployedAt,
           deploymentStatuses: state.deploymentStatuses,
           needsRedeployment: state.needsRedeployment,
         }
@@ -551,9 +604,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
             edges: nextEdges,
             loops: nextLoops,
             parallels: nextParallels,
-            isDeployed:
-              workflowState.isDeployed !== undefined ? workflowState.isDeployed : state.isDeployed,
-            deployedAt: workflowState.deployedAt ?? state.deployedAt,
             deploymentStatuses: workflowState.deploymentStatuses || state.deploymentStatuses,
             needsRedeployment:
               workflowState.needsRedeployment !== undefined
@@ -567,13 +617,16 @@ export const useWorkflowStore = create<WorkflowStore>()(
         })
       },
 
-      toggleBlockEnabled: (id: string) => {
+      setBlockEnabled: (id: string, enabled: boolean) => {
+        const block = get().blocks[id]
+        if (!block || block.enabled === enabled) return
+
         const newState = {
           blocks: {
             ...get().blocks,
             [id]: {
-              ...get().blocks[id],
-              enabled: !get().blocks[id].enabled,
+              ...block,
+              enabled,
             },
           },
           edges: [...get().edges],
@@ -583,7 +636,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         set(newState)
         get().updateLastSaved()
-        // Note: Socket.IO handles real-time sync automatically
       },
 
       duplicateBlock: (id: string) => {
@@ -598,10 +650,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         const newName = getUniqueBlockName(block.name, get().blocks)
 
-        // Get merged state to capture current subblock values
         const mergedBlock = mergeSubblockState(get().blocks, id)[id]
 
-        // Create new subblocks with merged values
         const newSubBlocks = Object.entries(mergedBlock.subBlocks).reduce(
           (acc, [subId, subBlock]) => ({
             ...acc,
@@ -629,7 +679,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           parallels: get().generateParallelBlocks(),
         }
 
-        // Update the subblock store with the duplicated values
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
         if (activeWorkflowId) {
           const subBlockValues =
@@ -647,16 +696,18 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         set(newState)
         get().updateLastSaved()
-        // Note: Socket.IO handles real-time sync automatically
       },
 
-      toggleBlockHandles: (id: string) => {
+      setBlockHandles: (id: string, horizontalHandles: boolean) => {
+        const block = get().blocks[id]
+        if (!block || block.horizontalHandles === horizontalHandles) return
+
         const newState = {
           blocks: {
             ...get().blocks,
             [id]: {
-              ...get().blocks[id],
-              horizontalHandles: !get().blocks[id].horizontalHandles,
+              ...block,
+              horizontalHandles,
             },
           },
           edges: [...get().edges],
@@ -665,7 +716,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         set(newState)
         get().updateLastSaved()
-        // Note: Socket.IO handles real-time sync automatically
       },
 
       updateBlockName: (id: string, name: string) => {
@@ -691,7 +741,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           return { success: false, changedSubblocks: [] }
         }
 
-        // Create a new state with the updated block name
         const newState = {
           blocks: {
             ...get().blocks,
@@ -1019,7 +1068,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           edges: deployedState.edges,
           loops: deployedState.loops || {},
           parallels: deployedState.parallels || {},
-          isDeployed: true,
           needsRedeployment: false,
           // Keep existing deployment statuses and update for the active workflow if needed
           deploymentStatuses: {

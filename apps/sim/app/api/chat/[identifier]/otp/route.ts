@@ -7,10 +7,11 @@ import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { renderOTPEmail } from '@/components/emails'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { addCorsHeaders } from '@/lib/core/security/deployment'
 import { getStorageMethod } from '@/lib/core/storage'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { sendEmail } from '@/lib/messaging/email/mailer'
-import { addCorsHeaders, setChatAuthCookie } from '@/app/api/chat/utils'
+import { setChatAuthCookie } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatOtpAPI')

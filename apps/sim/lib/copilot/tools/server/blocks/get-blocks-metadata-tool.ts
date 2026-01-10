@@ -9,6 +9,7 @@ import {
 import { registry as blockRegistry } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { getUserPermissionConfig } from '@/executor/utils/permission-check'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { tools as toolsRegistry } from '@/tools/registry'
 import { getTrigger, isTriggerValid } from '@/triggers'
@@ -105,16 +106,23 @@ export const getBlocksMetadataServerTool: BaseServerTool<
   ReturnType<typeof GetBlocksMetadataResult.parse>
 > = {
   name: 'get_blocks_metadata',
-  async execute({
-    blockIds,
-  }: ReturnType<typeof GetBlocksMetadataInput.parse>): Promise<
-    ReturnType<typeof GetBlocksMetadataResult.parse>
-  > {
+  async execute(
+    { blockIds }: ReturnType<typeof GetBlocksMetadataInput.parse>,
+    context?: { userId: string }
+  ): Promise<ReturnType<typeof GetBlocksMetadataResult.parse>> {
     const logger = createLogger('GetBlocksMetadataServerTool')
     logger.debug('Executing get_blocks_metadata', { count: blockIds?.length })
 
+    const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
+    const allowedIntegrations = permissionConfig?.allowedIntegrations
+
     const result: Record<string, CopilotBlockMetadata> = {}
     for (const blockId of blockIds || []) {
+      if (allowedIntegrations !== null && !allowedIntegrations?.includes(blockId)) {
+        logger.debug('Block not allowed by permission group', { blockId })
+        continue
+      }
+
       let metadata: any
 
       if (SPECIAL_BLOCKS_METADATA[blockId]) {
@@ -720,7 +728,7 @@ function callOptionsWithFallback(
   try {
     // Try to get the providers store module
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    store = require('@/stores/providers/store')
+    store = require('@/stores/providers')
     if (store?.useProvidersStore?.getState) {
       originalGetState = store.useProvidersStore.getState
       // Temporarily replace getState with our mock

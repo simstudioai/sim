@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
-import type { EnvironmentVariable } from '@/stores/settings/environment/types'
+import type { EnvironmentVariable } from '@/stores/settings/environment'
 
 const logger = createLogger('EnvironmentAPI')
 

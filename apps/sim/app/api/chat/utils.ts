@@ -1,17 +1,25 @@
-import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { chat, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
-import { isDev } from '@/lib/core/config/feature-flags'
+import {
+  isEmailAllowed,
+  setDeploymentAuthCookie,
+  validateAuthToken,
+} from '@/lib/core/security/deployment'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { hasAdminPermission } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('ChatAuthUtils')
 
-function hashPassword(encryptedPassword: string): string {
-  return createHash('sha256').update(encryptedPassword).digest('hex').substring(0, 8)
+export function setChatAuthCookie(
+  response: NextResponse,
+  chatId: string,
+  type: string,
+  encryptedPassword?: string | null
+): void {
+  setDeploymentAuthCookie(response, 'chat', chatId, type, encryptedPassword)
 }
 
 /**
@@ -80,77 +88,6 @@ export async function checkChatAccess(
   }
 
   return { hasAccess: false }
-}
-
-function encryptAuthToken(chatId: string, type: string, encryptedPassword?: string | null): string {
-  const pwHash = encryptedPassword ? hashPassword(encryptedPassword) : ''
-  return Buffer.from(`${chatId}:${type}:${Date.now()}:${pwHash}`).toString('base64')
-}
-
-export function validateAuthToken(
-  token: string,
-  chatId: string,
-  encryptedPassword?: string | null
-): boolean {
-  try {
-    const decoded = Buffer.from(token, 'base64').toString()
-    const parts = decoded.split(':')
-    const [storedId, _type, timestamp, storedPwHash] = parts
-
-    if (storedId !== chatId) {
-      return false
-    }
-
-    const createdAt = Number.parseInt(timestamp)
-    const now = Date.now()
-    const expireTime = 24 * 60 * 60 * 1000
-
-    if (now - createdAt > expireTime) {
-      return false
-    }
-
-    if (encryptedPassword) {
-      const currentPwHash = hashPassword(encryptedPassword)
-      if (storedPwHash !== currentPwHash) {
-        return false
-      }
-    }
-
-    return true
-  } catch (_e) {
-    return false
-  }
-}
-
-export function setChatAuthCookie(
-  response: NextResponse,
-  chatId: string,
-  type: string,
-  encryptedPassword?: string | null
-): void {
-  const token = encryptAuthToken(chatId, type, encryptedPassword)
-  response.cookies.set({
-    name: `chat_auth_${chatId}`,
-    value: token,
-    httpOnly: true,
-    secure: !isDev,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 60 * 60 * 24,
-  })
-}
-
-export function addCorsHeaders(response: NextResponse, request: NextRequest) {
-  const origin = request.headers.get('origin') || ''
-
-  if (isDev && origin.includes('localhost')) {
-    response.headers.set('Access-Control-Allow-Origin', origin)
-    response.headers.set('Access-Control-Allow-Credentials', 'true')
-    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With')
-  }
-
-  return response
 }
 
 export async function validateChatAuth(
@@ -231,12 +168,7 @@ export async function validateChatAuth(
 
       const allowedEmails = deployment.allowedEmails || []
 
-      if (allowedEmails.includes(email)) {
-        return { authorized: false, error: 'otp_required' }
-      }
-
-      const domain = email.split('@')[1]
-      if (domain && allowedEmails.some((allowed: string) => allowed === `@${domain}`)) {
+      if (isEmailAllowed(email, allowedEmails)) {
         return { authorized: false, error: 'otp_required' }
       }
 
@@ -270,12 +202,7 @@ export async function validateChatAuth(
 
         const allowedEmails = deployment.allowedEmails || []
 
-        if (allowedEmails.includes(email)) {
-          return { authorized: true }
-        }
-
-        const domain = email.split('@')[1]
-        if (domain && allowedEmails.some((allowed: string) => allowed === `@${domain}`)) {
+        if (isEmailAllowed(email, allowedEmails)) {
           return { authorized: true }
         }
 
@@ -296,12 +223,7 @@ export async function validateChatAuth(
 
       const allowedEmails = deployment.allowedEmails || []
 
-      if (allowedEmails.includes(userEmail)) {
-        return { authorized: true }
-      }
-
-      const domain = userEmail.split('@')[1]
-      if (domain && allowedEmails.some((allowed: string) => allowed === `@${domain}`)) {
+      if (isEmailAllowed(userEmail, allowedEmails)) {
         return { authorized: true }
       }
 

@@ -3,46 +3,56 @@ import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  BLOCK_OPERATIONS,
+  BLOCKS_OPERATIONS,
+  EDGE_OPERATIONS,
+  EDGES_OPERATIONS,
+  SUBFLOW_OPERATIONS,
+  WORKFLOW_OPERATIONS,
+} from '@/socket/constants'
 
 const logger = createLogger('SocketPermissions')
 
+// All write operations (admin and write roles have same permissions)
+const WRITE_OPERATIONS: string[] = [
+  // Block operations
+  BLOCK_OPERATIONS.UPDATE_POSITION,
+  BLOCK_OPERATIONS.UPDATE_NAME,
+  BLOCK_OPERATIONS.TOGGLE_ENABLED,
+  BLOCK_OPERATIONS.UPDATE_PARENT,
+  BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE,
+  BLOCK_OPERATIONS.TOGGLE_HANDLES,
+  // Batch block operations
+  BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS,
+  BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS,
+  BLOCKS_OPERATIONS.BATCH_REMOVE_BLOCKS,
+  BLOCKS_OPERATIONS.BATCH_TOGGLE_ENABLED,
+  BLOCKS_OPERATIONS.BATCH_TOGGLE_HANDLES,
+  BLOCKS_OPERATIONS.BATCH_UPDATE_PARENT,
+  // Edge operations
+  EDGE_OPERATIONS.ADD,
+  EDGE_OPERATIONS.REMOVE,
+  // Batch edge operations
+  EDGES_OPERATIONS.BATCH_ADD_EDGES,
+  EDGES_OPERATIONS.BATCH_REMOVE_EDGES,
+  // Subflow operations
+  SUBFLOW_OPERATIONS.UPDATE,
+  // Workflow operations
+  WORKFLOW_OPERATIONS.REPLACE_STATE,
+]
+
+// Read role can only update positions (for cursor sync, etc.)
+const READ_OPERATIONS: string[] = [
+  BLOCK_OPERATIONS.UPDATE_POSITION,
+  BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS,
+]
+
 // Define operation permissions based on role
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  admin: [
-    'add',
-    'remove',
-    'update',
-    'update-position',
-    'batch-update-positions',
-    'batch-add-blocks',
-    'batch-remove-blocks',
-    'update-name',
-    'toggle-enabled',
-    'update-parent',
-    'update-wide',
-    'update-advanced-mode',
-    'update-trigger-mode',
-    'toggle-handles',
-    'replace-state',
-  ],
-  write: [
-    'add',
-    'remove',
-    'update',
-    'update-position',
-    'batch-update-positions',
-    'batch-add-blocks',
-    'batch-remove-blocks',
-    'update-name',
-    'toggle-enabled',
-    'update-parent',
-    'update-wide',
-    'update-advanced-mode',
-    'update-trigger-mode',
-    'toggle-handles',
-    'replace-state',
-  ],
-  read: ['update-position', 'batch-update-positions'],
+  admin: WRITE_OPERATIONS,
+  write: WRITE_OPERATIONS,
+  read: READ_OPERATIONS,
 }
 
 // Check if a role allows a specific operation (no DB query, pure logic)

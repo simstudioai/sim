@@ -1,5 +1,8 @@
 import type { BlockState, Position } from '@/stores/workflows/workflow/types'
 
+export type { Edge } from 'reactflow'
+export type { Loop, Parallel } from '@/stores/workflows/workflow/types'
+
 export interface LayoutOptions {
   horizontalSpacing?: number
   verticalSpacing?: number
@@ -10,30 +13,6 @@ export interface LayoutResult {
   blocks: Record<string, BlockState>
   success: boolean
   error?: string
-}
-
-export interface Edge {
-  id: string
-  source: string
-  target: string
-  sourceHandle?: string | null
-  targetHandle?: string | null
-}
-
-export interface Loop {
-  id: string
-  nodes: string[]
-  iterations: number
-  loopType: 'for' | 'forEach' | 'while' | 'doWhile'
-  forEachItems?: any[] | Record<string, any> | string // Items or expression
-  whileCondition?: string // JS expression that evaluates to boolean
-}
-
-export interface Parallel {
-  id: string
-  nodes: string[]
-  count?: number
-  parallelType?: 'count' | 'collection'
 }
 
 export interface BlockMetrics {

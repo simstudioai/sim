@@ -4,8 +4,8 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/core/config/env'
+import { validateAuthToken } from '@/lib/core/security/deployment'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
-import { validateAuthToken } from '@/app/api/chat/utils'
 
 const logger = createLogger('ProxyTTSStreamAPI')
 

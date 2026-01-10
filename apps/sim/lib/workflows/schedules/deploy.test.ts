@@ -3,6 +3,7 @@
  *
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -41,14 +42,7 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((...args) => ({ type: 'eq', args })),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  })),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('./utils', async (importOriginal) => {
   const original = await importOriginal<typeof import('./utils')>()

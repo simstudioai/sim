@@ -13,6 +13,7 @@ import {
   createLoopWorkflow,
   createParallelWorkflow,
   createStarterBlock,
+  loggerMock,
   WorkflowBuilder,
 } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
@@ -217,14 +218,7 @@ vi.mock('@/tools/utils', () => ({
   getTool: () => null,
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    error: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 describe('Serializer Extended Tests', () => {
   describe('WorkflowValidationError', () => {

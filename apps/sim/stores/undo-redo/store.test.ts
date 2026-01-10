@@ -13,11 +13,11 @@
 import {
   createAddBlockEntry,
   createAddEdgeEntry,
+  createBatchRemoveEdgesEntry,
   createBlock,
   createMockStorage,
   createMoveBlockEntry,
   createRemoveBlockEntry,
-  createRemoveEdgeEntry,
   createUpdateParentEntry,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -596,23 +596,24 @@ describe('useUndoRedoStore', () => {
       expect(getStackSizes(workflowId, userId).undoSize).toBe(2)
 
       const entry = undo(workflowId, userId)
-      expect(entry?.operation.type).toBe('add-edge')
+      expect(entry?.operation.type).toBe('batch-add-edges')
       expect(getStackSizes(workflowId, userId).redoSize).toBe(1)
 
       redo(workflowId, userId)
       expect(getStackSizes(workflowId, userId).undoSize).toBe(2)
     })
 
-    it('should handle remove-edge operations', () => {
+    it('should handle batch-remove-edges operations', () => {
       const { push, undo, getStackSizes } = useUndoRedoStore.getState()
 
-      push(workflowId, userId, createRemoveEdgeEntry('edge-1', null, { workflowId, userId }))
+      const edgeSnapshot = { id: 'edge-1', source: 'block-1', target: 'block-2' }
+      push(workflowId, userId, createBatchRemoveEdgesEntry([edgeSnapshot], { workflowId, userId }))
 
       expect(getStackSizes(workflowId, userId).undoSize).toBe(1)
 
       const entry = undo(workflowId, userId)
-      expect(entry?.operation.type).toBe('remove-edge')
-      expect(entry?.inverse.type).toBe('add-edge')
+      expect(entry?.operation.type).toBe('batch-remove-edges')
+      expect(entry?.inverse.type).toBe('batch-add-edges')
     })
   })
 
@@ -672,8 +673,10 @@ describe('useUndoRedoStore', () => {
     it('should remove entries for non-existent edges', () => {
       const { push, pruneInvalidEntries, getStackSizes } = useUndoRedoStore.getState()
 
-      push(workflowId, userId, createRemoveEdgeEntry('edge-1', null, { workflowId, userId }))
-      push(workflowId, userId, createRemoveEdgeEntry('edge-2', null, { workflowId, userId }))
+      const edge1 = { id: 'edge-1', source: 'a', target: 'b' }
+      const edge2 = { id: 'edge-2', source: 'c', target: 'd' }
+      push(workflowId, userId, createBatchRemoveEdgesEntry([edge1], { workflowId, userId }))
+      push(workflowId, userId, createBatchRemoveEdgesEntry([edge2], { workflowId, userId }))
 
       expect(getStackSizes(workflowId, userId).undoSize).toBe(2)
 
@@ -686,6 +689,8 @@ describe('useUndoRedoStore', () => {
 
       pruneInvalidEntries(workflowId, userId, graph as any)
 
+      // edge-1 exists in graph, so we can't undo its removal (can't add it back) → pruned
+      // edge-2 doesn't exist, so we can undo its removal (can add it back) → kept
       expect(getStackSizes(workflowId, userId).undoSize).toBe(1)
     })
   })
@@ -751,7 +756,7 @@ describe('useUndoRedoStore', () => {
       expect(getStackSizes(workflowId, userId).undoSize).toBe(3)
 
       const moveEntry = undo(workflowId, userId)
-      expect(moveEntry?.operation.type).toBe('move-block')
+      expect(moveEntry?.operation.type).toBe('batch-move-blocks')
 
       const parentEntry = undo(workflowId, userId)
       expect(parentEntry?.operation.type).toBe('update-parent')

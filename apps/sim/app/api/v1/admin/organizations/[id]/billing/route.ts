@@ -16,10 +16,11 @@
  */
 
 import { db } from '@sim/db'
-import { organization } from '@sim/db/schema'
+import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { count, eq } from 'drizzle-orm'
 import { getOrganizationBillingData } from '@/lib/billing/core/organization'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -39,6 +40,42 @@ export const GET = withAdminAuthParams<RouteParams>(async (_, context) => {
   const { id: organizationId } = await context.params
 
   try {
+    if (!isBillingEnabled) {
+      const [[orgData], [memberCount]] = await Promise.all([
+        db.select().from(organization).where(eq(organization.id, organizationId)).limit(1),
+        db.select({ count: count() }).from(member).where(eq(member.organizationId, organizationId)),
+      ])
+
+      if (!orgData) {
+        return notFoundResponse('Organization')
+      }
+
+      const data: AdminOrganizationBillingSummary = {
+        organizationId: orgData.id,
+        organizationName: orgData.name,
+        subscriptionPlan: 'none',
+        subscriptionStatus: 'none',
+        totalSeats: Number.MAX_SAFE_INTEGER,
+        usedSeats: memberCount?.count || 0,
+        availableSeats: Number.MAX_SAFE_INTEGER,
+        totalCurrentUsage: 0,
+        totalUsageLimit: Number.MAX_SAFE_INTEGER,
+        minimumBillingAmount: 0,
+        averageUsagePerMember: 0,
+        usagePercentage: 0,
+        billingPeriodStart: null,
+        billingPeriodEnd: null,
+        membersOverLimit: 0,
+        membersNearLimit: 0,
+      }
+
+      logger.info(
+        `Admin API: Retrieved billing summary for organization ${organizationId} (billing disabled)`
+      )
+
+      return singleResponse(data)
+    }
+
     const billingData = await getOrganizationBillingData(organizationId)
 
     if (!billingData) {

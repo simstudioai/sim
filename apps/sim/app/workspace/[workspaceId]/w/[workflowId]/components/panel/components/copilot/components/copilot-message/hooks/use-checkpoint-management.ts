@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
-import type { CopilotMessage } from '@/stores/panel/copilot/types'
+import type { CopilotMessage } from '@/stores/panel'
+import { useCopilotStore } from '@/stores/panel'
 
 const logger = createLogger('useCheckpointManagement')
 

@@ -112,7 +112,7 @@ export function EmailFooter({ baseUrl = getBaseUrl(), unsubscribe, messageId }: 
               </td>
               <td style={baseStyles.footerText}>
                 {brand.name}
-                {isHosted && <>, 80 Langton St, San Francisco, CA 94133, USA</>}
+                {isHosted && <>, 80 Langton St, San Francisco, CA 94103, USA</>}
               </td>
               <td style={baseStyles.gutter} width={spacing.gutter}>
                 &nbsp;
