@@ -309,7 +309,7 @@ export const getBlockConfigServerTool: BaseServerTool<
     const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
     const allowedIntegrations = permissionConfig?.allowedIntegrations
 
-    if (allowedIntegrations !== null && !allowedIntegrations?.includes(blockType)) {
+    if (allowedIntegrations != null && !allowedIntegrations.includes(blockType)) {
       throw new Error(`Block "${blockType}" is not available`)
     }
 
