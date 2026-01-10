@@ -1,46 +1,40 @@
 import type { SVGProps } from 'react'
 
-/**
- * ZoomIn icon component
- * @param props - SVG properties including className, fill, etc.
- */
-export function ZoomIn(props: SVGProps<SVGSVGElement>) {
+export function Expand(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      width='12'
-      height='12'
-      viewBox='0 0 12 12'
+      width='24'
+      height='24'
+      viewBox='0 0 24 24'
       fill='none'
       xmlns='http://www.w3.org/2000/svg'
       {...props}
     >
-      <circle
-        cx='5'
-        cy='5'
-        r='3.5'
+      <path
+        d='M15 3H21V9'
         stroke='currentColor'
-        strokeWidth='1'
+        strokeWidth='2'
         strokeLinecap='round'
         strokeLinejoin='round'
       />
       <path
-        d='M5 3.5V6.5'
+        d='M9 21H3V15'
         stroke='currentColor'
-        strokeWidth='1'
+        strokeWidth='2'
         strokeLinecap='round'
         strokeLinejoin='round'
       />
       <path
-        d='M3.5 5H6.5'
+        d='M21 3L14 10'
         stroke='currentColor'
-        strokeWidth='1'
+        strokeWidth='2'
         strokeLinecap='round'
         strokeLinejoin='round'
       />
       <path
-        d='M7.5 7.5L10.5 10.5'
+        d='M3 21L10 14'
         stroke='currentColor'
-        strokeWidth='1'
+        strokeWidth='2'
         strokeLinecap='round'
         strokeLinejoin='round'
       />

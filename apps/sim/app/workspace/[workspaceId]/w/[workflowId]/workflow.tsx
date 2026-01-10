@@ -24,6 +24,7 @@ import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/b
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
+  ActionBar,
   CommandList,
   DiffControls,
   Notifications,
@@ -66,6 +67,7 @@ import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
+import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 import { useExecutionStore } from '@/stores/execution'
@@ -213,6 +215,8 @@ const WorkflowContent = React.memo(() => {
   const [isShiftPressed, setIsShiftPressed] = useState(false)
   const [isSelectionDragActive, setIsSelectionDragActive] = useState(false)
   const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
+  const canvasMode = useCanvasModeStore((state) => state.mode)
+  const isHandMode = canvasMode === 'hand'
   const [oauthModal, setOauthModal] = useState<{
     provider: OAuthProvider
     serviceId: string
@@ -3367,9 +3371,9 @@ const WorkflowContent = React.memo(() => {
               onPointerMove={handleCanvasPointerMove}
               onPointerLeave={handleCanvasPointerLeave}
               elementsSelectable={true}
-              selectionOnDrag={isShiftPressed || isSelectionDragActive}
+              selectionOnDrag={!isHandMode || isSelectionDragActive}
               selectionMode={SelectionMode.Partial}
-              panOnDrag={isShiftPressed || isSelectionDragActive ? false : [0, 1]}
+              panOnDrag={isHandMode ? [0, 1] : false}
               onSelectionStart={onSelectionStart}
               onSelectionEnd={onSelectionEnd}
               multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
@@ -3397,6 +3401,8 @@ const WorkflowContent = React.memo(() => {
             />
 
             <Cursors />
+
+            <ActionBar />
 
             <Suspense fallback={null}>
               <LazyChat />
