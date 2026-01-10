@@ -74,7 +74,7 @@ export function useScrollManagement(
     const { scrollTop, scrollHeight, clientHeight } = scrollContainer
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight
 
-    const nearBottom = distanceFromBottom <= 100
+    const nearBottom = distanceFromBottom <= 80
     setIsNearBottom(nearBottom)
 
     if (isSendingMessage) {
@@ -174,7 +174,7 @@ export function useScrollManagement(
 
       const { scrollTop, scrollHeight, clientHeight } = scrollContainer
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-      const nearBottom = distanceFromBottom <= 120
+      const nearBottom = distanceFromBottom <= 80
       if (nearBottom) {
         scrollToBottom()
       }
