@@ -76,6 +76,18 @@ export async function POST(req: NextRequest) {
     }
 
     const { chatId, messages, planArtifact, config } = UpdateMessagesSchema.parse(body)
+    
+    // Debug: Log what we're about to save
+    const lastMsgParsed = messages[messages.length - 1]
+    if (lastMsgParsed?.role === 'assistant') {
+      logger.info(`[${tracker.requestId}] Parsed messages to save`, {
+        messageCount: messages.length,
+        lastMsgId: lastMsgParsed.id,
+        lastMsgContentLength: lastMsgParsed.content?.length || 0,
+        lastMsgContentBlockCount: lastMsgParsed.contentBlocks?.length || 0,
+        lastMsgContentBlockTypes: lastMsgParsed.contentBlocks?.map((b: any) => b?.type) || [],
+      })
+    }
 
     // Verify that the chat belongs to the user
     const [chat] = await db

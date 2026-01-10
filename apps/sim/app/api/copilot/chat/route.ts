@@ -802,49 +802,26 @@ export async function POST(req: NextRequest) {
               toolNames: toolCalls.map((tc) => tc?.name).filter(Boolean),
             })
 
-            // Save messages to database after streaming completes (including aborted messages)
+            // NOTE: Messages are saved by the client via update-messages endpoint with full contentBlocks.
+            // Server only updates conversationId here to avoid overwriting client's richer save.
             if (currentChat) {
-              const updatedMessages = [...conversationHistory, userMessage]
-
-              // Save assistant message if there's any content or tool calls (even partial from abort)
-              if (assistantContent.trim() || toolCalls.length > 0) {
-                const assistantMessage = {
-                  id: crypto.randomUUID(),
-                  role: 'assistant',
-                  content: assistantContent,
-                  timestamp: new Date().toISOString(),
-                  ...(toolCalls.length > 0 && { toolCalls }),
-                }
-                updatedMessages.push(assistantMessage)
-                logger.info(
-                  `[${tracker.requestId}] Saving assistant message with content (${assistantContent.length} chars) and ${toolCalls.length} tool calls`
-                )
-              } else {
-                logger.info(
-                  `[${tracker.requestId}] No assistant content or tool calls to save (aborted before response)`
-                )
-              }
-
               // Persist only a safe conversationId to avoid continuing from a state that expects tool outputs
               const previousConversationId = currentChat?.conversationId as string | undefined
               const responseId = lastSafeDoneResponseId || previousConversationId || undefined
 
-              // Update chat in database immediately (without title)
-              await db
-                .update(copilotChats)
-                .set({
-                  messages: updatedMessages,
-                  updatedAt: new Date(),
-                  ...(responseId ? { conversationId: responseId } : {}),
-                })
-                .where(eq(copilotChats.id, actualChatId!))
+              if (responseId) {
+                await db
+                  .update(copilotChats)
+                  .set({
+                    updatedAt: new Date(),
+                    conversationId: responseId,
+                  })
+                  .where(eq(copilotChats.id, actualChatId!))
 
-              logger.info(`[${tracker.requestId}] Updated chat ${actualChatId} with new messages`, {
-                messageCount: updatedMessages.length,
-                savedUserMessage: true,
-                savedAssistantMessage: assistantContent.trim().length > 0,
-                updatedConversationId: responseId || null,
-              })
+                logger.info(`[${tracker.requestId}] Updated conversationId for chat ${actualChatId}`, {
+                  updatedConversationId: responseId,
+                })
+              }
             }
           } catch (error) {
             logger.error(`[${tracker.requestId}] Error processing stream:`, error)
