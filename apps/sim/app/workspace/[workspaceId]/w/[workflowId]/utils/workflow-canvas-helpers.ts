@@ -47,8 +47,7 @@ export function validateTriggerPaste(
 
     const singleInstanceIssue = TriggerUtils.getSingleInstanceBlockIssue(existingBlocks, block.type)
     if (singleInstanceIssue) {
-      const actionText = action === 'paste' ? 'paste' : 'duplicate'
-      const message = `A workflow can only have one ${singleInstanceIssue.blockName} block. ${action === 'paste' ? 'Please remove the existing one before pasting.' : `Cannot ${actionText}.`}`
+      const message = `A workflow can only have one ${singleInstanceIssue.blockName} block. ${action === 'paste' ? 'Please remove the existing one before pasting.' : 'Cannot duplicate.'}`
       return { isValid: false, message }
     }
   }
