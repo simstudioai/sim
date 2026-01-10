@@ -433,6 +433,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             )
           }
 
+          // Background operations (fire-and-forget) - don't block
           if (triggerMessageId) {
             fetch('/api/copilot/stats', {
               method: 'POST',
@@ -445,14 +446,13 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             }).catch(() => {})
           }
 
-          const toolCallId = await findLatestEditWorkflowToolCallId()
-          if (toolCallId) {
-            try {
-              await getClientTool(toolCallId)?.handleAccept?.()
-            } catch (error) {
-              logger.warn('Failed to notify tool accept state', { error })
+          findLatestEditWorkflowToolCallId().then((toolCallId) => {
+            if (toolCallId) {
+              getClientTool(toolCallId)?.handleAccept?.()?.catch?.((error: Error) => {
+                logger.warn('Failed to notify tool accept state', { error })
+              })
             }
-          }
+          })
         },
 
         rejectChanges: async () => {
@@ -487,27 +487,26 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           })
           const afterReject = cloneWorkflowState(baselineWorkflow)
 
+          // Clear diff state FIRST for instant UI feedback
+          set({
+            hasActiveDiff: false,
+            isShowingDiff: false,
+            isDiffReady: false,
+            baselineWorkflow: null,
+            baselineWorkflowId: null,
+            diffAnalysis: null,
+            diffMetadata: null,
+            diffError: null,
+            _triggerMessageId: null,
+          })
+
+          // Clear the diff engine
+          diffEngine.clearDiff()
+
           // Apply baseline state locally
           applyWorkflowStateToStores(baselineWorkflowId, baselineWorkflow)
 
-          // Broadcast to other users
-          logger.info('Broadcasting reject to other users', {
-            workflowId: activeWorkflowId,
-            blockCount: Object.keys(baselineWorkflow.blocks).length,
-          })
-
-          await enqueueReplaceWorkflowState({
-            workflowId: activeWorkflowId,
-            state: baselineWorkflow,
-          })
-
-          // Persist to database
-          const persisted = await persistWorkflowStateToServer(baselineWorkflowId, baselineWorkflow)
-          if (!persisted) {
-            throw new Error('Failed to restore baseline workflow state')
-          }
-
-          // Emit event for undo/redo recording
+          // Emit event for undo/redo recording synchronously
           if (!(window as any).__skipDiffRecording) {
             window.dispatchEvent(
               new CustomEvent('record-diff-operation', {
@@ -522,6 +521,25 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             )
           }
 
+          // Background operations (fire-and-forget) - don't block UI
+          // Broadcast to other users
+          logger.info('Broadcasting reject to other users', {
+            workflowId: activeWorkflowId,
+            blockCount: Object.keys(baselineWorkflow.blocks).length,
+          })
+
+          enqueueReplaceWorkflowState({
+            workflowId: activeWorkflowId,
+            state: baselineWorkflow,
+          }).catch((error) => {
+            logger.error('Failed to broadcast reject to other users:', error)
+          })
+
+          // Persist to database in background
+          persistWorkflowStateToServer(baselineWorkflowId, baselineWorkflow).catch((error) => {
+            logger.error('Failed to persist baseline workflow state:', error)
+          })
+
           if (_triggerMessageId) {
             fetch('/api/copilot/stats', {
               method: 'POST',
@@ -534,16 +552,13 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             }).catch(() => {})
           }
 
-          const toolCallId = await findLatestEditWorkflowToolCallId()
-          if (toolCallId) {
-            try {
-              await getClientTool(toolCallId)?.handleReject?.()
-            } catch (error) {
-              logger.warn('Failed to notify tool reject state', { error })
+          findLatestEditWorkflowToolCallId().then((toolCallId) => {
+            if (toolCallId) {
+              getClientTool(toolCallId)?.handleReject?.()?.catch?.((error: Error) => {
+                logger.warn('Failed to notify tool reject state', { error })
+              })
             }
-          }
-
-          get().clearDiff({ restoreBaseline: false })
+          })
         },
 
         reapplyDiffMarkers: () => {

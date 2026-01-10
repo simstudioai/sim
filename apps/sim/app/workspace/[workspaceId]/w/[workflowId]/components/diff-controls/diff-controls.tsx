@@ -206,54 +206,47 @@ export const DiffControls = memo(function DiffControls() {
     }
   }, [activeWorkflowId, currentChat, messages, baselineWorkflow])
 
-  const handleAccept = useCallback(async () => {
+  const handleAccept = useCallback(() => {
     logger.info('Accepting proposed changes with backup protection')
 
+    // Resolve target toolCallId for build/edit and update to terminal success state in the copilot store
+    // This happens synchronously first for instant UI feedback
     try {
-      // Create a checkpoint before applying changes so it appears under the triggering user message
-      await createCheckpoint().catch((error) => {
-        logger.warn('Failed to create checkpoint before accept:', error)
-      })
-
-      // Resolve target toolCallId for build/edit and update to terminal success state in the copilot store
-      try {
-        const { toolCallsById, messages } = useCopilotStore.getState()
-        let id: string | undefined
-        outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
-          const m = messages[mi]
-          if (m.role !== 'assistant' || !m.contentBlocks) continue
-          const blocks = m.contentBlocks as any[]
-          for (let bi = blocks.length - 1; bi >= 0; bi--) {
-            const b = blocks[bi]
-            if (b?.type === 'tool_call') {
-              const tn = b.toolCall?.name
-              if (tn === 'edit_workflow') {
-                id = b.toolCall?.id
-                break outer
-              }
+      const { toolCallsById, messages } = useCopilotStore.getState()
+      let id: string | undefined
+      outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
+        const m = messages[mi]
+        if (m.role !== 'assistant' || !m.contentBlocks) continue
+        const blocks = m.contentBlocks as any[]
+        for (let bi = blocks.length - 1; bi >= 0; bi--) {
+          const b = blocks[bi]
+          if (b?.type === 'tool_call') {
+            const tn = b.toolCall?.name
+            if (tn === 'edit_workflow') {
+              id = b.toolCall?.id
+              break outer
             }
           }
         }
-        if (!id) {
-          const candidates = Object.values(toolCallsById).filter((t) => t.name === 'edit_workflow')
-          id = candidates.length ? candidates[candidates.length - 1].id : undefined
-        }
-        if (id) updatePreviewToolCallState('accepted', id)
-      } catch {}
+      }
+      if (!id) {
+        const candidates = Object.values(toolCallsById).filter((t) => t.name === 'edit_workflow')
+        id = candidates.length ? candidates[candidates.length - 1].id : undefined
+      }
+      if (id) updatePreviewToolCallState('accepted', id)
+    } catch {}
 
-      // Accept changes without blocking the UI; errors will be logged by the store handler
-      acceptChanges().catch((error) => {
-        logger.error('Failed to accept changes (background):', error)
-      })
+    // Accept changes without blocking the UI; errors will be logged by the store handler
+    acceptChanges().catch((error) => {
+      logger.error('Failed to accept changes (background):', error)
+    })
 
-      logger.info('Accept triggered; UI will update optimistically')
-    } catch (error) {
-      logger.error('Failed to accept changes:', error)
+    // Create checkpoint in the background (fire-and-forget) so it doesn't block UI
+    createCheckpoint().catch((error) => {
+      logger.warn('Failed to create checkpoint after accept:', error)
+    })
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      logger.error('Workflow update failed:', errorMessage)
-      alert(`Failed to save workflow changes: ${errorMessage}`)
-    }
+    logger.info('Accept triggered; UI will update optimistically')
   }, [createCheckpoint, updatePreviewToolCallState, acceptChanges])
 
   const handleReject = useCallback(() => {
