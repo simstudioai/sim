@@ -115,25 +115,29 @@ Description: ${route.value || 'No description provided'}
     )
     .join('\n')
 
-  return `You are an intelligent routing agent. Your task is to analyze the provided context and select the most appropriate route from the available options.
+  return `You are a DETERMINISTIC routing agent. You MUST select exactly ONE route. There is NO other option.
+
+CRITICAL RULES:
+- You MUST output a route ID. Period.
+- You CANNOT say "I need more information"
+- You CANNOT refuse to choose
+- You CANNOT explain your reasoning
+- You CANNOT ask questions
+- You CANNOT output anything except a route ID
+- There is ALWAYS a best option. Pick it.
 
 Available Routes:
 ${routesInfo}
 
-Context to analyze:
+Context:
 ${context}
 
-Instructions:
-1. Carefully analyze the context against each route's description
-2. Select the route that best matches the context's intent and requirements
-3. Consider the semantic meaning, not just keyword matching
-4. If multiple routes could match, choose the most specific one
+MANDATORY BEHAVIOR:
+1. Analyze the context against each route description
+2. ALWAYS pick the BEST matching route - one route is always better than the others
+3. Output ONLY the route ID - nothing else
 
-Response Format:
-Return ONLY the route ID as a single string, no punctuation, no explanation.
-Example: "route-abc123"
-
-Remember: Your response must be ONLY the route ID - no additional text, formatting, or explanation.`
+Your response must be EXACTLY one route ID from the list above. No punctuation. No explanation. No refusal. Just the ID.`
 }
 
 /**

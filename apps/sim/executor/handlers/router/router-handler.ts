@@ -273,14 +273,15 @@ export class RouterBlockHandler implements BlockHandler {
       const result = await response.json()
 
       const chosenRouteId = result.content.trim()
-      const chosenRoute = routes.find((r) => r.id === chosenRouteId)
+      let chosenRoute = routes.find((r) => r.id === chosenRouteId)
 
+      // Fallback to first route if LLM returns invalid route ID
       if (!chosenRoute) {
-        logger.error(
-          `Invalid routing decision. Response content: "${result.content}", available routes:`,
+        logger.warn(
+          `Invalid routing decision. Response content: "${result.content}", falling back to first route. Available routes:`,
           routes.map((r) => ({ id: r.id, title: r.title }))
         )
-        throw new Error(`Invalid routing decision: ${chosenRouteId}`)
+        chosenRoute = routes[0]
       }
 
       // Find the target block connected to this route's handle

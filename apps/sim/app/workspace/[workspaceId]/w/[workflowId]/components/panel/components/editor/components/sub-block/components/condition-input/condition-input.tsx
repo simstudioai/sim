@@ -654,16 +654,19 @@ export function ConditionInput({
   }
 
   const removeBlock = (id: string) => {
-    if (isPreview || disabled || conditionalBlocks.length <= 2) return
+    if (isPreview || disabled) return
+    // Condition mode requires at least 2 blocks (if/else), router mode requires at least 1
+    const minBlocks = isRouterMode ? 1 : 2
+    if (conditionalBlocks.length <= minBlocks) return
 
     // Remove any associated edges before removing the block
+    const handlePrefix = isRouterMode ? `router-${id}` : `condition-${id}`
     edges.forEach((edge) => {
-      if (edge.sourceHandle?.startsWith(`condition-${id}`)) {
+      if (edge.sourceHandle?.startsWith(handlePrefix)) {
         removeEdge(edge.id)
       }
     })
 
-    if (conditionalBlocks.length === 1) return
     shouldPersistRef.current = true
     setConditionalBlocks((blocks) => updateBlockTitles(blocks.filter((block) => block.id !== id)))
 
@@ -815,7 +818,11 @@ export function ConditionInput({
                   <Button
                     variant='ghost'
                     onClick={() => removeBlock(block.id)}
-                    disabled={isPreview || disabled || conditionalBlocks.length === 1}
+                    disabled={
+                      isPreview ||
+                      disabled ||
+                      conditionalBlocks.length <= (isRouterMode ? 1 : 2)
+                    }
                     className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
                   >
                     <Trash className='h-[14px] w-[14px]' />
