@@ -47,4 +47,15 @@ export const commandExecTool: ToolConfig<CommandInput, CommandOutput> = {
 			shell: params.shell || '/bin/bash',
 		}),
 	},
+	},
+
+	outputs: {
+		stdout: { type: 'string', description: 'Standard output from the command' },
+		stderr: { type: 'string', description: 'Standard error from the command' },
+		exitCode: { type: 'number', description: 'Command exit code (0 = success)' },
+		duration: { type: 'number', description: 'Execution time in milliseconds' },
+		command: { type: 'string', description: 'The executed command' },
+		workingDirectory: { type: 'string', description: 'The directory where command was executed' },
+		timedOut: { type: 'boolean', description: 'Whether the command exceeded the timeout' },
+	},
 };
