@@ -2021,7 +2021,6 @@ export const tools: Record<string, ToolConfig> = {
   thinking_tool: thinkingTool,
   stagehand_extract: stagehandExtractTool,
   stagehand_agent: stagehandAgentTool,
-  opencode_chat: opencodeChatTool,
   command_exec: commandExecTool,
   mem0_add_memories: mem0AddMemoriesTool,
   mem0_search_memories: mem0SearchMemoriesTool,
