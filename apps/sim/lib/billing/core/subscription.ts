@@ -13,6 +13,7 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import type { UserSubscriptionState } from '@/lib/billing/types'
 import {
+  isAccessControlEnabled,
   isCredentialSetsEnabled,
   isHosted,
   isProd,
@@ -275,6 +276,33 @@ export async function isOrganizationOnTeamOrEnterprisePlan(
 }
 
 /**
+ * Check if an organization has an enterprise plan
+ * Used for Access Control (Permission Groups) feature gating
+ */
+export async function isOrganizationOnEnterprisePlan(organizationId: string): Promise<boolean> {
+  try {
+    if (!isProd) {
+      return true
+    }
+
+    if (isAccessControlEnabled && !isHosted) {
+      return true
+    }
+
+    const [orgSub] = await db
+      .select()
+      .from(subscription)
+      .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
+      .limit(1)
+
+    return !!orgSub && checkEnterprisePlan(orgSub)
+  } catch (error) {
+    logger.error('Error checking organization enterprise plan status', { error, organizationId })
+    return false
+  }
+}
+
+/**
  * Check if user has access to credential sets (email polling) feature
  * Returns true if:
  * - CREDENTIAL_SETS_ENABLED env var is set (self-hosted override), OR
@@ -312,6 +340,27 @@ export async function hasSSOAccess(userId: string): Promise<boolean> {
     return isEnterpriseOrgAdminOrOwner(userId)
   } catch (error) {
     logger.error('Error checking SSO access', { error, userId })
+    return false
+  }
+}
+
+/**
+ * Check if user has access to Access Control (Permission Groups) feature
+ * Returns true if:
+ * - ACCESS_CONTROL_ENABLED env var is set (self-hosted override), OR
+ * - User is admin/owner of an enterprise organization
+ *
+ * In non-production environments, returns true for convenience.
+ */
+export async function hasAccessControlAccess(userId: string): Promise<boolean> {
+  try {
+    if (isAccessControlEnabled && !isHosted) {
+      return true
+    }
+
+    return isEnterpriseOrgAdminOrOwner(userId)
+  } catch (error) {
+    logger.error('Error checking access control access', { error, userId })
     return false
   }
 }

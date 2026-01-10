@@ -40,6 +40,7 @@ import { Variables } from '@/app/workspace/[workspaceId]/w/[workflowId]/componen
 import { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-auto-layout'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useChatStore } from '@/stores/chat/store'
 import { usePanelStore } from '@/stores/panel/store'
 import type { PanelTab } from '@/stores/panel/types'
@@ -92,6 +93,7 @@ export function Panel() {
 
   // Hooks
   const userPermissions = useUserPermissionsContext()
+  const { config: permissionConfig } = usePermissionConfig()
   const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })
   const { workflows, activeWorkflowId, duplicateWorkflow, hydration } = useWorkflowRegistry()
   const isRegistryLoading =
@@ -438,18 +440,20 @@ export function Panel() {
           {/* Tabs */}
           <div className='flex flex-shrink-0 items-center justify-between px-[8px] pt-[14px]'>
             <div className='flex gap-[4px]'>
-              <Button
-                className={`h-[28px] truncate rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
-                  _hasHydrated && activeTab === 'copilot'
-                    ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
-                }`}
-                variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
-                onClick={() => handleTabClick('copilot')}
-                data-tab-button='copilot'
-              >
-                Copilot
-              </Button>
+              {!permissionConfig.hideCopilot && (
+                <Button
+                  className={`h-[28px] truncate rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                    _hasHydrated && activeTab === 'copilot'
+                      ? 'border-[var(--border-1)]'
+                      : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                  }`}
+                  variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
+                  onClick={() => handleTabClick('copilot')}
+                  data-tab-button='copilot'
+                >
+                  Copilot
+                </Button>
+              )}
               <Button
                 className={`h-[28px] rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
                   _hasHydrated && activeTab === 'toolbar'
@@ -482,18 +486,20 @@ export function Panel() {
 
           {/* Tab Content - Keep all tabs mounted but hidden to preserve state */}
           <div className='flex-1 overflow-hidden pt-[12px]'>
-            <div
-              className={
-                _hasHydrated && activeTab === 'copilot'
-                  ? 'h-full'
-                  : _hasHydrated
-                    ? 'hidden'
-                    : 'h-full'
-              }
-              data-tab-content='copilot'
-            >
-              <Copilot ref={copilotRef} panelWidth={panelWidth} />
-            </div>
+            {!permissionConfig.hideCopilot && (
+              <div
+                className={
+                  _hasHydrated && activeTab === 'copilot'
+                    ? 'h-full'
+                    : _hasHydrated
+                      ? 'hidden'
+                      : 'h-full'
+                }
+                data-tab-content='copilot'
+              >
+                <Copilot ref={copilotRef} panelWidth={panelWidth} />
+              </div>
+            )}
             <div
               className={
                 _hasHydrated && activeTab === 'editor'

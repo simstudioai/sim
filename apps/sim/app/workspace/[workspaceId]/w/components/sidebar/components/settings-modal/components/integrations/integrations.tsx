@@ -22,6 +22,7 @@ import {
   useDisconnectOAuthService,
   useOAuthConnections,
 } from '@/hooks/queries/oauth-connections'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('Integrations')
 
@@ -100,6 +101,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
   const { data: services = [], isPending } = useOAuthConnections()
   const connectService = useConnectOAuthService()
   const disconnectService = useDisconnectOAuthService()
+  const { config: permissionConfig } = usePermissionConfig()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [pendingService, setPendingService] = useState<string | null>(null)
@@ -221,9 +223,17 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
     }
   }
 
-  // Group services by provider
+  // Group services by provider, filtering by permission config
   const groupedServices = services.reduce(
     (acc, service) => {
+      // Filter based on allowedIntegrations
+      if (
+        permissionConfig.allowedIntegrations !== null &&
+        !permissionConfig.allowedIntegrations.includes(service.id)
+      ) {
+        return acc
+      }
+
       // Find the provider for this service
       const providerKey =
         Object.keys(OAUTH_PROVIDERS).find((key) =>

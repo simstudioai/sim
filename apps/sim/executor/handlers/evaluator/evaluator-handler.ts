@@ -8,6 +8,7 @@ import { BlockType, DEFAULTS, EVALUATOR, HTTP } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAPIUrl, extractAPIErrorMessage } from '@/executor/utils/http'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
+import { validateModelProvider } from '@/executor/utils/permission-check'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -36,6 +37,9 @@ export class EvaluatorBlockHandler implements BlockHandler {
       bedrockSecretKey: inputs.bedrockSecretKey,
       bedrockRegion: inputs.bedrockRegion,
     }
+
+    await validateModelProvider(ctx.userId, evaluatorConfig.model, ctx)
+
     const providerId = getProviderFromModel(evaluatorConfig.model)
 
     let finalApiKey: string | undefined = evaluatorConfig.apiKey

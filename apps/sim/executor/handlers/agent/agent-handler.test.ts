@@ -18,6 +18,7 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   getCostMultiplier: vi.fn().mockReturnValue(1),
   isEmailVerificationEnabled: false,
   isBillingEnabled: false,
+  isOrganizationsEnabled: false,
 }))
 
 vi.mock('@/providers/utils', () => ({

@@ -208,11 +208,11 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                         </p>
                       </div>
                       <div className='flex flex-shrink-0 items-center gap-[4px]'>
-                        <Button variant='ghost' onClick={() => setToolToView(tool)}>
+                        <Button variant='default' onClick={() => setToolToView(tool)}>
                           Details
                         </Button>
                         <Button
-                          variant='destructive'
+                          variant='ghost'
                           onClick={() => setToolToDelete(tool)}
                           disabled={deleteToolMutation.isPending}
                         >
@@ -605,11 +605,11 @@ export function WorkflowMcpServers() {
                       <p className='truncate text-[13px] text-[var(--text-muted)]'>{toolsLabel}</p>
                     </div>
                     <div className='flex flex-shrink-0 items-center gap-[4px]'>
-                      <Button variant='ghost' onClick={() => setSelectedServerId(server.id)}>
+                      <Button variant='default' onClick={() => setSelectedServerId(server.id)}>
                         Details
                       </Button>
                       <Button
-                        variant='destructive'
+                        variant='ghost'
                         onClick={() => setServerToDelete(server)}
                         disabled={isDeleting}
                       >
