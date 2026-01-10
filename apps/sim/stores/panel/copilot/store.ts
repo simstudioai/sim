@@ -57,7 +57,6 @@ import { DeployApiClientTool } from '@/lib/copilot/tools/client/workflow/deploy-
 import { DeployChatClientTool } from '@/lib/copilot/tools/client/workflow/deploy-chat'
 import { DeployMcpClientTool } from '@/lib/copilot/tools/client/workflow/deploy-mcp'
 import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
-import { ListWorkspaceMcpServersClientTool } from '@/lib/copilot/tools/client/workflow/list-workspace-mcp-servers'
 import { GetBlockOutputsClientTool } from '@/lib/copilot/tools/client/workflow/get-block-outputs'
 import { GetBlockUpstreamReferencesClientTool } from '@/lib/copilot/tools/client/workflow/get-block-upstream-references'
 import { GetUserWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/get-user-workflow'
@@ -65,6 +64,7 @@ import { GetWorkflowConsoleClientTool } from '@/lib/copilot/tools/client/workflo
 import { GetWorkflowDataClientTool } from '@/lib/copilot/tools/client/workflow/get-workflow-data'
 import { GetWorkflowFromNameClientTool } from '@/lib/copilot/tools/client/workflow/get-workflow-from-name'
 import { ListUserWorkflowsClientTool } from '@/lib/copilot/tools/client/workflow/list-user-workflows'
+import { ListWorkspaceMcpServersClientTool } from '@/lib/copilot/tools/client/workflow/list-workspace-mcp-servers'
 import { ManageCustomToolClientTool } from '@/lib/copilot/tools/client/workflow/manage-custom-tool'
 import { ManageMcpToolClientTool } from '@/lib/copilot/tools/client/workflow/manage-mcp-tool'
 import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
@@ -399,9 +399,9 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
       if (message.role === 'assistant') {
         logger.info('[normalizeMessagesForUI] Loading assistant message', {
           id: message.id,
-          hasContent: !!(message.content && message.content.trim()),
+          hasContent: !!message.content?.trim(),
           contentBlockCount: message.contentBlocks?.length || 0,
-          contentBlockTypes: (message.contentBlocks as any[])?.map(b => b?.type) || [],
+          contentBlockTypes: (message.contentBlocks as any[])?.map((b) => b?.type) || [],
         })
       }
     }
@@ -642,9 +642,9 @@ function serializeMessagesForDB(messages: CopilotMessage[]): any[] {
     if (msg.role === 'assistant') {
       logger.info('[serializeMessagesForDB] Input assistant message', {
         id: msg.id,
-        hasContent: !!(msg.content && msg.content.trim()),
+        hasContent: !!msg.content?.trim(),
         contentBlockCount: msg.contentBlocks?.length || 0,
-        contentBlockTypes: (msg.contentBlocks as any[])?.map(b => b?.type) || [],
+        contentBlockTypes: (msg.contentBlocks as any[])?.map((b) => b?.type) || [],
       })
     }
   }
@@ -652,12 +652,15 @@ function serializeMessagesForDB(messages: CopilotMessage[]): any[] {
   logger.info('[serializeMessagesForDB] Serialized messages', {
     inputCount: messages.length,
     outputCount: result.length,
-    sample: result.length > 0 ? {
-      role: result[result.length - 1].role,
-      hasContent: !!result[result.length - 1].content,
-      contentBlockCount: result[result.length - 1].contentBlocks?.length || 0,
-      toolCallCount: result[result.length - 1].toolCalls?.length || 0,
-    } : null
+    sample:
+      result.length > 0
+        ? {
+            role: result[result.length - 1].role,
+            hasContent: !!result[result.length - 1].content,
+            contentBlockCount: result[result.length - 1].contentBlocks?.length || 0,
+            toolCallCount: result[result.length - 1].toolCalls?.length || 0,
+          }
+        : null,
   })
 
   return result
@@ -3139,7 +3142,7 @@ export const useCopilotStore = create<CopilotStore>()(
                 contentLength: lastMsg.content?.length || 0,
                 hasContentBlocks: !!lastMsg.contentBlocks,
                 contentBlockCount: lastMsg.contentBlocks?.length || 0,
-                contentBlockTypes: (lastMsg.contentBlocks as any[])?.map(b => b?.type) || [],
+                contentBlockTypes: (lastMsg.contentBlocks as any[])?.map((b) => b?.type) || [],
               })
             }
             const dbMessages = validateMessagesForLLM(currentMessages)

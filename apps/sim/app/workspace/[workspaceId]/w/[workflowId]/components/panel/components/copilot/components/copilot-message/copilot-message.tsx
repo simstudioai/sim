@@ -514,7 +514,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 options={parsedTags.options}
                 onSelect={handleOptionSelect}
                 disabled={isSendingMessage || isStreaming}
-                enableKeyboardNav={isLastMessage && !isStreaming && parsedTags.optionsComplete === true}
+                enableKeyboardNav={
+                  isLastMessage && !isStreaming && parsedTags.optionsComplete === true
+                }
                 streaming={isStreaming || !parsedTags.optionsComplete}
               />
             )}

@@ -448,9 +448,11 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           findLatestEditWorkflowToolCallId().then((toolCallId) => {
             if (toolCallId) {
-              getClientTool(toolCallId)?.handleAccept?.()?.catch?.((error: Error) => {
-                logger.warn('Failed to notify tool accept state', { error })
-              })
+              getClientTool(toolCallId)
+                ?.handleAccept?.()
+                ?.catch?.((error: Error) => {
+                  logger.warn('Failed to notify tool accept state', { error })
+                })
             }
           })
         },
@@ -554,9 +556,11 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           findLatestEditWorkflowToolCallId().then((toolCallId) => {
             if (toolCallId) {
-              getClientTool(toolCallId)?.handleReject?.()?.catch?.((error: Error) => {
-                logger.warn('Failed to notify tool reject state', { error })
-              })
+              getClientTool(toolCallId)
+                ?.handleReject?.()
+                ?.catch?.((error: Error) => {
+                  logger.warn('Failed to notify tool reject state', { error })
+                })
             }
           })
         },

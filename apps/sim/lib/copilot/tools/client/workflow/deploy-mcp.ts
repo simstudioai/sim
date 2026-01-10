@@ -6,7 +6,6 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 export interface ParameterDescription {
@@ -118,7 +117,9 @@ export class DeployMcpClientTool extends BaseClientTool {
       }
 
       // Check if workflow is deployed
-      const deploymentStatus = useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)
+      const deploymentStatus = useWorkflowRegistry
+        .getState()
+        .getWorkflowDeploymentStatus(workflowId)
       if (!deploymentStatus?.isDeployed) {
         throw new Error(
           'Workflow must be deployed before adding as an MCP tool. Use deploy_api first.'
@@ -208,4 +209,3 @@ export class DeployMcpClientTool extends BaseClientTool {
 
 // Register UI config at module load
 registerToolUIConfig(DeployMcpClientTool.id, DeployMcpClientTool.metadata.uiConfig!)
-

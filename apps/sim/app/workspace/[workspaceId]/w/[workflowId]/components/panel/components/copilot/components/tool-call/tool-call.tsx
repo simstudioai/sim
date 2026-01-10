@@ -10,10 +10,10 @@ import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
 // Initialize all tool UI configs
 import '@/lib/copilot/tools/client/init-tool-configs'
 import {
-  getToolUIConfig,
-  isSpecialTool as isSpecialToolFromConfig,
   getSubagentLabels as getSubagentLabelsFromConfig,
+  getToolUIConfig,
   hasInterrupt as hasInterruptFromConfig,
+  isSpecialTool as isSpecialToolFromConfig,
 } from '@/lib/copilot/tools/client/ui-config'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 import { SmoothStreamingText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/smooth-streaming'
@@ -357,19 +357,21 @@ export function OptionsSelector({
               disabled && 'cursor-not-allowed opacity-50',
               streaming && 'pointer-events-none',
               isLocked && 'cursor-default',
-              isHovered && !streaming && 'is-hovered bg-[var(--surface-6)] dark:bg-[var(--surface-5)]'
+              isHovered &&
+                !streaming &&
+                'is-hovered bg-[var(--surface-6)] dark:bg-[var(--surface-5)]'
             )}
           >
             <Button
               variant='3d'
-              className='group-hover:-translate-y-0.5 group-[.is-hovered]:-translate-y-0.5 w-[22px] py-[2px] text-[11px] group-hover:text-[var(--text-primary)] group-[.is-hovered]:text-[var(--text-primary)] group-hover:shadow-[0_4px_0_0_rgba(48,48,48,1)] group-[.is-hovered]:shadow-[0_4px_0_0_rgba(48,48,48,1)]'
+              className='group-hover:-translate-y-0.5 group-[.is-hovered]:-translate-y-0.5 w-[22px] py-[2px] text-[11px] group-hover:text-[var(--text-primary)] group-hover:shadow-[0_4px_0_0_rgba(48,48,48,1)] group-[.is-hovered]:text-[var(--text-primary)] group-[.is-hovered]:shadow-[0_4px_0_0_rgba(48,48,48,1)]'
             >
               {option.key}
             </Button>
 
             <span
               className={clsx(
-                'min-w-0 flex-1 pt-0.5 font-season text-[12px] leading-5 text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] group-[.is-hovered]:text-[var(--text-primary)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[11px] [&_p]:m-0 [&_p]:leading-5',
+                'min-w-0 flex-1 pt-0.5 font-season text-[12px] text-[var(--text-tertiary)] leading-5 group-hover:text-[var(--text-primary)] group-[.is-hovered]:text-[var(--text-primary)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[11px] [&_p]:m-0 [&_p]:leading-5',
                 isRejected && 'text-[var(--text-tertiary)] line-through opacity-50'
               )}
             >
@@ -1158,7 +1160,9 @@ function SubagentContentRenderer({
   }, [isStreaming, shouldCollapse])
 
   // Build segments: each segment is either text content or a tool call
-  const segments: Array<{ type: 'text'; content: string } | { type: 'tool'; block: SubAgentContentBlock }> = []
+  const segments: Array<
+    { type: 'text'; content: string } | { type: 'tool'; block: SubAgentContentBlock }
+  > = []
   let currentText = ''
   let allRawText = ''
 
@@ -1916,20 +1920,21 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     'workflow',
   ]
   const isSubagentTool = SUBAGENT_TOOLS.includes(toolCall.name)
-  
+
   // For ALL subagent tools, don't show anything until we have blocks with content
   if (isSubagentTool) {
     // Check if we have any meaningful content in blocks
-    const hasContent = toolCall.subAgentBlocks && toolCall.subAgentBlocks.some(block => 
-      (block.type === 'subagent_text' && block.content?.trim()) ||
-      (block.type === 'subagent_tool_call' && block.toolCall)
+    const hasContent = toolCall.subAgentBlocks?.some(
+      (block) =>
+        (block.type === 'subagent_text' && block.content?.trim()) ||
+        (block.type === 'subagent_tool_call' && block.toolCall)
     )
-    
+
     if (!hasContent) {
       return null
     }
   }
-  
+
   if (isSubagentTool && toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0) {
     // Render subagent content using the dedicated component
     return (
@@ -1975,9 +1980,9 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   // Check UI config for secondary action
   const toolUIConfig = getToolUIConfig(toolCall.name)
   const secondaryAction = toolUIConfig?.secondaryAction
-  const showSecondaryAction =
-    secondaryAction &&
-    secondaryAction.showInStates.includes(toolCall.state as ClientToolCallState)
+  const showSecondaryAction = secondaryAction?.showInStates.includes(
+    toolCall.state as ClientToolCallState
+  )
 
   // Legacy fallbacks for tools that haven't migrated to UI config
   const showMoveToBackground =
@@ -2396,7 +2401,10 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
         )}
         {/* Render subagent content as thinking text */}
         {toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0 && (
-          <SubAgentThinkingContent blocks={toolCall.subAgentBlocks} isStreaming={toolCall.subAgentStreaming} />
+          <SubAgentThinkingContent
+            blocks={toolCall.subAgentBlocks}
+            isStreaming={toolCall.subAgentStreaming}
+          />
         )}
       </div>
     )
@@ -2455,7 +2463,10 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
         )}
         {/* Render subagent content as thinking text */}
         {toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0 && (
-          <SubAgentThinkingContent blocks={toolCall.subAgentBlocks} isStreaming={toolCall.subAgentStreaming} />
+          <SubAgentThinkingContent
+            blocks={toolCall.subAgentBlocks}
+            isStreaming={toolCall.subAgentStreaming}
+          />
         )}
       </div>
     )
@@ -2564,7 +2575,10 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
 
       {/* Render subagent content as thinking text */}
       {toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0 && (
-        <SubAgentThinkingContent blocks={toolCall.subAgentBlocks} isStreaming={toolCall.subAgentStreaming} />
+        <SubAgentThinkingContent
+          blocks={toolCall.subAgentBlocks}
+          isStreaming={toolCall.subAgentStreaming}
+        />
       )}
     </div>
   )

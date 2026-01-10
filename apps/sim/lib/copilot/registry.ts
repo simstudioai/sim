@@ -121,7 +121,10 @@ export const ToolArgSchemas = {
     serverId: z
       .string()
       .describe('The MCP server ID to deploy to (get from list_workspace_mcp_servers)'),
-    workflowId: z.string().optional().describe('Optional workflow ID (defaults to active workflow)'),
+    workflowId: z
+      .string()
+      .optional()
+      .describe('Optional workflow ID (defaults to active workflow)'),
     toolName: z.string().optional().describe('Custom tool name (defaults to workflow name)'),
     toolDescription: z.string().optional().describe('Custom tool description'),
     parameterDescriptions: z

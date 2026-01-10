@@ -236,4 +236,3 @@ export function getSubagentLabels(
 export function getAllToolUIConfigs(): Record<string, ToolUIConfig> {
   return { ...toolUIConfigs }
 }
-

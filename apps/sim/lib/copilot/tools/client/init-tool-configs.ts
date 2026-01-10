@@ -35,15 +35,14 @@ import './user/set-environment-variables'
 
 // Re-export UI config utilities for convenience
 export {
-  getToolUIConfig,
-  isSubagentTool,
-  isSpecialTool,
-  hasInterrupt,
   getSubagentLabels,
-  type ToolUIConfig,
-  type SubagentConfig,
+  getToolUIConfig,
+  hasInterrupt,
   type InterruptConfig,
-  type SecondaryActionConfig,
+  isSpecialTool,
+  isSubagentTool,
   type ParamsTableConfig,
+  type SecondaryActionConfig,
+  type SubagentConfig,
+  type ToolUIConfig,
 } from './ui-config'
-

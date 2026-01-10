@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    
+
     // Debug: Log what we received
     const lastMsg = body.messages?.[body.messages.length - 1]
     if (lastMsg?.role === 'assistant') {
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
         lastMsgContentBlockTypes: lastMsg.contentBlocks?.map((b: any) => b?.type) || [],
       })
     }
-    
+
     const { chatId, messages, planArtifact, config } = UpdateMessagesSchema.parse(body)
 
     // Verify that the chat belongs to the user

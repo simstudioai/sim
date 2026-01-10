@@ -92,10 +92,14 @@ export class ListWorkspaceMcpServersClientTool extends BaseClientTool {
           { servers: [], count: 0 }
         )
       } else {
-        await this.markToolComplete(200, `Found ${servers.length} MCP server(s) in the workspace.`, {
-          servers,
-          count: servers.length,
-        })
+        await this.markToolComplete(
+          200,
+          `Found ${servers.length} MCP server(s) in the workspace.`,
+          {
+            servers,
+            count: servers.length,
+          }
+        )
       }
 
       logger.info(`Listed ${servers.length} MCP servers`)
@@ -106,4 +110,3 @@ export class ListWorkspaceMcpServersClientTool extends BaseClientTool {
     }
   }
 }
-

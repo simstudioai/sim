@@ -288,4 +288,3 @@ export class DeployApiClientTool extends BaseClientTool {
 
 // Register UI config at module load
 registerToolUIConfig(DeployApiClientTool.id, DeployApiClientTool.metadata.uiConfig!)
-

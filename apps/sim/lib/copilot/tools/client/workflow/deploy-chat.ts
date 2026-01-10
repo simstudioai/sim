@@ -363,4 +363,3 @@ export class DeployChatClientTool extends BaseClientTool {
 
 // Register UI config at module load
 registerToolUIConfig(DeployChatClientTool.id, DeployChatClientTool.metadata.uiConfig!)
-

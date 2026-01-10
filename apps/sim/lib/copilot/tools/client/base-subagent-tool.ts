@@ -8,11 +8,7 @@
  * Examples: edit, plan, debug, evaluate, research, etc.
  */
 import type { LucideIcon } from 'lucide-react'
-import {
-  BaseClientTool,
-  type BaseClientToolMetadata,
-  ClientToolCallState,
-} from './base-tool'
+import { BaseClientTool, type BaseClientToolMetadata, ClientToolCallState } from './base-tool'
 import type { SubagentConfig, ToolUIConfig } from './ui-config'
 import { registerToolUIConfig } from './ui-config'
 
@@ -122,4 +118,3 @@ export function createSubagentToolClass(config: SubagentToolConfig) {
     }
   }
 }
-
