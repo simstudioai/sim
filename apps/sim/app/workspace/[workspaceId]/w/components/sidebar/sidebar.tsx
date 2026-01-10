@@ -661,7 +661,12 @@ export function Sidebar() {
       />
 
       {/* Footer Navigation Modals */}
-      <HelpModal open={isHelpModalOpen} onOpenChange={setIsHelpModalOpen} />
+      <HelpModal
+        open={isHelpModalOpen}
+        onOpenChange={setIsHelpModalOpen}
+        workflowId={workflowId}
+        workspaceId={workspaceId}
+      />
       <SettingsModal
         open={isSettingsModalOpen}
         onOpenChange={(open) => (open ? openSettingsModal() : closeSettingsModal())}
