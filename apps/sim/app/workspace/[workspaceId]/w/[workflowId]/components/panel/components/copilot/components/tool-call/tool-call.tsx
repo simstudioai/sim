@@ -20,8 +20,10 @@ import { SmoothStreamingText } from '@/app/workspace/[workspaceId]/w/[workflowId
 import { ThinkingBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/thinking-block'
 import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { getBlock } from '@/blocks/registry'
-import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/panel/copilot/store'
-import type { CopilotToolCall, SubAgentContentBlock } from '@/stores/panel/copilot/types'
+import type { CopilotToolCall } from '@/stores/panel'
+import { useCopilotStore } from '@/stores/panel'
+import { CLASS_TOOL_METADATA } from '@/stores/panel/copilot/store'
+import type { SubAgentContentBlock } from '@/stores/panel/copilot/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**

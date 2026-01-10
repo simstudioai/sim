@@ -7,6 +7,7 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Combobox,
+  type ComboboxOption,
   type ComboboxOptionGroup,
   Popover,
   PopoverContent,
@@ -52,15 +53,16 @@ import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflo
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useChildDeployment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks/use-child-deployment'
 import { getAllBlocks } from '@/blocks'
+import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import {
   type CustomTool as CustomToolDefinition,
   useCustomTools,
 } from '@/hooks/queries/custom-tools'
 import { useForceRefreshMcpTools, useMcpServers, useStoredMcpTools } from '@/hooks/queries/mcp'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useMcpTools } from '@/hooks/use-mcp-tools'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
-import { useSettingsModalStore } from '@/stores/settings-modal/store'
+import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {
   formatParameterLabel,
@@ -1009,18 +1011,23 @@ export function ToolInput({
   const provider = model ? getProviderFromModel(model) : ''
   const supportsToolControl = provider ? supportsToolUsageControl(provider) : false
 
-  const toolBlocks = getAllBlocks().filter(
-    (block) =>
-      (block.category === 'tools' ||
-        block.type === 'api' ||
-        block.type === 'webhook_request' ||
-        block.type === 'workflow' ||
-        block.type === 'knowledge' ||
-        block.type === 'function') &&
-      block.type !== 'evaluator' &&
-      block.type !== 'mcp' &&
-      block.type !== 'file'
-  )
+  const { filterBlocks, config: permissionConfig } = usePermissionConfig()
+
+  const toolBlocks = useMemo(() => {
+    const allToolBlocks = getAllBlocks().filter(
+      (block) =>
+        (block.category === 'tools' ||
+          block.type === 'api' ||
+          block.type === 'webhook_request' ||
+          block.type === 'workflow' ||
+          block.type === 'knowledge' ||
+          block.type === 'function') &&
+        block.type !== 'evaluator' &&
+        block.type !== 'mcp' &&
+        block.type !== 'file'
+    )
+    return filterBlocks(allToolBlocks)
+  }, [filterBlocks])
 
   const customFilter = useCallback((value: string, search: string) => {
     if (!search.trim()) return 1
@@ -1608,33 +1615,37 @@ export function ToolInput({
     const groups: ComboboxOptionGroup[] = []
 
     // Actions group (no section header)
-    groups.push({
-      items: [
-        {
-          label: 'Create Tool',
-          value: 'action-create-tool',
-          icon: WrenchIcon,
-          onSelect: () => {
-            setCustomToolModalOpen(true)
-            setOpen(false)
-          },
-          disabled: isPreview,
+    const actionItems: ComboboxOption[] = []
+    if (!permissionConfig.disableCustomTools) {
+      actionItems.push({
+        label: 'Create Tool',
+        value: 'action-create-tool',
+        icon: WrenchIcon,
+        onSelect: () => {
+          setCustomToolModalOpen(true)
+          setOpen(false)
         },
-        {
-          label: 'Add MCP Server',
-          value: 'action-add-mcp',
-          icon: McpIcon,
-          onSelect: () => {
-            setOpen(false)
-            window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'mcp' } }))
-          },
-          disabled: isPreview,
+        disabled: isPreview,
+      })
+    }
+    if (!permissionConfig.disableMcpTools) {
+      actionItems.push({
+        label: 'Add MCP Server',
+        value: 'action-add-mcp',
+        icon: McpIcon,
+        onSelect: () => {
+          setOpen(false)
+          window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'mcp' } }))
         },
-      ],
-    })
+        disabled: isPreview,
+      })
+    }
+    if (actionItems.length > 0) {
+      groups.push({ items: actionItems })
+    }
 
     // Custom Tools section
-    if (customTools.length > 0) {
+    if (!permissionConfig.disableCustomTools && customTools.length > 0) {
       groups.push({
         section: 'Custom Tools',
         items: customTools.map((customTool) => ({
@@ -1659,7 +1670,7 @@ export function ToolInput({
     }
 
     // MCP Tools section
-    if (availableMcpTools.length > 0) {
+    if (!permissionConfig.disableMcpTools && availableMcpTools.length > 0) {
       groups.push({
         section: 'MCP Tools',
         items: availableMcpTools.map((mcpTool) => {
@@ -1736,6 +1747,8 @@ export function ToolInput({
     setStoreValue,
     handleMcpToolSelect,
     handleSelectTool,
+    permissionConfig.disableCustomTools,
+    permissionConfig.disableMcpTools,
   ])
 
   const toolRequiresOAuth = (toolId: string): boolean => {
@@ -2244,7 +2257,7 @@ export function ToolInput({
             >
               <div
                 className={cn(
-                  'flex items-center justify-between gap-[8px] bg-[var(--surface-4)] px-[8px] py-[6.5px]',
+                  'flex items-center justify-between gap-[8px] rounded-t-[4px] bg-[var(--surface-4)] px-[8px] py-[6.5px]',
                   (isCustomTool || hasToolBody) && 'cursor-pointer'
                 )}
                 onClick={() => {

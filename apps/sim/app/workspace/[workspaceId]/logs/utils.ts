@@ -69,7 +69,7 @@ const STATUS_VARIANT_MAP: Record<
 const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['variant']> = {
   manual: 'gray-secondary',
   api: 'blue',
-  schedule: 'teal',
+  schedule: 'green',
   chat: 'purple',
   webhook: 'orange',
 }

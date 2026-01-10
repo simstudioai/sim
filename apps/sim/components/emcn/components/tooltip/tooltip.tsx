@@ -57,9 +57,37 @@ const Content = React.forwardRef<
 ))
 Content.displayName = TooltipPrimitive.Content.displayName
 
+interface ShortcutProps {
+  /** The keyboard shortcut keys to display (e.g., "⌘D", "⌘K") */
+  keys: string
+  /** Optional additional class names */
+  className?: string
+  /** Optional children to display before the shortcut */
+  children?: React.ReactNode
+}
+
+/**
+ * Displays a keyboard shortcut within tooltip content.
+ *
+ * @example
+ * ```tsx
+ * <Tooltip.Content>
+ *   <Tooltip.Shortcut keys="⌘D">Clear console</Tooltip.Shortcut>
+ * </Tooltip.Content>
+ * ```
+ */
+const Shortcut = ({ keys, className, children }: ShortcutProps) => (
+  <span className={cn('flex items-center gap-[8px]', className)}>
+    {children && <span>{children}</span>}
+    <span className='opacity-70'>{keys}</span>
+  </span>
+)
+Shortcut.displayName = 'Tooltip.Shortcut'
+
 export const Tooltip = {
   Root,
   Trigger,
   Content,
   Provider,
+  Shortcut,
 }

@@ -6,11 +6,11 @@ import {
   extractWorkflowName,
   extractWorkflowsFromFiles,
   extractWorkflowsFromZip,
+  parseWorkflowJson,
 } from '@/lib/workflows/operations/import-export'
 import { folderKeys, useCreateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow, workflowKeys } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import { parseWorkflowJson } from '@/stores/workflows/json/importer'
 
 const logger = createLogger('useImportWorkflow')
 

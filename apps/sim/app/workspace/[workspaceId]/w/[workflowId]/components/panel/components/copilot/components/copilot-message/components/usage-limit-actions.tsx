@@ -7,7 +7,7 @@ import { canEditUsageLimit } from '@/lib/billing/subscriptions/utils'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { useSubscriptionData, useUpdateUsageLimit } from '@/hooks/queries/subscription'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
+import { useCopilotStore } from '@/stores/panel'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 const LIMIT_INCREMENTS = [0, 50, 100] as const

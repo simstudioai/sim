@@ -36,6 +36,7 @@
  *
  *   Organizations:
  *   GET    /api/v1/admin/organizations                      - List all organizations
+ *   POST   /api/v1/admin/organizations                      - Create organization (requires ownerId)
  *   GET    /api/v1/admin/organizations/:id                  - Get organization details
  *   PATCH  /api/v1/admin/organizations/:id                  - Update organization
  *   GET    /api/v1/admin/organizations/:id/members          - List organization members
@@ -55,6 +56,10 @@
  *   BYOK Keys:
  *   GET    /api/v1/admin/byok                               - List BYOK keys (?organizationId=X or ?workspaceId=X)
  *   DELETE /api/v1/admin/byok                               - Delete BYOK keys for org/workspace
+ *
+ *   Access Control (Permission Groups):
+ *   GET    /api/v1/admin/access-control                     - List permission groups (?organizationId=X)
+ *   DELETE /api/v1/admin/access-control                     - Delete permission groups for org (?organizationId=X)
  */
 
 export type { AdminAuthFailure, AdminAuthResult, AdminAuthSuccess } from '@/app/api/v1/admin/auth'

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { Check, Loader2, Server, X, XCircle } from 'lucide-react'
+import { client } from '@/lib/auth/auth-client'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -24,6 +25,20 @@ interface ManageMcpToolArgs {
 }
 
 const API_ENDPOINT = '/api/mcp/servers'
+
+async function checkMcpToolsPermission(): Promise<void> {
+  const activeOrgResponse = await client.organization.getFullOrganization()
+  const organizationId = activeOrgResponse.data?.id
+  if (!organizationId) return
+
+  const response = await fetch(`/api/permission-groups/user?organizationId=${organizationId}`)
+  if (!response.ok) return
+
+  const data = await response.json()
+  if (data?.config?.disableMcpTools) {
+    throw new Error('MCP tools are not allowed based on your permission group settings')
+  }
+}
 
 /**
  * Client tool for creating, editing, and deleting MCP tool servers via the copilot.
@@ -145,7 +160,10 @@ export class ManageMcpToolClientTool extends BaseClientTool {
     } catch (e: any) {
       logger.error('execute failed', { message: e?.message })
       this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'Failed to manage MCP tool')
+      await this.markToolComplete(500, e?.message || 'Failed to manage MCP tool', {
+        success: false,
+        error: e?.message || 'Failed to manage MCP tool',
+      })
     }
   }
 
@@ -166,6 +184,8 @@ export class ManageMcpToolClientTool extends BaseClientTool {
     if (!args?.operation) {
       throw new Error('Operation is required')
     }
+
+    await checkMcpToolsPermission()
 
     const { operation, serverId, config } = args
 

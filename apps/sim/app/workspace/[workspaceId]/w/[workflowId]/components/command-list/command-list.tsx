@@ -9,7 +9,7 @@ import { Button, Library } from '@/components/emcn'
 import { AgentIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useSearchModalStore } from '@/stores/search-modal/store'
+import { useSearchModalStore } from '@/stores/modals/search/store'
 
 const logger = createLogger('WorkflowCommandList')
 

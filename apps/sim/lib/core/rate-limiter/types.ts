@@ -8,6 +8,7 @@ export type TriggerType =
   | 'manual'
   | 'chat'
   | 'mcp'
+  | 'form'
   | 'api-endpoint'
 
 export type RateLimitCounterType = 'sync' | 'async' | 'api-endpoint'

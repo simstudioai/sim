@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import type { CustomToolsState, CustomToolsStore } from '@/stores/custom-tools/types'
+import type { CustomToolsState, CustomToolsStore } from './types'
 
 const logger = createLogger('CustomToolsStore')
 

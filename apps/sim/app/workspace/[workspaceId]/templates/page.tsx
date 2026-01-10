@@ -6,6 +6,7 @@ import { getSession } from '@/lib/auth'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import type { Template as WorkspaceTemplate } from '@/app/workspace/[workspaceId]/templates/templates'
 import Templates from '@/app/workspace/[workspaceId]/templates/templates'
+import { getUserPermissionConfig } from '@/executor/utils/permission-check'
 
 interface TemplatesPageProps {
   params: Promise<{
@@ -30,6 +31,12 @@ export default async function TemplatesPage({ params }: TemplatesPageProps) {
   const hasPermission = await verifyWorkspaceMembership(session.user.id, workspaceId)
   if (!hasPermission) {
     redirect('/')
+  }
+
+  // Check permission group restrictions
+  const permissionConfig = await getUserPermissionConfig(session.user.id)
+  if (permissionConfig?.hideTemplates) {
+    redirect(`/workspace/${workspaceId}`)
   }
 
   // Determine effective super user (DB flag AND UI mode enabled)

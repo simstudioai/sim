@@ -3,6 +3,7 @@
  *
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
@@ -120,14 +121,8 @@ describe('Chat Identifier API Route', () => {
       validateAuthToken: vi.fn().mockReturnValue(true),
     }))
 
-    vi.doMock('@sim/logger', () => ({
-      createLogger: vi.fn().mockReturnValue({
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      }),
-    }))
+    // Mock logger - use loggerMock from @sim/testing
+    vi.doMock('@sim/logger', () => loggerMock)
 
     vi.doMock('@sim/db', () => {
       const mockSelect = vi.fn().mockImplementation((fields) => {

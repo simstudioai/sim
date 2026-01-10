@@ -40,7 +40,7 @@ import {
   useTodoManagement,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/hooks'
 import { useScrollManagement } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
+import { useCopilotStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('Copilot')

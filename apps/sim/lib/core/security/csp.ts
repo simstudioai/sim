@@ -107,7 +107,12 @@ export const buildTimeCSPDirectives: CSPDirectives = {
     ...getHostnameFromUrl(env.NEXT_PUBLIC_TERMS_URL),
   ],
 
-  'frame-src': ['https://drive.google.com', 'https://docs.google.com', 'https://*.google.com'],
+  'frame-src': [
+    "'self'",
+    'https://drive.google.com',
+    'https://docs.google.com',
+    'https://*.google.com',
+  ],
 
   'frame-ancestors': ["'self'"],
   'form-action': ["'self'"],
@@ -170,7 +175,7 @@ export function generateRuntimeCSP(): string {
     media-src 'self' blob:;
     font-src 'self' https://fonts.gstatic.com;
     connect-src 'self' ${appUrl} ${ollamaUrl} ${socketUrl} ${socketWsUrl} https://api.browser-use.com https://api.exa.ai https://api.firecrawl.dev https://*.googleapis.com https://*.amazonaws.com https://*.s3.amazonaws.com https://*.blob.core.windows.net https://api.github.com https://github.com/* https://*.atlassian.com https://*.supabase.co https://collector.onedollarstats.com ${dynamicDomainsStr};
-    frame-src https://drive.google.com https://docs.google.com https://*.google.com;
+    frame-src 'self' https://drive.google.com https://docs.google.com https://*.google.com;
     frame-ancestors 'self';
     form-action 'self';
     base-uri 'self';
@@ -192,6 +197,18 @@ export function getMainCSPPolicy(): string {
  */
 export function getWorkflowExecutionCSPPolicy(): string {
   return "default-src * 'unsafe-inline' 'unsafe-eval'; connect-src *;"
+}
+
+/**
+ * CSP for embeddable form pages
+ * Allows embedding in iframes from any origin while maintaining other security policies
+ */
+export function getFormEmbedCSPPolicy(): string {
+  const basePolicy = buildCSPString({
+    ...buildTimeCSPDirectives,
+    'frame-ancestors': ['*'],
+  })
+  return basePolicy
 }
 
 /**

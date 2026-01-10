@@ -9,7 +9,7 @@ import {
 } from '@/lib/copilot/tools/client/base-tool'
 import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
-import { useExecutionStore } from '@/stores/execution/store'
+import { useExecutionStore } from '@/stores/execution'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface RunWorkflowArgs {

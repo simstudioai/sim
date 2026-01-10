@@ -439,6 +439,7 @@ function CalendarMonth({
                   'before:absolute before:inset-y-[2px] before:right-0 before:left-0 before:bg-[#60a5fa]/25',
                 isRangeMode && isStart && 'before:left-[2px] before:rounded-l-[4px]',
                 isRangeMode && isEnd && 'before:right-[2px] before:rounded-r-[4px]',
+                isRangeMode && isStart && !rangeEnd && 'before:right-[2px] before:rounded-r-[4px]',
                 isRangeMode && isStart && isEnd && 'before:rounded-[4px]'
               )}
             >
@@ -450,7 +451,9 @@ function CalendarMonth({
                     isRangeMode
                       ? isStart || isEnd
                         ? 'bg-[var(--brand-secondary)] text-[var(--bg)]'
-                        : 'text-[var(--text-primary)] hover:bg-[var(--surface-5)]'
+                        : inRange
+                          ? 'text-[var(--text-primary)] hover:bg-[#60a5fa]/40'
+                          : 'text-[var(--text-primary)] hover:bg-[var(--surface-5)]'
                       : isSelected(day)
                         ? 'bg-[var(--brand-secondary)] text-[var(--bg)]'
                         : isToday(day)

@@ -19,6 +19,7 @@ import { workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
@@ -31,7 +32,6 @@ import {
   type WorkflowImportRequest,
   type WorkflowVariable,
 } from '@/app/api/v1/admin/types'
-import { parseWorkflowJson } from '@/stores/workflows/json/importer'
 
 const logger = createLogger('AdminWorkflowImportAPI')
 

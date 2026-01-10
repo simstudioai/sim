@@ -21,8 +21,8 @@ import {
   useMessageEditing,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/hooks'
 import { UserInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
-import type { CopilotMessage as CopilotMessageType } from '@/stores/panel/copilot/types'
+import type { CopilotMessage as CopilotMessageType } from '@/stores/panel'
+import { useCopilotStore } from '@/stores/panel'
 
 /**
  * Props for the CopilotMessage component

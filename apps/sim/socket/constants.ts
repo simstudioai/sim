@@ -3,9 +3,7 @@ export const BLOCK_OPERATIONS = {
   UPDATE_NAME: 'update-name',
   TOGGLE_ENABLED: 'toggle-enabled',
   UPDATE_PARENT: 'update-parent',
-  UPDATE_WIDE: 'update-wide',
   UPDATE_ADVANCED_MODE: 'update-advanced-mode',
-  UPDATE_TRIGGER_MODE: 'update-trigger-mode',
   TOGGLE_HANDLES: 'toggle-handles',
 } as const
 
@@ -37,8 +35,6 @@ export const EDGES_OPERATIONS = {
 export type EdgesOperation = (typeof EDGES_OPERATIONS)[keyof typeof EDGES_OPERATIONS]
 
 export const SUBFLOW_OPERATIONS = {
-  ADD: 'add',
-  REMOVE: 'remove',
   UPDATE: 'update',
 } as const
 
@@ -94,3 +90,20 @@ export const UNDO_REDO_OPERATIONS = {
 } as const
 
 export type UndoRedoOperation = (typeof UNDO_REDO_OPERATIONS)[keyof typeof UNDO_REDO_OPERATIONS]
+
+/**
+ * All socket operations that require permission checks.
+ * This is the single source of truth for valid operations.
+ */
+export const ALL_SOCKET_OPERATIONS = [
+  ...Object.values(BLOCK_OPERATIONS),
+  ...Object.values(BLOCKS_OPERATIONS),
+  ...Object.values(EDGE_OPERATIONS),
+  ...Object.values(EDGES_OPERATIONS),
+  ...Object.values(WORKFLOW_OPERATIONS),
+  ...Object.values(SUBBLOCK_OPERATIONS),
+  ...Object.values(VARIABLE_OPERATIONS),
+  ...Object.values(SUBFLOW_OPERATIONS),
+] as const
+
+export type SocketOperation = (typeof ALL_SOCKET_OPERATIONS)[number]

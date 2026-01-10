@@ -47,8 +47,8 @@ import {
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { knowledgeKeys } from '@/hooks/queries/knowledge'
-import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/use-knowledge'
 
 const logger = createLogger('Document')
 

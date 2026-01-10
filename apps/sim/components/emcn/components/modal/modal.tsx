@@ -159,7 +159,7 @@ const ModalContent = React.forwardRef<
         className={cn(
           ANIMATION_CLASSES,
           CONTENT_ANIMATION_CLASSES,
-          'fixed top-[50%] left-[50%] z-[500] flex max-h-[84vh] translate-x-[-50%] translate-y-[-50%] flex-col rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
+          'fixed top-[50%] left-[50%] z-[500] flex max-h-[84vh] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
           MODAL_SIZES[size],
           className
         )}
@@ -340,12 +340,13 @@ ModalTabsTrigger.displayName = 'ModalTabsTrigger'
 
 /**
  * Modal tab content component. Content panel for each tab.
+ * Includes bottom padding for consistent spacing across all tabbed modals.
  */
 const ModalTabsContent = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
 >(({ className, ...props }, ref) => (
-  <TabsPrimitive.Content ref={ref} className={cn('', className)} {...props} />
+  <TabsPrimitive.Content ref={ref} className={cn('pb-[10px]', className)} {...props} />
 ))
 
 ModalTabsContent.displayName = 'ModalTabsContent'
@@ -358,7 +359,7 @@ const ModalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivE
     <div
       ref={ref}
       className={cn(
-        'flex-1 overflow-y-auto rounded-t-[8px] border-t bg-[var(--surface-2)] px-[14px] py-[10px]',
+        'flex-1 overflow-y-auto border-t bg-[var(--surface-2)] px-[14px] py-[10px]',
         className
       )}
       {...props}
@@ -376,7 +377,7 @@ const ModalFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
     <div
       ref={ref}
       className={cn(
-        'flex justify-end gap-[8px] rounded-b-[8px] border-t bg-[var(--surface-2)] px-[16px] py-[10px]',
+        'flex justify-end gap-[8px] border-t bg-[var(--surface-2)] px-[16px] py-[10px]',
         className
       )}
       {...props}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { constrainChatPosition } from '@/stores/chat/store'
+import { constrainChatPosition } from '@/stores/chat/utils'
 
 interface UseFloatDragProps {
   position: { x: number; y: number }

@@ -18,8 +18,12 @@ import {
 import { getEnv } from '@/lib/core/config/env'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/api-keys/components'
 import { startsWithUuid } from '@/executor/constants'
-import { useSettingsModalStore } from '@/stores/settings-modal/store'
+import { useApiKeys } from '@/hooks/queries/api-keys'
+import { useWorkspaceSettings } from '@/hooks/queries/workspace'
+import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -51,7 +55,7 @@ interface WorkflowDeploymentInfo {
   needsRedeployment: boolean
 }
 
-type TabView = 'general' | 'api' | 'chat' | 'template' | 'mcp'
+type TabView = 'general' | 'api' | 'chat' | 'template' | 'mcp' | 'form'
 
 export function DeployModal({
   open,
@@ -101,6 +105,29 @@ export function DeployModal({
 
   const [existingChat, setExistingChat] = useState<ExistingChat | null>(null)
   const [isLoadingChat, setIsLoadingChat] = useState(false)
+
+  const [formSubmitting, setFormSubmitting] = useState(false)
+  const [formExists, setFormExists] = useState(false)
+  const [isFormValid, setIsFormValid] = useState(false)
+
+  const [chatSuccess, setChatSuccess] = useState(false)
+  const [formSuccess, setFormSuccess] = useState(false)
+
+  const [isCreateKeyModalOpen, setIsCreateKeyModalOpen] = useState(false)
+  const userPermissions = useUserPermissionsContext()
+  const canManageWorkspaceKeys = userPermissions.canAdmin
+  const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
+  const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
+    workflowWorkspaceId || ''
+  )
+  const apiKeyWorkspaceKeys = apiKeysData?.workspaceKeys || []
+  const apiKeyPersonalKeys = apiKeysData?.personalKeys || []
+  const allowPersonalApiKeys =
+    workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true
+  const defaultKeyType = allowPersonalApiKeys ? 'personal' : 'workspace'
+  const isApiKeysLoading = isLoadingKeys || isLoadingSettings
+  const createButtonDisabled =
+    isApiKeysLoading || (!allowPersonalApiKeys && !canManageWorkspaceKeys)
 
   const getApiKeyLabel = (value?: string | null) => {
     if (value && value.trim().length > 0) {
@@ -479,6 +506,18 @@ export function DeployModal({
     onOpenChange(false)
   }
 
+  const handleChatDeployed = async () => {
+    await handlePostDeploymentUpdate()
+    setChatSuccess(true)
+    setTimeout(() => setChatSuccess(false), 2000)
+  }
+
+  const handleFormDeployed = async () => {
+    await handlePostDeploymentUpdate()
+    setFormSuccess(true)
+    setTimeout(() => setFormSuccess(false), 2000)
+  }
+
   const handlePostDeploymentUpdate = async () => {
     if (!workflowId) return
 
@@ -545,11 +584,22 @@ export function DeployModal({
     deleteTrigger?.click()
   }, [])
 
+  const handleFormFormSubmit = useCallback(() => {
+    const form = document.getElementById('form-deploy-form') as HTMLFormElement
+    form?.requestSubmit()
+  }, [])
+
+  const handleFormDelete = useCallback(() => {
+    const form = document.getElementById('form-deploy-form')
+    const deleteTrigger = form?.querySelector('[data-delete-trigger]') as HTMLButtonElement
+    deleteTrigger?.click()
+  }, [])
+
   return (
     <>
       <Modal open={open} onOpenChange={handleCloseModal}>
         <ModalContent size='lg' className='h-[76vh]'>
-          <ModalHeader>Deploy Workflow</ModalHeader>
+          <ModalHeader>Workflow Deployment</ModalHeader>
 
           <ModalTabs
             value={activeTab}
@@ -561,6 +611,7 @@ export function DeployModal({
               <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
               <ModalTabsTrigger value='mcp'>MCP</ModalTabsTrigger>
               <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
+              {/* <ModalTabsTrigger value='form'>Form</ModalTabsTrigger> */}
               <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
             </ModalTabsList>
 
@@ -603,7 +654,7 @@ export function DeployModal({
                   setChatSubmitting={setChatSubmitting}
                   onValidationChange={setIsChatFormValid}
                   onDeploymentComplete={handleCloseModal}
-                  onDeployed={handlePostDeploymentUpdate}
+                  onDeployed={handleChatDeployed}
                   onVersionActivated={() => {}}
                 />
               </ModalTabsContent>
@@ -621,7 +672,22 @@ export function DeployModal({
                 )}
               </ModalTabsContent>
 
-              <ModalTabsContent value='mcp' className='h-full'>
+              {/* <ModalTabsContent value='form'>
+                {workflowId && (
+                  <FormDeploy
+                    workflowId={workflowId}
+                    onDeploymentComplete={handleCloseModal}
+                    onValidationChange={setIsFormValid}
+                    onSubmittingChange={setFormSubmitting}
+                    onExistingFormChange={setFormExists}
+                    formSubmitting={formSubmitting}
+                    setFormSubmitting={setFormSubmitting}
+                    onDeployed={handleFormDeployed}
+                  />
+                )}
+              </ModalTabsContent> */}
+
+              <ModalTabsContent value='mcp'>
                 {workflowId && (
                   <McpDeploy
                     workflowId={workflowId}
@@ -648,6 +714,17 @@ export function DeployModal({
               onUndeploy={() => setShowUndeployConfirm(true)}
             />
           )}
+          {activeTab === 'api' && (
+            <ModalFooter className='items-center justify-end'>
+              <Button
+                variant='tertiary'
+                onClick={() => setIsCreateKeyModalOpen(true)}
+                disabled={createButtonDisabled}
+              >
+                Generate API Key
+              </Button>
+            </ModalFooter>
+          )}
           {activeTab === 'chat' && (
             <ModalFooter className='items-center'>
               <div className='flex gap-2'>
@@ -667,13 +744,17 @@ export function DeployModal({
                   onClick={handleChatFormSubmit}
                   disabled={chatSubmitting || !isChatFormValid}
                 >
-                  {chatSubmitting
+                  {chatSuccess
                     ? chatExists
-                      ? 'Updating...'
-                      : 'Launching...'
-                    : chatExists
-                      ? 'Update'
-                      : 'Launch Chat'}
+                      ? 'Updated'
+                      : 'Launched'
+                    : chatSubmitting
+                      ? chatExists
+                        ? 'Updating...'
+                        : 'Launching...'
+                      : chatExists
+                        ? 'Update'
+                        : 'Launch Chat'}
                 </Button>
               </div>
             </ModalFooter>
@@ -738,6 +819,40 @@ export function DeployModal({
               </div>
             </ModalFooter>
           )}
+          {/* {activeTab === 'form' && (
+            <ModalFooter className='items-center'>
+              <div className='flex gap-2'>
+                {formExists && (
+                  <Button
+                    type='button'
+                    variant='destructive'
+                    onClick={handleFormDelete}
+                    disabled={formSubmitting}
+                  >
+                    Delete
+                  </Button>
+                )}
+                <Button
+                  type='button'
+                  variant='tertiary'
+                  onClick={handleFormFormSubmit}
+                  disabled={formSubmitting || !isFormValid}
+                >
+                  {formSuccess
+                    ? formExists
+                      ? 'Updated'
+                      : 'Launched'
+                    : formSubmitting
+                      ? formExists
+                        ? 'Updating...'
+                        : 'Launching...'
+                      : formExists
+                        ? 'Update'
+                        : 'Launch Form'}
+                </Button>
+              </div>
+            </ModalFooter>
+          )} */}
         </ModalContent>
       </Modal>
 
@@ -766,6 +881,16 @@ export function DeployModal({
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      <CreateApiKeyModal
+        open={isCreateKeyModalOpen}
+        onOpenChange={setIsCreateKeyModalOpen}
+        workspaceId={workflowWorkspaceId || ''}
+        existingKeyNames={[...apiKeyWorkspaceKeys, ...apiKeyPersonalKeys].map((k) => k.name)}
+        allowPersonalApiKeys={allowPersonalApiKeys}
+        canManageWorkspaceKeys={canManageWorkspaceKeys}
+        defaultKeyType={defaultKeyType}
+      />
     </>
   )
 }
@@ -839,7 +964,12 @@ function GeneralFooter({
     <ModalFooter className='items-center justify-between'>
       <StatusBadge isWarning={needsRedeployment} />
       <div className='flex items-center gap-2'>
-        <Button variant='default' onClick={onUndeploy} disabled={isUndeploying || isSubmitting}>
+        <Button
+          variant='default'
+          onClick={onUndeploy}
+          disabled={isUndeploying || isSubmitting}
+          className='px-[7px] py-[5px]'
+        >
           {isUndeploying ? 'Undeploying...' : 'Undeploy'}
         </Button>
         {needsRedeployment && (
