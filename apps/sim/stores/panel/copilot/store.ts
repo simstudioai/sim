@@ -386,122 +386,62 @@ function abortAllInProgressTools(set: any, get: () => CopilotStore) {
 }
 
 // Normalize loaded messages so assistant messages render correctly from DB
+/**
+ * Loads messages from DB for UI rendering.
+ * Messages are stored exactly as they render, so we just need to:
+ * 1. Register client tool instances for any tool calls
+ * 2. Return the messages as-is
+ */
 function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
   try {
-    return messages.map((message) => {
-      if (message.role !== 'assistant') {
-        // For user messages (and others), restore contexts from a saved contexts block
-        if (Array.isArray(message.contentBlocks) && message.contentBlocks.length > 0) {
-          const ctxBlock = (message.contentBlocks as any[]).find((b: any) => b?.type === 'contexts')
-          if (ctxBlock && Array.isArray((ctxBlock as any).contexts)) {
-            return {
-              ...message,
-              contexts: (ctxBlock as any).contexts,
-            }
+    // Log what we're loading
+    for (const message of messages) {
+      if (message.role === 'assistant') {
+        logger.info('[normalizeMessagesForUI] Loading assistant message', {
+          id: message.id,
+          hasContent: !!(message.content && message.content.trim()),
+          contentBlockCount: message.contentBlocks?.length || 0,
+          contentBlockTypes: (message.contentBlocks as any[])?.map(b => b?.type) || [],
+        })
+      }
+    }
+
+    // Register client tool instances for all tool calls so they can be looked up
+    for (const message of messages) {
+      if (message.contentBlocks) {
+        for (const block of message.contentBlocks as any[]) {
+          if (block?.type === 'tool_call' && block.toolCall) {
+            registerToolCallInstances(block.toolCall)
           }
         }
-        return message
       }
-
-      // Use existing contentBlocks ordering if present; otherwise only render text content
-      const blocks: any[] = Array.isArray(message.contentBlocks)
-        ? (message.contentBlocks as any[]).map((b: any) => {
-            if (b?.type === 'tool_call' && b.toolCall) {
-              // Ensure client tool instance is registered for this tool call
-              ensureClientToolInstance(b.toolCall?.name, b.toolCall?.id)
-
-              return {
-                ...b,
-                toolCall: {
-                  ...b.toolCall,
-                  state:
-                    isRejectedState(b.toolCall?.state) ||
-                    isReviewState(b.toolCall?.state) ||
-                    isBackgroundState(b.toolCall?.state) ||
-                    b.toolCall?.state === ClientToolCallState.success ||
-                    b.toolCall?.state === ClientToolCallState.error ||
-                    b.toolCall?.state === ClientToolCallState.aborted
-                      ? b.toolCall.state
-                      : ClientToolCallState.rejected,
-                  display: resolveToolDisplay(
-                    b.toolCall?.name,
-                    (isRejectedState(b.toolCall?.state) ||
-                    isReviewState(b.toolCall?.state) ||
-                    isBackgroundState(b.toolCall?.state) ||
-                    b.toolCall?.state === ClientToolCallState.success ||
-                    b.toolCall?.state === ClientToolCallState.error ||
-                    b.toolCall?.state === ClientToolCallState.aborted
-                      ? (b.toolCall?.state as any)
-                      : ClientToolCallState.rejected) as any,
-                    b.toolCall?.id,
-                    b.toolCall?.params
-                  ),
-                },
-              }
-            }
-            if (b?.type === TEXT_BLOCK_TYPE && typeof b.content === 'string') {
-              return {
-                ...b,
-                content: stripTodoTags(b.content),
-              }
-            }
-            return b
-          })
-        : []
-
-      // Prepare toolCalls with display for non-block UI components, but do not fabricate blocks
-      const updatedToolCalls = Array.isArray((message as any).toolCalls)
-        ? (message as any).toolCalls.map((tc: any) => {
-            // Ensure client tool instance is registered for this tool call
-            ensureClientToolInstance(tc?.name, tc?.id)
-
-            return {
-              ...tc,
-              state:
-                isRejectedState(tc?.state) ||
-                isReviewState(tc?.state) ||
-                isBackgroundState(tc?.state) ||
-                tc?.state === ClientToolCallState.success ||
-                tc?.state === ClientToolCallState.error ||
-                tc?.state === ClientToolCallState.aborted
-                  ? tc.state
-                  : ClientToolCallState.rejected,
-              display: resolveToolDisplay(
-                tc?.name,
-                (isRejectedState(tc?.state) ||
-                isReviewState(tc?.state) ||
-                isBackgroundState(tc?.state) ||
-                tc?.state === ClientToolCallState.success ||
-                tc?.state === ClientToolCallState.error ||
-                tc?.state === ClientToolCallState.aborted
-                  ? (tc?.state as any)
-                  : ClientToolCallState.rejected) as any,
-                tc?.id,
-                tc?.params
-              ),
-            }
-          })
-        : (message as any).toolCalls
-
-      const sanitizedContent = stripTodoTags(message.content || '')
-
-      return {
-        ...message,
-        content: sanitizedContent,
-        ...(updatedToolCalls && { toolCalls: updatedToolCalls }),
-        ...(blocks.length > 0
-          ? { contentBlocks: blocks }
-          : sanitizedContent.trim()
-            ? {
-                contentBlocks: [
-                  { type: TEXT_BLOCK_TYPE, content: sanitizedContent, timestamp: Date.now() },
-                ],
-              }
-            : {}),
-      }
-    })
+    }
+    // Return messages as-is - they're already in the correct format for rendering
+    return messages
   } catch {
     return messages
+  }
+}
+
+/**
+ * Recursively registers client tool instances for a tool call and its nested subagent tool calls.
+ */
+function registerToolCallInstances(toolCall: any): void {
+  if (!toolCall?.id) return
+  ensureClientToolInstance(toolCall.name, toolCall.id)
+
+  // Register nested subagent tool calls
+  if (Array.isArray(toolCall.subAgentBlocks)) {
+    for (const block of toolCall.subAgentBlocks) {
+      if (block?.type === 'subagent_tool_call' && block.toolCall) {
+        registerToolCallInstances(block.toolCall)
+      }
+    }
+  }
+  if (Array.isArray(toolCall.subAgentToolCalls)) {
+    for (const subTc of toolCall.subAgentToolCalls) {
+      registerToolCallInstances(subTc)
+    }
   }
 }
 
@@ -626,62 +566,154 @@ function stripTodoTags(text: string): string {
     .replace(/\n{2,}/g, '\n')
 }
 
-function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
-  return messages
+/**
+ * Deep clones an object using JSON serialization.
+ * This ensures we strip any non-serializable data (functions, circular refs).
+ */
+function deepClone<T>(obj: T): T {
+  try {
+    return JSON.parse(JSON.stringify(obj))
+  } catch {
+    return obj
+  }
+}
+
+/**
+ * Serializes messages for database storage.
+ * Deep clones all fields to ensure proper JSON serialization.
+ * This ensures they render identically when loaded back.
+ */
+function serializeMessagesForDB(messages: CopilotMessage[]): any[] {
+  const result = messages
     .map((msg) => {
-      // Build content from blocks if assistant content is empty (exclude thinking)
-      let content = msg.content || ''
-      if (msg.role === 'assistant' && !content.trim() && msg.contentBlocks?.length) {
-        content = msg.contentBlocks
-          .filter((b: any) => b?.type === 'text')
-          .map((b: any) => String(b.content || ''))
-          .join('')
-          .trim()
-      }
-
-      // Strip thinking, design_workflow, and todo tags from content
-      if (content) {
-        content = stripTodoTags(
-          content
-            .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
-            .replace(/<design_workflow>[\s\S]*?<\/design_workflow>/g, '')
-        ).trim()
-      }
-
-      return {
+      // Deep clone the entire message to ensure all nested data is serializable
+      const serialized: any = {
         id: msg.id,
         role: msg.role,
-        content,
+        content: msg.content || '',
         timestamp: msg.timestamp,
-        ...(Array.isArray((msg as any).toolCalls) &&
-          (msg as any).toolCalls.length > 0 && {
-            toolCalls: (msg as any).toolCalls,
-          }),
-        ...(Array.isArray(msg.contentBlocks) &&
-          msg.contentBlocks.length > 0 && {
-            // Persist full contentBlocks including thinking so history can render it
-            contentBlocks: msg.contentBlocks,
-          }),
-        ...(msg.fileAttachments &&
-          msg.fileAttachments.length > 0 && {
-            fileAttachments: msg.fileAttachments,
-          }),
-        ...((msg as any).contexts &&
-          Array.isArray((msg as any).contexts) && {
-            contexts: (msg as any).contexts,
-          }),
       }
+
+      // Deep clone contentBlocks (the main rendering data)
+      if (Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0) {
+        serialized.contentBlocks = deepClone(msg.contentBlocks)
+      }
+
+      // Deep clone toolCalls
+      if (Array.isArray((msg as any).toolCalls) && (msg as any).toolCalls.length > 0) {
+        serialized.toolCalls = deepClone((msg as any).toolCalls)
+      }
+
+      // Deep clone file attachments
+      if (Array.isArray(msg.fileAttachments) && msg.fileAttachments.length > 0) {
+        serialized.fileAttachments = deepClone(msg.fileAttachments)
+      }
+
+      // Deep clone contexts
+      if (Array.isArray((msg as any).contexts) && (msg as any).contexts.length > 0) {
+        serialized.contexts = deepClone((msg as any).contexts)
+      }
+
+      // Deep clone citations
+      if (Array.isArray(msg.citations) && msg.citations.length > 0) {
+        serialized.citations = deepClone(msg.citations)
+      }
+
+      // Copy error type
+      if (msg.errorType) {
+        serialized.errorType = msg.errorType
+      }
+
+      return serialized
     })
-    .filter((m) => {
-      if (m.role === 'assistant') {
-        const hasText = typeof m.content === 'string' && m.content.trim().length > 0
-        const hasTools = Array.isArray((m as any).toolCalls) && (m as any).toolCalls.length > 0
-        const hasBlocks =
-          Array.isArray((m as any).contentBlocks) && (m as any).contentBlocks.length > 0
-        return hasText || hasTools || hasBlocks
+    .filter((msg) => {
+      // Filter out empty assistant messages
+      if (msg.role === 'assistant') {
+        const hasContent = typeof msg.content === 'string' && msg.content.trim().length > 0
+        const hasTools = Array.isArray(msg.toolCalls) && msg.toolCalls.length > 0
+        const hasBlocks = Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0
+        return hasContent || hasTools || hasBlocks
       }
       return true
     })
+
+  // Log what we're serializing
+  for (const msg of messages) {
+    if (msg.role === 'assistant') {
+      logger.info('[serializeMessagesForDB] Input assistant message', {
+        id: msg.id,
+        hasContent: !!(msg.content && msg.content.trim()),
+        contentBlockCount: msg.contentBlocks?.length || 0,
+        contentBlockTypes: (msg.contentBlocks as any[])?.map(b => b?.type) || [],
+      })
+    }
+  }
+
+  logger.info('[serializeMessagesForDB] Serialized messages', {
+    inputCount: messages.length,
+    outputCount: result.length,
+    sample: result.length > 0 ? {
+      role: result[result.length - 1].role,
+      hasContent: !!result[result.length - 1].content,
+      contentBlockCount: result[result.length - 1].contentBlocks?.length || 0,
+      toolCallCount: result[result.length - 1].toolCalls?.length || 0,
+    } : null
+  })
+
+  return result
+}
+
+/**
+ * @deprecated Use serializeMessagesForDB instead.
+ */
+function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
+  return serializeMessagesForDB(messages)
+}
+
+/**
+ * Extracts all tool calls from a toolCall object, including nested subAgentBlocks.
+ * Adds them to the provided map.
+ */
+function extractToolCallsRecursively(
+  toolCall: CopilotToolCall,
+  map: Record<string, CopilotToolCall>
+): void {
+  if (!toolCall?.id) return
+  map[toolCall.id] = toolCall
+
+  // Extract nested tool calls from subAgentBlocks
+  if (Array.isArray(toolCall.subAgentBlocks)) {
+    for (const block of toolCall.subAgentBlocks) {
+      if (block?.type === 'subagent_tool_call' && block.toolCall?.id) {
+        extractToolCallsRecursively(block.toolCall, map)
+      }
+    }
+  }
+
+  // Extract from subAgentToolCalls as well
+  if (Array.isArray(toolCall.subAgentToolCalls)) {
+    for (const subTc of toolCall.subAgentToolCalls) {
+      extractToolCallsRecursively(subTc, map)
+    }
+  }
+}
+
+/**
+ * Builds a complete toolCallsById map from normalized messages.
+ * Extracts all tool calls including nested subagent tool calls.
+ */
+function buildToolCallsById(messages: CopilotMessage[]): Record<string, CopilotToolCall> {
+  const toolCallsById: Record<string, CopilotToolCall> = {}
+  for (const msg of messages) {
+    if (msg.contentBlocks) {
+      for (const block of msg.contentBlocks as any[]) {
+        if (block?.type === 'tool_call' && block.toolCall?.id) {
+          extractToolCallsRecursively(block.toolCall, toolCallsById)
+        }
+      }
+    }
+  }
+  return toolCallsById
 }
 
 // Streaming context and SSE parsing
@@ -2089,9 +2121,13 @@ export const useCopilotStore = create<CopilotStore>()(
       const previousModel = get().selectedModel
 
       // Optimistically set selected chat and normalize messages for UI
+      const normalizedMessages = normalizeMessagesForUI(chat.messages || [])
+      const toolCallsById = buildToolCallsById(normalizedMessages)
+
       set({
         currentChat: chat,
-        messages: normalizeMessagesForUI(chat.messages || []),
+        messages: normalizedMessages,
+        toolCallsById,
         planTodos: [],
         showPlanTodos: false,
         streamingPlanContent: planArtifact,
@@ -2130,18 +2166,7 @@ export const useCopilotStore = create<CopilotStore>()(
           const latestChat = data.chats.find((c: CopilotChat) => c.id === chat.id)
           if (latestChat) {
             const normalizedMessages = normalizeMessagesForUI(latestChat.messages || [])
-
-            // Build toolCallsById map from all tool calls in normalized messages
-            const toolCallsById: Record<string, CopilotToolCall> = {}
-            for (const msg of normalizedMessages) {
-              if (msg.contentBlocks) {
-                for (const block of msg.contentBlocks as any[]) {
-                  if (block?.type === 'tool_call' && block.toolCall?.id) {
-                    toolCallsById[block.toolCall.id] = block.toolCall
-                  }
-                }
-              }
-            }
+            const toolCallsById = buildToolCallsById(normalizedMessages)
 
             set({
               currentChat: latestChat,
@@ -2277,18 +2302,7 @@ export const useCopilotStore = create<CopilotStore>()(
                 const refreshedConfig = updatedCurrentChat.config || {}
                 const refreshedMode = refreshedConfig.mode || get().mode
                 const refreshedModel = refreshedConfig.model || get().selectedModel
-
-                // Build toolCallsById map from all tool calls in normalized messages
-                const toolCallsById: Record<string, CopilotToolCall> = {}
-                for (const msg of normalizedMessages) {
-                  if (msg.contentBlocks) {
-                    for (const block of msg.contentBlocks as any[]) {
-                      if (block?.type === 'tool_call' && block.toolCall?.id) {
-                        toolCallsById[block.toolCall.id] = block.toolCall
-                      }
-                    }
-                  }
-                }
+                const toolCallsById = buildToolCallsById(normalizedMessages)
 
                 set({
                   currentChat: updatedCurrentChat,
@@ -2319,17 +2333,7 @@ export const useCopilotStore = create<CopilotStore>()(
                 hasPlanArtifact: !!planArtifact,
               })
 
-              // Build toolCallsById map from all tool calls in normalized messages
-              const toolCallsById: Record<string, CopilotToolCall> = {}
-              for (const msg of normalizedMessages) {
-                if (msg.contentBlocks) {
-                  for (const block of msg.contentBlocks as any[]) {
-                    if (block?.type === 'tool_call' && block.toolCall?.id) {
-                      toolCallsById[block.toolCall.id] = block.toolCall
-                    }
-                  }
-                }
-              }
+              const toolCallsById = buildToolCallsById(normalizedMessages)
 
               set({
                 currentChat: mostRecentChat,
@@ -3127,6 +3131,17 @@ export const useCopilotStore = create<CopilotStore>()(
         if (currentChat) {
           try {
             const currentMessages = get().messages
+            // Debug: Log what we're about to serialize
+            const lastMsg = currentMessages[currentMessages.length - 1]
+            if (lastMsg?.role === 'assistant') {
+              logger.info('[Stream Done] About to serialize - last message state', {
+                id: lastMsg.id,
+                contentLength: lastMsg.content?.length || 0,
+                hasContentBlocks: !!lastMsg.contentBlocks,
+                contentBlockCount: lastMsg.contentBlocks?.length || 0,
+                contentBlockTypes: (lastMsg.contentBlocks as any[])?.map(b => b?.type) || [],
+              })
+            }
             const dbMessages = validateMessagesForLLM(currentMessages)
             const config = {
               mode,

@@ -1943,13 +1943,23 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   // Get current mode from store to determine if we should render integration tools
   const mode = useCopilotStore.getState().mode
 
+  // Check if this is a completed/historical tool call (not pending/executing)
+  // Use string comparison to handle both enum values and string values from DB
+  const stateStr = String(toolCall.state)
+  const isCompletedToolCall =
+    stateStr === 'success' ||
+    stateStr === 'error' ||
+    stateStr === 'rejected' ||
+    stateStr === 'aborted'
+
   // Allow rendering if:
   // 1. Tool is in CLASS_TOOL_METADATA (client tools), OR
-  // 2. We're in build mode (integration tools are executed server-side)
+  // 2. We're in build mode (integration tools are executed server-side), OR
+  // 3. Tool call is already completed (historical - should always render)
   const isClientTool = !!CLASS_TOOL_METADATA[toolCall.name]
   const isIntegrationToolInBuildMode = mode === 'build' && !isClientTool
 
-  if (!isClientTool && !isIntegrationToolInBuildMode) {
+  if (!isClientTool && !isIntegrationToolInBuildMode && !isCompletedToolCall) {
     return null
   }
   // Check if tool has params table config (meaning it's expandable)

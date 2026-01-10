@@ -17,25 +17,30 @@ const logger = createLogger('CopilotChatUpdateAPI')
 const UpdateMessagesSchema = z.object({
   chatId: z.string(),
   messages: z.array(
-    z.object({
-      id: z.string(),
-      role: z.enum(['user', 'assistant']),
-      content: z.string(),
-      timestamp: z.string(),
-      toolCalls: z.array(z.any()).optional(),
-      contentBlocks: z.array(z.any()).optional(),
-      fileAttachments: z
-        .array(
-          z.object({
-            id: z.string(),
-            key: z.string(),
-            filename: z.string(),
-            media_type: z.string(),
-            size: z.number(),
-          })
-        )
-        .optional(),
-    })
+    z
+      .object({
+        id: z.string(),
+        role: z.enum(['user', 'assistant', 'system']),
+        content: z.string(),
+        timestamp: z.string(),
+        toolCalls: z.array(z.any()).optional(),
+        contentBlocks: z.array(z.any()).optional(),
+        fileAttachments: z
+          .array(
+            z.object({
+              id: z.string(),
+              key: z.string(),
+              filename: z.string(),
+              media_type: z.string(),
+              size: z.number(),
+            })
+          )
+          .optional(),
+        contexts: z.array(z.any()).optional(),
+        citations: z.array(z.any()).optional(),
+        errorType: z.string().optional(),
+      })
+      .passthrough() // Preserve any additional fields for future compatibility
   ),
   planArtifact: z.string().nullable().optional(),
   config: z
@@ -57,6 +62,19 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
+    
+    // Debug: Log what we received
+    const lastMsg = body.messages?.[body.messages.length - 1]
+    if (lastMsg?.role === 'assistant') {
+      logger.info(`[${tracker.requestId}] Received messages to save`, {
+        messageCount: body.messages?.length,
+        lastMsgId: lastMsg.id,
+        lastMsgContentLength: lastMsg.content?.length || 0,
+        lastMsgContentBlockCount: lastMsg.contentBlocks?.length || 0,
+        lastMsgContentBlockTypes: lastMsg.contentBlocks?.map((b: any) => b?.type) || [],
+      })
+    }
+    
     const { chatId, messages, planArtifact, config } = UpdateMessagesSchema.parse(body)
 
     // Verify that the chat belongs to the user
