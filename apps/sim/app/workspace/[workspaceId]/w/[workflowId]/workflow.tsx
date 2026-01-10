@@ -987,6 +987,14 @@ const WorkflowContent = React.memo(() => {
         const handleId = conditionHandles[0].getAttribute('data-handleid')
         if (handleId) return handleId
       }
+    } else if (block.type === 'router_v2') {
+      const routerHandles = document.querySelectorAll(
+        `[data-nodeid^="${block.id}"][data-handleid^="router-"]`
+      )
+      if (routerHandles.length > 0) {
+        const handleId = routerHandles[0].getAttribute('data-handleid')
+        if (handleId) return handleId
+      }
     } else if (block.type === 'loop') {
       return 'loop-end-source'
     } else if (block.type === 'parallel') {

@@ -863,7 +863,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           return parsed.map((item: unknown, index: number) => {
             const routeItem = item as { id?: string; value?: string }
             return {
-              id: routeItem?.id ?? `${id}-route-${index}`,
+              // Use stable ID format that matches ConditionInput's generateStableId
+              id: routeItem?.id ?? `${id}-route${index + 1}`,
               value: routeItem?.value ?? '',
             }
           })
@@ -873,7 +874,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       logger.warn('Failed to parse router routes value', { error, blockId: id })
     }
 
-    return [{ id: `${id}-route-route1`, value: '' }]
+    // Fallback must match ConditionInput's default: generateStableId(blockId, 'route1') = `${blockId}-route1`
+    return [{ id: `${id}-route1`, value: '' }]
   }, [type, subBlockState, id])
 
   /**
