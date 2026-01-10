@@ -48,7 +48,6 @@ export interface ConsoleStore {
   isOpen: boolean
   addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry
   clearWorkflowConsole: (workflowId: string) => void
-  clearConsole: (workflowId: string | null) => void
   exportConsoleCSV: (workflowId: string) => void
   getWorkflowEntries: (workflowId: string) => ConsoleEntry[]
   toggleConsole: () => void

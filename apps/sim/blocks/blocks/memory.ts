@@ -121,12 +121,6 @@ export const MemoryBlock: BlockConfig = {
           if (!conversationId) {
             errors.push('Conversation ID is required for add operation')
           }
-          if (!params.role) {
-            errors.push('Role is required for agent memory')
-          }
-          if (!params.content) {
-            errors.push('Content is required for agent memory')
-          }
         }
 
         if (params.operation === 'get' || params.operation === 'delete') {

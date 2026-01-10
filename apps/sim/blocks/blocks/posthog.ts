@@ -23,7 +23,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         // Core Data Operations
         { label: 'Capture Event', id: 'posthog_capture_event' },
         { label: 'Batch Events', id: 'posthog_batch_events' },
-        { label: 'List Events', id: 'posthog_list_events' },
         { label: 'List Persons', id: 'posthog_list_persons' },
         { label: 'Get Person', id: 'posthog_get_person' },
         { label: 'Delete Person', id: 'posthog_delete_person' },
@@ -105,7 +104,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_get_event_definition',
           'posthog_update_event_definition',
           // Core Operations (with personalApiKey)
-          'posthog_list_events',
           'posthog_list_persons',
           'posthog_get_person',
           'posthog_delete_person',
@@ -403,54 +401,6 @@ Return ONLY the JSON array.`,
       condition: { field: 'operation', value: 'posthog_query' },
     },
 
-    // List Events filters
-    {
-      id: 'eventFilter',
-      title: 'Event Name Filter',
-      type: 'short-input',
-      placeholder: 'e.g., page_view, button_clicked',
-      condition: { field: 'operation', value: 'posthog_list_events' },
-    },
-    {
-      id: 'before',
-      title: 'Before (ISO 8601)',
-      type: 'short-input',
-      placeholder: '2024-01-01T12:00:00Z',
-      condition: { field: 'operation', value: 'posthog_list_events' },
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate an ISO 8601 timestamp based on the user's description.
-The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
-Examples:
-- "today" -> Today's date at 00:00:00Z
-- "this week" -> The start of this week at 00:00:00Z
-- "last month" -> The 1st of last month at 00:00:00Z
-
-Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe the cutoff date (e.g., "today", "this week")...',
-        generationType: 'timestamp',
-      },
-    },
-    {
-      id: 'after',
-      title: 'After (ISO 8601)',
-      type: 'short-input',
-      placeholder: '2024-01-01T00:00:00Z',
-      condition: { field: 'operation', value: 'posthog_list_events' },
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate an ISO 8601 timestamp based on the user's description.
-The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
-Examples:
-- "yesterday" -> Yesterday's date at 00:00:00Z
-- "last week" -> 7 days ago at 00:00:00Z
-- "beginning of this month" -> The 1st of this month at 00:00:00Z
-
-Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe the start date (e.g., "yesterday", "last week")...',
-        generationType: 'timestamp',
-      },
-    },
     {
       id: 'distinctIdFilter',
       title: 'Distinct ID Filter',
@@ -458,7 +408,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: 'user123',
       condition: {
         field: 'operation',
-        value: ['posthog_list_events', 'posthog_list_persons'],
+        value: 'posthog_list_persons',
       },
     },
 
@@ -1079,7 +1029,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: [
-          'posthog_list_events',
           'posthog_list_persons',
           'posthog_list_insights',
           'posthog_list_dashboards',
@@ -1104,7 +1053,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: [
-          'posthog_list_events',
           'posthog_list_persons',
           'posthog_list_insights',
           'posthog_list_dashboards',
@@ -1188,7 +1136,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       // Core Data
       'posthog_capture_event',
       'posthog_batch_events',
-      'posthog_list_events',
       'posthog_list_persons',
       'posthog_get_person',
       'posthog_delete_person',
@@ -1297,17 +1244,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           params.tags = params.insightTags
         }
 
-        // Map eventFilter to event for list_events
-        if (params.operation === 'posthog_list_events' && params.eventFilter) {
-          params.event = params.eventFilter
-        }
-
-        // Map distinctIdFilter to distinctId for list operations
-        if (
-          (params.operation === 'posthog_list_events' ||
-            params.operation === 'posthog_list_persons') &&
-          params.distinctIdFilter
-        ) {
+        // Map distinctIdFilter to distinctId for list_persons
+        if (params.operation === 'posthog_list_persons' && params.distinctIdFilter) {
           params.distinctId = params.distinctIdFilter
         }
 

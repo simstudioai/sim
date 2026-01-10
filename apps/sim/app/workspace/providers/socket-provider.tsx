@@ -369,8 +369,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             loops: workflowState.loops || {},
             parallels: workflowState.parallels || {},
             lastSaved: workflowState.lastSaved || Date.now(),
-            isDeployed: workflowState.isDeployed ?? false,
-            deployedAt: workflowState.deployedAt,
             deploymentStatuses: workflowState.deploymentStatuses || {},
           })
 

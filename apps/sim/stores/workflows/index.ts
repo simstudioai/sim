@@ -34,13 +34,7 @@ export function getWorkflowWithValues(workflowId: string) {
   const deploymentStatus = useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)
 
   // Use the current state from the store (only available for active workflow)
-  const workflowState: WorkflowState = {
-    // Use the main store's method to get the base workflow state
-    ...useWorkflowStore.getState().getWorkflowState(),
-    // Override deployment fields with registry-specific deployment status
-    isDeployed: deploymentStatus?.isDeployed || false,
-    deployedAt: deploymentStatus?.deployedAt,
-  }
+  const workflowState: WorkflowState = useWorkflowStore.getState().getWorkflowState()
 
   // Merge the subblock values for this specific workflow
   const mergedBlocks = mergeSubblockState(workflowState.blocks, workflowId)
@@ -58,8 +52,9 @@ export function getWorkflowWithValues(workflowId: string) {
       loops: workflowState.loops,
       parallels: workflowState.parallels,
       lastSaved: workflowState.lastSaved,
-      isDeployed: workflowState.isDeployed,
-      deployedAt: workflowState.deployedAt,
+      // Get deployment fields from registry for API compatibility
+      isDeployed: deploymentStatus?.isDeployed || false,
+      deployedAt: deploymentStatus?.deployedAt,
     },
   }
 }
@@ -101,7 +96,6 @@ export function getAllWorkflowsWithValues() {
 
     // Ensure state has all required fields for Zod validation
     const workflowState: WorkflowState = {
-      // Use the main store's method to get the base workflow state with fallback values
       ...useWorkflowStore.getState().getWorkflowState(),
       // Ensure fallback values for safer handling
       blocks: currentState.blocks || {},
@@ -109,9 +103,6 @@ export function getAllWorkflowsWithValues() {
       loops: currentState.loops || {},
       parallels: currentState.parallels || {},
       lastSaved: currentState.lastSaved || Date.now(),
-      // Override deployment fields with registry-specific deployment status
-      isDeployed: deploymentStatus?.isDeployed || false,
-      deployedAt: deploymentStatus?.deployedAt,
     }
 
     // Merge the subblock values for this specific workflow
@@ -132,8 +123,9 @@ export function getAllWorkflowsWithValues() {
         loops: workflowState.loops,
         parallels: workflowState.parallels,
         lastSaved: workflowState.lastSaved,
-        isDeployed: workflowState.isDeployed,
-        deployedAt: workflowState.deployedAt,
+        // Get deployment fields from registry for API compatibility
+        isDeployed: deploymentStatus?.isDeployed || false,
+        deployedAt: deploymentStatus?.deployedAt,
       },
       // Include API key if available
       apiKey,

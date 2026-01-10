@@ -117,7 +117,6 @@ export async function applyAutoLayoutAndUpdateStore(
 
       const cleanedWorkflowState = {
         ...stateToSave,
-        deployedAt: stateToSave.deployedAt ? new Date(stateToSave.deployedAt) : undefined,
         loops: stateToSave.loops || {},
         parallels: stateToSave.parallels || {},
         edges: (stateToSave.edges || []).map((edge: any) => {

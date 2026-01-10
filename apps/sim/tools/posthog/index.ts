@@ -29,7 +29,6 @@ import { listCohortsTool } from '@/tools/posthog/list_cohorts'
 import { listDashboardsTool } from '@/tools/posthog/list_dashboards'
 // Data Management
 import { listEventDefinitionsTool } from '@/tools/posthog/list_event_definitions'
-import { listEventsTool } from '@/tools/posthog/list_events'
 import { listExperimentsTool } from '@/tools/posthog/list_experiments'
 // Feature Management
 import { listFeatureFlagsTool } from '@/tools/posthog/list_feature_flags'
@@ -53,7 +52,6 @@ import { updateSurveyTool } from '@/tools/posthog/update_survey'
 // Export all tools with posthog prefix
 export const posthogCaptureEventTool = captureEventTool
 export const posthogBatchEventsTool = batchEventsTool
-export const posthogListEventsTool = listEventsTool
 export const posthogListPersonsTool = listPersonsTool
 export const posthogGetPersonTool = getPersonTool
 export const posthogDeletePersonTool = deletePersonTool

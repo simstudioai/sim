@@ -2483,8 +2483,6 @@ export const useCopilotStore = create<CopilotStore>()(
             loops: reverted.loops || {},
             parallels: reverted.parallels || {},
             lastSaved: reverted.lastSaved || Date.now(),
-            isDeployed: !!reverted.isDeployed,
-            ...(reverted.deployedAt ? { deployedAt: new Date(reverted.deployedAt) } : {}),
             deploymentStatuses: reverted.deploymentStatuses || {},
           })
 
