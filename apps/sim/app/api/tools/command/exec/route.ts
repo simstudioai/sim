@@ -16,11 +16,43 @@ export async function POST(request: NextRequest) {
 
 		const params: CommandInput = await request.json()
 
-		// Set default values
-		const workingDirectory = params.workingDirectory || process.cwd();
-		const timeout = params.timeout || 30000;
-		const shell = params.shell || "/bin/bash";
+import { validatePathSegment } from '@/lib/core/security/input-validation'
 
+	// Validate input
+	if (!params.command) {
+		return NextResponse.json(
+			{ error: "Command is required" },
+			{ status: 400 },
+		)
+	}
+
+	// Validate workingDirectory if provided
+	if (params.workingDirectory) {
+		const validation = validatePathSegment(params.workingDirectory, { 
+			paramName: 'workingDirectory',
+			allowDots: true // Allow relative paths like ../
+		})
+		if (!validation.isValid) {
+			return NextResponse.json(
+				{ error: validation.error },
+				{ status: 400 },
+			)
+		}
+	}
+
+	// Validate shell if provided - only allow safe shells
+	const allowedShells = ['/bin/bash', '/bin/sh', '/bin/zsh']
+	if (params.shell && !allowedShells.includes(params.shell)) {
+		return NextResponse.json(
+			{ error: 'Invalid shell. Allowed shells: ' + allowedShells.join(', ') },
+			{ status: 400 },
+		)
+	}
+
+	// Set default values
+	const workingDirectory = params.workingDirectory || process.cwd()
+	const timeout = params.timeout || 30000
+	const shell = params.shell || '/bin/bash'
 		// Execute command
 		const startTime = Date.now();
 		const result = await executeCommand(
