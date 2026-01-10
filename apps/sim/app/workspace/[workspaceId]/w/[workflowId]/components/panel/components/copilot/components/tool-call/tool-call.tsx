@@ -1106,17 +1106,24 @@ function SubAgentThinkingContent({
 }
 
 /**
+ * Subagents that should collapse when done streaming.
+ * Default behavior is to NOT collapse (stay expanded like edit).
+ * Only these specific subagents collapse into "Planned for Xs >" style headers.
+ */
+const COLLAPSIBLE_SUBAGENTS = new Set(['plan', 'debug', 'research', 'info'])
+
+/**
  * SubagentContentRenderer handles the rendering of subagent content.
  * - During streaming: Shows content at top level
- * - When done (not streaming): Collapses everything under a header like "Explored for 20s >"
- * - Exception: "edit" subagent always stays at top level, never collapses
+ * - When done (not streaming): Most subagents stay expanded, only specific ones collapse
+ * - Exception: plan, debug, research, info subagents collapse into a header
  */
 function SubagentContentRenderer({
   toolCall,
-  isEditSubagent,
+  shouldCollapse,
 }: {
   toolCall: CopilotToolCall
-  isEditSubagent: boolean
+  shouldCollapse: boolean
 }) {
   const [isExpanded, setIsExpanded] = useState(true)
   const [duration, setDuration] = useState(0)
@@ -1143,12 +1150,12 @@ function SubagentContentRenderer({
     return () => clearInterval(interval)
   }, [isStreaming])
 
-  // Auto-collapse when streaming ends (except for edit subagent)
+  // Auto-collapse when streaming ends (only for collapsible subagents)
   useEffect(() => {
-    if (!isStreaming && !isEditSubagent) {
+    if (!isStreaming && shouldCollapse) {
       setIsExpanded(false)
     }
-  }, [isStreaming, isEditSubagent])
+  }, [isStreaming, shouldCollapse])
 
   // Build segments: each segment is either text content or a tool call
   const segments: Array<{ type: 'text'; content: string } | { type: 'tool'; block: SubAgentContentBlock }> = []
@@ -1213,7 +1220,7 @@ function SubagentContentRenderer({
         }
         if (segment.type === 'tool' && segment.block.toolCall) {
           // For edit subagent's edit_workflow tool: only show the diff summary, skip the tool call header
-          if (isEditSubagent && segment.block.toolCall.name === 'edit_workflow') {
+          if (toolCall.name === 'edit' && segment.block.toolCall.name === 'edit_workflow') {
             return (
               <div key={`tool-${segment.block.toolCall.id || index}`} className='mt-2'>
                 <WorkflowEditSummary toolCall={segment.block.toolCall} />
@@ -1231,7 +1238,8 @@ function SubagentContentRenderer({
     </>
   )
 
-  if (isEditSubagent || isStreaming) {
+  // During streaming OR for non-collapsible subagents: show content at top level
+  if (isStreaming || !shouldCollapse) {
     return (
       <div className='w-full'>
         {renderCollapsibleContent()}
@@ -1240,7 +1248,7 @@ function SubagentContentRenderer({
     )
   }
 
-  // Completed non-edit subagent: show collapsible header
+  // Completed collapsible subagent (plan, debug, research, info): show collapsible header
   // Plan artifact stays outside the collapsible
   return (
     <div className='w-full'>
@@ -1927,7 +1935,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     return (
       <SubagentContentRenderer
         toolCall={toolCall}
-        isEditSubagent={toolCall.name === 'edit'}
+        shouldCollapse={COLLAPSIBLE_SUBAGENTS.has(toolCall.name)}
       />
     )
   }
