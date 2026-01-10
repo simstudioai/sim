@@ -6,12 +6,12 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-The Router block uses AI to intelligently route workflows based on content analysis. Unlike Condition blocks that use simple rules, Routers understand context and intent.
+The Router block uses AI to intelligently route workflows based on content analysis. Unlike Condition blocks that use simple rules, Routers understand context and intent. Each route you define creates a separate output port, allowing you to connect different paths to different downstream blocks.
 
 <div className="flex justify-center">
   <Image
     src="/static/blocks/router.png"
-    alt="Router Block with Multiple Paths"
+    alt="Router Block with Multiple Route Ports"
     width={500}
     height={400}
     className="my-6"
@@ -32,21 +32,23 @@ The Router block uses AI to intelligently route workflows based on content analy
 
 ## Configuration Options
 
-### Content/Prompt
+### Context
 
-The content or prompt that the Router will analyze to make routing decisions. This can be:
+The context that the Router will analyze to make routing decisions. This is the input data that gets evaluated against your route descriptions. It can be:
 
 - A direct user query or input
 - Output from a previous block
 - A system-generated message
+- Any text content that needs intelligent routing
 
-### Target Blocks
+### Routes
 
-The possible destination blocks that the Router can select from. The Router will automatically detect connected blocks, but you can also:
+Define the possible paths that the Router can take. Each route consists of:
 
-- Customize the descriptions of target blocks to improve routing accuracy
-- Specify routing criteria for each target block
-- Exclude certain blocks from being considered as routing targets
+- **Route Title**: A name for the route (e.g., "Sales", "Support", "Technical")
+- **Route Description**: A clear description of when this route should be selected (e.g., "Route here when the query is about pricing, purchasing, or sales inquiries")
+
+Each route you add creates a **separate output port** on the Router block. Connect each port to the appropriate downstream block for that route.
 
 ### Model Selection
 
@@ -66,8 +68,9 @@ Your API key for the selected LLM provider. This is securely stored and used for
 
 ## Outputs
 
-- **`<router.prompt>`**: Summary of the routing prompt
-- **`<router.selected_path>`**: Chosen destination block
+- **`<router.context>`**: The context that was analyzed
+- **`<router.selectedRoute>`**: The ID of the selected route
+- **`<router.selected_path>`**: Details of the chosen destination block
 - **`<router.tokens>`**: Token usage statistics
 - **`<router.cost>`**: Estimated routing cost
 - **`<router.model>`**: Model used for decision-making
@@ -75,26 +78,36 @@ Your API key for the selected LLM provider. This is securely stored and used for
 ## Example Use Cases
 
 **Customer Support Triage** - Route tickets to specialized departments
+
 ```
-Input (Ticket) → Router → Agent (Engineering) or Agent (Finance)
+Input (Ticket) → Router
+                  ├── [Sales Route] → Agent (Sales Team)
+                  ├── [Technical Route] → Agent (Engineering)
+                  └── [Billing Route] → Agent (Finance)
 ```
 
 **Content Classification** - Classify and route user-generated content
+
 ```
-Input (Feedback) → Router → Workflow (Product) or Workflow (Technical)
+Input (Feedback) → Router
+                    ├── [Product Feedback] → Workflow (Product Team)
+                    └── [Bug Report] → Workflow (Technical Team)
 ```
 
 **Lead Qualification** - Route leads based on qualification criteria
-```
-Input (Lead) → Router → Agent (Enterprise Sales) or Workflow (Self-serve)
-```
 
+```
+Input (Lead) → Router
+                ├── [Enterprise] → Agent (Enterprise Sales)
+                └── [Self-serve] → Workflow (Automated Onboarding)
+```
 
 ## Best Practices
 
-- **Provide clear target descriptions**: Help the Router understand when to select each destination with specific, detailed descriptions
-- **Use specific routing criteria**: Define clear conditions and examples for each path to improve accuracy
-- **Implement fallback paths**: Connect a default destination for when no specific path is appropriate
-- **Test with diverse inputs**: Ensure the Router handles various input types, edge cases, and unexpected content
-- **Monitor routing performance**: Review routing decisions regularly and refine criteria based on actual usage patterns
-- **Choose appropriate models**: Use models with strong reasoning capabilities for complex routing decisions
+- **Write clear route descriptions**: Each route description should clearly explain when that route should be selected. Be specific about the criteria.
+- **Make routes mutually exclusive**: When possible, ensure route descriptions don't overlap to prevent ambiguous routing decisions.
+- **Include an error/fallback route**: Add a catch-all route for unexpected inputs that don't match other routes.
+- **Use descriptive route titles**: Route titles appear in the workflow canvas, so make them meaningful for readability.
+- **Test with diverse inputs**: Ensure the Router handles various input types, edge cases, and unexpected content.
+- **Monitor routing performance**: Review routing decisions regularly and refine route descriptions based on actual usage patterns.
+- **Choose appropriate models**: Use models with strong reasoning capabilities for complex routing decisions.
