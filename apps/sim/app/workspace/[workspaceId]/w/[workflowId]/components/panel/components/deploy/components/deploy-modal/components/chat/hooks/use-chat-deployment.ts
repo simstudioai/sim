@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { z } from 'zod'
-import type { OutputConfig } from '@/stores/chat/store'
+import type { OutputConfig } from '@/stores/chat/types'
 
 const logger = createLogger('ChatDeployment')
 

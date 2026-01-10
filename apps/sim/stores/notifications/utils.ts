@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
-import { usePanelStore } from '@/stores/panel/store'
+import { useCopilotStore, usePanelStore } from '@/stores/panel'
 
 const logger = createLogger('NotificationUtils')
 

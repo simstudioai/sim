@@ -52,7 +52,7 @@ import { getBlock } from '@/blocks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
-import { useGeneralStore } from '@/stores/settings/general/store'
+import { useGeneralStore } from '@/stores/settings/general'
 import type { ConsoleEntry } from '@/stores/terminal'
 import { useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -1239,7 +1239,7 @@ export function Terminal() {
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
-                          <span>Clear console</span>
+                          <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
                         </Tooltip.Content>
                       </Tooltip.Root>
                     </>
@@ -1600,7 +1600,7 @@ export function Terminal() {
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content>
-                        <span>Clear console</span>
+                        <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}

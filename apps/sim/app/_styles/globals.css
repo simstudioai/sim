@@ -587,27 +587,25 @@ input[type="search"]::-ms-clear {
     animation: placeholder-pulse 1.5s ease-in-out infinite;
   }
 
-  .auth-button-gradient {
-    background: linear-gradient(to bottom, var(--brand-primary-hex), var(--brand-400)) !important;
-    border-color: var(--brand-400) !important;
-    box-shadow: inset 0 2px 4px 0 var(--brand-400) !important;
+  .branded-button-gradient {
+    background: linear-gradient(to bottom, #8357ff, #6f3dfa) !important;
+    border-color: #6f3dfa !important;
+    box-shadow: inset 0 2px 4px 0 #9b77ff !important;
   }
 
-  .auth-button-gradient:hover {
-    background: linear-gradient(to bottom, var(--brand-primary-hex), var(--brand-400)) !important;
+  .branded-button-gradient:hover {
+    background: linear-gradient(to bottom, #8357ff, #6f3dfa) !important;
     opacity: 0.9;
   }
 
-  .auth-button-custom {
+  .branded-button-custom {
     background: var(--brand-primary-hex) !important;
     border-color: var(--brand-primary-hex) !important;
-    box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.1) !important;
   }
 
-  .auth-button-custom:hover {
+  .branded-button-custom:hover {
     background: var(--brand-primary-hover-hex) !important;
     border-color: var(--brand-primary-hover-hex) !important;
-    opacity: 1;
   }
 
   /**

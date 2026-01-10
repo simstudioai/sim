@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
-import { useGeneralStore } from '@/stores/settings/general/store'
+import { useGeneralStore } from '@/stores/settings/general'
 
 const logger = createLogger('GeneralSettingsQuery')
 
@@ -43,7 +43,7 @@ async function fetchGeneralSettings(): Promise<GeneralSettings> {
     autoConnect: data.autoConnect ?? true,
     showTrainingControls: data.showTrainingControls ?? false,
     superUserModeEnabled: data.superUserModeEnabled ?? true,
-    theme: data.theme || 'system',
+    theme: data.theme || 'dark',
     telemetryEnabled: data.telemetryEnabled ?? true,
     billingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,
     errorNotificationsEnabled: data.errorNotificationsEnabled ?? true,

@@ -4,10 +4,10 @@ import { useRouter } from 'next/navigation'
 import {
   extractWorkflowName,
   extractWorkflowsFromZip,
+  parseWorkflowJson,
 } from '@/lib/workflows/operations/import-export'
 import { useCreateFolder } from '@/hooks/queries/folders'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import { parseWorkflowJson } from '@/stores/workflows/json/importer'
 
 const logger = createLogger('useImportWorkspace')
 

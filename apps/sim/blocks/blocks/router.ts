@@ -3,7 +3,7 @@ import { AuthMode, type BlockConfig } from '@/blocks/types'
 import { getProviderCredentialSubBlocks, PROVIDER_CREDENTIAL_INPUTS } from '@/blocks/utils'
 import type { ProviderId } from '@/providers/types'
 import { getBaseModelProviders, getProviderIcon } from '@/providers/utils'
-import { useProvidersStore } from '@/stores/providers/store'
+import { useProvidersStore } from '@/stores/providers'
 import type { ToolResponse } from '@/tools/types'
 
 interface RouterResponse extends ToolResponse {
@@ -170,6 +170,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
   name: 'Router (Legacy)',
   description: 'Route workflow',
   authMode: AuthMode.ApiKey,
+  docsLink: 'https://docs.sim.ai/blocks/router',
   longDescription:
     'This is a core workflow block. Intelligently direct workflow execution to different paths based on input analysis. Use natural language to instruct the router to route to certain blocks based on the input.',
   bestPractices: `
@@ -289,6 +290,7 @@ export const RouterV2Block: BlockConfig<RouterV2Response> = {
   name: 'Router',
   description: 'Route workflow based on context',
   authMode: AuthMode.ApiKey,
+  docsLink: 'https://docs.sim.ai/blocks/router',
   longDescription:
     'Intelligently route workflow execution to different paths based on context analysis. Define multiple routes with descriptions, and an LLM will determine which route to take based on the provided context.',
   bestPractices: `

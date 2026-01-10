@@ -33,7 +33,7 @@ import {
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
-import { useTagSelection } from '@/hooks/use-tag-selection'
+import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 import { normalizeName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -156,7 +156,7 @@ export function ConditionInput({
     [key: string]: number[]
   }>({})
   const updateNodeInternals = useUpdateNodeInternals()
-  const removeEdge = useWorkflowStore((state) => state.removeEdge)
+  const batchRemoveEdges = useWorkflowStore((state) => state.batchRemoveEdges)
   const edges = useWorkflowStore((state) => state.edges)
 
   const prevStoreValueRef = useRef<string | null>(null)
@@ -661,11 +661,12 @@ export function ConditionInput({
 
     // Remove any associated edges before removing the block
     const handlePrefix = isRouterMode ? `router-${id}` : `condition-${id}`
-    edges.forEach((edge) => {
-      if (edge.sourceHandle?.startsWith(handlePrefix)) {
-        removeEdge(edge.id)
-      }
-    })
+    const edgeIdsToRemove = edges
+      .filter((edge) => edge.sourceHandle?.startsWith(handlePrefix))
+      .map((edge) => edge.id)
+    if (edgeIdsToRemove.length > 0) {
+      batchRemoveEdges(edgeIdsToRemove)
+    }
 
     shouldPersistRef.current = true
     setConditionalBlocks((blocks) => updateBlockTitles(blocks.filter((block) => block.id !== id)))

@@ -2,14 +2,16 @@
 
 import { type KeyboardEvent, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/emcn'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
+import AuthBackground from '@/app/(auth)/components/auth-background'
+import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Nav from '@/app/(landing)/components/nav/nav'
 
 const logger = createLogger('EmailAuth')
@@ -17,8 +19,6 @@ const logger = createLogger('EmailAuth')
 interface EmailAuthProps {
   identifier: string
   onAuthSuccess: () => void
-  title?: string
-  primaryColor?: string
 }
 
 const validateEmailField = (emailValue: string): string[] => {
@@ -37,56 +37,18 @@ const validateEmailField = (emailValue: string): string[] => {
   return errors
 }
 
-export default function EmailAuth({
-  identifier,
-  onAuthSuccess,
-  title = 'chat',
-  primaryColor = 'var(--brand-primary-hover-hex)',
-}: EmailAuthProps) {
-  // Email auth state
+export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps) {
   const [email, setEmail] = useState('')
   const [authError, setAuthError] = useState<string | null>(null)
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
-  const [buttonClass, setButtonClass] = useState('auth-button-gradient')
 
-  // OTP verification state
   const [showOtpVerification, setShowOtpVerification] = useState(false)
   const [otpValue, setOtpValue] = useState('')
   const [countdown, setCountdown] = useState(0)
   const [isResendDisabled, setIsResendDisabled] = useState(false)
-
-  useEffect(() => {
-    // Check if CSS variable has been customized
-    const checkCustomBrand = () => {
-      const computedStyle = getComputedStyle(document.documentElement)
-      const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
-
-      // Check if the CSS variable exists and is different from the default
-      if (brandAccent && brandAccent !== '#6f3dfa') {
-        setButtonClass('auth-button-custom')
-      } else {
-        setButtonClass('auth-button-gradient')
-      }
-    }
-
-    checkCustomBrand()
-
-    // Also check on window resize or theme changes
-    window.addEventListener('resize', checkCustomBrand)
-    const observer = new MutationObserver(checkCustomBrand)
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['style', 'class'],
-    })
-
-    return () => {
-      window.removeEventListener('resize', checkCustomBrand)
-      observer.disconnect()
-    }
-  }, [])
 
   useEffect(() => {
     if (countdown > 0) {
@@ -98,7 +60,6 @@ export default function EmailAuth({
     }
   }, [countdown, isResendDisabled])
 
-  // Handle email input key down
   const handleEmailKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -109,21 +70,16 @@ export default function EmailAuth({
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value
     setEmail(newEmail)
-
-    // Silently validate but don't show errors until submit
     const errors = validateEmailField(newEmail)
     setEmailErrors(errors)
     setShowEmailValidationError(false)
   }
 
-  // Handle sending OTP
   const handleSendOtp = async () => {
-    // Validate email on submit
     const emailValidationErrors = validateEmailField(email)
     setEmailErrors(emailValidationErrors)
     setShowEmailValidationError(emailValidationErrors.length > 0)
 
-    // If there are validation errors, stop submission
     if (emailValidationErrors.length > 0) {
       return
     }
@@ -217,7 +173,6 @@ export default function EmailAuth({
         return
       }
 
-      // Don't show success message in error state, just reset OTP
       setOtpValue('')
     } catch (error) {
       logger.error('Error resending OTP:', error)
@@ -230,36 +185,34 @@ export default function EmailAuth({
   }
 
   return (
-    <div className='bg-white'>
-      <Nav variant='auth' />
-      <div className='flex min-h-[calc(100vh-120px)] items-center justify-center px-4'>
-        <div className='w-full max-w-[410px]'>
-          <div className='flex flex-col items-center justify-center'>
-            {/* Header */}
-            <div className='space-y-1 text-center'>
-              <h1
-                className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
-              >
-                {showOtpVerification ? 'Verify Your Email' : 'Email Verification'}
-              </h1>
-              <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
-                {showOtpVerification
-                  ? `A verification code has been sent to ${email}`
-                  : 'This chat requires email verification'}
-              </p>
-            </div>
-
-            {/* Form */}
-            <div className={`${inter.className} mt-8 w-full`}>
-              {!showOtpVerification ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    handleSendOtp()
-                  }}
-                  className='space-y-8'
+    <AuthBackground>
+      <main className='relative flex min-h-screen flex-col text-foreground'>
+        <Nav hideAuthButtons={true} variant='auth' />
+        <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
+          <div className='w-full max-w-lg px-4'>
+            <div className='flex flex-col items-center justify-center'>
+              <div className='space-y-1 text-center'>
+                <h1
+                  className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
                 >
-                  <div className='space-y-6'>
+                  {showOtpVerification ? 'Verify Your Email' : 'Email Verification'}
+                </h1>
+                <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+                  {showOtpVerification
+                    ? `A verification code has been sent to ${email}`
+                    : 'This chat requires email verification'}
+                </p>
+              </div>
+
+              <div className={`${inter.className} mt-8 w-full max-w-[410px]`}>
+                {!showOtpVerification ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      handleSendOtp()
+                    }}
+                    className='space-y-6'
+                  >
                     <div className='space-y-2'>
                       <div className='flex items-center justify-between'>
                         <Label htmlFor='email'>Email</Label>
@@ -291,18 +244,12 @@ export default function EmailAuth({
                         </div>
                       )}
                     </div>
-                  </div>
 
-                  <Button
-                    type='submit'
-                    className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
-                    disabled={isSendingOtp}
-                  >
-                    {isSendingOtp ? 'Sending Code...' : 'Continue'}
-                  </Button>
-                </form>
-              ) : (
-                <div className='space-y-8'>
+                    <BrandedButton type='submit' loading={isSendingOtp} loadingText='Sending Code'>
+                      Continue
+                    </BrandedButton>
+                  </form>
+                ) : (
                   <div className='space-y-6'>
                     <p className='text-center text-muted-foreground text-sm'>
                       Enter the 6-digit code to verify your account. If you don't see it in your
@@ -340,60 +287,61 @@ export default function EmailAuth({
                       </InputOTP>
                     </div>
 
-                    {/* Error message */}
                     {authError && (
                       <div className='mt-1 space-y-1 text-center text-red-400 text-xs'>
                         <p>{authError}</p>
                       </div>
                     )}
-                  </div>
 
-                  <Button
-                    onClick={() => handleVerifyOtp()}
-                    className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
-                    disabled={otpValue.length !== 6 || isVerifyingOtp}
-                  >
-                    {isVerifyingOtp ? 'Verifying...' : 'Verify Email'}
-                  </Button>
-
-                  <div className='text-center'>
-                    <p className='text-muted-foreground text-sm'>
-                      Didn't receive a code?{' '}
-                      {countdown > 0 ? (
-                        <span>
-                          Resend in{' '}
-                          <span className='font-medium text-foreground'>{countdown}s</span>
-                        </span>
-                      ) : (
-                        <button
-                          className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
-                          onClick={handleResendOtp}
-                          disabled={isVerifyingOtp || isResendDisabled}
-                        >
-                          Resend
-                        </button>
-                      )}
-                    </p>
-                  </div>
-
-                  <div className='text-center font-light text-[14px]'>
-                    <button
-                      onClick={() => {
-                        setShowOtpVerification(false)
-                        setOtpValue('')
-                        setAuthError(null)
-                      }}
-                      className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+                    <BrandedButton
+                      onClick={() => handleVerifyOtp()}
+                      disabled={otpValue.length !== 6}
+                      loading={isVerifyingOtp}
+                      loadingText='Verifying'
                     >
-                      Change email
-                    </button>
+                      Verify Email
+                    </BrandedButton>
+
+                    <div className='text-center'>
+                      <p className='text-muted-foreground text-sm'>
+                        Didn't receive a code?{' '}
+                        {countdown > 0 ? (
+                          <span>
+                            Resend in{' '}
+                            <span className='font-medium text-foreground'>{countdown}s</span>
+                          </span>
+                        ) : (
+                          <button
+                            className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+                            onClick={handleResendOtp}
+                            disabled={isVerifyingOtp || isResendDisabled}
+                          >
+                            Resend
+                          </button>
+                        )}
+                      </p>
+                    </div>
+
+                    <div className='text-center font-light text-[14px]'>
+                      <button
+                        onClick={() => {
+                          setShowOtpVerification(false)
+                          setOtpValue('')
+                          setAuthError(null)
+                        }}
+                        className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+                      >
+                        Change email
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
+        <SupportFooter position='absolute' />
+      </main>
+    </AuthBackground>
   )
 }

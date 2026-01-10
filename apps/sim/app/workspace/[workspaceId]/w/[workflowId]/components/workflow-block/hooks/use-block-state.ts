@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import type { DiffStatus } from '@/lib/workflows/diff/types'
 import { hasDiffStatus } from '@/lib/workflows/diff/types'
-import { useExecutionStore } from '@/stores/execution/store'
+import { useExecutionStore } from '@/stores/execution'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import type { CurrentWorkflow } from '../../../hooks/use-current-workflow'
 import type { WorkflowBlockProps } from '../types'

@@ -66,7 +66,7 @@ export function LogRowContextMenu({
   return (
     <Popover
       open={isOpen}
-      onOpenChange={onClose}
+      onOpenChange={(open) => !open && onClose()}
       variant='secondary'
       size='sm'
       colorScheme='inverted'

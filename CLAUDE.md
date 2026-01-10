@@ -173,13 +173,13 @@ Use Vitest. Test files: `feature.ts` → `feature.test.ts`
 /**
  * @vitest-environment node
  */
-
-// Mocks BEFORE imports
-vi.mock('@sim/db', () => ({ db: { select: vi.fn() } }))
-
-// Imports AFTER mocks
+import { databaseMock, loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
-import { createSession, loggerMock } from '@sim/testing'
+
+vi.mock('@sim/db', () => databaseMock)
+vi.mock('@sim/logger', () => loggerMock)
+
+import { myFunction } from '@/lib/feature'
 
 describe('feature', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -187,7 +187,7 @@ describe('feature', () => {
 })
 ```
 
-Use `@sim/testing` factories over manual test data.
+Use `@sim/testing` mocks/factories over local test data. See `.cursor/rules/sim-testing.mdc` for details.
 
 ## Utils Rules
 

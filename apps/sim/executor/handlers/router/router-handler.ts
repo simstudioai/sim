@@ -15,6 +15,7 @@ import {
   ROUTER,
 } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import { validateModelProvider } from '@/executor/utils/permission-check'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -72,6 +73,8 @@ export class RouterBlockHandler implements BlockHandler {
       bedrockSecretKey: inputs.bedrockSecretKey,
       bedrockRegion: inputs.bedrockRegion,
     }
+
+    await validateModelProvider(ctx.userId, routerConfig.model, ctx)
 
     const providerId = getProviderFromModel(routerConfig.model)
 
@@ -210,6 +213,8 @@ export class RouterBlockHandler implements BlockHandler {
       bedrockSecretKey: inputs.bedrockSecretKey,
       bedrockRegion: inputs.bedrockRegion,
     }
+
+    await validateModelProvider(ctx.userId, routerConfig.model, ctx)
 
     const providerId = getProviderFromModel(routerConfig.model)
 

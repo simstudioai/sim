@@ -53,16 +53,16 @@ import {
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { knowledgeKeys } from '@/hooks/queries/knowledge'
 import {
   useKnowledgeBase,
   useKnowledgeBaseDocuments,
   useKnowledgeBasesList,
-} from '@/hooks/use-knowledge'
+} from '@/hooks/kb/use-knowledge'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
-} from '@/hooks/use-knowledge-base-tag-definitions'
+} from '@/hooks/kb/use-knowledge-base-tag-definitions'
+import { knowledgeKeys } from '@/hooks/queries/knowledge'
 
 const logger = createLogger('KnowledgeBase')
 

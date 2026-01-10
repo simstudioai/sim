@@ -1,20 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
-
-/**
- * Sidebar state interface
- */
-interface SidebarState {
-  workspaceDropdownOpen: boolean
-  sidebarWidth: number
-  isCollapsed: boolean
-  _hasHydrated: boolean
-  setWorkspaceDropdownOpen: (isOpen: boolean) => void
-  setSidebarWidth: (width: number) => void
-  setIsCollapsed: (isCollapsed: boolean) => void
-  setHasHydrated: (hasHydrated: boolean) => void
-}
+import type { SidebarState } from './types'
 
 export const useSidebarStore = create<SidebarState>()(
   persist(

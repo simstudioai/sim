@@ -1,11 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { Check, Loader2, Plus, X, XCircle } from 'lucide-react'
+import { client } from '@/lib/auth/auth-client'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { useCustomToolsStore } from '@/stores/custom-tools'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -30,6 +31,20 @@ interface ManageCustomToolArgs {
 }
 
 const API_ENDPOINT = '/api/tools/custom'
+
+async function checkCustomToolsPermission(): Promise<void> {
+  const activeOrgResponse = await client.organization.getFullOrganization()
+  const organizationId = activeOrgResponse.data?.id
+  if (!organizationId) return
+
+  const response = await fetch(`/api/permission-groups/user?organizationId=${organizationId}`)
+  if (!response.ok) return
+
+  const data = await response.json()
+  if (data?.config?.disableCustomTools) {
+    throw new Error('Custom tools are not allowed based on your permission group settings')
+  }
+}
 
 /**
  * Client tool for creating, editing, and deleting custom tools via the copilot.
@@ -164,7 +179,10 @@ export class ManageCustomToolClientTool extends BaseClientTool {
     } catch (e: any) {
       logger.error('execute failed', { message: e?.message })
       this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'Failed to manage custom tool')
+      await this.markToolComplete(500, e?.message || 'Failed to manage custom tool', {
+        success: false,
+        error: e?.message || 'Failed to manage custom tool',
+      })
     }
   }
 
@@ -188,6 +206,8 @@ export class ManageCustomToolClientTool extends BaseClientTool {
     if (!args?.operation) {
       throw new Error('Operation is required')
     }
+
+    await checkCustomToolsPermission()
 
     const { operation, toolId, schema, code } = args
 

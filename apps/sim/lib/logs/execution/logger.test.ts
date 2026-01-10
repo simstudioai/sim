@@ -1,31 +1,8 @@
-import { loggerMock } from '@sim/testing'
+import { databaseMock, loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { ExecutionLogger } from '@/lib/logs/execution/logger'
 
-// Mock database module
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn(() => Promise.resolve([])),
-        })),
-      })),
-    })),
-    insert: vi.fn(() => ({
-      values: vi.fn(() => ({
-        returning: vi.fn(() => Promise.resolve([])),
-      })),
-    })),
-    update: vi.fn(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn(() => ({
-          returning: vi.fn(() => Promise.resolve([])),
-        })),
-      })),
-    })),
-  },
-}))
+vi.mock('@sim/db', () => databaseMock)
 
 // Mock database schema
 vi.mock('@sim/db/schema', () => ({

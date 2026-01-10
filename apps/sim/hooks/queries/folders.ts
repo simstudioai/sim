@@ -6,7 +6,8 @@ import {
   generateTempId,
 } from '@/hooks/queries/utils/optimistic-mutation'
 import { workflowKeys } from '@/hooks/queries/workflows'
-import { useFolderStore, type WorkflowFolder } from '@/stores/folders/store'
+import { useFolderStore } from '@/stores/folders/store'
+import type { WorkflowFolder } from '@/stores/folders/types'
 
 const logger = createLogger('FolderQueries')
 

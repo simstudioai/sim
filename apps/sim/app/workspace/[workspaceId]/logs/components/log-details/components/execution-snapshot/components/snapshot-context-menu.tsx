@@ -44,7 +44,7 @@ export function SnapshotContextMenu({
   return createPortal(
     <Popover
       open={isOpen}
-      onOpenChange={onClose}
+      onOpenChange={(open) => !open && onClose()}
       variant='secondary'
       size='sm'
       colorScheme='inverted'

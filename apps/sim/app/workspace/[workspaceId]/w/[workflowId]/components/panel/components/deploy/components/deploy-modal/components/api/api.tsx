@@ -5,6 +5,8 @@ import { Check, Clipboard } from 'lucide-react'
 import {
   Badge,
   Button,
+  ButtonGroup,
+  ButtonGroupItem,
   Code,
   Label,
   Popover,
@@ -488,25 +490,13 @@ console.log(limits);`
             Language
           </Label>
         </div>
-        <div className='inline-flex gap-[2px]'>
-          {(Object.keys(LANGUAGE_LABELS) as CodeLanguage[]).map((lang, index, arr) => (
-            <Button
-              key={lang}
-              type='button'
-              variant={language === lang ? 'active' : 'default'}
-              onClick={() => setLanguage(lang)}
-              className={`px-[8px] py-[4px] text-[12px] ${
-                index === 0
-                  ? 'rounded-r-none'
-                  : index === arr.length - 1
-                    ? 'rounded-l-none'
-                    : 'rounded-none'
-              }`}
-            >
+        <ButtonGroup value={language} onValueChange={(val) => setLanguage(val as CodeLanguage)}>
+          {(Object.keys(LANGUAGE_LABELS) as CodeLanguage[]).map((lang) => (
+            <ButtonGroupItem key={lang} value={lang}>
               {LANGUAGE_LABELS[lang]}
-            </Button>
+            </ButtonGroupItem>
           ))}
-        </div>
+        </ButtonGroup>
       </div>
 
       <div>
@@ -543,7 +533,7 @@ console.log(limits);`
           <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
             Run workflow (stream response)
           </Label>
-          <div className='flex items-center gap-[8px]'>
+          <div className='flex items-center gap-[6px]'>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button
@@ -587,7 +577,7 @@ console.log(limits);`
             <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
               Run workflow (async)
             </Label>
-            <div className='flex items-center gap-[8px]'>
+            <div className='flex items-center gap-[6px]'>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Button

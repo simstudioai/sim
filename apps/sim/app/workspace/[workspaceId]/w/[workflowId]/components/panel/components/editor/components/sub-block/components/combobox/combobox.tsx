@@ -8,6 +8,8 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { getProviderFromModel } from '@/providers/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
@@ -132,10 +134,27 @@ export function ComboBox({
   // Determine the active value based on mode (preview vs. controlled vs. store)
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
+  // Permission-based filtering for model dropdowns
+  const { isProviderAllowed, isLoading: isPermissionLoading } = usePermissionConfig()
+
   // Evaluate static options if provided as a function
   const staticOptions = useMemo(() => {
-    return typeof options === 'function' ? options() : options
-  }, [options])
+    const opts = typeof options === 'function' ? options() : options
+
+    if (subBlockId === 'model') {
+      return opts.filter((opt) => {
+        const modelId = typeof opt === 'string' ? opt : opt.id
+        try {
+          const providerId = getProviderFromModel(modelId)
+          return isProviderAllowed(providerId)
+        } catch {
+          return true
+        }
+      })
+    }
+
+    return opts
+  }, [options, subBlockId, isProviderAllowed])
 
   // Normalize fetched options to match ComboBoxOption format
   const normalizedFetchedOptions = useMemo((): ComboBoxOption[] => {
@@ -146,6 +165,18 @@ export function ComboBox({
   const evaluatedOptions = useMemo((): ComboBoxOption[] => {
     let opts: ComboBoxOption[] =
       fetchOptions && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : staticOptions
+
+    if (subBlockId === 'model' && fetchOptions && normalizedFetchedOptions.length > 0) {
+      opts = opts.filter((opt) => {
+        const modelId = typeof opt === 'string' ? opt : opt.id
+        try {
+          const providerId = getProviderFromModel(modelId)
+          return isProviderAllowed(providerId)
+        } catch {
+          return true
+        }
+      })
+    }
 
     // Merge hydrated option if not already present
     if (hydratedOption) {
@@ -158,7 +189,14 @@ export function ComboBox({
     }
 
     return opts
-  }, [fetchOptions, normalizedFetchedOptions, staticOptions, hydratedOption])
+  }, [
+    fetchOptions,
+    normalizedFetchedOptions,
+    staticOptions,
+    hydratedOption,
+    subBlockId,
+    isProviderAllowed,
+  ])
 
   // Convert options to Combobox format
   const comboboxOptions = useMemo((): ComboboxOption[] => {
@@ -231,16 +269,34 @@ export function ComboBox({
     setStoreInitialized(true)
   }, [])
 
-  // Set default value once store is initialized and value is undefined
+  // Check if current value is valid (exists in allowed options)
+  const isValueValid = useMemo(() => {
+    if (value === null || value === undefined) return false
+    return evaluatedOptions.some((opt) => getOptionValue(opt) === value)
+  }, [value, evaluatedOptions, getOptionValue])
+
+  // Set default value once store is initialized and permissions are loaded
+  // Also reset if current value becomes invalid (e.g., provider was blocked)
   useEffect(() => {
-    if (
-      storeInitialized &&
-      (value === null || value === undefined) &&
-      defaultOptionValue !== undefined
-    ) {
+    if (isPermissionLoading) return
+    if (!storeInitialized) return
+    if (defaultOptionValue === undefined) return
+
+    const needsDefault = value === null || value === undefined
+    const needsReset = subBlockId === 'model' && value && !isValueValid
+
+    if (needsDefault || needsReset) {
       setStoreValue(defaultOptionValue)
     }
-  }, [storeInitialized, value, defaultOptionValue, setStoreValue])
+  }, [
+    storeInitialized,
+    value,
+    defaultOptionValue,
+    setStoreValue,
+    isPermissionLoading,
+    subBlockId,
+    isValueValid,
+  ])
 
   // Clear fetched options and hydrated option when dependencies change
   useEffect(() => {

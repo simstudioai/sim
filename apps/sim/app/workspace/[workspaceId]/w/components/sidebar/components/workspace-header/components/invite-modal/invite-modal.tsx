@@ -1,24 +1,23 @@
 'use client'
 
-import React, { type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Paperclip, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
-  Input,
+  type FileInputOptions,
   Label,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
+  TagInput,
+  type TagItem,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
-import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { EmailTag } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal/components/email-tag'
 import { PermissionsTable } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal/components/permissions-table'
 import { API_ENDPOINTS } from '@/stores/constants'
 import type { PermissionType, UserPermissions } from './components/types'
@@ -42,12 +41,7 @@ interface PendingInvitation {
 
 export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalProps) {
   const formRef = useRef<HTMLFormElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [inputValue, setInputValue] = useState('')
-  const [emails, setEmails] = useState<string[]>([])
-  const [invalidEmails, setInvalidEmails] = useState<string[]>([])
-  const [duplicateEmails, setDuplicateEmails] = useState<string[]>([])
-  const [isDragging, setIsDragging] = useState(false)
+  const [emailItems, setEmailItems] = useState<TagItem[]>([])
   const [userPermissions, setUserPermissions] = useState<UserPermissions[]>([])
   const [pendingInvitations, setPendingInvitations] = useState<UserPermissions[]>([])
   const [isPendingInvitationsLoading, setIsPendingInvitationsLoading] = useState(false)
@@ -84,7 +78,8 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
   } = useWorkspacePermissionsContext()
 
   const hasPendingChanges = Object.keys(existingUserPermissionChanges).length > 0
-  const hasNewInvites = emails.length > 0 || inputValue.trim()
+  const validEmails = emailItems.filter((item) => item.isValid).map((item) => item.value)
+  const hasNewInvites = validEmails.length > 0
 
   const fetchPendingInvitations = useCallback(async () => {
     if (!workspaceId) return
@@ -123,7 +118,6 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     }
   }, [open, workspaceId, fetchPendingInvitations, refetchPermissions])
 
-  // Clear errors when modal opens
   useEffect(() => {
     if (open) {
       setErrorMessage(null)
@@ -139,21 +133,13 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
       const validation = quickValidateEmail(normalized)
       const isValid = validation.isValid
 
-      if (
-        emails.includes(normalized) ||
-        invalidEmails.includes(normalized) ||
-        duplicateEmails.includes(normalized)
-      ) {
+      if (emailItems.some((item) => item.value === normalized)) {
         return false
       }
 
       const hasPendingInvitation = pendingInvitations.some((inv) => inv.email === normalized)
       if (hasPendingInvitation) {
-        setDuplicateEmails((prev) => {
-          if (prev.includes(normalized)) return prev
-          return [...prev, normalized]
-        })
-        setInputValue('')
+        setErrorMessage(`${normalized} already has a pending invitation`)
         return false
       }
 
@@ -161,141 +147,55 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         (user) => user.email === normalized
       )
       if (isExistingMember) {
-        setDuplicateEmails((prev) => {
-          if (prev.includes(normalized)) return prev
-          return [...prev, normalized]
-        })
-        setInputValue('')
+        setErrorMessage(`${normalized} is already a member of this workspace`)
         return false
       }
 
       if (session?.user?.email && session.user.email.toLowerCase() === normalized) {
         setErrorMessage('You cannot invite yourself')
-        setInputValue('')
         return false
       }
 
-      if (!isValid) {
-        setInvalidEmails((prev) => {
-          if (prev.includes(normalized)) return prev
-          return [...prev, normalized]
-        })
-        setInputValue('')
-        return false
+      setEmailItems((prev) => [...prev, { value: normalized, isValid }])
+
+      if (isValid) {
+        setErrorMessage(null)
+        setUserPermissions((prev) => [
+          ...prev,
+          {
+            email: normalized,
+            permissionType: 'read',
+          },
+        ])
       }
 
-      setErrorMessage(null)
-      setEmails((prev) => {
-        if (prev.includes(normalized)) return prev
-        return [...prev, normalized]
-      })
-
-      setUserPermissions((prev) => [
-        ...prev,
-        {
-          email: normalized,
-          permissionType: 'read',
-        },
-      ])
-
-      setInputValue('')
-      return true
+      return isValid
     },
-    [
-      emails,
-      invalidEmails,
-      duplicateEmails,
-      pendingInvitations,
-      workspacePermissions?.users,
-      session?.user?.email,
-    ]
+    [emailItems, pendingInvitations, workspacePermissions?.users, session?.user?.email]
   )
 
-  const removeEmail = useCallback(
-    (index: number) => {
-      const emailToRemove = emails[index]
-      setEmails((prev) => prev.filter((_, i) => i !== index))
-      setUserPermissions((prev) => prev.filter((user) => user.email !== emailToRemove))
-    },
-    [emails]
-  )
-
-  const removeInvalidEmail = useCallback((index: number) => {
-    setInvalidEmails((prev) => prev.filter((_, i) => i !== index))
-  }, [])
-
-  const removeDuplicateEmail = useCallback((index: number) => {
-    setDuplicateEmails((prev) => prev.filter((_, i) => i !== index))
-  }, [])
-
-  const extractEmailsFromText = useCallback((text: string): string[] => {
-    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
-    const matches = text.match(emailRegex) || []
-    return [...new Set(matches.map((e) => e.toLowerCase()))]
-  }, [])
-
-  const handleFileDrop = useCallback(
-    async (file: File) => {
-      try {
-        const text = await file.text()
-        const extractedEmails = extractEmailsFromText(text)
-        extractedEmails.forEach((email) => {
-          addEmail(email)
-        })
-      } catch (error) {
-        logger.error('Error reading dropped file', error)
+  const removeEmailItem = useCallback(
+    (_value: string, index: number, isValid?: boolean) => {
+      const itemToRemove = emailItems[index]
+      setEmailItems((prev) => prev.filter((_, i) => i !== index))
+      if (isValid ?? itemToRemove?.isValid) {
+        setUserPermissions((prev) => prev.filter((user) => user.email !== itemToRemove?.value))
       }
     },
-    [extractEmailsFromText, addEmail]
+    [emailItems]
   )
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    e.dataTransfer.dropEffect = 'copy'
-    setIsDragging(true)
-  }, [])
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-  }, [])
-
-  const handleDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setIsDragging(false)
-
-      const files = Array.from(e.dataTransfer.files)
-      const validFiles = files.filter(
-        (f) =>
-          f.type === 'text/csv' ||
-          f.type === 'text/plain' ||
-          f.name.endsWith('.csv') ||
-          f.name.endsWith('.txt')
-      )
-
-      for (const file of validFiles) {
-        await handleFileDrop(file)
-      }
-    },
-    [handleFileDrop]
-  )
-
-  const handleFileInputChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files
-      if (!files) return
-
-      for (const file of Array.from(files)) {
-        await handleFileDrop(file)
-      }
-
-      e.target.value = ''
-    },
-    [handleFileDrop]
+  const fileInputOptions: FileInputOptions = useMemo(
+    () => ({
+      enabled: userPerms.canAdmin,
+      accept: '.csv,.txt,text/csv,text/plain',
+      extractValues: (text: string) => {
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
+        const matches = text.match(emailRegex) || []
+        return [...new Set(matches.map((e) => e.toLowerCase()))]
+      },
+    }),
+    [userPerms.canAdmin]
   )
 
   const handlePermissionChange = useCallback(
@@ -567,68 +467,14 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     [workspaceId, userPerms.canAdmin, resendCooldowns]
   )
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter') {
-        e.preventDefault()
-        if (inputValue.trim()) {
-          addEmail(inputValue)
-        }
-        return
-      }
-
-      if ([',', ' '].includes(e.key) && inputValue.trim()) {
-        e.preventDefault()
-        addEmail(inputValue)
-      }
-
-      if (e.key === 'Backspace' && !inputValue) {
-        if (duplicateEmails.length > 0) {
-          removeDuplicateEmail(duplicateEmails.length - 1)
-        } else if (invalidEmails.length > 0) {
-          removeInvalidEmail(invalidEmails.length - 1)
-        } else if (emails.length > 0) {
-          removeEmail(emails.length - 1)
-        }
-      }
-    },
-    [
-      inputValue,
-      addEmail,
-      duplicateEmails,
-      invalidEmails,
-      emails,
-      removeDuplicateEmail,
-      removeInvalidEmail,
-      removeEmail,
-    ]
-  )
-
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent<HTMLInputElement>) => {
-      e.preventDefault()
-      const pastedText = e.clipboardData.getData('text')
-      const pastedEmails = extractEmailsFromText(pastedText)
-
-      pastedEmails.forEach((email) => {
-        addEmail(email)
-      })
-    },
-    [addEmail, extractEmailsFromText]
-  )
-
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault()
 
-      if (inputValue.trim()) {
-        addEmail(inputValue)
-      }
-
       setErrorMessage(null)
       setSuccessMessage(null)
 
-      if (emails.length === 0 || !workspaceId) {
+      if (validEmails.length === 0 || !workspaceId) {
         return
       }
 
@@ -638,7 +484,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         const failedInvites: string[] = []
 
         const results = await Promise.all(
-          emails.map(async (email) => {
+          validEmails.map(async (email) => {
             try {
               const userPermission = userPermissions.find((up) => up.email === email)
               const permissionType = userPermission?.permissionType || 'read'
@@ -659,9 +505,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               const data = await response.json()
 
               if (!response.ok) {
-                if (!invalidEmails.includes(email)) {
-                  failedInvites.push(email)
-                }
+                failedInvites.push(email)
 
                 if (data.error) {
                   setErrorMessage(data.error)
@@ -672,16 +516,14 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
 
               return true
             } catch {
-              if (!invalidEmails.includes(email)) {
-                failedInvites.push(email)
-              }
+              failedInvites.push(email)
               return false
             }
           })
         )
 
         const successCount = results.filter(Boolean).length
-        const successfulEmails = emails.filter((_, index) => results[index])
+        const successfulEmails = validEmails.filter((_, index) => results[index])
 
         if (successCount > 0) {
           if (successfulEmails.length > 0) {
@@ -711,17 +553,14 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
           }
 
           fetchPendingInvitations()
-          setInputValue('')
 
           if (failedInvites.length > 0) {
-            setEmails(failedInvites)
+            setEmailItems(failedInvites.map((email) => ({ value: email, isValid: true })))
             setUserPermissions((prev) => prev.filter((user) => failedInvites.includes(user.email)))
           } else {
-            setEmails([])
+            setEmailItems([])
             setUserPermissions([])
           }
-
-          setInvalidEmails([])
           setShowSent(true)
 
           setTimeout(() => {
@@ -737,24 +576,11 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         setIsSubmitting(false)
       }
     },
-    [
-      inputValue,
-      addEmail,
-      emails,
-      workspaceId,
-      userPermissions,
-      invalidEmails,
-      fetchPendingInvitations,
-      onOpenChange,
-    ]
+    [validEmails, workspaceId, userPermissions, fetchPendingInvitations]
   )
 
   const resetState = useCallback(() => {
-    setInputValue('')
-    setEmails([])
-    setInvalidEmails([])
-    setDuplicateEmails([])
-    setIsDragging(false)
+    setEmailItems([])
     setUserPermissions([])
     setPendingInvitations([])
     setIsPendingInvitationsLoading(false)
@@ -825,112 +651,22 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                   tabIndex={-1}
                   readOnly
                 />
-                <input
-                  ref={fileInputRef}
-                  type='file'
-                  accept='.csv,.txt,text/csv,text/plain'
-                  onChange={handleFileInputChange}
-                  className='hidden'
+                <TagInput
+                  id='invite-field'
+                  name='invite_search_field'
+                  items={emailItems}
+                  onAdd={(value) => addEmail(value)}
+                  onRemove={removeEmailItem}
+                  placeholder={
+                    !userPerms.canAdmin
+                      ? 'Only administrators can invite new members'
+                      : 'Enter emails'
+                  }
+                  placeholderWithTags='Add email'
+                  autoFocus={userPerms.canAdmin}
+                  disabled={isSubmitting || !userPerms.canAdmin}
+                  fileInputOptions={fileInputOptions}
                 />
-                <div
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  className={cn(
-                    'scrollbar-hide relative flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[6px] py-[4px] transition-colors focus-within:outline-none',
-                    isDragging && 'border-[var(--border)] border-dashed bg-[var(--surface-5)]'
-                  )}
-                >
-                  {isDragging && (
-                    <div className='absolute inset-0 flex items-center justify-center rounded-[4px] bg-[var(--surface-5)]/90'>
-                      <span className='text-[13px] text-[var(--text-tertiary)]'>
-                        Drop file here
-                      </span>
-                    </div>
-                  )}
-                  {invalidEmails.map((email, index) => (
-                    <EmailTag
-                      key={`invalid-${index}`}
-                      email={email}
-                      onRemove={() => removeInvalidEmail(index)}
-                      disabled={isSubmitting || !userPerms.canAdmin}
-                      isInvalid={true}
-                    />
-                  ))}
-                  {duplicateEmails.map((email, index) => (
-                    <div
-                      key={`duplicate-${index}`}
-                      className='flex w-auto items-center gap-[4px] rounded-[4px] border border-amber-500 bg-amber-500/10 px-[6px] py-[2px] text-[12px] text-amber-600 dark:bg-amber-500/20 dark:text-amber-400'
-                    >
-                      <span className='max-w-[200px] truncate'>{email}</span>
-                      <span className='text-[11px] opacity-70'>duplicate</span>
-                      {!isSubmitting && userPerms.canAdmin && (
-                        <button
-                          type='button'
-                          onClick={() => removeDuplicateEmail(index)}
-                          className='flex-shrink-0 text-amber-600 transition-colors hover:text-amber-700 focus:outline-none dark:text-amber-400 dark:hover:text-amber-300'
-                          aria-label={`Remove ${email}`}
-                        >
-                          <X className='h-[12px] w-[12px] translate-y-[0.2px]' />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {emails.map((email, index) => (
-                    <EmailTag
-                      key={`valid-${index}`}
-                      email={email}
-                      onRemove={() => removeEmail(index)}
-                      disabled={isSubmitting || !userPerms.canAdmin}
-                    />
-                  ))}
-                  <div className='relative flex flex-1 items-center'>
-                    <Input
-                      id='invite-field'
-                      name='invite_search_field'
-                      type='text'
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      onPaste={handlePaste}
-                      onBlur={() => inputValue.trim() && addEmail(inputValue)}
-                      placeholder={
-                        !userPerms.canAdmin
-                          ? 'Only administrators can invite new members'
-                          : emails.length > 0 ||
-                              invalidEmails.length > 0 ||
-                              duplicateEmails.length > 0
-                            ? 'Add another email'
-                            : 'Enter emails'
-                      }
-                      className={cn(
-                        'h-6 min-w-[140px] flex-1 border-none bg-transparent p-0 text-[13px] focus-visible:ring-0 focus-visible:ring-offset-0',
-                        emails.length > 0 || invalidEmails.length > 0 || duplicateEmails.length > 0
-                          ? 'pl-[4px]'
-                          : 'pl-[4px]'
-                      )}
-                      autoFocus={userPerms.canAdmin}
-                      disabled={isSubmitting || !userPerms.canAdmin}
-                      autoComplete='off'
-                      autoCorrect='off'
-                      autoCapitalize='off'
-                      spellCheck={false}
-                      data-lpignore='true'
-                      data-form-type='other'
-                      aria-autocomplete='none'
-                    />
-                    {userPerms.canAdmin && (
-                      <button
-                        type='button'
-                        onClick={() => fileInputRef.current?.click()}
-                        className='ml-[4px] flex-shrink-0 text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]'
-                        disabled={isSubmitting}
-                      >
-                        <Paperclip className='h-[14px] w-[14px]' strokeWidth={2} />
-                      </button>
-                    )}
-                  </div>
-                </div>
               </div>
               {errorMessage && (
                 <p className='mt-[4px] text-[12px] text-[var(--text-error)]'>{errorMessage}</p>

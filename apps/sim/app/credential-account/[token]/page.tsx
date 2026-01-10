@@ -221,12 +221,10 @@ export default function CredentialAccountInvitePage() {
               label: 'Create an account',
               onClick: () =>
                 router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true&new=true`),
-              variant: 'outline' as const,
             },
             {
               label: 'Return to Home',
               onClick: () => router.push('/'),
-              variant: 'ghost' as const,
             },
           ]}
         />
@@ -260,7 +258,6 @@ export default function CredentialAccountInvitePage() {
           {
             label: 'Return to Home',
             onClick: () => router.push('/'),
-            variant: 'ghost' as const,
           },
         ]}
       />

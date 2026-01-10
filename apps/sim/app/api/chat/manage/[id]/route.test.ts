@@ -1,9 +1,10 @@
-import { NextRequest } from 'next/server'
 /**
  * Tests for chat edit API route
  *
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
+import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
@@ -50,14 +51,8 @@ describe('Chat Edit API Route', () => {
       chat: { id: 'id', identifier: 'identifier', userId: 'userId' },
     }))
 
-    vi.doMock('@sim/logger', () => ({
-      createLogger: vi.fn().mockReturnValue({
-        info: vi.fn(),
-        error: vi.fn(),
-        warn: vi.fn(),
-        debug: vi.fn(),
-      }),
-    }))
+    // Mock logger - use loggerMock from @sim/testing
+    vi.doMock('@sim/logger', () => loggerMock)
 
     vi.doMock('@/app/api/workflows/utils', () => ({
       createSuccessResponse: mockCreateSuccessResponse.mockImplementation((data) => {
