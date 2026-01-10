@@ -746,7 +746,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                 title='Attach file'
                 className={cn(
                   'cursor-pointer rounded-[6px] border-0 bg-transparent p-[0px] dark:bg-transparent',
-                  (disabled || isLoading) && 'cursor-not-allowed opacity-50'
+                  disabled && 'cursor-not-allowed opacity-50'
                 )}
               >
                 <Image className='!h-3.5 !w-3.5 scale-x-110' />
@@ -802,7 +802,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             </div>
           </div>
 
-          {/* Hidden File Input */}
+          {/* Hidden File Input - enabled during streaming so users can prepare images for the next message */}
           <input
             ref={fileAttachments.fileInputRef}
             type='file'
@@ -810,7 +810,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             className='hidden'
             accept='image/*'
             multiple
-            disabled={disabled || isLoading}
+            disabled={disabled}
           />
         </div>
       </div>
