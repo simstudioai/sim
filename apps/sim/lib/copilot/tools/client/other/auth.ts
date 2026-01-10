@@ -29,8 +29,8 @@ export class AuthClientTool extends BaseClientTool {
       [ClientToolCallState.executing]: { text: 'Authenticating', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Authenticated', icon: KeyRound },
       [ClientToolCallState.error]: { text: 'Failed to authenticate', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Auth skipped', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Auth aborted', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped auth', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted auth', icon: XCircle },
     },
     uiConfig: {
       subagent: {

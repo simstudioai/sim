@@ -27,10 +27,10 @@ export class KnowledgeClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Managing knowledge', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Managing knowledge', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Managing knowledge', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Knowledge managed', icon: BookOpen },
+      [ClientToolCallState.success]: { text: 'Managed knowledge', icon: BookOpen },
       [ClientToolCallState.error]: { text: 'Failed to manage knowledge', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Knowledge skipped', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Knowledge aborted', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped knowledge', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted knowledge', icon: XCircle },
     },
     uiConfig: {
       subagent: {

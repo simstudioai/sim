@@ -27,10 +27,10 @@ export class InfoClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Getting info', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Getting info', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Getting info', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Info retrieved', icon: Info },
+      [ClientToolCallState.success]: { text: 'Retrieved info', icon: Info },
       [ClientToolCallState.error]: { text: 'Failed to get info', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Info skipped', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Info aborted', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped info', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted info', icon: XCircle },
     },
     uiConfig: {
       subagent: {

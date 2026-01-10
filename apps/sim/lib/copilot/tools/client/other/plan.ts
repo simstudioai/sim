@@ -29,8 +29,8 @@ export class PlanClientTool extends BaseClientTool {
       [ClientToolCallState.executing]: { text: 'Planning', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Planned', icon: ListTodo },
       [ClientToolCallState.error]: { text: 'Failed to plan', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Plan skipped', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Plan aborted', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped plan', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted plan', icon: XCircle },
     },
     uiConfig: {
       subagent: {

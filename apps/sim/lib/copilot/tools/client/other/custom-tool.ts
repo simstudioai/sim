@@ -27,10 +27,10 @@ export class CustomToolClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Managing custom tool', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Managing custom tool', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Managing custom tool', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Custom tool managed', icon: Wrench },
-      [ClientToolCallState.error]: { text: 'Custom tool failed', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Custom tool skipped', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Custom tool aborted', icon: XCircle },
+      [ClientToolCallState.success]: { text: 'Managed custom tool', icon: Wrench },
+      [ClientToolCallState.error]: { text: 'Failed custom tool', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped custom tool', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted custom tool', icon: XCircle },
     },
     uiConfig: {
       subagent: {

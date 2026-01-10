@@ -200,37 +200,41 @@ function PlanSteps({
   if (sortedSteps.length === 0) return null
 
   return (
-    <div className='mt-2 overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-1)]'>
-      <div className='flex items-center gap-2 border-[var(--border-1)] border-b bg-[var(--surface-2)] px-2.5 py-2'>
-        <svg
-          className='h-3.5 w-3.5 text-[var(--text-tertiary)]'
-          viewBox='0 0 24 24'
-          fill='none'
-          stroke='currentColor'
-          strokeWidth='2'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        >
-          {/* Three horizontal lines with circles at different positions */}
-          <line x1='4' y1='6' x2='20' y2='6' />
-          <circle cx='8' cy='6' r='2' fill='currentColor' />
-          <line x1='4' y1='12' x2='20' y2='12' />
-          <circle cx='16' cy='12' r='2' fill='currentColor' />
-          <line x1='4' y1='18' x2='20' y2='18' />
-          <circle cx='10' cy='18' r='2' fill='currentColor' />
-        </svg>
-        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>To-dos</span>
-        <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+    <div className='mt-1.5 overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-1)]'>
+      <div className='flex items-center justify-between border-[var(--border-1)] border-b bg-[var(--surface-2)] p-[8px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
+          <svg
+            className='h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]'
+            viewBox='0 0 24 24'
+            fill='none'
+            stroke='currentColor'
+            strokeWidth='2'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+          >
+            {/* Three horizontal lines with circles at different positions */}
+            <line x1='4' y1='6' x2='20' y2='6' />
+            <circle cx='8' cy='6' r='2' fill='currentColor' />
+            <line x1='4' y1='12' x2='20' y2='12' />
+            <circle cx='16' cy='12' r='2' fill='currentColor' />
+            <line x1='4' y1='18' x2='20' y2='18' />
+            <circle cx='10' cy='18' r='2' fill='currentColor' />
+          </svg>
+          <span className='font-medium text-[14px] text-[var(--text-primary)]'>To-dos</span>
+        </div>
+        <span className='flex-shrink-0 font-medium text-[14px] text-[var(--text-tertiary)]'>
           {sortedSteps.length}
         </span>
       </div>
-      <div className='flex flex-col gap-2.5 px-2.5 py-2.5'>
+      <div className='flex flex-col gap-[6px] px-[10px] py-[8px]'>
         {sortedSteps.map(([num, title], index) => {
           const isLastStep = index === sortedSteps.length - 1
           return (
-            <div key={num} className='flex items-start gap-2'>
-              <div className='mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-[var(--border-2)]' />
-              <div className='min-w-0 flex-1 text-[12px] text-[var(--text-secondary)] leading-5 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[11px] [&_p]:m-0 [&_p]:leading-5'>
+            <div key={num} className='flex items-baseline gap-[6px]'>
+              <span className='w-[14px] flex-shrink-0 text-right text-[12px] text-[var(--text-tertiary)]'>
+                {index + 1}.
+              </span>
+              <div className='min-w-0 flex-1 text-[12px] text-[var(--text-secondary)] leading-[18px] [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[11px] [&_p]:m-0 [&_p]:text-[12px] [&_p]:leading-[18px]'>
                 {streaming && isLastStep ? (
                   <SmoothStreamingText content={title} isStreaming={true} />
                 ) : (
@@ -333,7 +337,7 @@ export function OptionsSelector({
   if (sortedOptions.length === 0) return null
 
   return (
-    <div ref={containerRef} className='mt-3 flex flex-col gap-0.5 pb-0.5'>
+    <div ref={containerRef} className='flex flex-col gap-0.5 pb-0.5'>
       {sortedOptions.map((option, index) => {
         const isHovered = index === hoveredIndex && !isLocked
         const isChosen = option.key === chosenKey
@@ -352,14 +356,12 @@ export function OptionsSelector({
               if (!isLocked && !streaming) setHoveredIndex(index)
             }}
             className={clsx(
-              'group flex cursor-pointer items-start gap-2 rounded-[6px] px-1 py-0.5',
-              'hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
-              disabled && 'cursor-not-allowed opacity-50',
+              'group flex cursor-pointer items-start gap-2 rounded-[6px] p-1',
+              'hover:bg-[var(--surface-4)]',
+              disabled && !isChosen && 'cursor-not-allowed opacity-50',
               streaming && 'pointer-events-none',
               isLocked && 'cursor-default',
-              isHovered &&
-                !streaming &&
-                'is-hovered bg-[var(--surface-6)] dark:bg-[var(--surface-5)]'
+              isHovered && !streaming && 'is-hovered bg-[var(--surface-4)]'
             )}
           >
             <Button
@@ -446,6 +448,7 @@ const ACTION_VERBS = [
   'Planning',
   'Planned',
   'Preparing',
+  'Prepared',
   'Failed',
   'Aborted',
   'Skipped',
@@ -483,6 +486,30 @@ const ACTION_VERBS = [
   'Sleeping',
   'Slept',
   'Resumed',
+  'Connecting',
+  'Connected',
+  'Disconnecting',
+  'Disconnected',
+  'Loading',
+  'Loaded',
+  'Saving',
+  'Saved',
+  'Updating',
+  'Updated',
+  'Deleting',
+  'Deleted',
+  'Sending',
+  'Sent',
+  'Receiving',
+  'Received',
+  'Completing',
+  'Completed',
+  'Interrupting',
+  'Interrupted',
+  'Accessing',
+  'Accessed',
+  'Managing',
+  'Managed',
 ] as const
 
 /**
@@ -558,7 +585,9 @@ function ShimmerOverlayText({
     )
   }
 
-  // Normal tools: two-tone rendering - action verb darker in light mode, lighter in dark mode
+  // Normal tools: two-tone rendering - action verb darker, noun lighter
+  // Light mode: primary (#2d2d2d) vs muted (#737373) for good contrast
+  // Dark mode: tertiary (#b3b3b3) vs muted (#787878) for good contrast
   return (
     <span className={`relative inline-block ${className || ''}`}>
       {actionVerb ? (
@@ -566,9 +595,7 @@ function ShimmerOverlayText({
           <span className='text-[var(--text-primary)] dark:text-[var(--text-tertiary)]'>
             {actionVerb}
           </span>
-          <span className='text-[var(--text-secondary)] dark:text-[var(--text-muted)]'>
-            {remainder}
-          </span>
+          <span className='text-[var(--text-muted)]'>{remainder}</span>
         </>
       ) : (
         <span>{text}</span>
@@ -951,7 +978,7 @@ function SubAgentContent({
   const label = getSubagentLabels(toolName, !isThinkingDone)
 
   return (
-    <div className='mt-1 mb-0'>
+    <div>
       {/* Define shimmer keyframes */}
       {!isThinkingDone && (
         <style>{`
@@ -970,7 +997,7 @@ function SubAgentContent({
             return next
           })
         }}
-        className='group mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
+        className='group inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
         type='button'
         disabled={!hasContent}
       >
@@ -1014,7 +1041,7 @@ function SubAgentContent({
         ref={scrollContainerRef}
         className={clsx(
           'overflow-y-auto transition-all duration-300 ease-in-out',
-          isExpanded ? 'mt-1 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
+          isExpanded ? 'mt-1.5 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
         {blocks.map((block, index) => {
@@ -1091,7 +1118,7 @@ function SubAgentThinkingContent({
   const hasSpecialTags = !!(allParsed.plan && Object.keys(allParsed.plan).length > 0)
 
   return (
-    <div className='mt-2'>
+    <div className='space-y-1.5'>
       {cleanText.trim() && (
         <ThinkingBlock
           content={cleanText}
@@ -1226,13 +1253,13 @@ function SubagentContentRenderer({
           // For edit subagent's edit_workflow tool: only show the diff summary, skip the tool call header
           if (toolCall.name === 'edit' && segment.block.toolCall.name === 'edit_workflow') {
             return (
-              <div key={`tool-${segment.block.toolCall.id || index}`} className='mt-2'>
+              <div key={`tool-${segment.block.toolCall.id || index}`}>
                 <WorkflowEditSummary toolCall={segment.block.toolCall} />
               </div>
             )
           }
           return (
-            <div key={`tool-${segment.block.toolCall.id || index}`} className='mt-2'>
+            <div key={`tool-${segment.block.toolCall.id || index}`}>
               <ToolCall toolCallId={segment.block.toolCall.id} toolCall={segment.block.toolCall} />
             </div>
           )
@@ -1245,7 +1272,7 @@ function SubagentContentRenderer({
   // During streaming OR for non-collapsible subagents: show content at top level
   if (isStreaming || !shouldCollapse) {
     return (
-      <div className='w-full'>
+      <div className='w-full space-y-1.5'>
         {renderCollapsibleContent()}
         {hasPlan && <PlanSteps steps={allParsed.plan!} streaming={isStreaming} />}
       </div>
@@ -1258,7 +1285,7 @@ function SubagentContentRenderer({
     <div className='w-full'>
       <button
         onClick={() => setIsExpanded((v) => !v)}
-        className='group mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
+        className='group inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
         type='button'
       >
         <span className='text-[var(--text-tertiary)]'>{durationText}</span>
@@ -1274,7 +1301,7 @@ function SubagentContentRenderer({
       <div
         className={clsx(
           'overflow-hidden transition-all duration-300 ease-in-out',
-          isExpanded ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
+          isExpanded ? 'mt-1.5 max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
         {renderCollapsibleContent()}
@@ -1526,21 +1553,23 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
         className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-1)]'
       >
         {/* Block header - gray background like plan/table headers */}
-        <div className='flex items-center bg-[var(--surface-2)] px-2.5 py-2'>
-          {/* Toolbar-style icon: colored square with white icon */}
-          <div
-            className='flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-[3px]'
-            style={{ background: bgColor }}
-          >
-            {Icon && <Icon className='h-[10px] w-[10px] text-white' />}
+        <div className='flex items-center justify-between p-[8px]'>
+          <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+            {/* Toolbar-style icon: colored square with white icon */}
+            <div
+              className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-[4px]'
+              style={{ background: bgColor }}
+            >
+              {Icon && <Icon className='h-[12px] w-[12px] text-white' />}
+            </div>
+            <span
+              className={`truncate font-medium text-[14px] ${type === 'delete' ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-primary)]'}`}
+            >
+              {change.blockName}
+            </span>
           </div>
-          <span
-            className={`ml-2 font-medium font-season text-[12px] ${type === 'delete' ? 'text-[var(--text-tertiary)] line-through' : 'text-[var(--text-primary)]'}`}
-          >
-            {change.blockName}
-          </span>
-          {/* Action icon next to block name */}
-          <span className={`ml-1.5 font-bold font-mono text-[12px] ${color}`}>{symbol}</span>
+          {/* Action icon in top right */}
+          <span className={`flex-shrink-0 font-bold font-mono text-[14px] ${color}`}>{symbol}</span>
         </div>
 
         {/* Subblock details - dark background like table/plan body */}
@@ -1569,7 +1598,7 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
   }
 
   return (
-    <div className='mt-2 flex flex-col gap-1.5'>
+    <div className='flex flex-col gap-1.5'>
       {addedBlocks.map((change) => renderBlockItem(change, 'add'))}
       {editedBlocks.map((change) => renderBlockItem(change, 'edit'))}
       {deletedBlocks.map((change) => renderBlockItem(change, 'delete'))}
@@ -1846,7 +1875,7 @@ function RunSkipButtons({
 
   // Standardized buttons for all interrupt tools: Allow, Always Allow, Skip
   return (
-    <div className='mt-[12px] flex gap-[6px]'>
+    <div className='mt-1.5 flex gap-[6px]'>
       <Button onClick={onRun} disabled={isProcessing} variant='tertiary'>
         {isProcessing ? 'Allowing...' : 'Allow'}
       </Button>
@@ -2376,9 +2405,9 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             className='font-[470] font-season text-[var(--text-secondary)] text-sm dark:text-[var(--text-muted)]'
           />
         </div>
-        <div className='mt-[8px]'>{renderPendingDetails()}</div>
+        <div className='mt-1.5'>{renderPendingDetails()}</div>
         {showRemoveAutoAllow && isAutoAllowed && (
-          <div className='mt-[8px]'>
+          <div className='mt-1.5'>
             <Button
               onClick={async () => {
                 await removeAutoAllowedTool(toolCall.name)
@@ -2435,12 +2464,12 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           />
         </div>
         {code && (
-          <div className='mt-2'>
+          <div className='mt-1.5'>
             <Code.Viewer code={code} language='javascript' showGutter className='min-h-0' />
           </div>
         )}
         {showRemoveAutoAllow && isAutoAllowed && (
-          <div className='mt-[8px]'>
+          <div className='mt-1.5'>
             <Button
               onClick={async () => {
                 await removeAutoAllowedTool(toolCall.name)
@@ -2493,9 +2522,9 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           className='font-[470] font-season text-[var(--text-secondary)] text-sm dark:text-[var(--text-muted)]'
         />
       </div>
-      {isExpandableTool && expanded && <div>{renderPendingDetails()}</div>}
+      {isExpandableTool && expanded && <div className='mt-1.5'>{renderPendingDetails()}</div>}
       {showRemoveAutoAllow && isAutoAllowed && (
-        <div className='mt-[8px]'>
+        <div className='mt-1.5'>
           <Button
             onClick={async () => {
               await removeAutoAllowedTool(toolCall.name)
@@ -2516,7 +2545,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           editedParams={editedParams}
         />
       ) : showMoveToBackground ? (
-        <div className='mt-[8px]'>
+        <div className='mt-1.5'>
           <Button
             onClick={async () => {
               try {
@@ -2539,7 +2568,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           </Button>
         </div>
       ) : showWake ? (
-        <div className='mt-[8px]'>
+        <div className='mt-1.5'>
           <Button
             onClick={async () => {
               try {

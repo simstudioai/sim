@@ -27,7 +27,7 @@ export class SearchOnlineClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Searching online', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Searching online', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Searching online', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Online search complete', icon: Globe },
+      [ClientToolCallState.success]: { text: 'Completed online search', icon: Globe },
       [ClientToolCallState.error]: { text: 'Failed to search online', icon: XCircle },
       [ClientToolCallState.rejected]: { text: 'Skipped online search', icon: MinusCircle },
       [ClientToolCallState.aborted]: { text: 'Aborted online search', icon: XCircle },

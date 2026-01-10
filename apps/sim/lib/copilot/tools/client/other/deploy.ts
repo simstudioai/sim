@@ -29,8 +29,8 @@ export class DeployClientTool extends BaseClientTool {
       [ClientToolCallState.executing]: { text: 'Deploying', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Deployed', icon: Rocket },
       [ClientToolCallState.error]: { text: 'Failed to deploy', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Deploy skipped', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Deploy aborted', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped deploy', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted deploy', icon: XCircle },
     },
     uiConfig: {
       subagent: {

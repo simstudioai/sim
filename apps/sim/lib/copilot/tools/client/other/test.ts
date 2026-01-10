@@ -29,8 +29,8 @@ export class TestClientTool extends BaseClientTool {
       [ClientToolCallState.executing]: { text: 'Testing', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Tested', icon: FlaskConical },
       [ClientToolCallState.error]: { text: 'Failed to test', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Test skipped', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Test aborted', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped test', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted test', icon: XCircle },
     },
     uiConfig: {
       subagent: {

@@ -27,10 +27,10 @@ export class WorkflowClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Managing workflow', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Managing workflow', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Managing workflow', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Workflow managed', icon: GitBranch },
+      [ClientToolCallState.success]: { text: 'Managed workflow', icon: GitBranch },
       [ClientToolCallState.error]: { text: 'Failed to manage workflow', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Workflow skipped', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Workflow aborted', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped workflow', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted workflow', icon: XCircle },
     },
     uiConfig: {
       subagent: {

@@ -40,7 +40,7 @@ export class SetGlobalWorkflowVariablesClientTool extends BaseClientTool {
       },
       [ClientToolCallState.pending]: { text: 'Set workflow variables?', icon: Settings2 },
       [ClientToolCallState.executing]: { text: 'Setting workflow variables', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Workflow variables updated', icon: Settings2 },
+      [ClientToolCallState.success]: { text: 'Updated workflow variables', icon: Settings2 },
       [ClientToolCallState.error]: { text: 'Failed to set workflow variables', icon: X },
       [ClientToolCallState.aborted]: { text: 'Aborted setting variables', icon: XCircle },
       [ClientToolCallState.rejected]: { text: 'Skipped setting variables', icon: XCircle },

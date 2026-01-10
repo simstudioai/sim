@@ -42,7 +42,7 @@ export class ListWorkspaceMcpServersClientTool extends BaseClientTool {
       },
       [ClientToolCallState.pending]: { text: 'Getting MCP servers', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Getting MCP servers', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Got MCP servers', icon: Server },
+      [ClientToolCallState.success]: { text: 'Retrieved MCP servers', icon: Server },
       [ClientToolCallState.error]: { text: 'Failed to get MCP servers', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Aborted getting MCP servers', icon: XCircle },
       [ClientToolCallState.rejected]: { text: 'Skipped getting MCP servers', icon: XCircle },

@@ -27,10 +27,10 @@ export class TourClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Touring', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Touring', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Touring', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Tour complete', icon: Compass },
-      [ClientToolCallState.error]: { text: 'Tour failed', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Tour skipped', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Tour aborted', icon: XCircle },
+      [ClientToolCallState.success]: { text: 'Completed tour', icon: Compass },
+      [ClientToolCallState.error]: { text: 'Failed tour', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped tour', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted tour', icon: XCircle },
     },
     uiConfig: {
       subagent: {

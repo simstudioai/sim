@@ -28,7 +28,7 @@ export class MakeApiRequestClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Preparing API request', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Review API request', icon: Globe2 },
       [ClientToolCallState.executing]: { text: 'Executing API request', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'API request complete', icon: Globe2 },
+      [ClientToolCallState.success]: { text: 'Completed API request', icon: Globe2 },
       [ClientToolCallState.error]: { text: 'Failed to execute API request', icon: XCircle },
       [ClientToolCallState.rejected]: { text: 'Skipped API request', icon: MinusCircle },
       [ClientToolCallState.aborted]: { text: 'Aborted API request', icon: XCircle },

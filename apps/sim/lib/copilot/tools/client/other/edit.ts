@@ -29,8 +29,8 @@ export class EditClientTool extends BaseClientTool {
       [ClientToolCallState.executing]: { text: 'Editing', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Edited', icon: Pencil },
       [ClientToolCallState.error]: { text: 'Failed to apply edit', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Edit skipped', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Edit aborted', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped edit', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted edit', icon: XCircle },
     },
     uiConfig: {
       isSpecial: true,

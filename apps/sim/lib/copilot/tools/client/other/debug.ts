@@ -30,8 +30,8 @@ export class DebugClientTool extends BaseClientTool {
       [ClientToolCallState.executing]: { text: 'Debugging', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Debugged', icon: Bug },
       [ClientToolCallState.error]: { text: 'Failed to debug', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Debug skipped', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Debug aborted', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped debug', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted debug', icon: XCircle },
     },
     uiConfig: {
       subagent: {

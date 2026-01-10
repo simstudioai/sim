@@ -29,7 +29,7 @@ export class GetBlockConfigClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Getting block config', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Getting block config', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Getting block config', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Got block config', icon: FileCode },
+      [ClientToolCallState.success]: { text: 'Retrieved block config', icon: FileCode },
       [ClientToolCallState.error]: { text: 'Failed to get block config', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Aborted getting block config', icon: XCircle },
       [ClientToolCallState.rejected]: {
@@ -44,17 +44,17 @@ export class GetBlockConfigClientTool extends BaseClientTool {
 
         switch (state) {
           case ClientToolCallState.success:
-            return `Got ${blockName}${opSuffix} config`
+            return `Retrieved ${blockName}${opSuffix} config`
           case ClientToolCallState.executing:
           case ClientToolCallState.generating:
           case ClientToolCallState.pending:
-            return `Getting ${blockName}${opSuffix} config`
+            return `Retrieving ${blockName}${opSuffix} config`
           case ClientToolCallState.error:
-            return `Failed to get ${blockName}${opSuffix} config`
+            return `Failed to retrieve ${blockName}${opSuffix} config`
           case ClientToolCallState.aborted:
-            return `Aborted getting ${blockName}${opSuffix} config`
+            return `Aborted retrieving ${blockName}${opSuffix} config`
           case ClientToolCallState.rejected:
-            return `Skipped getting ${blockName}${opSuffix} config`
+            return `Skipped retrieving ${blockName}${opSuffix} config`
         }
       }
       return undefined

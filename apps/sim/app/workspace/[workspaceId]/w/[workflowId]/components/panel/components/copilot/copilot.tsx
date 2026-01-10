@@ -22,6 +22,7 @@ import {
   PopoverTrigger,
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
+import { cn } from '@/lib/core/utils/cn'
 import {
   CopilotMessage,
   PlanModeSection,
@@ -443,7 +444,13 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                                 <span className='min-w-0 flex-1 truncate'>
                                   {chat.title || 'New Chat'}
                                 </span>
-                                <div className='flex flex-shrink-0 items-center gap-[4px] opacity-0 transition-opacity group-hover:opacity-100'>
+                                <div
+                                  className={cn(
+                                    'flex flex-shrink-0 items-center gap-[4px]',
+                                    currentChat?.id !== chat.id &&
+                                      'opacity-0 transition-opacity group-hover:opacity-100'
+                                  )}
+                                >
                                   <Button
                                     variant='ghost'
                                     className='h-[16px] w-[16px] p-0'

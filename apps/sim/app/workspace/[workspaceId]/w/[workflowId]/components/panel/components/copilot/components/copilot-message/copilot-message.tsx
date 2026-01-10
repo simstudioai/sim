@@ -483,7 +483,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             )}
 
             {message.errorType === 'usage_limit' && (
-              <div className='mt-3 flex gap-1.5'>
+              <div className='flex gap-1.5'>
                 <UsageLimitActions />
               </div>
             )}

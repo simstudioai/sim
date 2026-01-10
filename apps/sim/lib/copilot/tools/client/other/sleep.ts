@@ -40,9 +40,9 @@ export class SleepClientTool extends BaseClientTool {
       [ClientToolCallState.pending]: { text: 'Sleeping', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Sleeping', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Finished sleeping', icon: Moon },
-      [ClientToolCallState.error]: { text: 'Sleep interrupted', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Sleep skipped', icon: MinusCircle },
-      [ClientToolCallState.aborted]: { text: 'Sleep aborted', icon: MinusCircle },
+      [ClientToolCallState.error]: { text: 'Interrupted sleep', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped sleep', icon: MinusCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted sleep', icon: MinusCircle },
       [ClientToolCallState.background]: { text: 'Resumed', icon: Moon },
     },
     uiConfig: {

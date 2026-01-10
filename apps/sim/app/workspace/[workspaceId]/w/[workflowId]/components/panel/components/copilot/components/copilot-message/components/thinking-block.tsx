@@ -184,7 +184,7 @@ export function ThinkingBlock({
   // During streaming: show header with shimmer effect + expanded content
   if (!isThinkingDone) {
     return (
-      <div className='mt-1 mb-0'>
+      <div>
         {/* Define shimmer keyframes */}
         <style>{`
           @keyframes thinking-shimmer {
@@ -201,7 +201,7 @@ export function ThinkingBlock({
               return next
             })
           }}
-          className='group mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
+          className='group inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
           type='button'
         >
           <span className='relative inline-block'>
@@ -242,7 +242,7 @@ export function ThinkingBlock({
           ref={scrollContainerRef}
           className={clsx(
             'overflow-y-auto transition-all duration-300 ease-in-out',
-            isExpanded ? 'mt-1 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
+            isExpanded ? 'mt-1.5 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
           )}
         >
           {/* Render markdown during streaming with thinking text styling */}
@@ -257,12 +257,12 @@ export function ThinkingBlock({
 
   // After done: show collapsible header with duration
   return (
-    <div className='mt-1 mb-0'>
+    <div>
       <button
         onClick={() => {
           setIsExpanded((v) => !v)
         }}
-        className='group mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
+        className='group inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
         type='button'
         disabled={!hasContent}
       >
@@ -282,7 +282,7 @@ export function ThinkingBlock({
         ref={scrollContainerRef}
         className={clsx(
           'overflow-y-auto transition-all duration-300 ease-in-out',
-          isExpanded ? 'mt-1 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
+          isExpanded ? 'mt-1.5 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
         {/* Use markdown renderer for completed content */}

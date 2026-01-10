@@ -62,7 +62,7 @@ export class DeployApiClientTool extends BaseClientTool {
       },
       [ClientToolCallState.pending]: { text: 'Deploy as API?', icon: Rocket },
       [ClientToolCallState.executing]: { text: 'Deploying API', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'API deployed', icon: Rocket },
+      [ClientToolCallState.success]: { text: 'Deployed API', icon: Rocket },
       [ClientToolCallState.error]: { text: 'Failed to deploy API', icon: XCircle },
       [ClientToolCallState.aborted]: {
         text: 'Aborted deploying API',

@@ -306,6 +306,7 @@ export function Terminal() {
   const terminalRef = useRef<HTMLElement>(null)
   const prevEntriesLengthRef = useRef(0)
   const prevWorkflowEntriesLengthRef = useRef(0)
+  const isTerminalFocusedRef = useRef(false)
   const {
     setTerminalHeight,
     lastExpandedHeight,
@@ -540,8 +541,11 @@ export function Terminal() {
   /**
    * Handle row click - toggle if clicking same entry
    * Disables auto-selection when user manually selects, re-enables when deselecting
+   * Also focuses the terminal to enable keyboard navigation
    */
   const handleRowClick = useCallback((entry: ConsoleEntry) => {
+    // Focus the terminal to enable keyboard navigation
+    terminalRef.current?.focus()
     setSelectedEntry((prev) => {
       const isDeselecting = prev?.id === entry.id
       setAutoSelectEnabled(isDeselecting)
@@ -562,6 +566,26 @@ export function Terminal() {
     setIsToggling(false)
   }, [])
 
+  /**
+   * Handle terminal focus - enables keyboard navigation
+   */
+  const handleTerminalFocus = useCallback(() => {
+    isTerminalFocusedRef.current = true
+  }, [])
+
+  /**
+   * Handle terminal blur - disables keyboard navigation
+   */
+  const handleTerminalBlur = useCallback((e: React.FocusEvent) => {
+    // Only blur if focus is moving outside the terminal
+    if (!terminalRef.current?.contains(e.relatedTarget as Node)) {
+      isTerminalFocusedRef.current = false
+    }
+  }, [])
+
+  /**
+   * Handle copy output to clipboard
+   */
   const handleCopy = useCallback(() => {
     if (!selectedEntry) return
 
@@ -792,9 +816,12 @@ export function Terminal() {
   /**
    * Handle keyboard navigation through logs
    * Disables auto-selection when user manually navigates
+   * Only active when the terminal is focused
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle navigation when terminal is focused
+      if (!isTerminalFocusedRef.current) return
       if (isEventFromEditableElement(e)) return
       const activeElement = document.activeElement as HTMLElement | null
       const toolbarRoot = document.querySelector(
@@ -829,9 +856,12 @@ export function Terminal() {
   /**
    * Handle keyboard navigation for input/output toggle
    * Left arrow shows output, right arrow shows input
+   * Only active when the terminal is focused
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle navigation when terminal is focused
+      if (!isTerminalFocusedRef.current) return
       // Ignore when typing/navigating inside editable inputs/editors
       if (isEventFromEditableElement(e)) return
 
@@ -936,6 +966,9 @@ export function Terminal() {
           isToggling && 'transition-[height] duration-100 ease-out'
         )}
         onTransitionEnd={handleTransitionEnd}
+        onFocus={handleTerminalFocus}
+        onBlur={handleTerminalBlur}
+        tabIndex={-1}
         aria-label='Terminal'
       >
         <div className='relative flex h-full border-[var(--border)] border-t'>

@@ -29,8 +29,8 @@ export class ResearchClientTool extends BaseClientTool {
       [ClientToolCallState.executing]: { text: 'Researching', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Researched', icon: Search },
       [ClientToolCallState.error]: { text: 'Failed to research', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Research skipped', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Research aborted', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped research', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted research', icon: XCircle },
     },
     uiConfig: {
       subagent: {

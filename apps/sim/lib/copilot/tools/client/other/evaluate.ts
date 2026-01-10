@@ -29,8 +29,8 @@ export class EvaluateClientTool extends BaseClientTool {
       [ClientToolCallState.executing]: { text: 'Evaluating', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Evaluated', icon: ClipboardCheck },
       [ClientToolCallState.error]: { text: 'Failed to evaluate', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Evaluation skipped', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Evaluation aborted', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped evaluation', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted evaluation', icon: XCircle },
     },
     uiConfig: {
       subagent: {

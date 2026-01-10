@@ -71,7 +71,7 @@ export class DeployChatClientTool extends BaseClientTool {
       },
       [ClientToolCallState.pending]: { text: 'Deploy as chat?', icon: MessageSquare },
       [ClientToolCallState.executing]: { text: 'Deploying chat', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Chat deployed', icon: MessageSquare },
+      [ClientToolCallState.success]: { text: 'Deployed chat', icon: MessageSquare },
       [ClientToolCallState.error]: { text: 'Failed to deploy chat', icon: XCircle },
       [ClientToolCallState.aborted]: {
         text: 'Aborted deploying chat',
