@@ -1157,6 +1157,29 @@ describe('prepareToolExecution', () => {
       expect(toolParams.channel).toBe('#general') // User value wins
       expect(toolParams.message).toBe('Hello')
     })
+
+    it.concurrent('should preserve 0 and false as valid user values in inputMapping', () => {
+      const tool = {
+        params: {
+          workflowId: 'child-workflow',
+          inputMapping: '{"limit": 0, "enabled": false, "query": ""}',
+        },
+      }
+      const llmArgs = {
+        inputMapping: { limit: 10, enabled: true, query: 'llm-search' },
+      }
+      const request = {}
+
+      const { toolParams } = prepareToolExecution(tool, llmArgs, request)
+
+      // 0 and false should be preserved (they're valid values)
+      // empty string should be filled by LLM
+      expect(toolParams.inputMapping).toEqual({
+        limit: 0,
+        enabled: false,
+        query: 'llm-search',
+      })
+    })
   })
 
   describe('execution params context', () => {

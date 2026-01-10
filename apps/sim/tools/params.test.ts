@@ -520,6 +520,26 @@ describe('Tool Parameters Utils', () => {
         expect(merged.channel).toBe('#general')
         expect(merged.message).toBe('Hello world')
       })
+
+      it.concurrent('should preserve 0 and false as valid user values in inputMapping', () => {
+        const userProvided = {
+          workflowId: 'workflow-123',
+          inputMapping: '{"limit": 0, "enabled": false, "query": ""}',
+        }
+        const llmGenerated = {
+          inputMapping: { limit: 10, enabled: true, query: 'llm-search' },
+        }
+
+        const merged = mergeToolParameters(userProvided, llmGenerated)
+
+        // 0 and false should be preserved (they're valid values)
+        // empty string should be filled by LLM
+        expect(merged.inputMapping).toEqual({
+          limit: 0,
+          enabled: false,
+          query: 'llm-search',
+        })
+      })
     })
   })
 
