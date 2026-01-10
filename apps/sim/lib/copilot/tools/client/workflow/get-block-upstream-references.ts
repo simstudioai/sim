@@ -193,6 +193,11 @@ export class GetBlockUpstreamReferencesClientTool extends BaseClientTool {
             outputs: formattedOutputs,
           }
 
+          // Include triggerMode if the block is in trigger mode
+          if (block.triggerMode) {
+            entry.triggerMode = true
+          }
+
           if (accessContext) entry.accessContext = accessContext
           accessibleBlocks.push(entry)
         }

@@ -71,9 +71,9 @@ export class OAuthRequestAccessClientTool extends BaseClientTool {
     displayNames: {
       [ClientToolCallState.generating]: { text: 'Requesting integration access', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Requesting integration access', icon: Loader2 },
-      [ClientToolCallState.executing]: { text: 'Connecting integration', icon: Loader2 },
+      [ClientToolCallState.executing]: { text: 'Requesting integration access', icon: Loader2 },
       [ClientToolCallState.rejected]: { text: 'Skipped integration access', icon: MinusCircle },
-      [ClientToolCallState.success]: { text: 'Integration connected', icon: CheckCircle },
+      [ClientToolCallState.success]: { text: 'Requested integration access', icon: CheckCircle },
       [ClientToolCallState.error]: { text: 'Failed to request integration access', icon: X },
       [ClientToolCallState.aborted]: { text: 'Aborted integration access request', icon: XCircle },
     },
@@ -87,17 +87,16 @@ export class OAuthRequestAccessClientTool extends BaseClientTool {
         switch (state) {
           case ClientToolCallState.generating:
           case ClientToolCallState.pending:
-            return `Requesting ${name} access`
           case ClientToolCallState.executing:
-            return `Connecting to ${name}`
+            return `Requesting ${name} access`
           case ClientToolCallState.rejected:
             return `Skipped ${name} access`
           case ClientToolCallState.success:
-            return `${name} connected`
+            return `Requested ${name} access`
           case ClientToolCallState.error:
-            return `Failed to connect ${name}`
+            return `Failed to request ${name} access`
           case ClientToolCallState.aborted:
-            return `Aborted ${name} connection`
+            return `Aborted ${name} access request`
         }
       }
       return undefined
@@ -151,9 +150,12 @@ export class OAuthRequestAccessClientTool extends BaseClientTool {
         })
       )
 
-      // Mark as success - the modal will handle the actual OAuth flow
+      // Mark as success - the user opened the prompt, but connection is not guaranteed
       this.setState(ClientToolCallState.success)
-      await this.markToolComplete(200, `Opened ${this.providerName} connection dialog`)
+      await this.markToolComplete(
+        200,
+        `The user opened the ${this.providerName} connection prompt and may have connected. Check the connected integrations to verify the connection status.`
+      )
     } catch (e) {
       logger.error('Failed to open OAuth connect modal', { error: e })
       this.setState(ClientToolCallState.error)

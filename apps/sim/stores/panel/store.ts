@@ -29,6 +29,10 @@ export const usePanelStore = create<PanelState>()(
           document.documentElement.removeAttribute('data-panel-active-tab')
         }
       },
+      isResizing: false,
+      setIsResizing: (isResizing) => {
+        set({ isResizing })
+      },
       _hasHydrated: false,
       setHasHydrated: (hasHydrated) => {
         set({ _hasHydrated: hasHydrated })

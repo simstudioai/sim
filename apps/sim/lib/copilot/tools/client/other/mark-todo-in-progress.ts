@@ -23,7 +23,7 @@ export class MarkTodoInProgressClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Marking todo in progress', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Marking todo in progress', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Marking todo in progress', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Todo marked in progress', icon: Loader2 },
+      [ClientToolCallState.success]: { text: 'Marked todo in progress', icon: Loader2 },
       [ClientToolCallState.error]: { text: 'Failed to mark in progress', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Aborted marking in progress', icon: MinusCircle },
       [ClientToolCallState.rejected]: { text: 'Skipped marking in progress', icon: MinusCircle },

@@ -27,7 +27,7 @@ export class GetBlockOptionsClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Getting block options', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Getting block options', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Getting block options', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Got block options', icon: ListFilter },
+      [ClientToolCallState.success]: { text: 'Retrieved block options', icon: ListFilter },
       [ClientToolCallState.error]: { text: 'Failed to get block options', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Aborted getting block options', icon: XCircle },
       [ClientToolCallState.rejected]: {
@@ -41,17 +41,17 @@ export class GetBlockOptionsClientTool extends BaseClientTool {
 
         switch (state) {
           case ClientToolCallState.success:
-            return `Got ${blockName} options`
+            return `Retrieved ${blockName} options`
           case ClientToolCallState.executing:
           case ClientToolCallState.generating:
           case ClientToolCallState.pending:
-            return `Getting ${blockName} options`
+            return `Retrieving ${blockName} options`
           case ClientToolCallState.error:
-            return `Failed to get ${blockName} options`
+            return `Failed to retrieve ${blockName} options`
           case ClientToolCallState.aborted:
-            return `Aborted getting ${blockName} options`
+            return `Aborted retrieving ${blockName} options`
           case ClientToolCallState.rejected:
-            return `Skipped getting ${blockName} options`
+            return `Skipped retrieving ${blockName} options`
         }
       }
       return undefined
@@ -63,7 +63,20 @@ export class GetBlockOptionsClientTool extends BaseClientTool {
     try {
       this.setState(ClientToolCallState.executing)
 
-      const { blockId } = GetBlockOptionsInput.parse(args || {})
+      // Handle both camelCase and snake_case parameter names, plus blockType as an alias
+      const normalizedArgs = args
+        ? {
+            blockId:
+              args.blockId ||
+              (args as any).block_id ||
+              (args as any).blockType ||
+              (args as any).block_type,
+          }
+        : {}
+
+      logger.info('execute called', { originalArgs: args, normalizedArgs })
+
+      const { blockId } = GetBlockOptionsInput.parse(normalizedArgs)
 
       const res = await fetch('/api/copilot/execute-copilot-server-tool', {
         method: 'POST',

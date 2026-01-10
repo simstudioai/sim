@@ -93,7 +93,7 @@ const WorkflowEdgeComponent = ({
     } else if (isErrorEdge) {
       color = 'var(--text-error)'
     } else if (edgeDiffStatus === 'new') {
-      color = 'var(--brand-tertiary)'
+      color = 'var(--brand-tertiary-2)'
     } else if (edgeRunStatus === 'success') {
       // Use green for preview mode, default for canvas execution
       color = previewExecutionStatus ? 'var(--brand-tertiary-2)' : 'var(--border-success)'

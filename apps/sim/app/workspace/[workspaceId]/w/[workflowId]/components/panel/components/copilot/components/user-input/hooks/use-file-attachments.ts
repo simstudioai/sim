@@ -178,11 +178,12 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
 
   /**
    * Opens file picker dialog
+   * Note: We allow file selection even when isLoading (streaming) so users can prepare images for the next message
    */
   const handleFileSelect = useCallback(() => {
-    if (disabled || isLoading) return
+    if (disabled) return
     fileInputRef.current?.click()
-  }, [disabled, isLoading])
+  }, [disabled])
 
   /**
    * Handles file input change event

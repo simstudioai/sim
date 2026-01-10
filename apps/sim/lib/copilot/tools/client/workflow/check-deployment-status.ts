@@ -11,6 +11,29 @@ interface CheckDeploymentStatusArgs {
   workflowId?: string
 }
 
+interface ApiDeploymentDetails {
+  isDeployed: boolean
+  deployedAt: string | null
+  endpoint: string | null
+}
+
+interface ChatDeploymentDetails {
+  isDeployed: boolean
+  chatId: string | null
+  identifier: string | null
+  chatUrl: string | null
+}
+
+interface McpDeploymentDetails {
+  isDeployed: boolean
+  servers: Array<{
+    serverId: string
+    serverName: string
+    toolName: string
+    toolDescription: string | null
+  }>
+}
+
 export class CheckDeploymentStatusClientTool extends BaseClientTool {
   static readonly id = 'check_deployment_status'
 
@@ -45,52 +68,116 @@ export class CheckDeploymentStatusClientTool extends BaseClientTool {
     try {
       this.setState(ClientToolCallState.executing)
 
-      const { activeWorkflowId } = useWorkflowRegistry.getState()
+      const { activeWorkflowId, workflows } = useWorkflowRegistry.getState()
       const workflowId = args?.workflowId || activeWorkflowId
 
       if (!workflowId) {
         throw new Error('No workflow ID provided')
       }
 
-      // Fetch deployment status from API
-      const [apiDeployRes, chatDeployRes] = await Promise.all([
+      const workflow = workflows[workflowId]
+      const workspaceId = workflow?.workspaceId
+
+      // Fetch deployment status from all sources
+      const [apiDeployRes, chatDeployRes, mcpServersRes] = await Promise.all([
         fetch(`/api/workflows/${workflowId}/deploy`),
         fetch(`/api/workflows/${workflowId}/chat/status`),
+        workspaceId ? fetch(`/api/mcp/workflow-servers?workspaceId=${workspaceId}`) : null,
       ])
 
       const apiDeploy = apiDeployRes.ok ? await apiDeployRes.json() : null
       const chatDeploy = chatDeployRes.ok ? await chatDeployRes.json() : null
+      const mcpServers = mcpServersRes?.ok ? await mcpServersRes.json() : null
 
+      // API deployment details
       const isApiDeployed = apiDeploy?.isDeployed || false
+      const appUrl = typeof window !== 'undefined' ? window.location.origin : ''
+      const apiDetails: ApiDeploymentDetails = {
+        isDeployed: isApiDeployed,
+        deployedAt: apiDeploy?.deployedAt || null,
+        endpoint: isApiDeployed ? `${appUrl}/api/workflows/${workflowId}/execute` : null,
+      }
+
+      // Chat deployment details
       const isChatDeployed = !!(chatDeploy?.isDeployed && chatDeploy?.deployment)
+      const chatDetails: ChatDeploymentDetails = {
+        isDeployed: isChatDeployed,
+        chatId: chatDeploy?.deployment?.id || null,
+        identifier: chatDeploy?.deployment?.identifier || null,
+        chatUrl: isChatDeployed ? `${appUrl}/chat/${chatDeploy?.deployment?.identifier}` : null,
+      }
 
+      // MCP deployment details - find servers that have this workflow as a tool
+      const mcpServerList = mcpServers?.data?.servers || []
+      const mcpToolDeployments: McpDeploymentDetails['servers'] = []
+
+      for (const server of mcpServerList) {
+        // Check if this workflow is deployed as a tool on this server
+        if (server.toolNames && Array.isArray(server.toolNames)) {
+          // We need to fetch the actual tools to check if this workflow is there
+          try {
+            const toolsRes = await fetch(
+              `/api/mcp/workflow-servers/${server.id}/tools?workspaceId=${workspaceId}`
+            )
+            if (toolsRes.ok) {
+              const toolsData = await toolsRes.json()
+              const tools = toolsData.data?.tools || []
+              for (const tool of tools) {
+                if (tool.workflowId === workflowId) {
+                  mcpToolDeployments.push({
+                    serverId: server.id,
+                    serverName: server.name,
+                    toolName: tool.toolName,
+                    toolDescription: tool.toolDescription,
+                  })
+                }
+              }
+            }
+          } catch {
+            // Skip this server if we can't fetch tools
+          }
+        }
+      }
+
+      const isMcpDeployed = mcpToolDeployments.length > 0
+      const mcpDetails: McpDeploymentDetails = {
+        isDeployed: isMcpDeployed,
+        servers: mcpToolDeployments,
+      }
+
+      // Build deployment types list
       const deploymentTypes: string[] = []
+      if (isApiDeployed) deploymentTypes.push('api')
+      if (isChatDeployed) deploymentTypes.push('chat')
+      if (isMcpDeployed) deploymentTypes.push('mcp')
 
-      if (isApiDeployed) {
-        // Default to sync API, could be extended to detect streaming/async
-        deploymentTypes.push('api')
+      const isDeployed = isApiDeployed || isChatDeployed || isMcpDeployed
+
+      // Build summary message
+      let message = ''
+      if (!isDeployed) {
+        message = 'Workflow is not deployed'
+      } else {
+        const parts: string[] = []
+        if (isApiDeployed) parts.push('API')
+        if (isChatDeployed) parts.push(`Chat (${chatDetails.identifier})`)
+        if (isMcpDeployed) {
+          const serverNames = mcpToolDeployments.map((d) => d.serverName).join(', ')
+          parts.push(`MCP (${serverNames})`)
+        }
+        message = `Workflow is deployed as: ${parts.join(', ')}`
       }
-
-      if (isChatDeployed) {
-        deploymentTypes.push('chat')
-      }
-
-      const isDeployed = isApiDeployed || isChatDeployed
 
       this.setState(ClientToolCallState.success)
-      await this.markToolComplete(
-        200,
-        isDeployed
-          ? `Workflow is deployed as: ${deploymentTypes.join(', ')}`
-          : 'Workflow is not deployed',
-        {
-          isDeployed,
-          deploymentTypes,
-          apiDeployed: isApiDeployed,
-          chatDeployed: isChatDeployed,
-          deployedAt: apiDeploy?.deployedAt || null,
-        }
-      )
+      await this.markToolComplete(200, message, {
+        isDeployed,
+        deploymentTypes,
+        api: apiDetails,
+        chat: chatDetails,
+        mcp: mcpDetails,
+      })
+
+      logger.info('Checked deployment status', { isDeployed, deploymentTypes })
     } catch (e: any) {
       logger.error('Check deployment status failed', { message: e?.message })
       this.setState(ClientToolCallState.error)

@@ -3350,8 +3350,6 @@ const WorkflowContent = React.memo(() => {
               <LazyChat />
             </Suspense>
 
-            <DiffControls />
-
             {/* Context Menus */}
             <BlockContextMenu
               isOpen={isBlockMenuOpen}
@@ -3406,6 +3404,8 @@ const WorkflowContent = React.memo(() => {
 
         <Panel />
       </div>
+
+      <DiffControls />
 
       <Terminal />
 

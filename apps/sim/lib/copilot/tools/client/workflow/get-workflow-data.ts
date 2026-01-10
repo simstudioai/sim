@@ -29,7 +29,7 @@ export class GetWorkflowDataClientTool extends BaseClientTool {
       [ClientToolCallState.pending]: { text: 'Fetching workflow data', icon: Database },
       [ClientToolCallState.executing]: { text: 'Fetching workflow data', icon: Loader2 },
       [ClientToolCallState.aborted]: { text: 'Aborted fetching data', icon: XCircle },
-      [ClientToolCallState.success]: { text: 'Workflow data retrieved', icon: Database },
+      [ClientToolCallState.success]: { text: 'Retrieved workflow data', icon: Database },
       [ClientToolCallState.error]: { text: 'Failed to fetch data', icon: X },
       [ClientToolCallState.rejected]: { text: 'Skipped fetching data', icon: XCircle },
     },

@@ -5,6 +5,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -39,7 +40,7 @@ export class SetGlobalWorkflowVariablesClientTool extends BaseClientTool {
       },
       [ClientToolCallState.pending]: { text: 'Set workflow variables?', icon: Settings2 },
       [ClientToolCallState.executing]: { text: 'Setting workflow variables', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Workflow variables updated', icon: Settings2 },
+      [ClientToolCallState.success]: { text: 'Updated workflow variables', icon: Settings2 },
       [ClientToolCallState.error]: { text: 'Failed to set workflow variables', icon: X },
       [ClientToolCallState.aborted]: { text: 'Aborted setting variables', icon: XCircle },
       [ClientToolCallState.rejected]: { text: 'Skipped setting variables', icon: XCircle },
@@ -47,6 +48,28 @@ export class SetGlobalWorkflowVariablesClientTool extends BaseClientTool {
     interrupt: {
       accept: { text: 'Apply', icon: Settings2 },
       reject: { text: 'Skip', icon: XCircle },
+    },
+    uiConfig: {
+      interrupt: {
+        accept: { text: 'Apply', icon: Settings2 },
+        reject: { text: 'Skip', icon: XCircle },
+        showAllowOnce: true,
+        showAllowAlways: true,
+      },
+      paramsTable: {
+        columns: [
+          { key: 'name', label: 'Name', width: '40%', editable: true, mono: true },
+          { key: 'value', label: 'Value', width: '60%', editable: true, mono: true },
+        ],
+        extractRows: (params) => {
+          const operations = params.operations || []
+          return operations.map((op: any, idx: number) => [
+            String(idx),
+            op.name || '',
+            String(op.value ?? ''),
+          ])
+        },
+      },
     },
     getDynamicText: (params, state) => {
       if (params?.operations && Array.isArray(params.operations)) {
@@ -243,3 +266,9 @@ export class SetGlobalWorkflowVariablesClientTool extends BaseClientTool {
     await this.handleAccept(args)
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(
+  SetGlobalWorkflowVariablesClientTool.id,
+  SetGlobalWorkflowVariablesClientTool.metadata.uiConfig!
+)

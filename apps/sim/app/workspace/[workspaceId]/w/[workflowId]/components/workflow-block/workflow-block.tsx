@@ -199,8 +199,9 @@ const tryParseJson = (value: unknown): unknown => {
 
 /**
  * Formats a subblock value for display, intelligently handling nested objects and arrays.
+ * Used by both the canvas workflow blocks and copilot edit summaries.
  */
-const getDisplayValue = (value: unknown): string => {
+export const getDisplayValue = (value: unknown): string => {
   if (value == null || value === '') return '-'
 
   // Try parsing JSON strings first
@@ -630,10 +631,13 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         ? ((credValue as { value?: unknown }).value as string | undefined)
         : (credValue as string | undefined)
     if (prevCredRef.current !== cred) {
+      const hadPreviousCredential = prevCredRef.current !== undefined
       prevCredRef.current = cred
-      const keys = Object.keys(current)
-      const dependentKeys = keys.filter((k) => k !== 'credential')
-      dependentKeys.forEach((k) => collaborativeSetSubblockValue(id, k, ''))
+      if (hadPreviousCredential) {
+        const keys = Object.keys(current)
+        const dependentKeys = keys.filter((k) => k !== 'credential')
+        dependentKeys.forEach((k) => collaborativeSetSubblockValue(id, k, ''))
+      }
     }
   }, [id, collaborativeSetSubblockValue])
 
