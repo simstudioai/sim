@@ -189,10 +189,11 @@ export function ThinkingBlock({
             isExpanded ? 'mt-1 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
           )}
         >
-          <div className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-muted)] leading-none [&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-none [&_*]:!m-0 [&_*]:!p-0 [&_*]:!mb-0 [&_*]:!mt-0 [&_p]:!m-0 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_code]:!text-[11px] [&_ul]:!pl-4 [&_ul]:!my-0 [&_ol]:!pl-4 [&_ol]:!my-0 [&_li]:!my-0 [&_li]:!py-0 [&_br]:!leading-[0.5]'>
-            <CopilotMarkdownRenderer content={content} />
+          {/* Use simple pre tag during streaming for smooth performance */}
+          <pre className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-muted)] leading-[1.15rem]'>
+            {content}
             <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[var(--text-muted)]' />
-          </div>
+          </pre>
         </div>
       </div>
     )
@@ -228,6 +229,7 @@ export function ThinkingBlock({
           isExpanded ? 'mt-1 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
+        {/* Use markdown renderer for completed content */}
         <div className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-muted)] leading-none [&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-none [&_*]:!m-0 [&_*]:!p-0 [&_*]:!mb-0 [&_*]:!mt-0 [&_p]:!m-0 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_code]:!text-[11px] [&_ul]:!pl-4 [&_ul]:!my-0 [&_ol]:!pl-4 [&_ol]:!my-0 [&_li]:!my-0 [&_li]:!py-0 [&_br]:!leading-[0.5]'>
           <CopilotMarkdownRenderer content={content} />
         </div>

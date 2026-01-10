@@ -151,28 +151,13 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     }, [message.content])
 
     // Parse special tags from message content (options, plan)
-    // During streaming, also check content blocks since message.content may not be updated yet
+    // Only parse after streaming is complete to avoid affecting streaming smoothness
     const parsedTags = useMemo(() => {
-      if (isUser) return null
+      if (isUser || isStreaming) return null
 
-      // Try message.content first
-      if (message.content) {
-        const parsed = parseSpecialTags(message.content)
-        if (parsed.options) return parsed
-      }
-
-      // During streaming, check content blocks for options
-      if (message.contentBlocks && message.contentBlocks.length > 0) {
-        for (const block of message.contentBlocks) {
-          if (block.type === 'text' && block.content) {
-            const parsed = parseSpecialTags(block.content)
-            if (parsed.options) return parsed
-          }
-        }
-      }
-
+      // Only parse when not streaming - options should appear after message completes
       return message.content ? parseSpecialTags(message.content) : null
-    }, [message.content, message.contentBlocks, isUser])
+    }, [message.content, isUser, isStreaming])
 
     // Get sendMessage from store for continuation actions
     const sendMessage = useCopilotStore((s) => s.sendMessage)
@@ -196,12 +181,14 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         if (block.type === 'text') {
           const isLastTextBlock =
             index === message.contentBlocks!.length - 1 && block.type === 'text'
-          // Clean content for this text block - strip special tags and excessive newlines
-          const parsed = parseSpecialTags(block.content)
-          const cleanBlockContent = parsed.cleanContent.replace(/\n{3,}/g, '\n\n')
+          // During streaming, use raw content for smooth performance
+          // Only strip special tags after streaming completes
+          const cleanBlockContent = isStreaming
+            ? block.content.replace(/\n{3,}/g, '\n\n')
+            : parseSpecialTags(block.content).cleanContent.replace(/\n{3,}/g, '\n\n')
 
-          // Skip if no content after stripping tags
-          if (!cleanBlockContent.trim()) return null
+          // Skip if no content after stripping tags (only when not streaming)
+          if (!isStreaming && !cleanBlockContent.trim()) return null
 
           // Use smooth streaming for the last text block if we're streaming
           const shouldUseSmoothing = isStreaming && isLastTextBlock
@@ -508,14 +495,14 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               </div>
             )}
 
-            {/* Options selector when agent presents choices - streams in but disabled until complete */}
-            {parsedTags?.options && Object.keys(parsedTags.options).length > 0 && (
+            {/* Options selector when agent presents choices - only shown after streaming completes */}
+            {!isStreaming && parsedTags?.options && Object.keys(parsedTags.options).length > 0 && (
               <OptionsSelector
                 options={parsedTags.options}
                 onSelect={handleOptionSelect}
                 disabled={isSendingMessage}
-                enableKeyboardNav={isLastMessage && parsedTags.optionsComplete === true}
-                streaming={!parsedTags.optionsComplete}
+                enableKeyboardNav={isLastMessage}
+                streaming={false}
               />
             )}
           </div>
