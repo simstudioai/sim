@@ -4,8 +4,12 @@
  *
  * @vitest-environment node
  */
-import { createEnvMock } from '@sim/testing'
+import { createEnvMock, createMockLogger } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const loggerMock = vi.hoisted(() => ({
+  createLogger: () => createMockLogger(),
+}))
 
 vi.mock('drizzle-orm')
 vi.mock('@sim/logger', () => loggerMock)

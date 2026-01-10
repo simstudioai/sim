@@ -215,7 +215,7 @@ export async function POST(
         userId: deployment.userId,
         workspaceId,
         isDeployed: workflowRecord?.isDeployed ?? false,
-        variables: workflowRecord?.variables || {},
+        variables: (workflowRecord?.variables ?? {}) as Record<string, unknown>,
       }
 
       // Pass form data as the workflow input

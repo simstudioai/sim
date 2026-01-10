@@ -1,4 +1,4 @@
-import { createEnvMock } from '@sim/testing'
+import { createEnvMock, createMockLogger } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 /**
@@ -9,6 +9,10 @@ import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
  * Resend and EmailClient classes to return mock implementations that our
  * mock functions can intercept.
  */
+
+const loggerMock = vi.hoisted(() => ({
+  createLogger: () => createMockLogger(),
+}))
 
 const mockSend = vi.fn()
 const mockBatchSend = vi.fn()
