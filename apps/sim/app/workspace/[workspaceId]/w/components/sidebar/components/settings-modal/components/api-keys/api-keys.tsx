@@ -631,7 +631,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
               Cancel
             </Button>
             <Button
-              variant='destructive'
+              variant='ghost'
               onClick={handleDeleteKey}
               disabled={deleteApiKeyMutation.isPending}
             >

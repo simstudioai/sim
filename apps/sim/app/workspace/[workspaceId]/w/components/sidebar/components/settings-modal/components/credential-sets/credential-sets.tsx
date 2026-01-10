@@ -1018,11 +1018,11 @@ export function CredentialSets() {
                             </div>
                           </div>
                           <div className='flex items-center gap-[8px]'>
-                            <Button variant='ghost' onClick={() => setViewingSet(set)}>
+                            <Button variant='default' onClick={() => setViewingSet(set)}>
                               Details
                             </Button>
                             <Button
-                              variant='destructive'
+                              variant='ghost'
                               onClick={() => handleDeleteClick(set)}
                               disabled={deletingSetIds.has(set.id)}
                             >

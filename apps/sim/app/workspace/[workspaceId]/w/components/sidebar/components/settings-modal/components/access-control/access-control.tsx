@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Check, Plus, Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import {
   Avatar,
   AvatarFallback,
@@ -16,11 +16,14 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  ModalTabs,
+  ModalTabsContent,
+  ModalTabsList,
+  ModalTabsTrigger,
 } from '@/components/emcn'
 import { Input as BaseInput, Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client'
-import { cn } from '@/lib/core/utils/cn'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getUserRole } from '@/lib/workspaces/organization'
 import { getUserColor } from '@/app/workspace/[workspaceId]/w/utils/get-user-color'
@@ -37,9 +40,179 @@ import {
   useUpdatePermissionGroup,
 } from '@/hooks/queries/permission-groups'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { getAllProviderIds } from '@/providers/utils'
 
 const logger = createLogger('AccessControl')
+
+interface AddMembersModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  availableMembers: any[]
+  selectedMemberIds: Set<string>
+  setSelectedMemberIds: React.Dispatch<React.SetStateAction<Set<string>>>
+  onAddMembers: () => void
+  isAdding: boolean
+}
+
+function AddMembersModal({
+  open,
+  onOpenChange,
+  availableMembers,
+  selectedMemberIds,
+  setSelectedMemberIds,
+  onAddMembers,
+  isAdding,
+}: AddMembersModalProps) {
+  const [searchTerm, setSearchTerm] = useState('')
+
+  const filteredMembers = useMemo(() => {
+    if (!searchTerm.trim()) return availableMembers
+    const query = searchTerm.toLowerCase()
+    return availableMembers.filter((m: any) => {
+      const name = m.user?.name || ''
+      const email = m.user?.email || ''
+      return name.toLowerCase().includes(query) || email.toLowerCase().includes(query)
+    })
+  }, [availableMembers, searchTerm])
+
+  const allFilteredSelected = useMemo(() => {
+    if (filteredMembers.length === 0) return false
+    return filteredMembers.every((m: any) => selectedMemberIds.has(m.userId))
+  }, [filteredMembers, selectedMemberIds])
+
+  const handleToggleAll = () => {
+    if (allFilteredSelected) {
+      const filteredIds = new Set(filteredMembers.map((m: any) => m.userId))
+      setSelectedMemberIds((prev) => {
+        const next = new Set(prev)
+        filteredIds.forEach((id) => next.delete(id))
+        return next
+      })
+    } else {
+      setSelectedMemberIds((prev) => {
+        const next = new Set(prev)
+        filteredMembers.forEach((m: any) => next.add(m.userId))
+        return next
+      })
+    }
+  }
+
+  const handleToggleMember = (userId: string) => {
+    setSelectedMemberIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(userId)) {
+        next.delete(userId)
+      } else {
+        next.add(userId)
+      }
+      return next
+    })
+  }
+
+  return (
+    <Modal
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) setSearchTerm('')
+        onOpenChange(o)
+      }}
+    >
+      <ModalContent className='w-[420px]'>
+        <ModalHeader>Add Members</ModalHeader>
+        <ModalBody className='!pb-[16px]'>
+          {availableMembers.length === 0 ? (
+            <p className='text-[13px] text-[var(--text-muted)]'>
+              All organization members are already in this group.
+            </p>
+          ) : (
+            <div className='flex flex-col gap-[12px]'>
+              <div className='flex items-center gap-[8px]'>
+                <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px]'>
+                  <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                  <BaseInput
+                    placeholder='Search members...'
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-[13px] leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                  />
+                </div>
+                <Button variant='tertiary' onClick={handleToggleAll}>
+                  {allFilteredSelected ? 'Deselect All' : 'Select All'}
+                </Button>
+              </div>
+
+              <div className='max-h-[280px] overflow-y-auto'>
+                {filteredMembers.length === 0 ? (
+                  <p className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
+                    No members found matching "{searchTerm}"
+                  </p>
+                ) : (
+                  <div className='flex flex-col'>
+                    {filteredMembers.map((member: any) => {
+                      const name = member.user?.name || 'Unknown'
+                      const email = member.user?.email || ''
+                      const avatarInitial = name.charAt(0).toUpperCase()
+                      const isSelected = selectedMemberIds.has(member.userId)
+
+                      return (
+                        <button
+                          key={member.userId}
+                          type='button'
+                          onClick={() => handleToggleMember(member.userId)}
+                          className='flex items-center gap-[10px] rounded-[4px] px-[8px] py-[6px] hover:bg-[var(--surface-2)]'
+                        >
+                          <Checkbox checked={isSelected} />
+                          <Avatar size='xs'>
+                            {member.user?.image && (
+                              <AvatarImage src={member.user.image} alt={name} />
+                            )}
+                            <AvatarFallback
+                              style={{ background: getUserColor(member.userId || email) }}
+                              className='border-0 text-[10px] text-white'
+                            >
+                              {avatarInitial}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className='min-w-0 flex-1 text-left'>
+                            <div className='truncate text-[13px] text-[var(--text-primary)]'>
+                              {name}
+                            </div>
+                            <div className='truncate text-[11px] text-[var(--text-muted)]'>
+                              {email}
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            variant='default'
+            onClick={() => {
+              setSearchTerm('')
+              onOpenChange(false)
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant='tertiary'
+            onClick={onAddMembers}
+            disabled={selectedMemberIds.size === 0 || isAdding}
+          >
+            {isAdding ? 'Adding...' : 'Add Members'}
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+  )
+}
 
 function AccessControlSkeleton() {
   return (
@@ -110,6 +283,93 @@ export function AccessControl() {
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set())
   const [providerSearchTerm, setProviderSearchTerm] = useState('')
   const [integrationSearchTerm, setIntegrationSearchTerm] = useState('')
+  const [platformSearchTerm, setPlatformSearchTerm] = useState('')
+  const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
+
+  const platformFeatures = useMemo(
+    () => [
+      {
+        id: 'hide-knowledge-base',
+        label: 'Knowledge Base',
+        category: 'Sidebar',
+        configKey: 'hideKnowledgeBaseTab' as const,
+      },
+      {
+        id: 'hide-templates',
+        label: 'Templates',
+        category: 'Sidebar',
+        configKey: 'hideTemplates' as const,
+      },
+      {
+        id: 'hide-copilot',
+        label: 'Copilot',
+        category: 'Workflow Panel',
+        configKey: 'hideCopilot' as const,
+      },
+      {
+        id: 'hide-api-keys',
+        label: 'API Keys',
+        category: 'Settings Tabs',
+        configKey: 'hideApiKeysTab' as const,
+      },
+      {
+        id: 'hide-environment',
+        label: 'Environment',
+        category: 'Settings Tabs',
+        configKey: 'hideEnvironmentTab' as const,
+      },
+      {
+        id: 'hide-files',
+        label: 'Files',
+        category: 'Settings Tabs',
+        configKey: 'hideFilesTab' as const,
+      },
+      {
+        id: 'disable-mcp',
+        label: 'MCP Tools',
+        category: 'Tools',
+        configKey: 'disableMcpTools' as const,
+      },
+      {
+        id: 'disable-custom-tools',
+        label: 'Custom Tools',
+        category: 'Tools',
+        configKey: 'disableCustomTools' as const,
+      },
+      {
+        id: 'hide-trace-spans',
+        label: 'Trace Spans',
+        category: 'Logs',
+        configKey: 'hideTraceSpans' as const,
+      },
+    ],
+    []
+  )
+
+  const filteredPlatformFeatures = useMemo(() => {
+    if (!platformSearchTerm.trim()) return platformFeatures
+    const search = platformSearchTerm.toLowerCase()
+    return platformFeatures.filter(
+      (f) => f.label.toLowerCase().includes(search) || f.category.toLowerCase().includes(search)
+    )
+  }, [platformFeatures, platformSearchTerm])
+
+  const platformCategories = useMemo(() => {
+    const categories: Record<string, typeof platformFeatures> = {}
+    for (const feature of filteredPlatformFeatures) {
+      if (!categories[feature.category]) {
+        categories[feature.category] = []
+      }
+      categories[feature.category].push(feature)
+    }
+    return categories
+  }, [filteredPlatformFeatures])
+
+  const hasConfigChanges = useMemo(() => {
+    if (!viewingGroup || !editingConfig) return false
+    const original = viewingGroup.config
+    return JSON.stringify(original) !== JSON.stringify(editingConfig)
+  }, [viewingGroup, editingConfig])
 
   const allBlocks = useMemo(() => {
     // Filter out hidden blocks and start_trigger (which should never be disabled)
@@ -240,6 +500,7 @@ export function AccessControl() {
       setEditingConfig(null)
       setProviderSearchTerm('')
       setIntegrationSearchTerm('')
+      setPlatformSearchTerm('')
       setViewingGroup((prev) => (prev ? { ...prev, config: editingConfig } : null))
     } catch (error) {
       logger.error('Failed to update config', error)
@@ -349,110 +610,96 @@ export function AccessControl() {
     return (
       <>
         <div className='flex h-full flex-col gap-[16px]'>
+          <div className='flex flex-col gap-[4px]'>
+            <div className='flex items-center justify-between'>
+              <h3 className='font-medium text-[14px] text-[var(--text-primary)]'>
+                {viewingGroup.name}
+              </h3>
+              <Button variant='default' onClick={handleOpenConfigModal}>
+                Configure
+              </Button>
+            </div>
+            {viewingGroup.description && (
+              <p className='text-[13px] text-[var(--text-muted)]'>{viewingGroup.description}</p>
+            )}
+          </div>
+
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='flex flex-col gap-[16px]'>
               <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-[16px]'>
-                  <div className='flex items-center gap-[8px]'>
-                    <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                      Group Name
-                    </span>
-                    <span className='text-[13px] text-[var(--text-secondary)]'>
-                      {viewingGroup.name}
-                    </span>
-                  </div>
-                  {viewingGroup.description && (
-                    <>
-                      <div className='h-4 w-px bg-[var(--border)]' />
-                      <span className='text-[13px] text-[var(--text-muted)]'>
-                        {viewingGroup.description}
-                      </span>
-                    </>
-                  )}
-                </div>
-                <Button variant='tertiary' onClick={handleOpenConfigModal}>
-                  Configure
+                <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                  Members
+                </span>
+                <Button variant='tertiary' onClick={handleOpenAddMembersModal}>
+                  <Plus className='mr-[6px] h-[13px] w-[13px]' />
+                  Add
                 </Button>
               </div>
 
-              <div className='flex flex-col gap-[16px]'>
-                <div className='flex items-center justify-between'>
-                  <h4 className='font-medium text-[14px] text-[var(--text-primary)]'>Members</h4>
-                  <Button variant='tertiary' onClick={handleOpenAddMembersModal}>
-                    <Plus className='mr-[6px] h-[13px] w-[13px]' />
-                    Add Members
-                  </Button>
-                </div>
-
-                {membersLoading ? (
-                  <div className='flex flex-col gap-[16px]'>
-                    {[1, 2].map((i) => (
-                      <div key={i} className='flex items-center justify-between'>
-                        <div className='flex items-center gap-[12px]'>
-                          <Skeleton className='h-8 w-8 rounded-full' />
-                          <div className='flex flex-col gap-[4px]'>
-                            <Skeleton className='h-[14px] w-[100px]' />
-                            <Skeleton className='h-[12px] w-[150px]' />
-                          </div>
+              {membersLoading ? (
+                <div className='flex flex-col gap-[16px]'>
+                  {[1, 2].map((i) => (
+                    <div key={i} className='flex items-center justify-between'>
+                      <div className='flex items-center gap-[12px]'>
+                        <Skeleton className='h-8 w-8 rounded-full' />
+                        <div className='flex flex-col gap-[4px]'>
+                          <Skeleton className='h-[14px] w-[100px]' />
+                          <Skeleton className='h-[12px] w-[150px]' />
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ) : members.length === 0 ? (
-                  <p className='text-[13px] text-[var(--text-muted)]'>
-                    No members yet. Add members using the buttons above.
-                  </p>
-                ) : (
-                  <div className='flex flex-col gap-[16px]'>
-                    {members.map((member) => {
-                      const name = member.userName || 'Unknown'
-                      const avatarInitial = name.charAt(0).toUpperCase()
+                    </div>
+                  ))}
+                </div>
+              ) : members.length === 0 ? (
+                <p className='text-[13px] text-[var(--text-muted)]'>
+                  No members yet. Click "Add" to get started.
+                </p>
+              ) : (
+                <div className='flex flex-col gap-[16px]'>
+                  {members.map((member) => {
+                    const name = member.userName || 'Unknown'
+                    const avatarInitial = name.charAt(0).toUpperCase()
 
-                      return (
-                        <div key={member.id} className='flex items-center justify-between'>
-                          <div className='flex flex-1 items-center gap-[12px]'>
-                            <Avatar size='sm'>
-                              {member.userImage && (
-                                <AvatarImage src={member.userImage} alt={name} />
-                              )}
-                              <AvatarFallback
-                                style={{
-                                  background: getUserColor(member.userId || member.userEmail || ''),
-                                }}
-                                className='border-0 text-white'
-                              >
-                                {avatarInitial}
-                              </AvatarFallback>
-                            </Avatar>
+                    return (
+                      <div key={member.id} className='flex items-center justify-between'>
+                        <div className='flex flex-1 items-center gap-[12px]'>
+                          <Avatar size='sm'>
+                            {member.userImage && <AvatarImage src={member.userImage} alt={name} />}
+                            <AvatarFallback
+                              style={{
+                                background: getUserColor(member.userId || member.userEmail || ''),
+                              }}
+                              className='border-0 text-white'
+                            >
+                              {avatarInitial}
+                            </AvatarFallback>
+                          </Avatar>
 
-                            <div className='min-w-0'>
-                              <div className='flex items-center gap-[8px]'>
-                                <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
-                                  {name}
-                                </span>
-                              </div>
-                              <div className='truncate text-[12px] text-[var(--text-muted)]'>
-                                {member.userEmail}
-                              </div>
+                          <div className='min-w-0'>
+                            <div className='flex items-center gap-[8px]'>
+                              <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                                {name}
+                              </span>
+                            </div>
+                            <div className='truncate text-[12px] text-[var(--text-muted)]'>
+                              {member.userEmail}
                             </div>
                           </div>
-
-                          <div className='ml-[16px] flex items-center gap-[4px]'>
-                            <Button
-                              variant='destructive'
-                              onClick={() => handleRemoveMember(member.id)}
-                              disabled={removeMember.isPending}
-                              className='h-8'
-                            >
-                              Remove
-                            </Button>
-                          </div>
                         </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
+
+                        <Button
+                          variant='ghost'
+                          onClick={() => handleRemoveMember(member.id)}
+                          disabled={removeMember.isPending}
+                          className='flex-shrink-0'
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -463,382 +710,245 @@ export function AccessControl() {
           </div>
         </div>
 
-        <Modal open={showConfigModal} onOpenChange={setShowConfigModal}>
+        <Modal
+          open={showConfigModal}
+          onOpenChange={(open) => {
+            if (!open && hasConfigChanges) {
+              setShowUnsavedChanges(true)
+            } else {
+              setShowConfigModal(open)
+              if (!open) {
+                setProviderSearchTerm('')
+                setIntegrationSearchTerm('')
+                setPlatformSearchTerm('')
+              }
+            }
+          }}
+        >
           <ModalContent size='xl' className='max-h-[80vh]'>
             <ModalHeader>Configure Permissions</ModalHeader>
-            <ModalBody className='max-h-[60vh] overflow-y-auto'>
-              <div className='flex flex-col gap-[20px]'>
-                <div className='flex flex-col gap-[8px]'>
-                  <div className='flex items-center justify-between'>
-                    <Label>Allowed Model Providers</Label>
-                    <button
-                      type='button'
-                      onClick={() => {
-                        const allAllowed =
-                          editingConfig?.allowedModelProviders === null ||
-                          editingConfig?.allowedModelProviders?.length === allProviderIds.length
-                        setEditingConfig((prev) =>
-                          prev ? { ...prev, allowedModelProviders: allAllowed ? [] : null } : prev
-                        )
-                      }}
-                      className='text-[12px] text-[var(--accent)] hover:underline'
-                    >
-                      {editingConfig?.allowedModelProviders === null ||
-                      editingConfig?.allowedModelProviders?.length === allProviderIds.length
-                        ? 'Deselect All'
-                        : 'Select All'}
-                    </button>
-                  </div>
-                  <p className='text-[12px] text-[var(--text-muted)]'>
-                    Select which model providers are available in agent dropdowns. All are allowed
-                    by default.
-                  </p>
-                  <div className='flex items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px]'>
-                    <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                    <BaseInput
-                      placeholder='Search providers...'
-                      value={providerSearchTerm}
-                      onChange={(e) => setProviderSearchTerm(e.target.value)}
-                      className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-[13px] leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                    />
-                  </div>
-                  <div className='grid grid-cols-3 gap-[8px]'>
-                    {filteredProviders.map((providerId) => (
-                      <button
-                        key={providerId}
-                        type='button'
-                        onClick={() => toggleProvider(providerId)}
-                        className={cn(
-                          'flex items-center justify-between rounded-[6px] border px-[10px] py-[6px] text-[13px] transition-colors',
-                          isProviderAllowed(providerId)
-                            ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--text-primary)]'
-                            : 'border-[var(--border)] bg-transparent text-[var(--text-muted)]'
-                        )}
+            <ModalTabs defaultValue='providers'>
+              <ModalTabsList>
+                <ModalTabsTrigger value='providers'>Model Providers</ModalTabsTrigger>
+                <ModalTabsTrigger value='blocks'>Blocks</ModalTabsTrigger>
+                <ModalTabsTrigger value='platform'>Platform</ModalTabsTrigger>
+              </ModalTabsList>
+
+              <ModalTabsContent value='providers'>
+                <ModalBody className='h-[400px]'>
+                  <div className='flex flex-col gap-[8px]'>
+                    <div className='flex items-center gap-[8px]'>
+                      <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px]'>
+                        <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                        <BaseInput
+                          placeholder='Search providers...'
+                          value={providerSearchTerm}
+                          onChange={(e) => setProviderSearchTerm(e.target.value)}
+                          className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-[13px] leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                        />
+                      </div>
+                      <Button
+                        variant='tertiary'
+                        onClick={() => {
+                          const allAllowed =
+                            editingConfig?.allowedModelProviders === null ||
+                            editingConfig?.allowedModelProviders?.length === allProviderIds.length
+                          setEditingConfig((prev) =>
+                            prev ? { ...prev, allowedModelProviders: allAllowed ? [] : null } : prev
+                          )
+                        }}
                       >
-                        <span className='capitalize'>{providerId.replace('-', ' ')}</span>
-                        {isProviderAllowed(providerId) && (
-                          <Check className='h-[14px] w-[14px] text-[var(--accent)]' />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className='flex flex-col gap-[8px]'>
-                  <div className='flex items-center justify-between'>
-                    <Label>Allowed Blocks</Label>
-                    <button
-                      type='button'
-                      onClick={() => {
-                        const allAllowed =
-                          editingConfig?.allowedIntegrations === null ||
-                          editingConfig?.allowedIntegrations?.length === allBlocks.length
-                        setEditingConfig((prev) =>
-                          prev ? { ...prev, allowedIntegrations: allAllowed ? [] : null } : prev
+                        {editingConfig?.allowedModelProviders === null ||
+                        editingConfig?.allowedModelProviders?.length === allProviderIds.length
+                          ? 'Deselect All'
+                          : 'Select All'}
+                      </Button>
+                    </div>
+                    <div className='grid max-h-[340px] grid-cols-3 gap-[8px] overflow-y-auto'>
+                      {filteredProviders.map((providerId) => {
+                        const ProviderIcon = PROVIDER_DEFINITIONS[providerId]?.icon
+                        const providerName =
+                          PROVIDER_DEFINITIONS[providerId]?.name ||
+                          providerId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+                        return (
+                          <div key={providerId} className='flex items-center gap-[8px]'>
+                            <Checkbox
+                              checked={isProviderAllowed(providerId)}
+                              onCheckedChange={() => toggleProvider(providerId)}
+                            />
+                            <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+                              {ProviderIcon && <ProviderIcon className='!h-[16px] !w-[16px]' />}
+                            </div>
+                            <span className='truncate font-medium text-[13px]'>{providerName}</span>
+                          </div>
                         )
-                      }}
-                      className='text-[12px] text-[var(--accent)] hover:underline'
-                    >
-                      {editingConfig?.allowedIntegrations === null ||
-                      editingConfig?.allowedIntegrations?.length === allBlocks.length
-                        ? 'Deselect All'
-                        : 'Select All'}
-                    </button>
+                      })}
+                    </div>
                   </div>
-                  <p className='text-[12px] text-[var(--text-muted)]'>
-                    Select which blocks are visible in the toolbar. All are visible by default.
-                  </p>
-                  <div className='flex items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px]'>
-                    <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                    <BaseInput
-                      placeholder='Search blocks...'
-                      value={integrationSearchTerm}
-                      onChange={(e) => setIntegrationSearchTerm(e.target.value)}
-                      className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-[13px] leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                    />
-                  </div>
-                  <div className='grid max-h-[200px] grid-cols-3 gap-[8px] overflow-y-auto'>
-                    {filteredBlocks.map((block) => (
-                      <button
-                        key={block.type}
-                        type='button'
-                        onClick={() => toggleIntegration(block.type)}
-                        className={cn(
-                          'flex items-center justify-between rounded-[6px] border px-[10px] py-[6px] text-[13px] transition-colors',
-                          isIntegrationAllowed(block.type)
-                            ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--text-primary)]'
-                            : 'border-[var(--border)] bg-transparent text-[var(--text-muted)]'
-                        )}
+                </ModalBody>
+              </ModalTabsContent>
+
+              <ModalTabsContent value='blocks'>
+                <ModalBody className='h-[400px]'>
+                  <div className='flex flex-col gap-[8px]'>
+                    <div className='flex items-center gap-[8px]'>
+                      <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px]'>
+                        <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                        <BaseInput
+                          placeholder='Search blocks...'
+                          value={integrationSearchTerm}
+                          onChange={(e) => setIntegrationSearchTerm(e.target.value)}
+                          className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-[13px] leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                        />
+                      </div>
+                      <Button
+                        variant='tertiary'
+                        onClick={() => {
+                          const allAllowed =
+                            editingConfig?.allowedIntegrations === null ||
+                            editingConfig?.allowedIntegrations?.length === allBlocks.length
+                          setEditingConfig((prev) =>
+                            prev ? { ...prev, allowedIntegrations: allAllowed ? [] : null } : prev
+                          )
+                        }}
                       >
-                        <span className='truncate'>{block.name}</span>
-                        {isIntegrationAllowed(block.type) && (
-                          <Check className='h-[14px] w-[14px] flex-shrink-0 text-[var(--accent)]' />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className='flex flex-col gap-[8px]'>
-                  <div className='flex items-center justify-between'>
-                    <Label>Platform Configuration</Label>
-                    <button
-                      type='button'
-                      onClick={() => {
-                        const allVisible =
-                          !editingConfig?.hideKnowledgeBaseTab &&
-                          !editingConfig?.hideTemplates &&
-                          !editingConfig?.hideCopilot &&
-                          !editingConfig?.hideApiKeysTab &&
-                          !editingConfig?.hideEnvironmentTab &&
-                          !editingConfig?.hideFilesTab &&
-                          !editingConfig?.disableMcpTools &&
-                          !editingConfig?.disableCustomTools &&
-                          !editingConfig?.hideTraceSpans
-                        setEditingConfig((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                hideKnowledgeBaseTab: allVisible,
-                                hideTemplates: allVisible,
-                                hideCopilot: allVisible,
-                                hideApiKeysTab: allVisible,
-                                hideEnvironmentTab: allVisible,
-                                hideFilesTab: allVisible,
-                                disableMcpTools: allVisible,
-                                disableCustomTools: allVisible,
-                                hideTraceSpans: allVisible,
-                              }
-                            : prev
+                        {editingConfig?.allowedIntegrations === null ||
+                        editingConfig?.allowedIntegrations?.length === allBlocks.length
+                          ? 'Deselect All'
+                          : 'Select All'}
+                      </Button>
+                    </div>
+                    <div className='grid max-h-[340px] grid-cols-3 gap-[8px] overflow-y-auto'>
+                      {filteredBlocks.map((block) => {
+                        const BlockIcon = block.icon
+                        return (
+                          <div key={block.type} className='flex items-center gap-[8px]'>
+                            <Checkbox
+                              checked={isIntegrationAllowed(block.type)}
+                              onCheckedChange={() => toggleIntegration(block.type)}
+                            />
+                            <div
+                              className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                              style={{ background: block.bgColor }}
+                            >
+                              {BlockIcon && (
+                                <BlockIcon className='!h-[10px] !w-[10px] text-white' />
+                              )}
+                            </div>
+                            <span className='truncate font-medium text-[13px]'>{block.name}</span>
+                          </div>
                         )
-                      }}
-                      className='text-[12px] text-[var(--accent)] hover:underline'
-                    >
-                      {!editingConfig?.hideKnowledgeBaseTab &&
-                      !editingConfig?.hideTemplates &&
-                      !editingConfig?.hideCopilot &&
-                      !editingConfig?.hideApiKeysTab &&
-                      !editingConfig?.hideEnvironmentTab &&
-                      !editingConfig?.hideFilesTab &&
-                      !editingConfig?.disableMcpTools &&
-                      !editingConfig?.disableCustomTools &&
-                      !editingConfig?.hideTraceSpans
-                        ? 'Deselect All'
-                        : 'Select All'}
-                    </button>
-                  </div>
-                  <p className='text-[12px] text-[var(--text-muted)]'>
-                    Checked features are visible. Uncheck to hide.
-                  </p>
-                  <div className='flex flex-col gap-[16px] rounded-[8px] border border-[var(--border)] p-[12px]'>
-                    {/* Sidebar */}
-                    <div className='flex flex-col gap-[8px]'>
-                      <span className='font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
-                        Sidebar
-                      </span>
-                      <div className='flex flex-col gap-[8px] pl-[2px]'>
-                        <div className='flex items-center gap-[12px]'>
-                          <Checkbox
-                            id='hide-knowledge-base'
-                            checked={!editingConfig?.hideKnowledgeBaseTab}
-                            onCheckedChange={(checked) =>
-                              setEditingConfig((prev) =>
-                                prev ? { ...prev, hideKnowledgeBaseTab: checked !== true } : prev
-                              )
-                            }
-                          />
-                          <Label
-                            htmlFor='hide-knowledge-base'
-                            className='cursor-pointer font-normal text-[13px]'
-                          >
-                            Knowledge Base
-                          </Label>
-                        </div>
-                        <div className='flex items-center gap-[12px]'>
-                          <Checkbox
-                            id='hide-templates'
-                            checked={!editingConfig?.hideTemplates}
-                            onCheckedChange={(checked) =>
-                              setEditingConfig((prev) =>
-                                prev ? { ...prev, hideTemplates: checked !== true } : prev
-                              )
-                            }
-                          />
-                          <Label
-                            htmlFor='hide-templates'
-                            className='cursor-pointer font-normal text-[13px]'
-                          >
-                            Templates
-                          </Label>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Workflow Panel */}
-                    <div className='flex flex-col gap-[8px]'>
-                      <span className='font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
-                        Workflow Panel
-                      </span>
-                      <div className='flex flex-col gap-[8px] pl-[2px]'>
-                        <div className='flex items-center gap-[12px]'>
-                          <Checkbox
-                            id='hide-copilot'
-                            checked={!editingConfig?.hideCopilot}
-                            onCheckedChange={(checked) =>
-                              setEditingConfig((prev) =>
-                                prev ? { ...prev, hideCopilot: checked !== true } : prev
-                              )
-                            }
-                          />
-                          <Label
-                            htmlFor='hide-copilot'
-                            className='cursor-pointer font-normal text-[13px]'
-                          >
-                            Copilot
-                          </Label>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Settings Tabs */}
-                    <div className='flex flex-col gap-[8px]'>
-                      <span className='font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
-                        Settings Tabs
-                      </span>
-                      <div className='flex flex-col gap-[8px] pl-[2px]'>
-                        <div className='flex items-center gap-[12px]'>
-                          <Checkbox
-                            id='hide-api-keys'
-                            checked={!editingConfig?.hideApiKeysTab}
-                            onCheckedChange={(checked) =>
-                              setEditingConfig((prev) =>
-                                prev ? { ...prev, hideApiKeysTab: checked !== true } : prev
-                              )
-                            }
-                          />
-                          <Label
-                            htmlFor='hide-api-keys'
-                            className='cursor-pointer font-normal text-[13px]'
-                          >
-                            API Keys
-                          </Label>
-                        </div>
-                        <div className='flex items-center gap-[12px]'>
-                          <Checkbox
-                            id='hide-environment'
-                            checked={!editingConfig?.hideEnvironmentTab}
-                            onCheckedChange={(checked) =>
-                              setEditingConfig((prev) =>
-                                prev ? { ...prev, hideEnvironmentTab: checked !== true } : prev
-                              )
-                            }
-                          />
-                          <Label
-                            htmlFor='hide-environment'
-                            className='cursor-pointer font-normal text-[13px]'
-                          >
-                            Environment
-                          </Label>
-                        </div>
-                        <div className='flex items-center gap-[12px]'>
-                          <Checkbox
-                            id='hide-files'
-                            checked={!editingConfig?.hideFilesTab}
-                            onCheckedChange={(checked) =>
-                              setEditingConfig((prev) =>
-                                prev ? { ...prev, hideFilesTab: checked !== true } : prev
-                              )
-                            }
-                          />
-                          <Label
-                            htmlFor='hide-files'
-                            className='cursor-pointer font-normal text-[13px]'
-                          >
-                            Files
-                          </Label>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Tools */}
-                    <div className='flex flex-col gap-[8px]'>
-                      <span className='font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
-                        Tools
-                      </span>
-                      <div className='flex flex-col gap-[8px] pl-[2px]'>
-                        <div className='flex items-center gap-[12px]'>
-                          <Checkbox
-                            id='disable-mcp'
-                            checked={!editingConfig?.disableMcpTools}
-                            onCheckedChange={(checked) =>
-                              setEditingConfig((prev) =>
-                                prev ? { ...prev, disableMcpTools: checked !== true } : prev
-                              )
-                            }
-                          />
-                          <Label
-                            htmlFor='disable-mcp'
-                            className='cursor-pointer font-normal text-[13px]'
-                          >
-                            MCP Tools
-                          </Label>
-                        </div>
-                        <div className='flex items-center gap-[12px]'>
-                          <Checkbox
-                            id='disable-custom-tools'
-                            checked={!editingConfig?.disableCustomTools}
-                            onCheckedChange={(checked) =>
-                              setEditingConfig((prev) =>
-                                prev ? { ...prev, disableCustomTools: checked !== true } : prev
-                              )
-                            }
-                          />
-                          <Label
-                            htmlFor='disable-custom-tools'
-                            className='cursor-pointer font-normal text-[13px]'
-                          >
-                            Custom Tools
-                          </Label>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Logs */}
-                    <div className='flex flex-col gap-[8px]'>
-                      <span className='font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
-                        Logs
-                      </span>
-                      <div className='flex flex-col gap-[8px] pl-[2px]'>
-                        <div className='flex items-center gap-[12px]'>
-                          <Checkbox
-                            id='hide-trace-spans'
-                            checked={!editingConfig?.hideTraceSpans}
-                            onCheckedChange={(checked) =>
-                              setEditingConfig((prev) =>
-                                prev ? { ...prev, hideTraceSpans: checked !== true } : prev
-                              )
-                            }
-                          />
-                          <Label
-                            htmlFor='hide-trace-spans'
-                            className='cursor-pointer font-normal text-[13px]'
-                          >
-                            Trace spans
-                          </Label>
-                        </div>
-                      </div>
+                      })}
                     </div>
                   </div>
-                </div>
-              </div>
-            </ModalBody>
+                </ModalBody>
+              </ModalTabsContent>
+
+              <ModalTabsContent value='platform'>
+                <ModalBody className='h-[400px]'>
+                  <div className='flex flex-col gap-[8px]'>
+                    <div className='flex items-center gap-[8px]'>
+                      <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px]'>
+                        <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                        <BaseInput
+                          placeholder='Search features...'
+                          value={platformSearchTerm}
+                          onChange={(e) => setPlatformSearchTerm(e.target.value)}
+                          className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-[13px] leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                        />
+                      </div>
+                      <Button
+                        variant='tertiary'
+                        onClick={() => {
+                          const allVisible =
+                            !editingConfig?.hideKnowledgeBaseTab &&
+                            !editingConfig?.hideTemplates &&
+                            !editingConfig?.hideCopilot &&
+                            !editingConfig?.hideApiKeysTab &&
+                            !editingConfig?.hideEnvironmentTab &&
+                            !editingConfig?.hideFilesTab &&
+                            !editingConfig?.disableMcpTools &&
+                            !editingConfig?.disableCustomTools &&
+                            !editingConfig?.hideTraceSpans
+                          setEditingConfig((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  hideKnowledgeBaseTab: allVisible,
+                                  hideTemplates: allVisible,
+                                  hideCopilot: allVisible,
+                                  hideApiKeysTab: allVisible,
+                                  hideEnvironmentTab: allVisible,
+                                  hideFilesTab: allVisible,
+                                  disableMcpTools: allVisible,
+                                  disableCustomTools: allVisible,
+                                  hideTraceSpans: allVisible,
+                                }
+                              : prev
+                          )
+                        }}
+                      >
+                        {!editingConfig?.hideKnowledgeBaseTab &&
+                        !editingConfig?.hideTemplates &&
+                        !editingConfig?.hideCopilot &&
+                        !editingConfig?.hideApiKeysTab &&
+                        !editingConfig?.hideEnvironmentTab &&
+                        !editingConfig?.hideFilesTab &&
+                        !editingConfig?.disableMcpTools &&
+                        !editingConfig?.disableCustomTools &&
+                        !editingConfig?.hideTraceSpans
+                          ? 'Deselect All'
+                          : 'Select All'}
+                      </Button>
+                    </div>
+                    <div className='grid max-h-[340px] grid-cols-3 gap-x-[24px] gap-y-[16px] overflow-y-auto'>
+                      {Object.entries(platformCategories).map(([category, features]) => (
+                        <div key={category} className='flex flex-col gap-[8px]'>
+                          <span className='font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
+                            {category}
+                          </span>
+                          <div className='flex flex-col gap-[8px]'>
+                            {features.map((feature) => (
+                              <div key={feature.id} className='flex items-center gap-[8px]'>
+                                <Checkbox
+                                  id={feature.id}
+                                  checked={!editingConfig?.[feature.configKey]}
+                                  onCheckedChange={(checked) =>
+                                    setEditingConfig((prev) =>
+                                      prev
+                                        ? { ...prev, [feature.configKey]: checked !== true }
+                                        : prev
+                                    )
+                                  }
+                                />
+                                <Label
+                                  htmlFor={feature.id}
+                                  className='cursor-pointer font-normal text-[13px]'
+                                >
+                                  {feature.label}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </ModalBody>
+              </ModalTabsContent>
+            </ModalTabs>
             <ModalFooter>
               <Button
                 variant='default'
                 onClick={() => {
-                  setShowConfigModal(false)
-                  setProviderSearchTerm('')
-                  setIntegrationSearchTerm('')
+                  if (hasConfigChanges) {
+                    setShowUnsavedChanges(true)
+                  } else {
+                    setShowConfigModal(false)
+                    setProviderSearchTerm('')
+                    setIntegrationSearchTerm('')
+                    setPlatformSearchTerm('')
+                  }
                 }}
               >
                 Cancel
@@ -846,7 +956,7 @@ export function AccessControl() {
               <Button
                 variant='tertiary'
                 onClick={handleSaveConfig}
-                disabled={updatePermissionGroup.isPending}
+                disabled={updatePermissionGroup.isPending || !hasConfigChanges}
               >
                 {updatePermissionGroup.isPending ? 'Saving...' : 'Save'}
               </Button>
@@ -854,103 +964,51 @@ export function AccessControl() {
           </ModalContent>
         </Modal>
 
-        <Modal open={showAddMembersModal} onOpenChange={setShowAddMembersModal}>
-          <ModalContent className='max-h-[80vh] w-[500px]'>
-            <ModalHeader>Add Members</ModalHeader>
-            <ModalBody className='max-h-[60vh] overflow-y-auto'>
-              {availableMembersToAdd.length === 0 ? (
-                <p className='text-[13px] text-[var(--text-muted)]'>
-                  All organization members are already in this group.
-                </p>
-              ) : (
-                <div className='flex flex-col gap-[12px]'>
-                  <div className='flex justify-end'>
-                    <button
-                      type='button'
-                      onClick={() => {
-                        const allIds = availableMembersToAdd.map((m: any) => m.userId)
-                        const allSelected = allIds.every((id: string) => selectedMemberIds.has(id))
-                        if (allSelected) {
-                          setSelectedMemberIds(new Set())
-                        } else {
-                          setSelectedMemberIds(new Set(allIds))
-                        }
-                      }}
-                      className='text-[12px] text-[var(--accent)] hover:underline'
-                    >
-                      {selectedMemberIds.size === availableMembersToAdd.length
-                        ? 'Deselect All'
-                        : 'Select All'}
-                    </button>
-                  </div>
-                  {availableMembersToAdd.map((member: any) => {
-                    const name = member.user?.name || 'Unknown'
-                    const email = member.user?.email || ''
-                    const avatarInitial = name.charAt(0).toUpperCase()
-                    const isSelected = selectedMemberIds.has(member.userId)
-
-                    return (
-                      <button
-                        key={member.userId}
-                        type='button'
-                        onClick={() => {
-                          setSelectedMemberIds((prev) => {
-                            const next = new Set(prev)
-                            if (isSelected) {
-                              next.delete(member.userId)
-                            } else {
-                              next.add(member.userId)
-                            }
-                            return next
-                          })
-                        }}
-                        className={cn(
-                          'flex items-center gap-[12px] rounded-[8px] border p-[12px] transition-colors',
-                          isSelected
-                            ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                            : 'border-[var(--border)] hover:bg-[var(--surface-5)]'
-                        )}
-                      >
-                        <Avatar size='sm'>
-                          {member.user?.image && <AvatarImage src={member.user.image} alt={name} />}
-                          <AvatarFallback
-                            style={{ background: getUserColor(member.userId || email) }}
-                            className='border-0 text-white'
-                          >
-                            {avatarInitial}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className='min-w-0 flex-1 text-left'>
-                          <div className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
-                            {name}
-                          </div>
-                          <div className='truncate text-[12px] text-[var(--text-muted)]'>
-                            {email}
-                          </div>
-                        </div>
-                        {isSelected && <Check className='h-[16px] w-[16px] text-[var(--accent)]' />}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+        <Modal open={showUnsavedChanges} onOpenChange={setShowUnsavedChanges}>
+          <ModalContent className='w-[400px]'>
+            <ModalHeader>Unsaved Changes</ModalHeader>
+            <ModalBody>
+              <p className='text-[12px] text-[var(--text-tertiary)]'>
+                You have unsaved changes. Do you want to save them before closing?
+              </p>
             </ModalBody>
             <ModalFooter>
-              <Button variant='default' onClick={() => setShowAddMembersModal(false)}>
-                Cancel
+              <Button
+                variant='default'
+                onClick={() => {
+                  setShowUnsavedChanges(false)
+                  setShowConfigModal(false)
+                  setEditingConfig(null)
+                  setProviderSearchTerm('')
+                  setIntegrationSearchTerm('')
+                  setPlatformSearchTerm('')
+                }}
+              >
+                Discard Changes
               </Button>
               <Button
                 variant='tertiary'
-                onClick={handleAddSelectedMembers}
-                disabled={selectedMemberIds.size === 0 || bulkAddMembers.isPending}
+                onClick={() => {
+                  setShowUnsavedChanges(false)
+                  handleSaveConfig()
+                }}
+                disabled={updatePermissionGroup.isPending}
               >
-                {bulkAddMembers.isPending
-                  ? 'Adding...'
-                  : `Add ${selectedMemberIds.size} Member${selectedMemberIds.size !== 1 ? 's' : ''}`}
+                {updatePermissionGroup.isPending ? 'Saving...' : 'Save Changes'}
               </Button>
             </ModalFooter>
           </ModalContent>
         </Modal>
+
+        <AddMembersModal
+          open={showAddMembersModal}
+          onOpenChange={setShowAddMembersModal}
+          availableMembers={availableMembersToAdd}
+          selectedMemberIds={selectedMemberIds}
+          setSelectedMemberIds={setSelectedMemberIds}
+          onAddMembers={handleAddSelectedMembers}
+          isAdding={bulkAddMembers.isPending}
+        />
       </>
     )
   }
@@ -983,8 +1041,8 @@ export function AccessControl() {
               No results found matching "{searchTerm}"
             </div>
           ) : permissionGroups.length === 0 ? (
-            <div className='text-[13px] text-[var(--text-muted)]'>
-              No permission groups created yet
+            <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+              Click "Create" above to get started
             </div>
           ) : (
             <div className='flex flex-col gap-[8px]'>
@@ -996,12 +1054,12 @@ export function AccessControl() {
                       {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
                     </span>
                   </div>
-                  <div className='flex items-center gap-[8px]'>
-                    <Button variant='ghost' onClick={() => setViewingGroup(group)}>
+                  <div className='flex flex-shrink-0 items-center gap-[8px]'>
+                    <Button variant='default' onClick={() => setViewingGroup(group)}>
                       Details
                     </Button>
                     <Button
-                      variant='destructive'
+                      variant='ghost'
                       onClick={() => handleDeleteClick(group)}
                       disabled={deletingGroupIds.has(group.id)}
                     >
