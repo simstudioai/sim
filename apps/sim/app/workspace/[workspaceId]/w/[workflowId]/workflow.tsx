@@ -1129,17 +1129,18 @@ const WorkflowContent = React.memo(() => {
   )
 
   /**
-   * Checks if adding a trigger block would violate constraints and shows notification if so.
+   * Checks if adding a block would violate constraints (triggers or single-instance blocks)
+   * and shows notification if so.
    * @returns true if validation failed (caller should return early), false if ok to proceed
    */
   const checkTriggerConstraints = useCallback(
     (blockType: string): boolean => {
-      const issue = TriggerUtils.getTriggerAdditionIssue(blocks, blockType)
-      if (issue) {
+      const triggerIssue = TriggerUtils.getTriggerAdditionIssue(blocks, blockType)
+      if (triggerIssue) {
         const message =
-          issue.issue === 'legacy'
+          triggerIssue.issue === 'legacy'
             ? 'Cannot add new trigger blocks when a legacy Start block exists. Available in newer workflows.'
-            : `A workflow can only have one ${issue.triggerName} trigger block. Please remove the existing one before adding a new one.`
+            : `A workflow can only have one ${triggerIssue.triggerName} trigger block. Please remove the existing one before adding a new one.`
         addNotification({
           level: 'error',
           message,
@@ -1147,6 +1148,17 @@ const WorkflowContent = React.memo(() => {
         })
         return true
       }
+
+      const singleInstanceIssue = TriggerUtils.getSingleInstanceBlockIssue(blocks, blockType)
+      if (singleInstanceIssue) {
+        addNotification({
+          level: 'error',
+          message: `A workflow can only have one ${singleInstanceIssue.blockName} block. Please remove the existing one before adding a new one.`,
+          workflowId: activeWorkflowId || undefined,
+        })
+        return true
+      }
+
       return false
     },
     [blocks, addNotification, activeWorkflowId]
