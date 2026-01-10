@@ -1,53 +1,17 @@
+import {
+  drizzleOrmMock,
+  loggerMock,
+  setupGlobalFetchMock,
+  setupGlobalStorageMocks,
+} from '@sim/testing'
 import { afterAll, vi } from 'vitest'
 import '@testing-library/jest-dom/vitest'
 
-global.fetch = vi.fn(() =>
-  Promise.resolve({
-    ok: true,
-    json: () => Promise.resolve({}),
-  })
-) as any
+setupGlobalFetchMock()
+setupGlobalStorageMocks()
 
-// Mock localStorage and sessionStorage for Zustand persist middleware
-const storageMock = {
-  getItem: vi.fn(() => null),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn(),
-  key: vi.fn(),
-  length: 0,
-}
-
-global.localStorage = storageMock as any
-global.sessionStorage = storageMock as any
-
-// Mock drizzle-orm sql template literal globally for tests
-vi.mock('drizzle-orm', () => ({
-  sql: vi.fn((strings, ...values) => ({
-    strings,
-    values,
-    type: 'sql',
-    _: { brand: 'SQL' },
-  })),
-  eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
-  and: vi.fn((...conditions) => ({ type: 'and', conditions })),
-  desc: vi.fn((field) => ({ field, type: 'desc' })),
-  or: vi.fn((...conditions) => ({ type: 'or', conditions })),
-  InferSelectModel: {},
-  InferInsertModel: {},
-}))
-
-vi.mock('@sim/logger', () => {
-  const createLogger = vi.fn(() => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    fatal: vi.fn(),
-  }))
-
-  return { createLogger }
-})
+vi.mock('drizzle-orm', () => drizzleOrmMock)
+vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/stores/console/store', () => ({
   useConsoleStore: {

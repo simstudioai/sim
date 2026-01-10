@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { fetchPersonalEnvironment } from '@/lib/environment/api'
-import type { EnvironmentStore, EnvironmentVariable } from '@/stores/settings/environment/types'
+import type { EnvironmentStore, EnvironmentVariable } from './types'
 
 const logger = createLogger('EnvironmentStore')
 

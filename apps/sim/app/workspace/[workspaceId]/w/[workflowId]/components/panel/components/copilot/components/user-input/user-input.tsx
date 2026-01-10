@@ -34,8 +34,8 @@ import {
   useTextareaAutoResize,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
 import type { MessageFileAttachment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
-import type { ChatContext } from '@/stores/panel/copilot/types'
+import type { ChatContext } from '@/stores/panel'
+import { useCopilotStore } from '@/stores/panel'
 
 const logger = createLogger('CopilotUserInput')
 

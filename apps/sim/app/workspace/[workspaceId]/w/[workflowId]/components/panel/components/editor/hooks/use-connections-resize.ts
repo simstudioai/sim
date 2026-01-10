@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { usePanelEditorStore } from '@/stores/panel/editor/store'
+import { usePanelEditorStore } from '@/stores/panel'
 
 /**
  * Minimum height for the connections section (header only)

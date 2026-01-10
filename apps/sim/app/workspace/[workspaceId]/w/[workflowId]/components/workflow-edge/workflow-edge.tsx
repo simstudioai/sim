@@ -3,7 +3,7 @@ import { X } from 'lucide-react'
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import type { EdgeDiffStatus } from '@/lib/workflows/diff/types'
-import { useExecutionStore } from '@/stores/execution/store'
+import { useExecutionStore } from '@/stores/execution'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 
 interface WorkflowEdgeProps extends EdgeProps {

@@ -38,6 +38,6 @@ export function syncThemeToNextThemes(theme: 'system' | 'light' | 'dark') {
  * Gets the current theme from next-themes localStorage
  */
 export function getThemeFromNextThemes(): 'system' | 'light' | 'dark' {
-  if (typeof window === 'undefined') return 'system'
-  return (localStorage.getItem('sim-theme') as 'system' | 'light' | 'dark') || 'system'
+  if (typeof window === 'undefined') return 'dark'
+  return (localStorage.getItem('sim-theme') as 'system' | 'light' | 'dark') || 'dark'
 }

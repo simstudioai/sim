@@ -35,8 +35,8 @@ import {
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
-import { useSearchModalStore } from '@/stores/search-modal/store'
-import { useSettingsModalStore } from '@/stores/settings-modal/store'
+import { useSearchModalStore } from '@/stores/modals/search/store'
+import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')

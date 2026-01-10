@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import type { CustomToolDefinition, CustomToolSchema } from '@/stores/custom-tools/types'
+import type { CustomToolDefinition, CustomToolSchema } from '@/stores/custom-tools'
+import { useCustomToolsStore } from '@/stores/custom-tools'
 
 const logger = createLogger('CustomToolsQueries')
 const API_ENDPOINT = '/api/tools/custom'

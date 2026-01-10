@@ -4,7 +4,7 @@ import {
   MAX_CHAT_WIDTH,
   MIN_CHAT_HEIGHT,
   MIN_CHAT_WIDTH,
-} from '@/stores/chat/store'
+} from '@/stores/chat/utils'
 
 interface UseFloatResizeProps {
   position: { x: number; y: number }

@@ -35,6 +35,7 @@ export function getTriggerOptions(): TriggerOption[] {
     { value: 'api', label: 'API', color: '#2563eb' },
     { value: 'schedule', label: 'Schedule', color: '#059669' },
     { value: 'chat', label: 'Chat', color: '#7c3aed' },
+    { value: 'form', label: 'Form', color: '#06b6d4' },
     { value: 'webhook', label: 'Webhook', color: '#ea580c' },
     { value: 'mcp', label: 'MCP', color: '#dc2626' },
   ]

@@ -53,16 +53,16 @@ import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflo
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useChildDeployment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks/use-child-deployment'
 import { getAllBlocks } from '@/blocks'
+import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import {
   type CustomTool as CustomToolDefinition,
   useCustomTools,
 } from '@/hooks/queries/custom-tools'
 import { useForceRefreshMcpTools, useMcpServers, useStoredMcpTools } from '@/hooks/queries/mcp'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useMcpTools } from '@/hooks/use-mcp-tools'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
-import { useSettingsModalStore } from '@/stores/settings-modal/store'
+import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {
   formatParameterLabel,
@@ -2257,7 +2257,7 @@ export function ToolInput({
             >
               <div
                 className={cn(
-                  'flex items-center justify-between gap-[8px] bg-[var(--surface-4)] px-[8px] py-[6.5px]',
+                  'flex items-center justify-between gap-[8px] rounded-t-[4px] bg-[var(--surface-4)] px-[8px] py-[6.5px]',
                   (isCustomTool || hasToolBody) && 'cursor-pointer'
                 )}
                 onClick={() => {

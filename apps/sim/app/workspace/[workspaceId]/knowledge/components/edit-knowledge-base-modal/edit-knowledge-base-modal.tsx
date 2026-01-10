@@ -102,7 +102,7 @@ export function EditKnowledgeBaseModal({
         <ModalHeader>Edit Knowledge Base</ModalHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
-          <ModalBody className='!pb-[16px]'>
+          <ModalBody>
             <div className='space-y-[12px]'>
               <div className='flex flex-col gap-[8px]'>
                 <Label htmlFor='kb-name'>Name</Label>

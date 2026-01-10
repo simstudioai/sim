@@ -123,7 +123,7 @@ export function CreateChunkModal({
           <ModalHeader>Create Chunk</ModalHeader>
 
           <form>
-            <ModalBody className='!pb-[16px]'>
+            <ModalBody>
               <div className='flex flex-col gap-[8px]'>
                 {error && <p className='text-[12px] text-[var(--text-error)]'>{error}</p>}
 

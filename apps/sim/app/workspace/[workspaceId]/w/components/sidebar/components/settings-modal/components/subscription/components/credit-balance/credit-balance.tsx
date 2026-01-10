@@ -122,7 +122,7 @@ export function CreditBalance({
           </ModalTrigger>
           <ModalContent size='sm'>
             <ModalHeader>Add Credits</ModalHeader>
-            <ModalBody className='!pb-[16px]'>
+            <ModalBody>
               {success ? (
                 <p className='text-center text-[12px] text-[var(--text-primary)]'>
                   Credits added successfully!

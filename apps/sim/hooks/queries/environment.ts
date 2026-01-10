@@ -4,11 +4,11 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { fetchPersonalEnvironment, fetchWorkspaceEnvironment } from '@/lib/environment/api'
 import { API_ENDPOINTS } from '@/stores/constants'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import type { EnvironmentVariable } from '@/stores/settings/environment/types'
+import type { EnvironmentVariable } from '@/stores/settings/environment'
+import { useEnvironmentStore } from '@/stores/settings/environment'
 
 export type { WorkspaceEnvironmentData } from '@/lib/environment/api'
-export type { EnvironmentVariable } from '@/stores/settings/environment/types'
+export type { EnvironmentVariable } from '@/stores/settings/environment'
 
 const logger = createLogger('EnvironmentQueries')
 

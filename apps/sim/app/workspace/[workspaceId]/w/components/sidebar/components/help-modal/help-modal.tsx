@@ -424,7 +424,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
         <ModalHeader>Help &amp; Support</ModalHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
-          <ModalBody className='!pb-[16px]'>
+          <ModalBody>
             <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
               <div className='space-y-[12px]'>
                 <div className='flex flex-col gap-[8px]'>
@@ -474,9 +474,9 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                     className={cn(
-                      '!bg-[var(--surface-1)] hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--c-575757)] border-dashed py-[10px]',
+                      '!bg-[var(--surface-1)] hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-[10px]',
                       {
-                        'border-[var(--brand-primary-hex)]': isDragging,
+                        'border-[var(--surface-7)]': isDragging,
                       }
                     )}
                   >

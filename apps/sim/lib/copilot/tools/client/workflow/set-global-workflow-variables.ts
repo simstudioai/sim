@@ -5,7 +5,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useVariablesStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface OperationItem {

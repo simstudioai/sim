@@ -10,7 +10,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import { useMcpTools } from '@/hooks/use-mcp-tools'
+import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import { formatParameterLabel } from '@/tools/params'
 
 const logger = createLogger('McpDynamicArgs')

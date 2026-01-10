@@ -75,9 +75,6 @@ const PLAN_NAMES = {
   free: 'Free',
 } as const
 
-const GRADIENT_TEXT_STYLES =
-  'gradient-text bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary'
-
 export function Files() {
   const params = useParams()
   const workspaceId = params?.workspaceId as string
@@ -489,12 +486,7 @@ export function Files() {
             <div className='mt-auto flex flex-col gap-[8px] pt-[10px]'>
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-[6px]'>
-                  <span
-                    className={cn(
-                      'font-medium text-[12px]',
-                      planName === 'free' ? 'text-[var(--text-primary)]' : GRADIENT_TEXT_STYLES
-                    )}
-                  >
+                  <span className='font-medium text-[12px] text-[var(--text-primary)]'>
                     {displayPlanName}
                   </span>
                   <div className='h-[14px] w-[1.5px] bg-[var(--divider)]' />

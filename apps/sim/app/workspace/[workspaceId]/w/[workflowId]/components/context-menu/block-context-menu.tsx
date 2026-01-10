@@ -80,7 +80,7 @@ export function BlockContextMenu({
           }}
         >
           <span>Copy</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘C</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘C</span>
         </PopoverItem>
         <PopoverItem
           className='group'
@@ -91,7 +91,7 @@ export function BlockContextMenu({
           }}
         >
           <span>Paste</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘V</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘V</span>
         </PopoverItem>
         {!hasStarterBlock && (
           <PopoverItem
@@ -176,7 +176,7 @@ export function BlockContextMenu({
           }}
         >
           <span>Delete</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌫</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌫</span>
         </PopoverItem>
       </PopoverContent>
     </Popover>

@@ -95,7 +95,7 @@ describe('Tools Registry', () => {
 
 describe('Custom Tools', () => {
   beforeEach(() => {
-    vi.mock('@/stores/custom-tools/store', () => ({
+    vi.mock('@/stores/custom-tools', () => ({
       useCustomToolsStore: {
         getState: () => ({
           getTool: (id: string) => {
@@ -145,7 +145,7 @@ describe('Custom Tools', () => {
       },
     }))
 
-    vi.mock('@/stores/settings/environment/store', () => ({
+    vi.mock('@/stores/settings/environment', () => ({
       useEnvironmentStore: {
         getState: () => ({
           getAllVariables: () => ({

@@ -3,9 +3,9 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import type { NormalizedBlockOutput } from '@/executor/types'
-import { useExecutionStore } from '@/stores/execution/store'
+import { useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
-import { useGeneralStore } from '@/stores/settings/general/store'
+import { useGeneralStore } from '@/stores/settings/general'
 import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from '@/stores/terminal/console/types'
 
 const logger = createLogger('TerminalConsoleStore')

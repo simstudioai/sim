@@ -5,8 +5,9 @@ import { Button, Code } from '@/components/emcn'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
-import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/panel/copilot/store'
-import type { CopilotToolCall } from '@/stores/panel/copilot/types'
+import type { CopilotToolCall } from '@/stores/panel'
+import { useCopilotStore } from '@/stores/panel'
+import { CLASS_TOOL_METADATA } from '@/stores/panel/copilot/store'
 
 interface ToolCallProps {
   toolCall?: CopilotToolCall

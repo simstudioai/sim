@@ -62,7 +62,7 @@ import { organizationKeys, useOrganizations } from '@/hooks/queries/organization
 import { ssoKeys, useSSOProviders } from '@/hooks/queries/sso'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { useSettingsModalStore } from '@/stores/settings-modal/store'
+import { useSettingsModalStore } from '@/stores/modals/settings/store'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 const isSSOEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))

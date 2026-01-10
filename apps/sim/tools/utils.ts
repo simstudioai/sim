@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { AGENT, isCustomTool } from '@/executor/constants'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { useCustomToolsStore } from '@/stores/custom-tools'
+import { useEnvironmentStore } from '@/stores/settings/environment'
 import { tools } from '@/tools/registry'
 import type { TableRow, ToolConfig, ToolResponse } from '@/tools/types'
 

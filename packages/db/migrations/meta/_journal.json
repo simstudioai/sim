@@ -960,6 +960,13 @@
       "when": 1767924777319,
       "tag": "0137_yellow_korath",
       "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1768027253808,
+      "tag": "0138_faulty_gamma_corps",
+      "breakpoints": true
     }
   ]
 }

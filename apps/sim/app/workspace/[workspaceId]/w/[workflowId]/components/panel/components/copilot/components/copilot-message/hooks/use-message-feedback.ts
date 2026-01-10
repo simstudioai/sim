@@ -2,9 +2,8 @@
 
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
-import { usePreviewStore } from '@/stores/panel/copilot/preview-store'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
-import type { CopilotMessage } from '@/stores/panel/copilot/types'
+import type { CopilotMessage } from '@/stores/panel'
+import { useCopilotStore } from '@/stores/panel'
 
 const logger = createLogger('useMessageFeedback')
 
@@ -29,8 +28,7 @@ export function useMessageFeedback(
   props: UseMessageFeedbackProps
 ) {
   const { setShowUpvoteSuccess, setShowDownvoteSuccess } = props
-  const { currentChat, workflowId } = useCopilotStore()
-  const { getPreviewByToolCall, getLatestPendingPreview } = usePreviewStore()
+  const { currentChat } = useCopilotStore()
 
   /**
    * Gets the full assistant response content from message

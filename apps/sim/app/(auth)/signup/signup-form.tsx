@@ -95,7 +95,7 @@ function SignupFormContent({
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
   const [redirectUrl, setRedirectUrl] = useState('')
   const [isInviteFlow, setIsInviteFlow] = useState(false)
-  const [buttonClass, setButtonClass] = useState('auth-button-gradient')
+  const [buttonClass, setButtonClass] = useState('branded-button-gradient')
   const [isButtonHovered, setIsButtonHovered] = useState(false)
 
   const [name, setName] = useState('')
@@ -132,9 +132,9 @@ function SignupFormContent({
       const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
 
       if (brandAccent && brandAccent !== '#6f3dfa') {
-        setButtonClass('auth-button-custom')
+        setButtonClass('branded-button-custom')
       } else {
-        setButtonClass('auth-button-gradient')
+        setButtonClass('branded-button-gradient')
       }
     }
 

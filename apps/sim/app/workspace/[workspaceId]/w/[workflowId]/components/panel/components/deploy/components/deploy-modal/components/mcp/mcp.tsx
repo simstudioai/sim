@@ -26,7 +26,7 @@ import {
   type WorkflowMcpServer,
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
-import { useSettingsModalStore } from '@/stores/settings-modal/store'
+import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -459,7 +459,7 @@ export function McpDeploy({
   return (
     <form
       id='mcp-deploy-form'
-      className='-mx-1 space-y-[12px] overflow-y-auto px-1'
+      className='-mx-1 space-y-[12px] px-1'
       onSubmit={(e) => {
         e.preventDefault()
         handleSave()

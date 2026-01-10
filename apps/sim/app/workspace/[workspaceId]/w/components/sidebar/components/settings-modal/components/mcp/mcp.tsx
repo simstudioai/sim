@@ -29,6 +29,7 @@ import {
   EnvVarDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { useMcpServerTest } from '@/hooks/mcp/use-mcp-server-test'
 import {
   useCreateMcpServer,
   useDeleteMcpServer,
@@ -38,7 +39,6 @@ import {
   useRefreshMcpServer,
   useStoredMcpTools,
 } from '@/hooks/queries/mcp'
-import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { FormField, McpServerSkeleton } from './components'

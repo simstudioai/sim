@@ -3,8 +3,8 @@ import { useBlockState } from '@/app/workspace/[workspaceId]/w/[workflowId]/comp
 import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { getBlockRingStyles } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-ring-utils'
-import { useExecutionStore } from '@/stores/execution/store'
-import { usePanelEditorStore } from '@/stores/panel/editor/store'
+import { useExecutionStore } from '@/stores/execution'
+import { usePanelEditorStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**

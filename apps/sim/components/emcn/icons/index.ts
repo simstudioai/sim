@@ -1,3 +1,4 @@
+export { BubbleChatClose } from './bubble-chat-close'
 export { BubbleChatPreview } from './bubble-chat-preview'
 export { Card } from './card'
 export { ChevronDown } from './chevron-down'

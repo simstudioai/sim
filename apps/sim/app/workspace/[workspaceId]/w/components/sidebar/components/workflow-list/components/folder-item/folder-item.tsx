@@ -22,7 +22,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCreateFolder, useUpdateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
-import type { FolderTreeNode } from '@/stores/folders/store'
+import type { FolderTreeNode } from '@/stores/folders/types'
 import {
   generateCreativeWorkflowName,
   getNextWorkflowColor,

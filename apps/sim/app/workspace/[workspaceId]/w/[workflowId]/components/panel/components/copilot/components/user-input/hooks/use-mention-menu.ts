@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import type { ChatContext } from '@/stores/panel/copilot/types'
+import type { ChatContext } from '@/stores/panel'
 import { SCROLL_TOLERANCE } from '../constants'
 
 const logger = createLogger('useMentionMenu')

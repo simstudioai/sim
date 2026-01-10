@@ -11,8 +11,8 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import type { Variable } from '@/stores/panel/variables/types'
+import type { Variable } from '@/stores/panel'
+import { useVariablesStore } from '@/stores/panel'
 
 interface VariableAssignment {
   id: string
@@ -318,7 +318,7 @@ export function VariablesInput({
                 )}
               >
                 <div
-                  className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'
+                  className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-[10px] py-[5px]'
                   onClick={() => toggleCollapse(assignment.id)}
                 >
                   <div className='flex min-w-0 flex-1 items-center gap-[8px]'>

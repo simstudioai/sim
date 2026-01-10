@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { MIN_LOG_DETAILS_WIDTH, useLogDetailsUIStore } from '@/stores/logs/store'
+import { useLogDetailsUIStore } from '@/stores/logs/store'
+import { MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
 
 /**
  * Hook for handling log details panel resize via mouse drag.

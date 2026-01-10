@@ -3,7 +3,7 @@ import { AuthMode, type BlockConfig } from '@/blocks/types'
 import { getProviderCredentialSubBlocks, PROVIDER_CREDENTIAL_INPUTS } from '@/blocks/utils'
 import type { ProviderId } from '@/providers/types'
 import { getBaseModelProviders, getProviderIcon } from '@/providers/utils'
-import { useProvidersStore } from '@/stores/providers/store'
+import { useProvidersStore } from '@/stores/providers'
 import type { ToolResponse } from '@/tools/types'
 
 interface RouterResponse extends ToolResponse {
