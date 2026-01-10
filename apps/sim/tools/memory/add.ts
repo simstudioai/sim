@@ -47,7 +47,10 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
       }
 
       const conversationId = params.conversationId || params.id
-      const key = conversationId as string
+      if (!conversationId) {
+        throw new Error('conversationId or id is required')
+      }
+      const key = conversationId
 
       const body: Record<string, any> = {
         key,

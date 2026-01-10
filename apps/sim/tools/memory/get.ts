@@ -30,7 +30,10 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       }
 
       const conversationId = params.conversationId || params.id
-      const query = conversationId as string
+      if (!conversationId) {
+        throw new Error('conversationId or id is required')
+      }
+      const query = conversationId
 
       const url = new URL('/api/memory', 'http://dummy')
       url.searchParams.set('workspaceId', workspaceId)

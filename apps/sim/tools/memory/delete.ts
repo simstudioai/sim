@@ -30,6 +30,9 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
       }
 
       const conversationId = params.conversationId || params.id
+      if (!conversationId) {
+        throw new Error('conversationId or id is required')
+      }
 
       const url = new URL('/api/memory', 'http://dummy')
       url.searchParams.set('workspaceId', workspaceId)
