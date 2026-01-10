@@ -11,6 +11,7 @@ import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { EDGE, normalizeName } from '@/executor/constants'
@@ -62,6 +63,8 @@ type SkippedItemType =
   | 'invalid_subflow_parent'
   | 'nested_subflow_not_allowed'
   | 'duplicate_block_name'
+  | 'duplicate_trigger'
+  | 'duplicate_single_instance_block'
 
 /**
  * Represents an item that was skipped during operation application
@@ -1770,6 +1773,34 @@ function applyOperationsToWorkflowState(
             operationType: 'add',
             blockId: block_id,
             reason: `Block type "${params.type}" is not allowed by permission group - block not added`,
+            details: { requestedType: params.type },
+          })
+          break
+        }
+
+        const triggerIssue = TriggerUtils.getTriggerAdditionIssue(modifiedState.blocks, params.type)
+        if (triggerIssue) {
+          logSkippedItem(skippedItems, {
+            type: 'duplicate_trigger',
+            operationType: 'add',
+            blockId: block_id,
+            reason: `Cannot add ${triggerIssue.triggerName} - a workflow can only have one`,
+            details: { requestedType: params.type, issue: triggerIssue.issue },
+          })
+          break
+        }
+
+        // Check single-instance block constraints (e.g., Response block)
+        const singleInstanceIssue = TriggerUtils.getSingleInstanceBlockIssue(
+          modifiedState.blocks,
+          params.type
+        )
+        if (singleInstanceIssue) {
+          logSkippedItem(skippedItems, {
+            type: 'duplicate_single_instance_block',
+            operationType: 'add',
+            blockId: block_id,
+            reason: `Cannot add ${singleInstanceIssue.blockName} - a workflow can only have one`,
             details: { requestedType: params.type },
           })
           break
