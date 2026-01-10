@@ -26,7 +26,7 @@ export const getTriggerBlocksServerTool: BaseServerTool<
 
     Object.entries(blockRegistry).forEach(([blockType, blockConfig]: [string, BlockConfig]) => {
       if (blockConfig.hideFromToolbar) return
-      if (allowedIntegrations !== null && !allowedIntegrations?.includes(blockType)) return
+      if (allowedIntegrations != null && !allowedIntegrations.includes(blockType)) return
 
       if (blockConfig.category === 'triggers') {
         triggerBlockIds.push(blockType)
