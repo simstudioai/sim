@@ -16,7 +16,6 @@ const avatarVariants = cva('relative flex shrink-0 overflow-hidden rounded-full'
       sm: 'h-8 w-8',
       md: 'h-10 w-10',
       lg: 'h-12 w-12',
-      xl: 'h-16 w-16',
     },
   },
   defaultVariants: {
@@ -42,7 +41,6 @@ const avatarStatusVariants = cva(
         sm: 'h-2.5 w-2.5',
         md: 'h-3 w-3',
         lg: 'h-3.5 w-3.5',
-        xl: 'h-4 w-4',
       },
     },
     defaultVariants: {

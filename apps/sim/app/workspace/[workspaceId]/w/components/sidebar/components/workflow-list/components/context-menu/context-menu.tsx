@@ -147,6 +147,12 @@ export function ContextMenu({
   disableCreate = false,
   disableCreateFolder = false,
 }: ContextMenuProps) {
+  // Section visibility for divider logic
+  const hasNavigationSection = showOpenInNewTab && onOpenInNewTab
+  const hasEditSection =
+    (showRename && onRename) || (showCreate && onCreate) || (showCreateFolder && onCreateFolder)
+  const hasCopySection = (showDuplicate && onDuplicate) || (showExport && onExport)
+
   return (
     <Popover
       open={isOpen}
@@ -176,7 +182,7 @@ export function ContextMenu({
             Open in new tab
           </PopoverItem>
         )}
-        {showOpenInNewTab && onOpenInNewTab && <PopoverDivider />}
+        {hasNavigationSection && (hasEditSection || hasCopySection) && <PopoverDivider />}
 
         {/* Edit and create actions */}
         {showRename && onRename && (
@@ -214,7 +220,7 @@ export function ContextMenu({
         )}
 
         {/* Copy and export actions */}
-        {(showDuplicate || showExport) && <PopoverDivider />}
+        {hasEditSection && hasCopySection && <PopoverDivider />}
         {showDuplicate && onDuplicate && (
           <PopoverItem
             disabled={disableDuplicate}
@@ -239,7 +245,7 @@ export function ContextMenu({
         )}
 
         {/* Destructive action */}
-        <PopoverDivider />
+        {(hasNavigationSection || hasEditSection || hasCopySection) && <PopoverDivider />}
         <PopoverItem
           disabled={disableDelete}
           onClick={() => {
