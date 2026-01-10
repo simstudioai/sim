@@ -56,7 +56,8 @@ export const downloadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveDownload
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Whether to include revision history in the metadata (default: true)',
+      description:
+        'Whether to include revision history in the metadata (default: true, returns first 100 revisions)',
     },
   },
 
@@ -222,15 +223,12 @@ export const downloadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveDownload
   outputs: {
     file: {
       type: 'object',
-      description: 'Downloaded file stored in execution files',
+      description: 'Downloaded file data',
       properties: {
-        id: { type: 'string', description: 'Unique file identifier' },
         name: { type: 'string', description: 'File name' },
+        mimeType: { type: 'string', description: 'MIME type of the file' },
+        data: { type: 'string', description: 'File content as Buffer' },
         size: { type: 'number', description: 'File size in bytes' },
-        type: { type: 'string', description: 'MIME type of the file' },
-        url: { type: 'string', description: 'Signed URL to access the file' },
-        key: { type: 'string', description: 'Storage key for the file' },
-        context: { type: 'string', description: 'Context where file is stored' },
       },
     },
     metadata: {
@@ -307,7 +305,10 @@ export const downloadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveDownload
         contentRestrictions: { type: 'json', description: 'Content restrictions' },
         linkShareMetadata: { type: 'json', description: 'Link share metadata' },
         // Revisions
-        revisions: { type: 'json', description: 'File revision history' },
+        revisions: {
+          type: 'json',
+          description: 'File revision history (first 100 revisions only)',
+        },
       },
     },
   },

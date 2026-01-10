@@ -50,7 +50,8 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Whether to include revision history in the metadata (default: true)',
+      description:
+        'Whether to include revision history in the metadata (default: true, returns first 100 revisions)',
     },
   },
 
@@ -279,7 +280,10 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
         contentRestrictions: { type: 'json', description: 'Content restrictions' },
         linkShareMetadata: { type: 'json', description: 'Link share metadata' },
         // Revisions
-        revisions: { type: 'json', description: 'File revision history' },
+        revisions: {
+          type: 'json',
+          description: 'File revision history (first 100 revisions only)',
+        },
       },
     },
   },
