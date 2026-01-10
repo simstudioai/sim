@@ -165,7 +165,7 @@ Return ONLY the template name - no explanations, no quotes, no extra text.`,
     },
 
     {
-      id: 'pageContent',
+      id: 'columnDefinitions',
       title: 'Column Definitions',
       type: 'long-input',
       placeholder: 'Optional: Define custom columns as JSON array',
@@ -402,6 +402,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           includeItems,
           uploadFiles,
           files,
+          columnDefinitions,
           ...others
         } = rest as any
 
@@ -449,7 +450,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
 
         // Handle file upload files parameter
         const fileParam = uploadFiles || files
-        const baseParams = {
+        const baseParams: Record<string, any> = {
           credential,
           siteId: effectiveSiteId || undefined,
           pageSize: others.pageSize ? Number.parseInt(others.pageSize as string, 10) : undefined,
@@ -466,6 +467,10 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           baseParams.files = fileParam
         }
 
+        if (columnDefinitions) {
+          baseParams.pageContent = columnDefinitions
+        }
+
         return baseParams
       },
     },
@@ -474,7 +479,10 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Microsoft account credential' },
     pageName: { type: 'string', description: 'Page name' },
-    pageContent: { type: 'string', description: 'Page content' },
+    columnDefinitions: {
+      type: 'string',
+      description: 'Column definitions for list creation (JSON array)',
+    },
     pageTitle: { type: 'string', description: 'Page title' },
     pageId: { type: 'string', description: 'Page ID' },
     siteSelector: { type: 'string', description: 'Site selector' },
