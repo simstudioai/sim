@@ -95,7 +95,12 @@ export function ChunkContextMenu({
   }
 
   return (
-    <Popover open={isOpen} onOpenChange={onClose} variant='secondary' size='sm'>
+    <Popover
+      open={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+      variant='secondary'
+      size='sm'
+    >
       <PopoverAnchor
         style={{
           position: 'fixed',

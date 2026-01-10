@@ -12,6 +12,7 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
   longDescription:
     'Integrate Twilio Voice into the workflow. Make outbound calls and retrieve call recordings.',
   category: 'tools',
+  docsLink: 'https://docs.sim.ai/tools/twilio_voice',
   bgColor: '#F22F46', // Twilio brand color
   icon: TwilioIcon,
   triggerAllowed: true,

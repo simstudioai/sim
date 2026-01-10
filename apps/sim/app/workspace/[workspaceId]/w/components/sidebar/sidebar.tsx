@@ -188,16 +188,25 @@ export function Sidebar() {
     [handleNavContextMenuBase]
   )
 
+  const handleNavContextMenuClose = useCallback(() => {
+    closeNavContextMenu()
+    setActiveNavItemHref(null)
+  }, [closeNavContextMenu])
+
   const handleNavOpenInNewTab = useCallback(() => {
     if (activeNavItemHref) {
-      window.open(activeNavItemHref, '_blank')
+      window.open(activeNavItemHref, '_blank', 'noopener,noreferrer')
     }
   }, [activeNavItemHref])
 
   const handleNavCopyLink = useCallback(async () => {
     if (activeNavItemHref) {
       const fullUrl = `${window.location.origin}${activeNavItemHref}`
-      await navigator.clipboard.writeText(fullUrl)
+      try {
+        await navigator.clipboard.writeText(fullUrl)
+      } catch (error) {
+        logger.error('Failed to copy link to clipboard', { error })
+      }
     }
   }, [activeNavItemHref])
 
@@ -675,7 +684,7 @@ export function Sidebar() {
                 isOpen={isNavContextMenuOpen}
                 position={navContextMenuPosition}
                 menuRef={navMenuRef}
-                onClose={closeNavContextMenu}
+                onClose={handleNavContextMenuClose}
                 onOpenInNewTab={handleNavOpenInNewTab}
                 onCopyLink={handleNavCopyLink}
               />

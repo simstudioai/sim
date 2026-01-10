@@ -2,7 +2,7 @@
 
 import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
 
-interface NavItemContextMenuProps {
+interface ToolbarItemContextMenuProps {
   /**
    * Whether the context menu is open
    */
@@ -20,27 +20,32 @@ interface NavItemContextMenuProps {
    */
   onClose: () => void
   /**
-   * Callback when open in new tab is clicked
+   * Callback when add to canvas is clicked
    */
-  onOpenInNewTab: () => void
+  onAddToCanvas: () => void
   /**
-   * Callback when copy link is clicked
+   * Callback when view documentation is clicked
    */
-  onCopyLink: () => void
+  onViewDocumentation?: () => void
+  /**
+   * Whether the view documentation option should be shown
+   */
+  showViewDocumentation?: boolean
 }
 
 /**
- * Context menu component for sidebar navigation items.
- * Displays navigation-appropriate options (open in new tab, copy link) in a popover at the right-click position.
+ * Context menu component for toolbar items (triggers and blocks).
+ * Displays options to add to canvas and view documentation.
  */
-export function NavItemContextMenu({
+export function ToolbarItemContextMenu({
   isOpen,
   position,
   menuRef,
   onClose,
-  onOpenInNewTab,
-  onCopyLink,
-}: NavItemContextMenuProps) {
+  onAddToCanvas,
+  onViewDocumentation,
+  showViewDocumentation = false,
+}: ToolbarItemContextMenuProps) {
   return (
     <Popover
       open={isOpen}
@@ -61,20 +66,22 @@ export function NavItemContextMenu({
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
         <PopoverItem
           onClick={() => {
-            onOpenInNewTab()
+            onAddToCanvas()
             onClose()
           }}
         >
-          Open in new tab
+          Add to canvas
         </PopoverItem>
-        <PopoverItem
-          onClick={() => {
-            onCopyLink()
-            onClose()
-          }}
-        >
-          Copy link
-        </PopoverItem>
+        {showViewDocumentation && onViewDocumentation && (
+          <PopoverItem
+            onClick={() => {
+              onViewDocumentation()
+              onClose()
+            }}
+          >
+            View documentation
+          </PopoverItem>
+        )}
       </PopoverContent>
     </Popover>
   )

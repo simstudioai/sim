@@ -673,7 +673,7 @@ function WorkflowInputMapperSyncWrapper({
 
   if (!workflowId) {
     return (
-      <div className='rounded-md border border-gray-600/50 bg-gray-900/20 p-4 text-center text-gray-400 text-sm'>
+      <div className='rounded-md border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] p-4 text-center text-[var(--text-muted)] text-sm'>
         Select a workflow to configure its inputs
       </div>
     )
@@ -681,15 +681,15 @@ function WorkflowInputMapperSyncWrapper({
 
   if (isLoading) {
     return (
-      <div className='flex items-center justify-center rounded-md border border-gray-600/50 bg-gray-900/20 p-8'>
-        <Loader2 className='h-5 w-5 animate-spin text-gray-400' />
+      <div className='flex items-center justify-center rounded-md border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] p-8'>
+        <Loader2 className='h-5 w-5 animate-spin text-[var(--text-muted)]' />
       </div>
     )
   }
 
   if (inputFields.length === 0) {
     return (
-      <div className='rounded-md border border-gray-600/50 bg-gray-900/20 p-4 text-center text-gray-400 text-sm'>
+      <div className='rounded-md border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] p-4 text-center text-[var(--text-muted)] text-sm'>
         This workflow has no custom input fields
       </div>
     )
