@@ -54,9 +54,12 @@ export function ThinkingBlock({
 }: ThinkingBlockProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [duration, setDuration] = useState(0)
+  const [userHasScrolledAway, setUserHasScrolledAway] = useState(false)
   const userCollapsedRef = useRef<boolean>(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const startTimeRef = useRef<number>(Date.now())
+  const lastScrollTopRef = useRef(0)
+  const programmaticScrollRef = useRef(false)
 
   /**
    * Auto-expands block when streaming with content
@@ -67,6 +70,7 @@ export function ThinkingBlock({
     if (!isStreaming || hasFollowingContent) {
       setIsExpanded(false)
       userCollapsedRef.current = false
+      setUserHasScrolledAway(false)
       return
     }
 
@@ -80,6 +84,7 @@ export function ThinkingBlock({
     if (isStreaming && !hasFollowingContent) {
       startTimeRef.current = Date.now()
       setDuration(0)
+      setUserHasScrolledAway(false)
     }
   }, [isStreaming, hasFollowingContent])
 
@@ -95,22 +100,65 @@ export function ThinkingBlock({
     return () => clearInterval(interval)
   }, [isStreaming, hasFollowingContent])
 
-  // Auto-scroll to bottom during streaming using interval (same as copilot chat)
+  // Handle scroll events to detect user scrolling away
   useEffect(() => {
-    if (!isStreaming || !isExpanded) return
+    const container = scrollContainerRef.current
+    if (!container || !isExpanded) return
+
+    const handleScroll = () => {
+      if (programmaticScrollRef.current) return
+
+      const { scrollTop, scrollHeight, clientHeight } = container
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+      const isNearBottom = distanceFromBottom <= 20
+
+      const delta = scrollTop - lastScrollTopRef.current
+      const movedUp = delta < -2
+
+      if (movedUp && !isNearBottom) {
+        setUserHasScrolledAway(true)
+      }
+
+      // Re-stick if user scrolls back to bottom
+      if (userHasScrolledAway && isNearBottom) {
+        setUserHasScrolledAway(false)
+      }
+
+      lastScrollTopRef.current = scrollTop
+    }
+
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    lastScrollTopRef.current = container.scrollTop
+
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [isExpanded, userHasScrolledAway])
+
+  // Smart auto-scroll: only scroll if user hasn't scrolled away
+  useEffect(() => {
+    if (!isStreaming || !isExpanded || userHasScrolledAway) return
 
     const intervalId = window.setInterval(() => {
       const container = scrollContainerRef.current
       if (!container) return
 
-      container.scrollTo({
-        top: container.scrollHeight,
-        behavior: 'smooth',
-      })
+      const { scrollTop, scrollHeight, clientHeight } = container
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+      const isNearBottom = distanceFromBottom <= 50
+
+      if (isNearBottom) {
+        programmaticScrollRef.current = true
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'smooth',
+        })
+        window.setTimeout(() => {
+          programmaticScrollRef.current = false
+        }, 150)
+      }
     }, SCROLL_INTERVAL)
 
     return () => window.clearInterval(intervalId)
-  }, [isStreaming, isExpanded])
+  }, [isStreaming, isExpanded, userHasScrolledAway])
 
   /**
    * Formats duration in milliseconds to seconds
@@ -137,6 +185,14 @@ export function ThinkingBlock({
   if (!isThinkingDone) {
     return (
       <div className='mt-1 mb-0'>
+        {/* Define shimmer keyframes */}
+        <style>{`
+          @keyframes thinking-shimmer {
+            0% { background-position: 150% 0; }
+            50% { background-position: 0% 0; }
+            100% { background-position: -150% 0; }
+          }
+        `}</style>
         <button
           onClick={() => {
             setIsExpanded((v) => {
