@@ -246,7 +246,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   const handleSectionChange = useCallback(
     (sectionId: SettingsSection) => {
-      // For workflow-mcp-servers, clicking again should reset to list view
       if (sectionId === activeSection) {
         if (sectionId === 'workflow-mcp-servers') {
           setWorkflowMcpResetKey((prev) => prev + 1)
