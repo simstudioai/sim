@@ -13,6 +13,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
   HelpModal,
+  NavItemContextMenu,
   SearchModal,
   SettingsModal,
   UsageIndicator,
@@ -20,6 +21,7 @@ import {
   WorkspaceHeader,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import {
+  useContextMenu,
   useFolderOperations,
   useSidebarResize,
   useWorkflowOperations,
@@ -167,6 +169,37 @@ export function Sidebar() {
   const { isCreatingFolder, handleCreateFolder: createFolder } = useFolderOperations({
     workspaceId,
   })
+
+  /** Context menu state for navigation items */
+  const [activeNavItemHref, setActiveNavItemHref] = useState<string | null>(null)
+  const {
+    isOpen: isNavContextMenuOpen,
+    position: navContextMenuPosition,
+    menuRef: navMenuRef,
+    handleContextMenu: handleNavContextMenuBase,
+    closeMenu: closeNavContextMenu,
+  } = useContextMenu()
+
+  const handleNavItemContextMenu = useCallback(
+    (e: React.MouseEvent, href: string) => {
+      setActiveNavItemHref(href)
+      handleNavContextMenuBase(e)
+    },
+    [handleNavContextMenuBase]
+  )
+
+  const handleNavOpenInNewTab = useCallback(() => {
+    if (activeNavItemHref) {
+      window.open(activeNavItemHref, '_blank')
+    }
+  }, [activeNavItemHref])
+
+  const handleNavCopyLink = useCallback(async () => {
+    if (activeNavItemHref) {
+      const fullUrl = `${window.location.origin}${activeNavItemHref}`
+      await navigator.clipboard.writeText(fullUrl)
+    }
+  }, [activeNavItemHref])
 
   const { handleDuplicateWorkspace: duplicateWorkspace } = useDuplicateWorkspace({
     getWorkspaceId: () => workspaceId,
@@ -629,12 +662,23 @@ export function Sidebar() {
                       href={item.href!}
                       data-item-id={item.id}
                       className={`${baseClasses} ${activeClasses}`}
+                      onContextMenu={(e) => handleNavItemContextMenu(e, item.href!)}
                     >
                       {content}
                     </Link>
                   )
                 })}
               </div>
+
+              {/* Nav Item Context Menu */}
+              <NavItemContextMenu
+                isOpen={isNavContextMenuOpen}
+                position={navContextMenuPosition}
+                menuRef={navMenuRef}
+                onClose={closeNavContextMenu}
+                onOpenInNewTab={handleNavOpenInNewTab}
+                onCopyLink={handleNavCopyLink}
+              />
             </div>
           </aside>
 
