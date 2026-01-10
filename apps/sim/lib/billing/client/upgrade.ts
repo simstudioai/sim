@@ -81,7 +81,9 @@ export function useSubscriptionUpgrade() {
       }
 
       const currentUrl = `${window.location.origin}${window.location.pathname}`
-      const successUrl = `${currentUrl}?upgraded=true`
+      const successUrlObj = new URL(window.location.href)
+      successUrlObj.searchParams.set('upgraded', 'true')
+      const successUrl = successUrlObj.toString()
 
       try {
         const upgradeParams = {
