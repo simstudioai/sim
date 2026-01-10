@@ -462,9 +462,6 @@ export default function PlaygroundPage() {
               <Avatar size='lg'>
                 <AvatarFallback>LG</AvatarFallback>
               </Avatar>
-              <Avatar size='xl'>
-                <AvatarFallback>XL</AvatarFallback>
-              </Avatar>
             </VariantRow>
             <VariantRow label='with image'>
               <Avatar size='md'>
@@ -504,9 +501,6 @@ export default function PlaygroundPage() {
               </Avatar>
               <Avatar size='lg' status='online'>
                 <AvatarFallback>LG</AvatarFallback>
-              </Avatar>
-              <Avatar size='xl' status='online'>
-                <AvatarFallback>XL</AvatarFallback>
               </Avatar>
             </VariantRow>
           </Section>
