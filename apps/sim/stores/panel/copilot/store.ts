@@ -574,7 +574,7 @@ function deepClone<T>(obj: T): T {
   try {
     const json = JSON.stringify(obj)
     if (!json || json === 'undefined') {
-      logger.warn('[deepClone] JSON.stringify returned empty for object', { 
+      logger.warn('[deepClone] JSON.stringify returned empty for object', {
         type: typeof obj,
         isArray: Array.isArray(obj),
         length: Array.isArray(obj) ? obj.length : undefined,
@@ -591,8 +591,8 @@ function deepClone<T>(obj: T): T {
     }
     return parsed
   } catch (err) {
-    logger.error('[deepClone] Failed to clone object', { 
-      error: String(err), 
+    logger.error('[deepClone] Failed to clone object', {
+      error: String(err),
       type: typeof obj,
       isArray: Array.isArray(obj),
     })
@@ -615,7 +615,7 @@ function serializeMessagesForDB(messages: CopilotMessage[]): any[] {
         const ts = timestamp as any
         timestamp = ts instanceof Date ? ts.toISOString() : new Date().toISOString()
       }
-      
+
       const serialized: any = {
         id: msg.id,
         role: msg.role,

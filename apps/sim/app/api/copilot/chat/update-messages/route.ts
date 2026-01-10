@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { chatId, messages, planArtifact, config } = UpdateMessagesSchema.parse(body)
-    
+
     // Debug: Log what we're about to save
     const lastMsgParsed = messages[messages.length - 1]
     if (lastMsgParsed?.role === 'assistant') {

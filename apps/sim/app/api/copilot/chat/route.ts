@@ -818,9 +818,12 @@ export async function POST(req: NextRequest) {
                   })
                   .where(eq(copilotChats.id, actualChatId!))
 
-                logger.info(`[${tracker.requestId}] Updated conversationId for chat ${actualChatId}`, {
-                  updatedConversationId: responseId,
-                })
+                logger.info(
+                  `[${tracker.requestId}] Updated conversationId for chat ${actualChatId}`,
+                  {
+                    updatedConversationId: responseId,
+                  }
+                )
               }
             }
           } catch (error) {
