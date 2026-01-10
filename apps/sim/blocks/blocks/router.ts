@@ -117,29 +117,24 @@ Description: ${route.value || 'No description provided'}
 
   return `You are a DETERMINISTIC routing agent. You MUST select exactly ONE option.
 
-CRITICAL RULES:
-- You MUST output ONLY a route ID or "NO_MATCH" - copy it EXACTLY as shown
-- You CANNOT say "I need more information"
-- You CANNOT explain your reasoning
-- You CANNOT ask questions
-- You CANNOT output anything except the exact route ID or "NO_MATCH"
-
 Available Routes:
 ${routesInfo}
 
-Special Option:
-- If the context does NOT clearly match ANY route description, output exactly: NO_MATCH
-
-Context:
+Context to route:
 ${context}
 
-MANDATORY BEHAVIOR:
-1. Analyze the context against each route description
-2. If one route clearly matches the context, output that route's ID exactly as shown
-3. If NO route is appropriate for the context, output exactly: NO_MATCH
-4. Output ONLY the route ID or NO_MATCH - nothing else
+ROUTING RULES:
+1. ALWAYS prefer selecting a route over NO_MATCH
+2. Pick the route whose description BEST matches the context, even if it's not a perfect match
+3. If the context is even partially related to a route's description, select that route
+4. ONLY output NO_MATCH if the context is completely unrelated to ALL route descriptions
 
-Your response must be EXACTLY one route ID from the list above OR "NO_MATCH". No punctuation. No explanation. Just the ID or NO_MATCH.`
+OUTPUT FORMAT:
+- Output EXACTLY one route ID (copied exactly as shown above) OR "NO_MATCH"
+- No explanation, no punctuation, no additional text
+- Just the route ID or NO_MATCH
+
+Your response:`
 }
 
 /**
