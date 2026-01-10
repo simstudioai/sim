@@ -81,12 +81,13 @@ export function useSubscriptionUpgrade() {
       }
 
       const currentUrl = `${window.location.origin}${window.location.pathname}`
+      const successUrl = `${currentUrl}?upgraded=true`
 
       try {
         const upgradeParams = {
           plan: targetPlan,
           referenceId,
-          successUrl: currentUrl,
+          successUrl,
           cancelUrl: currentUrl,
           ...(targetPlan === 'team' && { seats: CONSTANTS.INITIAL_TEAM_SEATS }),
         } as const

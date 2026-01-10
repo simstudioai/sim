@@ -48,6 +48,22 @@ export function useOrganizations() {
 }
 
 /**
+ * Fetch organizations where user is owner/admin directly from DB
+ * This bypasses session's activeOrganizationId for reliable role checking
+ */
+export function useUserOwnedOrganizations() {
+  return useQuery({
+    queryKey: ['user-owned-organizations'],
+    queryFn: async () => {
+      const res = await fetch('/api/organizations')
+      if (!res.ok) return { organizations: [] }
+      return res.json()
+    },
+    staleTime: 0, // Always refetch to ensure fresh org membership data
+  })
+}
+
+/**
  * Fetch a specific organization by ID
  */
 async function fetchOrganization() {
