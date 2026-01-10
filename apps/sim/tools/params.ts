@@ -612,11 +612,12 @@ export function deepMergeInputMapping(
   }
 
   // Deep merge: LLM values as base, user non-empty values override
+  // If user provides empty object {}, LLM values fill all fields (intentional)
   const merged: Record<string, unknown> = { ...llmInputMapping }
 
   for (const [key, userValue] of Object.entries(parsedUserMapping)) {
     // Only override LLM value if user provided a non-empty value
-    // Note: Using strict inequality (===) so 0 and false are correctly preserved
+    // Note: Using strict inequality (!==) so 0 and false are correctly preserved
     if (userValue !== undefined && userValue !== null && userValue !== '') {
       merged[key] = userValue
     }
@@ -642,13 +643,7 @@ export function mergeToolParameters(
   const filteredUserParams: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(userProvidedParams)) {
     if (value !== undefined && value !== null && value !== '') {
-      // Special handling for inputMapping: don't filter out empty objects
-      // as we'll deep merge them later
-      if (key === 'inputMapping') {
-        filteredUserParams[key] = value
-      } else {
-        filteredUserParams[key] = value
-      }
+      filteredUserParams[key] = value
     }
   }
 
