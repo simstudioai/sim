@@ -443,11 +443,9 @@ const WorkflowContent = React.memo(() => {
   }, [userPermissions, currentWorkflow.isSnapshotView])
 
   const {
-    collaborativeAddEdge: addEdge,
-    collaborativeRemoveEdge: removeEdge,
+    collaborativeBatchAddEdges,
     collaborativeBatchRemoveEdges,
     collaborativeBatchUpdatePositions,
-    collaborativeUpdateParentId: updateParentId,
     collaborativeBatchUpdateParent,
     collaborativeBatchAddBlocks,
     collaborativeBatchRemoveBlocks,
@@ -462,6 +460,34 @@ const WorkflowContent = React.memo(() => {
       collaborativeBatchUpdatePositions([{ id, position }])
     },
     [collaborativeBatchUpdatePositions]
+  )
+
+  const addEdge = useCallback(
+    (edge: Edge) => {
+      collaborativeBatchAddEdges([edge])
+    },
+    [collaborativeBatchAddEdges]
+  )
+
+  const removeEdge = useCallback(
+    (edgeId: string) => {
+      collaborativeBatchRemoveEdges([edgeId])
+    },
+    [collaborativeBatchRemoveEdges]
+  )
+
+  const batchUpdateBlocksWithParent = useCallback(
+    (updates: Array<{ id: string; position: { x: number; y: number }; parentId?: string }>) => {
+      collaborativeBatchUpdateParent(
+        updates.map((u) => ({
+          blockId: u.id,
+          newParentId: u.parentId || null,
+          newPosition: u.position,
+          affectedEdges: [],
+        }))
+      )
+    },
+    [collaborativeBatchUpdateParent]
   )
 
   const addBlock = useCallback(
@@ -570,8 +596,8 @@ const WorkflowContent = React.memo(() => {
       const result = updateNodeParentUtil(
         nodeId,
         newParentId,
-        updateBlockPosition,
-        updateParentId,
+        collaborativeBatchUpdatePositions,
+        batchUpdateBlocksWithParent,
         () => resizeLoopNodesWrapper()
       )
 
@@ -594,8 +620,8 @@ const WorkflowContent = React.memo(() => {
     },
     [
       getNodes,
-      updateBlockPosition,
-      updateParentId,
+      collaborativeBatchUpdatePositions,
+      batchUpdateBlocksWithParent,
       blocks,
       edgesForDisplay,
       getNodeAbsolutePosition,
@@ -903,22 +929,15 @@ const WorkflowContent = React.memo(() => {
     (blockId: string, edgesToRemove: Edge[]): void => {
       if (edgesToRemove.length === 0) return
 
-      window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: true } }))
+      const edgeIds = edgesToRemove.map((edge) => edge.id)
+      collaborativeBatchRemoveEdges(edgeIds, { skipUndoRedo: true })
 
-      try {
-        edgesToRemove.forEach((edge) => {
-          removeEdge(edge.id)
-        })
-
-        logger.debug('Removed edges for node', {
-          blockId,
-          edgeCount: edgesToRemove.length,
-        })
-      } finally {
-        window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: false } }))
-      }
+      logger.debug('Removed edges for node', {
+        blockId,
+        edgeCount: edgesToRemove.length,
+      })
     },
-    [removeEdge]
+    [collaborativeBatchRemoveEdges]
   )
 
   /** Finds the closest block to a position for auto-connect. */
@@ -2072,7 +2091,12 @@ const WorkflowContent = React.memo(() => {
     // Create a mapping of node IDs to check for missing parent references
     const nodeIds = new Set(Object.keys(blocks))
 
-    // Check for nodes with invalid parent references
+    // Check for nodes with invalid parent references and collect updates
+    const orphanedUpdates: Array<{
+      id: string
+      position: { x: number; y: number }
+      parentId: string
+    }> = []
     Object.entries(blocks).forEach(([id, block]) => {
       const parentId = block.data?.parentId
 
@@ -2084,22 +2108,28 @@ const WorkflowContent = React.memo(() => {
         })
 
         const absolutePosition = getNodeAbsolutePosition(id)
-        updateBlockPosition(id, absolutePosition)
-        updateParentId(id, '', 'parent')
+        orphanedUpdates.push({ id, position: absolutePosition, parentId: '' })
       }
     })
-  }, [blocks, updateBlockPosition, updateParentId, getNodeAbsolutePosition, isWorkflowReady])
+
+    // Batch update all orphaned nodes at once
+    if (orphanedUpdates.length > 0) {
+      batchUpdateBlocksWithParent(orphanedUpdates)
+    }
+  }, [blocks, batchUpdateBlocksWithParent, getNodeAbsolutePosition, isWorkflowReady])
 
   /** Handles edge removal changes. */
   const onEdgesChange = useCallback(
     (changes: any) => {
-      changes.forEach((change: any) => {
-        if (change.type === 'remove') {
-          removeEdge(change.id)
-        }
-      })
+      const edgeIdsToRemove = changes
+        .filter((change: any) => change.type === 'remove')
+        .map((change: any) => change.id)
+
+      if (edgeIdsToRemove.length > 0) {
+        collaborativeBatchRemoveEdges(edgeIdsToRemove)
+      }
     },
-    [removeEdge]
+    [collaborativeBatchRemoveEdges]
   )
 
   /**
@@ -2705,7 +2735,9 @@ const WorkflowContent = React.memo(() => {
         )
 
         // Now add the edges after parent update
-        edgesToAdd.forEach((edge) => addEdge(edge))
+        if (edgesToAdd.length > 0) {
+          collaborativeBatchAddEdges(edgesToAdd)
+        }
 
         window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: false } }))
       } else if (!potentialParentId && dragStartParentId) {
@@ -2761,7 +2793,7 @@ const WorkflowContent = React.memo(() => {
       potentialParentId,
       updateNodeParent,
       updateBlockPosition,
-      addEdge,
+      collaborativeBatchAddEdges,
       tryCreateAutoConnectEdge,
       blocks,
       edgesForDisplay,

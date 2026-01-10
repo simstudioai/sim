@@ -186,18 +186,29 @@ export interface WorkflowActions {
       height?: number
     }
   ) => void
-  updateBlockPosition: (id: string, position: Position) => void
   updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void
-  updateParentId: (id: string, parentId: string, extent: 'parent') => void
-  removeBlock: (id: string) => void
-  addEdge: (edge: Edge) => void
-  removeEdge: (edgeId: string) => void
+  batchUpdateBlocksWithParent: (
+    updates: Array<{
+      id: string
+      position: { x: number; y: number }
+      parentId?: string
+    }>
+  ) => void
+  batchUpdatePositions: (updates: Array<{ id: string; position: Position }>) => void
+  batchAddBlocks: (
+    blocks: BlockState[],
+    edges?: Edge[],
+    subBlockValues?: Record<string, Record<string, unknown>>
+  ) => void
+  batchRemoveBlocks: (ids: string[]) => void
+  batchToggleEnabled: (ids: string[]) => void
+  batchToggleHandles: (ids: string[]) => void
+  batchAddEdges: (edges: Edge[]) => void
+  batchRemoveEdges: (ids: string[]) => void
   clear: () => Partial<WorkflowState>
   updateLastSaved: () => void
-  toggleBlockEnabled: (id: string) => void
   setBlockEnabled: (id: string, enabled: boolean) => void
   duplicateBlock: (id: string) => void
-  toggleBlockHandles: (id: string) => void
   setBlockHandles: (id: string, horizontalHandles: boolean) => void
   updateBlockName: (
     id: string,

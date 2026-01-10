@@ -3,9 +3,7 @@ export const BLOCK_OPERATIONS = {
   UPDATE_NAME: 'update-name',
   TOGGLE_ENABLED: 'toggle-enabled',
   UPDATE_PARENT: 'update-parent',
-  UPDATE_WIDE: 'update-wide',
   UPDATE_ADVANCED_MODE: 'update-advanced-mode',
-  UPDATE_TRIGGER_MODE: 'update-trigger-mode',
   TOGGLE_HANDLES: 'toggle-handles',
 } as const
 
@@ -37,8 +35,6 @@ export const EDGES_OPERATIONS = {
 export type EdgesOperation = (typeof EDGES_OPERATIONS)[keyof typeof EDGES_OPERATIONS]
 
 export const SUBFLOW_OPERATIONS = {
-  ADD: 'add',
-  REMOVE: 'remove',
   UPDATE: 'update',
 } as const
 

@@ -156,7 +156,7 @@ export function ConditionInput({
     [key: string]: number[]
   }>({})
   const updateNodeInternals = useUpdateNodeInternals()
-  const removeEdge = useWorkflowStore((state) => state.removeEdge)
+  const batchRemoveEdges = useWorkflowStore((state) => state.batchRemoveEdges)
   const edges = useWorkflowStore((state) => state.edges)
 
   const prevStoreValueRef = useRef<string | null>(null)
@@ -657,11 +657,12 @@ export function ConditionInput({
     if (isPreview || disabled || conditionalBlocks.length <= 2) return
 
     // Remove any associated edges before removing the block
-    edges.forEach((edge) => {
-      if (edge.sourceHandle?.startsWith(`condition-${id}`)) {
-        removeEdge(edge.id)
-      }
-    })
+    const edgeIdsToRemove = edges
+      .filter((edge) => edge.sourceHandle?.startsWith(`condition-${id}`))
+      .map((edge) => edge.id)
+    if (edgeIdsToRemove.length > 0) {
+      batchRemoveEdges(edgeIdsToRemove)
+    }
 
     if (conditionalBlocks.length === 1) return
     shouldPersistRef.current = true

@@ -30,9 +30,7 @@ export const BlockOperationSchema = z.object({
     BLOCK_OPERATIONS.UPDATE_NAME,
     BLOCK_OPERATIONS.TOGGLE_ENABLED,
     BLOCK_OPERATIONS.UPDATE_PARENT,
-    BLOCK_OPERATIONS.UPDATE_WIDE,
     BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE,
-    BLOCK_OPERATIONS.UPDATE_TRIGGER_MODE,
     BLOCK_OPERATIONS.TOGGLE_HANDLES,
   ]),
   target: z.literal(OPERATION_TARGETS.BLOCK),
@@ -87,7 +85,7 @@ export const EdgeOperationSchema = z.object({
 })
 
 export const SubflowOperationSchema = z.object({
-  operation: z.enum([SUBFLOW_OPERATIONS.ADD, SUBFLOW_OPERATIONS.REMOVE, SUBFLOW_OPERATIONS.UPDATE]),
+  operation: z.literal(SUBFLOW_OPERATIONS.UPDATE),
   target: z.literal(OPERATION_TARGETS.SUBFLOW),
   payload: z.object({
     id: z.string(),
