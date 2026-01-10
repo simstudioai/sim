@@ -62,11 +62,16 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
       url.searchParams.append('supportsAllDrives', 'true')
       url.searchParams.append('includeItemsFromAllDrives', 'true')
 
+      // Helper to escape single quotes for Google Drive query syntax
+      const escapeQueryValue = (value: string): string =>
+        value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+
       // Build the query conditions
       const conditions = ['trashed = false'] // Always exclude trashed files
       const folderId = params.folderId || params.folderSelector
       if (folderId) {
-        conditions.push(`'${folderId}' in parents`)
+        const escapedFolderId = escapeQueryValue(folderId)
+        conditions.push(`'${escapedFolderId}' in parents`)
       }
 
       // Combine all conditions with AND
@@ -74,7 +79,8 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
 
       if (params.query) {
         const existingQ = url.searchParams.get('q')
-        const queryPart = `name contains '${params.query}'`
+        const escapedQuery = escapeQueryValue(params.query)
+        const queryPart = `name contains '${escapedQuery}'`
         url.searchParams.set('q', `${existingQ} and ${queryPart}`)
       }
       if (params.pageSize) {

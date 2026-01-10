@@ -138,7 +138,8 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
       }
 
       const includeRevisions = params?.includeRevisions !== false
-      if (includeRevisions) {
+      const canReadRevisions = metadata.capabilities?.canReadRevisions === true
+      if (includeRevisions && canReadRevisions) {
         try {
           const revisionsResponse = await fetch(
             `https://www.googleapis.com/drive/v3/files/${fileId}/revisions?fields=revisions(${ALL_REVISION_FIELDS})&pageSize=100`,
@@ -167,6 +168,10 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
             error: revisionError.message,
           })
         }
+      } else if (includeRevisions && !canReadRevisions) {
+        logger.info('Skipping revision fetch - user does not have canReadRevisions permission', {
+          fileId,
+        })
       }
 
       logger.info('File content retrieved successfully', {
