@@ -819,9 +819,7 @@ export function ConditionInput({
                     variant='ghost'
                     onClick={() => removeBlock(block.id)}
                     disabled={
-                      isPreview ||
-                      disabled ||
-                      conditionalBlocks.length <= (isRouterMode ? 1 : 2)
+                      isPreview || disabled || conditionalBlocks.length <= (isRouterMode ? 1 : 2)
                     }
                     className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
                   >
