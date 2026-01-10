@@ -34,7 +34,9 @@ import {
   updateOllamaProviderModels,
 } from '@/providers/utils'
 
-const isHostedSpy = vi.spyOn(environmentModule, 'isHosted', 'get')
+const isHostedSpy = vi.spyOn(environmentModule, 'isHosted', 'get') as unknown as {
+  mockReturnValue: (value: boolean) => void
+}
 const mockGetRotatingApiKey = vi.fn().mockReturnValue('rotating-server-key')
 const originalRequire = module.require
 

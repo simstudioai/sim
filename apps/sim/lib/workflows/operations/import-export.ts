@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import JSZip from 'jszip'
-import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
+import {
+  type ExportWorkflowState,
+  sanitizeForExport,
+} from '@/lib/workflows/sanitization/json-sanitizer'
+import { regenerateWorkflowIds } from '@/stores/workflows/utils'
 import type { Variable, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowImportExport')
@@ -431,19 +435,27 @@ export function generateWorkflowJson(
   workflowState: WorkflowState,
   options: GenerateWorkflowJsonOptions
 ): string {
-  const stateWithMetadata = {
+  const variablesRecord: Record<string, Variable> | undefined = options.variables?.reduce(
+    (acc, v) => {
+      acc[v.id] = {
+        id: v.id,
+        name: v.name,
+        type: v.type,
+        value: v.value,
+      }
+      return acc
+    },
+    {} as Record<string, Variable>
+  )
+
+  const stateWithMetadata: WorkflowState = {
     ...workflowState,
     metadata: {
       name: options.name,
       description: options.description,
       exportedAt: new Date().toISOString(),
     },
-    variables: options.variables?.map((v) => ({
-      id: v.id,
-      name: v.name,
-      type: v.type,
-      value: v.value,
-    })),
+    variables: variablesRecord,
   }
 
   const exportState: ExportWorkflowState = sanitizeForExport(stateWithMetadata)
