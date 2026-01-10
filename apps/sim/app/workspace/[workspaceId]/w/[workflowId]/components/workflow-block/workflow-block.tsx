@@ -631,8 +631,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         ? ((credValue as { value?: unknown }).value as string | undefined)
         : (credValue as string | undefined)
     if (prevCredRef.current !== cred) {
-      // Only clear dependent fields when credential changes from one value to another,
-      // not when it's being set for the first time (e.g., during copilot block creation)
       const hadPreviousCredential = prevCredRef.current !== undefined
       prevCredRef.current = cred
       if (hadPreviousCredential) {
