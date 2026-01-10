@@ -87,8 +87,8 @@ export const ActionBar = memo(
 
     const userPermissions = useUserPermissionsContext()
 
-    // Check for start_trigger (unified start block) - prevent duplication but allow deletion
     const isStartBlock = blockType === 'starter' || blockType === 'start_trigger'
+    const isResponseBlock = blockType === 'response'
     const isNoteBlock = blockType === 'note'
 
     /**
@@ -140,7 +140,7 @@ export const ActionBar = memo(
           </Tooltip.Root>
         )}
 
-        {!isStartBlock && (
+        {!isStartBlock && !isResponseBlock && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
