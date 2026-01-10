@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { ArrowUp, ChevronDown, ChevronRight, MoreHorizontal, Trash2 } from 'lucide-react'
+import { ArrowUp, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 
 /**
@@ -48,7 +48,6 @@ export function QueuedMessages() {
             {messageQueue.length} Queued
           </span>
         </div>
-        <MoreHorizontal className='h-3 w-3 text-[var(--text-tertiary)]' />
       </button>
 
       {/* Message list */}

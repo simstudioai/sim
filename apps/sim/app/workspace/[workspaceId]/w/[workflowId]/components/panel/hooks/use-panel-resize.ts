@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 import { PANEL_WIDTH } from '@/stores/constants'
 import { usePanelStore } from '@/stores/panel/store'
 
@@ -10,15 +10,14 @@ import { usePanelStore } from '@/stores/panel/store'
  * @returns Resize state and handlers
  */
 export function usePanelResize() {
-  const { setPanelWidth } = usePanelStore()
-  const [isResizing, setIsResizing] = useState(false)
+  const { setPanelWidth, isResizing, setIsResizing } = usePanelStore()
 
   /**
    * Handles mouse down on resize handle
    */
   const handleMouseDown = useCallback(() => {
     setIsResizing(true)
-  }, [])
+  }, [setIsResizing])
 
   /**
    * Setup resize event listeners and body styles when resizing
@@ -52,7 +51,7 @@ export function usePanelResize() {
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
-  }, [isResizing, setPanelWidth])
+  }, [isResizing, setPanelWidth, setIsResizing])
 
   return {
     isResizing,

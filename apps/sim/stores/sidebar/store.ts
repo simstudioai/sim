@@ -9,10 +9,14 @@ interface SidebarState {
   workspaceDropdownOpen: boolean
   sidebarWidth: number
   isCollapsed: boolean
+  /** Whether the sidebar is currently being resized */
+  isResizing: boolean
   _hasHydrated: boolean
   setWorkspaceDropdownOpen: (isOpen: boolean) => void
   setSidebarWidth: (width: number) => void
   setIsCollapsed: (isCollapsed: boolean) => void
+  /** Updates the sidebar resize state */
+  setIsResizing: (isResizing: boolean) => void
   setHasHydrated: (hasHydrated: boolean) => void
 }
 
@@ -22,6 +26,7 @@ export const useSidebarStore = create<SidebarState>()(
       workspaceDropdownOpen: false,
       sidebarWidth: SIDEBAR_WIDTH.DEFAULT,
       isCollapsed: false,
+      isResizing: false,
       _hasHydrated: false,
       setWorkspaceDropdownOpen: (isOpen) => set({ workspaceDropdownOpen: isOpen }),
       setSidebarWidth: (width) => {
@@ -43,6 +48,9 @@ export const useSidebarStore = create<SidebarState>()(
           const currentWidth = get().sidebarWidth
           document.documentElement.style.setProperty('--sidebar-width', `${currentWidth}px`)
         }
+      },
+      setIsResizing: (isResizing) => {
+        set({ isResizing })
       },
       setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),
     }),

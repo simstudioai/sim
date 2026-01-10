@@ -11,6 +11,10 @@ export interface PanelState {
   setPanelWidth: (width: number) => void
   activeTab: PanelTab
   setActiveTab: (tab: PanelTab) => void
+  /** Whether the panel is currently being resized */
+  isResizing: boolean
+  /** Updates the panel resize state */
+  setIsResizing: (isResizing: boolean) => void
   _hasHydrated: boolean
   setHasHydrated: (hasHydrated: boolean) => void
 }

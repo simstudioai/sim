@@ -136,7 +136,7 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
   const ringStyles = cn(
     hasRing && 'ring-[1.75px]',
     (isFocused || isPreviewSelected) && 'ring-[var(--brand-secondary)]',
-    diffStatus === 'new' && 'ring-[#22C55F]',
+    diffStatus === 'new' && 'ring-[var(--brand-tertiary-2)]',
     diffStatus === 'edited' && 'ring-[var(--warning)]'
   )
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { ChevronUp } from 'lucide-react'
+import { ChevronUp, LayoutList } from 'lucide-react'
 import { Button, Code } from '@/components/emcn'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
@@ -201,28 +201,10 @@ function PlanSteps({
 
   return (
     <div className='mt-1.5 overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-1)]'>
-      <div className='flex items-center justify-between border-[var(--border-1)] border-b bg-[var(--surface-2)] p-[8px]'>
-        <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
-          <svg
-            className='h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]'
-            viewBox='0 0 24 24'
-            fill='none'
-            stroke='currentColor'
-            strokeWidth='2'
-            strokeLinecap='round'
-            strokeLinejoin='round'
-          >
-            {/* Three horizontal lines with circles at different positions */}
-            <line x1='4' y1='6' x2='20' y2='6' />
-            <circle cx='8' cy='6' r='2' fill='currentColor' />
-            <line x1='4' y1='12' x2='20' y2='12' />
-            <circle cx='16' cy='12' r='2' fill='currentColor' />
-            <line x1='4' y1='18' x2='20' y2='18' />
-            <circle cx='10' cy='18' r='2' fill='currentColor' />
-          </svg>
-          <span className='font-medium text-[14px] text-[var(--text-primary)]'>To-dos</span>
-        </div>
-        <span className='flex-shrink-0 font-medium text-[14px] text-[var(--text-tertiary)]'>
+      <div className='flex items-center gap-[8px] border-[var(--border-1)] border-b bg-[var(--surface-2)] p-[8px]'>
+        <LayoutList className='ml-[2px] h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]' />
+        <span className='font-medium text-[12px] text-[var(--text-primary)]'>To-dos</span>
+        <span className='flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
           {sortedSteps.length}
         </span>
       </div>
