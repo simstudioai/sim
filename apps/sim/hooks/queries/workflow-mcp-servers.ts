@@ -467,7 +467,7 @@ async function fetchDeployedWorkflows(workspaceId: string): Promise<DeployedWork
     name: w.name,
     description: w.description,
     isDeployed: w.isDeployed,
-    hasStartBlock: startBlockMap[w.id] ?? false,
+    hasStartBlock: startBlockMap[w.id],
   }))
 }
 

@@ -66,6 +66,11 @@ function WorkflowTagSelect({
     return workflows.filter((w) => selectedIds.includes(w.id))
   }, [workflows, selectedIds])
 
+  const validSelectedIds = useMemo(() => {
+    const workflowIds = new Set(workflows.map((w) => w.id))
+    return selectedIds.filter((id) => workflowIds.has(id))
+  }, [workflows, selectedIds])
+
   const handleRemove = (e: React.MouseEvent, id: string) => {
     e.preventDefault()
     e.stopPropagation()
@@ -109,7 +114,7 @@ function WorkflowTagSelect({
     <Combobox
       options={options}
       multiSelect
-      multiSelectValues={selectedIds}
+      multiSelectValues={validSelectedIds}
       onMultiSelectChange={onSelectionChange}
       placeholder={isEmpty ? 'No deployed workflows available' : 'Select deployed workflows...'}
       overlayContent={overlayContent}
@@ -124,9 +129,15 @@ interface ServerDetailViewProps {
   workspaceId: string
   serverId: string
   onBack: () => void
+  onToolsChanged?: () => void
 }
 
-function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewProps) {
+function ServerDetailView({
+  workspaceId,
+  serverId,
+  onBack,
+  onToolsChanged,
+}: ServerDetailViewProps) {
   const { data, isLoading, error, refetch } = useWorkflowMcpServer(workspaceId, serverId)
   const { data: deployedWorkflows = [], isLoading: isLoadingWorkflows } =
     useDeployedWorkflows(workspaceId)
@@ -165,6 +176,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         toolId: toolToDelete.id,
       })
       setToolToDelete(null)
+      onToolsChanged?.()
     } catch (err) {
       logger.error('Failed to delete tool:', err)
     }
@@ -181,6 +193,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
       setShowAddWorkflow(false)
       setSelectedWorkflowId(null)
       refetch()
+      onToolsChanged?.()
     } catch (err) {
       logger.error('Failed to add workflow:', err)
     }
@@ -204,7 +217,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
     return availableWorkflows.find((w) => w.id === selectedWorkflowId)
   }, [availableWorkflows, selectedWorkflowId])
 
-  const selectedWorkflowInvalid = selectedWorkflow && selectedWorkflow.hasStartBlock === false
+  const selectedWorkflowInvalid = selectedWorkflow && selectedWorkflow.hasStartBlock !== true
 
   if (isLoading) {
     return (
@@ -553,7 +566,12 @@ export function WorkflowMcpServers({ resetKey }: WorkflowMcpServersProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  const { data: servers = [], isLoading, error } = useWorkflowMcpServers(workspaceId)
+  const {
+    data: servers = [],
+    isLoading,
+    error,
+    refetch: refetchServers,
+  } = useWorkflowMcpServers(workspaceId)
   const { data: deployedWorkflows = [], isLoading: isLoadingWorkflows } =
     useDeployedWorkflows(workspaceId)
   const createServerMutation = useCreateWorkflowMcpServer()
@@ -584,7 +602,7 @@ export function WorkflowMcpServers({ resetKey }: WorkflowMcpServersProps) {
   const invalidWorkflows = useMemo(() => {
     return selectedWorkflowIds
       .map((id) => deployedWorkflows.find((w) => w.id === id))
-      .filter((w) => w && w.hasStartBlock === false)
+      .filter((w) => w && w.hasStartBlock !== true)
       .map((w) => w!.name)
   }, [selectedWorkflowIds, deployedWorkflows])
 
@@ -634,6 +652,7 @@ export function WorkflowMcpServers({ resetKey }: WorkflowMcpServersProps) {
 
       if (workflowErrors.length > 0) {
         setCreateError(`Server created but failed to add workflows: ${workflowErrors.join(', ')}`)
+        return
       }
     }
 
@@ -673,6 +692,7 @@ export function WorkflowMcpServers({ resetKey }: WorkflowMcpServersProps) {
         workspaceId={workspaceId}
         serverId={selectedServerId}
         onBack={() => setSelectedServerId(null)}
+        onToolsChanged={refetchServers}
       />
     )
   }

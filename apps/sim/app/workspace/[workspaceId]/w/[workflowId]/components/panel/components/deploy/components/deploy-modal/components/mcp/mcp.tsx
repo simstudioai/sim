@@ -148,6 +148,7 @@ export function McpDeploy({
   const [parameterDescriptions, setParameterDescriptions] = useState<Record<string, string>>({})
   const [pendingServerChanges, setPendingServerChanges] = useState<Set<string>>(new Set())
   const [saveError, setSaveError] = useState<string | null>(null)
+  const isSavingRef = useRef(false)
 
   const parameterSchema = useMemo(
     () => generateParameterSchema(inputFormat, parameterDescriptions),
@@ -190,6 +191,7 @@ export function McpDeploy({
   const selectedServerIds = pendingSelectedServerIds ?? actualServerIds
 
   useEffect(() => {
+    if (isSavingRef.current) return
     if (pendingSelectedServerIds !== null) {
       const pendingSet = new Set(pendingSelectedServerIds)
       const actualSet = new Set(actualServerIds)
@@ -302,6 +304,7 @@ export function McpDeploy({
     if (!toolName.trim()) return
     if (selectedServerIds.length === 0) return
 
+    isSavingRef.current = true
     onSubmittingChange?.(true)
     setSaveError(null)
 
@@ -394,11 +397,10 @@ export function McpDeploy({
       }
     }
 
-    refetchServers()
-
     if (errors.length > 0) {
       setSaveError(errors.join('. '))
     } else {
+      refetchServers()
       setPendingSelectedServerIds(null)
       setSavedValues({
         toolName,
@@ -408,6 +410,7 @@ export function McpDeploy({
       onCanSaveChange?.(false)
     }
 
+    isSavingRef.current = false
     onSubmittingChange?.(false)
   }, [
     toolName,
