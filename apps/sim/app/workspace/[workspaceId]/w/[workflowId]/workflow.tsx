@@ -2725,9 +2725,6 @@ const WorkflowContent = React.memo(() => {
 
         const edgesToAdd: Edge[] = autoConnectEdge ? [autoConnectEdge] : []
 
-        // Skip recording these edges separately since they're part of the parent update
-        window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: true } }))
-
         // Moving to a new parent container - pass both removed and added edges for undo/redo
         const affectedEdges = [...edgesToRemove, ...edgesToAdd]
         updateNodeParent(node.id, potentialParentId, affectedEdges)
@@ -2746,12 +2743,10 @@ const WorkflowContent = React.memo(() => {
           })
         )
 
-        // Now add the edges after parent update
+        // Add edges after parent update (skip undo recording - it's part of parent update)
         if (edgesToAdd.length > 0) {
-          collaborativeBatchAddEdges(edgesToAdd)
+          collaborativeBatchAddEdges(edgesToAdd, { skipUndoRedo: true })
         }
-
-        window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: false } }))
       } else if (!potentialParentId && dragStartParentId) {
         // Moving OUT of a subflow to canvas
         // Get absolute position BEFORE removing from parent

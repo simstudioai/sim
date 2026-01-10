@@ -32,7 +32,6 @@ const logger = createLogger('CollaborativeWorkflow')
 export function useCollaborativeWorkflow() {
   const undoRedo = useUndoRedo()
   const isUndoRedoInProgress = useRef(false)
-  const skipEdgeRecording = useRef(false)
   const lastDiffOperationId = useRef<string | null>(null)
 
   useEffect(() => {
@@ -56,11 +55,6 @@ export function useCollaborativeWorkflow() {
         newPosition,
         affectedEdges
       )
-    }
-
-    const skipEdgeHandler = (e: any) => {
-      const { skip } = e.detail || {}
-      skipEdgeRecording.current = skip
     }
 
     const diffOperationHandler = (e: any) => {
@@ -108,12 +102,10 @@ export function useCollaborativeWorkflow() {
 
     window.addEventListener('workflow-record-move', moveHandler)
     window.addEventListener('workflow-record-parent-update', parentUpdateHandler)
-    window.addEventListener('skip-edge-recording', skipEdgeHandler)
     window.addEventListener('record-diff-operation', diffOperationHandler)
     return () => {
       window.removeEventListener('workflow-record-move', moveHandler)
       window.removeEventListener('workflow-record-parent-update', parentUpdateHandler)
-      window.removeEventListener('skip-edge-recording', skipEdgeHandler)
       window.removeEventListener('record-diff-operation', diffOperationHandler)
     }
   }, [undoRedo])
@@ -1000,7 +992,7 @@ export function useCollaborativeWorkflow() {
 
       workflowStore.batchAddEdges(edges)
 
-      if (!options?.skipUndoRedo && !skipEdgeRecording.current) {
+      if (!options?.skipUndoRedo) {
         edges.forEach((edge) => undoRedo.recordAddEdge(edge.id))
       }
 
