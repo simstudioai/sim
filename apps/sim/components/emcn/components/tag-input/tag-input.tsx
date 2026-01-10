@@ -367,6 +367,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           tagInputVariants({ variant }),
           maxHeight,
           'relative',
+          fileInputEnabled && 'pr-[28px]',
           isDragging && 'border-[var(--border)] border-dashed bg-[var(--surface-5)]',
           className
         )}
@@ -401,12 +402,12 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
         ))}
         <div
           className={cn(
-            'flex flex-1 items-center',
+            'flex items-center',
             inputValue.trim() &&
               cn(tagVariants({ variant: 'default' }), 'gap-0 py-0 pr-0 pl-[4px] opacity-80')
           )}
         >
-          <div className='relative inline-flex flex-1'>
+          <div className='relative inline-flex'>
             {inputValue.trim() && (
               <span
                 className='invisible whitespace-pre font-medium font-sans text-[13px] leading-[20px]'
@@ -462,20 +463,20 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
               <Plus className='h-[12px] w-[12px]' />
             </button>
           )}
-          {fileInputEnabled && !disabled && !inputValue.trim() && (
-            <button
-              type='button'
-              onClick={(e) => {
-                e.stopPropagation()
-                fileInputRef.current?.click()
-              }}
-              className='flex-shrink-0 text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]'
-              aria-label='Upload file'
-            >
-              <FileIcon className='h-[14px] w-[14px]' strokeWidth={2} />
-            </button>
-          )}
         </div>
+        {fileInputEnabled && !disabled && (
+          <button
+            type='button'
+            onClick={(e) => {
+              e.stopPropagation()
+              fileInputRef.current?.click()
+            }}
+            className='absolute right-[8px] bottom-[9px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]'
+            aria-label='Upload file'
+          >
+            <FileIcon className='h-[14px] w-[14px]' strokeWidth={2} />
+          </button>
+        )}
       </div>
     )
   }
