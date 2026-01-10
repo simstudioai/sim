@@ -2,7 +2,7 @@
 
 import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
 
-interface KnowledgeListContextMenuProps {
+interface NavItemContextMenuProps {
   /**
    * Whether the context menu is open
    */
@@ -20,34 +20,34 @@ interface KnowledgeListContextMenuProps {
    */
   onClose: () => void
   /**
-   * Callback when add knowledge base is clicked
+   * Callback when open in new tab is clicked
    */
-  onAddKnowledgeBase?: () => void
+  onOpenInNewTab: () => void
   /**
-   * Whether the add option is disabled
-   * @default false
+   * Callback when copy link is clicked
    */
-  disableAdd?: boolean
+  onCopyLink: () => void
 }
 
 /**
- * Context menu component for the knowledge base list page.
- * Displays "Add knowledge base" option when right-clicking on empty space.
+ * Context menu component for sidebar navigation items.
+ * Displays navigation-appropriate options (open in new tab, copy link) in a popover at the right-click position.
  */
-export function KnowledgeListContextMenu({
+export function NavItemContextMenu({
   isOpen,
   position,
   menuRef,
   onClose,
-  onAddKnowledgeBase,
-  disableAdd = false,
-}: KnowledgeListContextMenuProps) {
+  onOpenInNewTab,
+  onCopyLink,
+}: NavItemContextMenuProps) {
   return (
     <Popover
       open={isOpen}
       onOpenChange={(open) => !open && onClose()}
       variant='secondary'
       size='sm'
+      colorScheme='inverted'
     >
       <PopoverAnchor
         style={{
@@ -59,17 +59,22 @@ export function KnowledgeListContextMenu({
         }}
       />
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-        {onAddKnowledgeBase && (
-          <PopoverItem
-            disabled={disableAdd}
-            onClick={() => {
-              onAddKnowledgeBase()
-              onClose()
-            }}
-          >
-            Add knowledge base
-          </PopoverItem>
-        )}
+        <PopoverItem
+          onClick={() => {
+            onOpenInNewTab()
+            onClose()
+          }}
+        >
+          Open in new tab
+        </PopoverItem>
+        <PopoverItem
+          onClick={() => {
+            onCopyLink()
+            onClose()
+          }}
+        >
+          Copy link
+        </PopoverItem>
       </PopoverContent>
     </Popover>
   )

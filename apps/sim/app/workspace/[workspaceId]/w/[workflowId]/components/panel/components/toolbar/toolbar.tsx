@@ -17,6 +17,7 @@ import {
   getTriggersForSidebar,
   hasTriggerCapability,
 } from '@/lib/workflows/triggers/trigger-utils'
+import { ToolbarItemContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/components'
 import {
   calculateTriggerHeights,
   useToolbarItemInteractions,
@@ -34,6 +35,7 @@ interface BlockItem {
   config?: BlockConfig
   icon?: any
   bgColor?: string
+  docsLink?: string
 }
 
 /**
@@ -98,6 +100,7 @@ function getBlocks() {
       type: LoopTool.type,
       icon: LoopTool.icon,
       bgColor: LoopTool.bgColor,
+      docsLink: LoopTool.docsLink,
       isSpecial: true,
     })
 
@@ -106,6 +109,7 @@ function getBlocks() {
       type: ParallelTool.type,
       icon: ParallelTool.icon,
       bgColor: ParallelTool.bgColor,
+      docsLink: ParallelTool.docsLink,
       isSpecial: true,
     })
 
@@ -177,6 +181,16 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
 
   // Toggle animation state
   const [isToggling, setIsToggling] = useState(false)
+
+  // Context menu state
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
+  const contextMenuRef = useRef<HTMLDivElement>(null)
+  const [activeItemInfo, setActiveItemInfo] = useState<{
+    type: string
+    isTrigger: boolean
+    docsLink?: string
+  } | null>(null)
 
   // Toolbar store
   const { toolbarTriggersHeight, setToolbarTriggersHeight, preSearchHeight, setPreSearchHeight } =
@@ -337,6 +351,68 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
   const handleTransitionEnd = useCallback(() => {
     setIsToggling(false)
   }, [])
+
+  /**
+   * Handle context menu for toolbar items
+   */
+  const handleItemContextMenu = useCallback(
+    (e: React.MouseEvent, type: string, isTrigger: boolean, docsLink?: string) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setContextMenuPosition({ x: e.clientX, y: e.clientY })
+      setActiveItemInfo({ type, isTrigger, docsLink })
+      setIsContextMenuOpen(true)
+    },
+    []
+  )
+
+  /**
+   * Close context menu and clear active item state
+   */
+  const closeContextMenu = useCallback(() => {
+    setIsContextMenuOpen(false)
+    setActiveItemInfo(null)
+  }, [])
+
+  /**
+   * Handle add to canvas from context menu
+   */
+  const handleContextMenuAddToCanvas = useCallback(() => {
+    if (activeItemInfo) {
+      handleItemClick(activeItemInfo.type, activeItemInfo.isTrigger)
+    }
+  }, [activeItemInfo, handleItemClick])
+
+  /**
+   * Handle view documentation from context menu
+   */
+  const handleViewDocumentation = useCallback(() => {
+    if (activeItemInfo?.docsLink) {
+      window.open(activeItemInfo.docsLink, '_blank', 'noopener,noreferrer')
+    }
+  }, [activeItemInfo])
+
+  /**
+   * Handle clicks outside the context menu to close it
+   */
+  useEffect(() => {
+    if (!isContextMenuOpen) return
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        closeContextMenu()
+      }
+    }
+
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside)
+    }, 0)
+
+    return () => {
+      clearTimeout(timeoutId)
+      document.removeEventListener('click', handleClickOutside)
+    }
+  }, [isContextMenuOpen, closeContextMenu])
 
   /**
    * Handle keyboard navigation with ArrowUp / ArrowDown when the toolbar tab
@@ -553,6 +629,9 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                       })
                     }}
                     onClick={() => handleItemClick(trigger.type, isTriggerCapable)}
+                    onContextMenu={(e) =>
+                      handleItemContextMenu(e, trigger.type, isTriggerCapable, trigger.docsLink)
+                    }
                     className={clsx(
                       'group flex h-[28px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]',
                       'cursor-pointer hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover:bg-[var(--surface-5)]',
@@ -642,6 +721,14 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                       document.body.classList.remove('sim-drag-subflow')
                     }}
                     onClick={() => handleItemClick(block.type, false)}
+                    onContextMenu={(e) =>
+                      handleItemContextMenu(
+                        e,
+                        block.type,
+                        false,
+                        block.docsLink ?? block.config?.docsLink
+                      )
+                    }
                     className={clsx(
                       'group flex h-[28px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]',
                       'cursor-pointer hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover:bg-[var(--surface-5)]',
@@ -685,6 +772,17 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
           </div>
         </div>
       </div>
+
+      {/* Toolbar Item Context Menu */}
+      <ToolbarItemContextMenu
+        isOpen={isContextMenuOpen}
+        position={contextMenuPosition}
+        menuRef={contextMenuRef}
+        onClose={closeContextMenu}
+        onAddToCanvas={handleContextMenuAddToCanvas}
+        onViewDocumentation={handleViewDocumentation}
+        showViewDocumentation={Boolean(activeItemInfo?.docsLink)}
+      />
     </div>
   )
 })

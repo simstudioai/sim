@@ -10,6 +10,7 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
   authMode: AuthMode.ApiKey,
   longDescription: 'Integrate Twilio into the workflow. Can send SMS messages.',
   category: 'tools',
+  docsLink: 'https://docs.sim.ai/tools/twilio',
   bgColor: '#F22F46', // Twilio brand color
   icon: TwilioIcon,
   subBlocks: [

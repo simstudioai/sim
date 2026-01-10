@@ -2,7 +2,7 @@
 
 import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
 
-interface KnowledgeListContextMenuProps {
+interface ToolbarItemContextMenuProps {
   /**
    * Whether the context menu is open
    */
@@ -20,34 +20,39 @@ interface KnowledgeListContextMenuProps {
    */
   onClose: () => void
   /**
-   * Callback when add knowledge base is clicked
+   * Callback when add to canvas is clicked
    */
-  onAddKnowledgeBase?: () => void
+  onAddToCanvas: () => void
   /**
-   * Whether the add option is disabled
-   * @default false
+   * Callback when view documentation is clicked
    */
-  disableAdd?: boolean
+  onViewDocumentation?: () => void
+  /**
+   * Whether the view documentation option should be shown
+   */
+  showViewDocumentation?: boolean
 }
 
 /**
- * Context menu component for the knowledge base list page.
- * Displays "Add knowledge base" option when right-clicking on empty space.
+ * Context menu component for toolbar items (triggers and blocks).
+ * Displays options to add to canvas and view documentation.
  */
-export function KnowledgeListContextMenu({
+export function ToolbarItemContextMenu({
   isOpen,
   position,
   menuRef,
   onClose,
-  onAddKnowledgeBase,
-  disableAdd = false,
-}: KnowledgeListContextMenuProps) {
+  onAddToCanvas,
+  onViewDocumentation,
+  showViewDocumentation = false,
+}: ToolbarItemContextMenuProps) {
   return (
     <Popover
       open={isOpen}
       onOpenChange={(open) => !open && onClose()}
       variant='secondary'
       size='sm'
+      colorScheme='inverted'
     >
       <PopoverAnchor
         style={{
@@ -59,15 +64,22 @@ export function KnowledgeListContextMenu({
         }}
       />
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-        {onAddKnowledgeBase && (
+        <PopoverItem
+          onClick={() => {
+            onAddToCanvas()
+            onClose()
+          }}
+        >
+          Add to canvas
+        </PopoverItem>
+        {showViewDocumentation && onViewDocumentation && (
           <PopoverItem
-            disabled={disableAdd}
             onClick={() => {
-              onAddKnowledgeBase()
+              onViewDocumentation()
               onClose()
             }}
           >
-            Add knowledge base
+            View documentation
           </PopoverItem>
         )}
       </PopoverContent>
