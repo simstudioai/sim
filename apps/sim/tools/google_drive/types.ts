@@ -304,7 +304,7 @@ export interface GoogleDriveDownloadResponse extends ToolResponse {
     file: {
       name: string
       mimeType: string
-      data: Buffer
+      data: string
       size: number
     }
     metadata: GoogleDriveFile

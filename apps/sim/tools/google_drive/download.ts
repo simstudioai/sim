@@ -199,13 +199,15 @@ export const downloadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveDownload
         hasRevisions: !!metadata.revisions?.length,
       })
 
+      const base64Data = fileBuffer.toString('base64')
+
       return {
         success: true,
         output: {
           file: {
             name: resolvedName,
             mimeType: finalMimeType,
-            data: fileBuffer,
+            data: base64Data,
             size: fileBuffer.length,
           },
           metadata,
@@ -227,7 +229,7 @@ export const downloadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveDownload
       properties: {
         name: { type: 'string', description: 'File name' },
         mimeType: { type: 'string', description: 'MIME type of the file' },
-        data: { type: 'string', description: 'File content as Buffer' },
+        data: { type: 'string', description: 'File content as base64-encoded string' },
         size: { type: 'number', description: 'File size in bytes' },
       },
     },
