@@ -1,4 +1,3 @@
-import { buildMemoryKey } from '@/tools/memory/helpers'
 import type { MemoryResponse } from '@/tools/memory/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -24,40 +23,17 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
   },
 
   request: {
-    url: (params): any => {
+    url: (params) => {
       const workspaceId = params._context?.workspaceId
-
       if (!workspaceId) {
-        return {
-          _errorResponse: {
-            status: 400,
-            data: {
-              success: false,
-              error: {
-                message: 'workspaceId is required and must be provided in execution context',
-              },
-            },
-          },
-        }
+        throw new Error('workspaceId is required in execution context')
       }
 
       const conversationId = params.conversationId || params.id
-
       if (!conversationId) {
-        return {
-          _errorResponse: {
-            status: 400,
-            data: {
-              success: false,
-              error: {
-                message: 'conversationId or id must be provided',
-              },
-            },
-          },
-        }
+        throw new Error('conversationId or id is required')
       }
-
-      const query = buildMemoryKey(conversationId)
+      const query = conversationId
 
       const url = new URL('/api/memory', 'http://dummy')
       url.searchParams.set('workspaceId', workspaceId)

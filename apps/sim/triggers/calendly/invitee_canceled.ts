@@ -39,6 +39,18 @@ export const calendlyInviteeCanceledTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'calendly_invitee_canceled',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'calendly_invitee_canceled',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -56,18 +68,6 @@ export const calendlyInviteeCanceledTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'calendly_invitee_canceled',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'calendly_invitee_canceled',
       condition: {
         field: 'selectedTriggerId',
         value: 'calendly_invitee_canceled',

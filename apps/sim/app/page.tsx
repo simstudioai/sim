@@ -29,23 +29,23 @@ export const metadata: Metadata = {
     locale: 'en_US',
     images: [
       {
-        url: '/logo/primary/rounded.png',
-        width: 512,
-        height: 512,
+        url: '/logo/426-240/primary/small.png',
+        width: 2130,
+        height: 1200,
         alt: 'Sim - AI Agent Workflow Builder',
         type: 'image/png',
       },
     ],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     site: '@simdotai',
     creator: '@simdotai',
     title: 'Sim - AI Agent Workflow Builder | Open Source',
     description:
       'Open-source platform for agentic workflows. 60,000+ developers. Visual builder. 100+ integrations. SOC2 & HIPAA compliant.',
     images: {
-      url: '/logo/primary/rounded.png',
+      url: '/logo/426-240/primary/small.png',
       alt: 'Sim - AI Agent Workflow Builder',
     },
   },

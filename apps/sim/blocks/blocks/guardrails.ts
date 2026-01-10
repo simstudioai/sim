@@ -1,14 +1,9 @@
 import { ShieldCheckIcon } from '@/components/icons'
-import { isHosted } from '@/lib/core/config/feature-flags'
 import type { BlockConfig } from '@/blocks/types'
-import { getHostedModels, getProviderIcon } from '@/providers/utils'
-import { useProvidersStore } from '@/stores/providers'
+import { getProviderCredentialSubBlocks, PROVIDER_CREDENTIAL_INPUTS } from '@/blocks/utils'
+import { getProviderIcon } from '@/providers/utils'
+import { useProvidersStore } from '@/stores/providers/store'
 import type { ToolResponse } from '@/tools/types'
-
-const getCurrentOllamaModels = () => {
-  const providersState = useProvidersStore.getState()
-  return providersState.providers.ollama.models
-}
 
 export interface GuardrailsResponse extends ToolResponse {
   output: {
@@ -73,6 +68,30 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
         field: 'validationType',
         value: ['regex'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a regular expression pattern based on the user's description.
+The regex should be:
+- Valid JavaScript regex syntax
+- Properly escaped for special characters
+- Optimized for the use case
+
+Common patterns:
+- Email: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$
+- Phone (US): ^\\+?1?[-.\\s]?\\(?\\d{3}\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}$
+- URL: ^https?:\\/\\/[\\w\\-]+(\\.[\\w\\-]+)+[/#?]?.*$
+- Date (YYYY-MM-DD): ^\\d{4}-\\d{2}-\\d{2}$
+- UUID: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+- IP Address: ^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$
+
+Examples:
+- "validate email" -> ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$
+- "check for numbers only" -> ^\\d+$
+- "alphanumeric with underscores" -> ^[a-zA-Z0-9_]+$
+
+Return ONLY the regex pattern - no explanations, no quotes, no forward slashes, no extra text.`,
+        placeholder: 'Describe the pattern you want to match...',
+      },
     },
     {
       id: 'knowledgeBaseId',
@@ -96,8 +115,11 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
         const providersState = useProvidersStore.getState()
         const baseModels = providersState.providers.base.models
         const ollamaModels = providersState.providers.ollama.models
+        const vllmModels = providersState.providers.vllm.models
         const openrouterModels = providersState.providers.openrouter.models
-        const allModels = Array.from(new Set([...baseModels, ...ollamaModels, ...openrouterModels]))
+        const allModels = Array.from(
+          new Set([...baseModels, ...ollamaModels, ...vllmModels, ...openrouterModels])
+        )
 
         return allModels.map((model) => {
           const icon = getProviderIcon(model)
@@ -136,44 +158,19 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
         value: ['hallucination'],
       },
     },
-    {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      placeholder: 'Enter your API key',
-      password: true,
-      connectionDroppable: false,
-      required: true,
-      // Show API key field only for hallucination validation
-      // Hide for hosted models and Ollama models
-      condition: () => {
-        const baseCondition = {
-          field: 'validationType' as const,
-          value: ['hallucination'],
-        }
-
-        if (isHosted) {
-          // In hosted mode, hide for hosted models
-          return {
-            ...baseCondition,
-            and: {
-              field: 'model' as const,
-              value: getHostedModels(),
-              not: true, // Show for all models EXCEPT hosted ones
-            },
+    // Provider credential subblocks - only shown for hallucination validation
+    ...getProviderCredentialSubBlocks().map((subBlock) => ({
+      ...subBlock,
+      // Combine with hallucination condition
+      condition: subBlock.condition
+        ? {
+            field: 'validationType' as const,
+            value: ['hallucination'],
+            and:
+              typeof subBlock.condition === 'function' ? subBlock.condition() : subBlock.condition,
           }
-        }
-        // In self-hosted mode, hide for Ollama models
-        return {
-          ...baseCondition,
-          and: {
-            field: 'model' as const,
-            value: getCurrentOllamaModels(),
-            not: true, // Show for all models EXCEPT Ollama ones
-          },
-        }
-      },
-    },
+        : { field: 'validationType' as const, value: ['hallucination'] },
+    })),
     {
       id: 'piiEntityTypes',
       title: 'PII Types to Detect',
@@ -308,10 +305,7 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       type: 'string',
       description: 'LLM model for hallucination scoring (default: gpt-4o-mini)',
     },
-    apiKey: {
-      type: 'string',
-      description: 'API key for LLM provider (optional if using hosted)',
-    },
+    ...PROVIDER_CREDENTIAL_INPUTS,
     piiEntityTypes: {
       type: 'json',
       description: 'PII entity types to detect (array of strings, empty = detect all)',

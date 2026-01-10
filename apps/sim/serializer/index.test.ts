@@ -361,7 +361,8 @@ describe('Serializer', () => {
       const toolsParam = agentBlock?.config.params.tools
       expect(toolsParam).toBeDefined()
 
-      const tools = JSON.parse(toolsParam)
+      // Parse tools to verify content
+      const tools = JSON.parse(toolsParam as string)
       expect(tools).toHaveLength(2)
 
       const customTool = tools.find((t: any) => t.type === 'custom-tool')

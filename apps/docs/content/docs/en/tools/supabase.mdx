@@ -53,6 +53,7 @@ Query data from a Supabase table
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to query |
 | `schema` | string | No | Database schema to query from \(default: public\). Use this to access tables in other schemas. |
+| `select` | string | No | Columns to return \(comma-separated\). Defaults to * \(all columns\) |
 | `filter` | string | No | PostgREST filter \(e.g., "id=eq.123"\) |
 | `orderBy` | string | No | Column to order by \(add DESC for descending\) |
 | `limit` | number | No | Maximum number of rows to return |
@@ -97,6 +98,7 @@ Get a single row from a Supabase table based on filter criteria
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to query |
 | `schema` | string | No | Database schema to query from \(default: public\). Use this to access tables in other schemas. |
+| `select` | string | No | Columns to return \(comma-separated\). Defaults to * \(all columns\) |
 | `filter` | string | Yes | PostgREST filter to find the specific row \(e.g., "id=eq.123"\) |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 

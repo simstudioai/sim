@@ -94,6 +94,17 @@ export const hubspotTicketDeletedTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'hubspot_ticket_deleted',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'hubspot_ticket_deleted',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
@@ -151,17 +162,6 @@ export const hubspotTicketDeletedTrigger: TriggerConfig = {
       showCopyButton: true,
       description: 'Run this command to subscribe to ticket deletion events',
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_ticket_deleted',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_ticket_deleted',
       condition: {
         field: 'selectedTriggerId',
         value: 'hubspot_ticket_deleted',

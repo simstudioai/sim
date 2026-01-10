@@ -66,6 +66,7 @@ export function DeployModal({
   isLoadingDeployedState,
   refetchDeployedState,
 }: DeployModalProps) {
+  const openSettingsModal = useSettingsModalStore((state) => state.openModal)
   const deploymentStatus = useWorkflowRegistry((state) =>
     state.getWorkflowDeploymentStatus(workflowId)
   )
@@ -93,6 +94,7 @@ export function DeployModal({
   const [templateSubmitting, setTemplateSubmitting] = useState(false)
   const [mcpToolSubmitting, setMcpToolSubmitting] = useState(false)
   const [mcpToolCanSave, setMcpToolCanSave] = useState(false)
+  const [hasMcpServers, setHasMcpServers] = useState(false)
   const [hasExistingTemplate, setHasExistingTemplate] = useState(false)
   const [templateStatus, setTemplateStatus] = useState<{
     status: 'pending' | 'approved' | 'rejected' | null
@@ -693,6 +695,7 @@ export function DeployModal({
                     isDeployed={isDeployed}
                     onSubmittingChange={setMcpToolSubmitting}
                     onCanSaveChange={setMcpToolCanSave}
+                    onHasServersChange={setHasMcpServers}
                   />
                 )}
               </ModalTabsContent>
@@ -755,16 +758,25 @@ export function DeployModal({
               </div>
             </ModalFooter>
           )}
-          {activeTab === 'mcp' && isDeployed && (
+          {activeTab === 'mcp' && isDeployed && hasMcpServers && (
             <ModalFooter className='items-center'>
-              <Button
-                type='button'
-                variant='tertiary'
-                onClick={handleMcpToolFormSubmit}
-                disabled={mcpToolSubmitting || !mcpToolCanSave}
-              >
-                {mcpToolSubmitting ? 'Saving...' : 'Save Tool Schema'}
-              </Button>
+              <div className='flex gap-2'>
+                <Button
+                  type='button'
+                  variant='default'
+                  onClick={() => openSettingsModal({ section: 'workflow-mcp-servers' })}
+                >
+                  Manage
+                </Button>
+                <Button
+                  type='button'
+                  variant='tertiary'
+                  onClick={handleMcpToolFormSubmit}
+                  disabled={mcpToolSubmitting || !mcpToolCanSave}
+                >
+                  {mcpToolSubmitting ? 'Saving...' : 'Save Tool Schema'}
+                </Button>
+              </div>
             </ModalFooter>
           )}
           {activeTab === 'template' && (

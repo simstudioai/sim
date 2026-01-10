@@ -47,6 +47,8 @@ export interface SubflowNodeData {
   parentId?: string
   extent?: 'parent'
   isPreview?: boolean
+  /** Whether this subflow is selected in preview mode */
+  isPreviewSelected?: boolean
   kind: 'loop' | 'parallel'
   name?: string
 }
@@ -123,15 +125,17 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
     return { top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px`, transform: 'translateY(-50%)' }
   }
 
+  const isPreviewSelected = data?.isPreviewSelected || false
+
   /**
    * Determine the ring styling based on subflow state priority:
-   * 1. Focused (selected in editor) - blue ring
+   * 1. Focused (selected in editor) or preview selected - blue ring
    * 2. Diff status (version comparison) - green/orange ring
    */
-  const hasRing = isFocused || diffStatus === 'new' || diffStatus === 'edited'
+  const hasRing = isFocused || isPreviewSelected || diffStatus === 'new' || diffStatus === 'edited'
   const ringStyles = cn(
     hasRing && 'ring-[1.75px]',
-    isFocused && 'ring-[var(--brand-secondary)]',
+    (isFocused || isPreviewSelected) && 'ring-[var(--brand-secondary)]',
     diffStatus === 'new' && 'ring-[#22C55F]',
     diffStatus === 'edited' && 'ring-[var(--warning)]'
   )

@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { Badge, Combobox, type ComboboxOption, Input, Label, Textarea } from '@/components/emcn'
+import {
+  Badge,
+  Button,
+  Combobox,
+  type ComboboxOption,
+  Input,
+  Label,
+  Textarea,
+} from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
@@ -35,6 +43,7 @@ interface McpDeployProps {
   onAddedToServer?: () => void
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
+  onHasServersChange?: (hasServers: boolean) => void
 }
 
 /**
@@ -83,6 +92,7 @@ export function McpDeploy({
   onAddedToServer,
   onSubmittingChange,
   onCanSaveChange,
+  onHasServersChange,
 }: McpDeployProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -246,6 +256,10 @@ export function McpDeploy({
   useEffect(() => {
     onCanSaveChange?.(hasChanges && hasDeployedTools && !!toolName.trim())
   }, [hasChanges, hasDeployedTools, toolName, onCanSaveChange])
+
+  useEffect(() => {
+    onHasServersChange?.(servers.length > 0)
+  }, [servers.length, onHasServersChange])
 
   /**
    * Save tool configuration to all deployed servers
@@ -428,14 +442,16 @@ export function McpDeploy({
 
   if (servers.length === 0) {
     return (
-      <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
-        <button
-          type='button'
+      <div className='flex h-full flex-col items-center justify-center gap-3'>
+        <p className='text-[13px] text-[var(--text-muted)]'>
+          Create an MCP Server in Settings → Deployed MCPs first.
+        </p>
+        <Button
+          variant='tertiary'
           onClick={() => openSettingsModal({ section: 'workflow-mcp-servers' })}
-          className='transition-colors hover:text-[var(--text-secondary)]'
         >
-          Create an MCP Server in Settings → MCP Servers first.
-        </button>
+          Create MCP Server
+        </Button>
       </div>
     )
   }

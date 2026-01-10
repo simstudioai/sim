@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createPinnedUrl, validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import type { DbOrTx } from '@/lib/db/types'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookUtils')
@@ -749,7 +750,6 @@ export async function formatWebhookInput(
       }
     }
 
-    // Fallback for unknown Telegram update types
     logger.warn('Unknown Telegram update type', {
       updateId: body.update_id,
       bodyKeys: Object.keys(body || {}),
@@ -778,7 +778,6 @@ export async function formatWebhookInput(
 
   if (foundWebhook.provider === 'twilio_voice') {
     return {
-      // Root-level properties matching trigger outputs for easy access
       callSid: body.CallSid,
       accountSid: body.AccountSid,
       from: body.From,
@@ -792,8 +791,6 @@ export async function formatWebhookInput(
       speechResult: body.SpeechResult,
       recordingUrl: body.RecordingUrl,
       recordingSid: body.RecordingSid,
-
-      // Additional fields from Twilio payload
       called: body.Called,
       caller: body.Caller,
       toCity: body.ToCity,
@@ -830,14 +827,48 @@ export async function formatWebhookInput(
 
   if (foundWebhook.provider === 'gmail') {
     if (body && typeof body === 'object' && 'email' in body) {
-      return body
+      const email = body.email as Record<string, any>
+      const timestamp = body.timestamp
+      return {
+        ...email,
+        email,
+        ...(timestamp !== undefined && { timestamp }),
+        webhook: {
+          data: {
+            provider: 'gmail',
+            path: foundWebhook.path,
+            providerConfig: foundWebhook.providerConfig,
+            payload: body,
+            headers: Object.fromEntries(request.headers.entries()),
+            method: request.method,
+          },
+        },
+        workflowId: foundWorkflow.id,
+      }
     }
     return body
   }
 
   if (foundWebhook.provider === 'outlook') {
     if (body && typeof body === 'object' && 'email' in body) {
-      return body
+      const email = body.email as Record<string, any>
+      const timestamp = body.timestamp
+      return {
+        ...email,
+        email,
+        ...(timestamp !== undefined && { timestamp }),
+        webhook: {
+          data: {
+            provider: 'outlook',
+            path: foundWebhook.path,
+            providerConfig: foundWebhook.providerConfig,
+            payload: body,
+            headers: Object.fromEntries(request.headers.entries()),
+            method: request.method,
+          },
+        },
+        workflowId: foundWorkflow.id,
+      }
     }
     return body
   }
@@ -926,19 +957,16 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'microsoft-teams') {
-    // Check if this is a Microsoft Graph change notification
     if (body?.value && Array.isArray(body.value) && body.value.length > 0) {
       return await formatTeamsGraphNotification(body, foundWebhook, foundWorkflow, request)
     }
 
-    // Microsoft Teams outgoing webhook - Teams sending data to us
     const messageText = body?.text || ''
     const messageId = body?.id || ''
     const timestamp = body?.timestamp || body?.localTimestamp || ''
     const from = body?.from || {}
     const conversation = body?.conversation || {}
 
-    // Construct the message object
     const messageObj = {
       raw: {
         attachments: body?.attachments || [],
@@ -951,14 +979,12 @@ export async function formatWebhookInput(
       },
     }
 
-    // Construct the from object
     const fromObj = {
       id: from.id || '',
       name: from.name || '',
       aadObjectId: from.aadObjectId || '',
     }
 
-    // Construct the conversation object
     const conversationObj = {
       id: conversation.id || '',
       name: conversation.name || '',
@@ -968,13 +994,11 @@ export async function formatWebhookInput(
       conversationType: conversation.conversationType || '',
     }
 
-    // Construct the activity object
     const activityObj = body || {}
 
     return {
-      input: messageText, // Primary workflow input - the message text
+      input: messageText,
 
-      // Top-level properties for direct access with <microsoftteams.from.name> syntax
       from: fromObj,
       message: messageObj,
       activity: activityObj,
@@ -995,11 +1019,9 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'slack') {
-    // Slack input formatting logic - check for valid event
     const event = body?.event
 
     if (event && body?.type === 'event_callback') {
-      // Extract event text with fallbacks for different event types
       let input = ''
 
       if (event.text) {
@@ -1010,13 +1032,12 @@ export async function formatWebhookInput(
         input = 'Slack event received'
       }
 
-      // Create the event object for easier access
       const eventObj = {
         event_type: event.type || '',
         channel: event.channel || '',
-        channel_name: '', // Could be resolved via additional API calls if needed
+        channel_name: '',
         user: event.user || '',
-        user_name: '', // Could be resolved via additional API calls if needed
+        user_name: '',
         text: event.text || '',
         timestamp: event.ts || event.event_ts || '',
         team_id: body.team_id || event.team || '',
@@ -1024,12 +1045,9 @@ export async function formatWebhookInput(
       }
 
       return {
-        input, // Primary workflow input - the event content
+        input,
 
-        // // // Top-level properties for backward compatibility with <blockName.event> syntax
         event: eventObj,
-
-        // Keep the nested structure for the new slack.event.text syntax
         slack: {
           event: eventObj,
         },
@@ -1047,7 +1065,6 @@ export async function formatWebhookInput(
       }
     }
 
-    // Fallback for unknown Slack event types
     logger.warn('Unknown Slack event type', {
       type: body?.type,
       hasEvent: !!body?.event,
@@ -1283,9 +1300,7 @@ export async function formatWebhookInput(
     }
 
     return {
-      // Expose raw GitHub payload at the root
       ...body,
-      // Include webhook metadata alongside
       webhook: {
         data: {
           provider: 'github',
@@ -1364,10 +1379,7 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'linear') {
-    // Linear webhook payload structure:
-    // { action, type, webhookId, webhookTimestamp, organizationId, createdAt, actor, data, updatedFrom? }
     return {
-      // Extract top-level fields from Linear payload
       action: body.action || '',
       type: body.type || '',
       webhookId: body.webhookId || '',
@@ -1377,8 +1389,6 @@ export async function formatWebhookInput(
       actor: body.actor || null,
       data: body.data || null,
       updatedFrom: body.updatedFrom || null,
-
-      // Keep webhook metadata
       webhook: {
         data: {
           provider: 'linear',
@@ -1393,7 +1403,6 @@ export async function formatWebhookInput(
     }
   }
 
-  // Jira webhook format
   if (foundWebhook.provider === 'jira') {
     const { extractIssueData, extractCommentData, extractWorklogData } = await import(
       '@/triggers/jira/utils'
@@ -1445,7 +1454,6 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'calendly') {
-    // Calendly webhook payload format matches the trigger outputs
     return {
       event: body.event,
       created_at: body.created_at,
@@ -1466,9 +1474,7 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'circleback') {
-    // Circleback webhook payload - meeting notes, action items, transcript
     return {
-      // Top-level fields from Circleback payload
       id: body.id,
       name: body.name,
       createdAt: body.createdAt,
@@ -1482,10 +1488,7 @@ export async function formatWebhookInput(
       actionItems: body.actionItems || [],
       transcript: body.transcript || [],
       insights: body.insights || {},
-
-      // Full meeting object for convenience
       meeting: body,
-
       webhook: {
         data: {
           provider: 'circleback',
@@ -1501,9 +1504,7 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'grain') {
-    // Grain webhook payload structure: { type, user_id, data: {...} }
     return {
-      // Top-level fields from Grain payload
       type: body.type,
       user_id: body.user_id,
       data: body.data || {},
@@ -1511,6 +1512,28 @@ export async function formatWebhookInput(
       webhook: {
         data: {
           provider: 'grain',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
+  if (foundWebhook.provider === 'fireflies') {
+    // Fireflies webhook payload uses camelCase:
+    // { meetingId, eventType, clientReferenceId }
+    return {
+      meetingId: body.meetingId || '',
+      eventType: body.eventType || 'Transcription completed',
+      clientReferenceId: body.clientReferenceId || '',
+
+      webhook: {
+        data: {
+          provider: 'fireflies',
           path: foundWebhook.path,
           providerConfig: foundWebhook.providerConfig,
           payload: body,
@@ -1768,6 +1791,64 @@ export function validateJiraSignature(secret: string, signature: string, body: s
     return result === 0
   } catch (error) {
     logger.error('Error validating Jira signature:', error)
+    return false
+  }
+}
+
+/**
+ * Validates a Fireflies webhook request signature using HMAC SHA-256
+ * @param secret - Fireflies webhook secret (16-32 characters)
+ * @param signature - x-hub-signature header value (format: 'sha256=<hex>')
+ * @param body - Raw request body string
+ * @returns Whether the signature is valid
+ */
+export function validateFirefliesSignature(
+  secret: string,
+  signature: string,
+  body: string
+): boolean {
+  try {
+    if (!secret || !signature || !body) {
+      logger.warn('Fireflies signature validation missing required fields', {
+        hasSecret: !!secret,
+        hasSignature: !!signature,
+        hasBody: !!body,
+      })
+      return false
+    }
+
+    if (!signature.startsWith('sha256=')) {
+      logger.warn('Fireflies signature has invalid format (expected sha256=)', {
+        signaturePrefix: signature.substring(0, 10),
+      })
+      return false
+    }
+
+    const providedSignature = signature.substring(7)
+
+    const crypto = require('crypto')
+    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+
+    logger.debug('Fireflies signature comparison', {
+      computedSignature: `${computedHash.substring(0, 10)}...`,
+      providedSignature: `${providedSignature.substring(0, 10)}...`,
+      computedLength: computedHash.length,
+      providedLength: providedSignature.length,
+      match: computedHash === providedSignature,
+    })
+
+    if (computedHash.length !== providedSignature.length) {
+      return false
+    }
+
+    let result = 0
+    for (let i = 0; i < computedHash.length; i++) {
+      result |= computedHash.charCodeAt(i) ^ providedSignature.charCodeAt(i)
+    }
+
+    return result === 0
+  } catch (error) {
+    logger.error('Error validating Fireflies signature:', error)
     return false
   }
 }
@@ -2397,7 +2478,313 @@ export interface AirtableChange {
 }
 
 /**
- * Configure Gmail polling for a webhook
+ * Result of syncing webhooks for a credential set
+ */
+export interface CredentialSetWebhookSyncResult {
+  webhooks: Array<{
+    id: string
+    credentialId: string
+    isNew: boolean
+  }>
+  created: number
+  updated: number
+  deleted: number
+}
+
+/**
+ * Sync webhooks for a credential set.
+ *
+ * For credential sets, we create one webhook per credential in the set.
+ * Each webhook has its own state and credentialId.
+ *
+ * Path strategy:
+ * - Polling triggers (gmail, outlook): unique paths per credential (for independent polling)
+ * - External triggers (slack, etc.): shared path (external service sends to one URL)
+ *
+ * This function:
+ * 1. Gets all credentials in the credential set
+ * 2. Gets existing webhooks for this workflow+block with this credentialSetId
+ * 3. Creates webhooks for new credentials
+ * 4. Updates config for existing webhooks (preserving state)
+ * 5. Deletes webhooks for credentials no longer in the set
+ */
+export async function syncWebhooksForCredentialSet(params: {
+  workflowId: string
+  blockId: string
+  provider: string
+  basePath: string
+  credentialSetId: string
+  oauthProviderId: string
+  providerConfig: Record<string, any>
+  requestId: string
+  tx?: DbOrTx
+}): Promise<CredentialSetWebhookSyncResult> {
+  const {
+    workflowId,
+    blockId,
+    provider,
+    basePath,
+    credentialSetId,
+    oauthProviderId,
+    providerConfig,
+    requestId,
+    tx,
+  } = params
+
+  const dbCtx = tx ?? db
+
+  const syncLogger = createLogger('CredentialSetWebhookSync')
+  syncLogger.info(
+    `[${requestId}] Syncing webhooks for credential set ${credentialSetId}, provider ${provider}`
+  )
+
+  const { getCredentialsForCredentialSet } = await import('@/app/api/auth/oauth/utils')
+  const { nanoid } = await import('nanoid')
+
+  // Polling providers get unique paths per credential (for independent state)
+  // External webhook providers share the same path (external service sends to one URL)
+  const pollingProviders = ['gmail', 'outlook', 'rss', 'imap']
+  const useUniquePaths = pollingProviders.includes(provider)
+
+  const credentials = await getCredentialsForCredentialSet(credentialSetId, oauthProviderId)
+
+  if (credentials.length === 0) {
+    syncLogger.warn(
+      `[${requestId}] No credentials found in credential set ${credentialSetId} for provider ${oauthProviderId}`
+    )
+    return { webhooks: [], created: 0, updated: 0, deleted: 0 }
+  }
+
+  syncLogger.info(
+    `[${requestId}] Found ${credentials.length} credentials in set ${credentialSetId}`
+  )
+
+  // Get existing webhooks for this workflow+block that belong to this credential set
+  const existingWebhooks = await dbCtx
+    .select()
+    .from(webhook)
+    .where(and(eq(webhook.workflowId, workflowId), eq(webhook.blockId, blockId)))
+
+  // Filter to only webhooks belonging to this credential set
+  const credentialSetWebhooks = existingWebhooks.filter((wh) => {
+    const config = wh.providerConfig as Record<string, any>
+    return config?.credentialSetId === credentialSetId
+  })
+
+  syncLogger.info(
+    `[${requestId}] Found ${credentialSetWebhooks.length} existing webhooks for credential set`
+  )
+
+  // Build maps for efficient lookup
+  const existingByCredentialId = new Map<string, (typeof credentialSetWebhooks)[number]>()
+  for (const wh of credentialSetWebhooks) {
+    const config = wh.providerConfig as Record<string, any>
+    if (config?.credentialId) {
+      existingByCredentialId.set(config.credentialId, wh)
+    }
+  }
+
+  const credentialIdsInSet = new Set(credentials.map((c) => c.credentialId))
+
+  const result: CredentialSetWebhookSyncResult = {
+    webhooks: [],
+    created: 0,
+    updated: 0,
+    deleted: 0,
+  }
+
+  // Process each credential in the set
+  for (const cred of credentials) {
+    const existingWebhook = existingByCredentialId.get(cred.credentialId)
+
+    if (existingWebhook) {
+      // Update existing webhook - preserve state fields
+      const existingConfig = existingWebhook.providerConfig as Record<string, any>
+
+      const updatedConfig = {
+        ...providerConfig,
+        basePath, // Store basePath for reliable reconstruction during membership sync
+        credentialId: cred.credentialId,
+        credentialSetId: credentialSetId,
+        // Preserve state fields from existing config
+        historyId: existingConfig.historyId,
+        lastCheckedTimestamp: existingConfig.lastCheckedTimestamp,
+        setupCompleted: existingConfig.setupCompleted,
+        externalId: existingConfig.externalId,
+        userId: cred.userId,
+      }
+
+      await dbCtx
+        .update(webhook)
+        .set({
+          providerConfig: updatedConfig,
+          isActive: true,
+          updatedAt: new Date(),
+        })
+        .where(eq(webhook.id, existingWebhook.id))
+
+      result.webhooks.push({
+        id: existingWebhook.id,
+        credentialId: cred.credentialId,
+        isNew: false,
+      })
+      result.updated++
+
+      syncLogger.debug(
+        `[${requestId}] Updated webhook ${existingWebhook.id} for credential ${cred.credentialId}`
+      )
+    } else {
+      // Create new webhook for this credential
+      const webhookId = nanoid()
+      const webhookPath = useUniquePaths ? `${basePath}-${cred.credentialId.slice(0, 8)}` : basePath
+
+      const newConfig = {
+        ...providerConfig,
+        basePath, // Store basePath for reliable reconstruction during membership sync
+        credentialId: cred.credentialId,
+        credentialSetId: credentialSetId,
+        userId: cred.userId,
+      }
+
+      await dbCtx.insert(webhook).values({
+        id: webhookId,
+        workflowId,
+        blockId,
+        path: webhookPath,
+        provider,
+        providerConfig: newConfig,
+        credentialSetId, // Indexed column for efficient credential set queries
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+
+      result.webhooks.push({
+        id: webhookId,
+        credentialId: cred.credentialId,
+        isNew: true,
+      })
+      result.created++
+
+      syncLogger.debug(
+        `[${requestId}] Created webhook ${webhookId} for credential ${cred.credentialId}`
+      )
+    }
+  }
+
+  // Delete webhooks for credentials no longer in the set
+  for (const [credentialId, existingWebhook] of existingByCredentialId) {
+    if (!credentialIdsInSet.has(credentialId)) {
+      await dbCtx.delete(webhook).where(eq(webhook.id, existingWebhook.id))
+      result.deleted++
+
+      syncLogger.debug(
+        `[${requestId}] Deleted webhook ${existingWebhook.id} for removed credential ${credentialId}`
+      )
+    }
+  }
+
+  syncLogger.info(
+    `[${requestId}] Credential set webhook sync complete: ${result.created} created, ${result.updated} updated, ${result.deleted} deleted`
+  )
+
+  return result
+}
+
+/**
+ * Sync all webhooks that use a specific credential set.
+ * Called when credential set membership changes (member added/removed).
+ *
+ * This finds all workflows with webhooks using this credential set and resyncs them.
+ */
+export async function syncAllWebhooksForCredentialSet(
+  credentialSetId: string,
+  requestId: string,
+  tx?: DbOrTx
+): Promise<{ workflowsUpdated: number; totalCreated: number; totalDeleted: number }> {
+  const dbCtx = tx ?? db
+  const syncLogger = createLogger('CredentialSetMembershipSync')
+  syncLogger.info(`[${requestId}] Syncing all webhooks for credential set ${credentialSetId}`)
+
+  const { getProviderIdFromServiceId } = await import('@/lib/oauth')
+
+  // Find all webhooks that use this credential set using the indexed column
+  const webhooksForSet = await dbCtx
+    .select()
+    .from(webhook)
+    .where(eq(webhook.credentialSetId, credentialSetId))
+
+  if (webhooksForSet.length === 0) {
+    syncLogger.info(`[${requestId}] No webhooks found using credential set ${credentialSetId}`)
+    return { workflowsUpdated: 0, totalCreated: 0, totalDeleted: 0 }
+  }
+
+  // Group webhooks by workflow+block to find unique triggers
+  const triggerGroups = new Map<string, (typeof webhooksForSet)[number]>()
+  for (const wh of webhooksForSet) {
+    const key = `${wh.workflowId}:${wh.blockId}`
+    // Keep the first webhook as representative (they all have same config)
+    if (!triggerGroups.has(key)) {
+      triggerGroups.set(key, wh)
+    }
+  }
+
+  syncLogger.info(
+    `[${requestId}] Found ${triggerGroups.size} triggers using credential set ${credentialSetId}`
+  )
+
+  let workflowsUpdated = 0
+  let totalCreated = 0
+  let totalDeleted = 0
+
+  for (const [key, representativeWebhook] of triggerGroups) {
+    if (!representativeWebhook.provider) {
+      syncLogger.warn(`[${requestId}] Skipping webhook without provider: ${key}`)
+      continue
+    }
+
+    const config = representativeWebhook.providerConfig as Record<string, any>
+    const oauthProviderId = getProviderIdFromServiceId(representativeWebhook.provider)
+
+    const { credentialId: _cId, userId: _uId, basePath: _bp, ...baseConfig } = config
+    // Use stored basePath if available, otherwise fall back to blockId (for legacy webhooks)
+    const basePath = config.basePath || representativeWebhook.blockId || representativeWebhook.path
+
+    try {
+      const result = await syncWebhooksForCredentialSet({
+        workflowId: representativeWebhook.workflowId,
+        blockId: representativeWebhook.blockId || '',
+        provider: representativeWebhook.provider,
+        basePath,
+        credentialSetId,
+        oauthProviderId,
+        providerConfig: baseConfig,
+        requestId,
+        tx: dbCtx,
+      })
+
+      workflowsUpdated++
+      totalCreated += result.created
+      totalDeleted += result.deleted
+
+      syncLogger.debug(
+        `[${requestId}] Synced webhooks for ${key}: ${result.created} created, ${result.deleted} deleted`
+      )
+    } catch (error) {
+      syncLogger.error(`[${requestId}] Error syncing webhooks for ${key}`, error)
+    }
+  }
+
+  syncLogger.info(
+    `[${requestId}] Credential set membership sync complete: ${workflowsUpdated} workflows updated, ${totalCreated} webhooks created, ${totalDeleted} webhooks deleted`
+  )
+
+  return { workflowsUpdated, totalCreated, totalDeleted }
+}
+
+/**
+ * Configure Gmail polling for a webhook.
+ * Each webhook has its own credentialId (credential sets are fanned out at save time).
  */
 export async function configureGmailPolling(webhookData: any, requestId: string): Promise<boolean> {
   const logger = createLogger('GmailWebhookSetup')
@@ -2412,7 +2799,7 @@ export async function configureGmailPolling(webhookData: any, requestId: string)
       return false
     }
 
-    // Get userId from credential
+    // Verify credential exists and get userId
     const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
     if (rows.length === 0) {
       logger.error(
@@ -2422,6 +2809,8 @@ export async function configureGmailPolling(webhookData: any, requestId: string)
     }
 
     const effectiveUserId = rows[0].userId
+
+    // Verify token can be refreshed
     const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
     if (!accessToken) {
       logger.error(
@@ -2448,14 +2837,14 @@ export async function configureGmailPolling(webhookData: any, requestId: string)
         providerConfig: {
           ...providerConfig,
           userId: effectiveUserId,
-          ...(credentialId ? { credentialId } : {}),
+          credentialId,
           maxEmailsPerPoll,
           pollingInterval,
           markAsRead: providerConfig.markAsRead || false,
           includeRawEmail: providerConfig.includeRawEmail || false,
           labelIds: providerConfig.labelIds || ['INBOX'],
           labelFilterBehavior: providerConfig.labelFilterBehavior || 'INCLUDE',
-          lastCheckedTimestamp: now.toISOString(),
+          lastCheckedTimestamp: providerConfig.lastCheckedTimestamp || now.toISOString(),
           setupCompleted: true,
         },
         updatedAt: now,
@@ -2477,7 +2866,8 @@ export async function configureGmailPolling(webhookData: any, requestId: string)
 }
 
 /**
- * Configure Outlook polling for a webhook
+ * Configure Outlook polling for a webhook.
+ * Each webhook has its own credentialId (credential sets are fanned out at save time).
  */
 export async function configureOutlookPolling(
   webhookData: any,
@@ -2495,7 +2885,7 @@ export async function configureOutlookPolling(
       return false
     }
 
-    // Get userId from credential
+    // Verify credential exists and get userId
     const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
     if (rows.length === 0) {
       logger.error(
@@ -2505,6 +2895,8 @@ export async function configureOutlookPolling(
     }
 
     const effectiveUserId = rows[0].userId
+
+    // Verify token can be refreshed
     const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
     if (!accessToken) {
       logger.error(
@@ -2513,30 +2905,28 @@ export async function configureOutlookPolling(
       return false
     }
 
-    const providerCfg = (webhookData.providerConfig as Record<string, any>) || {}
-
     const now = new Date()
 
     await db
       .update(webhook)
       .set({
         providerConfig: {
-          ...providerCfg,
+          ...providerConfig,
           userId: effectiveUserId,
-          ...(credentialId ? { credentialId } : {}),
+          credentialId,
           maxEmailsPerPoll:
-            typeof providerCfg.maxEmailsPerPoll === 'string'
-              ? Number.parseInt(providerCfg.maxEmailsPerPoll, 10) || 25
-              : providerCfg.maxEmailsPerPoll || 25,
+            typeof providerConfig.maxEmailsPerPoll === 'string'
+              ? Number.parseInt(providerConfig.maxEmailsPerPoll, 10) || 25
+              : providerConfig.maxEmailsPerPoll || 25,
           pollingInterval:
-            typeof providerCfg.pollingInterval === 'string'
-              ? Number.parseInt(providerCfg.pollingInterval, 10) || 5
-              : providerCfg.pollingInterval || 5,
-          markAsRead: providerCfg.markAsRead || false,
-          includeRawEmail: providerCfg.includeRawEmail || false,
-          folderIds: providerCfg.folderIds || ['inbox'],
-          folderFilterBehavior: providerCfg.folderFilterBehavior || 'INCLUDE',
-          lastCheckedTimestamp: now.toISOString(),
+            typeof providerConfig.pollingInterval === 'string'
+              ? Number.parseInt(providerConfig.pollingInterval, 10) || 5
+              : providerConfig.pollingInterval || 5,
+          markAsRead: providerConfig.markAsRead || false,
+          includeRawEmail: providerConfig.includeRawEmail || false,
+          folderIds: providerConfig.folderIds || ['inbox'],
+          folderFilterBehavior: providerConfig.folderFilterBehavior || 'INCLUDE',
+          lastCheckedTimestamp: providerConfig.lastCheckedTimestamp || now.toISOString(),
           setupCompleted: true,
         },
         updatedAt: now,

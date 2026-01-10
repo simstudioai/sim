@@ -15,18 +15,26 @@ export interface BYOKKey {
   updatedAt: string
 }
 
+export interface BYOKKeysResponse {
+  keys: BYOKKey[]
+  byokEnabled: boolean
+}
+
 export const byokKeysKeys = {
   all: ['byok-keys'] as const,
   workspace: (workspaceId: string) => [...byokKeysKeys.all, 'workspace', workspaceId] as const,
 }
 
-async function fetchBYOKKeys(workspaceId: string): Promise<BYOKKey[]> {
+async function fetchBYOKKeys(workspaceId: string): Promise<BYOKKeysResponse> {
   const response = await fetch(API_ENDPOINTS.WORKSPACE_BYOK_KEYS(workspaceId))
   if (!response.ok) {
     throw new Error(`Failed to load BYOK keys: ${response.statusText}`)
   }
-  const { keys } = await response.json()
-  return keys
+  const data = await response.json()
+  return {
+    keys: data.keys ?? [],
+    byokEnabled: data.byokEnabled ?? true,
+  }
 }
 
 export function useBYOKKeys(workspaceId: string) {
@@ -36,6 +44,7 @@ export function useBYOKKeys(workspaceId: string) {
     enabled: !!workspaceId,
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
+    select: (data) => data,
   })
 }
 

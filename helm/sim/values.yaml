@@ -16,16 +16,16 @@ global:
 app:
   # Enable/disable the main application
   enabled: true
-  
+
   # Image configuration
   image:
     repository: simstudioai/simstudio
     tag: latest
     pullPolicy: Always
-  
+
   # Number of replicas
   replicaCount: 1
-  
+
   # Resource limits and requests
   resources:
     limits:
@@ -34,19 +34,37 @@ app:
     requests:
       memory: "2Gi"
       cpu: "1000m"
-  
+
   # Node selector for pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
-  
+
   # Pod security context
   podSecurityContext:
     fsGroup: 1001
-  
+
   # Container security context
   securityContext:
     runAsNonRoot: true
     runAsUser: 1001
-  
+
+  # Secret management configuration
+  # Use this to reference pre-existing Kubernetes secrets instead of defining values directly
+  # This enables integration with External Secrets Operator, HashiCorp Vault, Azure Key Vault, etc.
+  secrets:
+    existingSecret:
+      # Set to true to use an existing secret instead of creating one from values
+      enabled: false
+      # Name of the existing Kubernetes secret containing app credentials
+      name: ""
+      # Key mappings - specify the key names in your existing secret
+      # Only needed if your secret uses different key names than the defaults
+      keys:
+        BETTER_AUTH_SECRET: "BETTER_AUTH_SECRET"
+        ENCRYPTION_KEY: "ENCRYPTION_KEY"
+        INTERNAL_API_SECRET: "INTERNAL_API_SECRET"
+        CRON_SECRET: "CRON_SECRET"
+        API_ENCRYPTION_KEY: "API_ENCRYPTION_KEY"
+
   # Environment variables
   env:
     # Application URLs
@@ -107,15 +125,27 @@ app:
     NEXT_PUBLIC_BRAND_NAME: "Sim"                         # Custom brand name
     NEXT_PUBLIC_BRAND_LOGO_URL: ""                        # Custom logo URL (leave empty for default)
     NEXT_PUBLIC_BRAND_FAVICON_URL: ""                     # Custom favicon URL (leave empty for default)
+    NEXT_PUBLIC_BRAND_PRIMARY_COLOR: ""                   # Primary brand color (hex, e.g., "#701a75")
+    NEXT_PUBLIC_BRAND_ACCENT_COLOR: ""                    # Accent color (hex, e.g., "#9333ea")
+    NEXT_PUBLIC_BRAND_BACKGROUND_COLOR: ""                # Background color (hex, e.g., "#ffffff")
     NEXT_PUBLIC_CUSTOM_CSS_URL: ""                        # Custom stylesheet URL (leave empty for none)
     NEXT_PUBLIC_SUPPORT_EMAIL: "help@sim.ai"             # Support email address
     NEXT_PUBLIC_DOCUMENTATION_URL: ""                    # Documentation URL (leave empty for none)
     NEXT_PUBLIC_TERMS_URL: ""                            # Terms of service URL (leave empty for none)
     NEXT_PUBLIC_PRIVACY_URL: ""                          # Privacy policy URL (leave empty for none)
-    
+
+    # Registration Control
+    DISABLE_REGISTRATION: ""                              # Set to "true" to disable new user signups
+    EMAIL_PASSWORD_SIGNUP_ENABLED: ""                     # Set to "false" to disable email/password login (SSO-only mode, server-side enforcement)
+    NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: ""         # Set to "false" to hide email/password login form (UI-side)
+
     # Access Control (leave empty if not restricting login)
     ALLOWED_LOGIN_EMAILS: ""                             # Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS: ""                            # Comma-separated list of allowed email domains for login
+
+    # LLM Provider/Model Restrictions (leave empty if not restricting)
+    BLACKLISTED_PROVIDERS: ""                            # Comma-separated provider IDs to hide from UI (e.g., "openai,anthropic,google")
+    BLACKLISTED_MODELS: ""                               # Comma-separated model names/prefixes to hide (e.g., "gpt-4,claude-*")
 
     # SSO Configuration (Enterprise Single Sign-On)
     # Set to "true" AFTER running the SSO registration script
@@ -295,6 +325,12 @@ postgresql:
     username: postgres
     password: ""  # REQUIRED - set via --set flag or external secret manager
     database: sim
+    # Use an existing secret for PostgreSQL credentials
+    # This enables integration with External Secrets Operator, HashiCorp Vault, etc.
+    existingSecret:
+      enabled: false
+      name: ""           # Name of existing Kubernetes secret
+      passwordKey: "POSTGRES_PASSWORD"  # Key in the secret containing the password
   
   # Node selector for database pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
@@ -377,16 +413,23 @@ postgresql:
 externalDatabase:
   # Enable to use an external database instead of the internal PostgreSQL instance
   enabled: false
-  
+
   # Database connection details
   host: "external-db.example.com"
   port: 5432
   username: postgres
   password: ""
   database: sim
-  
+
   # SSL configuration
   sslMode: require
+
+  # Use an existing secret for external database credentials
+  # This enables integration with External Secrets Operator, HashiCorp Vault, etc.
+  existingSecret:
+    enabled: false
+    name: ""           # Name of existing Kubernetes secret
+    passwordKey: "EXTERNAL_DB_PASSWORD"  # Key in the secret containing the password
 
 # Ollama local AI models configuration
 ollama:
@@ -1004,3 +1047,50 @@ copilot:
     # Job configuration
     backoffLimit: 3
     restartPolicy: OnFailure
+
+# External Secrets Operator integration
+# Use this to automatically sync secrets from external secret managers (Azure Key Vault, AWS Secrets Manager, etc.)
+# Prerequisites: Install External Secrets Operator in your cluster first
+# See: https://external-secrets.io/latest/introduction/getting-started/
+externalSecrets:
+  # Enable External Secrets Operator integration
+  enabled: false
+
+  # ESO API version - use "v1" for ESO v0.17+ (recommended), "v1beta1" for older versions
+  apiVersion: "v1"
+
+  # How often to sync secrets from the external store
+  refreshInterval: "1h"
+
+  # Reference to the SecretStore or ClusterSecretStore
+  secretStoreRef:
+    # Name of the SecretStore or ClusterSecretStore resource
+    name: ""
+    # Kind of the store: "SecretStore" (namespaced) or "ClusterSecretStore" (cluster-wide)
+    kind: "ClusterSecretStore"
+
+  # Remote references - paths/keys in your external secret store
+  # These map to the secrets that will be created in Kubernetes
+  remoteRefs:
+    # App secrets (authentication, encryption keys)
+    app:
+      # Path to BETTER_AUTH_SECRET in external store (e.g., "sim/app/better-auth-secret")
+      BETTER_AUTH_SECRET: ""
+      # Path to ENCRYPTION_KEY in external store
+      ENCRYPTION_KEY: ""
+      # Path to INTERNAL_API_SECRET in external store
+      INTERNAL_API_SECRET: ""
+      # Path to CRON_SECRET in external store (optional)
+      CRON_SECRET: ""
+      # Path to API_ENCRYPTION_KEY in external store (optional)
+      API_ENCRYPTION_KEY: ""
+
+    # PostgreSQL password (for internal PostgreSQL)
+    postgresql:
+      # Path to PostgreSQL password in external store (e.g., "sim/postgresql/password")
+      password: ""
+
+    # External database password (when using managed database services)
+    externalDatabase:
+      # Path to external database password in external store
+      password: ""

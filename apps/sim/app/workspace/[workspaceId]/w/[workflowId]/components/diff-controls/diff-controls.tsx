@@ -109,12 +109,7 @@ export const DiffControls = memo(function DiffControls() {
         loops: rawState.loops || {},
         parallels: rawState.parallels || {},
         lastSaved: rawState.lastSaved || Date.now(),
-        isDeployed: rawState.isDeployed || false,
         deploymentStatuses: rawState.deploymentStatuses || {},
-        // Only include deployedAt if it's a valid date, never include null/undefined
-        ...(rawState.deployedAt && rawState.deployedAt instanceof Date
-          ? { deployedAt: rawState.deployedAt }
-          : {}),
       }
 
       logger.info('Prepared complete workflow state for checkpoint', {

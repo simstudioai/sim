@@ -1,11 +1,7 @@
 import { createLogger } from '@sim/logger'
 import JSZip from 'jszip'
-import {
-  type ExportWorkflowState,
-  sanitizeForExport,
-} from '@/lib/workflows/sanitization/json-sanitizer'
-import { regenerateWorkflowIds } from '@/stores/workflows/utils'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
+import type { Variable, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowImportExport')
 
@@ -18,12 +14,7 @@ export interface WorkflowExportData {
     folderId?: string | null
   }
   state: WorkflowState
-  variables?: Array<{
-    id: string
-    name: string
-    type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
-    value: any
-  }>
+  variables?: Record<string, Variable>
 }
 
 export interface FolderExportData {

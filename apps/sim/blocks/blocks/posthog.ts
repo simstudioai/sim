@@ -23,7 +23,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         // Core Data Operations
         { label: 'Capture Event', id: 'posthog_capture_event' },
         { label: 'Batch Events', id: 'posthog_batch_events' },
-        { label: 'List Events', id: 'posthog_list_events' },
         { label: 'List Persons', id: 'posthog_list_persons' },
         { label: 'Get Person', id: 'posthog_get_person' },
         { label: 'Delete Person', id: 'posthog_delete_person' },
@@ -105,7 +104,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_get_event_definition',
           'posthog_update_event_definition',
           // Core Operations (with personalApiKey)
-          'posthog_list_events',
           'posthog_list_persons',
           'posthog_get_person',
           'posthog_delete_person',
@@ -212,6 +210,34 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       type: 'long-input',
       placeholder: '{"key": "value"}',
       condition: { field: 'operation', value: 'posthog_capture_event' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for PostHog event properties based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY valid JSON starting with { and ending with }
+- Use camelCase or snake_case consistently for property names
+- Include relevant properties for analytics tracking (e.g., $browser, $device, custom properties)
+- Use appropriate data types (strings, numbers, booleans, arrays)
+
+### EXAMPLE
+User: "Track a purchase event with product info and price"
+Output:
+{
+  "product_id": "SKU-123",
+  "product_name": "Premium Plan",
+  "price": 99.99,
+  "currency": "USD",
+  "quantity": 1
+}
+
+Return ONLY the JSON object.`,
+        placeholder: 'Describe the event properties...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'timestamp',
@@ -219,6 +245,19 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       type: 'short-input',
       placeholder: '2024-01-01T12:00:00Z',
       condition: { field: 'operation', value: 'posthog_capture_event' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "now" -> Current timestamp in ISO 8601 format
+- "yesterday at 3pm" -> Yesterday's date at 15:00:00Z
+- "last Monday" -> Last Monday's date at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the timestamp (e.g., "now", "yesterday at 3pm")...',
+        generationType: 'timestamp',
+      },
     },
 
     // Evaluate Flags fields
@@ -228,6 +267,31 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       type: 'long-input',
       placeholder: '{"company": "company_id_in_your_db"}',
       condition: { field: 'operation', value: 'posthog_evaluate_flags' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for PostHog groups based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY valid JSON starting with { and ending with }
+- Group types are keys (e.g., "company", "team", "project")
+- Group IDs are values (the unique identifier in your database)
+- Common group types: company, organization, team, project, workspace
+
+### EXAMPLE
+User: "Evaluate for Acme Corp company and engineering team"
+Output:
+{
+  "company": "acme-corp-123",
+  "team": "engineering"
+}
+
+Return ONLY the JSON object.`,
+        placeholder: 'Describe the groups...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'personProperties',
@@ -235,6 +299,33 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       type: 'long-input',
       placeholder: '{"email": "user@example.com", "plan": "enterprise"}',
       condition: { field: 'operation', value: 'posthog_evaluate_flags' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for PostHog person properties based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY valid JSON starting with { and ending with }
+- Common properties: email, name, plan, role, created_at, subscription_status
+- Use appropriate data types for each property
+- These properties are used for feature flag evaluation
+
+### EXAMPLE
+User: "Enterprise user from the sales team signed up last month"
+Output:
+{
+  "email": "user@example.com",
+  "plan": "enterprise",
+  "department": "sales",
+  "signup_date": "2024-01-15"
+}
+
+Return ONLY the JSON object.`,
+        placeholder: 'Describe the person properties...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'groupProperties',
@@ -252,6 +343,32 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       placeholder: '[{"event": "page_view", "distinct_id": "user123", "properties": {...}}]',
       condition: { field: 'operation', value: 'posthog_batch_events' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of PostHog events for batch capture based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY a valid JSON array starting with [ and ending with ]
+- Each event object must have: event (name), distinct_id (user identifier)
+- Optional: properties, timestamp
+- Common events: page_view, button_clicked, form_submitted, purchase_completed
+
+### EXAMPLE
+User: "Track 3 page views for user123 on the homepage, pricing, and checkout pages"
+Output:
+[
+  {"event": "page_view", "distinct_id": "user123", "properties": {"page": "/home"}},
+  {"event": "page_view", "distinct_id": "user123", "properties": {"page": "/pricing"}},
+  {"event": "page_view", "distinct_id": "user123", "properties": {"page": "/checkout"}}
+]
+
+Return ONLY the JSON array.`,
+        placeholder: 'Describe the batch of events...',
+        generationType: 'json-object',
+      },
     },
 
     // Query fields
@@ -284,28 +401,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       condition: { field: 'operation', value: 'posthog_query' },
     },
 
-    // List Events filters
-    {
-      id: 'eventFilter',
-      title: 'Event Name Filter',
-      type: 'short-input',
-      placeholder: 'e.g., page_view, button_clicked',
-      condition: { field: 'operation', value: 'posthog_list_events' },
-    },
-    {
-      id: 'before',
-      title: 'Before (ISO 8601)',
-      type: 'short-input',
-      placeholder: '2024-01-01T12:00:00Z',
-      condition: { field: 'operation', value: 'posthog_list_events' },
-    },
-    {
-      id: 'after',
-      title: 'After (ISO 8601)',
-      type: 'short-input',
-      placeholder: '2024-01-01T00:00:00Z',
-      condition: { field: 'operation', value: 'posthog_list_events' },
-    },
     {
       id: 'distinctIdFilter',
       title: 'Distinct ID Filter',
@@ -313,7 +408,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       placeholder: 'user123',
       condition: {
         field: 'operation',
-        value: ['posthog_list_events', 'posthog_list_persons'],
+        value: 'posthog_list_persons',
       },
     },
 
@@ -457,6 +552,22 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_update_property_definition',
         ],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Write a clear, concise description for a PostHog resource based on the user's request.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Be descriptive but concise (1-3 sentences)
+- Explain the purpose and use case
+- Include relevant context like target audience or business goal
+- Use professional language
+
+Return ONLY the description text.`,
+        placeholder: 'Describe what this resource is for...',
+      },
     },
 
     // Feature Flag specific fields
@@ -495,6 +606,37 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_create_cohort',
           'posthog_create_experiment',
         ],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate PostHog filters JSON based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY valid JSON starting with { and ending with }
+- Use PostHog filter structure with "groups" array
+- Each group can have "properties" array with conditions
+- Property conditions include: key, value, operator (exact, icontains, regex, etc.)
+
+### EXAMPLE
+User: "Target users on the enterprise plan in the US"
+Output:
+{
+  "groups": [
+    {
+      "properties": [
+        {"key": "plan", "value": "enterprise", "operator": "exact"},
+        {"key": "$geoip_country_code", "value": "US", "operator": "exact"}
+      ]
+    }
+  ]
+}
+
+Return ONLY the JSON object.`,
+        placeholder: 'Describe the filter conditions...',
+        generationType: 'json-object',
       },
     },
 
@@ -577,6 +719,26 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       placeholder: 'Annotation content',
       condition: { field: 'operation', value: 'posthog_create_annotation' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Write annotation content for PostHog based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Be concise but informative
+- Include relevant details (what happened, why it matters)
+- Use clear language that team members can understand
+- Mention impact if applicable (e.g., "deployed new feature", "fixed critical bug")
+
+### EXAMPLE
+User: "We deployed the new checkout flow today"
+Output: Deployed new checkout flow v2.0 - simplified 5-step process to 3 steps. Expected improvement in conversion rate.
+
+Return ONLY the annotation text.`,
+        placeholder: 'Describe the annotation...',
+      },
     },
     {
       id: 'dateMarker',
@@ -585,6 +747,19 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       placeholder: '2024-01-01T12:00:00Z',
       condition: { field: 'operation', value: 'posthog_create_annotation' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "today" -> Today's date at 00:00:00Z
+- "when we launched" -> Parse the contextual date if given, otherwise today
+- "January 15th" -> 2024-01-15T00:00:00Z (or next occurrence)
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the annotation date (e.g., "today", "release date")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'scope',
@@ -627,6 +802,19 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       type: 'short-input',
       placeholder: '2024-01-01T00:00:00Z',
       condition: { field: 'operation', value: 'posthog_create_experiment' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "today" -> Today's date at 00:00:00Z
+- "next Monday" -> Next Monday's date at 00:00:00Z
+- "beginning of next month" -> The 1st of next month at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the experiment start date (e.g., "today", "next Monday")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'experimentEndDate',
@@ -634,6 +822,19 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       type: 'short-input',
       placeholder: '2024-12-31T23:59:59Z',
       condition: { field: 'operation', value: 'posthog_create_experiment' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "in 2 weeks" -> 14 days from now at 23:59:59Z
+- "end of month" -> Last day of current month at 23:59:59Z
+- "end of Q1" -> March 31st at 23:59:59Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the experiment end date (e.g., "in 2 weeks", "end of month")...',
+        generationType: 'timestamp',
+      },
     },
 
     // Survey fields
@@ -647,6 +848,31 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         value: 'posthog_create_survey',
       },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of PostHog survey questions based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY a valid JSON array starting with [ and ending with ]
+- Question types: "open" (free text), "rating" (1-5 scale), "multiple_choice", "single_choice", "link"
+- Each question needs: type, question (the text)
+- For choice questions, include "choices" array
+
+### EXAMPLE
+User: "NPS survey asking how likely they are to recommend and why"
+Output:
+[
+  {"type": "rating", "question": "How likely are you to recommend us to a friend or colleague?", "scale": 10},
+  {"type": "open", "question": "What is the primary reason for your score?"}
+]
+
+Return ONLY the JSON array.`,
+        placeholder: 'Describe the survey questions...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'questions',
@@ -656,6 +882,31 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       condition: {
         field: 'operation',
         value: 'posthog_update_survey',
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of PostHog survey questions based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY a valid JSON array starting with [ and ending with ]
+- Question types: "open" (free text), "rating" (1-5 scale), "multiple_choice", "single_choice", "link"
+- Each question needs: type, question (the text)
+- For choice questions, include "choices" array
+
+### EXAMPLE
+User: "Customer satisfaction survey with rating and feedback"
+Output:
+[
+  {"type": "rating", "question": "How satisfied are you with our product?", "scale": 5},
+  {"type": "open", "question": "How can we improve your experience?"}
+]
+
+Return ONLY the JSON array.`,
+        placeholder: 'Describe the survey questions...',
+        generationType: 'json-object',
       },
     },
     {
@@ -681,6 +932,19 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         field: 'operation',
         value: ['posthog_create_survey', 'posthog_update_survey'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "now" -> Current timestamp
+- "tomorrow" -> Tomorrow's date at 00:00:00Z
+- "next week" -> 7 days from now at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the survey start date (e.g., "now", "tomorrow")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'surveyEndDate',
@@ -690,6 +954,19 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       condition: {
         field: 'operation',
         value: ['posthog_create_survey', 'posthog_update_survey'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "in 1 month" -> 30 days from now at 23:59:59Z
+- "end of quarter" -> Last day of current quarter at 23:59:59Z
+- "December 31st" -> 2024-12-31T23:59:59Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the survey end date (e.g., "in 1 month", "end of quarter")...',
+        generationType: 'timestamp',
       },
     },
     {
@@ -752,7 +1029,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       condition: {
         field: 'operation',
         value: [
-          'posthog_list_events',
           'posthog_list_persons',
           'posthog_list_insights',
           'posthog_list_dashboards',
@@ -777,7 +1053,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       condition: {
         field: 'operation',
         value: [
-          'posthog_list_events',
           'posthog_list_persons',
           'posthog_list_insights',
           'posthog_list_dashboards',
@@ -861,7 +1136,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       // Core Data
       'posthog_capture_event',
       'posthog_batch_events',
-      'posthog_list_events',
       'posthog_list_persons',
       'posthog_get_person',
       'posthog_delete_person',
@@ -970,17 +1244,8 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           params.tags = params.insightTags
         }
 
-        // Map eventFilter to event for list_events
-        if (params.operation === 'posthog_list_events' && params.eventFilter) {
-          params.event = params.eventFilter
-        }
-
-        // Map distinctIdFilter to distinctId for list operations
-        if (
-          (params.operation === 'posthog_list_events' ||
-            params.operation === 'posthog_list_persons') &&
-          params.distinctIdFilter
-        ) {
+        // Map distinctIdFilter to distinctId for list_persons
+        if (params.operation === 'posthog_list_persons' && params.distinctIdFilter) {
           params.distinctId = params.distinctIdFilter
         }
 

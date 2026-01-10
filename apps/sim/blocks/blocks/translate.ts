@@ -1,16 +1,8 @@
 import { TranslateIcon } from '@/components/icons'
-import { isHosted } from '@/lib/core/config/feature-flags'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
-import { getHostedModels, getProviderIcon, providers } from '@/providers/utils'
-import { useProvidersStore } from '@/stores/providers'
-
-const getCurrentOllamaModels = () => {
-  return useProvidersStore.getState().providers.ollama.models
-}
-
-const getCurrentVLLMModels = () => {
-  return useProvidersStore.getState().providers.vllm.models
-}
+import { getProviderCredentialSubBlocks, PROVIDER_CREDENTIAL_INPUTS } from '@/blocks/utils'
+import { getProviderIcon } from '@/providers/utils'
+import { useProvidersStore } from '@/stores/providers/store'
 
 const getTranslationPrompt = (targetLanguage: string) =>
   `Translate the following text into ${targetLanguage || 'English'}. Output ONLY the translated text with no additional commentary, explanations, or notes.`
@@ -59,91 +51,7 @@ export const TranslateBlock: BlockConfig = {
         })
       },
     },
-    {
-      id: 'vertexCredential',
-      title: 'Google Cloud Account',
-      type: 'oauth-input',
-      serviceId: 'vertex-ai',
-      requiredScopes: ['https://www.googleapis.com/auth/cloud-platform'],
-      placeholder: 'Select Google Cloud account',
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.vertex.models,
-      },
-    },
-    {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      placeholder: 'Enter your API key',
-      password: true,
-      connectionDroppable: false,
-      required: true,
-      // Hide API key for hosted models, Ollama models, vLLM models, and Vertex models (uses OAuth)
-      condition: isHosted
-        ? {
-            field: 'model',
-            value: [...getHostedModels(), ...providers.vertex.models],
-            not: true, // Show for all models EXCEPT those listed
-          }
-        : () => ({
-            field: 'model',
-            value: [
-              ...getCurrentOllamaModels(),
-              ...getCurrentVLLMModels(),
-              ...providers.vertex.models,
-            ],
-            not: true, // Show for all models EXCEPT Ollama, vLLM, and Vertex models
-          }),
-    },
-    {
-      id: 'azureEndpoint',
-      title: 'Azure OpenAI Endpoint',
-      type: 'short-input',
-      password: true,
-      placeholder: 'https://your-resource.openai.azure.com',
-      connectionDroppable: false,
-      condition: {
-        field: 'model',
-        value: providers['azure-openai'].models,
-      },
-    },
-    {
-      id: 'azureApiVersion',
-      title: 'Azure API Version',
-      type: 'short-input',
-      placeholder: '2024-07-01-preview',
-      connectionDroppable: false,
-      condition: {
-        field: 'model',
-        value: providers['azure-openai'].models,
-      },
-    },
-    {
-      id: 'vertexProject',
-      title: 'Vertex AI Project',
-      type: 'short-input',
-      placeholder: 'your-gcp-project-id',
-      connectionDroppable: false,
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.vertex.models,
-      },
-    },
-    {
-      id: 'vertexLocation',
-      title: 'Vertex AI Location',
-      type: 'short-input',
-      placeholder: 'us-central1',
-      connectionDroppable: false,
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.vertex.models,
-      },
-    },
+    ...getProviderCredentialSubBlocks(),
     {
       id: 'systemPrompt',
       title: 'System Prompt',
@@ -168,21 +76,15 @@ export const TranslateBlock: BlockConfig = {
         vertexProject: params.vertexProject,
         vertexLocation: params.vertexLocation,
         vertexCredential: params.vertexCredential,
+        bedrockRegion: params.bedrockRegion,
+        bedrockSecretKey: params.bedrockSecretKey,
       }),
     },
   },
   inputs: {
     context: { type: 'string', description: 'Text to translate' },
     targetLanguage: { type: 'string', description: 'Target language' },
-    apiKey: { type: 'string', description: 'Provider API key' },
-    azureEndpoint: { type: 'string', description: 'Azure OpenAI endpoint URL' },
-    azureApiVersion: { type: 'string', description: 'Azure API version' },
-    vertexProject: { type: 'string', description: 'Google Cloud project ID for Vertex AI' },
-    vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },
-    vertexCredential: {
-      type: 'string',
-      description: 'Google Cloud OAuth credential ID for Vertex AI',
-    },
+    ...PROVIDER_CREDENTIAL_INPUTS,
     systemPrompt: { type: 'string', description: 'Translation instructions' },
   },
   outputs: {

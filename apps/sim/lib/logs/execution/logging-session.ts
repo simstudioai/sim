@@ -45,6 +45,7 @@ export interface SessionErrorCompleteParams {
     stackTrace?: string
   }
   traceSpans?: TraceSpan[]
+  skipCost?: boolean
 }
 
 export interface SessionCancelledParams {
@@ -288,12 +289,12 @@ export class LoggingSession {
 
       this.completed = true
 
-      // Track workflow execution outcome
       if (traceSpans && traceSpans.length > 0) {
         try {
-          const { trackPlatformEvent } = await import('@/lib/core/telemetry')
+          const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
+            '@/lib/core/telemetry'
+          )
 
-          // Determine status from trace spans
           const hasErrors = traceSpans.some((span: any) => {
             const checkForErrors = (s: any): boolean => {
               if (s.status === 'error') return true
@@ -305,14 +306,27 @@ export class LoggingSession {
             return checkForErrors(span)
           })
 
-          trackPlatformEvent('platform.workflow.executed', {
-            'workflow.id': this.workflowId,
-            'execution.duration_ms': duration,
-            'execution.status': hasErrors ? 'error' : 'success',
-            'execution.trigger': this.triggerType,
-            'execution.blocks_executed': traceSpans.length,
-            'execution.has_errors': hasErrors,
-            'execution.total_cost': costSummary.totalCost || 0,
+          PlatformEvents.workflowExecuted({
+            workflowId: this.workflowId,
+            durationMs: duration,
+            status: hasErrors ? 'error' : 'success',
+            trigger: this.triggerType,
+            blocksExecuted: traceSpans.length,
+            hasErrors,
+            totalCost: costSummary.totalCost || 0,
+          })
+
+          const startTime = new Date(new Date(endTime).getTime() - duration).toISOString()
+          createOTelSpansForWorkflowExecution({
+            workflowId: this.workflowId,
+            workflowName: this.workflowState?.metadata?.name,
+            executionId: this.executionId,
+            traceSpans,
+            trigger: this.triggerType,
+            startTime,
+            endTime,
+            totalDurationMs: duration,
+            status: hasErrors ? 'error' : 'success',
           })
         } catch (_e) {
           // Silently fail
@@ -323,7 +337,6 @@ export class LoggingSession {
         logger.debug(`[${this.requestId}] Completed logging for execution ${this.executionId}`)
       }
     } catch (error) {
-      // Always log completion failures with full details - these should not be silent
       logger.error(`Failed to complete logging for execution ${this.executionId}:`, {
         requestId: this.requestId,
         workflowId: this.workflowId,
@@ -331,7 +344,6 @@ export class LoggingSession {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
       })
-      // Rethrow so safeComplete can decide what to do
       throw error
     }
   }
@@ -342,7 +354,7 @@ export class LoggingSession {
     }
 
     try {
-      const { endedAt, totalDurationMs, error, traceSpans } = params
+      const { endedAt, totalDurationMs, error, traceSpans, skipCost } = params
 
       const endTime = endedAt ? new Date(endedAt) : new Date()
       const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
@@ -350,19 +362,31 @@ export class LoggingSession {
 
       const hasProvidedSpans = Array.isArray(traceSpans) && traceSpans.length > 0
 
-      const costSummary = hasProvidedSpans
-        ? calculateCostSummary(traceSpans)
-        : {
-            totalCost: BASE_EXECUTION_CHARGE,
+      const costSummary = skipCost
+        ? {
+            totalCost: 0,
             totalInputCost: 0,
             totalOutputCost: 0,
             totalTokens: 0,
             totalPromptTokens: 0,
             totalCompletionTokens: 0,
-            baseExecutionCharge: BASE_EXECUTION_CHARGE,
+            baseExecutionCharge: 0,
             modelCost: 0,
             models: {},
           }
+        : hasProvidedSpans
+          ? calculateCostSummary(traceSpans)
+          : {
+              totalCost: BASE_EXECUTION_CHARGE,
+              totalInputCost: 0,
+              totalOutputCost: 0,
+              totalTokens: 0,
+              totalPromptTokens: 0,
+              totalCompletionTokens: 0,
+              baseExecutionCharge: BASE_EXECUTION_CHARGE,
+              modelCost: 0,
+              models: {},
+            }
 
       const message = error?.message || 'Execution failed before starting blocks'
 
@@ -391,17 +415,31 @@ export class LoggingSession {
 
       this.completed = true
 
-      // Track workflow execution error outcome
       try {
-        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
-        trackPlatformEvent('platform.workflow.executed', {
-          'workflow.id': this.workflowId,
-          'execution.duration_ms': Math.max(1, durationMs),
-          'execution.status': 'error',
-          'execution.trigger': this.triggerType,
-          'execution.blocks_executed': spans.length,
-          'execution.has_errors': true,
-          'execution.error_message': message,
+        const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
+          '@/lib/core/telemetry'
+        )
+        PlatformEvents.workflowExecuted({
+          workflowId: this.workflowId,
+          durationMs: Math.max(1, durationMs),
+          status: 'error',
+          trigger: this.triggerType,
+          blocksExecuted: spans.length,
+          hasErrors: true,
+          errorMessage: message,
+        })
+
+        createOTelSpansForWorkflowExecution({
+          workflowId: this.workflowId,
+          workflowName: this.workflowState?.metadata?.name,
+          executionId: this.executionId,
+          traceSpans: spans,
+          trigger: this.triggerType,
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+          totalDurationMs: Math.max(1, durationMs),
+          status: 'error',
+          error: message,
         })
       } catch (_e) {
         // Silently fail
@@ -413,7 +451,6 @@ export class LoggingSession {
         )
       }
     } catch (enhancedError) {
-      // Always log completion failures with full details
       logger.error(`Failed to complete error logging for execution ${this.executionId}:`, {
         requestId: this.requestId,
         workflowId: this.workflowId,
@@ -421,7 +458,6 @@ export class LoggingSession {
         error: enhancedError instanceof Error ? enhancedError.message : String(enhancedError),
         stack: enhancedError instanceof Error ? enhancedError.stack : undefined,
       })
-      // Rethrow so safeCompleteWithError can decide what to do
       throw enhancedError
     }
   }
@@ -464,15 +500,32 @@ export class LoggingSession {
       this.completed = true
 
       try {
-        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
-        trackPlatformEvent('platform.workflow.executed', {
-          'workflow.id': this.workflowId,
-          'execution.duration_ms': Math.max(1, durationMs),
-          'execution.status': 'cancelled',
-          'execution.trigger': this.triggerType,
-          'execution.blocks_executed': traceSpans?.length || 0,
-          'execution.has_errors': false,
+        const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
+          '@/lib/core/telemetry'
+        )
+        PlatformEvents.workflowExecuted({
+          workflowId: this.workflowId,
+          durationMs: Math.max(1, durationMs),
+          status: 'cancelled',
+          trigger: this.triggerType,
+          blocksExecuted: traceSpans?.length || 0,
+          hasErrors: false,
         })
+
+        if (traceSpans && traceSpans.length > 0) {
+          const startTime = new Date(endTime.getTime() - Math.max(1, durationMs))
+          createOTelSpansForWorkflowExecution({
+            workflowId: this.workflowId,
+            workflowName: this.workflowState?.metadata?.name,
+            executionId: this.executionId,
+            traceSpans,
+            trigger: this.triggerType,
+            startTime: startTime.toISOString(),
+            endTime: endTime.toISOString(),
+            totalDurationMs: Math.max(1, durationMs),
+            status: 'success', // Cancelled executions are not errors
+          })
+        }
       } catch (_e) {
         // Silently fail
       }
@@ -527,16 +580,33 @@ export class LoggingSession {
       })
 
       try {
-        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
-        trackPlatformEvent('platform.workflow.executed', {
-          'workflow.id': this.workflowId,
-          'execution.duration_ms': Math.max(1, durationMs),
-          'execution.status': 'paused',
-          'execution.trigger': this.triggerType,
-          'execution.blocks_executed': traceSpans?.length || 0,
-          'execution.has_errors': false,
-          'execution.total_cost': costSummary.totalCost || 0,
+        const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
+          '@/lib/core/telemetry'
+        )
+        PlatformEvents.workflowExecuted({
+          workflowId: this.workflowId,
+          durationMs: Math.max(1, durationMs),
+          status: 'paused',
+          trigger: this.triggerType,
+          blocksExecuted: traceSpans?.length || 0,
+          hasErrors: false,
+          totalCost: costSummary.totalCost || 0,
         })
+
+        if (traceSpans && traceSpans.length > 0) {
+          const startTime = new Date(endTime.getTime() - Math.max(1, durationMs))
+          createOTelSpansForWorkflowExecution({
+            workflowId: this.workflowId,
+            workflowName: this.workflowState?.metadata?.name,
+            executionId: this.executionId,
+            traceSpans,
+            trigger: this.triggerType,
+            startTime: startTime.toISOString(),
+            endTime: endTime.toISOString(),
+            totalDurationMs: Math.max(1, durationMs),
+            status: 'success', // Paused executions are not errors
+          })
+        }
       } catch (_e) {}
 
       if (this.requestId) {

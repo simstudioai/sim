@@ -1,5 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { ZodError } from 'zod'
+import {
+  BLOCK_OPERATIONS,
+  BLOCKS_OPERATIONS,
+  EDGES_OPERATIONS,
+  OPERATION_TARGETS,
+  VARIABLE_OPERATIONS,
+  type VariableOperation,
+  WORKFLOW_OPERATIONS,
+} from '@/socket/constants'
 import { persistWorkflowOperation } from '@/socket/database/operations'
 import type { HandlerDependencies } from '@/socket/handlers/workflow'
 import type { AuthenticatedSocket } from '@/socket/middleware/auth'
@@ -45,7 +54,8 @@ export function setupOperationsHandlers(
 
       // For position updates, preserve client timestamp to maintain ordering
       // For other operations, use server timestamp for consistency
-      const isPositionUpdate = operation === 'update-position' && target === 'block'
+      const isPositionUpdate =
+        operation === BLOCK_OPERATIONS.UPDATE_POSITION && target === OPERATION_TARGETS.BLOCK
       const commitPositionUpdate =
         isPositionUpdate && 'commit' in payload ? payload.commit === true : false
       const operationTimestamp = isPositionUpdate ? timestamp : Date.now()
@@ -145,7 +155,10 @@ export function setupOperationsHandlers(
         return
       }
 
-      if (target === 'blocks' && operation === 'batch-update-positions') {
+      if (
+        target === OPERATION_TARGETS.BLOCKS &&
+        operation === BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS
+      ) {
         socket.to(workflowId).emit('workflow-operation', {
           operation,
           target,
@@ -184,8 +197,12 @@ export function setupOperationsHandlers(
         return
       }
 
-      if (target === 'variable' && ['add', 'remove'].includes(operation)) {
-        // Persist first, then broadcast
+      if (
+        target === OPERATION_TARGETS.VARIABLE &&
+        ([VARIABLE_OPERATIONS.ADD, VARIABLE_OPERATIONS.REMOVE] as VariableOperation[]).includes(
+          operation as VariableOperation
+        )
+      ) {
         await persistWorkflowOperation(workflowId, {
           operation,
           target,
@@ -222,7 +239,10 @@ export function setupOperationsHandlers(
         return
       }
 
-      if (target === 'workflow' && operation === 'replace-state') {
+      if (
+        target === OPERATION_TARGETS.WORKFLOW &&
+        operation === WORKFLOW_OPERATIONS.REPLACE_STATE
+      ) {
         await persistWorkflowOperation(workflowId, {
           operation,
           target,
@@ -259,7 +279,7 @@ export function setupOperationsHandlers(
         return
       }
 
-      if (target === 'blocks' && operation === 'batch-add-blocks') {
+      if (target === OPERATION_TARGETS.BLOCKS && operation === BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS) {
         await persistWorkflowOperation(workflowId, {
           operation,
           target,
@@ -288,7 +308,164 @@ export function setupOperationsHandlers(
         return
       }
 
-      if (target === 'blocks' && operation === 'batch-remove-blocks') {
+      if (
+        target === OPERATION_TARGETS.BLOCKS &&
+        operation === BLOCKS_OPERATIONS.BATCH_REMOVE_BLOCKS
+      ) {
+        await persistWorkflowOperation(workflowId, {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          userId: session.userId,
+        })
+
+        room.lastModified = Date.now()
+
+        socket.to(workflowId).emit('workflow-operation', {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          senderId: socket.id,
+          userId: session.userId,
+          userName: session.userName,
+          metadata: { workflowId, operationId: crypto.randomUUID() },
+        })
+
+        if (operationId) {
+          socket.emit('operation-confirmed', { operationId, serverTimestamp: Date.now() })
+        }
+
+        return
+      }
+
+      if (target === OPERATION_TARGETS.EDGES && operation === EDGES_OPERATIONS.BATCH_REMOVE_EDGES) {
+        await persistWorkflowOperation(workflowId, {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          userId: session.userId,
+        })
+
+        room.lastModified = Date.now()
+
+        socket.to(workflowId).emit('workflow-operation', {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          senderId: socket.id,
+          userId: session.userId,
+          userName: session.userName,
+          metadata: { workflowId, operationId: crypto.randomUUID() },
+        })
+
+        if (operationId) {
+          socket.emit('operation-confirmed', { operationId, serverTimestamp: Date.now() })
+        }
+
+        return
+      }
+
+      if (
+        target === OPERATION_TARGETS.BLOCKS &&
+        operation === BLOCKS_OPERATIONS.BATCH_TOGGLE_ENABLED
+      ) {
+        await persistWorkflowOperation(workflowId, {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          userId: session.userId,
+        })
+
+        room.lastModified = Date.now()
+
+        socket.to(workflowId).emit('workflow-operation', {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          senderId: socket.id,
+          userId: session.userId,
+          userName: session.userName,
+          metadata: { workflowId, operationId: crypto.randomUUID() },
+        })
+
+        if (operationId) {
+          socket.emit('operation-confirmed', { operationId, serverTimestamp: Date.now() })
+        }
+
+        return
+      }
+
+      if (
+        target === OPERATION_TARGETS.BLOCKS &&
+        operation === BLOCKS_OPERATIONS.BATCH_TOGGLE_HANDLES
+      ) {
+        await persistWorkflowOperation(workflowId, {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          userId: session.userId,
+        })
+
+        room.lastModified = Date.now()
+
+        socket.to(workflowId).emit('workflow-operation', {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          senderId: socket.id,
+          userId: session.userId,
+          userName: session.userName,
+          metadata: { workflowId, operationId: crypto.randomUUID() },
+        })
+
+        if (operationId) {
+          socket.emit('operation-confirmed', { operationId, serverTimestamp: Date.now() })
+        }
+
+        return
+      }
+
+      if (
+        target === OPERATION_TARGETS.BLOCKS &&
+        operation === BLOCKS_OPERATIONS.BATCH_UPDATE_PARENT
+      ) {
+        await persistWorkflowOperation(workflowId, {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          userId: session.userId,
+        })
+
+        room.lastModified = Date.now()
+
+        socket.to(workflowId).emit('workflow-operation', {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          senderId: socket.id,
+          userId: session.userId,
+          userName: session.userName,
+          metadata: { workflowId, operationId: crypto.randomUUID() },
+        })
+
+        if (operationId) {
+          socket.emit('operation-confirmed', { operationId, serverTimestamp: Date.now() })
+        }
+
+        return
+      }
+
+      if (target === OPERATION_TARGETS.EDGES && operation === EDGES_OPERATIONS.BATCH_ADD_EDGES) {
         await persistWorkflowOperation(workflowId, {
           operation,
           target,

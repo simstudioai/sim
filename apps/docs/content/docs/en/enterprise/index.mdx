@@ -1,0 +1,120 @@
+---
+title: Enterprise
+description: Enterprise features for business organizations
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Sim Studio Enterprise provides advanced features for organizations with enhanced security, compliance, and management requirements.
+
+---
+
+## Access Control
+
+Define permission groups to control what features and integrations team members can use.
+
+### Features
+
+- **Allowed Model Providers** - Restrict which AI providers users can access (OpenAI, Anthropic, Google, etc.)
+- **Allowed Blocks** - Control which workflow blocks are available
+- **Platform Settings** - Hide Knowledge Base, disable MCP tools, or disable custom tools
+
+### Setup
+
+1. Navigate to **Settings** → **Access Control** in your workspace
+2. Create a permission group with your desired restrictions
+3. Add team members to the permission group
+
+<Callout type="info">
+  Users not assigned to any permission group have full access. Permission restrictions are enforced at both UI and execution time.
+</Callout>
+
+---
+
+## Bring Your Own Key (BYOK)
+
+Use your own API keys for AI model providers instead of Sim Studio's hosted keys.
+
+### Supported Providers
+
+| Provider | Usage |
+|----------|-------|
+| OpenAI | Knowledge Base embeddings, Agent block |
+| Anthropic | Agent block |
+| Google | Agent block |
+| Mistral | Knowledge Base OCR |
+
+### Setup
+
+1. Navigate to **Settings** → **BYOK** in your workspace
+2. Click **Add Key** for your provider
+3. Enter your API key and save
+
+<Callout type="warn">
+  BYOK keys are encrypted at rest. Only organization admins and owners can manage keys.
+</Callout>
+
+When configured, workflows use your key instead of Sim Studio's hosted keys. If removed, workflows automatically fall back to hosted keys.
+
+---
+
+## Single Sign-On (SSO)
+
+Enterprise authentication with SAML 2.0 and OIDC support for centralized identity management.
+
+### Supported Providers
+
+- Okta
+- Azure AD / Entra ID
+- Google Workspace
+- OneLogin
+- Any SAML 2.0 or OIDC provider
+
+### Setup
+
+1. Navigate to **Settings** → **SSO** in your workspace
+2. Choose your identity provider
+3. Configure the connection using your IdP's metadata
+4. Enable SSO for your organization
+
+<Callout type="info">
+  Once SSO is enabled, team members authenticate through your identity provider instead of email/password.
+</Callout>
+
+---
+
+## Self-Hosted Configuration
+
+For self-hosted deployments, enterprise features can be enabled via environment variables without requiring billing.
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ORGANIZATIONS_ENABLED`, `NEXT_PUBLIC_ORGANIZATIONS_ENABLED` | Enable team/organization management |
+| `ACCESS_CONTROL_ENABLED`, `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` | Permission groups for access restrictions |
+| `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | Single Sign-On with SAML/OIDC |
+| `CREDENTIAL_SETS_ENABLED`, `NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED` | Polling Groups for email triggers |
+
+### Organization Management
+
+When billing is disabled, use the Admin API to manage organizations:
+
+```bash
+# Create an organization
+curl -X POST https://your-instance/api/v1/admin/organizations \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Organization", "ownerId": "user-id-here"}'
+
+# Add a member
+curl -X POST https://your-instance/api/v1/admin/organizations/{orgId}/members \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "user-id-here", "role": "admin"}'
+```
+
+### Notes
+
+- Enabling `ACCESS_CONTROL_ENABLED` automatically enables organizations, as access control requires organization membership.
+- BYOK is only available on hosted Sim Studio. Self-hosted deployments configure AI provider keys directly via environment variables.

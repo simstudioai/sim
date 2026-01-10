@@ -194,6 +194,18 @@ import {
   firecrawlScrapeTool,
   firecrawlSearchTool,
 } from '@/tools/firecrawl'
+import {
+  firefliesAddToLiveMeetingTool,
+  firefliesCreateBiteTool,
+  firefliesDeleteTranscriptTool,
+  firefliesGetTranscriptTool,
+  firefliesGetUserTool,
+  firefliesListBitesTool,
+  firefliesListContactsTool,
+  firefliesListTranscriptsTool,
+  firefliesListUsersTool,
+  firefliesUploadAudioTool,
+} from '@/tools/fireflies'
 import { functionExecuteTool } from '@/tools/function'
 import {
   githubAddAssigneesTool,
@@ -376,7 +388,7 @@ import {
   greptileStatusTool,
 } from '@/tools/greptile'
 import { guardrailsValidateTool } from '@/tools/guardrails'
-import { httpRequestTool } from '@/tools/http'
+import { httpRequestTool, webhookRequestTool } from '@/tools/http'
 import {
   hubspotCreateCompanyTool,
   hubspotCreateContactTool,
@@ -555,7 +567,6 @@ import {
   linearCreateIssueTool,
   linearCreateLabelTool,
   linearCreateProjectLabelTool,
-  linearCreateProjectLinkTool,
   linearCreateProjectMilestoneTool,
   linearCreateProjectStatusTool,
   linearCreateProjectTool,
@@ -880,7 +891,6 @@ import {
   posthogListCohortsTool,
   posthogListDashboardsTool,
   posthogListEventDefinitionsTool,
-  posthogListEventsTool,
   posthogListExperimentsTool,
   posthogListFeatureFlagsTool,
   posthogListInsightsTool,
@@ -1415,6 +1425,7 @@ export const tools: Record<string, ToolConfig> = {
   browser_use_run_task: browserUseRunTaskTool,
   openai_embeddings: openAIEmbeddingsTool,
   http_request: httpRequestTool,
+  webhook_request: webhookRequestTool,
   huggingface_chat: huggingfaceChatTool,
   llm_chat: llmChatTool,
   function_execute: functionExecuteTool,
@@ -1426,6 +1437,16 @@ export const tools: Record<string, ToolConfig> = {
   firecrawl_map: firecrawlMapTool,
   firecrawl_extract: firecrawlExtractTool,
   firecrawl_agent: firecrawlAgentTool,
+  fireflies_list_transcripts: firefliesListTranscriptsTool,
+  fireflies_get_transcript: firefliesGetTranscriptTool,
+  fireflies_get_user: firefliesGetUserTool,
+  fireflies_list_users: firefliesListUsersTool,
+  fireflies_upload_audio: firefliesUploadAudioTool,
+  fireflies_delete_transcript: firefliesDeleteTranscriptTool,
+  fireflies_add_to_live_meeting: firefliesAddToLiveMeetingTool,
+  fireflies_create_bite: firefliesCreateBiteTool,
+  fireflies_list_bites: firefliesListBitesTool,
+  fireflies_list_contacts: firefliesListContactsTool,
   grafana_get_dashboard: grafanaGetDashboardTool,
   grafana_list_dashboards: grafanaListDashboardsTool,
   grafana_create_dashboard: grafanaCreateDashboardTool,
@@ -1881,7 +1902,6 @@ export const tools: Record<string, ToolConfig> = {
   perplexity_search: perplexitySearchTool,
   posthog_capture_event: posthogCaptureEventTool,
   posthog_batch_events: posthogBatchEventsTool,
-  posthog_list_events: posthogListEventsTool,
   posthog_list_persons: posthogListPersonsTool,
   posthog_get_person: posthogGetPersonTool,
   posthog_delete_person: posthogDeletePersonTool,
@@ -2164,7 +2184,6 @@ export const tools: Record<string, ToolConfig> = {
   linear_list_favorites: linearListFavoritesTool,
   linear_create_project_update: linearCreateProjectUpdateTool,
   linear_list_project_updates: linearListProjectUpdatesTool,
-  linear_create_project_link: linearCreateProjectLinkTool,
   linear_list_notifications: linearListNotificationsTool,
   linear_update_notification: linearUpdateNotificationTool,
   linear_create_customer: linearCreateCustomerTool,

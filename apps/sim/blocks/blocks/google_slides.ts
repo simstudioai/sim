@@ -91,6 +91,17 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       placeholder: 'Enter slide content',
       condition: { field: 'operation', value: 'write' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate slide content based on the user's description.
+Create clear, concise content suitable for a presentation slide.
+- Use bullet points for lists
+- Keep text brief and impactful
+- Focus on key points
+
+Return ONLY the slide content - no explanations, no markdown formatting markers, no extra text.`,
+        placeholder: 'Describe what you want on this slide...',
+      },
     },
 
     // ========== Create Operation Fields ==========
@@ -101,6 +112,22 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       placeholder: 'Enter title for the new presentation',
       condition: { field: 'operation', value: 'create' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a professional presentation title based on the user's description.
+The title should be:
+- Clear and descriptive
+- Professional and engaging
+- Concise (typically 3-8 words)
+
+Examples:
+- "quarterly sales" -> Q4 2024 Sales Performance Review
+- "product launch" -> Introducing Our New Product Line
+- "team meeting" -> Weekly Team Sync - Updates & Goals
+
+Return ONLY the title - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe your presentation topic...',
+      },
     },
     // Folder selector (basic mode)
     {
@@ -134,6 +161,16 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       type: 'long-input',
       placeholder: 'Enter initial slide content (optional)',
       condition: { field: 'operation', value: 'create' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate initial slide content for a new presentation based on the user's description.
+Create clear, concise content suitable for a title or introductory slide.
+- Keep text brief and impactful
+- Focus on the main message or theme
+
+Return ONLY the slide content - no explanations, no markdown formatting markers, no extra text.`,
+        placeholder: 'Describe the initial slide content...',
+      },
     },
 
     // ========== Replace All Text Operation Fields ==========
@@ -152,6 +189,14 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       placeholder: 'Text to replace with',
       condition: { field: 'operation', value: 'replace_all_text' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate replacement text based on the user's description.
+The text should be appropriate for a presentation slide - concise and professional.
+
+Return ONLY the replacement text - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the replacement text...',
+      },
     },
     {
       id: 'matchCase',
@@ -201,6 +246,28 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       placeholder: 'JSON array: [{"layoutPlaceholder":{"type":"TITLE"},"objectId":"my_title"}]',
       condition: { field: 'operation', value: 'add_slide' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate Google Slides placeholder ID mappings as a JSON array.
+
+Structure:
+[
+  {
+    "layoutPlaceholder": {"type": "PLACEHOLDER_TYPE", "index": 0},
+    "objectId": "unique_object_id"
+  }
+]
+
+Placeholder types: TITLE, SUBTITLE, BODY, CENTERED_TITLE, HEADER, FOOTER, SLIDE_NUMBER, DATE_AND_TIME, CHART, TABLE, MEDIA, IMAGE
+
+Examples:
+- "title and body placeholders" -> [{"layoutPlaceholder":{"type":"TITLE"},"objectId":"title_1"},{"layoutPlaceholder":{"type":"BODY"},"objectId":"body_1"}]
+- "just a title" -> [{"layoutPlaceholder":{"type":"TITLE"},"objectId":"my_title"}]
+
+Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the placeholder mappings you need...',
+        generationType: 'json-object',
+      },
     },
 
     // ========== Add Image Operation Fields ==========

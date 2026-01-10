@@ -5,7 +5,7 @@ type: application
 version: 0.1.0
 appVersion: "1.0.0"
 home: https://sim.ai
-icon: https://raw.githubusercontent.com/simstudioai/sim/main/apps/sim/public/sim.svg
+icon: https://raw.githubusercontent.com/simstudioai/sim/main/apps/sim/public/logo/primary/primary.svg
 sources:
   - https://github.com/simstudioai/sim
 maintainers:

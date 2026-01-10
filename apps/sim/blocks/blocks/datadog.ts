@@ -54,6 +54,19 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
 ]`,
       condition: { field: 'operation', value: 'datadog_submit_metrics' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of Datadog metrics based on the user's description.
+Each metric object should have:
+- "metric": The metric name (e.g., "custom.app.response_time")
+- "type": The metric type ("gauge", "count", or "rate")
+- "points": Array of {timestamp, value} objects
+- "tags": Array of tag strings (e.g., "env:production")
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the metrics you want to submit...',
+        generationType: 'json-object',
+      },
     },
 
     // ========================
@@ -66,6 +79,18 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       placeholder: 'avg:system.cpu.user{*}',
       condition: { field: 'operation', value: 'datadog_query_timeseries' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Datadog metrics query based on the user's description.
+The query format is: <aggregation>:<metric_name>{<tag_filters>}
+Examples:
+- "avg:system.cpu.user{*}" - Average CPU usage across all hosts
+- "sum:app.requests{env:production} by {service}" - Sum of requests grouped by service
+- "max:system.mem.used{host:webserver-1}" - Max memory on specific host
+
+Return ONLY the query string - no explanations, no quotes around the entire query.`,
+        placeholder: 'Describe what metrics you want to query...',
+      },
     },
     {
       id: 'from',
@@ -74,6 +99,19 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       placeholder: 'e.g., 1701360000',
       condition: { field: 'operation', value: 'datadog_query_timeseries' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp (seconds since epoch) based on the user's description.
+The timestamp should be a number representing seconds since January 1, 1970 UTC.
+Examples:
+- "yesterday" -> Calculate yesterday's date at 00:00:00 UTC as Unix timestamp
+- "last week" -> Calculate 7 days ago at 00:00:00 UTC as Unix timestamp
+- "1 hour ago" -> Calculate current time minus 3600 seconds
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "1 hour ago", "yesterday")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'to',
@@ -82,6 +120,19 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       placeholder: 'e.g., 1701446400',
       condition: { field: 'operation', value: 'datadog_query_timeseries' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp (seconds since epoch) based on the user's description.
+The timestamp should be a number representing seconds since January 1, 1970 UTC.
+Examples:
+- "now" -> Calculate current time as Unix timestamp
+- "end of today" -> Calculate today at 23:59:59 UTC as Unix timestamp
+- "tomorrow" -> Calculate tomorrow's date at 00:00:00 UTC as Unix timestamp
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "now", "end of today")...',
+        generationType: 'timestamp',
+      },
     },
 
     // ========================
@@ -94,6 +145,15 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       placeholder: 'Deployment completed',
       condition: { field: 'operation', value: 'datadog_create_event' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a concise, descriptive event title for Datadog based on the user's description.
+The title should be short (under 100 characters), clear, and action-oriented.
+Examples: "Deployment completed", "High CPU usage detected", "Service restart initiated"
+
+Return ONLY the title text - no quotes, no extra formatting.`,
+        placeholder: 'Describe the event you want to create...',
+      },
     },
     {
       id: 'text',
@@ -102,6 +162,15 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       placeholder: 'Describe the event...',
       condition: { field: 'operation', value: 'datadog_create_event' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate descriptive event text for a Datadog event based on the user's description.
+Include relevant details like what happened, when, and any important context.
+Can use Markdown formatting for readability.
+
+Return the event description text directly - no extra formatting needed.`,
+        placeholder: 'Describe the event details...',
+      },
     },
     {
       id: 'alertType',
@@ -145,6 +214,15 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       placeholder: 'High CPU Usage Alert',
       condition: { field: 'operation', value: 'datadog_create_monitor' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a clear, descriptive monitor name for Datadog based on the user's description.
+The name should be concise but descriptive, indicating what is being monitored.
+Examples: "High CPU Usage Alert", "Database Connection Pool Low", "API Error Rate Spike"
+
+Return ONLY the monitor name - no quotes, no extra formatting.`,
+        placeholder: 'Describe what the monitor should track...',
+      },
     },
     {
       id: 'type',
@@ -170,6 +248,18 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       placeholder: 'avg(last_5m):avg:system.cpu.idle{*} < 20',
       condition: { field: 'operation', value: 'datadog_create_monitor' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Datadog monitor query based on the user's description.
+Monitor query format: <aggregation>(<time_window>):<metric_query> <comparator> <threshold>
+Examples:
+- "avg(last_5m):avg:system.cpu.idle{*} < 20" - Alert when average CPU idle is below 20%
+- "sum(last_1h):sum:app.errors{env:production} > 100" - Alert when errors exceed 100 in an hour
+- "max(last_15m):max:system.disk.used{*} by {host} > 90" - Alert when disk usage exceeds 90%
+
+Return ONLY the monitor query string - no explanations.`,
+        placeholder: 'Describe what condition should trigger the alert...',
+      },
     },
     {
       id: 'message',
@@ -177,6 +267,17 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       type: 'long-input',
       placeholder: 'Alert! CPU usage is high. @slack-alerts',
       condition: { field: 'operation', value: 'datadog_create_monitor' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Datadog monitor notification message based on the user's description.
+The message should include:
+- A clear description of what triggered the alert
+- Relevant template variables like {{host.name}}, {{value}}
+- Optional: notification handles like @slack-channel or @pagerduty
+
+Return the notification message text directly.`,
+        placeholder: 'Describe what the notification should say...',
+      },
     },
     {
       id: 'monitorTags',
@@ -198,6 +299,20 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       type: 'code',
       placeholder: '{"notify_no_data": true, "thresholds": {"critical": 90}}',
       condition: { field: 'operation', value: 'datadog_create_monitor' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate Datadog monitor options JSON based on the user's description.
+Common options include:
+- "notify_no_data": boolean - Notify when data stops arriving
+- "thresholds": {"critical": number, "warning": number} - Alert thresholds
+- "renotify_interval": number - Minutes between re-notifications
+- "timeout_h": number - Hours before auto-resolving
+- "include_tags": boolean - Include trigger tags in notifications
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the monitor options you need...',
+        generationType: 'json-object',
+      },
     },
 
     // ========================
@@ -254,6 +369,19 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       type: 'short-input',
       placeholder: 'Leave empty for indefinite',
       condition: { field: 'operation', value: 'datadog_mute_monitor' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp (seconds since epoch) based on the user's description.
+The timestamp should be a number representing seconds since January 1, 1970 UTC.
+Examples:
+- "in 1 hour" -> Calculate current time plus 3600 seconds
+- "tomorrow morning" -> Calculate tomorrow at 09:00:00 UTC as Unix timestamp
+- "end of day" -> Calculate today at 23:59:59 UTC as Unix timestamp
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe when mute should end (e.g., "in 1 hour", "tomorrow")...',
+        generationType: 'timestamp',
+      },
     },
 
     // ========================
@@ -266,6 +394,18 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       placeholder: 'service:web-app status:error',
       condition: { field: 'operation', value: 'datadog_query_logs' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Datadog log search query based on the user's description.
+The query uses facet syntax: facet:value
+Examples:
+- "service:web-app status:error" - Errors from web-app service
+- "source:nginx @http.status_code:>=500" - Nginx 5xx errors
+- "host:prod-* @duration:>1000" - Slow requests on prod hosts
+
+Return ONLY the search query string - no explanations.`,
+        placeholder: 'Describe what logs you want to find...',
+      },
     },
     {
       id: 'logFrom',
@@ -274,6 +414,20 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       placeholder: 'now-1h',
       condition: { field: 'operation', value: 'datadog_query_logs' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Datadog relative time string based on the user's description.
+The format uses relative time syntax like: now-1h, now-15m, now-1d, now-1w
+Examples:
+- "1 hour ago" -> now-1h
+- "15 minutes ago" -> now-15m
+- "yesterday" -> now-1d
+- "last week" -> now-7d
+
+Return ONLY the relative time string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "1 hour ago", "yesterday")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'logTo',
@@ -282,6 +436,19 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       placeholder: 'now',
       condition: { field: 'operation', value: 'datadog_query_logs' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Datadog relative time string based on the user's description.
+The format uses relative time syntax like: now, now-1h, now-15m
+Examples:
+- "now" or "current time" -> now
+- "5 minutes ago" -> now-5m
+- "1 hour ago" -> now-1h
+
+Return ONLY the relative time string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "now", "5 minutes ago")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'logLimit',
@@ -308,6 +475,20 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
 ]`,
       condition: { field: 'operation', value: 'datadog_send_logs' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of Datadog log entries based on the user's description.
+Each log object should have:
+- "message": The log message text
+- "service": The service name
+- "ddsource": The log source (e.g., "custom", "nodejs", "python")
+- "ddtags": Comma-separated tags (e.g., "env:production,version:1.0")
+- Optional: "hostname", "status" (info/warn/error)
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the logs you want to send...',
+        generationType: 'json-object',
+      },
     },
 
     // ========================
@@ -327,6 +508,15 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       type: 'long-input',
       placeholder: 'Scheduled maintenance',
       condition: { field: 'operation', value: 'datadog_create_downtime' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a downtime message for Datadog based on the user's description.
+The message should explain why monitoring is being muted.
+Examples: "Scheduled maintenance window", "Deploying new version", "Infrastructure upgrade in progress"
+
+Return the message text directly - no extra formatting.`,
+        placeholder: 'Describe the reason for the downtime...',
+      },
     },
     {
       id: 'downtimeStart',
@@ -334,6 +524,19 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       type: 'short-input',
       placeholder: 'Leave empty for now',
       condition: { field: 'operation', value: 'datadog_create_downtime' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp (seconds since epoch) based on the user's description.
+The timestamp should be a number representing seconds since January 1, 1970 UTC.
+Examples:
+- "now" -> Calculate current time as Unix timestamp
+- "in 30 minutes" -> Calculate current time plus 1800 seconds
+- "tonight at 10pm" -> Calculate today at 22:00:00 UTC as Unix timestamp
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe when downtime should start (e.g., "now", "in 30 minutes")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'downtimeEnd',
@@ -341,6 +544,19 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       type: 'short-input',
       placeholder: 'e.g., 1701450000',
       condition: { field: 'operation', value: 'datadog_create_downtime' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp (seconds since epoch) based on the user's description.
+The timestamp should be a number representing seconds since January 1, 1970 UTC.
+Examples:
+- "in 2 hours" -> Calculate current time plus 7200 seconds
+- "tomorrow morning" -> Calculate tomorrow at 09:00:00 UTC as Unix timestamp
+- "end of maintenance window" -> Interpret based on context
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe when downtime should end (e.g., "in 2 hours", "tomorrow")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'downtimeMonitorId',

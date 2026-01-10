@@ -108,6 +108,20 @@ export const XBlock: BlockConfig<XResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
       condition: { field: 'operation', value: 'x_search' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:mm:ssZ (UTC timezone).
+Examples:
+- "yesterday" -> Calculate yesterday's date at 00:00:00Z
+- "last week" -> Calculate 7 days ago at 00:00:00Z
+- "beginning of this month" -> Calculate the 1st of current month at 00:00:00Z
+- "2 hours ago" -> Calculate the timestamp 2 hours before now
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "last week", "yesterday")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'endTime',
@@ -115,6 +129,20 @@ export const XBlock: BlockConfig<XResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
       condition: { field: 'operation', value: 'x_search' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:mm:ssZ (UTC timezone).
+Examples:
+- "now" -> Current timestamp
+- "today" -> Today's date at 23:59:59Z
+- "end of this week" -> Calculate the end of current week at 23:59:59Z
+- "yesterday evening" -> Calculate yesterday at 23:59:59Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "now", "end of today")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'username',

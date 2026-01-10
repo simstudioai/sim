@@ -11,10 +11,23 @@ import {
   USER_FILE_PROPERTY_TYPES,
 } from '@/lib/workflows/types'
 import { getBlock } from '@/blocks'
-import type { BlockConfig, OutputCondition } from '@/blocks/types'
+import type { BlockConfig, OutputCondition, OutputFieldDefinition } from '@/blocks/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
-type OutputDefinition = Record<string, any>
+type OutputDefinition = Record<string, OutputFieldDefinition>
+
+interface SubBlockWithValue {
+  value?: unknown
+}
+
+type ConditionValue = string | number | boolean
+
+/**
+ * Checks if a value is a valid primitive for condition comparison.
+ */
+function isConditionPrimitive(value: unknown): value is ConditionValue {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+}
 
 /**
  * Evaluates an output condition against subBlock values.
@@ -22,7 +35,7 @@ type OutputDefinition = Record<string, any>
  */
 function evaluateOutputCondition(
   condition: OutputCondition,
-  subBlocks: Record<string, any> | undefined
+  subBlocks: Record<string, SubBlockWithValue> | undefined
 ): boolean {
   if (!subBlocks) return false
 
@@ -30,7 +43,8 @@ function evaluateOutputCondition(
 
   let matches: boolean
   if (Array.isArray(condition.value)) {
-    matches = condition.value.includes(fieldValue)
+    // For array conditions, check if fieldValue is a valid primitive and included
+    matches = isConditionPrimitive(fieldValue) && condition.value.includes(fieldValue)
   } else {
     matches = fieldValue === condition.value
   }
@@ -44,7 +58,8 @@ function evaluateOutputCondition(
     let andMatches: boolean
 
     if (Array.isArray(condition.and.value)) {
-      andMatches = condition.and.value.includes(andFieldValue)
+      andMatches =
+        isConditionPrimitive(andFieldValue) && condition.and.value.includes(andFieldValue)
     } else {
       andMatches = andFieldValue === condition.and.value
     }
@@ -65,7 +80,7 @@ function evaluateOutputCondition(
  */
 function filterOutputsByCondition(
   outputs: OutputDefinition,
-  subBlocks: Record<string, any> | undefined
+  subBlocks: Record<string, SubBlockWithValue> | undefined
 ): OutputDefinition {
   const filtered: OutputDefinition = {}
 
@@ -119,7 +134,7 @@ function hasInputFormat(blockConfig: BlockConfig): boolean {
 }
 
 function getTriggerId(
-  subBlocks: Record<string, any> | undefined,
+  subBlocks: Record<string, SubBlockWithValue> | undefined,
   blockConfig: BlockConfig
 ): string | undefined {
   const selectedTriggerIdValue = subBlocks?.selectedTriggerId?.value
@@ -136,13 +151,17 @@ function getTriggerId(
   )
 }
 
-function getUnifiedStartOutputs(subBlocks: Record<string, any> | undefined): OutputDefinition {
+function getUnifiedStartOutputs(
+  subBlocks: Record<string, SubBlockWithValue> | undefined
+): OutputDefinition {
   const outputs = { ...UNIFIED_START_OUTPUTS }
   const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
   return applyInputFormatFields(normalizedInputFormat, outputs)
 }
 
-function getLegacyStarterOutputs(subBlocks: Record<string, any> | undefined): OutputDefinition {
+function getLegacyStarterOutputs(
+  subBlocks: Record<string, SubBlockWithValue> | undefined
+): OutputDefinition {
   const startWorkflowValue = subBlocks?.startWorkflow?.value
 
   if (startWorkflowValue === 'chat') {
@@ -179,7 +198,7 @@ function shouldClearBaseOutputs(
 function applyInputFormatToOutputs(
   blockType: string,
   blockConfig: BlockConfig,
-  subBlocks: Record<string, any> | undefined,
+  subBlocks: Record<string, SubBlockWithValue> | undefined,
   baseOutputs: OutputDefinition
 ): OutputDefinition {
   if (!hasInputFormat(blockConfig) || !subBlocks?.inputFormat?.value) {
@@ -203,7 +222,7 @@ function applyInputFormatToOutputs(
 
 export function getBlockOutputs(
   blockType: string,
-  subBlocks?: Record<string, any>,
+  subBlocks?: Record<string, SubBlockWithValue>,
   triggerMode?: boolean
 ): OutputDefinition {
   const blockConfig = getBlock(blockType)
@@ -214,7 +233,8 @@ export function getBlockOutputs(
     if (triggerId && isTriggerValid(triggerId)) {
       const trigger = getTrigger(triggerId)
       if (trigger.outputs) {
-        return trigger.outputs
+        // TriggerOutput is compatible with OutputFieldDefinition at runtime
+        return trigger.outputs as OutputDefinition
       }
     }
   }
@@ -226,15 +246,32 @@ export function getBlockOutputs(
   }
 
   if (blockType === 'human_in_the_loop') {
-    // For human_in_the_loop, only expose url (inputFormat fields are only available after resume)
-    return {
+    const hitlOutputs: OutputDefinition = {
       url: { type: 'string', description: 'Resume UI URL' },
+      resumeEndpoint: {
+        type: 'string',
+        description: 'Resume API endpoint URL for direct curl requests',
+      },
     }
+
+    const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
+
+    for (const field of normalizedInputFormat) {
+      const fieldName = field?.name?.trim()
+      if (!fieldName) continue
+
+      hitlOutputs[fieldName] = {
+        type: (field?.type || 'any') as any,
+        description: `Field from resume form`,
+      }
+    }
+
+    return hitlOutputs
   }
 
   if (blockType === 'approval') {
     // Start with only url (apiUrl commented out - not accessible as output)
-    const pauseResumeOutputs: Record<string, any> = {
+    const pauseResumeOutputs: OutputDefinition = {
       url: { type: 'string', description: 'Resume UI URL' },
       // apiUrl: { type: 'string', description: 'Resume API URL' }, // Commented out - not accessible as output
     }
@@ -268,7 +305,7 @@ function shouldFilterReservedField(
   blockType: string,
   key: string,
   prefix: string,
-  subBlocks: Record<string, any> | undefined
+  subBlocks: Record<string, SubBlockWithValue> | undefined
 ): boolean {
   if (blockType !== TRIGGER_TYPES.START || prefix) {
     return false
@@ -291,7 +328,7 @@ function expandFileTypeProperties(path: string): string[] {
 function collectOutputPaths(
   obj: OutputDefinition,
   blockType: string,
-  subBlocks: Record<string, any> | undefined,
+  subBlocks: Record<string, SubBlockWithValue> | undefined,
   prefix = ''
 ): string[] {
   const paths: string[] = []
@@ -304,13 +341,14 @@ function collectOutputPaths(
     }
 
     if (value && typeof value === 'object' && 'type' in value) {
-      if (value.type === 'files') {
+      const typedValue = value as { type: unknown }
+      if (typedValue.type === 'files') {
         paths.push(...expandFileTypeProperties(path))
       } else {
         paths.push(path)
       }
     } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-      paths.push(...collectOutputPaths(value, blockType, subBlocks, path))
+      paths.push(...collectOutputPaths(value as OutputDefinition, blockType, subBlocks, path))
     } else {
       paths.push(path)
     }
@@ -321,7 +359,7 @@ function collectOutputPaths(
 
 export function getBlockOutputPaths(
   blockType: string,
-  subBlocks?: Record<string, any>,
+  subBlocks?: Record<string, SubBlockWithValue>,
   triggerMode?: boolean
 ): string[] {
   const outputs = getBlockOutputs(blockType, subBlocks, triggerMode)
@@ -334,39 +372,45 @@ function getFilePropertyType(outputs: OutputDefinition, pathParts: string[]): st
     return null
   }
 
-  let current: any = outputs
+  let current: unknown = outputs
   for (const part of pathParts.slice(0, -1)) {
     if (!current || typeof current !== 'object') {
       return null
     }
-    current = current[part]
+    current = (current as Record<string, unknown>)[part]
   }
 
-  if (current && typeof current === 'object' && 'type' in current && current.type === 'files') {
+  if (
+    current &&
+    typeof current === 'object' &&
+    'type' in current &&
+    (current as { type: unknown }).type === 'files'
+  ) {
     return USER_FILE_PROPERTY_TYPES[lastPart as keyof typeof USER_FILE_PROPERTY_TYPES]
   }
 
   return null
 }
 
-function traverseOutputPath(outputs: OutputDefinition, pathParts: string[]): any {
-  let current: any = outputs
+function traverseOutputPath(outputs: OutputDefinition, pathParts: string[]): unknown {
+  let current: unknown = outputs
 
   for (const part of pathParts) {
     if (!current || typeof current !== 'object') {
       return null
     }
-    current = current[part]
+    current = (current as Record<string, unknown>)[part]
   }
 
   return current
 }
 
-function extractType(value: any): string {
+function extractType(value: unknown): string {
   if (!value) return 'any'
 
   if (typeof value === 'object' && 'type' in value) {
-    return value.type
+    const typeValue = (value as { type: unknown }).type
+    return typeof typeValue === 'string' ? typeValue : 'any'
   }
 
   return typeof value === 'string' ? value : 'any'
@@ -375,7 +419,7 @@ function extractType(value: any): string {
 export function getBlockOutputType(
   blockType: string,
   outputPath: string,
-  subBlocks?: Record<string, any>,
+  subBlocks?: Record<string, SubBlockWithValue>,
   triggerMode?: boolean
 ): string {
   const outputs = getBlockOutputs(blockType, subBlocks, triggerMode)

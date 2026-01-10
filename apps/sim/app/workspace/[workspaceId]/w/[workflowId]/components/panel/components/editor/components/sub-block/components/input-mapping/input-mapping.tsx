@@ -256,24 +256,13 @@ export function InputMapping({
 
   if (!selectedWorkflowId) {
     return (
-      <div className='flex flex-col items-center justify-center rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-3)] p-8 text-center dark:bg-[#1F1F1F]'>
-        <svg
-          className='mb-3 h-10 w-10 text-[var(--text-tertiary)]'
-          fill='none'
-          viewBox='0 0 24 24'
-          stroke='currentColor'
-        >
-          <path
-            strokeLinecap='round'
-            strokeLinejoin='round'
-            strokeWidth={1.5}
-            d='M13 10V3L4 14h7v7l9-11h-7z'
-          />
-        </svg>
-        <p className='font-medium text-[var(--text-tertiary)] text-sm'>No workflow selected</p>
-        <p className='mt-1 text-[var(--text-tertiary)]/80 text-xs'>
-          Select a workflow above to configure inputs
-        </p>
+      <div className='flex h-32 items-center justify-center rounded-[4px] border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] dark:bg-[#1F1F1F]'>
+        <div className='text-center'>
+          <p className='font-medium text-[var(--text-secondary)] text-sm'>No workflow selected</p>
+          <p className='mt-1 text-[var(--text-muted)] text-xs'>
+            Select a workflow above to configure inputs
+          </p>
+        </div>
       </div>
     )
   }

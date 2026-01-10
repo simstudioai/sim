@@ -4,7 +4,7 @@
  *
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
+import { createEnvMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('drizzle-orm')
@@ -24,12 +24,7 @@ vi.stubGlobal(
   })
 )
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: {},
-  getEnv: (key: string) => process.env[key],
-  isTruthy: (value: string | boolean | number | undefined) =>
-    typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value),
-}))
+vi.mock('@/lib/core/config/env', () => createEnvMock())
 
 import {
   generateSearchEmbedding,

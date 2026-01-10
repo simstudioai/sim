@@ -527,6 +527,9 @@ export const webhook = pgTable(
     isActive: boolean('is_active').notNull().default(true),
     failedCount: integer('failed_count').default(0), // Track consecutive failures
     lastFailedAt: timestamp('last_failed_at'), // When the webhook last failed
+    credentialSetId: text('credential_set_id').references(() => credentialSet.id, {
+      onDelete: 'set null',
+    }), // For credential set webhooks - enables efficient queries
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -539,6 +542,8 @@ export const webhook = pgTable(
         table.workflowId,
         table.blockId
       ),
+      // Optimize queries for credential set webhooks
+      credentialSetIdIdx: index('webhook_credential_set_id_idx').on(table.credentialSetId),
     }
   }
 )
@@ -856,7 +861,7 @@ export const member = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => ({
-    userIdIdx: index('member_user_id_idx').on(table.userId),
+    userIdUnique: uniqueIndex('member_user_id_unique').on(table.userId), // Users can only belong to one org
     organizationIdIdx: index('member_organization_id_idx').on(table.organizationId),
   })
 )
@@ -1812,5 +1817,145 @@ export const usageLog = pgTable(
     sourceIdx: index('usage_log_source_idx').on(table.source),
     workspaceIdIdx: index('usage_log_workspace_id_idx').on(table.workspaceId),
     workflowIdIdx: index('usage_log_workflow_id_idx').on(table.workflowId),
+  })
+)
+
+export const credentialSet = pgTable(
+  'credential_set',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    providerId: text('provider_id').notNull(),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationIdIdx: index('credential_set_organization_id_idx').on(table.organizationId),
+    createdByIdx: index('credential_set_created_by_idx').on(table.createdBy),
+    orgNameUnique: uniqueIndex('credential_set_org_name_unique').on(
+      table.organizationId,
+      table.name
+    ),
+    providerIdIdx: index('credential_set_provider_id_idx').on(table.providerId),
+  })
+)
+
+export const credentialSetMemberStatusEnum = pgEnum('credential_set_member_status', [
+  'active',
+  'pending',
+  'revoked',
+])
+
+export const credentialSetMember = pgTable(
+  'credential_set_member',
+  {
+    id: text('id').primaryKey(),
+    credentialSetId: text('credential_set_id')
+      .notNull()
+      .references(() => credentialSet.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    status: credentialSetMemberStatusEnum('status').notNull().default('pending'),
+    joinedAt: timestamp('joined_at'),
+    invitedBy: text('invited_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    credentialSetIdIdx: index('credential_set_member_set_id_idx').on(table.credentialSetId),
+    userIdIdx: index('credential_set_member_user_id_idx').on(table.userId),
+    uniqueMembership: uniqueIndex('credential_set_member_unique').on(
+      table.credentialSetId,
+      table.userId
+    ),
+    statusIdx: index('credential_set_member_status_idx').on(table.status),
+  })
+)
+
+export const credentialSetInvitationStatusEnum = pgEnum('credential_set_invitation_status', [
+  'pending',
+  'accepted',
+  'expired',
+  'cancelled',
+])
+
+export const credentialSetInvitation = pgTable(
+  'credential_set_invitation',
+  {
+    id: text('id').primaryKey(),
+    credentialSetId: text('credential_set_id')
+      .notNull()
+      .references(() => credentialSet.id, { onDelete: 'cascade' }),
+    email: text('email'),
+    token: text('token').notNull().unique(),
+    invitedBy: text('invited_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    status: credentialSetInvitationStatusEnum('status').notNull().default('pending'),
+    expiresAt: timestamp('expires_at').notNull(),
+    acceptedAt: timestamp('accepted_at'),
+    acceptedByUserId: text('accepted_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    credentialSetIdIdx: index('credential_set_invitation_set_id_idx').on(table.credentialSetId),
+    tokenIdx: index('credential_set_invitation_token_idx').on(table.token),
+    statusIdx: index('credential_set_invitation_status_idx').on(table.status),
+    expiresAtIdx: index('credential_set_invitation_expires_at_idx').on(table.expiresAt),
+  })
+)
+
+export const permissionGroup = pgTable(
+  'permission_group',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    config: jsonb('config').notNull().default('{}'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationIdIdx: index('permission_group_organization_id_idx').on(table.organizationId),
+    createdByIdx: index('permission_group_created_by_idx').on(table.createdBy),
+    orgNameUnique: uniqueIndex('permission_group_org_name_unique').on(
+      table.organizationId,
+      table.name
+    ),
+  })
+)
+
+export const permissionGroupMember = pgTable(
+  'permission_group_member',
+  {
+    id: text('id').primaryKey(),
+    permissionGroupId: text('permission_group_id')
+      .notNull()
+      .references(() => permissionGroup.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    assignedBy: text('assigned_by').references(() => user.id, { onDelete: 'set null' }),
+    assignedAt: timestamp('assigned_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    permissionGroupIdIdx: index('permission_group_member_group_id_idx').on(table.permissionGroupId),
+    userIdUnique: uniqueIndex('permission_group_member_user_id_unique').on(table.userId),
   })
 )

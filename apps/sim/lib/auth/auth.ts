@@ -47,14 +47,18 @@ import { env } from '@/lib/core/config/env'
 import {
   isAuthDisabled,
   isBillingEnabled,
+  isEmailPasswordEnabled,
   isEmailVerificationEnabled,
   isHosted,
+  isOrganizationsEnabled,
   isRegistrationDisabled,
 } from '@/lib/core/config/feature-flags'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
 import { SSO_TRUSTED_PROVIDERS } from './sso/constants'
 
@@ -95,6 +99,15 @@ export const auth = betterAuth({
           logger.info('[databaseHooks.user.create.after] User created, initializing stats', {
             userId: user.id,
           })
+
+          try {
+            PlatformEvents.userSignedUp({
+              userId: user.id,
+              authMethod: 'email',
+            })
+          } catch {
+            // Telemetry should not fail the operation
+          }
 
           try {
             await handleNewUser(user.id)
@@ -188,6 +201,49 @@ export const auth = betterAuth({
               })
               .where(eq(schema.account.id, existing.id))
 
+            // Sync webhooks for credential sets after reconnecting
+            const requestId = crypto.randomUUID().slice(0, 8)
+            const userMemberships = await db
+              .select({
+                credentialSetId: schema.credentialSetMember.credentialSetId,
+                providerId: schema.credentialSet.providerId,
+              })
+              .from(schema.credentialSetMember)
+              .innerJoin(
+                schema.credentialSet,
+                eq(schema.credentialSetMember.credentialSetId, schema.credentialSet.id)
+              )
+              .where(
+                and(
+                  eq(schema.credentialSetMember.userId, account.userId),
+                  eq(schema.credentialSetMember.status, 'active')
+                )
+              )
+
+            for (const membership of userMemberships) {
+              if (membership.providerId === account.providerId) {
+                try {
+                  await syncAllWebhooksForCredentialSet(membership.credentialSetId, requestId)
+                  logger.info(
+                    '[account.create.before] Synced webhooks after credential reconnect',
+                    {
+                      credentialSetId: membership.credentialSetId,
+                      providerId: account.providerId,
+                    }
+                  )
+                } catch (error) {
+                  logger.error(
+                    '[account.create.before] Failed to sync webhooks after credential reconnect',
+                    {
+                      credentialSetId: membership.credentialSetId,
+                      providerId: account.providerId,
+                      error,
+                    }
+                  )
+                }
+              }
+            }
+
             return false
           }
 
@@ -234,6 +290,55 @@ export const auth = betterAuth({
             if (Object.keys(updates).length > 0) {
               await db.update(schema.account).set(updates).where(eq(schema.account.id, account.id))
             }
+          }
+
+          // Sync webhooks for credential sets after connecting a new credential
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const userMemberships = await db
+            .select({
+              credentialSetId: schema.credentialSetMember.credentialSetId,
+              providerId: schema.credentialSet.providerId,
+            })
+            .from(schema.credentialSetMember)
+            .innerJoin(
+              schema.credentialSet,
+              eq(schema.credentialSetMember.credentialSetId, schema.credentialSet.id)
+            )
+            .where(
+              and(
+                eq(schema.credentialSetMember.userId, account.userId),
+                eq(schema.credentialSetMember.status, 'active')
+              )
+            )
+
+          for (const membership of userMemberships) {
+            if (membership.providerId === account.providerId) {
+              try {
+                await syncAllWebhooksForCredentialSet(membership.credentialSetId, requestId)
+                logger.info('[account.create.after] Synced webhooks after credential connect', {
+                  credentialSetId: membership.credentialSetId,
+                  providerId: account.providerId,
+                })
+              } catch (error) {
+                logger.error(
+                  '[account.create.after] Failed to sync webhooks after credential connect',
+                  {
+                    credentialSetId: membership.credentialSetId,
+                    providerId: account.providerId,
+                    error,
+                  }
+                )
+              }
+            }
+          }
+
+          try {
+            PlatformEvents.oauthConnected({
+              userId: account.userId,
+              provider: account.providerId,
+            })
+          } catch {
+            // Telemetry should not fail the operation
           }
         },
       },
@@ -376,6 +481,12 @@ export const auth = betterAuth({
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path.startsWith('/sign-up') && isRegistrationDisabled)
         throw new Error('Registration is disabled, please contact your admin.')
+
+      if (!isEmailPasswordEnabled) {
+        const emailPasswordPaths = ['/sign-in/email', '/sign-up/email', '/email-otp']
+        if (emailPasswordPaths.some((path) => ctx.path.startsWith(path)))
+          throw new Error('Email/password authentication is disabled. Please use SSO to sign in.')
+      }
 
       if (
         (ctx.path.startsWith('/sign-in') || ctx.path.startsWith('/sign-up')) &&
@@ -2074,8 +2185,22 @@ export const auth = betterAuth({
                   status: subscription.status,
                 })
 
-                const resolvedSubscription =
-                  await ensureOrganizationForTeamSubscription(subscription)
+                let resolvedSubscription = subscription
+                try {
+                  resolvedSubscription = await ensureOrganizationForTeamSubscription(subscription)
+                } catch (orgError) {
+                  logger.error(
+                    '[onSubscriptionComplete] Failed to ensure organization for team subscription',
+                    {
+                      subscriptionId: subscription.id,
+                      referenceId: subscription.referenceId,
+                      plan: subscription.plan,
+                      error: orgError instanceof Error ? orgError.message : String(orgError),
+                      stack: orgError instanceof Error ? orgError.stack : undefined,
+                    }
+                  )
+                  throw orgError
+                }
 
                 await handleSubscriptionCreated(resolvedSubscription)
 
@@ -2096,8 +2221,22 @@ export const auth = betterAuth({
                   plan: subscription.plan,
                 })
 
-                const resolvedSubscription =
-                  await ensureOrganizationForTeamSubscription(subscription)
+                let resolvedSubscription = subscription
+                try {
+                  resolvedSubscription = await ensureOrganizationForTeamSubscription(subscription)
+                } catch (orgError) {
+                  logger.error(
+                    '[onSubscriptionUpdate] Failed to ensure organization for team subscription',
+                    {
+                      subscriptionId: subscription.id,
+                      referenceId: subscription.referenceId,
+                      plan: subscription.plan,
+                      error: orgError instanceof Error ? orgError.message : String(orgError),
+                      stack: orgError instanceof Error ? orgError.stack : undefined,
+                    }
+                  )
+                  throw orgError
+                }
 
                 try {
                   await syncSubscriptionUsageLimits(resolvedSubscription)
@@ -2214,8 +2353,15 @@ export const auth = betterAuth({
               }
             },
           }),
+        ]
+      : []),
+    ...(isOrganizationsEnabled
+      ? [
           organization({
             allowUserToCreateOrganization: async (user) => {
+              if (!isBillingEnabled) {
+                return true
+              }
               const dbSubscriptions = await db
                 .select()
                 .from(schema.subscription)

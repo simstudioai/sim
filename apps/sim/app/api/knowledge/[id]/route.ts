@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   deleteKnowledgeBase,
@@ -182,6 +183,14 @@ export async function DELETE(
     }
 
     await deleteKnowledgeBase(id, requestId)
+
+    try {
+      PlatformEvents.knowledgeBaseDeleted({
+        knowledgeBaseId: id,
+      })
+    } catch {
+      // Telemetry should not fail the operation
+    }
 
     logger.info(`[${requestId}] Knowledge base deleted: ${id} for user ${session.user.id}`)
 

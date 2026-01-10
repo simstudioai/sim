@@ -1,26 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { ChartBarIcon } from '@/components/icons'
-import { isHosted } from '@/lib/core/config/feature-flags'
 import type { BlockConfig, ParamType } from '@/blocks/types'
+import { getProviderCredentialSubBlocks, PROVIDER_CREDENTIAL_INPUTS } from '@/blocks/utils'
 import type { ProviderId } from '@/providers/types'
-import {
-  getAllModelProviders,
-  getHostedModels,
-  getProviderIcon,
-  providers,
-} from '@/providers/utils'
-import { useProvidersStore } from '@/stores/providers'
+import { getBaseModelProviders, getProviderIcon } from '@/providers/utils'
+import { useProvidersStore } from '@/stores/providers/store'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('EvaluatorBlock')
-
-const getCurrentOllamaModels = () => {
-  return useProvidersStore.getState().providers.ollama.models
-}
-
-const getCurrentVLLMModels = () => {
-  return useProvidersStore.getState().providers.vllm.models
-}
 
 interface Metric {
   name: string
@@ -204,91 +191,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
         })
       },
     },
-    {
-      id: 'vertexCredential',
-      title: 'Google Cloud Account',
-      type: 'oauth-input',
-      serviceId: 'vertex-ai',
-      requiredScopes: ['https://www.googleapis.com/auth/cloud-platform'],
-      placeholder: 'Select Google Cloud account',
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.vertex.models,
-      },
-    },
-    {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      placeholder: 'Enter your API key',
-      password: true,
-      connectionDroppable: false,
-      required: true,
-      // Hide API key for hosted models, Ollama models, vLLM models, and Vertex models (uses OAuth)
-      condition: isHosted
-        ? {
-            field: 'model',
-            value: [...getHostedModels(), ...providers.vertex.models],
-            not: true, // Show for all models EXCEPT those listed
-          }
-        : () => ({
-            field: 'model',
-            value: [
-              ...getCurrentOllamaModels(),
-              ...getCurrentVLLMModels(),
-              ...providers.vertex.models,
-            ],
-            not: true, // Show for all models EXCEPT Ollama, vLLM, and Vertex models
-          }),
-    },
-    {
-      id: 'azureEndpoint',
-      title: 'Azure OpenAI Endpoint',
-      type: 'short-input',
-      password: true,
-      placeholder: 'https://your-resource.openai.azure.com',
-      connectionDroppable: false,
-      condition: {
-        field: 'model',
-        value: providers['azure-openai'].models,
-      },
-    },
-    {
-      id: 'azureApiVersion',
-      title: 'Azure API Version',
-      type: 'short-input',
-      placeholder: '2024-07-01-preview',
-      connectionDroppable: false,
-      condition: {
-        field: 'model',
-        value: providers['azure-openai'].models,
-      },
-    },
-    {
-      id: 'vertexProject',
-      title: 'Vertex AI Project',
-      type: 'short-input',
-      placeholder: 'your-gcp-project-id',
-      connectionDroppable: false,
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.vertex.models,
-      },
-    },
-    {
-      id: 'vertexLocation',
-      title: 'Vertex AI Location',
-      type: 'short-input',
-      placeholder: 'us-central1',
-      connectionDroppable: false,
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.vertex.models,
-      },
-    },
+    ...getProviderCredentialSubBlocks(),
     {
       id: 'temperature',
       title: 'Temperature',
@@ -357,7 +260,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
         if (!model) {
           throw new Error('No model selected')
         }
-        const tool = getAllModelProviders()[model as ProviderId]
+        const tool = getBaseModelProviders()[model as ProviderId]
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)
         }
@@ -403,21 +306,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       },
     },
     model: { type: 'string' as ParamType, description: 'AI model to use' },
-    apiKey: { type: 'string' as ParamType, description: 'Provider API key' },
-    azureEndpoint: { type: 'string' as ParamType, description: 'Azure OpenAI endpoint URL' },
-    azureApiVersion: { type: 'string' as ParamType, description: 'Azure API version' },
-    vertexProject: {
-      type: 'string' as ParamType,
-      description: 'Google Cloud project ID for Vertex AI',
-    },
-    vertexLocation: {
-      type: 'string' as ParamType,
-      description: 'Google Cloud location for Vertex AI',
-    },
-    vertexCredential: {
-      type: 'string' as ParamType,
-      description: 'Google Cloud OAuth credential ID for Vertex AI',
-    },
+    ...PROVIDER_CREDENTIAL_INPUTS,
     temperature: {
       type: 'number' as ParamType,
       description: 'Response randomness level (low for consistent evaluation)',

@@ -128,24 +128,6 @@ export function truncateToTokenLimit(
 }
 
 /**
- * Get token count for multiple texts (for batching decisions)
- * Returns array of token counts in same order as input
- */
-export function getTokenCountsForBatch(
-  texts: string[],
-  modelName = 'text-embedding-3-small'
-): number[] {
-  return texts.map((text) => getAccurateTokenCount(text, modelName))
-}
-
-/**
- * Calculate total tokens across multiple texts
- */
-export function getTotalTokenCount(texts: string[], modelName = 'text-embedding-3-small'): number {
-  return texts.reduce((total, text) => total + getAccurateTokenCount(text, modelName), 0)
-}
-
-/**
  * Batch texts by token count to stay within API limits
  * Returns array of batches where each batch's total tokens <= maxTokensPerBatch
  */

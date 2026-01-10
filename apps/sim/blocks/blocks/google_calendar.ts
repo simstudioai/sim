@@ -67,6 +67,14 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       placeholder: 'Meeting with team',
       condition: { field: 'operation', value: 'create' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a clear, descriptive calendar event title based on the user's request.
+The title should be concise but informative about the event's purpose.
+
+Return ONLY the event title - no explanations, no extra text.`,
+        placeholder: 'Describe the event...',
+      },
     },
     {
       id: 'description',
@@ -74,6 +82,18 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       type: 'long-input',
       placeholder: 'Event description',
       condition: { field: 'operation', value: 'create' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a helpful calendar event description based on the user's request.
+Include relevant details like:
+- Purpose of the event
+- Agenda items
+- Preparation notes
+- Links or resources
+
+Return ONLY the description - no explanations, no extra text.`,
+        placeholder: 'Describe the event details...',
+      },
     },
     {
       id: 'location',
@@ -89,6 +109,19 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       placeholder: '2025-06-03T10:00:00-08:00',
       condition: { field: 'operation', value: 'create' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp with timezone offset based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS+HH:MM or YYYY-MM-DDTHH:MM:SS-HH:MM
+Examples:
+- "tomorrow at 2pm" -> Calculate tomorrow's date at 14:00:00 with local timezone offset
+- "next Monday at 9am" -> Calculate next Monday at 09:00:00 with local timezone offset
+- "in 2 hours" -> Calculate current time + 2 hours with local timezone offset
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "tomorrow at 2pm", "next Monday at 9am")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'endDateTime',
@@ -97,6 +130,19 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       placeholder: '2025-06-03T11:00:00-08:00',
       condition: { field: 'operation', value: 'create' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp with timezone offset based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS+HH:MM or YYYY-MM-DDTHH:MM:SS-HH:MM
+Examples:
+- "tomorrow at 3pm" -> Calculate tomorrow's date at 15:00:00 with local timezone offset
+- "1 hour after start" -> Calculate start time + 1 hour with local timezone offset
+- "next Monday at 5pm" -> Calculate next Monday at 17:00:00 with local timezone offset
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "tomorrow at 3pm", "1 hour after start")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'attendees',
@@ -113,6 +159,20 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       type: 'short-input',
       placeholder: '2025-06-03T00:00:00Z',
       condition: { field: 'operation', value: 'list' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp in UTC based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "today" -> Calculate today's date at 00:00:00Z
+- "yesterday" -> Calculate yesterday's date at 00:00:00Z
+- "last week" -> Calculate 7 days ago at 00:00:00Z
+- "beginning of this month" -> Calculate the first day of current month at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start of time range (e.g., "today", "last week")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'timeMax',
@@ -120,6 +180,20 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       type: 'short-input',
       placeholder: '2025-06-04T00:00:00Z',
       condition: { field: 'operation', value: 'list' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp in UTC based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "tomorrow" -> Calculate tomorrow's date at 00:00:00Z
+- "end of today" -> Calculate today's date at 23:59:59Z
+- "next week" -> Calculate 7 days from now at 00:00:00Z
+- "end of this month" -> Calculate the last day of current month at 23:59:59Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end of time range (e.g., "tomorrow", "end of this week")...',
+        generationType: 'timestamp',
+      },
     },
 
     // Get Event Fields
@@ -159,6 +233,23 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       placeholder: 'Meeting with John tomorrow at 3pm for 1 hour',
       condition: { field: 'operation', value: 'quick_add' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a natural language event description that Google Calendar can parse.
+Include:
+- Event title/purpose
+- Date and time
+- Duration (optional)
+- Location (optional)
+
+Examples:
+- "Meeting with John tomorrow at 3pm for 1 hour"
+- "Lunch at Cafe Milano on Friday at noon"
+- "Team standup every Monday at 9am"
+
+Return ONLY the natural language event text - no explanations.`,
+        placeholder: 'Describe the event in natural language...',
+      },
     },
     {
       id: 'attendees',

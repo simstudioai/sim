@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { CheckCircle, ChevronDown } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
@@ -304,14 +304,11 @@ export function MemberInvitationCard({
 
         {/* Success message */}
         {inviteSuccess && (
-          <div className='flex items-start gap-[8px] rounded-[6px] bg-green-500/10 px-[10px] py-[8px] text-green-600 dark:text-green-400'>
-            <CheckCircle className='h-4 w-4 flex-shrink-0' />
-            <p className='text-[12px]'>
-              Invitation sent successfully
-              {selectedCount > 0 &&
-                ` with access to ${selectedCount} workspace${selectedCount !== 1 ? 's' : ''}`}
-            </p>
-          </div>
+          <p className='text-[11px] text-[var(--text-success)] leading-tight'>
+            Invitation sent successfully
+            {selectedCount > 0 &&
+              ` with access to ${selectedCount} workspace${selectedCount !== 1 ? 's' : ''}`}
+          </p>
         )}
       </div>
     </div>

@@ -624,7 +624,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     if (!activeWorkflowId) return
     const current = useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id]
     if (!current) return
-    const cred = current.credential?.value as string | undefined
+    const credValue = current.credential
+    const cred =
+      typeof credValue === 'object' && credValue !== null && 'value' in credValue
+        ? ((credValue as { value?: unknown }).value as string | undefined)
+        : (credValue as string | undefined)
     if (prevCredRef.current !== cred) {
       prevCredRef.current = cred
       const keys = Object.keys(current)
@@ -842,6 +846,37 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   }, [type, subBlockState, id])
 
   /**
+   * Compute per-route rows (id/value) for router_v2 blocks so we can render
+   * one row per route with its own output handle.
+   * Uses same structure as conditions: { id, title, value }
+   */
+  const routerRows = useMemo(() => {
+    if (type !== 'router_v2') return [] as { id: string; value: string }[]
+
+    const routesValue = subBlockState.routes?.value
+    const raw = typeof routesValue === 'string' ? routesValue : undefined
+
+    try {
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown
+        if (Array.isArray(parsed)) {
+          return parsed.map((item: unknown, index: number) => {
+            const routeItem = item as { id?: string; value?: string }
+            return {
+              id: routeItem?.id ?? `${id}-route-${index}`,
+              value: routeItem?.value ?? '',
+            }
+          })
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to parse router routes value', { error, blockId: id })
+    }
+
+    return [{ id: `${id}-route-route1`, value: '' }]
+  }, [type, subBlockState, id])
+
+  /**
    * Compute and publish deterministic layout metrics for workflow blocks.
    * This avoids ResizeObserver/animation-frame jitter and prevents initial "jump".
    */
@@ -857,6 +892,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       let rowsCount = 0
       if (type === 'condition') {
         rowsCount = conditionRows.length + defaultHandlesRow
+      } else if (type === 'router_v2') {
+        // +1 for context row, plus route rows
+        rowsCount = 1 + routerRows.length + defaultHandlesRow
       } else {
         const subblockRowCount = subBlockRows.reduce((acc, row) => acc + row.length, 0)
         rowsCount = subblockRowCount + defaultHandlesRow
@@ -877,8 +915,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       type,
       config.category,
       displayTriggerMode,
-      subBlockRows.length,
+      subBlockRows.reduce((acc, row) => acc + row.length, 0),
       conditionRows.length,
+      routerRows.length,
       horizontalHandles,
     ],
   })
@@ -914,7 +953,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           </div>
         )}
 
-        <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
+        {!data.isPreview && (
+          <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
+        )}
 
         {shouldShowDefaultHandles && <Connections blockId={id} />}
 
@@ -1073,32 +1114,45 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
         {hasContentBelowHeader && (
           <div className='flex flex-col gap-[8px] p-[8px]'>
-            {type === 'condition'
-              ? conditionRows.map((cond) => (
+            {type === 'condition' ? (
+              conditionRows.map((cond) => (
+                <SubBlockRow key={cond.id} title={cond.title} value={getDisplayValue(cond.value)} />
+              ))
+            ) : type === 'router_v2' ? (
+              <>
+                <SubBlockRow
+                  key='context'
+                  title='Context'
+                  value={getDisplayValue(subBlockState.context?.value)}
+                />
+                {routerRows.map((route, index) => (
                   <SubBlockRow
-                    key={cond.id}
-                    title={cond.title}
-                    value={getDisplayValue(cond.value)}
+                    key={route.id}
+                    title={`Route ${index + 1}`}
+                    value={getDisplayValue(route.value)}
                   />
-                ))
-              : subBlockRows.map((row, rowIndex) =>
-                  row.map((subBlock) => {
-                    const rawValue = subBlockState[subBlock.id]?.value
-                    return (
-                      <SubBlockRow
-                        key={`${subBlock.id}-${rowIndex}`}
-                        title={subBlock.title ?? subBlock.id}
-                        value={getDisplayValue(rawValue)}
-                        subBlock={subBlock}
-                        rawValue={rawValue}
-                        workspaceId={workspaceId}
-                        workflowId={currentWorkflowId}
-                        blockId={id}
-                        allSubBlockValues={subBlockState}
-                      />
-                    )
-                  })
-                )}
+                ))}
+              </>
+            ) : (
+              subBlockRows.map((row, rowIndex) =>
+                row.map((subBlock) => {
+                  const rawValue = subBlockState[subBlock.id]?.value
+                  return (
+                    <SubBlockRow
+                      key={`${subBlock.id}-${rowIndex}`}
+                      title={subBlock.title ?? subBlock.id}
+                      value={getDisplayValue(rawValue)}
+                      subBlock={subBlock}
+                      rawValue={rawValue}
+                      workspaceId={workspaceId}
+                      workflowId={currentWorkflowId}
+                      blockId={id}
+                      allSubBlockValues={subBlockState}
+                    />
+                  )
+                })
+              )
+            )}
             {shouldShowDefaultHandles && <SubBlockRow title='error' />}
           </div>
         )}
@@ -1153,7 +1207,58 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           </>
         )}
 
-        {type !== 'condition' && type !== 'response' && (
+        {type === 'router_v2' && (
+          <>
+            {routerRows.map((route, routeIndex) => {
+              // +1 row offset for context row at the top
+              const topOffset =
+                HANDLE_POSITIONS.CONDITION_START_Y +
+                (routeIndex + 1) * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
+              return (
+                <Handle
+                  key={`handle-${route.id}`}
+                  type='source'
+                  position={Position.Right}
+                  id={`router-${route.id}`}
+                  className={getHandleClasses('right')}
+                  style={{ top: `${topOffset}px`, transform: 'translateY(-50%)' }}
+                  data-nodeid={id}
+                  data-handleid={`router-${route.id}`}
+                  isConnectableStart={true}
+                  isConnectableEnd={false}
+                  isValidConnection={(connection) => {
+                    if (connection.target === id) return false
+                    const edges = useWorkflowStore.getState().edges
+                    return !wouldCreateCycle(edges, connection.source!, connection.target!)
+                  }}
+                />
+              )
+            })}
+            <Handle
+              type='source'
+              position={Position.Right}
+              id='error'
+              className={getHandleClasses('right', true)}
+              style={{
+                right: '-7px',
+                top: 'auto',
+                bottom: `${HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET}px`,
+                transform: 'translateY(50%)',
+              }}
+              data-nodeid={id}
+              data-handleid='error'
+              isConnectableStart={true}
+              isConnectableEnd={false}
+              isValidConnection={(connection) => {
+                if (connection.target === id) return false
+                const edges = useWorkflowStore.getState().edges
+                return !wouldCreateCycle(edges, connection.source!, connection.target!)
+              }}
+            />
+          </>
+        )}
+
+        {type !== 'condition' && type !== 'router_v2' && type !== 'response' && (
           <>
             <Handle
               type='source'

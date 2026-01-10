@@ -1,13 +1,27 @@
 'use client'
 
 import type React from 'react'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { ChevronDown, Code } from '@/components/emcn'
+import { ArrowDown, ArrowUp, X } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import {
+  Button,
+  ChevronDown,
+  Code,
+  Input,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverDivider,
+  PopoverItem,
+} from '@/components/emcn'
 import { WorkflowIcon } from '@/components/icons'
+import { cn } from '@/lib/core/utils/cn'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getBlock, getBlockByToolName } from '@/blocks'
+import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import type { TraceSpan } from '@/stores/logs/filters/types'
 
 interface TraceSpansProps {
@@ -164,7 +178,7 @@ function getBlockIconAndColor(
     return { icon: ParallelTool.icon, bgColor: ParallelTool.bgColor }
   }
   if (lowerType === 'workflow') {
-    return { icon: WorkflowIcon, bgColor: '#705335' }
+    return { icon: WorkflowIcon, bgColor: '#6366F1' }
   }
 
   // Look up from block registry (model maps to agent)
@@ -370,7 +384,7 @@ function SpanContent({
 }
 
 /**
- * Renders input/output section with collapsible content
+ * Renders input/output section with collapsible content, context menu, and search
  */
 function InputOutputSection({
   label,
@@ -391,14 +405,63 @@ function InputOutputSection({
 }) {
   const sectionKey = `${spanId}-${sectionType}`
   const isExpanded = expandedSections.has(sectionKey)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Context menu state
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
+
+  // Code viewer features
+  const {
+    wrapText,
+    toggleWrapText,
+    isSearchActive,
+    searchQuery,
+    setSearchQuery,
+    matchCount,
+    currentMatchIndex,
+    activateSearch,
+    closeSearch,
+    goToNextMatch,
+    goToPreviousMatch,
+    handleMatchCountChange,
+    searchInputRef,
+  } = useCodeViewerFeatures({ contentRef })
 
   const jsonString = useMemo(() => {
     if (!data) return ''
     return JSON.stringify(data, null, 2)
   }, [data])
 
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenuPosition({ x: e.clientX, y: e.clientY })
+    setIsContextMenuOpen(true)
+  }, [])
+
+  const closeContextMenu = useCallback(() => {
+    setIsContextMenuOpen(false)
+  }, [])
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(jsonString)
+    closeContextMenu()
+  }, [jsonString, closeContextMenu])
+
+  const handleSearch = useCallback(() => {
+    activateSearch()
+    closeContextMenu()
+  }, [activateSearch, closeContextMenu])
+
+  const handleToggleWrap = useCallback(() => {
+    toggleWrapText()
+    closeContextMenu()
+  }, [toggleWrapText, closeContextMenu])
+
   return (
-    <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden'>
+    <div className='relative flex min-w-0 flex-col gap-[8px] overflow-hidden'>
       <div
         className='group flex cursor-pointer items-center justify-between'
         onClick={() => onToggle(sectionKey)}
@@ -433,12 +496,101 @@ function InputOutputSection({
         />
       </div>
       {isExpanded && (
-        <Code.Viewer
-          code={jsonString}
-          language='json'
-          className='!bg-[var(--surface-3)] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
-          wrapText
-        />
+        <>
+          <div ref={contentRef} onContextMenu={handleContextMenu}>
+            <Code.Viewer
+              code={jsonString}
+              language='json'
+              className='!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
+              wrapText={wrapText}
+              searchQuery={isSearchActive ? searchQuery : undefined}
+              currentMatchIndex={currentMatchIndex}
+              onMatchCountChange={handleMatchCountChange}
+            />
+          </div>
+
+          {/* Search Overlay */}
+          {isSearchActive && (
+            <div
+              className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-[6px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-1)] px-[6px] shadow-sm'
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Input
+                ref={searchInputRef}
+                type='text'
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder='Search...'
+                className='mr-[2px] h-[23px] w-[94px] text-[12px]'
+              />
+              <span
+                className={cn(
+                  'min-w-[45px] text-center text-[11px]',
+                  matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
+                )}
+              >
+                {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : '0/0'}
+              </span>
+              <Button
+                variant='ghost'
+                className='!p-1'
+                onClick={goToPreviousMatch}
+                disabled={matchCount === 0}
+                aria-label='Previous match'
+              >
+                <ArrowUp className='h-[12px] w-[12px]' />
+              </Button>
+              <Button
+                variant='ghost'
+                className='!p-1'
+                onClick={goToNextMatch}
+                disabled={matchCount === 0}
+                aria-label='Next match'
+              >
+                <ArrowDown className='h-[12px] w-[12px]' />
+              </Button>
+              <Button
+                variant='ghost'
+                className='!p-1'
+                onClick={closeSearch}
+                aria-label='Close search'
+              >
+                <X className='h-[12px] w-[12px]' />
+              </Button>
+            </div>
+          )}
+
+          {/* Context Menu - rendered in portal to avoid transform/overflow clipping */}
+          {typeof document !== 'undefined' &&
+            createPortal(
+              <Popover
+                open={isContextMenuOpen}
+                onOpenChange={closeContextMenu}
+                variant='secondary'
+                size='sm'
+                colorScheme='inverted'
+              >
+                <PopoverAnchor
+                  style={{
+                    position: 'fixed',
+                    left: `${contextMenuPosition.x}px`,
+                    top: `${contextMenuPosition.y}px`,
+                    width: '1px',
+                    height: '1px',
+                  }}
+                />
+                <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
+                  <PopoverItem onClick={handleCopy}>Copy</PopoverItem>
+                  <PopoverDivider />
+                  <PopoverItem onClick={handleSearch}>Search</PopoverItem>
+                  <PopoverItem showCheck={wrapText} onClick={handleToggleWrap}>
+                    Wrap Text
+                  </PopoverItem>
+                </PopoverContent>
+              </Popover>,
+              document.body
+            )}
+        </>
       )}
     </div>
   )

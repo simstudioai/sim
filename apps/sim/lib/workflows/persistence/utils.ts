@@ -9,7 +9,7 @@ import {
   workflowSubflows,
 } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import type { InferSelectModel } from 'drizzle-orm'
+import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
@@ -22,6 +22,8 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 const logger = createLogger('WorkflowDBHelpers')
 
 export type WorkflowDeploymentVersion = InferSelectModel<typeof workflowDeploymentVersion>
+type WebhookRecord = InferSelectModel<typeof webhook>
+type SubflowInsert = InferInsertModel<typeof workflowSubflows>
 
 export interface WorkflowDeploymentVersionResponse {
   id: string
@@ -43,7 +45,7 @@ export interface NormalizedWorkflowData {
 
 export interface DeployedWorkflowData extends NormalizedWorkflowData {
   deploymentVersionId: string
-  variables?: Record<string, any>
+  variables?: Record<string, unknown>
 }
 
 export async function blockExistsInDeployment(
@@ -96,7 +98,7 @@ export async function loadDeployedWorkflowState(workflowId: string): Promise<Dep
       throw new Error(`Workflow ${workflowId} has no active deployment`)
     }
 
-    const state = active.state as WorkflowState & { variables?: Record<string, any> }
+    const state = active.state as WorkflowState & { variables?: Record<string, unknown> }
 
     return {
       blocks: state.blocks || {},
@@ -336,7 +338,7 @@ export async function saveWorkflowToNormalizedTables(
     // Start a transaction
     await db.transaction(async (tx) => {
       // Snapshot existing webhooks before deletion to preserve them through the cycle
-      let existingWebhooks: any[] = []
+      let existingWebhooks: WebhookRecord[] = []
       try {
         existingWebhooks = await tx.select().from(webhook).where(eq(webhook.workflowId, workflowId))
       } catch (webhookError) {
@@ -392,7 +394,7 @@ export async function saveWorkflowToNormalizedTables(
       }
 
       // Insert subflows (loops and parallels)
-      const subflowInserts: any[] = []
+      const subflowInserts: SubflowInsert[] = []
 
       // Add loops
       Object.values(canonicalLoops).forEach((loop) => {
@@ -430,6 +432,7 @@ export async function saveWorkflowToNormalizedTables(
               path: wh.path,
               provider: wh.provider,
               providerConfig: wh.providerConfig,
+              credentialSetId: wh.credentialSetId,
               isActive: wh.isActive,
               createdAt: wh.createdAt,
               updatedAt: new Date(),
@@ -564,26 +567,25 @@ export async function deployWorkflow(params: {
 
     logger.info(`Deployed workflow ${workflowId} as v${deployedVersion}`)
 
-    // Track deployment telemetry if workflow name is provided
     if (workflowName) {
       try {
-        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
+        const { PlatformEvents } = await import('@/lib/core/telemetry')
 
         const blockTypeCounts: Record<string, number> = {}
         for (const block of Object.values(currentState.blocks)) {
-          const blockType = (block as any).type || 'unknown'
+          const blockType = block.type || 'unknown'
           blockTypeCounts[blockType] = (blockTypeCounts[blockType] || 0) + 1
         }
 
-        trackPlatformEvent('platform.workflow.deployed', {
-          'workflow.id': workflowId,
-          'workflow.name': workflowName,
-          'workflow.blocks_count': Object.keys(currentState.blocks).length,
-          'workflow.edges_count': currentState.edges.length,
-          'workflow.loops_count': Object.keys(currentState.loops).length,
-          'workflow.parallels_count': Object.keys(currentState.parallels).length,
-          'workflow.block_types': JSON.stringify(blockTypeCounts),
-          'deployment.version': deployedVersion,
+        PlatformEvents.workflowDeployed({
+          workflowId,
+          workflowName,
+          blocksCount: Object.keys(currentState.blocks).length,
+          edgesCount: currentState.edges.length,
+          version: deployedVersion,
+          loopsCount: Object.keys(currentState.loops).length,
+          parallelsCount: Object.keys(currentState.parallels).length,
+          blockTypes: JSON.stringify(blockTypeCounts),
         })
       } catch (telemetryError) {
         logger.warn(`Failed to track deployment telemetry for ${workflowId}`, telemetryError)
@@ -605,11 +607,33 @@ export async function deployWorkflow(params: {
   }
 }
 
+/** Input state for ID regeneration - partial to handle external sources */
+export interface RegenerateStateInput {
+  blocks?: Record<string, BlockState>
+  edges?: Edge[]
+  loops?: Record<string, Loop>
+  parallels?: Record<string, Parallel>
+  lastSaved?: number
+  variables?: Record<string, unknown>
+  metadata?: Record<string, unknown>
+}
+
+/** Output state after ID regeneration */
+interface RegenerateStateOutput {
+  blocks: Record<string, BlockState>
+  edges: Edge[]
+  loops: Record<string, Loop>
+  parallels: Record<string, Parallel>
+  lastSaved: number
+  variables?: Record<string, unknown>
+  metadata?: Record<string, unknown>
+}
+
 /**
  * Regenerates all IDs in a workflow state to avoid conflicts when duplicating or using templates
  * Returns a new state with all IDs regenerated and references updated
  */
-export function regenerateWorkflowStateIds(state: any): any {
+export function regenerateWorkflowStateIds(state: RegenerateStateInput): RegenerateStateOutput {
   // Create ID mappings
   const blockIdMapping = new Map<string, string>()
   const edgeIdMapping = new Map<string, string>()
@@ -624,7 +648,7 @@ export function regenerateWorkflowStateIds(state: any): any {
 
   // Map edge IDs
 
-  ;(state.edges || []).forEach((edge: any) => {
+  ;(state.edges || []).forEach((edge: Edge) => {
     edgeIdMapping.set(edge.id, crypto.randomUUID())
   })
 
@@ -639,28 +663,28 @@ export function regenerateWorkflowStateIds(state: any): any {
   })
 
   // Second pass: Create new state with regenerated IDs and updated references
-  const newBlocks: Record<string, any> = {}
-  const newEdges: any[] = []
-  const newLoops: Record<string, any> = {}
-  const newParallels: Record<string, any> = {}
+  const newBlocks: Record<string, BlockState> = {}
+  const newEdges: Edge[] = []
+  const newLoops: Record<string, Loop> = {}
+  const newParallels: Record<string, Parallel> = {}
 
   // Regenerate blocks with updated references
-  Object.entries(state.blocks || {}).forEach(([oldId, block]: [string, any]) => {
+  Object.entries(state.blocks || {}).forEach(([oldId, block]) => {
     const newId = blockIdMapping.get(oldId)!
-    const newBlock = { ...block, id: newId }
+    const newBlock: BlockState = { ...block, id: newId }
 
     // Update parentId reference if it exists
     if (newBlock.data?.parentId) {
       const newParentId = blockIdMapping.get(newBlock.data.parentId)
       if (newParentId) {
-        newBlock.data.parentId = newParentId
+        newBlock.data = { ...newBlock.data, parentId: newParentId }
       }
     }
 
     // Update any block references in subBlocks
     if (newBlock.subBlocks) {
-      const updatedSubBlocks: Record<string, any> = {}
-      Object.entries(newBlock.subBlocks).forEach(([subId, subBlock]: [string, any]) => {
+      const updatedSubBlocks: Record<string, BlockState['subBlocks'][string]> = {}
+      Object.entries(newBlock.subBlocks).forEach(([subId, subBlock]) => {
         const updatedSubBlock = { ...subBlock }
 
         // If subblock value contains block references, update them
@@ -668,7 +692,7 @@ export function regenerateWorkflowStateIds(state: any): any {
           typeof updatedSubBlock.value === 'string' &&
           blockIdMapping.has(updatedSubBlock.value)
         ) {
-          updatedSubBlock.value = blockIdMapping.get(updatedSubBlock.value)
+          updatedSubBlock.value = blockIdMapping.get(updatedSubBlock.value) ?? updatedSubBlock.value
         }
 
         updatedSubBlocks[subId] = updatedSubBlock
@@ -681,7 +705,7 @@ export function regenerateWorkflowStateIds(state: any): any {
 
   // Regenerate edges with updated source/target references
 
-  ;(state.edges || []).forEach((edge: any) => {
+  ;(state.edges || []).forEach((edge: Edge) => {
     const newId = edgeIdMapping.get(edge.id)!
     const newSource = blockIdMapping.get(edge.source) || edge.source
     const newTarget = blockIdMapping.get(edge.target) || edge.target
@@ -695,9 +719,9 @@ export function regenerateWorkflowStateIds(state: any): any {
   })
 
   // Regenerate loops with updated node references
-  Object.entries(state.loops || {}).forEach(([oldId, loop]: [string, any]) => {
+  Object.entries(state.loops || {}).forEach(([oldId, loop]) => {
     const newId = loopIdMapping.get(oldId)!
-    const newLoop = { ...loop, id: newId }
+    const newLoop: Loop = { ...loop, id: newId }
 
     // Update nodes array with new block IDs
     if (newLoop.nodes) {
@@ -708,9 +732,9 @@ export function regenerateWorkflowStateIds(state: any): any {
   })
 
   // Regenerate parallels with updated node references
-  Object.entries(state.parallels || {}).forEach(([oldId, parallel]: [string, any]) => {
+  Object.entries(state.parallels || {}).forEach(([oldId, parallel]) => {
     const newId = parallelIdMapping.get(oldId)!
-    const newParallel = { ...parallel, id: newId }
+    const newParallel: Parallel = { ...parallel, id: newId }
 
     // Update nodes array with new block IDs
     if (newParallel.nodes) {

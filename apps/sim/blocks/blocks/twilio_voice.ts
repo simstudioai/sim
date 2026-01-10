@@ -12,6 +12,7 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
   longDescription:
     'Integrate Twilio Voice into the workflow. Make outbound calls and retrieve call recordings.',
   category: 'tools',
+  docsLink: 'https://docs.sim.ai/tools/twilio_voice',
   bgColor: '#F22F46', // Twilio brand color
   icon: TwilioIcon,
   triggerAllowed: true,
@@ -85,6 +86,62 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       condition: {
         field: 'operation',
         value: 'make_call',
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate TwiML (Twilio Markup Language) for outbound voice calls based on the user's description.
+
+### IMPORTANT: Use SQUARE BRACKETS instead of angle brackets
+- Use [Tag] instead of <Tag>
+- Use [/Tag] instead of </Tag>
+- Use [Tag/] for self-closing tags instead of <Tag/>
+
+### COMMON TWIML VERBS
+
+**[Say]** - Text-to-speech
+[Say voice="alice"]Hello, this is an automated call.[/Say]
+- Voices: alice, man, woman, Polly.Joanna, Polly.Matthew, etc.
+
+**[Play]** - Play audio file
+[Play]https://example.com/audio.mp3[/Play]
+
+**[Record]** - Record caller's voice
+[Record maxLength="120" transcribe="true"/]
+- transcribe="true" to get text transcription
+
+**[Gather]** - Collect keypad input or speech
+[Gather input="dtmf speech" timeout="5" numDigits="1"]
+  [Say]Press 1 to confirm, 2 to cancel.[/Say]
+[/Gather]
+
+**[Dial]** - Connect to another number
+[Dial]+14155551234[/Dial]
+
+**[Pause]** - Add silence
+[Pause length="2"/]
+
+**[Hangup]** - End the call
+[Hangup/]
+
+### EXAMPLES
+
+"say hello and deliver a reminder message"
+-> [Response][Say voice="alice"]Hello! This is a reminder about your appointment tomorrow at 2 PM. Press 1 to confirm or 2 to reschedule.[/Say][Gather input="dtmf" timeout="10" numDigits="1"/][/Response]
+
+"play a recorded message"
+-> [Response][Play]https://example.com/message.mp3[/Play][/Response]
+
+"say a message and record their response"
+-> [Response][Say voice="alice"]Hello! Please leave your feedback after the beep.[/Say][Record maxLength="60" transcribe="true"/][Say voice="alice"]Thank you for your feedback. Goodbye.[/Say][/Response]
+
+"simple greeting message"
+-> [Response][Say voice="alice"]Hello! This is an automated call from your service provider. Have a great day![/Say][/Response]
+
+"ask a yes or no question"
+-> [Response][Say voice="alice"]Hello! Would you like to receive updates? Press 1 for yes, or 2 for no.[/Say][Gather input="dtmf" timeout="10" numDigits="1"/][Say voice="alice"]We didn't receive your response. Goodbye.[/Say][/Response]
+
+Return ONLY the TwiML with square brackets - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe what the call should say or do...',
       },
     },
     {
@@ -189,6 +246,21 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
         field: 'operation',
         value: 'list_calls',
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date based on the user's description.
+The date should be in YYYY-MM-DD format.
+Examples:
+- "yesterday" -> Calculate yesterday's date
+- "last week" -> Calculate 7 days ago
+- "beginning of this month" -> First day of the current month (YYYY-MM-01)
+- "last Monday" -> Calculate the most recent Monday
+- "30 days ago" -> Calculate 30 days before today
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "last week", "beginning of month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'startTimeBefore',
@@ -198,6 +270,21 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       condition: {
         field: 'operation',
         value: 'list_calls',
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date based on the user's description.
+The date should be in YYYY-MM-DD format.
+Examples:
+- "today" -> Today's date
+- "end of this month" -> Last day of the current month
+- "next Friday" -> Calculate the upcoming Friday
+- "in 7 days" -> Calculate 7 days from today
+- "end of year" -> December 31st of the current year
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end date (e.g., "today", "end of month")...',
+        generationType: 'timestamp',
       },
     },
     {

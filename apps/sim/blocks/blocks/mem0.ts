@@ -75,6 +75,19 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         field: 'operation',
         value: 'get',
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "last week" -> Calculate 7 days ago
+- "beginning of this month" -> First day of current month
+- "30 days ago" -> Calculate 30 days ago
+- "start of year" -> January 1 of current year
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "last week", "30 days ago")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'endDate',
@@ -84,6 +97,19 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       condition: {
         field: 'operation',
         value: 'get',
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "today" -> Today's date
+- "yesterday" -> Yesterday's date
+- "end of last week" -> Last Sunday's date
+- "now" -> Today's date
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end date (e.g., "today", "yesterday")...',
+        generationType: 'timestamp',
       },
     },
     {

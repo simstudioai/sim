@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
-import { useDebounce } from '@/hooks/use-debounce'
-import { useVariablesStore } from '@/stores/panel'
+import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -48,16 +47,12 @@ export function useChangeDetection({
       const blockSubValues = subBlockValues?.[blockId] || {}
       const subBlocks: Record<string, any> = {}
 
-      for (const [subId, value] of Object.entries(blockSubValues)) {
-        subBlocks[subId] = { value }
-      }
-
       if (block.subBlocks) {
         for (const [subId, subBlock] of Object.entries(block.subBlocks)) {
-          if (!subBlocks[subId]) {
-            subBlocks[subId] = subBlock
-          } else {
-            subBlocks[subId] = { ...subBlock, value: subBlocks[subId].value }
+          const storedValue = blockSubValues[subId]
+          subBlocks[subId] = {
+            ...subBlock,
+            value: storedValue !== undefined ? storedValue : subBlock.value,
           }
         }
       }
@@ -77,14 +72,12 @@ export function useChangeDetection({
     } as WorkflowState & { variables: Record<string, any> }
   }, [workflowId, blocks, edges, loops, parallels, subBlockValues, workflowVariables])
 
-  const rawChangeDetected = useMemo(() => {
+  const changeDetected = useMemo(() => {
     if (!currentState || !deployedState || isLoadingDeployedState) {
       return false
     }
     return hasWorkflowChanged(currentState, deployedState)
   }, [currentState, deployedState, isLoadingDeployedState])
-
-  const changeDetected = useDebounce(rawChangeDetected, 300)
 
   return { changeDetected }
 }

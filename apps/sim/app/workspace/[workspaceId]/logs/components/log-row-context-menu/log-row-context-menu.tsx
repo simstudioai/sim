@@ -1,7 +1,13 @@
 'use client'
 
 import type { RefObject } from 'react'
-import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverDivider,
+  PopoverItem,
+} from '@/components/emcn'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 
 interface LogRowContextMenuProps {
@@ -12,6 +18,7 @@ interface LogRowContextMenuProps {
   log: WorkflowLog | null
   onCopyExecutionId: () => void
   onOpenWorkflow: () => void
+  onOpenPreview: () => void
   onToggleWorkflowFilter: () => void
   onClearAllFilters: () => void
   isFilteredByThisWorkflow: boolean
@@ -30,6 +37,7 @@ export function LogRowContextMenu({
   log,
   onCopyExecutionId,
   onOpenWorkflow,
+  onOpenPreview,
   onToggleWorkflowFilter,
   onClearAllFilters,
   isFilteredByThisWorkflow,
@@ -39,7 +47,12 @@ export function LogRowContextMenu({
   const hasWorkflow = Boolean(log?.workflow?.id || log?.workflowId)
 
   return (
-    <Popover open={isOpen} onOpenChange={onClose} variant='secondary' size='sm'>
+    <Popover
+      open={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+      variant='secondary'
+      size='sm'
+    >
       <PopoverAnchor
         style={{
           position: 'fixed',
@@ -50,7 +63,7 @@ export function LogRowContextMenu({
         }}
       />
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-        {/* Copy Execution ID */}
+        {/* Copy action */}
         <PopoverItem
           disabled={!hasExecutionId}
           onClick={() => {
@@ -61,7 +74,8 @@ export function LogRowContextMenu({
           Copy Execution ID
         </PopoverItem>
 
-        {/* Open Workflow */}
+        {/* Navigation */}
+        <PopoverDivider />
         <PopoverItem
           disabled={!hasWorkflow}
           onClick={() => {
@@ -71,8 +85,18 @@ export function LogRowContextMenu({
         >
           Open Workflow
         </PopoverItem>
+        <PopoverItem
+          disabled={!hasExecutionId}
+          onClick={() => {
+            onOpenPreview()
+            onClose()
+          }}
+        >
+          Open Snapshot
+        </PopoverItem>
 
-        {/* Filter by Workflow - only show when not already filtered by this workflow */}
+        {/* Filter actions */}
+        <PopoverDivider />
         {!isFilteredByThisWorkflow && (
           <PopoverItem
             disabled={!hasWorkflow}
@@ -84,8 +108,6 @@ export function LogRowContextMenu({
             Filter by Workflow
           </PopoverItem>
         )}
-
-        {/* Clear All Filters - show when any filters are active */}
         {hasActiveFilters && (
           <PopoverItem
             onClick={() => {

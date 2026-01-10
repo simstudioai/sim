@@ -70,6 +70,33 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       type: 'short-input',
       placeholder: 'Sheet name and cell range (e.g., Sheet1!A1:D10)',
       condition: { field: 'operation', value: ['read', 'write', 'update'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a valid Microsoft Excel range based on the user's description.
+
+### FORMAT (REQUIRED)
+SheetName!StartCell:EndCell
+
+Excel ALWAYS requires the full range format with both sheet name and cell range.
+
+### RANGE RULES
+- Sheet names with spaces must be quoted: 'My Sheet'!A1:B10
+- Column letters are uppercase: A, B, C, ... Z, AA, AB, etc.
+- Row numbers start at 1 (not 0)
+- For entire columns: Sheet1!A:Z
+- For entire rows: Sheet1!1:100
+
+### EXAMPLES
+- "the first sheet" -> Sheet1!A1:Z1000
+- "data sheet from A1 to E100" -> 'Data Sheet'!A1:E100
+- "cells A1 through C50 on Sheet2" -> Sheet2!A1:C50
+- "column A of inventory" -> Inventory!A:A
+- "just the headers row on Sheet1" -> Sheet1!1:1
+- "all data on sales sheet" -> 'Sales'!A1:Z1000
+
+Return ONLY the range string - no explanations, no quotes around the entire output, no extra text.`,
+        placeholder: 'Describe the range (e.g., "A1 to D50 on Sheet1")...',
+      },
     },
     {
       id: 'tableName',
@@ -95,6 +122,22 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'write' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate Microsoft Excel data as a JSON array based on the user's description.
+
+Format options:
+1. Array of arrays: [["Header1", "Header2"], ["Value1", "Value2"]]
+2. Array of objects: [{"column1": "value1", "column2": "value2"}]
+
+Examples:
+- "sales data with product and revenue columns" -> [["Product", "Revenue"], ["Widget A", 1500], ["Widget B", 2300]]
+- "list of employees with name and email" -> [{"name": "John Doe", "email": "john@example.com"}, {"name": "Jane Smith", "email": "jane@example.com"}]
+
+Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the data you want to write...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'valueInputOption',
@@ -114,6 +157,22 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'update' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate Microsoft Excel data as a JSON array based on the user's description.
+
+Format options:
+1. Array of arrays: [["Header1", "Header2"], ["Value1", "Value2"]]
+2. Array of objects: [{"column1": "value1", "column2": "value2"}]
+
+Examples:
+- "update with new prices" -> [["Product", "Price"], ["Widget A", 29.99], ["Widget B", 49.99]]
+- "quarterly targets" -> [{"Q1": 10000, "Q2": 12000, "Q3": 15000, "Q4": 18000}]
+
+Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the data you want to update...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'valueInputOption',
@@ -133,6 +192,25 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'table_add' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate Microsoft Excel table row data as a JSON array based on the user's description.
+
+Format options:
+1. Array of arrays: [["Value1", "Value2"], ["Value3", "Value4"]]
+2. Array of objects: [{"column1": "value1", "column2": "value2"}]
+
+Note: When adding to an existing table, do NOT include headers - only data rows.
+
+Examples:
+- "add new sales record" -> [["2024-01-15", "Widget Pro", 5, 249.99]]
+- "append customer info" -> [{"name": "Acme Corp", "contact": "John Smith", "status": "Active"}]
+- "add multiple rows with name, age, city" -> [["Alice", 28, "NYC"], ["Bob", 35, "LA"]]
+
+Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the data you want to add to the table...',
+        generationType: 'json-object',
+      },
     },
   ],
   tools: {

@@ -108,6 +108,7 @@ export {
   TableRow,
 } from './table/table'
 export {
+  type FileInputOptions,
   Tag,
   TagInput,
   type TagInputProps,

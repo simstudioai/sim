@@ -2,8 +2,10 @@ import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   exportWorkspaceToZip,
+  type FolderExportData,
   type WorkflowExportData,
 } from '@/lib/workflows/operations/import-export'
+import type { Variable } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('useExportWorkspace')
 
@@ -74,15 +76,10 @@ export function useExportWorkspace({ onSuccess }: UseExportWorkspaceProps = {}) 
             }
 
             const variablesResponse = await fetch(`/api/workflows/${workflow.id}/variables`)
-            let workflowVariables: any[] = []
+            let workflowVariables: Record<string, Variable> | undefined
             if (variablesResponse.ok) {
               const variablesData = await variablesResponse.json()
-              workflowVariables = Object.values(variablesData?.data || {}).map((v: any) => ({
-                id: v.id,
-                name: v.name,
-                type: v.type,
-                value: v.value,
-              }))
+              workflowVariables = variablesData?.data
             }
 
             workflowsToExport.push({
@@ -101,15 +98,13 @@ export function useExportWorkspace({ onSuccess }: UseExportWorkspaceProps = {}) 
           }
         }
 
-        const foldersToExport: Array<{
-          id: string
-          name: string
-          parentId: string | null
-        }> = (foldersData.folders || []).map((folder: any) => ({
-          id: folder.id,
-          name: folder.name,
-          parentId: folder.parentId,
-        }))
+        const foldersToExport: FolderExportData[] = (foldersData.folders || []).map(
+          (folder: FolderExportData) => ({
+            id: folder.id,
+            name: folder.name,
+            parentId: folder.parentId,
+          })
+        )
 
         const zipBlob = await exportWorkspaceToZip(
           workspaceName,

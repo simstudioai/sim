@@ -449,3 +449,505 @@ export function trackPlatformEvent(
     // Silently fail
   }
 }
+
+// ============================================================================
+// PLATFORM TELEMETRY EVENTS
+// ============================================================================
+//
+// Naming Convention:
+//   Event:     platform.{resource}.{past_tense_action}
+//   Attribute: {resource}.{attribute_name}
+//
+// Examples:
+//   Event:     platform.user.signed_up
+//   Attribute: user.id, user.auth_method, workspace.id
+//
+// Categories:
+//   - User/Auth:      platform.user.*
+//   - Workspace:      platform.workspace.*
+//   - Workflow:       platform.workflow.*
+//   - Knowledge Base: platform.knowledge_base.*
+//   - MCP:            platform.mcp.*
+//   - API Keys:       platform.api_key.*
+//   - OAuth:          platform.oauth.*
+//   - Webhook:        platform.webhook.*
+//   - Billing:        platform.billing.*
+//   - Template:       platform.template.*
+// ============================================================================
+
+/**
+ * Platform Events - Typed event tracking helpers
+ * These provide type-safe, consistent telemetry across the platform
+ */
+export const PlatformEvents = {
+  /**
+   * Track user sign up
+   */
+  userSignedUp: (attrs: {
+    userId: string
+    authMethod: 'email' | 'oauth' | 'sso'
+    provider?: string
+  }) => {
+    trackPlatformEvent('platform.user.signed_up', {
+      'user.id': attrs.userId,
+      'user.auth_method': attrs.authMethod,
+      ...(attrs.provider && { 'user.auth_provider': attrs.provider }),
+    })
+  },
+
+  /**
+   * Track user sign in
+   */
+  userSignedIn: (attrs: {
+    userId: string
+    authMethod: 'email' | 'oauth' | 'sso'
+    provider?: string
+  }) => {
+    trackPlatformEvent('platform.user.signed_in', {
+      'user.id': attrs.userId,
+      'user.auth_method': attrs.authMethod,
+      ...(attrs.provider && { 'user.auth_provider': attrs.provider }),
+    })
+  },
+
+  /**
+   * Track password reset requested
+   */
+  passwordResetRequested: (attrs: { userId: string }) => {
+    trackPlatformEvent('platform.user.password_reset_requested', {
+      'user.id': attrs.userId,
+    })
+  },
+
+  /**
+   * Track workspace created
+   */
+  workspaceCreated: (attrs: { workspaceId: string; userId: string; name: string }) => {
+    trackPlatformEvent('platform.workspace.created', {
+      'workspace.id': attrs.workspaceId,
+      'workspace.name': attrs.name,
+      'user.id': attrs.userId,
+    })
+  },
+
+  /**
+   * Track member invited to workspace
+   */
+  workspaceMemberInvited: (attrs: {
+    workspaceId: string
+    invitedBy: string
+    inviteeEmail: string
+    role: string
+  }) => {
+    trackPlatformEvent('platform.workspace.member_invited', {
+      'workspace.id': attrs.workspaceId,
+      'user.id': attrs.invitedBy,
+      'invitation.role': attrs.role,
+    })
+  },
+
+  /**
+   * Track member joined workspace
+   */
+  workspaceMemberJoined: (attrs: { workspaceId: string; userId: string; role: string }) => {
+    trackPlatformEvent('platform.workspace.member_joined', {
+      'workspace.id': attrs.workspaceId,
+      'user.id': attrs.userId,
+      'member.role': attrs.role,
+    })
+  },
+
+  /**
+   * Track workflow created
+   */
+  workflowCreated: (attrs: {
+    workflowId: string
+    name: string
+    workspaceId?: string
+    folderId?: string
+  }) => {
+    trackPlatformEvent('platform.workflow.created', {
+      'workflow.id': attrs.workflowId,
+      'workflow.name': attrs.name,
+      'workflow.has_workspace': !!attrs.workspaceId,
+      'workflow.has_folder': !!attrs.folderId,
+    })
+  },
+
+  /**
+   * Track workflow deleted
+   */
+  workflowDeleted: (attrs: { workflowId: string; workspaceId?: string }) => {
+    trackPlatformEvent('platform.workflow.deleted', {
+      'workflow.id': attrs.workflowId,
+      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+    })
+  },
+
+  /**
+   * Track workflow duplicated
+   */
+  workflowDuplicated: (attrs: {
+    sourceWorkflowId: string
+    newWorkflowId: string
+    workspaceId?: string
+  }) => {
+    trackPlatformEvent('platform.workflow.duplicated', {
+      'workflow.source_id': attrs.sourceWorkflowId,
+      'workflow.new_id': attrs.newWorkflowId,
+      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+    })
+  },
+
+  /**
+   * Track workflow deployed
+   */
+  workflowDeployed: (attrs: {
+    workflowId: string
+    workflowName: string
+    blocksCount: number
+    edgesCount: number
+    version: number
+    loopsCount?: number
+    parallelsCount?: number
+    blockTypes?: string
+  }) => {
+    trackPlatformEvent('platform.workflow.deployed', {
+      'workflow.id': attrs.workflowId,
+      'workflow.name': attrs.workflowName,
+      'workflow.blocks_count': attrs.blocksCount,
+      'workflow.edges_count': attrs.edgesCount,
+      'deployment.version': attrs.version,
+      ...(attrs.loopsCount !== undefined && { 'workflow.loops_count': attrs.loopsCount }),
+      ...(attrs.parallelsCount !== undefined && {
+        'workflow.parallels_count': attrs.parallelsCount,
+      }),
+      ...(attrs.blockTypes && { 'workflow.block_types': attrs.blockTypes }),
+    })
+  },
+
+  /**
+   * Track workflow undeployed
+   */
+  workflowUndeployed: (attrs: { workflowId: string }) => {
+    trackPlatformEvent('platform.workflow.undeployed', {
+      'workflow.id': attrs.workflowId,
+    })
+  },
+
+  /**
+   * Track workflow executed
+   */
+  workflowExecuted: (attrs: {
+    workflowId: string
+    durationMs: number
+    status: 'success' | 'error' | 'cancelled' | 'paused'
+    trigger: string
+    blocksExecuted: number
+    hasErrors: boolean
+    totalCost?: number
+    errorMessage?: string
+  }) => {
+    trackPlatformEvent('platform.workflow.executed', {
+      'workflow.id': attrs.workflowId,
+      'execution.duration_ms': attrs.durationMs,
+      'execution.status': attrs.status,
+      'execution.trigger': attrs.trigger,
+      'execution.blocks_executed': attrs.blocksExecuted,
+      'execution.has_errors': attrs.hasErrors,
+      ...(attrs.totalCost !== undefined && { 'execution.total_cost': attrs.totalCost }),
+      ...(attrs.errorMessage && { 'execution.error_message': attrs.errorMessage }),
+    })
+  },
+
+  /**
+   * Track knowledge base created
+   */
+  knowledgeBaseCreated: (attrs: {
+    knowledgeBaseId: string
+    name: string
+    workspaceId?: string
+  }) => {
+    trackPlatformEvent('platform.knowledge_base.created', {
+      'knowledge_base.id': attrs.knowledgeBaseId,
+      'knowledge_base.name': attrs.name,
+      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+    })
+  },
+
+  /**
+   * Track knowledge base deleted
+   */
+  knowledgeBaseDeleted: (attrs: { knowledgeBaseId: string }) => {
+    trackPlatformEvent('platform.knowledge_base.deleted', {
+      'knowledge_base.id': attrs.knowledgeBaseId,
+    })
+  },
+
+  /**
+   * Track documents uploaded to knowledge base
+   */
+  knowledgeBaseDocumentsUploaded: (attrs: {
+    knowledgeBaseId: string
+    documentsCount: number
+    uploadType: 'single' | 'bulk'
+    chunkSize?: number
+    recipe?: string
+    mimeType?: string
+    fileSize?: number
+  }) => {
+    trackPlatformEvent('platform.knowledge_base.documents_uploaded', {
+      'knowledge_base.id': attrs.knowledgeBaseId,
+      'documents.count': attrs.documentsCount,
+      'documents.upload_type': attrs.uploadType,
+      ...(attrs.chunkSize !== undefined && { 'processing.chunk_size': attrs.chunkSize }),
+      ...(attrs.recipe && { 'processing.recipe': attrs.recipe }),
+      ...(attrs.mimeType && { 'document.mime_type': attrs.mimeType }),
+      ...(attrs.fileSize !== undefined && { 'document.file_size': attrs.fileSize }),
+    })
+  },
+
+  /**
+   * Track knowledge base searched
+   */
+  knowledgeBaseSearched: (attrs: {
+    knowledgeBaseId: string
+    resultsCount: number
+    workspaceId?: string
+  }) => {
+    trackPlatformEvent('platform.knowledge_base.searched', {
+      'knowledge_base.id': attrs.knowledgeBaseId,
+      'search.results_count': attrs.resultsCount,
+      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+    })
+  },
+
+  /**
+   * Track API key generated
+   */
+  apiKeyGenerated: (attrs: { userId: string; keyName?: string }) => {
+    trackPlatformEvent('platform.api_key.generated', {
+      'user.id': attrs.userId,
+      ...(attrs.keyName && { 'api_key.name': attrs.keyName }),
+    })
+  },
+
+  /**
+   * Track API key revoked
+   */
+  apiKeyRevoked: (attrs: { userId: string; keyId: string }) => {
+    trackPlatformEvent('platform.api_key.revoked', {
+      'user.id': attrs.userId,
+      'api_key.id': attrs.keyId,
+    })
+  },
+
+  /**
+   * Track OAuth provider connected
+   */
+  oauthConnected: (attrs: { userId: string; provider: string; workspaceId?: string }) => {
+    trackPlatformEvent('platform.oauth.connected', {
+      'user.id': attrs.userId,
+      'oauth.provider': attrs.provider,
+      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+    })
+  },
+
+  /**
+   * Track OAuth provider disconnected
+   */
+  oauthDisconnected: (attrs: { userId: string; provider: string }) => {
+    trackPlatformEvent('platform.oauth.disconnected', {
+      'user.id': attrs.userId,
+      'oauth.provider': attrs.provider,
+    })
+  },
+
+  /**
+   * Track credential set created
+   */
+  credentialSetCreated: (attrs: { credentialSetId: string; userId: string; name: string }) => {
+    trackPlatformEvent('platform.credential_set.created', {
+      'credential_set.id': attrs.credentialSetId,
+      'credential_set.name': attrs.name,
+      'user.id': attrs.userId,
+    })
+  },
+
+  /**
+   * Track webhook created
+   */
+  webhookCreated: (attrs: {
+    webhookId: string
+    workflowId: string
+    provider: string
+    workspaceId?: string
+  }) => {
+    trackPlatformEvent('platform.webhook.created', {
+      'webhook.id': attrs.webhookId,
+      'workflow.id': attrs.workflowId,
+      'webhook.provider': attrs.provider,
+      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+    })
+  },
+
+  /**
+   * Track webhook deleted
+   */
+  webhookDeleted: (attrs: { webhookId: string; workflowId: string }) => {
+    trackPlatformEvent('platform.webhook.deleted', {
+      'webhook.id': attrs.webhookId,
+      'workflow.id': attrs.workflowId,
+    })
+  },
+
+  /**
+   * Track webhook triggered
+   */
+  webhookTriggered: (attrs: {
+    webhookId: string
+    workflowId: string
+    provider: string
+    success: boolean
+  }) => {
+    trackPlatformEvent('platform.webhook.triggered', {
+      'webhook.id': attrs.webhookId,
+      'workflow.id': attrs.workflowId,
+      'webhook.provider': attrs.provider,
+      'webhook.trigger_success': attrs.success,
+    })
+  },
+
+  /**
+   * Track MCP server added
+   */
+  mcpServerAdded: (attrs: {
+    serverId: string
+    serverName: string
+    transport: string
+    workspaceId: string
+  }) => {
+    trackPlatformEvent('platform.mcp.server_added', {
+      'mcp.server_id': attrs.serverId,
+      'mcp.server_name': attrs.serverName,
+      'mcp.transport': attrs.transport,
+      'workspace.id': attrs.workspaceId,
+    })
+  },
+
+  /**
+   * Track MCP tool executed
+   */
+  mcpToolExecuted: (attrs: {
+    serverId: string
+    toolName: string
+    status: 'success' | 'error'
+    workspaceId: string
+  }) => {
+    trackPlatformEvent('platform.mcp.tool_executed', {
+      'mcp.server_id': attrs.serverId,
+      'mcp.tool_name': attrs.toolName,
+      'mcp.execution_status': attrs.status,
+      'workspace.id': attrs.workspaceId,
+    })
+  },
+
+  /**
+   * Track template used
+   */
+  templateUsed: (attrs: {
+    templateId: string
+    templateName: string
+    newWorkflowId: string
+    blocksCount: number
+    workspaceId: string
+  }) => {
+    trackPlatformEvent('platform.template.used', {
+      'template.id': attrs.templateId,
+      'template.name': attrs.templateName,
+      'workflow.created_id': attrs.newWorkflowId,
+      'workflow.blocks_count': attrs.blocksCount,
+      'workspace.id': attrs.workspaceId,
+    })
+  },
+
+  /**
+   * Track subscription created
+   */
+  subscriptionCreated: (attrs: {
+    userId: string
+    plan: string
+    interval: 'monthly' | 'yearly'
+  }) => {
+    trackPlatformEvent('platform.billing.subscription_created', {
+      'user.id': attrs.userId,
+      'billing.plan': attrs.plan,
+      'billing.interval': attrs.interval,
+    })
+  },
+
+  /**
+   * Track subscription changed
+   */
+  subscriptionChanged: (attrs: {
+    userId: string
+    previousPlan: string
+    newPlan: string
+    changeType: 'upgrade' | 'downgrade'
+  }) => {
+    trackPlatformEvent('platform.billing.subscription_changed', {
+      'user.id': attrs.userId,
+      'billing.previous_plan': attrs.previousPlan,
+      'billing.new_plan': attrs.newPlan,
+      'billing.change_type': attrs.changeType,
+    })
+  },
+
+  /**
+   * Track subscription cancelled
+   */
+  subscriptionCancelled: (attrs: { userId: string; plan: string }) => {
+    trackPlatformEvent('platform.billing.subscription_cancelled', {
+      'user.id': attrs.userId,
+      'billing.plan': attrs.plan,
+    })
+  },
+
+  /**
+   * Track folder created
+   */
+  folderCreated: (attrs: { folderId: string; name: string; workspaceId: string }) => {
+    trackPlatformEvent('platform.folder.created', {
+      'folder.id': attrs.folderId,
+      'folder.name': attrs.name,
+      'workspace.id': attrs.workspaceId,
+    })
+  },
+
+  /**
+   * Track folder deleted
+   */
+  folderDeleted: (attrs: { folderId: string; workspaceId: string }) => {
+    trackPlatformEvent('platform.folder.deleted', {
+      'folder.id': attrs.folderId,
+      'workspace.id': attrs.workspaceId,
+    })
+  },
+
+  /**
+   * Track chat deployed (workflow deployed as chat interface)
+   */
+  chatDeployed: (attrs: {
+    chatId: string
+    workflowId: string
+    authType: 'public' | 'password' | 'email' | 'sso'
+    hasOutputConfigs: boolean
+  }) => {
+    trackPlatformEvent('platform.chat.deployed', {
+      'chat.id': attrs.chatId,
+      'workflow.id': attrs.workflowId,
+      'chat.auth_type': attrs.authType,
+      'chat.has_output_configs': attrs.hasOutputConfigs,
+    })
+  },
+}

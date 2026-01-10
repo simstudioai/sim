@@ -109,11 +109,15 @@ function SignupFormContent({
       setEmail(emailParam)
     }
 
-    const redirectParam = searchParams.get('redirect')
+    // Check both 'redirect' and 'callbackUrl' params (login page uses callbackUrl)
+    const redirectParam = searchParams.get('redirect') || searchParams.get('callbackUrl')
     if (redirectParam) {
       setRedirectUrl(redirectParam)
 
-      if (redirectParam.startsWith('/invite/')) {
+      if (
+        redirectParam.startsWith('/invite/') ||
+        redirectParam.startsWith('/credential-account/')
+      ) {
         setIsInviteFlow(true)
       }
     }

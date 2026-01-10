@@ -117,7 +117,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const [starCount, setStarCount] = useState('24.4k')
+  const [starCount, setStarCount] = useState('25.1k')
   const [conversationId, setConversationId] = useState('')
 
   const [showScrollButton, setShowScrollButton] = useState(false)
@@ -464,6 +464,10 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   }
 
   if (authRequired) {
+    // const title = new URLSearchParams(window.location.search).get('title') || 'chat'
+    // const primaryColor =
+    //   new URLSearchParams(window.location.search).get('color') || 'var(--brand-primary-hover-hex)'
+
     if (authRequired === 'password') {
       return <PasswordAuth identifier={identifier} onAuthSuccess={handleAuthSuccess} />
     }

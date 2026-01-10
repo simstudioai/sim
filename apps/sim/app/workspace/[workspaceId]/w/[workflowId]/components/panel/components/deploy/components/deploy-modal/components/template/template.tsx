@@ -18,7 +18,7 @@ import { Skeleton, TagInput } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { captureAndUploadOGImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from '@/lib/og'
-import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
+import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import {
   useCreateTemplate,
   useDeleteTemplate,
@@ -488,7 +488,6 @@ const OGCaptureContainer = forwardRef<HTMLDivElement>((_, ref) => {
     >
       <WorkflowPreview
         workflowState={workflowState}
-        showSubBlocks={false}
         height='100%'
         width='100%'
         isPannable={false}
@@ -529,7 +528,6 @@ function TemplatePreviewContent({ existingTemplate }: TemplatePreviewContentProp
     <WorkflowPreview
       key={`template-preview-${existingTemplate.id}`}
       workflowState={workflowState}
-      showSubBlocks={true}
       height='100%'
       width='100%'
       isPannable={true}

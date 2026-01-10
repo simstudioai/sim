@@ -20,12 +20,26 @@
  *   placeholder="Enter emails"
  * />
  * ```
+ *
+ * @example With file input enabled
+ * ```tsx
+ * <TagInput
+ *   items={items}
+ *   onAdd={handleAdd}
+ *   onRemove={handleRemove}
+ *   fileInputOptions={{
+ *     enabled: true,
+ *     accept: '.csv,.txt',
+ *     extractValues: (text) => text.match(/[\w.-]+@[\w.-]+\.\w+/g) || [],
+ *   }}
+ * />
+ * ```
  */
 'use client'
 
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { Plus, X } from 'lucide-react'
+import { Paperclip, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 
 /**
@@ -126,6 +140,20 @@ export interface TagItem {
 }
 
 /**
+ * Options for enabling file input functionality.
+ */
+export interface FileInputOptions {
+  /** Whether file input is enabled */
+  enabled: boolean
+  /** Accepted file types (default: '.csv,.txt,text/csv,text/plain') */
+  accept?: string
+  /** Icon component to render (default: Paperclip) */
+  icon?: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  /** Extract values from file content. Each extracted value will be passed to onAdd. */
+  extractValues?: (text: string) => string[]
+}
+
+/**
  * Props for the TagInput component.
  */
 export interface TagInputProps extends VariantProps<typeof tagInputVariants> {
@@ -160,6 +188,8 @@ export interface TagInputProps extends VariantProps<typeof tagInputVariants> {
   triggerKeys?: string[]
   /** Optional render function for tag suffix content */
   renderTagSuffix?: (value: string, index: number) => React.ReactNode
+  /** Options for enabling file input (drag/drop and file picker) */
+  fileInputOptions?: FileInputOptions
 }
 
 /**
@@ -188,21 +218,101 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
       autoFocus = false,
       triggerKeys = ['Enter', ',', ' '],
       renderTagSuffix,
+      fileInputOptions,
       variant,
     },
     ref
   ) => {
     const [inputValue, setInputValue] = React.useState('')
+    const [isDragging, setIsDragging] = React.useState(false)
     const internalRef = React.useRef<HTMLInputElement>(null)
+    const fileInputRef = React.useRef<HTMLInputElement>(null)
     const inputRef = (ref as React.RefObject<HTMLInputElement>) || internalRef
 
     const hasItems = items.length > 0
+    const fileInputEnabled = fileInputOptions?.enabled ?? false
+    const FileIcon = fileInputOptions?.icon ?? Paperclip
+    const fileAccept = fileInputOptions?.accept ?? '.csv,.txt,text/csv,text/plain'
 
     React.useEffect(() => {
       if (autoFocus && inputRef.current) {
         inputRef.current.focus()
       }
     }, [autoFocus, inputRef])
+
+    const handleFileContent = React.useCallback(
+      async (file: File) => {
+        try {
+          const text = await file.text()
+          const extractValues = fileInputOptions?.extractValues
+          if (extractValues) {
+            const values = extractValues(text)
+            values.forEach((value) => onAdd(value))
+          }
+        } catch {
+          // Silently handle file read errors
+        }
+      },
+      [fileInputOptions?.extractValues, onAdd]
+    )
+
+    const handleDragOver = React.useCallback(
+      (e: React.DragEvent) => {
+        if (!fileInputEnabled) return
+        e.preventDefault()
+        e.stopPropagation()
+        e.dataTransfer.dropEffect = 'copy'
+        setIsDragging(true)
+      },
+      [fileInputEnabled]
+    )
+
+    const handleDragLeave = React.useCallback(
+      (e: React.DragEvent) => {
+        if (!fileInputEnabled) return
+        e.preventDefault()
+        e.stopPropagation()
+        setIsDragging(false)
+      },
+      [fileInputEnabled]
+    )
+
+    const handleDrop = React.useCallback(
+      async (e: React.DragEvent) => {
+        if (!fileInputEnabled) return
+        e.preventDefault()
+        e.stopPropagation()
+        setIsDragging(false)
+
+        const files = Array.from(e.dataTransfer.files)
+        const acceptPatterns = fileAccept.split(',').map((p) => p.trim().toLowerCase())
+
+        const validFiles = files.filter((f) => {
+          const ext = `.${f.name.split('.').pop()?.toLowerCase()}`
+          const type = f.type.toLowerCase()
+          return acceptPatterns.some((pattern) => pattern === ext || pattern === type)
+        })
+
+        for (const file of validFiles) {
+          await handleFileContent(file)
+        }
+      },
+      [fileInputEnabled, fileAccept, handleFileContent]
+    )
+
+    const handleFileInputChange = React.useCallback(
+      async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files
+        if (!files) return
+
+        for (const file of Array.from(files)) {
+          await handleFileContent(file)
+        }
+
+        e.target.value = ''
+      },
+      [handleFileContent]
+    )
 
     const handleKeyDown = React.useCallback(
       (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -253,9 +363,32 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
 
     return (
       <div
-        className={cn(tagInputVariants({ variant }), maxHeight, className)}
+        className={cn(
+          tagInputVariants({ variant }),
+          maxHeight,
+          'relative',
+          isDragging && 'border-[var(--border)] border-dashed bg-[var(--surface-5)]',
+          className
+        )}
         onClick={handleContainerClick}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
+        {fileInputEnabled && (
+          <input
+            ref={fileInputRef}
+            type='file'
+            accept={fileAccept}
+            onChange={handleFileInputChange}
+            className='hidden'
+          />
+        )}
+        {isDragging && (
+          <div className='absolute inset-0 flex items-center justify-center rounded-[4px] bg-[var(--surface-5)]/90'>
+            <span className='text-[13px] text-[var(--text-tertiary)]'>Drop file here</span>
+          </div>
+        )}
         {items.map((item, index) => (
           <Tag
             key={`item-${index}`}
@@ -268,12 +401,12 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
         ))}
         <div
           className={cn(
-            'flex items-center',
+            'flex flex-1 items-center',
             inputValue.trim() &&
               cn(tagVariants({ variant: 'default' }), 'gap-0 py-0 pr-0 pl-[4px] opacity-80')
           )}
         >
-          <div className='relative inline-flex'>
+          <div className='relative inline-flex flex-1'>
             {inputValue.trim() && (
               <span
                 className='invisible whitespace-pre font-medium font-sans text-[13px] leading-[20px]'
@@ -327,6 +460,19 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
               aria-label='Add tag'
             >
               <Plus className='h-[12px] w-[12px]' />
+            </button>
+          )}
+          {fileInputEnabled && !disabled && !inputValue.trim() && (
+            <button
+              type='button'
+              onClick={(e) => {
+                e.stopPropagation()
+                fileInputRef.current?.click()
+              }}
+              className='flex-shrink-0 text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]'
+              aria-label='Upload file'
+            >
+              <FileIcon className='h-[14px] w-[14px]' strokeWidth={2} />
             </button>
           )}
         </div>

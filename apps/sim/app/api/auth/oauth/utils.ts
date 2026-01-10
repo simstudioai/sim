@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { account, workflow } from '@sim/db/schema'
+import { account, credentialSetMember, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { refreshOAuthToken } from '@/lib/oauth'
 
@@ -105,10 +105,10 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       refreshToken: account.refreshToken,
       accessTokenExpiresAt: account.accessTokenExpiresAt,
       idToken: account.idToken,
+      scope: account.scope,
     })
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, providerId)))
-    // Always use the most recently updated credential for this provider
     .orderBy(desc(account.updatedAt))
     .limit(1)
 
@@ -334,4 +334,109 @@ export async function refreshTokenIfNeeded(
     logger.error(`[${requestId}] Refresh failed and no valid token found in DB`, error)
     throw error
   }
+}
+
+export interface CredentialSetCredential {
+  userId: string
+  credentialId: string
+  accessToken: string
+  providerId: string
+}
+
+export async function getCredentialsForCredentialSet(
+  credentialSetId: string,
+  providerId: string
+): Promise<CredentialSetCredential[]> {
+  logger.info(`Getting credentials for credential set ${credentialSetId}, provider ${providerId}`)
+
+  const members = await db
+    .select({ userId: credentialSetMember.userId })
+    .from(credentialSetMember)
+    .where(
+      and(
+        eq(credentialSetMember.credentialSetId, credentialSetId),
+        eq(credentialSetMember.status, 'active')
+      )
+    )
+
+  logger.info(`Found ${members.length} active members in credential set ${credentialSetId}`)
+
+  if (members.length === 0) {
+    logger.warn(`No active members found for credential set ${credentialSetId}`)
+    return []
+  }
+
+  const userIds = members.map((m) => m.userId)
+  logger.debug(`Member user IDs: ${userIds.join(', ')}`)
+
+  const credentials = await db
+    .select({
+      id: account.id,
+      userId: account.userId,
+      providerId: account.providerId,
+      accessToken: account.accessToken,
+      refreshToken: account.refreshToken,
+      accessTokenExpiresAt: account.accessTokenExpiresAt,
+    })
+    .from(account)
+    .where(and(inArray(account.userId, userIds), eq(account.providerId, providerId)))
+
+  logger.info(
+    `Found ${credentials.length} credentials with provider ${providerId} for ${members.length} members`
+  )
+
+  const results: CredentialSetCredential[] = []
+
+  for (const cred of credentials) {
+    const now = new Date()
+    const tokenExpiry = cred.accessTokenExpiresAt
+    const shouldRefresh =
+      !!cred.refreshToken && (!cred.accessToken || (tokenExpiry && tokenExpiry < now))
+
+    let accessToken = cred.accessToken
+
+    if (shouldRefresh && cred.refreshToken) {
+      try {
+        const refreshResult = await refreshOAuthToken(providerId, cred.refreshToken)
+
+        if (refreshResult) {
+          accessToken = refreshResult.accessToken
+
+          const updateData: Record<string, unknown> = {
+            accessToken: refreshResult.accessToken,
+            accessTokenExpiresAt: new Date(Date.now() + refreshResult.expiresIn * 1000),
+            updatedAt: new Date(),
+          }
+
+          if (refreshResult.refreshToken && refreshResult.refreshToken !== cred.refreshToken) {
+            updateData.refreshToken = refreshResult.refreshToken
+          }
+
+          await db.update(account).set(updateData).where(eq(account.id, cred.id))
+
+          logger.info(`Refreshed token for user ${cred.userId}, provider ${providerId}`)
+        }
+      } catch (error) {
+        logger.error(`Failed to refresh token for user ${cred.userId}, provider ${providerId}`, {
+          error: error instanceof Error ? error.message : String(error),
+        })
+        continue
+      }
+    }
+
+    if (accessToken) {
+      results.push({
+        userId: cred.userId,
+        credentialId: cred.id,
+        accessToken,
+        providerId,
+      })
+    }
+  }
+
+  logger.info(
+    `Found ${results.length} valid credentials for credential set ${credentialSetId}, provider ${providerId}`
+  )
+
+  return results
 }

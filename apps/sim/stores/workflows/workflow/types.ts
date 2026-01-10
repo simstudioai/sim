@@ -1,5 +1,5 @@
 import type { Edge } from 'reactflow'
-import type { BlockOutput, SubBlockType } from '@/blocks/types'
+import type { OutputFieldDefinition, SubBlockType } from '@/blocks/types'
 import type { DeploymentStatus } from '@/stores/workflows/registry/types'
 
 export const SUBFLOW_TYPES = {
@@ -17,14 +17,14 @@ export interface LoopConfig {
   nodes: string[]
   iterations: number
   loopType: 'for' | 'forEach' | 'while' | 'doWhile'
-  forEachItems?: any[] | Record<string, any> | string
+  forEachItems?: unknown[] | Record<string, unknown> | string
   whileCondition?: string // JS expression that evaluates to boolean (for while loops)
   doWhileCondition?: string // JS expression that evaluates to boolean (for do-while loops)
 }
 
 export interface ParallelConfig {
   nodes: string[]
-  distribution?: any[] | Record<string, any> | string
+  distribution?: unknown[] | Record<string, unknown> | string
   parallelType?: 'count' | 'collection'
 }
 
@@ -76,7 +76,7 @@ export interface BlockState {
   name: string
   position: Position
   subBlocks: Record<string, SubBlockState>
-  outputs: Record<string, BlockOutput>
+  outputs: Record<string, OutputFieldDefinition>
   enabled: boolean
   horizontalHandles?: boolean
   height?: number
@@ -137,6 +137,13 @@ export interface Parallel {
   parallelType?: 'count' | 'collection' // Explicit parallel type to avoid inference bugs
 }
 
+export interface Variable {
+  id: string
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+  value: unknown
+}
+
 export interface DragStartPosition {
   id: string
   x: number
@@ -156,14 +163,7 @@ export interface WorkflowState {
     description?: string
     exportedAt?: string
   }
-  variables?: Array<{
-    id: string
-    name: string
-    type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
-    value: any
-  }>
-  isDeployed?: boolean
-  deployedAt?: Date
+  variables?: Record<string, Variable>
   deploymentStatuses?: Record<string, DeploymentStatus>
   needsRedeployment?: boolean
   dragStartPosition?: DragStartPosition | null
@@ -195,8 +195,10 @@ export interface WorkflowActions {
   clear: () => Partial<WorkflowState>
   updateLastSaved: () => void
   toggleBlockEnabled: (id: string) => void
+  setBlockEnabled: (id: string, enabled: boolean) => void
   duplicateBlock: (id: string) => void
   toggleBlockHandles: (id: string) => void
+  setBlockHandles: (id: string, horizontalHandles: boolean) => void
   updateBlockName: (
     id: string,
     name: string

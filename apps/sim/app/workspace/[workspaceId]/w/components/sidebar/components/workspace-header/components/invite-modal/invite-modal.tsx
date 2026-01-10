@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import {
   Button,
+  type FileInputOptions,
   Label,
   Modal,
   ModalBody,
@@ -17,9 +18,9 @@ import {
 import { useSession } from '@/lib/auth/auth-client'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { PermissionsTable } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal/components/permissions-table'
 import { API_ENDPOINTS } from '@/stores/constants'
-import type { PermissionType, UserPermissions } from './components'
-import { PermissionsTable } from './components'
+import type { PermissionType, UserPermissions } from './components/types'
 
 const logger = createLogger('InviteModal')
 
@@ -117,7 +118,6 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     }
   }, [open, workspaceId, fetchPendingInvitations, refetchPermissions])
 
-  // Clear errors when modal opens
   useEffect(() => {
     if (open) {
       setErrorMessage(null)
@@ -185,6 +185,19 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     [emailItems]
   )
 
+  const fileInputOptions: FileInputOptions = useMemo(
+    () => ({
+      enabled: userPerms.canAdmin,
+      accept: '.csv,.txt,text/csv,text/plain',
+      extractValues: (text: string) => {
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
+        const matches = text.match(emailRegex) || []
+        return [...new Set(matches.map((e) => e.toLowerCase()))]
+      },
+    }),
+    [userPerms.canAdmin]
+  )
+
   const handlePermissionChange = useCallback(
     (identifier: string, permissionType: PermissionType) => {
       const existingUser = workspacePermissions?.users?.find((user) => user.userId === identifier)
@@ -193,11 +206,9 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         setExistingUserPermissionChanges((prev) => {
           const newChanges = { ...prev }
 
-          // If the new permission matches the original, remove the change entry
           if (existingUser.permissionType === permissionType) {
             delete newChanges[identifier]
           } else {
-            // Otherwise, track the change
             newChanges[identifier] = { permissionType }
           }
 
@@ -286,7 +297,6 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     setErrorMessage(null)
 
     try {
-      // Verify the user exists in workspace permissions
       const userRecord = workspacePermissions?.users?.find(
         (user) => user.userId === memberToRemove.userId
       )
@@ -311,7 +321,6 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         throw new Error(data.error || 'Failed to remove member')
       }
 
-      // Update the workspace permissions to remove the user
       if (workspacePermissions) {
         const updatedUsers = workspacePermissions.users.filter(
           (user) => user.userId !== memberToRemove.userId
@@ -322,7 +331,6 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         })
       }
 
-      // Clear any pending changes for this user
       setExistingUserPermissionChanges((prev) => {
         const updated = { ...prev }
         delete updated[memberToRemove.userId]
@@ -373,7 +381,6 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         throw new Error(data.error || 'Failed to cancel invitation')
       }
 
-      // Remove the invitation from the pending invitations list
       setPendingInvitations((prev) =>
         prev.filter((inv) => inv.invitationId !== invitationToRemove.invitationId)
       )
@@ -441,7 +448,6 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
           delete next[invitationId]
           return next
         })
-        // Start 60s cooldown
         setResendCooldowns((prev) => ({ ...prev, [invitationId]: 60 }))
         const interval = setInterval(() => {
           setResendCooldowns((prev) => {
@@ -465,7 +471,6 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     async (e: React.FormEvent) => {
       e.preventDefault()
 
-      // Clear messages at start of submission
       setErrorMessage(null)
       setSuccessMessage(null)
 
@@ -575,7 +580,6 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
   )
 
   const resetState = useCallback(() => {
-    // Batch state updates using React's automatic batching in React 18+
     setEmailItems([])
     setUserPermissions([])
     setPendingInvitations([])
@@ -661,6 +665,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                   placeholderWithTags='Add email'
                   autoFocus={userPerms.canAdmin}
                   disabled={isSubmitting || !userPerms.canAdmin}
+                  fileInputOptions={fileInputOptions}
                 />
               </div>
               {errorMessage && (
