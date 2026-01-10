@@ -174,6 +174,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   const userEmail = session?.user?.email
   const userId = session?.user?.id
+
   const userRole = getUserRole(activeOrganization, userEmail)
   const isOwner = userRole === 'owner'
   const isAdmin = userRole === 'admin'

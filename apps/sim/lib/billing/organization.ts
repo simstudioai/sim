@@ -1,5 +1,11 @@
 import { db } from '@sim/db'
-import * as schema from '@sim/db/schema'
+import {
+  member,
+  organization,
+  session,
+  subscription as subscriptionTable,
+  user,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { getPlanPricing } from '@/lib/billing/core/billing'
@@ -20,16 +26,16 @@ type SubscriptionData = {
  */
 async function getUserOwnedOrganization(userId: string): Promise<string | null> {
   const existingMemberships = await db
-    .select({ organizationId: schema.member.organizationId })
-    .from(schema.member)
-    .where(and(eq(schema.member.userId, userId), eq(schema.member.role, 'owner')))
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(and(eq(member.userId, userId), eq(member.role, 'owner')))
     .limit(1)
 
   if (existingMemberships.length > 0) {
     const [existingOrg] = await db
-      .select({ id: schema.organization.id })
-      .from(schema.organization)
-      .where(eq(schema.organization.id, existingMemberships[0].organizationId))
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.id, existingMemberships[0].organizationId))
       .limit(1)
 
     return existingOrg?.id || null
@@ -40,6 +46,8 @@ async function getUserOwnedOrganization(userId: string): Promise<string | null> 
 
 /**
  * Create a new organization and add user as owner
+ * Uses transaction to ensure org + member are created atomically
+ * Also updates user's active sessions to set the new org as active
  */
 async function createOrganizationWithOwner(
   userId: string,
@@ -48,32 +56,40 @@ async function createOrganizationWithOwner(
   metadata: Record<string, any> = {}
 ): Promise<string> {
   const orgId = `org_${crypto.randomUUID()}`
+  let sessionsUpdated = 0
 
-  const [newOrg] = await db
-    .insert(schema.organization)
-    .values({
+  await db.transaction(async (tx) => {
+    await tx.insert(organization).values({
       id: orgId,
       name: organizationName,
       slug: organizationSlug,
       metadata,
     })
-    .returning({ id: schema.organization.id })
 
-  // Add user as owner/admin of the organization
-  await db.insert(schema.member).values({
-    id: crypto.randomUUID(),
-    userId: userId,
-    organizationId: newOrg.id,
-    role: 'owner',
+    await tx.insert(member).values({
+      id: crypto.randomUUID(),
+      userId: userId,
+      organizationId: orgId,
+      role: 'owner',
+    })
+
+    const updatedSessions = await tx
+      .update(session)
+      .set({ activeOrganizationId: orgId })
+      .where(eq(session.userId, userId))
+      .returning({ id: session.id })
+
+    sessionsUpdated = updatedSessions.length
   })
 
   logger.info('Created organization with owner', {
     userId,
-    organizationId: newOrg.id,
+    organizationId: orgId,
     organizationName,
+    sessionsUpdated,
   })
 
-  return newOrg.id
+  return orgId
 }
 
 export async function createOrganizationForTeamPlan(
@@ -132,12 +148,12 @@ export async function ensureOrganizationForTeamSubscription(
 
   const existingMembership = await db
     .select({
-      id: schema.member.id,
-      organizationId: schema.member.organizationId,
-      role: schema.member.role,
+      id: member.id,
+      organizationId: member.organizationId,
+      role: member.role,
     })
-    .from(schema.member)
-    .where(eq(schema.member.userId, userId))
+    .from(member)
+    .where(eq(member.userId, userId))
     .limit(1)
 
   if (existingMembership.length > 0) {
@@ -148,10 +164,17 @@ export async function ensureOrganizationForTeamSubscription(
         organizationId: membership.organizationId,
       })
 
-      await db
-        .update(schema.subscription)
-        .set({ referenceId: membership.organizationId })
-        .where(eq(schema.subscription.id, subscription.id))
+      await db.transaction(async (tx) => {
+        await tx
+          .update(subscriptionTable)
+          .set({ referenceId: membership.organizationId })
+          .where(eq(subscriptionTable.id, subscription.id))
+
+        await tx
+          .update(session)
+          .set({ activeOrganizationId: membership.organizationId })
+          .where(eq(session.userId, userId))
+      })
 
       return { ...subscription, referenceId: membership.organizationId }
     }
@@ -165,9 +188,9 @@ export async function ensureOrganizationForTeamSubscription(
   }
 
   const [userData] = await db
-    .select({ name: schema.user.name, email: schema.user.email })
-    .from(schema.user)
-    .where(eq(schema.user.id, userId))
+    .select({ name: user.name, email: user.email })
+    .from(user)
+    .where(eq(user.id, userId))
     .limit(1)
 
   const orgId = await createOrganizationForTeamPlan(
@@ -177,9 +200,9 @@ export async function ensureOrganizationForTeamSubscription(
   )
 
   await db
-    .update(schema.subscription)
+    .update(subscriptionTable)
     .set({ referenceId: orgId })
-    .where(eq(schema.subscription.id, subscription.id))
+    .where(eq(subscriptionTable.id, subscription.id))
 
   logger.info('Created organization and updated subscription referenceId', {
     subscriptionId: subscription.id,
@@ -204,9 +227,9 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
 
     // Check if this is a user or organization subscription
     const users = await db
-      .select({ id: schema.user.id })
-      .from(schema.user)
-      .where(eq(schema.user.id, subscription.referenceId))
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.id, subscription.referenceId))
       .limit(1)
 
     if (users.length > 0) {
@@ -230,9 +253,9 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
 
         // Only set if not already set or if updating to a higher value based on seats
         const orgData = await db
-          .select({ orgUsageLimit: schema.organization.orgUsageLimit })
-          .from(schema.organization)
-          .where(eq(schema.organization.id, organizationId))
+          .select({ orgUsageLimit: organization.orgUsageLimit })
+          .from(organization)
+          .where(eq(organization.id, organizationId))
           .limit(1)
 
         const currentLimit =
@@ -243,12 +266,12 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
         // Update if no limit set, or if new seat-based minimum is higher
         if (currentLimit < orgLimit) {
           await db
-            .update(schema.organization)
+            .update(organization)
             .set({
               orgUsageLimit: orgLimit.toFixed(2),
               updatedAt: new Date(),
             })
-            .where(eq(schema.organization.id, organizationId))
+            .where(eq(organization.id, organizationId))
 
           logger.info('Set organization usage limit for team plan', {
             organizationId,
@@ -262,17 +285,17 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
 
       // Sync usage limits for all members
       const members = await db
-        .select({ userId: schema.member.userId })
-        .from(schema.member)
-        .where(eq(schema.member.organizationId, organizationId))
+        .select({ userId: member.userId })
+        .from(member)
+        .where(eq(member.organizationId, organizationId))
 
       if (members.length > 0) {
-        for (const member of members) {
+        for (const m of members) {
           try {
-            await syncUsageLimitsFromSubscription(member.userId)
+            await syncUsageLimitsFromSubscription(m.userId)
           } catch (memberError) {
             logger.error('Failed to sync usage limits for organization member', {
-              userId: member.userId,
+              userId: m.userId,
               organizationId,
               subscriptionId: subscription.id,
               error: memberError,
