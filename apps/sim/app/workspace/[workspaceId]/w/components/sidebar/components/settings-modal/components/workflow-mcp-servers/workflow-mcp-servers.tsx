@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Check, ChevronDown, Clipboard, Plus, Search, X } from 'lucide-react'
+import { Check, Clipboard, Plus, Search, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -16,11 +16,6 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverScrollArea,
-  PopoverTrigger,
   Textarea,
 } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
@@ -50,8 +45,8 @@ interface WorkflowTagSelectProps {
 }
 
 /**
- * A tag-input style workflow selector with dropdown.
- * Shows selected workflows as removable tags inside the input container.
+ * Multi-select workflow selector using Combobox.
+ * Shows selected workflows as removable badges inside the trigger.
  */
 function WorkflowTagSelect({
   workflows,
@@ -60,124 +55,68 @@ function WorkflowTagSelect({
   isLoading = false,
   disabled = false,
 }: WorkflowTagSelectProps) {
-  const [open, setOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
+  const options: ComboboxOption[] = useMemo(() => {
+    return workflows.map((w) => ({
+      label: w.name,
+      value: w.id,
+    }))
+  }, [workflows])
 
-  const availableWorkflows = useMemo(() => {
-    return workflows.filter((w) => !selectedIds.includes(w.id))
+  const selectedWorkflows = useMemo(() => {
+    return workflows.filter((w) => selectedIds.includes(w.id))
   }, [workflows, selectedIds])
 
-  const filteredWorkflows = useMemo(() => {
-    if (!searchQuery.trim()) return availableWorkflows
-    const query = searchQuery.toLowerCase()
-    return availableWorkflows.filter((w) => w.name.toLowerCase().includes(query))
-  }, [availableWorkflows, searchQuery])
-
-  const handleSelect = (id: string) => {
-    onSelectionChange([...selectedIds, id])
-    setSearchQuery('')
+  const handleRemove = (e: React.MouseEvent, id: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    onSelectionChange(selectedIds.filter((i) => i !== id))
   }
 
-  const handleRemove = (id: string) => {
-    onSelectionChange(selectedIds.filter((selectedId) => selectedId !== id))
-  }
+  const overlayContent = useMemo(() => {
+    if (selectedWorkflows.length === 0) {
+      return null
+    }
+
+    return (
+      <div className='flex items-center gap-[4px] overflow-hidden'>
+        {selectedWorkflows.slice(0, 2).map((w) => (
+          <Badge
+            key={w.id}
+            variant='outline'
+            className='pointer-events-auto cursor-pointer gap-[4px] rounded-[6px] px-[8px] py-[2px] text-[11px]'
+            onMouseDown={(e) => handleRemove(e, w.id)}
+          >
+            {w.name}
+            <X className='h-3 w-3' />
+          </Badge>
+        ))}
+        {selectedWorkflows.length > 2 && (
+          <Badge variant='outline' className='rounded-[6px] px-[8px] py-[2px] text-[11px]'>
+            +{selectedWorkflows.length - 2}
+          </Badge>
+        )}
+      </div>
+    )
+  }, [selectedWorkflows, selectedIds])
 
   const isEmpty = workflows.length === 0
 
+  if (isLoading) {
+    return <Skeleton className='h-[34px] w-full rounded-[6px]' />
+  }
+
   return (
-    <Popover open={open && !disabled && !isEmpty} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <div
-          className={`flex h-[36px] cursor-pointer items-center gap-[6px] overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] transition-colors hover:bg-[var(--surface-7)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)] ${
-            disabled ? 'cursor-not-allowed opacity-50' : ''
-          }`}
-          onClick={() => !disabled && !isEmpty && setOpen(true)}
-        >
-          {selectedIds.length === 0 ? (
-            <span className='text-[var(--text-muted)] text-sm'>
-              {isEmpty ? 'No deployed workflows available' : 'Select deployed workflows...'}
-            </span>
-          ) : (
-            <div className='flex min-w-0 flex-1 items-center gap-[6px] overflow-hidden'>
-              {selectedIds.map((id) => {
-                const workflow = workflows.find((w) => w.id === id)
-                return (
-                  <div
-                    key={id}
-                    className='flex flex-shrink-0 items-center gap-[4px] rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[6px] py-[2px] text-[12px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                  >
-                    <span className='max-w-[150px] truncate'>{workflow?.name || id}</span>
-                    <button
-                      type='button'
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleRemove(id)
-                      }}
-                      className='flex-shrink-0 text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)] focus:outline-none'
-                      aria-label={`Remove ${workflow?.name || id}`}
-                    >
-                      <X className='h-[12px] w-[12px] translate-y-[0.2px]' />
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-          <ChevronDown
-            className={`ml-auto h-4 w-4 flex-shrink-0 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`}
-          />
-        </div>
-      </PopoverTrigger>
-      <PopoverContent
-        side='bottom'
-        align='start'
-        sideOffset={4}
-        className='w-[var(--radix-popover-trigger-width)] rounded-[6px] border border-[var(--border-1)] p-0'
-      >
-        <div className='flex items-center px-[10px] pt-[8px] pb-[4px]'>
-          <Search className='mr-[7px] ml-[1px] h-[13px] w-[13px] shrink-0 text-[var(--text-muted)]' />
-          <input
-            className='w-full bg-transparent font-base text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none'
-            placeholder='Search workflows...'
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setOpen(false)
-                setSearchQuery('')
-              }
-            }}
-          />
-        </div>
-        <PopoverScrollArea className='!flex-none p-[4px]' style={{ maxHeight: '192px' }}>
-          {isLoading ? (
-            <div className='flex items-center justify-center py-[14px]'>
-              <span className='font-base text-[12px] text-[var(--text-muted)]'>Loading...</span>
-            </div>
-          ) : filteredWorkflows.length === 0 ? (
-            <div className='py-[14px] text-center font-base text-[12px] text-[var(--text-muted)]'>
-              {searchQuery
-                ? 'No matching workflows found'
-                : availableWorkflows.length === 0
-                  ? 'All workflows have been added'
-                  : 'No deployed workflows found'}
-            </div>
-          ) : (
-            <div className='space-y-[2px]'>
-              {filteredWorkflows.map((workflow) => (
-                <PopoverItem
-                  key={workflow.id}
-                  onClick={() => handleSelect(workflow.id)}
-                  className='cursor-pointer rounded-[4px] px-[6px] py-[6px] font-medium font-sans text-sm hover:bg-[var(--border-1)]'
-                >
-                  <span className='truncate text-[var(--text-primary)]'>{workflow.name}</span>
-                </PopoverItem>
-              ))}
-            </div>
-          )}
-        </PopoverScrollArea>
-      </PopoverContent>
-    </Popover>
+    <Combobox
+      options={options}
+      multiSelect
+      multiSelectValues={selectedIds}
+      onMultiSelectChange={onSelectionChange}
+      placeholder={isEmpty ? 'No deployed workflows available' : 'Select deployed workflows...'}
+      overlayContent={overlayContent}
+      searchable
+      searchPlaceholder='Search workflows...'
+      disabled={disabled || isEmpty}
+    />
   )
 }
 
@@ -596,7 +535,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
 }
 
 interface WorkflowMcpServersProps {
-  /** Key that when changed resets the component to list view */
   resetKey?: number
 }
 
@@ -623,7 +561,6 @@ export function WorkflowMcpServers({ resetKey }: WorkflowMcpServersProps) {
   const [serverToDelete, setServerToDelete] = useState<WorkflowMcpServer | null>(null)
   const [deletingServers, setDeletingServers] = useState<Set<string>>(new Set())
 
-  // Reset to list view when resetKey changes (triggered by clicking sidebar item)
   useEffect(() => {
     if (resetKey !== undefined) {
       setSelectedServerId(null)
@@ -651,7 +588,6 @@ export function WorkflowMcpServers({ resetKey }: WorkflowMcpServersProps) {
         name: formData.name.trim(),
       })
 
-      // Add selected workflows as tools
       if (selectedWorkflowIds.length > 0 && server?.id) {
         await Promise.all(
           selectedWorkflowIds.map((workflowId) =>
