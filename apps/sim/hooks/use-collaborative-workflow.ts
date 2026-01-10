@@ -514,6 +514,34 @@ export function useCollaborativeWorkflow() {
               logger.info('Successfully applied batch-remove-blocks from remote user')
               break
             }
+            case BLOCKS_OPERATIONS.BATCH_TOGGLE_ENABLED: {
+              const { blockIds } = payload
+              logger.info('Received batch-toggle-enabled from remote user', {
+                userId,
+                count: (blockIds || []).length,
+              })
+
+              ;(blockIds || []).forEach((id: string) => {
+                workflowStore.toggleBlockEnabled(id)
+              })
+
+              logger.info('Successfully applied batch-toggle-enabled from remote user')
+              break
+            }
+            case BLOCKS_OPERATIONS.BATCH_TOGGLE_HANDLES: {
+              const { blockIds } = payload
+              logger.info('Received batch-toggle-handles from remote user', {
+                userId,
+                count: (blockIds || []).length,
+              })
+
+              ;(blockIds || []).forEach((id: string) => {
+                workflowStore.toggleBlockHandles(id)
+              })
+
+              logger.info('Successfully applied batch-toggle-handles from remote user')
+              break
+            }
           }
         }
       } catch (error) {
