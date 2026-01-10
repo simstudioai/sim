@@ -396,28 +396,6 @@ async function handleBlockOperationTx(
       break
     }
 
-    case BLOCK_OPERATIONS.UPDATE_TRIGGER_MODE: {
-      if (!payload.id || payload.triggerMode === undefined) {
-        throw new Error('Missing required fields for update trigger mode operation')
-      }
-
-      const updateResult = await tx
-        .update(workflowBlocks)
-        .set({
-          triggerMode: payload.triggerMode,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
-        .returning({ id: workflowBlocks.id })
-
-      if (updateResult.length === 0) {
-        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
-      }
-
-      logger.debug(`Updated block trigger mode: ${payload.id} -> ${payload.triggerMode}`)
-      break
-    }
-
     case BLOCK_OPERATIONS.TOGGLE_HANDLES: {
       if (!payload.id || payload.horizontalHandles === undefined) {
         throw new Error('Missing required fields for toggle handles operation')

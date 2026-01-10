@@ -373,16 +373,20 @@ export function useNodeUtilities(blocks: Record<string, any>) {
    * Updates a node's parent with proper position calculation
    * @param nodeId ID of the node being reparented
    * @param newParentId ID of the new parent (or null to remove parent)
-   * @param updateBlockPosition Function to update the position of a block
-   * @param updateParentId Function to update the parent ID of a block
+   * @param batchUpdatePositions Function to batch update positions of blocks
+   * @param batchUpdateBlocksWithParent Function to batch update blocks with parent info
    * @param resizeCallback Function to resize loop nodes after parent update
    */
   const updateNodeParent = useCallback(
     (
       nodeId: string,
       newParentId: string | null,
-      updateBlockPosition: (id: string, position: { x: number; y: number }) => void,
-      updateParentId: (id: string, parentId: string, extent: 'parent') => void,
+      batchUpdatePositions: (
+        updates: Array<{ id: string; position: { x: number; y: number } }>
+      ) => void,
+      batchUpdateBlocksWithParent: (
+        updates: Array<{ id: string; position: { x: number; y: number }; parentId?: string }>
+      ) => void,
       resizeCallback: () => void
     ) => {
       const node = getNodes().find((n) => n.id === nodeId)
@@ -394,15 +398,15 @@ export function useNodeUtilities(blocks: Record<string, any>) {
       if (newParentId) {
         const relativePosition = calculateRelativePosition(nodeId, newParentId)
 
-        updateBlockPosition(nodeId, relativePosition)
-        updateParentId(nodeId, newParentId, 'parent')
+        batchUpdatePositions([{ id: nodeId, position: relativePosition }])
+        batchUpdateBlocksWithParent([
+          { id: nodeId, position: relativePosition, parentId: newParentId },
+        ])
       } else if (currentParentId) {
         const absolutePosition = getNodeAbsolutePosition(nodeId)
 
-        // First set the absolute position so the node visually stays in place
-        updateBlockPosition(nodeId, absolutePosition)
-        // Then clear the parent relationship in the store (empty string removes parentId/extent)
-        updateParentId(nodeId, '', 'parent')
+        batchUpdatePositions([{ id: nodeId, position: absolutePosition }])
+        batchUpdateBlocksWithParent([{ id: nodeId, position: absolutePosition, parentId: '' }])
       }
 
       resizeCallback()
