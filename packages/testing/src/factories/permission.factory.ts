@@ -252,22 +252,54 @@ export function createWorkflowAccessContext(options: {
 }
 
 /**
- * All socket operations that can be performed.
+ * Socket operations
+ */
+const BLOCK_OPERATIONS = {
+  UPDATE_POSITION: 'update-position',
+  UPDATE_NAME: 'update-name',
+  TOGGLE_ENABLED: 'toggle-enabled',
+  UPDATE_PARENT: 'update-parent',
+  UPDATE_ADVANCED_MODE: 'update-advanced-mode',
+  TOGGLE_HANDLES: 'toggle-handles',
+} as const
+
+const BLOCKS_OPERATIONS = {
+  BATCH_UPDATE_POSITIONS: 'batch-update-positions',
+  BATCH_ADD_BLOCKS: 'batch-add-blocks',
+  BATCH_REMOVE_BLOCKS: 'batch-remove-blocks',
+  BATCH_TOGGLE_ENABLED: 'batch-toggle-enabled',
+  BATCH_TOGGLE_HANDLES: 'batch-toggle-handles',
+  BATCH_UPDATE_PARENT: 'batch-update-parent',
+} as const
+
+const EDGE_OPERATIONS = {
+  ADD: 'add',
+  REMOVE: 'remove',
+} as const
+
+const EDGES_OPERATIONS = {
+  BATCH_ADD_EDGES: 'batch-add-edges',
+  BATCH_REMOVE_EDGES: 'batch-remove-edges',
+} as const
+
+const SUBFLOW_OPERATIONS = {
+  UPDATE: 'update',
+} as const
+
+const WORKFLOW_OPERATIONS = {
+  REPLACE_STATE: 'replace-state',
+} as const
+
+/**
+ * All socket operations that require permission checks.
  */
 export const SOCKET_OPERATIONS = [
-  'add',
-  'remove',
-  'batch-add-blocks',
-  'batch-remove-blocks',
-  'update',
-  'update-position',
-  'update-name',
-  'toggle-enabled',
-  'update-parent',
-  'update-advanced-mode',
-  'toggle-handles',
-  'batch-update-positions',
-  'replace-state',
+  ...Object.values(BLOCK_OPERATIONS),
+  ...Object.values(BLOCKS_OPERATIONS),
+  ...Object.values(EDGE_OPERATIONS),
+  ...Object.values(EDGES_OPERATIONS),
+  ...Object.values(SUBFLOW_OPERATIONS),
+  ...Object.values(WORKFLOW_OPERATIONS),
 ] as const
 
 export type SocketOperation = (typeof SOCKET_OPERATIONS)[number]
@@ -275,10 +307,10 @@ export type SocketOperation = (typeof SOCKET_OPERATIONS)[number]
 /**
  * Operations allowed for each role.
  */
-export const ROLE_ALLOWED_OPERATIONS: Record<PermissionType, SocketOperation[]> = {
-  admin: [...SOCKET_OPERATIONS],
-  write: [...SOCKET_OPERATIONS],
-  read: ['update-position', 'batch-update-positions'],
+export const ROLE_ALLOWED_OPERATIONS: Record<PermissionType, readonly SocketOperation[]> = {
+  admin: SOCKET_OPERATIONS,
+  write: SOCKET_OPERATIONS,
+  read: [BLOCK_OPERATIONS.UPDATE_POSITION, BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS],
 }
 
 /**

@@ -498,10 +498,21 @@ export const useWorkflowStore = create<WorkflowStore>()(
         const currentEdges = get().edges
         const newEdges = [...currentEdges]
         const existingEdgeIds = new Set(currentEdges.map((e) => e.id))
+        // Track existing connections to prevent duplicates (same source->target)
+        const existingConnections = new Set(currentEdges.map((e) => `${e.source}->${e.target}`))
 
         for (const edge of edges) {
+          // Skip if edge ID already exists
           if (existingEdgeIds.has(edge.id)) continue
 
+          // Skip self-referencing edges
+          if (edge.source === edge.target) continue
+
+          // Skip if connection already exists (same source and target)
+          const connectionKey = `${edge.source}->${edge.target}`
+          if (existingConnections.has(connectionKey)) continue
+
+          // Skip if would create a cycle
           if (wouldCreateCycle([...newEdges], edge.source, edge.target)) continue
 
           newEdges.push({
@@ -514,6 +525,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             data: edge.data || {},
           })
           existingEdgeIds.add(edge.id)
+          existingConnections.add(connectionKey)
         }
 
         const blocks = get().blocks
