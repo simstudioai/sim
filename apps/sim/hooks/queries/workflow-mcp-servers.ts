@@ -11,6 +11,7 @@ export interface DeployedWorkflow {
   name: string
   description: string | null
   isDeployed: boolean
+  hasStartBlock?: boolean
 }
 
 /**
@@ -442,14 +443,32 @@ async function fetchDeployedWorkflows(workspaceId: string): Promise<DeployedWork
 
   const { data }: { data: any[] } = await response.json()
 
-  return data
-    .filter((w) => w.isDeployed)
-    .map((w) => ({
-      id: w.id,
-      name: w.name,
-      description: w.description,
-      isDeployed: w.isDeployed,
-    }))
+  const deployedWorkflows = data.filter((w) => w.isDeployed)
+
+  let startBlockMap: Record<string, boolean> = {}
+  if (deployedWorkflows.length > 0) {
+    try {
+      const validateResponse = await fetch('/api/mcp/workflow-servers/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workflowIds: deployedWorkflows.map((w) => w.id) }),
+      })
+      if (validateResponse.ok) {
+        const validateData = await validateResponse.json()
+        startBlockMap = validateData.data || {}
+      }
+    } catch (error) {
+      logger.warn('Failed to validate workflows for MCP:', error)
+    }
+  }
+
+  return deployedWorkflows.map((w) => ({
+    id: w.id,
+    name: w.name,
+    description: w.description,
+    isDeployed: w.isDeployed,
+    hasStartBlock: startBlockMap[w.id] ?? false,
+  }))
 }
 
 /**

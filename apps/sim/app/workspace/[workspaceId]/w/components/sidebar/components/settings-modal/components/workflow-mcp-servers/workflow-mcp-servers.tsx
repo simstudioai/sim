@@ -204,6 +204,8 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
     return availableWorkflows.find((w) => w.id === selectedWorkflowId)
   }, [availableWorkflows, selectedWorkflowId])
 
+  const selectedWorkflowInvalid = selectedWorkflow && selectedWorkflow.hasStartBlock === false
+
   if (isLoading) {
     return (
       <div className='flex h-full flex-col gap-[16px]'>
@@ -502,7 +504,12 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                   ) : undefined
                 }
               />
-              {addToolMutation.isError && (
+              {selectedWorkflowInvalid && (
+                <p className='text-[11px] text-[var(--text-error)] leading-tight'>
+                  Workflow must have a Start block to be used as an MCP tool
+                </p>
+              )}
+              {addToolMutation.isError && !selectedWorkflowInvalid && (
                 <p className='text-[11px] text-[var(--text-error)] leading-tight'>
                   {addToolMutation.error?.message || 'Failed to add workflow'}
                 </p>
@@ -523,7 +530,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             <Button
               variant='tertiary'
               onClick={handleAddWorkflow}
-              disabled={!selectedWorkflowId || addToolMutation.isPending}
+              disabled={!selectedWorkflowId || selectedWorkflowInvalid || addToolMutation.isPending}
             >
               {addToolMutation.isPending ? 'Adding...' : 'Add Workflow'}
             </Button>
@@ -560,6 +567,7 @@ export function WorkflowMcpServers({ resetKey }: WorkflowMcpServersProps) {
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null)
   const [serverToDelete, setServerToDelete] = useState<WorkflowMcpServer | null>(null)
   const [deletingServers, setDeletingServers] = useState<Set<string>>(new Set())
+  const [createError, setCreateError] = useState<string | null>(null)
 
   useEffect(() => {
     if (resetKey !== undefined) {
@@ -573,37 +581,63 @@ export function WorkflowMcpServers({ resetKey }: WorkflowMcpServersProps) {
     return servers.filter((server) => server.name.toLowerCase().includes(search))
   }, [servers, searchTerm])
 
+  const invalidWorkflows = useMemo(() => {
+    return selectedWorkflowIds
+      .map((id) => deployedWorkflows.find((w) => w.id === id))
+      .filter((w) => w && w.hasStartBlock === false)
+      .map((w) => w!.name)
+  }, [selectedWorkflowIds, deployedWorkflows])
+
+  const hasInvalidWorkflows = invalidWorkflows.length > 0
+
   const resetForm = useCallback(() => {
     setFormData({ name: '' })
     setSelectedWorkflowIds([])
     setShowAddForm(false)
+    setCreateError(null)
   }, [])
 
   const handleCreateServer = async () => {
     if (!formData.name.trim()) return
 
+    setCreateError(null)
+
+    let server: WorkflowMcpServer | undefined
     try {
-      const server = await createServerMutation.mutateAsync({
+      server = await createServerMutation.mutateAsync({
         workspaceId,
         name: formData.name.trim(),
       })
-
-      if (selectedWorkflowIds.length > 0 && server?.id) {
-        await Promise.all(
-          selectedWorkflowIds.map((workflowId) =>
-            addToolMutation.mutateAsync({
-              workspaceId,
-              serverId: server.id,
-              workflowId,
-            })
-          )
-        )
-      }
-
-      resetForm()
     } catch (err) {
       logger.error('Failed to create server:', err)
+      setCreateError(err instanceof Error ? err.message : 'Failed to create server')
+      return
     }
+
+    if (selectedWorkflowIds.length > 0 && server?.id) {
+      const workflowErrors: string[] = []
+
+      for (const workflowId of selectedWorkflowIds) {
+        try {
+          await addToolMutation.mutateAsync({
+            workspaceId,
+            serverId: server.id,
+            workflowId,
+          })
+        } catch (err) {
+          const workflowName =
+            deployedWorkflows.find((w) => w.id === workflowId)?.name || workflowId
+          workflowErrors.push(workflowName)
+          logger.error(`Failed to add workflow ${workflowId} to server:`, err)
+        }
+      }
+
+      if (workflowErrors.length > 0) {
+        setCreateError(`Server created but failed to add workflows: ${workflowErrors.join(', ')}`)
+      }
+    }
+
+    resetForm()
   }
 
   const handleDeleteServer = async () => {
@@ -694,6 +728,13 @@ export function WorkflowMcpServers({ resetKey }: WorkflowMcpServersProps) {
                   disabled={deployedWorkflows.length === 0}
                 />
               </FormField>
+              {hasInvalidWorkflows && (
+                <p className='ml-[112px] text-[11px] text-[var(--text-error)] leading-tight'>
+                  Workflow must have a Start block to be used as an MCP tool
+                </p>
+              )}
+
+              {createError && <p className='text-[12px] text-[var(--text-error)]'>{createError}</p>}
 
               <div className='flex items-center justify-end gap-[8px] pt-[4px]'>
                 <Button variant='ghost' onClick={resetForm}>
@@ -702,7 +743,10 @@ export function WorkflowMcpServers({ resetKey }: WorkflowMcpServersProps) {
                 <Button
                   onClick={handleCreateServer}
                   disabled={
-                    !isFormValid || createServerMutation.isPending || addToolMutation.isPending
+                    !isFormValid ||
+                    hasInvalidWorkflows ||
+                    createServerMutation.isPending ||
+                    addToolMutation.isPending
                   }
                   variant='tertiary'
                 >

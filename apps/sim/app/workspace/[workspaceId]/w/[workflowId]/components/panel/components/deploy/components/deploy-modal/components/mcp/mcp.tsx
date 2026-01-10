@@ -147,6 +147,7 @@ export function McpDeploy({
   })
   const [parameterDescriptions, setParameterDescriptions] = useState<Record<string, string>>({})
   const [pendingServerChanges, setPendingServerChanges] = useState<Set<string>>(new Set())
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const parameterSchema = useMemo(
     () => generateParameterSchema(inputFormat, parameterDescriptions),
@@ -302,25 +303,60 @@ export function McpDeploy({
     if (selectedServerIds.length === 0) return
 
     onSubmittingChange?.(true)
-    try {
-      const actualSet = new Set(actualServerIds)
-      const toAdd = selectedServerIds.filter((id) => !actualSet.has(id))
-      const toRemove = actualServerIds.filter((id) => !selectedServerIds.includes(id))
-      const toUpdate = selectedServerIds.filter((id) => actualSet.has(id))
+    setSaveError(null)
 
-      for (const serverId of toAdd) {
+    const actualSet = new Set(actualServerIds)
+    const toAdd = selectedServerIds.filter((id) => !actualSet.has(id))
+    const toRemove = actualServerIds.filter((id) => !selectedServerIds.includes(id))
+    const toUpdate = selectedServerIds.filter((id) => actualSet.has(id))
+
+    const errors: string[] = []
+
+    for (const serverId of toAdd) {
+      setPendingServerChanges((prev) => new Set(prev).add(serverId))
+      try {
+        await addToolMutation.mutateAsync({
+          workspaceId,
+          serverId,
+          workflowId,
+          toolName: toolName.trim(),
+          toolDescription: toolDescription.trim() || undefined,
+          parameterSchema,
+        })
+        onAddedToServer?.()
+        logger.info(`Added workflow ${workflowId} as tool to server ${serverId}`)
+      } catch (error) {
+        const serverName = servers.find((s) => s.id === serverId)?.name || serverId
+        errors.push(`Failed to add to "${serverName}"`)
+        logger.error(`Failed to add tool to server ${serverId}:`, error)
+      } finally {
+        setPendingServerChanges((prev) => {
+          const next = new Set(prev)
+          next.delete(serverId)
+          return next
+        })
+      }
+    }
+
+    for (const serverId of toRemove) {
+      const toolInfo = serverToolsMap[serverId]
+      if (toolInfo?.tool) {
         setPendingServerChanges((prev) => new Set(prev).add(serverId))
         try {
-          await addToolMutation.mutateAsync({
+          await deleteToolMutation.mutateAsync({
             workspaceId,
             serverId,
-            workflowId,
-            toolName: toolName.trim(),
-            toolDescription: toolDescription.trim() || undefined,
-            parameterSchema,
+            toolId: toolInfo.tool.id,
           })
-          onAddedToServer?.()
-          logger.info(`Added workflow ${workflowId} as tool to server ${serverId}`)
+          setServerToolsMap((prev) => {
+            const next = { ...prev }
+            delete next[serverId]
+            return next
+          })
+        } catch (error) {
+          const serverName = servers.find((s) => s.id === serverId)?.name || serverId
+          errors.push(`Failed to remove from "${serverName}"`)
+          logger.error(`Failed to remove tool from server ${serverId}:`, error)
         } finally {
           setPendingServerChanges((prev) => {
             const next = new Set(prev)
@@ -329,35 +365,13 @@ export function McpDeploy({
           })
         }
       }
+    }
 
-      for (const serverId of toRemove) {
-        const toolInfo = serverToolsMap[serverId]
-        if (toolInfo?.tool) {
-          setPendingServerChanges((prev) => new Set(prev).add(serverId))
-          try {
-            await deleteToolMutation.mutateAsync({
-              workspaceId,
-              serverId,
-              toolId: toolInfo.tool.id,
-            })
-            setServerToolsMap((prev) => {
-              const next = { ...prev }
-              delete next[serverId]
-              return next
-            })
-          } finally {
-            setPendingServerChanges((prev) => {
-              const next = new Set(prev)
-              next.delete(serverId)
-              return next
-            })
-          }
-        }
-      }
-
-      for (const serverId of toUpdate) {
-        const toolInfo = serverToolsMap[serverId]
-        if (toolInfo?.tool) {
+    for (const serverId of toUpdate) {
+      const toolInfo = serverToolsMap[serverId]
+      if (toolInfo?.tool) {
+        setPendingServerChanges((prev) => new Set(prev).add(serverId))
+        try {
           await updateToolMutation.mutateAsync({
             workspaceId,
             serverId,
@@ -366,11 +380,25 @@ export function McpDeploy({
             toolDescription: toolDescription.trim() || undefined,
             parameterSchema,
           })
+        } catch (error) {
+          const serverName = servers.find((s) => s.id === serverId)?.name || serverId
+          errors.push(`Failed to update "${serverName}"`)
+          logger.error(`Failed to update tool on server ${serverId}:`, error)
+        } finally {
+          setPendingServerChanges((prev) => {
+            const next = new Set(prev)
+            next.delete(serverId)
+            return next
+          })
         }
       }
+    }
 
-      refetchServers()
+    refetchServers()
 
+    if (errors.length > 0) {
+      setSaveError(errors.join('. '))
+    } else {
       setPendingSelectedServerIds(null)
       setSavedValues({
         toolName,
@@ -378,11 +406,9 @@ export function McpDeploy({
         parameterDescriptions: { ...parameterDescriptions },
       })
       onCanSaveChange?.(false)
-      onSubmittingChange?.(false)
-    } catch (error) {
-      logger.error('Failed to save tool configuration:', error)
-      onSubmittingChange?.(false)
     }
+
+    onSubmittingChange?.(false)
   }, [
     toolName,
     toolDescription,
@@ -582,11 +608,7 @@ export function McpDeploy({
         )}
       </div>
 
-      {addToolMutation.isError && (
-        <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>
-          {addToolMutation.error?.message || 'Failed to add tool'}
-        </p>
-      )}
+      {saveError && <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>{saveError}</p>}
     </form>
   )
 }
