@@ -1,8 +1,10 @@
+import { createLogger } from '@sim/logger'
 import { spawn } from "child_process";
 import { NextRequest, NextResponse } from "next/server";
 import type { CommandInput, CommandOutput } from "@/tools/command/types";
-
 import { getSession } from '@/lib/auth'
+
+const logger = createLogger('CommandExecAPI')
 
 export async function POST(request: NextRequest) {
 	try {
@@ -75,11 +77,6 @@ import { validatePathSegment } from '@/lib/core/security/input-validation'
 
 		return NextResponse.json(output);
 	} catch (error) {
-import { createLogger } from '@sim/logger'
-
-const logger = createLogger('CommandExecAPI')
-
-// Then replace console.error with:
 		logger.error('Command execution error:', { error })
 		return NextResponse.json(
 			{
