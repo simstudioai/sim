@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronUp, LayoutList } from 'lucide-react'
-import { Button, Code } from '@/components/emcn'
+import Editor from 'react-simple-code-editor'
+import { Button, Code, getCodeEditorProps, highlight, languages } from '@/components/emcn'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
@@ -753,36 +754,70 @@ function SubAgentToolCall({ toolCall: toolCallProp }: { toolCall: CopilotToolCal
       const safeInputs = inputs && typeof inputs === 'object' ? inputs : {}
       const inputEntries = Object.entries(safeInputs)
       if (inputEntries.length === 0) return null
+
+      /**
+       * Format a value for display - handles objects, arrays, and primitives
+       */
+      const formatValue = (value: unknown): string => {
+        if (value === null || value === undefined) return '-'
+        if (typeof value === 'string') return value || '-'
+        if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+        try {
+          return JSON.stringify(value, null, 2)
+        } catch {
+          return String(value)
+        }
+      }
+
+      /**
+       * Check if a value is a complex type (object or array)
+       */
+      const isComplex = (value: unknown): boolean => {
+        return typeof value === 'object' && value !== null
+      }
+
       return (
-        <div className='mt-1.5 w-full overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)]'>
-          <table className='w-full table-fixed bg-transparent'>
-            <thead className='bg-transparent'>
-              <tr className='border-[var(--border-1)] border-b bg-transparent'>
-                <th className='w-[36%] border-[var(--border-1)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[12px] text-[var(--text-tertiary)]'>
-                  Input
-                </th>
-                <th className='w-[64%] bg-transparent px-[10px] py-[5px] text-left font-medium text-[12px] text-[var(--text-tertiary)]'>
-                  Value
-                </th>
-              </tr>
-            </thead>
-            <tbody className='bg-transparent'>
-              {inputEntries.map(([key, value]) => (
-                <tr key={key} className='border-[var(--border-1)] border-t bg-transparent'>
-                  <td className='w-[36%] border-[var(--border-1)] border-r bg-transparent px-[10px] py-[6px]'>
-                    <span className='truncate font-medium text-[var(--text-primary)] text-xs'>
-                      {key}
+        <div className='mt-1.5 w-full overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-1)]'>
+          {/* Header */}
+          <div className='flex items-center gap-[8px] border-[var(--border-1)] border-b bg-[var(--surface-2)] p-[8px]'>
+            <span className='font-medium text-[12px] text-[var(--text-primary)]'>Input</span>
+            <span className='flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
+              {inputEntries.length}
+            </span>
+          </div>
+          {/* Input entries */}
+          <div className='flex flex-col'>
+            {inputEntries.map(([key, value], index) => {
+              const formattedValue = formatValue(value)
+              const needsCodeViewer = isComplex(value)
+
+              return (
+                <div
+                  key={key}
+                  className={clsx(
+                    'flex flex-col gap-1 px-[10px] py-[6px]',
+                    index > 0 && 'border-[var(--border-1)] border-t'
+                  )}
+                >
+                  {/* Input key */}
+                  <span className='font-medium text-[11px] text-[var(--text-primary)]'>{key}</span>
+                  {/* Value display */}
+                  {needsCodeViewer ? (
+                    <Code.Viewer
+                      code={formattedValue}
+                      language='json'
+                      showGutter={false}
+                      className='max-h-[80px] min-h-0'
+                    />
+                  ) : (
+                    <span className='font-mono text-[11px] text-[var(--text-muted)] leading-[1.3]'>
+                      {formattedValue}
                     </span>
-                  </td>
-                  <td className='w-[64%] bg-transparent px-[10px] py-[6px]'>
-                    <span className='font-mono text-[var(--text-muted)] text-xs'>
-                      {String(value)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )
     }
@@ -2292,74 +2327,136 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
       const safeInputs = inputs && typeof inputs === 'object' ? inputs : {}
       const inputEntries = Object.entries(safeInputs)
 
-      // Don't show the table if there are no inputs
+      // Don't show the section if there are no inputs
       if (inputEntries.length === 0) {
         return null
       }
 
-      return (
-        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)]'>
-          <table className='w-full table-fixed bg-transparent'>
-            <thead className='bg-transparent'>
-              <tr className='border-[var(--border-1)] border-b bg-transparent'>
-                <th className='w-[36%] border-[var(--border-1)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
-                  Input
-                </th>
-                <th className='w-[64%] bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
-                  Value
-                </th>
-              </tr>
-            </thead>
-            <tbody className='bg-transparent'>
-              {inputEntries.map(([key, value]) => (
-                <tr
-                  key={key}
-                  className='group relative border-[var(--border-1)] border-t bg-transparent'
-                >
-                  <td className='relative w-[36%] border-[var(--border-1)] border-r bg-transparent p-0'>
-                    <div className='px-[10px] py-[8px]'>
-                      <span className='truncate font-medium text-[var(--text-primary)] text-xs'>
-                        {key}
-                      </span>
-                    </div>
-                  </td>
-                  <td className='relative w-[64%] bg-transparent p-0'>
-                    <div className='min-w-0 px-[10px] py-[8px]'>
-                      <input
-                        type='text'
-                        value={String(value)}
-                        onChange={(e) => {
-                          const newInputs = { ...safeInputs, [key]: e.target.value }
+      /**
+       * Format a value for display - handles objects, arrays, and primitives
+       */
+      const formatValueForDisplay = (value: unknown): string => {
+        if (value === null || value === undefined) return ''
+        if (typeof value === 'string') return value
+        if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+        // For objects and arrays, use JSON.stringify with formatting
+        try {
+          return JSON.stringify(value, null, 2)
+        } catch {
+          return String(value)
+        }
+      }
 
-                          // Determine how to update based on original structure
-                          if (isNestedInWorkflowInput) {
-                            // Update workflow_input
-                            setEditedParams({ ...editedParams, workflow_input: newInputs })
-                          } else if (typeof editedParams.input === 'string') {
-                            // Input was a JSON string, serialize back
-                            setEditedParams({ ...editedParams, input: JSON.stringify(newInputs) })
-                          } else if (editedParams.input && typeof editedParams.input === 'object') {
-                            // Input is an object
-                            setEditedParams({ ...editedParams, input: newInputs })
-                          } else if (
-                            editedParams.inputs &&
-                            typeof editedParams.inputs === 'object'
-                          ) {
-                            // Inputs is an object
-                            setEditedParams({ ...editedParams, inputs: newInputs })
-                          } else {
-                            // Flat structure - update at base level
-                            setEditedParams({ ...editedParams, [key]: e.target.value })
-                          }
-                        }}
-                        className='w-full bg-transparent font-mono text-[var(--text-muted)] text-xs outline-none focus:text-[var(--text-primary)]'
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      /**
+       * Parse a string value back to its original type if possible
+       */
+      const parseInputValue = (value: string, originalValue: unknown): unknown => {
+        // If original was a primitive, keep as string
+        if (typeof originalValue !== 'object' || originalValue === null) {
+          return value
+        }
+        // Try to parse as JSON for objects/arrays
+        try {
+          return JSON.parse(value)
+        } catch {
+          return value
+        }
+      }
+
+      /**
+       * Check if a value is a complex type (object or array)
+       */
+      const isComplexValue = (value: unknown): boolean => {
+        return typeof value === 'object' && value !== null
+      }
+
+      return (
+        <div className='w-full overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-1)]'>
+          {/* Header */}
+          <div className='flex items-center gap-[8px] border-[var(--border-1)] border-b bg-[var(--surface-2)] p-[8px]'>
+            <span className='font-medium text-[12px] text-[var(--text-primary)]'>Edit Input</span>
+            <span className='flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
+              {inputEntries.length}
+            </span>
+          </div>
+          {/* Input entries */}
+          <div className='flex flex-col'>
+            {inputEntries.map(([key, value], index) => {
+              const isComplex = isComplexValue(value)
+              const displayValue = formatValueForDisplay(value)
+
+              return (
+                <div
+                  key={key}
+                  className={clsx(
+                    'flex flex-col gap-1.5 px-[10px] py-[8px]',
+                    index > 0 && 'border-[var(--border-1)] border-t'
+                  )}
+                >
+                  {/* Input key */}
+                  <span className='font-medium text-[11px] text-[var(--text-primary)]'>{key}</span>
+                  {/* Value editor */}
+                  {isComplex ? (
+                    <Code.Container className='max-h-[168px] min-h-[60px]'>
+                      <Code.Content>
+                        <Editor
+                          value={displayValue}
+                          onValueChange={(newCode) => {
+                            const parsedValue = parseInputValue(newCode, value)
+                            const newInputs = { ...safeInputs, [key]: parsedValue }
+
+                            if (isNestedInWorkflowInput) {
+                              setEditedParams({ ...editedParams, workflow_input: newInputs })
+                            } else if (typeof editedParams.input === 'string') {
+                              setEditedParams({ ...editedParams, input: JSON.stringify(newInputs) })
+                            } else if (
+                              editedParams.input &&
+                              typeof editedParams.input === 'object'
+                            ) {
+                              setEditedParams({ ...editedParams, input: newInputs })
+                            } else if (
+                              editedParams.inputs &&
+                              typeof editedParams.inputs === 'object'
+                            ) {
+                              setEditedParams({ ...editedParams, inputs: newInputs })
+                            } else {
+                              setEditedParams({ ...editedParams, [key]: parsedValue })
+                            }
+                          }}
+                          highlight={(code) => highlight(code, languages.json, 'json')}
+                          {...getCodeEditorProps()}
+                          className={clsx(getCodeEditorProps().className, 'min-h-[40px]')}
+                          style={{ minHeight: '40px' }}
+                        />
+                      </Code.Content>
+                    </Code.Container>
+                  ) : (
+                    <input
+                      type='text'
+                      value={displayValue}
+                      onChange={(e) => {
+                        const parsedValue = parseInputValue(e.target.value, value)
+                        const newInputs = { ...safeInputs, [key]: parsedValue }
+
+                        if (isNestedInWorkflowInput) {
+                          setEditedParams({ ...editedParams, workflow_input: newInputs })
+                        } else if (typeof editedParams.input === 'string') {
+                          setEditedParams({ ...editedParams, input: JSON.stringify(newInputs) })
+                        } else if (editedParams.input && typeof editedParams.input === 'object') {
+                          setEditedParams({ ...editedParams, input: newInputs })
+                        } else if (editedParams.inputs && typeof editedParams.inputs === 'object') {
+                          setEditedParams({ ...editedParams, inputs: newInputs })
+                        } else {
+                          setEditedParams({ ...editedParams, [key]: parsedValue })
+                        }
+                      }}
+                      className='w-full rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)] px-[8px] py-[6px] font-medium font-mono text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:outline-none'
+                    />
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )
     }
