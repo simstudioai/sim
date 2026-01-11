@@ -22,7 +22,7 @@ export class CheckoffTodoClientTool extends BaseClientTool {
     displayNames: {
       [ClientToolCallState.generating]: { text: 'Marking todo', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Marking todo', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Todo marked complete', icon: Check },
+      [ClientToolCallState.success]: { text: 'Marked todo complete', icon: Check },
       [ClientToolCallState.error]: { text: 'Failed to mark todo', icon: XCircle },
     },
   }

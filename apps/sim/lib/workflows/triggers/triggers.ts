@@ -592,4 +592,34 @@ export class TriggerUtils {
     const parentWithType = parent as T & { type?: string }
     return parentWithType.type === 'loop' || parentWithType.type === 'parallel'
   }
+
+  static isSingleInstanceBlockType(blockType: string): boolean {
+    const blockConfig = getBlock(blockType)
+    return blockConfig?.singleInstance === true
+  }
+
+  static wouldViolateSingleInstanceBlock<T extends { type: string }>(
+    blocks: T[] | Record<string, T>,
+    blockType: string
+  ): boolean {
+    if (!TriggerUtils.isSingleInstanceBlockType(blockType)) {
+      return false
+    }
+
+    const blockArray = Array.isArray(blocks) ? blocks : Object.values(blocks)
+    return blockArray.some((block) => block.type === blockType)
+  }
+
+  static getSingleInstanceBlockIssue<T extends { type: string }>(
+    blocks: T[] | Record<string, T>,
+    blockType: string
+  ): { issue: 'duplicate'; blockName: string } | null {
+    if (!TriggerUtils.wouldViolateSingleInstanceBlock(blocks, blockType)) {
+      return null
+    }
+
+    const blockConfig = getBlock(blockType)
+    const blockName = blockConfig?.name || blockType
+    return { issue: 'duplicate', blockName }
+  }
 }

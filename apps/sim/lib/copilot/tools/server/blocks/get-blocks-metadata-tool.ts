@@ -118,7 +118,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
 
     const result: Record<string, CopilotBlockMetadata> = {}
     for (const blockId of blockIds || []) {
-      if (allowedIntegrations !== null && !allowedIntegrations?.includes(blockId)) {
+      if (allowedIntegrations != null && !allowedIntegrations.includes(blockId)) {
         logger.debug('Block not allowed by permission group', { blockId })
         continue
       }
@@ -408,11 +408,8 @@ function extractInputs(metadata: CopilotBlockMetadata): {
     }
 
     if (schema.options && schema.options.length > 0) {
-      if (schema.id === 'operation') {
-        input.options = schema.options.map((opt) => opt.id)
-      } else {
-        input.options = schema.options.map((opt) => opt.label || opt.id)
-      }
+      // Always return the id (actual value to use), not the display label
+      input.options = schema.options.map((opt) => opt.id || opt.label)
     }
 
     if (inputDef?.enum && Array.isArray(inputDef.enum)) {

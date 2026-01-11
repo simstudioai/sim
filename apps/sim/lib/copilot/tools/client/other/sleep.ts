@@ -5,6 +5,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 
 /** Maximum sleep duration in seconds (3 minutes) */
 const MAX_SLEEP_SECONDS = 180
@@ -39,10 +40,19 @@ export class SleepClientTool extends BaseClientTool {
       [ClientToolCallState.pending]: { text: 'Sleeping', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Sleeping', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Finished sleeping', icon: Moon },
-      [ClientToolCallState.error]: { text: 'Sleep interrupted', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Sleep skipped', icon: MinusCircle },
-      [ClientToolCallState.aborted]: { text: 'Sleep aborted', icon: MinusCircle },
+      [ClientToolCallState.error]: { text: 'Interrupted sleep', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped sleep', icon: MinusCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted sleep', icon: MinusCircle },
       [ClientToolCallState.background]: { text: 'Resumed', icon: Moon },
+    },
+    uiConfig: {
+      secondaryAction: {
+        text: 'Wake',
+        title: 'Wake',
+        variant: 'tertiary',
+        showInStates: [ClientToolCallState.executing],
+        targetState: ClientToolCallState.background,
+      },
     },
     // No interrupt - auto-execute immediately
     getDynamicText: (params, state) => {
@@ -142,3 +152,6 @@ export class SleepClientTool extends BaseClientTool {
     await this.handleAccept(args)
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(SleepClientTool.id, SleepClientTool.metadata.uiConfig!)

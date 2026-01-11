@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react'
 import clsx from 'clsx'
+import { MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -109,6 +110,16 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
   }, [workspaceId, workflow.id])
 
   /**
+   * Changes the workflow color
+   */
+  const handleColorChange = useCallback(
+    (color: string) => {
+      updateWorkflow(workflow.id, { color })
+    },
+    [workflow.id, updateWorkflow]
+  )
+
+  /**
    * Drag start handler - handles workflow dragging with multi-selection support
    *
    * @param e - React drag event
@@ -142,7 +153,37 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
     menuRef,
     handleContextMenu: handleContextMenuBase,
     closeMenu,
+    preventDismiss,
   } = useContextMenu()
+
+  /**
+   * Captures selection state for context menu operations
+   */
+  const captureSelectionState = useCallback(() => {
+    const { selectedWorkflows: currentSelection, selectOnly } = useFolderStore.getState()
+    const isCurrentlySelected = currentSelection.has(workflow.id)
+
+    if (!isCurrentlySelected) {
+      selectOnly(workflow.id)
+    }
+
+    const finalSelection = useFolderStore.getState().selectedWorkflows
+    const finalIsSelected = finalSelection.has(workflow.id)
+
+    const workflowIds =
+      finalIsSelected && finalSelection.size > 1 ? Array.from(finalSelection) : [workflow.id]
+
+    const workflowNames = workflowIds
+      .map((id) => workflows[id]?.name)
+      .filter((name): name is string => !!name)
+
+    capturedSelectionRef.current = {
+      workflowIds,
+      workflowNames: workflowNames.length > 1 ? workflowNames : workflowNames[0],
+    }
+
+    setCanDeleteCaptured(canDeleteWorkflows(workflowIds))
+  }, [workflow.id, workflows, canDeleteWorkflows])
 
   /**
    * Handle right-click - ensure proper selection behavior and capture selection state
@@ -151,39 +192,46 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
    */
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
-      // Check current selection state at time of right-click
-      const { selectedWorkflows: currentSelection, selectOnly } = useFolderStore.getState()
-      const isCurrentlySelected = currentSelection.has(workflow.id)
-
-      // If this workflow is not in the current selection, select only this workflow
-      if (!isCurrentlySelected) {
-        selectOnly(workflow.id)
-      }
-
-      // Capture the selection state at right-click time
-      const finalSelection = useFolderStore.getState().selectedWorkflows
-      const finalIsSelected = finalSelection.has(workflow.id)
-
-      const workflowIds =
-        finalIsSelected && finalSelection.size > 1 ? Array.from(finalSelection) : [workflow.id]
-
-      const workflowNames = workflowIds
-        .map((id) => workflows[id]?.name)
-        .filter((name): name is string => !!name)
-
-      // Store in ref so it persists even if selection changes
-      capturedSelectionRef.current = {
-        workflowIds,
-        workflowNames: workflowNames.length > 1 ? workflowNames : workflowNames[0],
-      }
-
-      // Check if the captured selection can be deleted
-      setCanDeleteCaptured(canDeleteWorkflows(workflowIds))
-
-      // If already selected with multiple selections, keep all selections
+      captureSelectionState()
       handleContextMenuBase(e)
     },
-    [workflow.id, workflows, handleContextMenuBase, canDeleteWorkflows]
+    [captureSelectionState, handleContextMenuBase]
+  )
+
+  /**
+   * Handle more button pointerdown - prevents click-outside dismissal when toggling
+   */
+  const handleMorePointerDown = useCallback(() => {
+    if (isContextMenuOpen) {
+      preventDismiss()
+    }
+  }, [isContextMenuOpen, preventDismiss])
+
+  /**
+   * Handle more button click - toggles context menu at button position
+   */
+  const handleMoreClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      // Toggle: close if open, open if closed
+      if (isContextMenuOpen) {
+        closeMenu()
+        return
+      }
+
+      captureSelectionState()
+      // Open context menu aligned with the button
+      const rect = e.currentTarget.getBoundingClientRect()
+      handleContextMenuBase({
+        preventDefault: () => {},
+        stopPropagation: () => {},
+        clientX: rect.right,
+        clientY: rect.top,
+      } as React.MouseEvent)
+    },
+    [isContextMenuOpen, closeMenu, captureSelectionState, handleContextMenuBase]
   )
 
   // Rename hook
@@ -309,7 +357,17 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
           )}
         </div>
         {!isEditing && (
-          <Avatars workflowId={workflow.id} maxVisible={3} onPresenceChange={setHasAvatars} />
+          <>
+            <Avatars workflowId={workflow.id} onPresenceChange={setHasAvatars} />
+            <button
+              type='button'
+              onPointerDown={handleMorePointerDown}
+              onClick={handleMoreClick}
+              className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)] group-hover:opacity-100'
+            >
+              <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+            </button>
+          </>
         )}
       </Link>
 
@@ -324,13 +382,17 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
         onDuplicate={handleDuplicateWorkflow}
         onExport={handleExportWorkflow}
         onDelete={handleOpenDeleteModal}
+        onColorChange={handleColorChange}
+        currentColor={workflow.color}
         showOpenInNewTab={selectedWorkflows.size <= 1}
         showRename={selectedWorkflows.size <= 1}
         showDuplicate={true}
         showExport={true}
+        showColorChange={selectedWorkflows.size <= 1}
         disableRename={!userPermissions.canEdit}
         disableDuplicate={!userPermissions.canEdit}
         disableExport={!userPermissions.canEdit}
+        disableColorChange={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit || !canDeleteCaptured}
       />
 

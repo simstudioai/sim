@@ -25,7 +25,7 @@ export class SearchDocumentationClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Searching documentation', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Searching documentation', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Searching documentation', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Documentation search complete', icon: BookOpen },
+      [ClientToolCallState.success]: { text: 'Completed documentation search', icon: BookOpen },
       [ClientToolCallState.error]: { text: 'Failed to search docs', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Aborted documentation search', icon: XCircle },
       [ClientToolCallState.rejected]: { text: 'Skipped documentation search', icon: MinusCircle },

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import {
   createOptimisticMutationHandlers,
@@ -8,10 +9,7 @@ import {
 } from '@/hooks/queries/utils/optimistic-mutation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import {
-  generateCreativeWorkflowName,
-  getNextWorkflowColor,
-} from '@/stores/workflows/registry/utils'
+import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 

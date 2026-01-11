@@ -1,15 +1,24 @@
 'use client'
 
-import { type CSSProperties, useEffect, useMemo, useState } from 'react'
-import Image from 'next/image'
-import { Tooltip } from '@/components/emcn'
+import { type CSSProperties, useEffect, useMemo } from 'react'
+import { Avatar, AvatarFallback, AvatarImage, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
+import { SIDEBAR_WIDTH } from '@/stores/constants'
+import { useSidebarStore } from '@/stores/sidebar/store'
+
+/**
+ * Avatar display configuration for responsive layout.
+ */
+const AVATAR_CONFIG = {
+  MIN_COUNT: 3,
+  MAX_COUNT: 12,
+  WIDTH_PER_AVATAR: 20,
+} as const
 
 interface AvatarsProps {
   workflowId: string
-  maxVisible?: number
   /**
    * Callback fired when the presence visibility changes.
    * Used by parent components to adjust layout (e.g., text truncation spacing).
@@ -30,45 +39,29 @@ interface UserAvatarProps {
 }
 
 /**
- * Individual user avatar with error handling for image loading.
+ * Individual user avatar using emcn Avatar component.
  * Falls back to colored circle with initials if image fails to load.
  */
 function UserAvatar({ user, index }: UserAvatarProps) {
-  const [imageError, setImageError] = useState(false)
   const color = getUserColor(user.userId)
   const initials = user.userName ? user.userName.charAt(0).toUpperCase() : '?'
-  const hasAvatar = Boolean(user.avatarUrl) && !imageError
-
-  // Reset error state when avatar URL changes
-  useEffect(() => {
-    setImageError(false)
-  }, [user.avatarUrl])
 
   const avatarElement = (
-    <div
-      className='relative flex h-[14px] w-[14px] flex-shrink-0 cursor-default items-center justify-center overflow-hidden rounded-full font-semibold text-[7px] text-white'
-      style={
-        {
-          background: hasAvatar ? undefined : color,
-          zIndex: 10 - index,
-        } as CSSProperties
-      }
-    >
-      {hasAvatar && user.avatarUrl ? (
-        <Image
+    <Avatar size='xs' style={{ zIndex: index + 1 } as CSSProperties}>
+      {user.avatarUrl && (
+        <AvatarImage
           src={user.avatarUrl}
           alt={user.userName ? `${user.userName}'s avatar` : 'User avatar'}
-          fill
-          sizes='14px'
-          className='object-cover'
           referrerPolicy='no-referrer'
-          unoptimized
-          onError={() => setImageError(true)}
         />
-      ) : (
-        initials
       )}
-    </div>
+      <AvatarFallback
+        style={{ background: color }}
+        className='border-0 font-semibold text-[7px] text-white'
+      >
+        {initials}
+      </AvatarFallback>
+    </Avatar>
   )
 
   if (user.userName) {
@@ -92,14 +85,26 @@ function UserAvatar({ user, index }: UserAvatarProps) {
  * @param props - Component props
  * @returns Avatar stack for workflow presence
  */
-export function Avatars({ workflowId, maxVisible = 3, onPresenceChange }: AvatarsProps) {
+export function Avatars({ workflowId, onPresenceChange }: AvatarsProps) {
   const { presenceUsers, currentWorkflowId } = useSocket()
   const { data: session } = useSession()
   const currentUserId = session?.user?.id
+  const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
 
   /**
-   * Only show presence for the currently active workflow
-   * Filter out the current user from the list
+   * Calculate max visible avatars based on sidebar width.
+   * Scales between MIN_COUNT and MAX_COUNT as sidebar expands.
+   */
+  const maxVisible = useMemo(() => {
+    const widthDelta = sidebarWidth - SIDEBAR_WIDTH.MIN
+    const additionalAvatars = Math.floor(widthDelta / AVATAR_CONFIG.WIDTH_PER_AVATAR)
+    const calculated = AVATAR_CONFIG.MIN_COUNT + additionalAvatars
+    return Math.max(AVATAR_CONFIG.MIN_COUNT, Math.min(AVATAR_CONFIG.MAX_COUNT, calculated))
+  }, [sidebarWidth])
+
+  /**
+   * Only show presence for the currently active workflow.
+   * Filter out the current user from the list.
    */
   const workflowUsers = useMemo(() => {
     if (currentWorkflowId !== workflowId) {
@@ -122,7 +127,6 @@ export function Avatars({ workflowId, maxVisible = 3, onPresenceChange }: Avatar
     return { visibleUsers: visible, overflowCount: overflow }
   }, [workflowUsers, maxVisible])
 
-  // Notify parent when avatars are present or not
   useEffect(() => {
     const hasAnyAvatars = visibleUsers.length > 0
     if (typeof onPresenceChange === 'function') {
@@ -135,26 +139,25 @@ export function Avatars({ workflowId, maxVisible = 3, onPresenceChange }: Avatar
   }
 
   return (
-    <div className='-space-x-1 ml-[-8px] flex items-center'>
-      {visibleUsers.map((user, index) => (
-        <UserAvatar key={user.socketId} user={user} index={index} />
-      ))}
-
+    <div className='-space-x-1 flex items-center'>
       {overflowCount > 0 && (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <div
-              className='relative flex h-[14px] w-[14px] flex-shrink-0 cursor-default items-center justify-center overflow-hidden rounded-full bg-[#404040] font-semibold text-[7px] text-white'
-              style={{ zIndex: 10 - visibleUsers.length } as CSSProperties}
-            >
-              +{overflowCount}
-            </div>
+            <Avatar size='xs' style={{ zIndex: 0 } as CSSProperties}>
+              <AvatarFallback className='border-0 bg-[#404040] font-semibold text-[7px] text-white'>
+                +{overflowCount}
+              </AvatarFallback>
+            </Avatar>
           </Tooltip.Trigger>
           <Tooltip.Content side='bottom'>
             {overflowCount} more user{overflowCount > 1 ? 's' : ''}
           </Tooltip.Content>
         </Tooltip.Root>
       )}
+
+      {visibleUsers.map((user, index) => (
+        <UserAvatar key={user.socketId} user={user} index={overflowCount > 0 ? index + 1 : index} />
+      ))}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
@@ -10,8 +10,7 @@ import { useSidebarStore } from '@/stores/sidebar/store'
  * @returns Resize state and handlers
  */
 export function useSidebarResize() {
-  const { setSidebarWidth } = useSidebarStore()
-  const [isResizing, setIsResizing] = useState(false)
+  const { setSidebarWidth, isResizing, setIsResizing } = useSidebarStore()
 
   /**
    * Handles mouse down on resize handle

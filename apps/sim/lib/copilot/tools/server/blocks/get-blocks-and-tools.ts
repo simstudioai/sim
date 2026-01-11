@@ -31,7 +31,7 @@ export const getBlocksAndToolsServerTool: BaseServerTool<
     Object.entries(blockRegistry)
       .filter(([blockType, blockConfig]: [string, BlockConfig]) => {
         if (blockConfig.hideFromToolbar) return false
-        if (allowedIntegrations !== null && !allowedIntegrations?.includes(blockType)) return false
+        if (allowedIntegrations != null && !allowedIntegrations.includes(blockType)) return false
         return true
       })
       .forEach(([blockType, blockConfig]: [string, BlockConfig]) => {
