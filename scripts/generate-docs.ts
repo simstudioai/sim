@@ -75,39 +75,77 @@ async function generateIconMapping(): Promise<Record<string, string>> {
 
     for (const blockFile of blockFiles) {
       const fileContent = fs.readFileSync(blockFile, 'utf-8')
-      // Get ALL block configs from file (already filters hideFromToolbar: true)
-      const blockConfigs = extractAllBlockConfigs(fileContent)
 
-      for (const blockConfig of blockConfigs) {
-        if (!blockConfig?.type || !blockConfig.iconName) {
-          continue
+      // For icon mapping, we need ALL blocks including hidden ones
+      // because V2 blocks inherit icons from legacy blocks via spread
+      // First, extract the primary icon from the file (usually the legacy block's icon)
+      const primaryIcon = extractIconName(fileContent)
+
+      // Find all block exports and their types
+      const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
+      let match
+
+      while ((match = exportRegex.exec(fileContent)) !== null) {
+        const blockName = match[1]
+        const startIndex = match.index + match[0].length - 1
+
+        // Extract the block content
+        let braceCount = 1
+        let endIndex = startIndex + 1
+
+        while (endIndex < fileContent.length && braceCount > 0) {
+          if (fileContent[endIndex] === '{') braceCount++
+          else if (fileContent[endIndex] === '}') braceCount--
+          endIndex++
         }
 
-        // Skip blocks that don't have documentation (same logic as generateBlockDoc)
-        if (
-          blockConfig.type.includes('_trigger') ||
-          blockConfig.type.includes('_webhook') ||
-          blockConfig.type.includes('rss')
-        ) {
-          continue
-        }
+        if (braceCount === 0) {
+          const blockContent = fileContent.substring(startIndex, endIndex)
 
-        if (
-          (blockConfig.category === 'blocks' &&
-            blockConfig.type !== 'memory' &&
-            blockConfig.type !== 'knowledge') ||
-          blockConfig.type === 'evaluator' ||
-          blockConfig.type === 'number' ||
-          blockConfig.type === 'webhook' ||
-          blockConfig.type === 'schedule' ||
-          blockConfig.type === 'mcp' ||
-          blockConfig.type === 'generic_webhook' ||
-          blockConfig.type === 'rss'
-        ) {
-          continue
-        }
+          // Check hideFromToolbar - skip hidden blocks for docs but NOT for icon mapping
+          const hideFromToolbar = /hideFromToolbar\s*:\s*true/.test(blockContent)
 
-        iconMapping[blockConfig.type] = blockConfig.iconName
+          // Get block type
+          const blockType =
+            extractStringPropertyFromContent(blockContent, 'type') || blockName.toLowerCase()
+
+          // Get icon - either from this block or inherited from primary
+          const iconName = extractIconNameFromContent(blockContent) || primaryIcon
+
+          if (!blockType || !iconName) {
+            continue
+          }
+
+          // Skip trigger/webhook/rss blocks
+          if (
+            blockType.includes('_trigger') ||
+            blockType.includes('_webhook') ||
+            blockType.includes('rss')
+          ) {
+            continue
+          }
+
+          // Get category for additional filtering
+          const category = extractStringPropertyFromContent(blockContent, 'category') || 'misc'
+
+          if (
+            (category === 'blocks' && blockType !== 'memory' && blockType !== 'knowledge') ||
+            blockType === 'evaluator' ||
+            blockType === 'number' ||
+            blockType === 'webhook' ||
+            blockType === 'schedule' ||
+            blockType === 'mcp' ||
+            blockType === 'generic_webhook' ||
+            blockType === 'rss'
+          ) {
+            continue
+          }
+
+          // Only add non-hidden blocks to icon mapping (docs won't be generated for hidden)
+          if (!hideFromToolbar) {
+            iconMapping[blockType] = iconName
+          }
+        }
       }
     }
 
