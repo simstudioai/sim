@@ -347,10 +347,12 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
         })
 
         if (addedCount === 0 && pastedValues.length === 1) {
-          setInputValue(inputValue + pastedValues[0])
+          const newValue = inputValue + pastedValues[0]
+          setInputValue(newValue)
+          onInputChange?.(newValue)
         }
       },
-      [onAdd, inputValue]
+      [onAdd, inputValue, onInputChange]
     )
 
     const handleBlur = React.useCallback(() => {
