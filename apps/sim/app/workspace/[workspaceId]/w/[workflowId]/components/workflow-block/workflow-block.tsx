@@ -921,7 +921,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         ref={contentRef}
         onClick={handleClick}
         className={cn(
-          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)]'
+          'workflow-drag-handle relative z-[20] w-[250px] cursor-grab select-none rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] [&:active]:cursor-grabbing'
         )}
       >
         {isPending && (
@@ -957,12 +957,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
         <div
           className={cn(
-            'workflow-drag-handle flex cursor-grab items-center justify-between p-[8px] [&:active]:cursor-grabbing',
+            'flex items-center justify-between p-[8px]',
             hasContentBelowHeader && 'border-[var(--border-1)] border-b'
           )}
-          onMouseDown={(e) => {
-            e.stopPropagation()
-          }}
         >
           <div className='relative z-10 flex min-w-0 flex-1 items-center gap-[10px]'>
             <div

@@ -297,7 +297,7 @@ export function WorkspaceHeader({
               <button
                 type='button'
                 aria-label='Switch workspace'
-                className={`flex cursor-pointer items-center gap-[8px] rounded-[6px] bg-transparent px-[6px] py-[4px] transition-colors hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)] ${
+                className={`group flex cursor-pointer items-center gap-[8px] rounded-[6px] bg-transparent px-[6px] py-[4px] transition-colors hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)] ${
                   isCollapsed ? '' : '-mx-[6px] min-w-0 max-w-full'
                 }`}
                 title={activeWorkspace?.name || 'Loading...'}
@@ -310,7 +310,7 @@ export function WorkspaceHeader({
                   {activeWorkspace?.name || 'Loading...'}
                 </span>
                 <ChevronDown
-                  className={`h-[8px] w-[12px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100 ${
+                  className={`h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${
                     isWorkspaceMenuOpen ? 'rotate-180' : ''
                   }`}
                 />
@@ -459,7 +459,7 @@ export function WorkspaceHeader({
             >
               {activeWorkspace?.name || 'Loading...'}
             </span>
-            <ChevronDown className='h-[8px] w-[12px] flex-shrink-0 text-[var(--text-muted)]' />
+            <ChevronDown className='h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)]' />
           </button>
         )}
       </div>

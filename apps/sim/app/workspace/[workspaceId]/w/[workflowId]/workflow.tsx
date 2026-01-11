@@ -3340,7 +3340,7 @@ const WorkflowContent = React.memo(() => {
               noWheelClassName='allow-scroll'
               edgesFocusable={true}
               edgesUpdatable={effectivePermissions.canEdit}
-              className={`workflow-container h-full transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
+              className={`workflow-container h-full transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
               onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
               onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
               onSelectionDragStart={effectivePermissions.canEdit ? onSelectionDragStart : undefined}
@@ -3402,6 +3402,9 @@ const WorkflowContent = React.memo(() => {
               onToggleVariables={handleContextToggleVariables}
               onToggleChat={handleContextToggleChat}
               onInvite={handleContextInvite}
+              onZoomIn={() => reactFlowInstance.zoomIn()}
+              onZoomOut={() => reactFlowInstance.zoomOut()}
+              onFitView={() => fitViewToBounds({ padding: 0.1, duration: 300 })}
               isVariablesOpen={isVariablesOpen}
               isChatOpen={isChatOpen}
               hasClipboard={hasClipboard()}

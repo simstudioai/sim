@@ -80,6 +80,9 @@ export interface PaneContextMenuProps {
   onToggleVariables: () => void
   onToggleChat: () => void
   onInvite: () => void
+  onZoomIn: () => void
+  onZoomOut: () => void
+  onFitView: () => void
   /** Whether the variables panel is currently open */
   isVariablesOpen?: boolean
   /** Whether the chat panel is currently open */

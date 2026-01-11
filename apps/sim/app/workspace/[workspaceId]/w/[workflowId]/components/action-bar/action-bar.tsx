@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { useReactFlow } from 'reactflow'
 import {
   Button,
+  ChevronDown,
   Cursor,
   Expand,
   Hand,
@@ -12,6 +13,7 @@ import {
   PopoverAnchor,
   PopoverContent,
   PopoverItem,
+  PopoverTrigger,
   Redo,
   Tooltip,
   Undo,
@@ -48,6 +50,7 @@ export function ActionBar() {
   const canRedo = stack.redo.length > 0
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [isCanvasModeOpen, setIsCanvasModeOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -72,34 +75,51 @@ export function ActionBar() {
   return (
     <>
       <div
-        className='fixed bottom-[calc(var(--terminal-height)+16px)] left-[calc(var(--sidebar-width)+16px)] z-10 flex h-[36px] items-center gap-[2px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] p-[4px] shadow-sm transition-[left,bottom] duration-100 ease-out'
+        className='-translate-x-1/2 fixed bottom-[calc(var(--terminal-height)+16px)] left-[calc((100vw+var(--sidebar-width)-var(--panel-width))/2)] z-10 flex h-[36px] items-center gap-[2px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] p-[4px] shadow-sm transition-[left,bottom] duration-100 ease-out'
         onContextMenu={handleContextMenu}
       >
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              variant={mode === 'hand' ? 'secondary' : 'ghost'}
-              className='h-[28px] w-[28px] p-0'
-              onClick={() => setMode('hand')}
+        {/* Canvas Mode Selector */}
+        <Popover
+          open={isCanvasModeOpen}
+          onOpenChange={setIsCanvasModeOpen}
+          variant='secondary'
+          size='sm'
+        >
+          <PopoverTrigger asChild>
+            <div className='flex cursor-pointer items-center gap-[4px]'>
+              <Button className='h-[28px] w-[28px] rounded-[6px] p-0' variant='active'>
+                {mode === 'hand' ? (
+                  <Hand className='h-[14px] w-[14px]' />
+                ) : (
+                  <Cursor className='h-[14px] w-[14px]' />
+                )}
+              </Button>
+              <Button className='!p-[2px] group' variant='ghost'>
+                <ChevronDown className='h-[8px] w-[10px] text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]' />
+              </Button>
+            </div>
+          </PopoverTrigger>
+          <PopoverContent align='center' side='top' sideOffset={8} maxWidth={100} minWidth={100}>
+            <PopoverItem
+              onClick={() => {
+                setMode('cursor')
+                setIsCanvasModeOpen(false)
+              }}
             >
-              <Hand className='h-[16px] w-[16px]' />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='top'>Hand tool</Tooltip.Content>
-        </Tooltip.Root>
-
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              variant={mode === 'cursor' ? 'secondary' : 'ghost'}
-              className='h-[28px] w-[28px] p-0'
-              onClick={() => setMode('cursor')}
+              <Cursor className='h-3 w-3' />
+              <span>Pointer</span>
+            </PopoverItem>
+            <PopoverItem
+              onClick={() => {
+                setMode('hand')
+                setIsCanvasModeOpen(false)
+              }}
             >
-              <Cursor className='h-[16px] w-[16px]' />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='top'>Move</Tooltip.Content>
-        </Tooltip.Root>
+              <Hand className='h-3 w-3' />
+              <span>Mover</span>
+            </PopoverItem>
+          </PopoverContent>
+        </Popover>
 
         <div className='mx-[4px] h-[20px] w-[1px] bg-[var(--border)]' />
 
@@ -107,7 +127,7 @@ export function ActionBar() {
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              className='h-[28px] w-[28px] p-0'
+              className='h-[28px] w-[28px] rounded-[6px] p-0 hover:bg-[var(--surface-5)]'
               onClick={undo}
               disabled={!canUndo}
             >
@@ -123,7 +143,7 @@ export function ActionBar() {
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              className='h-[28px] w-[28px] p-0'
+              className='h-[28px] w-[28px] rounded-[6px] p-0 hover:bg-[var(--surface-5)]'
               onClick={redo}
               disabled={!canRedo}
             >
@@ -139,7 +159,11 @@ export function ActionBar() {
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button variant='ghost' className='h-[28px] w-[28px] p-0' onClick={() => zoomOut()}>
+            <Button
+              variant='ghost'
+              className='h-[28px] w-[28px] rounded-[6px] p-0 hover:bg-[var(--surface-5)]'
+              onClick={() => zoomOut()}
+            >
               <ZoomOut className='h-[16px] w-[16px]' />
             </Button>
           </Tooltip.Trigger>
@@ -148,7 +172,11 @@ export function ActionBar() {
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button variant='ghost' className='h-[28px] w-[28px] p-0' onClick={() => zoomIn()}>
+            <Button
+              variant='ghost'
+              className='h-[28px] w-[28px] rounded-[6px] p-0 hover:bg-[var(--surface-5)]'
+              onClick={() => zoomIn()}
+            >
               <ZoomIn className='h-[16px] w-[16px]' />
             </Button>
           </Tooltip.Trigger>
@@ -159,7 +187,7 @@ export function ActionBar() {
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              className='h-[28px] w-[28px] p-0'
+              className='h-[28px] w-[28px] rounded-[6px] p-0 hover:bg-[var(--surface-5)]'
               onClick={() => fitViewToBounds({ padding: 0.1, duration: 300 })}
             >
               <Expand className='h-[16px] w-[16px]' />
