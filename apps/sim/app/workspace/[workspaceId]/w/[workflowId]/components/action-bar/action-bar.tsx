@@ -53,8 +53,11 @@ export function ActionBar() {
   }
 
   const handleHide = async () => {
-    setContextMenu(null)
-    await updateSetting.mutateAsync({ key: 'showActionBar', value: false })
+    try {
+      await updateSetting.mutateAsync({ key: 'showActionBar', value: false })
+    } finally {
+      setContextMenu(null)
+    }
   }
 
   if (!showActionBar) {
