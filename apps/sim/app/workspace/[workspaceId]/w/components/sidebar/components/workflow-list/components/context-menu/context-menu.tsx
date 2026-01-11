@@ -1,5 +1,7 @@
 'use client'
 
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Check } from 'lucide-react'
 import {
   Popover,
   PopoverAnchor,
@@ -11,6 +13,29 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { WORKFLOW_COLORS } from '@/lib/workflows/colors'
+
+/**
+ * Validates a hex color string.
+ * Accepts 3 or 6 character hex codes with or without #.
+ */
+function isValidHex(hex: string): boolean {
+  const cleaned = hex.replace('#', '')
+  return /^[0-9A-Fa-f]{3}$|^[0-9A-Fa-f]{6}$/.test(cleaned)
+}
+
+/**
+ * Normalizes a hex color to lowercase 6-character format with #.
+ */
+function normalizeHex(hex: string): string {
+  let cleaned = hex.replace('#', '').toLowerCase()
+  if (cleaned.length === 3) {
+    cleaned = cleaned
+      .split('')
+      .map((c) => c + c)
+      .join('')
+  }
+  return `#${cleaned}`
+}
 
 interface ContextMenuProps {
   /**
@@ -173,7 +198,51 @@ export function ContextMenu({
   disableCreate = false,
   disableCreateFolder = false,
 }: ContextMenuProps) {
-  // Section visibility for divider logic
+  const [hexInput, setHexInput] = useState(currentColor || '#ffffff')
+
+  // Sync hexInput when currentColor changes (e.g., opening menu on different workflow)
+  useEffect(() => {
+    setHexInput(currentColor || '#ffffff')
+  }, [currentColor])
+
+  const canSubmitHex = useMemo(() => {
+    if (!isValidHex(hexInput)) return false
+    const normalized = normalizeHex(hexInput)
+    if (currentColor && normalized.toLowerCase() === currentColor.toLowerCase()) return false
+    return true
+  }, [hexInput, currentColor])
+
+  const handleHexSubmit = useCallback(() => {
+    if (!canSubmitHex || !onColorChange) return
+
+    const normalized = normalizeHex(hexInput)
+    onColorChange(normalized)
+    setHexInput(normalized)
+  }, [hexInput, canSubmitHex, onColorChange])
+
+  const handleHexKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        handleHexSubmit()
+      }
+    },
+    [handleHexSubmit]
+  )
+
+  const handleHexChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.trim()
+    if (value && !value.startsWith('#')) {
+      value = `#${value}`
+    }
+    value = value.slice(0, 1) + value.slice(1).replace(/[^0-9a-fA-F]/g, '')
+    setHexInput(value.slice(0, 7))
+  }, [])
+
+  const handleHexFocus = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.select()
+  }, [])
+
   const hasNavigationSection = showOpenInNewTab && onOpenInNewTab
   const hasEditSection =
     (showRename && onRename) ||
@@ -268,23 +337,56 @@ export function ContextMenu({
             expandOnHover
             className={disableColorChange ? 'pointer-events-none opacity-50' : ''}
           >
-            <div className='grid grid-cols-6 gap-[4px] p-[2px]'>
-              {WORKFLOW_COLORS.map(({ color, name }) => (
+            <div className='flex w-[140px] flex-col gap-[8px] p-[2px]'>
+              {/* Preset colors */}
+              <div className='grid grid-cols-6 gap-[4px]'>
+                {WORKFLOW_COLORS.map(({ color, name }) => (
+                  <button
+                    key={color}
+                    type='button'
+                    title={name}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onColorChange(color)
+                    }}
+                    className={cn(
+                      'h-[20px] w-[20px] rounded-[4px]',
+                      currentColor?.toLowerCase() === color.toLowerCase() && 'ring-1 ring-white'
+                    )}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+
+              {/* Hex input */}
+              <div className='flex items-center gap-[4px]'>
+                <div
+                  className='h-[20px] w-[20px] flex-shrink-0 rounded-[4px]'
+                  style={{
+                    backgroundColor: isValidHex(hexInput) ? normalizeHex(hexInput) : '#ffffff',
+                  }}
+                />
+                <input
+                  type='text'
+                  value={hexInput}
+                  onChange={handleHexChange}
+                  onKeyDown={handleHexKeyDown}
+                  onFocus={handleHexFocus}
+                  onClick={(e) => e.stopPropagation()}
+                  className='h-[20px] min-w-0 flex-1 rounded-[4px] bg-[#363636] px-[6px] text-[11px] text-white uppercase focus:outline-none'
+                />
                 <button
-                  key={color}
                   type='button'
-                  title={name}
+                  disabled={!canSubmitHex}
                   onClick={(e) => {
                     e.stopPropagation()
-                    onColorChange(color)
+                    handleHexSubmit()
                   }}
-                  className={cn(
-                    'h-[20px] w-[20px] rounded-[4px]',
-                    currentColor === color && 'ring-1 ring-white'
-                  )}
-                  style={{ backgroundColor: color }}
-                />
-              ))}
+                  className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--brand-tertiary-2)] text-white disabled:opacity-40'
+                >
+                  <Check className='h-[12px] w-[12px]' />
+                </button>
+              </div>
             </div>
           </PopoverFolder>
         )}

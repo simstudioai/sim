@@ -221,7 +221,6 @@ const Popover: React.FC<PopoverProps> = ({
   const [searchQuery, setSearchQuery] = React.useState<string>('')
   const [lastHoveredItem, setLastHoveredItem] = React.useState<string | null>(null)
 
-  // Reset folder state when popover closes
   React.useEffect(() => {
     if (open === false) {
       setCurrentFolder(null)

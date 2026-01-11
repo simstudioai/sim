@@ -160,16 +160,13 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
    * Captures selection state for context menu operations
    */
   const captureSelectionState = useCallback(() => {
-    // Check current selection state
     const { selectedWorkflows: currentSelection, selectOnly } = useFolderStore.getState()
     const isCurrentlySelected = currentSelection.has(workflow.id)
 
-    // If this workflow is not in the current selection, select only this workflow
     if (!isCurrentlySelected) {
       selectOnly(workflow.id)
     }
 
-    // Capture the selection state
     const finalSelection = useFolderStore.getState().selectedWorkflows
     const finalIsSelected = finalSelection.has(workflow.id)
 
@@ -180,13 +177,11 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
       .map((id) => workflows[id]?.name)
       .filter((name): name is string => !!name)
 
-    // Store in ref so it persists even if selection changes
     capturedSelectionRef.current = {
       workflowIds,
       workflowNames: workflowNames.length > 1 ? workflowNames : workflowNames[0],
     }
 
-    // Check if the captured selection can be deleted
     setCanDeleteCaptured(canDeleteWorkflows(workflowIds))
   }, [workflow.id, workflows, canDeleteWorkflows])
 
