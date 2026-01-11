@@ -49,7 +49,7 @@ export const queryTool: ToolConfig<InsForgeQueryParams, InsForgeQueryResponse> =
   request: {
     url: (params) => {
       const base = params.baseUrl.replace(/\/$/, '')
-      let url = `${base}/api/database/${params.table}?select=*`
+      let url = `${base}/api/database/records/${params.table}?select=*`
 
       if (params.filter?.trim()) {
         url += `&${params.filter.trim()}`

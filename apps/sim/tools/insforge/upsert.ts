@@ -37,7 +37,7 @@ export const upsertTool: ToolConfig<InsForgeUpsertParams, InsForgeUpsertResponse
   request: {
     url: (params) => {
       const base = params.baseUrl.replace(/\/$/, '')
-      return `${base}/api/database/${params.table}?select=*`
+      return `${base}/api/database/records/${params.table}?select=*`
     },
     method: 'POST',
     headers: (params) => ({
