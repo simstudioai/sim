@@ -73,7 +73,6 @@ export const salesforceQueryTool: ToolConfig<SalesforceQueryParams, SalesforceQu
         nextRecordsUrl: data.nextRecordsUrl,
         query: params?.query || '',
         metadata: {
-          operation: 'query',
           totalReturned: records.length,
           hasMore: !data.done,
         },
@@ -83,7 +82,7 @@ export const salesforceQueryTool: ToolConfig<SalesforceQueryParams, SalesforceQu
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success status' },
+    success: { type: 'boolean', description: 'Operation success status' },
     output: {
       type: 'object',
       description: 'Query results',
@@ -93,8 +92,18 @@ export const salesforceQueryTool: ToolConfig<SalesforceQueryParams, SalesforceQu
         done: { type: 'boolean', description: 'Whether all records have been returned' },
         nextRecordsUrl: { type: 'string', description: 'URL to fetch next batch of records' },
         query: { type: 'string', description: 'The executed SOQL query' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success status' },
+        metadata: {
+          type: 'object',
+          description: 'Response metadata',
+          properties: {
+            totalReturned: {
+              type: 'number',
+              description: 'Number of records returned in this response',
+            },
+            hasMore: { type: 'boolean', description: 'Whether more records exist' },
+          },
+        },
+        success: { type: 'boolean', description: 'Salesforce operation success' },
       },
     },
   },

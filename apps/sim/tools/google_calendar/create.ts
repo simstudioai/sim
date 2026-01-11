@@ -191,3 +191,64 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
     },
   },
 }
+
+interface GoogleCalendarCreateV2Response {
+  success: boolean
+  output: {
+    id: string
+    htmlLink?: string
+    status?: string
+    summary?: string
+    description?: string
+    location?: string
+    start?: any
+    end?: any
+    attendees?: any
+    creator?: any
+    organizer?: any
+  }
+}
+
+export const createV2Tool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCreateV2Response> =
+  {
+    id: 'google_calendar_create_v2',
+    name: 'Google Calendar Create Event',
+    description: 'Create a new event in Google Calendar. Returns API-aligned fields only.',
+    version: '2.0.0',
+    oauth: createTool.oauth,
+    params: createTool.params,
+    request: createTool.request,
+    transformResponse: async (response: Response) => {
+      const data: GoogleCalendarApiEventResponse = await response.json()
+
+      return {
+        success: true,
+        output: {
+          id: data.id,
+          htmlLink: data.htmlLink,
+          status: data.status,
+          summary: data.summary,
+          description: data.description,
+          location: data.location,
+          start: data.start,
+          end: data.end,
+          attendees: data.attendees,
+          creator: data.creator,
+          organizer: data.organizer,
+        },
+      }
+    },
+    outputs: {
+      id: { type: 'string', description: 'Event ID' },
+      htmlLink: { type: 'string', description: 'Event link' },
+      status: { type: 'string', description: 'Event status' },
+      summary: { type: 'string', description: 'Event title' },
+      description: { type: 'string', description: 'Event description' },
+      location: { type: 'string', description: 'Event location' },
+      start: { type: 'json', description: 'Event start' },
+      end: { type: 'json', description: 'Event end' },
+      attendees: { type: 'json', description: 'Event attendees' },
+      creator: { type: 'json', description: 'Event creator' },
+      organizer: { type: 'json', description: 'Event organizer' },
+    },
+  }

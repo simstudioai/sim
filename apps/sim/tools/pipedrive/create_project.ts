@@ -88,9 +88,6 @@ export const pipedriveCreateProjectTool: ToolConfig<
       success: true,
       output: {
         project: data.data,
-        metadata: {
-          operation: 'create_project' as const,
-        },
         success: true,
       },
     }
@@ -98,7 +95,6 @@ export const pipedriveCreateProjectTool: ToolConfig<
 
   outputs: {
     project: { type: 'object', description: 'The created project object' },
-    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

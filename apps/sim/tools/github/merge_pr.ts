@@ -120,3 +120,30 @@ Message: ${result.message}`
     },
   },
 }
+
+export const mergePRV2Tool: ToolConfig<MergePRParams, any> = {
+  id: 'github_merge_pr_v2',
+  name: mergePRTool.name,
+  description: mergePRTool.description,
+  version: '2.0.0',
+  params: mergePRTool.params,
+  request: mergePRTool.request,
+
+  transformResponse: async (response: Response) => {
+    const result = await response.json()
+    return {
+      success: true,
+      output: {
+        sha: result.sha,
+        merged: result.merged,
+        message: result.message,
+      },
+    }
+  },
+
+  outputs: {
+    sha: { type: 'string', description: 'Merge commit SHA' },
+    merged: { type: 'boolean', description: 'Whether merge was successful' },
+    message: { type: 'string', description: 'Response message' },
+  },
+}

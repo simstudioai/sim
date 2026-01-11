@@ -85,7 +85,7 @@ export const salesforceGetTasksTool: ToolConfig<
     if (params?.taskId) {
       return {
         success: true,
-        output: { task: data, metadata: { operation: 'get_tasks' }, success: true },
+        output: { task: data, success: true },
       }
     }
     const tasks = data.records || []
@@ -98,14 +98,42 @@ export const salesforceGetTasksTool: ToolConfig<
           totalSize: data.totalSize || tasks.length,
           done: data.done !== false,
         },
-        metadata: { operation: 'get_tasks', totalReturned: tasks.length, hasMore: !data.done },
+        metadata: {
+          totalReturned: tasks.length,
+          hasMore: !data.done,
+        },
         success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success' },
-    output: { type: 'object', description: 'Task data' },
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Task data',
+      properties: {
+        task: { type: 'object', description: 'Single task object (when taskId provided)' },
+        tasks: { type: 'array', description: 'Array of task objects (when listing)' },
+        paging: {
+          type: 'object',
+          description: 'Pagination information',
+          properties: {
+            nextRecordsUrl: { type: 'string', description: 'URL for next page of results' },
+            totalSize: { type: 'number', description: 'Total number of records' },
+            done: { type: 'boolean', description: 'Whether all records returned' },
+          },
+        },
+        metadata: {
+          type: 'object',
+          description: 'Response metadata',
+          properties: {
+            totalReturned: { type: 'number', description: 'Number of tasks returned' },
+            hasMore: { type: 'boolean', description: 'Whether more records exist' },
+          },
+        },
+        success: { type: 'boolean', description: 'Operation success status' },
+      },
+    },
   },
 }

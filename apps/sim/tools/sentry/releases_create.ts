@@ -189,7 +189,53 @@ export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCrea
             type: 'string',
             description: 'When the release was created (ISO timestamp)',
           },
+          dateStarted: {
+            type: 'string',
+            description: 'When the release started (ISO timestamp)',
+          },
+          newGroups: { type: 'number', description: 'Number of new issues introduced' },
           commitCount: { type: 'number', description: 'Number of commits in this release' },
+          deployCount: { type: 'number', description: 'Number of deploys for this release' },
+          owner: {
+            type: 'object',
+            description: 'Release owner',
+            properties: {
+              id: { type: 'string', description: 'Owner ID' },
+              name: { type: 'string', description: 'Owner name' },
+              email: { type: 'string', description: 'Owner email' },
+            },
+          },
+          lastCommit: {
+            type: 'object',
+            description: 'Last commit in the release',
+            properties: {
+              id: { type: 'string', description: 'Commit SHA' },
+              message: { type: 'string', description: 'Commit message' },
+              dateCreated: { type: 'string', description: 'Commit timestamp' },
+            },
+          },
+          lastDeploy: {
+            type: 'object',
+            description: 'Last deploy of the release',
+            properties: {
+              id: { type: 'string', description: 'Deploy ID' },
+              environment: { type: 'string', description: 'Deploy environment' },
+              dateStarted: { type: 'string', description: 'Deploy start timestamp' },
+              dateFinished: { type: 'string', description: 'Deploy finish timestamp' },
+            },
+          },
+          authors: {
+            type: 'array',
+            description: 'Authors of commits in the release',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'Author ID' },
+                name: { type: 'string', description: 'Author name' },
+                email: { type: 'string', description: 'Author email' },
+              },
+            },
+          },
           projects: {
             type: 'array',
             description: 'Projects associated with this release',
@@ -199,7 +245,25 @@ export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCrea
                 id: { type: 'string', description: 'Project ID' },
                 name: { type: 'string', description: 'Project name' },
                 slug: { type: 'string', description: 'Project slug' },
+                platform: { type: 'string', description: 'Project platform' },
               },
+            },
+          },
+          firstEvent: { type: 'string', description: 'First event timestamp' },
+          lastEvent: { type: 'string', description: 'Last event timestamp' },
+          versionInfo: {
+            type: 'object',
+            description: 'Version metadata',
+            properties: {
+              buildHash: { type: 'string', description: 'Build hash' },
+              version: {
+                type: 'object',
+                description: 'Version details',
+                properties: {
+                  raw: { type: 'string', description: 'Raw version string' },
+                },
+              },
+              package: { type: 'string', description: 'Package name' },
             },
           },
         },

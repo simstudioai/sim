@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { buildIntercomUrl, handleIntercomError } from './types'
-
-const logger = createLogger('IntercomGetTicket')
 
 export interface IntercomGetTicketParams {
   accessToken: string
@@ -20,6 +17,42 @@ export interface IntercomGetTicketResponse {
   }
 }
 
+export interface IntercomGetTicketV2Response {
+  success: boolean
+  output: {
+    ticket: any
+    ticketId: string
+    success: boolean
+  }
+}
+
+const getTicketBase = {
+  params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'Intercom API access token',
+    },
+    ticketId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Ticket ID to retrieve',
+    },
+  },
+  request: {
+    url: (params: IntercomGetTicketParams) => buildIntercomUrl(`/tickets/${params.ticketId}`),
+    method: 'GET',
+    headers: (params: IntercomGetTicketParams) => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'Intercom-Version': '2.14',
+    }),
+  },
+} satisfies Pick<ToolConfig<IntercomGetTicketParams, any>, 'params' | 'request'>
+
 export const intercomGetTicketTool: ToolConfig<IntercomGetTicketParams, IntercomGetTicketResponse> =
   {
     id: 'intercom_get_ticket',
@@ -27,31 +60,7 @@ export const intercomGetTicketTool: ToolConfig<IntercomGetTicketParams, Intercom
     description: 'Retrieve a single ticket by ID from Intercom',
     version: '1.0.0',
 
-    params: {
-      accessToken: {
-        type: 'string',
-        required: true,
-        visibility: 'hidden',
-        description: 'Intercom API access token',
-      },
-      ticketId: {
-        type: 'string',
-        required: true,
-        visibility: 'user-or-llm',
-        description: 'Ticket ID to retrieve',
-      },
-    },
-
-    request: {
-      url: (params) => buildIntercomUrl(`/tickets/${params.ticketId}`),
-      method: 'GET',
-      headers: (params) => ({
-        Authorization: `Bearer ${params.accessToken}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'Intercom-Version': '2.14',
-      }),
-    },
+    ...getTicketBase,
 
     transformResponse: async (response: Response) => {
       if (!response.ok) {
@@ -114,3 +123,67 @@ export const intercomGetTicketTool: ToolConfig<IntercomGetTicketParams, Intercom
       success: { type: 'boolean', description: 'Operation success status' },
     },
   }
+
+export const intercomGetTicketV2Tool: ToolConfig<
+  IntercomGetTicketParams,
+  IntercomGetTicketV2Response
+> = {
+  ...getTicketBase,
+  id: 'intercom_get_ticket_v2',
+  name: 'Get Ticket from Intercom',
+  description: 'Retrieve a single ticket by ID from Intercom. Returns API-aligned fields only.',
+  version: '2.0.0',
+
+  transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const data = await response.json()
+      handleIntercomError(data, response.status, 'get_ticket')
+    }
+
+    const data = await response.json()
+
+    return {
+      success: true,
+      output: {
+        ticket: data,
+        ticketId: data.id,
+        success: true,
+      },
+    }
+  },
+
+  outputs: {
+    ticket: {
+      type: 'object',
+      description: 'Ticket object',
+      properties: {
+        id: { type: 'string', description: 'Unique identifier for the ticket' },
+        type: { type: 'string', description: 'Object type (ticket)' },
+        ticket_id: { type: 'string', description: 'Ticket ID' },
+        ticket_type: { type: 'object', description: 'Type of the ticket' },
+        ticket_attributes: { type: 'object', description: 'Attributes of the ticket' },
+        ticket_state: { type: 'string', description: 'State of the ticket' },
+        ticket_state_internal_label: {
+          type: 'string',
+          description: 'Internal label for ticket state',
+        },
+        ticket_state_external_label: {
+          type: 'string',
+          description: 'External label for ticket state',
+        },
+        created_at: { type: 'number', description: 'Unix timestamp when ticket was created' },
+        updated_at: {
+          type: 'number',
+          description: 'Unix timestamp when ticket was last updated',
+        },
+        contacts: { type: 'object', description: 'Contacts associated with the ticket' },
+        admin_assignee_id: { type: 'string', description: 'ID of assigned admin' },
+        team_assignee_id: { type: 'string', description: 'ID of assigned team' },
+        is_shared: { type: 'boolean', description: 'Whether the ticket is shared' },
+        open: { type: 'boolean', description: 'Whether the ticket is open' },
+      },
+    },
+    ticketId: { type: 'string', description: 'ID of the retrieved ticket' },
+    success: { type: 'boolean', description: 'Operation success status' },
+  },
+}

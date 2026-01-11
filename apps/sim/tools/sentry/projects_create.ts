@@ -146,6 +146,11 @@ export const createProjectTool: ToolConfig<SentryCreateProjectParams, SentryCrea
             type: 'string',
             description: 'When the project was created (ISO timestamp)',
           },
+          isBookmarked: { type: 'boolean', description: 'Whether the project is bookmarked' },
+          isMember: { type: 'boolean', description: 'Whether the user is a member' },
+          hasAccess: { type: 'boolean', description: 'Whether the user has access' },
+          features: { type: 'array', description: 'Enabled features' },
+          firstEvent: { type: 'string', description: 'First event timestamp' },
           organization: {
             type: 'object',
             description: 'Organization information',
@@ -153,6 +158,15 @@ export const createProjectTool: ToolConfig<SentryCreateProjectParams, SentryCrea
               id: { type: 'string', description: 'Organization ID' },
               slug: { type: 'string', description: 'Organization slug' },
               name: { type: 'string', description: 'Organization name' },
+            },
+          },
+          team: {
+            type: 'object',
+            description: 'Primary team for the project',
+            properties: {
+              id: { type: 'string', description: 'Team ID' },
+              name: { type: 'string', description: 'Team name' },
+              slug: { type: 'string', description: 'Team slug' },
             },
           },
           teams: {
@@ -167,6 +181,9 @@ export const createProjectTool: ToolConfig<SentryCreateProjectParams, SentryCrea
               },
             },
           },
+          status: { type: 'string', description: 'Project status' },
+          color: { type: 'string', description: 'Project color code' },
+          isPublic: { type: 'boolean', description: 'Whether the project is public' },
         },
       },
     },

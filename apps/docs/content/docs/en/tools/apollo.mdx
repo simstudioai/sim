@@ -61,7 +61,9 @@ Search Apollo
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `people` | json | Array of people matching the search criteria |
-| `metadata` | json | Pagination information including page, per_page, and total_entries |
+| `page` | number | Current page number |
+| `per_page` | number | Results per page |
+| `total_entries` | number | Total matching entries |
 
 ### `apollo_people_enrich`
 
@@ -86,7 +88,7 @@ Enrich data for a single person using Apollo
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `person` | json | Enriched person data from Apollo |
-| `metadata` | json | Enrichment metadata including enriched status |
+| `enriched` | boolean | Whether the person was successfully enriched |
 
 ### `apollo_people_bulk_enrich`
 
@@ -106,7 +108,8 @@ Enrich data for up to 10 people at once using Apollo
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `people` | json | Array of enriched people data |
-| `metadata` | json | Bulk enrichment metadata including total and enriched counts |
+| `total` | number | Total number of people processed |
+| `enriched` | number | Number of people successfully enriched |
 
 ### `apollo_organization_search`
 
@@ -129,7 +132,9 @@ Search Apollo
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `organizations` | json | Array of organizations matching the search criteria |
-| `metadata` | json | Pagination information including page, per_page, and total_entries |
+| `page` | number | Current page number |
+| `per_page` | number | Results per page |
+| `total_entries` | number | Total matching entries |
 
 ### `apollo_organization_enrich`
 
@@ -148,7 +153,7 @@ Enrich data for a single organization using Apollo
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `organization` | json | Enriched organization data from Apollo |
-| `metadata` | json | Enrichment metadata including enriched status |
+| `enriched` | boolean | Whether the organization was successfully enriched |
 
 ### `apollo_organization_bulk_enrich`
 
@@ -166,7 +171,8 @@ Enrich data for up to 10 organizations at once using Apollo
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `organizations` | json | Array of enriched organization data |
-| `metadata` | json | Bulk enrichment metadata including total and enriched counts |
+| `total` | number | Total number of organizations processed |
+| `enriched` | number | Number of organizations successfully enriched |
 
 ### `apollo_contact_create`
 
@@ -189,7 +195,7 @@ Create a new contact in your Apollo database
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contact` | json | Created contact data from Apollo |
-| `metadata` | json | Creation metadata including created status |
+| `created` | boolean | Whether the contact was successfully created |
 
 ### `apollo_contact_update`
 
@@ -213,7 +219,7 @@ Update an existing contact in your Apollo database
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contact` | json | Updated contact data from Apollo |
-| `metadata` | json | Update metadata including updated status |
+| `updated` | boolean | Whether the contact was successfully updated |
 
 ### `apollo_contact_search`
 
@@ -234,7 +240,9 @@ Search your team
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contacts` | json | Array of contacts matching the search criteria |
-| `metadata` | json | Pagination information including page, per_page, and total_entries |
+| `page` | number | Current page number |
+| `per_page` | number | Results per page |
+| `total_entries` | number | Total matching entries |
 
 ### `apollo_contact_bulk_create`
 
@@ -254,7 +262,9 @@ Create up to 100 contacts at once in your Apollo database. Supports deduplicatio
 | --------- | ---- | ----------- |
 | `created_contacts` | json | Array of newly created contacts |
 | `existing_contacts` | json | Array of existing contacts \(when deduplication is enabled\) |
-| `metadata` | json | Bulk creation metadata including counts of created and existing contacts |
+| `total_submitted` | number | Total number of contacts submitted |
+| `created` | number | Number of contacts successfully created |
+| `existing` | number | Number of existing contacts found |
 
 ### `apollo_contact_bulk_update`
 
@@ -273,7 +283,9 @@ Update up to 100 existing contacts at once in your Apollo database. Each contact
 | --------- | ---- | ----------- |
 | `updated_contacts` | json | Array of successfully updated contacts |
 | `failed_contacts` | json | Array of contacts that failed to update |
-| `metadata` | json | Bulk update metadata including counts of updated and failed contacts |
+| `total_submitted` | number | Total number of contacts submitted |
+| `updated` | number | Number of contacts successfully updated |
+| `failed` | number | Number of contacts that failed to update |
 
 ### `apollo_account_create`
 
@@ -294,7 +306,7 @@ Create a new account (company) in your Apollo database
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `account` | json | Created account data from Apollo |
-| `metadata` | json | Creation metadata including created status |
+| `created` | boolean | Whether the account was successfully created |
 
 ### `apollo_account_update`
 
@@ -316,7 +328,7 @@ Update an existing account in your Apollo database
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `account` | json | Updated account data from Apollo |
-| `metadata` | json | Update metadata including updated status |
+| `updated` | boolean | Whether the account was successfully updated |
 
 ### `apollo_account_search`
 
@@ -338,7 +350,9 @@ Search your team
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accounts` | json | Array of accounts matching the search criteria |
-| `metadata` | json | Pagination information including page, per_page, and total_entries |
+| `page` | number | Current page number |
+| `per_page` | number | Results per page |
+| `total_entries` | number | Total matching entries |
 
 ### `apollo_account_bulk_create`
 
@@ -357,7 +371,9 @@ Create up to 100 accounts at once in your Apollo database. Note: Apollo does not
 | --------- | ---- | ----------- |
 | `created_accounts` | json | Array of newly created accounts |
 | `failed_accounts` | json | Array of accounts that failed to create |
-| `metadata` | json | Bulk creation metadata including counts of created and failed accounts |
+| `total_submitted` | number | Total number of accounts submitted |
+| `created` | number | Number of accounts successfully created |
+| `failed` | number | Number of accounts that failed to create |
 
 ### `apollo_account_bulk_update`
 
@@ -376,7 +392,9 @@ Update up to 1000 existing accounts at once in your Apollo database (higher limi
 | --------- | ---- | ----------- |
 | `updated_accounts` | json | Array of successfully updated accounts |
 | `failed_accounts` | json | Array of accounts that failed to update |
-| `metadata` | json | Bulk update metadata including counts of updated and failed accounts |
+| `total_submitted` | number | Total number of accounts submitted |
+| `updated` | number | Number of accounts successfully updated |
+| `failed` | number | Number of accounts that failed to update |
 
 ### `apollo_opportunity_create`
 
@@ -400,7 +418,7 @@ Create a new deal for an account in your Apollo database (master key required)
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `opportunity` | json | Created opportunity data from Apollo |
-| `metadata` | json | Creation metadata including created status |
+| `created` | boolean | Whether the opportunity was successfully created |
 
 ### `apollo_opportunity_search`
 
@@ -423,7 +441,9 @@ Search and list all deals/opportunities in your team
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `opportunities` | json | Array of opportunities matching the search criteria |
-| `metadata` | json | Pagination information including page, per_page, and total_entries |
+| `page` | number | Current page number |
+| `per_page` | number | Results per page |
+| `total_entries` | number | Total matching entries |
 
 ### `apollo_opportunity_get`
 
@@ -441,7 +461,7 @@ Retrieve complete details of a specific deal/opportunity by ID
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `opportunity` | json | Complete opportunity data from Apollo |
-| `metadata` | json | Retrieval metadata including found status |
+| `found` | boolean | Whether the opportunity was found |
 
 ### `apollo_opportunity_update`
 
@@ -465,7 +485,7 @@ Update an existing deal/opportunity in your Apollo database
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `opportunity` | json | Updated opportunity data from Apollo |
-| `metadata` | json | Update metadata including updated status |
+| `updated` | boolean | Whether the opportunity was successfully updated |
 
 ### `apollo_sequence_search`
 
@@ -486,7 +506,9 @@ Search for sequences/campaigns in your team
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `sequences` | json | Array of sequences/campaigns matching the search criteria |
-| `metadata` | json | Pagination information including page, per_page, and total_entries |
+| `page` | number | Current page number |
+| `per_page` | number | Results per page |
+| `total_entries` | number | Total matching entries |
 
 ### `apollo_sequence_add_contacts`
 
@@ -507,7 +529,8 @@ Add contacts to an Apollo sequence
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contacts_added` | json | Array of contact IDs added to the sequence |
-| `metadata` | json | Sequence metadata including sequence_id and total_added count |
+| `sequence_id` | string | ID of the sequence contacts were added to |
+| `total_added` | number | Total number of contacts added |
 
 ### `apollo_task_create`
 
@@ -530,7 +553,7 @@ Create a new task in Apollo
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `task` | json | Created task data from Apollo |
-| `metadata` | json | Creation metadata including created status |
+| `created` | boolean | Whether the task was successfully created |
 
 ### `apollo_task_search`
 
@@ -552,7 +575,9 @@ Search for tasks in Apollo
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tasks` | json | Array of tasks matching the search criteria |
-| `metadata` | json | Pagination information including page, per_page, and total_entries |
+| `page` | number | Current page number |
+| `per_page` | number | Results per page |
+| `total_entries` | number | Total matching entries |
 
 ### `apollo_email_accounts`
 
@@ -569,7 +594,7 @@ Get list of team
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `email_accounts` | json | Array of team email accounts linked in Apollo |
-| `metadata` | json | Metadata including total count of email accounts |
+| `total` | number | Total count of email accounts |
 
 
 

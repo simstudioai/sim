@@ -82,3 +82,36 @@ export const gmailRemoveLabelTool: ToolConfig<GmailLabelParams, GmailToolRespons
     },
   },
 }
+
+interface GmailModifyV2Response {
+  success: boolean
+  output: {
+    id?: string
+    threadId?: string
+    labelIds?: string[]
+  }
+}
+
+export const gmailRemoveLabelV2Tool: ToolConfig<GmailLabelParams, GmailModifyV2Response> = {
+  id: 'gmail_remove_label_v2',
+  name: 'Gmail Remove Label',
+  description: 'Remove label(s) from a Gmail message. Returns API-aligned fields only.',
+  version: '2.0.0',
+  oauth: gmailRemoveLabelTool.oauth,
+  params: gmailRemoveLabelTool.params,
+  request: gmailRemoveLabelTool.request,
+  transformResponse: async (response) => {
+    const legacy = await gmailRemoveLabelTool.transformResponse!(response)
+    if (!legacy.success) return { success: false, output: {}, error: legacy.error }
+    const metadata = legacy.output.metadata as any
+    return {
+      success: true,
+      output: { id: metadata?.id, threadId: metadata?.threadId, labelIds: metadata?.labelIds },
+    }
+  },
+  outputs: {
+    id: { type: 'string', description: 'Gmail message ID' },
+    threadId: { type: 'string', description: 'Gmail thread ID' },
+    labelIds: { type: 'array', items: { type: 'string' }, description: 'Updated email labels' },
+  },
+}

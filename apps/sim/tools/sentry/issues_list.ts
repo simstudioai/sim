@@ -151,7 +151,11 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
             platform: issue.project?.platform || '',
           },
           type: issue.type,
-          metadata: issue.metadata || {},
+          metadata: {
+            type: issue.metadata?.type || null,
+            value: issue.metadata?.value || null,
+            function: issue.metadata?.function || null,
+          },
           numComments: issue.numComments || 0,
           assignedTo: issue.assignedTo
             ? {
@@ -172,8 +176,10 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
           lastSeen: issue.lastSeen,
           stats: issue.stats || {},
         })),
-        nextCursor,
-        hasMore,
+        metadata: {
+          nextCursor,
+          hasMore,
+        },
       },
     }
   },
@@ -193,6 +199,8 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
           logger: { type: 'string', description: 'Logger name that reported the issue' },
           level: { type: 'string', description: 'Severity level (error, warning, info, etc.)' },
           status: { type: 'string', description: 'Current issue status' },
+          statusDetails: { type: 'object', description: 'Additional details about the status' },
+          isPublic: { type: 'boolean', description: 'Whether the issue is publicly visible' },
           platform: { type: 'string', description: 'Platform where the issue occurred' },
           project: {
             type: 'object',
@@ -204,6 +212,31 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
               platform: { type: 'string', description: 'Project platform' },
             },
           },
+          type: { type: 'string', description: 'Issue type' },
+          metadata: {
+            type: 'object',
+            description: 'Error metadata',
+            properties: {
+              type: { type: 'string', description: 'Type of error (e.g., TypeError)' },
+              value: { type: 'string', description: 'Error message or value' },
+              function: { type: 'string', description: 'Function where the error occurred' },
+            },
+          },
+          numComments: { type: 'number', description: 'Number of comments on the issue' },
+          assignedTo: {
+            type: 'object',
+            description: 'User assigned to the issue',
+            properties: {
+              id: { type: 'string', description: 'User ID' },
+              name: { type: 'string', description: 'User name' },
+              email: { type: 'string', description: 'User email' },
+            },
+          },
+          isBookmarked: { type: 'boolean', description: 'Whether the issue is bookmarked' },
+          isSubscribed: { type: 'boolean', description: 'Whether subscribed to updates' },
+          hasSeen: { type: 'boolean', description: 'Whether the user has seen this issue' },
+          annotations: { type: 'array', description: 'Issue annotations' },
+          isUnhandled: { type: 'boolean', description: 'Whether the issue is unhandled' },
           count: { type: 'string', description: 'Total number of occurrences' },
           userCount: { type: 'number', description: 'Number of unique users affected' },
           firstSeen: {
@@ -211,16 +244,23 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
             description: 'When the issue was first seen (ISO timestamp)',
           },
           lastSeen: { type: 'string', description: 'When the issue was last seen (ISO timestamp)' },
+          stats: { type: 'object', description: 'Statistical information about the issue' },
         },
       },
     },
-    nextCursor: {
-      type: 'string',
-      description: 'Cursor for the next page of results (if available)',
-    },
-    hasMore: {
-      type: 'boolean',
-      description: 'Whether there are more results available',
+    metadata: {
+      type: 'object',
+      description: 'Pagination metadata',
+      properties: {
+        nextCursor: {
+          type: 'string',
+          description: 'Cursor for the next page of results (if available)',
+        },
+        hasMore: {
+          type: 'boolean',
+          description: 'Whether there are more results available',
+        },
+      },
     },
   },
 }

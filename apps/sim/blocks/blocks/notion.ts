@@ -3,9 +3,11 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { NotionResponse } from '@/tools/notion/types'
 
+// Legacy block - hidden from toolbar
 export const NotionBlock: BlockConfig<NotionResponse> = {
   type: 'notion',
-  name: 'Notion',
+  name: 'Notion (Legacy)',
+  hideFromToolbar: true,
   description: 'Manage Notion pages',
   authMode: AuthMode.OAuth,
   longDescription:
@@ -354,6 +356,127 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'json',
       description:
         'Metadata containing operation-specific details including page/database info, results, and pagination data',
+    },
+  },
+}
+
+// V2 Block with API-aligned outputs
+export const NotionV2Block: BlockConfig<any> = {
+  type: 'notion_v2',
+  name: 'Notion',
+  description: 'Manage Notion pages',
+  authMode: AuthMode.OAuth,
+  longDescription:
+    'Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.',
+  docsLink: 'https://docs.sim.ai/tools/notion',
+  category: 'tools',
+  bgColor: '#181C1E',
+  icon: NotionIcon,
+  hideFromToolbar: false,
+  subBlocks: NotionBlock.subBlocks,
+  tools: {
+    access: [
+      'notion_read_v2',
+      'notion_read_database_v2',
+      'notion_write_v2',
+      'notion_create_page_v2',
+      'notion_query_database_v2',
+      'notion_search_v2',
+      'notion_create_database_v2',
+    ],
+    config: {
+      tool: (params) => {
+        switch (params.operation) {
+          case 'notion_read':
+            return 'notion_read_v2'
+          case 'notion_read_database':
+            return 'notion_read_database_v2'
+          case 'notion_write':
+            return 'notion_write_v2'
+          case 'notion_create_page':
+            return 'notion_create_page_v2'
+          case 'notion_query_database':
+            return 'notion_query_database_v2'
+          case 'notion_search':
+            return 'notion_search_v2'
+          case 'notion_create_database':
+            return 'notion_create_database_v2'
+          default:
+            return 'notion_read_v2'
+        }
+      },
+      params: NotionBlock.tools?.config?.params,
+    },
+  },
+  inputs: NotionBlock.inputs,
+  outputs: {
+    // Read page outputs
+    content: {
+      type: 'string',
+      description: 'Page content in markdown format',
+      condition: { field: 'operation', value: 'notion_read' },
+    },
+    title: {
+      type: 'string',
+      description: 'Page or database title',
+    },
+    url: {
+      type: 'string',
+      description: 'Notion URL',
+    },
+    id: {
+      type: 'string',
+      description: 'Page or database ID',
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_create_page',
+          'notion_create_database',
+          'notion_read_database',
+          'notion_update_page',
+        ],
+      },
+    },
+    created_time: {
+      type: 'string',
+      description: 'Creation timestamp',
+    },
+    last_edited_time: {
+      type: 'string',
+      description: 'Last edit timestamp',
+    },
+    // Database query/search outputs
+    results: {
+      type: 'array',
+      description: 'Array of results from query or search',
+      condition: { field: 'operation', value: ['notion_query_database', 'notion_search'] },
+    },
+    has_more: {
+      type: 'boolean',
+      description: 'Whether more results are available',
+      condition: { field: 'operation', value: ['notion_query_database', 'notion_search'] },
+    },
+    next_cursor: {
+      type: 'string',
+      description: 'Cursor for pagination',
+      condition: { field: 'operation', value: ['notion_query_database', 'notion_search'] },
+    },
+    total_results: {
+      type: 'number',
+      description: 'Number of results returned',
+      condition: { field: 'operation', value: ['notion_query_database', 'notion_search'] },
+    },
+    // Database schema
+    properties: {
+      type: 'json',
+      description: 'Database properties schema',
+      condition: { field: 'operation', value: ['notion_read_database', 'notion_create_database'] },
+    },
+    // Write output
+    appended: {
+      type: 'boolean',
+      description: 'Whether content was successfully appended',
+      condition: { field: 'operation', value: 'notion_write' },
     },
   },
 }

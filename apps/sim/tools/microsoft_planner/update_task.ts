@@ -236,6 +236,14 @@ export const updateTaskTool: ToolConfig<
       type: 'string',
       description: 'New ETag after update - use this for subsequent operations',
     },
-    metadata: { type: 'object', description: 'Metadata including taskId, planId, and taskUrl' },
+    metadata: {
+      type: 'object',
+      description: 'Metadata including taskId, planId, and taskUrl',
+      properties: {
+        taskId: { type: 'string', description: 'Updated task ID' },
+        planId: { type: 'string', description: 'Parent plan ID' },
+        taskUrl: { type: 'string', description: 'Microsoft Graph API URL for the task' },
+      },
+    },
   },
 }

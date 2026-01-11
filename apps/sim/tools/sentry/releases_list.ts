@@ -156,8 +156,10 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
             package: release.versionInfo?.package || null,
           },
         })),
-        nextCursor,
-        hasMore,
+        metadata: {
+          nextCursor,
+          hasMore,
+        },
       },
     }
   },
@@ -182,6 +184,10 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
             type: 'string',
             description: 'When the release was created (ISO timestamp)',
           },
+          dateStarted: {
+            type: 'string',
+            description: 'When the release started (ISO timestamp)',
+          },
           newGroups: {
             type: 'number',
             description: 'Number of new issues introduced in this release',
@@ -197,6 +203,37 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
           },
           commitCount: { type: 'number', description: 'Number of commits in this release' },
           deployCount: { type: 'number', description: 'Number of deploys for this release' },
+          lastCommit: {
+            type: 'object',
+            description: 'Last commit in the release',
+            properties: {
+              id: { type: 'string', description: 'Commit SHA' },
+              message: { type: 'string', description: 'Commit message' },
+              dateCreated: { type: 'string', description: 'Commit timestamp' },
+            },
+          },
+          lastDeploy: {
+            type: 'object',
+            description: 'Last deploy of the release',
+            properties: {
+              id: { type: 'string', description: 'Deploy ID' },
+              environment: { type: 'string', description: 'Deploy environment' },
+              dateStarted: { type: 'string', description: 'Deploy start timestamp' },
+              dateFinished: { type: 'string', description: 'Deploy finish timestamp' },
+            },
+          },
+          authors: {
+            type: 'array',
+            description: 'Authors of commits in the release',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'Author ID' },
+                name: { type: 'string', description: 'Author name' },
+                email: { type: 'string', description: 'Author email' },
+              },
+            },
+          },
           projects: {
             type: 'array',
             description: 'Projects associated with this release',
@@ -210,16 +247,39 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
               },
             },
           },
+          firstEvent: { type: 'string', description: 'First event timestamp' },
+          lastEvent: { type: 'string', description: 'Last event timestamp' },
+          versionInfo: {
+            type: 'object',
+            description: 'Version metadata',
+            properties: {
+              buildHash: { type: 'string', description: 'Build hash' },
+              version: {
+                type: 'object',
+                description: 'Version details',
+                properties: {
+                  raw: { type: 'string', description: 'Raw version string' },
+                },
+              },
+              package: { type: 'string', description: 'Package name' },
+            },
+          },
         },
       },
     },
-    nextCursor: {
-      type: 'string',
-      description: 'Cursor for the next page of results (if available)',
-    },
-    hasMore: {
-      type: 'boolean',
-      description: 'Whether there are more results available',
+    metadata: {
+      type: 'object',
+      description: 'Pagination metadata',
+      properties: {
+        nextCursor: {
+          type: 'string',
+          description: 'Cursor for the next page of results (if available)',
+        },
+        hasMore: {
+          type: 'boolean',
+          description: 'Whether there are more results available',
+        },
+      },
     },
   },
 }

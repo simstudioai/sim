@@ -69,6 +69,13 @@ export const stripeConfirmPaymentIntentTool: ToolConfig<
     metadata: {
       type: 'json',
       description: 'Payment Intent metadata including ID, status, amount, and currency',
+
+      properties: {
+        id: { type: 'string', description: 'Stripe unique identifier' },
+        status: { type: 'string', description: 'Current state of the resource' },
+        amount: { type: 'number', description: 'Amount in smallest currency unit (e.g., cents)' },
+        currency: { type: 'string', description: 'Three-letter ISO currency code (lowercase)' },
+      },
     },
   },
 }

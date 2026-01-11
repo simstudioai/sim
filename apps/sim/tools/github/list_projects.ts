@@ -163,3 +163,63 @@ export const listProjectsTool: ToolConfig<ListProjectsParams, ListProjectsRespon
     },
   },
 }
+
+export const listProjectsV2Tool: ToolConfig<ListProjectsParams, any> = {
+  id: 'github_list_projects_v2',
+  name: listProjectsTool.name,
+  description: listProjectsTool.description,
+  version: '2.0.0',
+  params: listProjectsTool.params,
+  request: listProjectsTool.request,
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    if (data.errors) {
+      return {
+        success: false,
+        output: { items: [], totalCount: 0 },
+        error: data.errors[0].message,
+      }
+    }
+
+    const ownerData = data.data?.organization || data.data?.user
+    const projectsData = ownerData?.projectsV2
+
+    if (!projectsData) {
+      return {
+        success: false,
+        output: { items: [], totalCount: 0 },
+        error: 'No projects data found',
+      }
+    }
+
+    return {
+      success: true,
+      output: {
+        items: projectsData.nodes,
+        totalCount: projectsData.totalCount,
+      },
+    }
+  },
+
+  outputs: {
+    items: {
+      type: 'array',
+      description: 'Array of project objects',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Project node ID' },
+          title: { type: 'string', description: 'Project title' },
+          number: { type: 'number', description: 'Project number' },
+          url: { type: 'string', description: 'Project URL' },
+          closed: { type: 'boolean', description: 'Whether project is closed' },
+          public: { type: 'boolean', description: 'Whether project is public' },
+          shortDescription: { type: 'string', description: 'Short description' },
+        },
+      },
+    },
+    totalCount: { type: 'number', description: 'Total number of projects' },
+  },
+}

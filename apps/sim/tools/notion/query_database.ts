@@ -162,3 +162,62 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
     },
   },
 }
+
+// V2 Tool with API-aligned outputs
+interface NotionQueryDatabaseV2Response {
+  success: boolean
+  output: {
+    results: any[]
+    has_more: boolean
+    next_cursor: string | null
+    total_results: number
+  }
+}
+
+export const notionQueryDatabaseV2Tool: ToolConfig<
+  NotionQueryDatabaseParams,
+  NotionQueryDatabaseV2Response
+> = {
+  id: 'notion_query_database_v2',
+  name: 'Query Notion Database',
+  description: 'Query and filter Notion database entries with advanced filtering',
+  version: '2.0.0',
+  oauth: notionQueryDatabaseTool.oauth,
+  params: notionQueryDatabaseTool.params,
+  request: notionQueryDatabaseTool.request,
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    const results = data.results || []
+
+    return {
+      success: true,
+      output: {
+        results,
+        has_more: data.has_more || false,
+        next_cursor: data.next_cursor || null,
+        total_results: results.length,
+      },
+    }
+  },
+
+  outputs: {
+    results: {
+      type: 'array',
+      description: 'Array of Notion page objects from the database',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Page ID' },
+          properties: { type: 'object', description: 'Page properties' },
+          created_time: { type: 'string', description: 'Creation timestamp' },
+          last_edited_time: { type: 'string', description: 'Last edit timestamp' },
+          url: { type: 'string', description: 'Page URL' },
+        },
+      },
+    },
+    has_more: { type: 'boolean', description: 'Whether more results are available' },
+    next_cursor: { type: 'string', description: 'Cursor for pagination' },
+    total_results: { type: 'number', description: 'Number of results returned' },
+  },
+}

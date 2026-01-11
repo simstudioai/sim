@@ -133,3 +133,45 @@ ${data.workflows
     },
   },
 }
+
+export const listWorkflowsV2Tool: ToolConfig<ListWorkflowsParams, any> = {
+  id: 'github_list_workflows_v2',
+  name: listWorkflowsTool.name,
+  description: listWorkflowsTool.description,
+  version: '2.0.0',
+  params: listWorkflowsTool.params,
+  request: listWorkflowsTool.request,
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: true,
+      output: {
+        total_count: data.total_count,
+        items: data.workflows,
+      },
+    }
+  },
+
+  outputs: {
+    total_count: { type: 'number', description: 'Total number of workflows' },
+    items: {
+      type: 'array',
+      description: 'Array of workflow objects',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'number', description: 'Workflow ID' },
+          node_id: { type: 'string', description: 'Workflow node ID' },
+          name: { type: 'string', description: 'Workflow name' },
+          path: { type: 'string', description: 'Path to workflow file' },
+          state: { type: 'string', description: 'Workflow state' },
+          html_url: { type: 'string', description: 'GitHub web URL' },
+          badge_url: { type: 'string', description: 'Badge URL' },
+          created_at: { type: 'string', description: 'Creation timestamp' },
+          updated_at: { type: 'string', description: 'Last update timestamp' },
+        },
+      },
+    },
+  },
+}

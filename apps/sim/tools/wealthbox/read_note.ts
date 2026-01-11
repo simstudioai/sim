@@ -47,7 +47,7 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
     },
   },
 
-  transformResponse: async (response: Response, params?: WealthboxReadParams) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     // Format note information into readable content
@@ -86,8 +86,8 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
         content,
         note,
         metadata: {
-          operation: 'read_note' as const,
-          noteId: params?.noteId || note.id?.toString() || '',
+          itemId: note.id?.toString() || '',
+          noteId: note.id?.toString() || '',
           itemType: 'note' as const,
         },
       },
@@ -106,7 +106,7 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
           type: 'object',
           description: 'Operation metadata',
           properties: {
-            operation: { type: 'string', description: 'The operation performed' },
+            itemId: { type: 'string', description: 'ID of the note' },
             noteId: { type: 'string', description: 'ID of the note' },
             itemType: { type: 'string', description: 'Type of item (note)' },
           },

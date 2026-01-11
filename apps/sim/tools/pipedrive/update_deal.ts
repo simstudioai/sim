@@ -100,9 +100,6 @@ export const pipedriveUpdateDealTool: ToolConfig<
       success: true,
       output: {
         deal: data.data,
-        metadata: {
-          operation: 'update_deal' as const,
-        },
         success: true,
       },
     }
@@ -110,7 +107,6 @@ export const pipedriveUpdateDealTool: ToolConfig<
 
   outputs: {
     deal: { type: 'object', description: 'The updated deal object' },
-    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

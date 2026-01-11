@@ -121,3 +121,79 @@ URL: ${pr.html_url}`
     },
   },
 }
+
+export const prV2Tool: ToolConfig<PROperationParams, any> = {
+  id: 'github_pr_v2',
+  name: prTool.name,
+  description: prTool.description,
+  version: '2.0.0',
+  params: prTool.params,
+  request: prTool.request,
+
+  transformResponse: async (response: Response) => {
+    const pr = await response.json()
+
+    // Fetch files changed
+    const filesResponse = await fetch(
+      `https://api.github.com/repos/${pr.base.repo.owner.login}/${pr.base.repo.name}/pulls/${pr.number}/files`
+    )
+    const files = await filesResponse.json()
+
+    return {
+      success: true,
+      output: {
+        id: pr.id,
+        number: pr.number,
+        title: pr.title,
+        state: pr.state,
+        html_url: pr.html_url,
+        diff_url: pr.diff_url,
+        body: pr.body,
+        user: pr.user,
+        head: pr.head,
+        base: pr.base,
+        merged: pr.merged,
+        mergeable: pr.mergeable,
+        merged_by: pr.merged_by,
+        comments: pr.comments,
+        review_comments: pr.review_comments,
+        commits: pr.commits,
+        additions: pr.additions,
+        deletions: pr.deletions,
+        changed_files: pr.changed_files,
+        created_at: pr.created_at,
+        updated_at: pr.updated_at,
+        closed_at: pr.closed_at,
+        merged_at: pr.merged_at,
+        files: files,
+      },
+    }
+  },
+
+  outputs: {
+    id: { type: 'number', description: 'Pull request ID' },
+    number: { type: 'number', description: 'Pull request number' },
+    title: { type: 'string', description: 'PR title' },
+    state: { type: 'string', description: 'PR state (open/closed)' },
+    html_url: { type: 'string', description: 'GitHub web URL' },
+    diff_url: { type: 'string', description: 'Raw diff URL' },
+    body: { type: 'string', description: 'PR description' },
+    user: { type: 'json', description: 'User who created the PR' },
+    head: { type: 'json', description: 'Head branch info' },
+    base: { type: 'json', description: 'Base branch info' },
+    merged: { type: 'boolean', description: 'Whether PR is merged' },
+    mergeable: { type: 'boolean', description: 'Whether PR is mergeable' },
+    merged_by: { type: 'json', description: 'User who merged the PR' },
+    comments: { type: 'number', description: 'Number of comments' },
+    review_comments: { type: 'number', description: 'Number of review comments' },
+    commits: { type: 'number', description: 'Number of commits' },
+    additions: { type: 'number', description: 'Lines added' },
+    deletions: { type: 'number', description: 'Lines deleted' },
+    changed_files: { type: 'number', description: 'Number of changed files' },
+    created_at: { type: 'string', description: 'Creation timestamp' },
+    updated_at: { type: 'string', description: 'Last update timestamp' },
+    closed_at: { type: 'string', description: 'Close timestamp' },
+    merged_at: { type: 'string', description: 'Merge timestamp' },
+    files: { type: 'array', description: 'Array of changed file objects' },
+  },
+}

@@ -253,3 +253,162 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
     },
   },
 }
+
+interface GoogleCalendarInviteV2Response {
+  success: boolean
+  output: {
+    id: string
+    htmlLink?: string
+    status?: string
+    summary?: string
+    description?: string
+    location?: string
+    start?: any
+    end?: any
+    attendees?: any
+    creator?: any
+    organizer?: any
+  }
+}
+
+export const inviteV2Tool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarInviteV2Response> =
+  {
+    id: 'google_calendar_invite_v2',
+    name: 'Google Calendar Invite Attendees',
+    description:
+      'Invite attendees to an existing Google Calendar event. Returns API-aligned fields only.',
+    version: '2.0.0',
+    oauth: inviteTool.oauth,
+    params: inviteTool.params,
+    request: inviteTool.request,
+    transformResponse: async (response: Response, params) => {
+      const existingEvent = await response.json()
+
+      if (!existingEvent.start || !existingEvent.end || !existingEvent.summary) {
+        throw new Error('Existing event is missing required fields (start, end, or summary)')
+      }
+
+      let newAttendeeList: string[] = []
+
+      if (params?.attendees) {
+        if (Array.isArray(params.attendees)) {
+          newAttendeeList = params.attendees.filter(
+            (email: string) => email && email.trim().length > 0
+          )
+        } else if (
+          typeof (params.attendees as any) === 'string' &&
+          (params.attendees as any).trim().length > 0
+        ) {
+          newAttendeeList = (params.attendees as any)
+            .split(',')
+            .map((email: string) => email.trim())
+            .filter((email: string) => email.length > 0)
+        }
+      }
+
+      const existingAttendees = existingEvent.attendees || []
+      let finalAttendees: Array<any> = []
+
+      const shouldReplace =
+        params?.replaceExisting === true || (params?.replaceExisting as any) === 'true'
+
+      if (shouldReplace) {
+        finalAttendees = newAttendeeList.map((email: string) => ({
+          email,
+          responseStatus: 'needsAction',
+        }))
+      } else {
+        finalAttendees = [...existingAttendees]
+
+        const existingEmails = new Set(
+          existingAttendees.map((attendee: any) => attendee.email?.toLowerCase() || '')
+        )
+
+        for (const newEmail of newAttendeeList) {
+          const emailLower = newEmail.toLowerCase()
+          if (!existingEmails.has(emailLower)) {
+            finalAttendees.push({
+              email: newEmail,
+              responseStatus: 'needsAction',
+            })
+          }
+        }
+      }
+
+      const updatedEvent = {
+        ...existingEvent,
+        attendees: finalAttendees,
+      }
+
+      const readOnlyFields = [
+        'id',
+        'etag',
+        'kind',
+        'created',
+        'updated',
+        'htmlLink',
+        'iCalUID',
+        'sequence',
+        'creator',
+        'organizer',
+      ]
+      readOnlyFields.forEach((field) => {
+        delete updatedEvent[field]
+      })
+
+      const calendarId = params?.calendarId || 'primary'
+      const queryParams = new URLSearchParams()
+      if (params?.sendUpdates !== undefined) {
+        queryParams.append('sendUpdates', params.sendUpdates)
+      }
+
+      const queryString = queryParams.toString()
+      const putUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params?.eventId || '')}${queryString ? `?${queryString}` : ''}`
+
+      const putResponse = await fetch(putUrl, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${params?.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedEvent),
+      })
+
+      if (!putResponse.ok) {
+        const errorData = await putResponse.json()
+        throw new Error(errorData.error?.message || 'Failed to invite attendees to calendar event')
+      }
+
+      const data = await putResponse.json()
+
+      return {
+        success: true,
+        output: {
+          id: data.id,
+          htmlLink: data.htmlLink,
+          status: data.status,
+          summary: data.summary,
+          description: data.description,
+          location: data.location,
+          start: data.start,
+          end: data.end,
+          attendees: data.attendees,
+          creator: data.creator,
+          organizer: data.organizer,
+        },
+      }
+    },
+    outputs: {
+      id: { type: 'string', description: 'Event ID' },
+      htmlLink: { type: 'string', description: 'Event link' },
+      status: { type: 'string', description: 'Event status' },
+      summary: { type: 'string', description: 'Event title' },
+      description: { type: 'string', description: 'Event description' },
+      location: { type: 'string', description: 'Event location' },
+      start: { type: 'json', description: 'Event start' },
+      end: { type: 'json', description: 'Event end' },
+      attendees: { type: 'json', description: 'Event attendees' },
+      creator: { type: 'json', description: 'Event creator' },
+      organizer: { type: 'json', description: 'Event organizer' },
+    },
+  }

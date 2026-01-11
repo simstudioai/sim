@@ -62,13 +62,19 @@ export const salesforceDeleteCaseTool: ToolConfig<
       output: {
         id: params?.caseId || '',
         deleted: true,
-        metadata: { operation: 'delete_case' },
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success' },
-    output: { type: 'object', description: 'Deleted case' },
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Deleted case data',
+      properties: {
+        id: { type: 'string', description: 'Deleted case ID' },
+        deleted: { type: 'boolean', description: 'Whether case was deleted' },
+      },
+    },
   },
 }

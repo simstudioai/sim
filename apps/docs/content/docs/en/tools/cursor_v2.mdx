@@ -1,0 +1,183 @@
+---
+title: Cursor
+description: Agent identifier
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="cursor_v2"
+  color="#F5F5F5"
+/>
+
+
+
+## Tools
+
+### `cursor_list_agents_v2`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Agent identifier |
+| `url` | string | Agent URL \(launch operation\) |
+| `name` | string | Agent name |
+| `status` | string | Agent status |
+| `source` | json | Agent source repository info |
+| `target` | json | Agent target branch/PR info |
+| `summary` | string | Agent summary |
+| `createdAt` | string | Agent creation timestamp |
+| `agents` | json | Array of agent objects \(list operation\) |
+| `nextCursor` | string | Pagination cursor \(list operation\) |
+| `messages` | json | Conversation messages \(get conversation operation\) |
+
+### `cursor_get_agent_v2`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Agent identifier |
+| `url` | string | Agent URL \(launch operation\) |
+| `name` | string | Agent name |
+| `status` | string | Agent status |
+| `source` | json | Agent source repository info |
+| `target` | json | Agent target branch/PR info |
+| `summary` | string | Agent summary |
+| `createdAt` | string | Agent creation timestamp |
+| `agents` | json | Array of agent objects \(list operation\) |
+| `nextCursor` | string | Pagination cursor \(list operation\) |
+| `messages` | json | Conversation messages \(get conversation operation\) |
+
+### `cursor_get_conversation_v2`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Agent identifier |
+| `url` | string | Agent URL \(launch operation\) |
+| `name` | string | Agent name |
+| `status` | string | Agent status |
+| `source` | json | Agent source repository info |
+| `target` | json | Agent target branch/PR info |
+| `summary` | string | Agent summary |
+| `createdAt` | string | Agent creation timestamp |
+| `agents` | json | Array of agent objects \(list operation\) |
+| `nextCursor` | string | Pagination cursor \(list operation\) |
+| `messages` | json | Conversation messages \(get conversation operation\) |
+
+### `cursor_launch_agent_v2`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Agent identifier |
+| `url` | string | Agent URL \(launch operation\) |
+| `name` | string | Agent name |
+| `status` | string | Agent status |
+| `source` | json | Agent source repository info |
+| `target` | json | Agent target branch/PR info |
+| `summary` | string | Agent summary |
+| `createdAt` | string | Agent creation timestamp |
+| `agents` | json | Array of agent objects \(list operation\) |
+| `nextCursor` | string | Pagination cursor \(list operation\) |
+| `messages` | json | Conversation messages \(get conversation operation\) |
+
+### `cursor_add_followup_v2`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Agent identifier |
+| `url` | string | Agent URL \(launch operation\) |
+| `name` | string | Agent name |
+| `status` | string | Agent status |
+| `source` | json | Agent source repository info |
+| `target` | json | Agent target branch/PR info |
+| `summary` | string | Agent summary |
+| `createdAt` | string | Agent creation timestamp |
+| `agents` | json | Array of agent objects \(list operation\) |
+| `nextCursor` | string | Pagination cursor \(list operation\) |
+| `messages` | json | Conversation messages \(get conversation operation\) |
+
+### `cursor_stop_agent_v2`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Agent identifier |
+| `url` | string | Agent URL \(launch operation\) |
+| `name` | string | Agent name |
+| `status` | string | Agent status |
+| `source` | json | Agent source repository info |
+| `target` | json | Agent target branch/PR info |
+| `summary` | string | Agent summary |
+| `createdAt` | string | Agent creation timestamp |
+| `agents` | json | Array of agent objects \(list operation\) |
+| `nextCursor` | string | Pagination cursor \(list operation\) |
+| `messages` | json | Conversation messages \(get conversation operation\) |
+
+### `cursor_delete_agent_v2`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Agent identifier |
+| `url` | string | Agent URL \(launch operation\) |
+| `name` | string | Agent name |
+| `status` | string | Agent status |
+| `source` | json | Agent source repository info |
+| `target` | json | Agent target branch/PR info |
+| `summary` | string | Agent summary |
+| `createdAt` | string | Agent creation timestamp |
+| `agents` | json | Array of agent objects \(list operation\) |
+| `nextCursor` | string | Pagination cursor \(list operation\) |
+| `messages` | json | Conversation messages \(get conversation operation\) |
+
+
+
+## Notes
+
+- Category: `misc`
+- Type: `cursor_v2`

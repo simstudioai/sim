@@ -136,3 +136,45 @@ ${files
     },
   },
 }
+
+export const getPRFilesV2Tool: ToolConfig<GetPRFilesParams, any> = {
+  id: 'github_get_pr_files_v2',
+  name: getPRFilesTool.name,
+  description: getPRFilesTool.description,
+  version: '2.0.0',
+  params: getPRFilesTool.params,
+  request: getPRFilesTool.request,
+
+  transformResponse: async (response: Response) => {
+    const files = await response.json()
+    return {
+      success: true,
+      output: {
+        items: files,
+        count: files.length,
+      },
+    }
+  },
+
+  outputs: {
+    items: {
+      type: 'array',
+      description: 'Array of changed file objects',
+      items: {
+        type: 'object',
+        properties: {
+          filename: { type: 'string', description: 'File path' },
+          status: { type: 'string', description: 'Change status (added/modified/deleted/renamed)' },
+          additions: { type: 'number', description: 'Lines added' },
+          deletions: { type: 'number', description: 'Lines deleted' },
+          changes: { type: 'number', description: 'Total changes' },
+          patch: { type: 'string', description: 'File diff patch' },
+          sha: { type: 'string', description: 'File SHA' },
+          blob_url: { type: 'string', description: 'GitHub blob URL' },
+          raw_url: { type: 'string', description: 'Raw file URL' },
+        },
+      },
+    },
+    count: { type: 'number', description: 'Total number of files' },
+  },
+}

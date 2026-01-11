@@ -52,9 +52,6 @@ export const pipedriveGetDealTool: ToolConfig<PipedriveGetDealParams, PipedriveG
       success: true,
       output: {
         deal: data.data,
-        metadata: {
-          operation: 'get_deal' as const,
-        },
         success: true,
       },
     }
@@ -62,7 +59,6 @@ export const pipedriveGetDealTool: ToolConfig<PipedriveGetDealParams, PipedriveG
 
   outputs: {
     deal: { type: 'object', description: 'Deal object with full details' },
-    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

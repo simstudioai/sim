@@ -120,7 +120,11 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
             platform: issue.project?.platform || '',
           },
           type: issue.type,
-          metadata: issue.metadata || {},
+          metadata: {
+            type: issue.metadata?.type || null,
+            value: issue.metadata?.value || null,
+            function: issue.metadata?.function || null,
+          },
           numComments: issue.numComments || 0,
           assignedTo: issue.assignedTo
             ? {

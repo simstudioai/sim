@@ -14,10 +14,6 @@ export interface MailchimpRemoveMemberTagsParams {
 export interface MailchimpRemoveMemberTagsResponse {
   success: boolean
   output: {
-    metadata: {
-      operation: 'remove_member_tags'
-      subscriberHash: string
-    }
     success: boolean
   }
 }
@@ -90,10 +86,6 @@ export const mailchimpRemoveMemberTagsTool: ToolConfig<
     return {
       success: true,
       output: {
-        metadata: {
-          operation: 'remove_member_tags' as const,
-          subscriberHash: '',
-        },
         success: true,
       },
     }
@@ -105,7 +97,6 @@ export const mailchimpRemoveMemberTagsTool: ToolConfig<
       type: 'object',
       description: 'Tag removal confirmation',
       properties: {
-        metadata: { type: 'object', description: 'Operation metadata' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

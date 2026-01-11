@@ -111,9 +111,6 @@ export const pipedriveGetLeadsTool: ToolConfig<PipedriveGetLeadsParams, Pipedriv
           success: true,
           output: {
             lead: data.data,
-            metadata: {
-              operation: 'get_leads' as const,
-            },
             success: true,
           },
         }
@@ -126,10 +123,7 @@ export const pipedriveGetLeadsTool: ToolConfig<PipedriveGetLeadsParams, Pipedriv
         success: true,
         output: {
           leads,
-          metadata: {
-            operation: 'get_leads' as const,
-            totalItems: leads.length,
-          },
+          total_items: leads.length,
           success: true,
         },
       }
@@ -138,7 +132,7 @@ export const pipedriveGetLeadsTool: ToolConfig<PipedriveGetLeadsParams, Pipedriv
     outputs: {
       leads: { type: 'array', description: 'Array of lead objects (when listing all)' },
       lead: { type: 'object', description: 'Single lead object (when lead_id is provided)' },
-      metadata: { type: 'object', description: 'Operation metadata' },
+      total_items: { type: 'number', description: 'Total number of leads returned' },
       success: { type: 'boolean', description: 'Operation success status' },
     },
   }

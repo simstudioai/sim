@@ -133,9 +133,6 @@ export const pipedriveUpdateLeadTool: ToolConfig<
       success: true,
       output: {
         lead: data.data,
-        metadata: {
-          operation: 'update_lead' as const,
-        },
         success: true,
       },
     }
@@ -143,7 +140,6 @@ export const pipedriveUpdateLeadTool: ToolConfig<
 
   outputs: {
     lead: { type: 'object', description: 'The updated lead object' },
-    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

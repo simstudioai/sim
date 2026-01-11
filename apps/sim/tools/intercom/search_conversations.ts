@@ -26,15 +26,17 @@ export interface IntercomSearchConversationsResponse {
   }
 }
 
-export const intercomSearchConversationsTool: ToolConfig<
-  IntercomSearchConversationsParams,
-  IntercomSearchConversationsResponse
-> = {
-  id: 'intercom_search_conversations',
-  name: 'Search Conversations in Intercom',
-  description: 'Search for conversations in Intercom using a query',
-  version: '1.0.0',
+export interface IntercomSearchConversationsV2Response {
+  success: boolean
+  output: {
+    conversations: any[]
+    pages?: any
+    total_count?: number
+    success: boolean
+  }
+}
 
+const searchConversationsBase = {
   params: {
     accessToken: {
       type: 'string',
@@ -73,17 +75,16 @@ export const intercomSearchConversationsTool: ToolConfig<
       description: 'Sort order: "ascending" or "descending"',
     },
   },
-
   request: {
     url: () => buildIntercomUrl('/conversations/search'),
     method: 'POST',
-    headers: (params) => ({
+    headers: (params: IntercomSearchConversationsParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
       Accept: 'application/json',
       'Content-Type': 'application/json',
       'Intercom-Version': '2.14',
     }),
-    body: (params) => {
+    body: (params: IntercomSearchConversationsParams) => {
       let query
       try {
         query = JSON.parse(params.query)
@@ -112,6 +113,18 @@ export const intercomSearchConversationsTool: ToolConfig<
       return body
     },
   },
+} satisfies Pick<ToolConfig<IntercomSearchConversationsParams, any>, 'params' | 'request'>
+
+export const intercomSearchConversationsTool: ToolConfig<
+  IntercomSearchConversationsParams,
+  IntercomSearchConversationsResponse
+> = {
+  id: 'intercom_search_conversations',
+  name: 'Search Conversations in Intercom',
+  description: 'Search for conversations in Intercom using a query',
+  version: '1.0.0',
+
+  ...searchConversationsBase,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
@@ -187,6 +200,82 @@ export const intercomSearchConversationsTool: ToolConfig<
         total_count: { type: 'number', description: 'Total number of matching conversations' },
       },
     },
+    success: { type: 'boolean', description: 'Operation success status' },
+  },
+}
+
+export const intercomSearchConversationsV2Tool: ToolConfig<
+  IntercomSearchConversationsParams,
+  IntercomSearchConversationsV2Response
+> = {
+  ...searchConversationsBase,
+  id: 'intercom_search_conversations_v2',
+  name: 'Search Conversations in Intercom',
+  description:
+    'Search for conversations in Intercom using a query. Returns API-aligned fields only.',
+  version: '2.0.0',
+
+  transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const data = await response.json()
+      handleIntercomError(data, response.status, 'search_conversations')
+    }
+
+    const data = await response.json()
+
+    return {
+      success: true,
+      output: {
+        conversations: data.conversations || [],
+        pages: data.pages,
+        total_count: data.total_count,
+        success: true,
+      },
+    }
+  },
+
+  outputs: {
+    conversations: {
+      type: 'array',
+      description: 'Array of matching conversation objects',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Unique identifier for the conversation' },
+          type: { type: 'string', description: 'Object type (conversation)' },
+          title: { type: 'string', description: 'Title of the conversation' },
+          created_at: {
+            type: 'number',
+            description: 'Unix timestamp when conversation was created',
+          },
+          updated_at: {
+            type: 'number',
+            description: 'Unix timestamp when conversation was last updated',
+          },
+          waiting_since: { type: 'number', description: 'Unix timestamp when waiting for reply' },
+          open: { type: 'boolean', description: 'Whether the conversation is open' },
+          state: { type: 'string', description: 'State of the conversation' },
+          read: { type: 'boolean', description: 'Whether the conversation has been read' },
+          priority: { type: 'string', description: 'Priority of the conversation' },
+          admin_assignee_id: { type: 'number', description: 'ID of assigned admin' },
+          team_assignee_id: { type: 'string', description: 'ID of assigned team' },
+          tags: { type: 'object', description: 'Tags on the conversation' },
+          source: { type: 'object', description: 'Source of the conversation' },
+          contacts: { type: 'object', description: 'Contacts in the conversation' },
+        },
+      },
+    },
+    pages: {
+      type: 'object',
+      description: 'Pagination information',
+      properties: {
+        type: { type: 'string', description: 'Pages type identifier' },
+        page: { type: 'number', description: 'Current page number' },
+        per_page: { type: 'number', description: 'Number of results per page' },
+        total_pages: { type: 'number', description: 'Total number of pages' },
+      },
+    },
+    total_count: { type: 'number', description: 'Total number of matching conversations' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

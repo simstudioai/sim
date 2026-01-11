@@ -1,12 +1,7 @@
 import type { AddFollowupParams, AddFollowupResponse } from '@/tools/cursor/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const addFollowupTool: ToolConfig<AddFollowupParams, AddFollowupResponse> = {
-  id: 'cursor_add_followup',
-  name: 'Cursor Add Follow-up',
-  description: 'Add a follow-up instruction to an existing cloud agent.',
-  version: '1.0.0',
-
+const addFollowupBase = {
   params: {
     apiKey: {
       type: 'string',
@@ -33,15 +28,15 @@ export const addFollowupTool: ToolConfig<AddFollowupParams, AddFollowupResponse>
       description: 'JSON array of image objects with base64 data and dimensions (max 5)',
     },
   },
-
   request: {
-    url: (params) => `https://api.cursor.com/v0/agents/${params.agentId}/followup`,
+    url: (params: AddFollowupParams) =>
+      `https://api.cursor.com/v0/agents/${params.agentId}/followup`,
     method: 'POST',
-    headers: (params) => ({
+    headers: (params: AddFollowupParams) => ({
       'Content-Type': 'application/json',
       Authorization: `Basic ${Buffer.from(`${params.apiKey}:`).toString('base64')}`,
     }),
-    body: (params) => {
+    body: (params: AddFollowupParams) => {
       const body: Record<string, any> = {
         prompt: {
           text: params.followupPromptText,
@@ -59,6 +54,15 @@ export const addFollowupTool: ToolConfig<AddFollowupParams, AddFollowupResponse>
       return body
     },
   },
+} satisfies Pick<ToolConfig<AddFollowupParams, any>, 'params' | 'request'>
+
+export const addFollowupTool: ToolConfig<AddFollowupParams, AddFollowupResponse> = {
+  id: 'cursor_add_followup',
+  name: 'Cursor Add Follow-up',
+  description: 'Add a follow-up instruction to an existing cloud agent.',
+  version: '1.0.0',
+
+  ...addFollowupBase,
 
   transformResponse: async (response) => {
     const data = await response.json()
@@ -85,5 +89,34 @@ export const addFollowupTool: ToolConfig<AddFollowupParams, AddFollowupResponse>
         id: { type: 'string', description: 'Agent ID' },
       },
     },
+  },
+}
+
+interface AddFollowupV2Response {
+  success: boolean
+  output: {
+    id: string
+  }
+}
+
+export const addFollowupV2Tool: ToolConfig<AddFollowupParams, AddFollowupV2Response> = {
+  ...addFollowupBase,
+  id: 'cursor_add_followup_v2',
+  name: 'Cursor Add Follow-up',
+  description:
+    'Add a follow-up instruction to an existing cloud agent. Returns API-aligned fields only.',
+  version: '2.0.0',
+  transformResponse: async (response) => {
+    const data = await response.json()
+
+    return {
+      success: true,
+      output: {
+        id: data.id,
+      },
+    }
+  },
+  outputs: {
+    id: { type: 'string', description: 'Agent ID' },
   },
 }

@@ -181,3 +181,49 @@ Enforce Admins: ${protection.enforce_admins?.enabled ? 'Yes' : 'No'}`
     },
   },
 }
+
+export const getBranchProtectionV2Tool: ToolConfig<GetBranchProtectionParams, any> = {
+  id: 'github_get_branch_protection_v2',
+  name: getBranchProtectionTool.name,
+  description: getBranchProtectionTool.description,
+  version: '2.0.0',
+  params: getBranchProtectionTool.params,
+  request: getBranchProtectionTool.request,
+
+  transformResponse: async (response: Response) => {
+    const protection = await response.json()
+    return {
+      success: true,
+      output: {
+        url: protection.url,
+        required_status_checks: protection.required_status_checks,
+        enforce_admins: protection.enforce_admins,
+        required_pull_request_reviews: protection.required_pull_request_reviews,
+        restrictions: protection.restrictions,
+        required_linear_history: protection.required_linear_history,
+        allow_force_pushes: protection.allow_force_pushes,
+        allow_deletions: protection.allow_deletions,
+        block_creations: protection.block_creations,
+        required_conversation_resolution: protection.required_conversation_resolution,
+        required_signatures: protection.required_signatures,
+      },
+    }
+  },
+
+  outputs: {
+    url: { type: 'string', description: 'Protection settings URL' },
+    required_status_checks: { type: 'json', description: 'Status check requirements' },
+    enforce_admins: { type: 'json', description: 'Admin enforcement settings' },
+    required_pull_request_reviews: { type: 'json', description: 'PR review requirements' },
+    restrictions: { type: 'json', description: 'Push restrictions' },
+    required_linear_history: { type: 'json', description: 'Linear history requirement' },
+    allow_force_pushes: { type: 'json', description: 'Force push settings' },
+    allow_deletions: { type: 'json', description: 'Deletion settings' },
+    block_creations: { type: 'json', description: 'Creation blocking settings' },
+    required_conversation_resolution: {
+      type: 'json',
+      description: 'Conversation resolution requirement',
+    },
+    required_signatures: { type: 'json', description: 'Signature requirements' },
+  },
+}

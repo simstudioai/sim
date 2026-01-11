@@ -75,37 +75,40 @@ async function generateIconMapping(): Promise<Record<string, string>> {
 
     for (const blockFile of blockFiles) {
       const fileContent = fs.readFileSync(blockFile, 'utf-8')
-      const blockConfig = extractBlockConfig(fileContent)
+      // Get ALL block configs from file (already filters hideFromToolbar: true)
+      const blockConfigs = extractAllBlockConfigs(fileContent)
 
-      if (!blockConfig?.type || !blockConfig.iconName) {
-        continue
+      for (const blockConfig of blockConfigs) {
+        if (!blockConfig?.type || !blockConfig.iconName) {
+          continue
+        }
+
+        // Skip blocks that don't have documentation (same logic as generateBlockDoc)
+        if (
+          blockConfig.type.includes('_trigger') ||
+          blockConfig.type.includes('_webhook') ||
+          blockConfig.type.includes('rss')
+        ) {
+          continue
+        }
+
+        if (
+          (blockConfig.category === 'blocks' &&
+            blockConfig.type !== 'memory' &&
+            blockConfig.type !== 'knowledge') ||
+          blockConfig.type === 'evaluator' ||
+          blockConfig.type === 'number' ||
+          blockConfig.type === 'webhook' ||
+          blockConfig.type === 'schedule' ||
+          blockConfig.type === 'mcp' ||
+          blockConfig.type === 'generic_webhook' ||
+          blockConfig.type === 'rss'
+        ) {
+          continue
+        }
+
+        iconMapping[blockConfig.type] = blockConfig.iconName
       }
-
-      // Skip blocks that don't have documentation (same logic as generateBlockDoc)
-      if (
-        blockConfig.type.includes('_trigger') ||
-        blockConfig.type.includes('_webhook') ||
-        blockConfig.type.includes('rss')
-      ) {
-        continue
-      }
-
-      if (
-        (blockConfig.category === 'blocks' &&
-          blockConfig.type !== 'memory' &&
-          blockConfig.type !== 'knowledge') ||
-        blockConfig.type === 'evaluator' ||
-        blockConfig.type === 'number' ||
-        blockConfig.type === 'webhook' ||
-        blockConfig.type === 'schedule' ||
-        blockConfig.type === 'mcp' ||
-        blockConfig.type === 'generic_webhook' ||
-        blockConfig.type === 'rss'
-      ) {
-        continue
-      }
-
-      iconMapping[blockConfig.type] = blockConfig.iconName
     }
 
     console.log(`✓ Generated icon mapping for ${Object.keys(iconMapping).length} blocks`)
@@ -159,31 +162,72 @@ ${mappingEntries}
   }
 }
 
-function extractBlockConfig(fileContent: string): BlockConfig | null {
-  try {
-    const exportMatch = fileContent.match(/export\s+const\s+(\w+)Block\s*:/)
+/**
+ * Extract ALL block configs from a file, filtering out hidden blocks
+ */
+function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
+  const configs: BlockConfig[] = []
 
-    if (!exportMatch) {
-      console.warn('No block export found in file')
-      return null
+  // Find all block exports in the file
+  const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
+  let match
+
+  while ((match = exportRegex.exec(fileContent)) !== null) {
+    const blockName = match[1]
+    const startIndex = match.index + match[0].length - 1 // Position of opening brace
+
+    // Extract the block content by matching braces
+    let braceCount = 1
+    let endIndex = startIndex + 1
+
+    while (endIndex < fileContent.length && braceCount > 0) {
+      if (fileContent[endIndex] === '{') braceCount++
+      else if (fileContent[endIndex] === '}') braceCount--
+      endIndex++
     }
 
-    const blockName = exportMatch[1]
-    const blockType = findBlockType(fileContent, blockName)
+    if (braceCount === 0) {
+      const blockContent = fileContent.substring(startIndex, endIndex)
 
-    const name = extractStringProperty(fileContent, 'name') || `${blockName} Block`
-    const description = extractStringProperty(fileContent, 'description') || ''
-    const longDescription = extractStringProperty(fileContent, 'longDescription') || ''
-    const category = extractStringProperty(fileContent, 'category') || 'misc'
-    const bgColor = extractStringProperty(fileContent, 'bgColor') || '#F5F5F5'
-    const iconName = extractIconName(fileContent) || ''
+      // Check if this block has hideFromToolbar: true
+      const hideFromToolbar = /hideFromToolbar\s*:\s*true/.test(blockContent)
+      if (hideFromToolbar) {
+        console.log(`Skipping ${blockName}Block - hideFromToolbar is true`)
+        continue
+      }
 
-    const outputs = extractOutputs(fileContent)
+      const config = extractBlockConfigFromContent(blockContent, blockName)
+      if (config) {
+        configs.push(config)
+      }
+    }
+  }
 
-    const toolsAccess = extractToolsAccess(fileContent)
+  return configs
+}
+
+/**
+ * Extract block config from a specific block's content
+ */
+function extractBlockConfigFromContent(
+  blockContent: string,
+  blockName: string
+): BlockConfig | null {
+  try {
+    const blockType =
+      extractStringPropertyFromContent(blockContent, 'type') || blockName.toLowerCase()
+    const name = extractStringPropertyFromContent(blockContent, 'name') || `${blockName} Block`
+    const description = extractStringPropertyFromContent(blockContent, 'description') || ''
+    const longDescription = extractStringPropertyFromContent(blockContent, 'longDescription') || ''
+    const category = extractStringPropertyFromContent(blockContent, 'category') || 'misc'
+    const bgColor = extractStringPropertyFromContent(blockContent, 'bgColor') || '#F5F5F5'
+    const iconName = extractIconNameFromContent(blockContent) || ''
+
+    const outputs = extractOutputsFromContent(blockContent)
+    const toolsAccess = extractToolsAccessFromContent(blockContent)
 
     return {
-      type: blockType || blockName.toLowerCase(),
+      type: blockType,
       name,
       description,
       longDescription,
@@ -196,9 +240,126 @@ function extractBlockConfig(fileContent: string): BlockConfig | null {
       },
     }
   } catch (error) {
-    console.error('Error extracting block configuration:', error)
+    console.error(`Error extracting block configuration for ${blockName}:`, error)
     return null
   }
+}
+
+function extractStringPropertyFromContent(content: string, propName: string): string | null {
+  const singleQuoteMatch = content.match(new RegExp(`${propName}\\s*:\\s*'([^']*)'`, 'm'))
+  if (singleQuoteMatch) return singleQuoteMatch[1]
+
+  const doubleQuoteMatch = content.match(new RegExp(`${propName}\\s*:\\s*"([^"]*)"`, 'm'))
+  if (doubleQuoteMatch) return doubleQuoteMatch[1]
+
+  const templateMatch = content.match(new RegExp(`${propName}\\s*:\\s*\`([^\`]+)\``, 's'))
+  if (templateMatch) {
+    let templateContent = templateMatch[1]
+    templateContent = templateContent.replace(/\$\{[^}]+\}/g, '')
+    templateContent = templateContent.replace(/\s+/g, ' ').trim()
+    return templateContent
+  }
+
+  return null
+}
+
+function extractIconNameFromContent(content: string): string | null {
+  const iconMatch = content.match(/icon\s*:\s*(\w+Icon)/)
+  return iconMatch ? iconMatch[1] : null
+}
+
+function extractOutputsFromContent(content: string): Record<string, any> {
+  const outputsStart = content.search(/outputs\s*:\s*{/)
+  if (outputsStart === -1) return {}
+
+  const openBracePos = content.indexOf('{', outputsStart)
+  if (openBracePos === -1) return {}
+
+  let braceCount = 1
+  let pos = openBracePos + 1
+
+  while (pos < content.length && braceCount > 0) {
+    if (content[pos] === '{') braceCount++
+    else if (content[pos] === '}') braceCount--
+    pos++
+  }
+
+  if (braceCount === 0) {
+    const outputsContent = content.substring(openBracePos + 1, pos - 1).trim()
+    const outputs: Record<string, any> = {}
+
+    const fieldRegex = /(\w+)\s*:\s*{/g
+    let match
+    const fieldPositions: Array<{ name: string; start: number }> = []
+
+    while ((match = fieldRegex.exec(outputsContent)) !== null) {
+      fieldPositions.push({
+        name: match[1],
+        start: match.index + match[0].length - 1,
+      })
+    }
+
+    fieldPositions.forEach((field) => {
+      const startPos = field.start
+      let braceCount = 1
+      let endPos = startPos + 1
+
+      while (endPos < outputsContent.length && braceCount > 0) {
+        if (outputsContent[endPos] === '{') braceCount++
+        else if (outputsContent[endPos] === '}') braceCount--
+        endPos++
+      }
+
+      if (braceCount === 0) {
+        const fieldContent = outputsContent.substring(startPos + 1, endPos - 1).trim()
+
+        const typeMatch = fieldContent.match(/type\s*:\s*['"](.*?)['"]/)
+        const descriptionMatch = fieldContent.match(/description\s*:\s*['"](.*?)['"]/)
+
+        if (typeMatch) {
+          outputs[field.name] = {
+            type: typeMatch[1],
+            description: descriptionMatch
+              ? descriptionMatch[1]
+              : `${field.name} output from the block`,
+          }
+        }
+      }
+    })
+
+    if (Object.keys(outputs).length > 0) {
+      return outputs
+    }
+  }
+
+  return {}
+}
+
+function extractToolsAccessFromContent(content: string): string[] {
+  const accessMatch = content.match(/access\s*:\s*\[\s*([^\]]+)\s*\]/)
+  if (!accessMatch) return []
+
+  const accessContent = accessMatch[1]
+  const tools: string[] = []
+
+  const toolMatches = accessContent.match(/['"]([^'"]+)['"]/g)
+  if (toolMatches) {
+    toolMatches.forEach((toolText) => {
+      const match = toolText.match(/['"]([^'"]+)['"]/)
+      if (match) {
+        tools.push(match[1])
+      }
+    })
+  }
+
+  return tools
+}
+
+// Legacy function for backward compatibility (icon mapping, etc.)
+function extractBlockConfig(fileContent: string): BlockConfig | null {
+  const configs = extractAllBlockConfigs(fileContent)
+  // Return first non-hidden block for legacy code paths
+  return configs.length > 0 ? configs[0] : null
 }
 
 function findBlockType(content: string, blockName: string): string {
@@ -899,54 +1060,63 @@ async function generateBlockDoc(blockPath: string) {
 
     const fileContent = fs.readFileSync(blockPath, 'utf-8')
 
-    const blockConfig = extractBlockConfig(fileContent)
+    // Extract ALL block configs from the file (already filters out hideFromToolbar: true)
+    const blockConfigs = extractAllBlockConfigs(fileContent)
 
-    if (!blockConfig || !blockConfig.type) {
-      console.warn(`Skipping ${blockFileName} - not a valid block config`)
+    if (blockConfigs.length === 0) {
+      console.warn(`Skipping ${blockFileName} - no valid block configs found`)
       return
     }
 
-    if (
-      blockConfig.type.includes('_trigger') ||
-      blockConfig.type.includes('_webhook') ||
-      blockConfig.type.includes('rss')
-    ) {
-      console.log(`Skipping ${blockConfig.type} - contains '_trigger'`)
-      return
+    // Process each block config
+    for (const blockConfig of blockConfigs) {
+      if (!blockConfig.type) {
+        continue
+      }
+
+      if (
+        blockConfig.type.includes('_trigger') ||
+        blockConfig.type.includes('_webhook') ||
+        blockConfig.type.includes('rss')
+      ) {
+        console.log(`Skipping ${blockConfig.type} - contains '_trigger'`)
+        continue
+      }
+
+      if (
+        (blockConfig.category === 'blocks' &&
+          blockConfig.type !== 'memory' &&
+          blockConfig.type !== 'knowledge') ||
+        blockConfig.type === 'evaluator' ||
+        blockConfig.type === 'number' ||
+        blockConfig.type === 'webhook' ||
+        blockConfig.type === 'schedule' ||
+        blockConfig.type === 'mcp' ||
+        blockConfig.type === 'generic_webhook' ||
+        blockConfig.type === 'rss'
+      ) {
+        continue
+      }
+
+      const outputFilePath = path.join(DOCS_OUTPUT_PATH, `${blockConfig.type}.mdx`)
+
+      let existingContent: string | null = null
+      if (fs.existsSync(outputFilePath)) {
+        existingContent = fs.readFileSync(outputFilePath, 'utf-8')
+      }
+
+      const manualSections = existingContent ? extractManualContent(existingContent) : {}
+
+      const markdown = await generateMarkdownForBlock(blockConfig)
+
+      let finalContent = markdown
+      if (Object.keys(manualSections).length > 0) {
+        finalContent = mergeWithManualContent(markdown, existingContent, manualSections)
+      }
+
+      fs.writeFileSync(outputFilePath, finalContent)
+      console.log(`✓ Generated docs for ${blockConfig.type}`)
     }
-
-    if (
-      (blockConfig.category === 'blocks' &&
-        blockConfig.type !== 'memory' &&
-        blockConfig.type !== 'knowledge') ||
-      blockConfig.type === 'evaluator' ||
-      blockConfig.type === 'number' ||
-      blockConfig.type === 'webhook' ||
-      blockConfig.type === 'schedule' ||
-      blockConfig.type === 'mcp' ||
-      blockConfig.type === 'generic_webhook' ||
-      blockConfig.type === 'rss'
-    ) {
-      return
-    }
-
-    const outputFilePath = path.join(DOCS_OUTPUT_PATH, `${blockConfig.type}.mdx`)
-
-    let existingContent: string | null = null
-    if (fs.existsSync(outputFilePath)) {
-      existingContent = fs.readFileSync(outputFilePath, 'utf-8')
-    }
-
-    const manualSections = existingContent ? extractManualContent(existingContent) : {}
-
-    const markdown = await generateMarkdownForBlock(blockConfig)
-
-    let finalContent = markdown
-    if (Object.keys(manualSections).length > 0) {
-      finalContent = mergeWithManualContent(markdown, existingContent, manualSections)
-    }
-
-    fs.writeFileSync(outputFilePath, finalContent)
   } catch (error) {
     console.error(`Error processing ${blockPath}:`, error)
   }
@@ -1142,6 +1312,80 @@ ${toolsSection}
 `
 }
 
+/**
+ * Extract all hidden block types (blocks with hideFromToolbar: true)
+ */
+async function getHiddenBlockTypes(): Promise<Set<string>> {
+  const hiddenTypes = new Set<string>()
+  const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
+
+  for (const blockFile of blockFiles) {
+    const fileContent = fs.readFileSync(blockFile, 'utf-8')
+
+    // Find all block exports
+    const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
+    let match
+
+    while ((match = exportRegex.exec(fileContent)) !== null) {
+      const startIndex = match.index + match[0].length - 1
+
+      // Extract the block content
+      let braceCount = 1
+      let endIndex = startIndex + 1
+
+      while (endIndex < fileContent.length && braceCount > 0) {
+        if (fileContent[endIndex] === '{') braceCount++
+        else if (fileContent[endIndex] === '}') braceCount--
+        endIndex++
+      }
+
+      if (braceCount === 0) {
+        const blockContent = fileContent.substring(startIndex, endIndex)
+
+        // Check if this block has hideFromToolbar: true
+        if (/hideFromToolbar\s*:\s*true/.test(blockContent)) {
+          const blockType = extractStringPropertyFromContent(blockContent, 'type')
+          if (blockType) {
+            hiddenTypes.add(blockType)
+          }
+        }
+      }
+    }
+  }
+
+  return hiddenTypes
+}
+
+/**
+ * Remove documentation files for hidden blocks
+ */
+function cleanupHiddenBlockDocs(hiddenTypes: Set<string>): void {
+  console.log('Cleaning up docs for hidden blocks...')
+
+  const existingDocs = fs
+    .readdirSync(DOCS_OUTPUT_PATH)
+    .filter((file: string) => file.endsWith('.mdx'))
+
+  let removedCount = 0
+
+  for (const docFile of existingDocs) {
+    const blockType = path.basename(docFile, '.mdx')
+
+    if (hiddenTypes.has(blockType)) {
+      const docPath = path.join(DOCS_OUTPUT_PATH, docFile)
+      fs.unlinkSync(docPath)
+      console.log(`✓ Removed docs for hidden block: ${blockType}`)
+      removedCount++
+    }
+  }
+
+  if (removedCount > 0) {
+    console.log(`✓ Cleaned up ${removedCount} doc files for hidden blocks`)
+  } else {
+    console.log('✓ No hidden block docs to clean up')
+  }
+}
+
 async function generateAllBlockDocs() {
   try {
     // Copy icons from sim app to docs app
@@ -1150,6 +1394,13 @@ async function generateAllBlockDocs() {
     // Generate icon mapping from block definitions
     const iconMapping = await generateIconMapping()
     writeIconMapping(iconMapping)
+
+    // Get hidden block types before generating docs
+    const hiddenTypes = await getHiddenBlockTypes()
+    console.log(`Found ${hiddenTypes.size} hidden blocks: ${[...hiddenTypes].join(', ')}`)
+
+    // Clean up docs for hidden blocks
+    cleanupHiddenBlockDocs(hiddenTypes)
 
     const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
 

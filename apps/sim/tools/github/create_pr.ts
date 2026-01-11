@@ -118,3 +118,52 @@ URL: ${pr.html_url}`
     },
   },
 }
+
+export const createPRV2Tool: ToolConfig<CreatePRParams, any> = {
+  id: 'github_create_pr_v2',
+  name: createPRTool.name,
+  description: createPRTool.description,
+  version: '2.0.0',
+  params: createPRTool.params,
+  request: createPRTool.request,
+
+  transformResponse: async (response: Response) => {
+    const pr = await response.json()
+    return {
+      success: true,
+      output: {
+        id: pr.id,
+        number: pr.number,
+        title: pr.title,
+        state: pr.state,
+        html_url: pr.html_url,
+        body: pr.body,
+        user: pr.user,
+        head: pr.head,
+        base: pr.base,
+        draft: pr.draft,
+        merged: pr.merged,
+        mergeable: pr.mergeable,
+        created_at: pr.created_at,
+        updated_at: pr.updated_at,
+      },
+    }
+  },
+
+  outputs: {
+    id: { type: 'number', description: 'Pull request ID' },
+    number: { type: 'number', description: 'Pull request number' },
+    title: { type: 'string', description: 'PR title' },
+    state: { type: 'string', description: 'PR state' },
+    html_url: { type: 'string', description: 'GitHub web URL' },
+    body: { type: 'string', description: 'PR description' },
+    user: { type: 'json', description: 'User who created the PR' },
+    head: { type: 'json', description: 'Head branch info' },
+    base: { type: 'json', description: 'Base branch info' },
+    draft: { type: 'boolean', description: 'Whether PR is a draft' },
+    merged: { type: 'boolean', description: 'Whether PR is merged' },
+    mergeable: { type: 'boolean', description: 'Whether PR is mergeable' },
+    created_at: { type: 'string', description: 'Creation timestamp' },
+    updated_at: { type: 'string', description: 'Last update timestamp' },
+  },
+}

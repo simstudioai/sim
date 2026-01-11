@@ -16,10 +16,7 @@ export interface MailchimpCreateMergeFieldResponse {
   success: boolean
   output: {
     mergeField: MailchimpMergeField
-    metadata: {
-      operation: 'create_merge_field'
-      mergeId: string
-    }
+    merge_id: string
     success: boolean
   }
 }
@@ -86,10 +83,7 @@ export const mailchimpCreateMergeFieldTool: ToolConfig<
       success: true,
       output: {
         mergeField: data,
-        metadata: {
-          operation: 'create_merge_field' as const,
-          mergeId: data.merge_id,
-        },
+        merge_id: data.merge_id,
         success: true,
       },
     }
@@ -101,8 +95,8 @@ export const mailchimpCreateMergeFieldTool: ToolConfig<
       type: 'object',
       description: 'Created merge field data',
       properties: {
-        mergeField: { type: 'object', description: 'Created merge field object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
+        mergeField: { type: 'json', description: 'Created merge field object' },
+        merge_id: { type: 'string', description: 'Created merge field ID' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

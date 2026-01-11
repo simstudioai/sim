@@ -139,3 +139,42 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
     },
   },
 }
+
+export const commentV2Tool: ToolConfig = {
+  id: 'github_comment_v2',
+  name: commentTool.name,
+  description: commentTool.description,
+  version: '2.0.0',
+  params: commentTool.params,
+  request: commentTool.request,
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: true,
+      output: {
+        id: data.id,
+        body: data.body,
+        html_url: data.html_url,
+        user: data.user,
+        path: data.path,
+        line: data.line || data.position,
+        side: data.side,
+        commit_id: data.commit_id,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+      },
+    }
+  },
+  outputs: {
+    id: { type: 'number', description: 'Comment ID' },
+    body: { type: 'string', description: 'Comment body' },
+    html_url: { type: 'string', description: 'GitHub web URL' },
+    user: { type: 'json', description: 'User who created the comment' },
+    path: { type: 'string', description: 'File path (if file comment)' },
+    line: { type: 'number', description: 'Line number' },
+    side: { type: 'string', description: 'Diff side' },
+    commit_id: { type: 'string', description: 'Commit ID' },
+    created_at: { type: 'string', description: 'Creation timestamp' },
+    updated_at: { type: 'string', description: 'Last update timestamp' },
+  },
+}

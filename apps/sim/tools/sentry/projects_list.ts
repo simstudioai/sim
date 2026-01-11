@@ -117,8 +117,10 @@ export const listProjectsTool: ToolConfig<SentryListProjectsParams, SentryListPr
           color: project.color,
           isPublic: project.isPublic,
         })),
-        nextCursor,
-        hasMore,
+        metadata: {
+          nextCursor,
+          hasMore,
+        },
       },
     }
   },
@@ -167,13 +169,19 @@ export const listProjectsTool: ToolConfig<SentryListProjectsParams, SentryListPr
         },
       },
     },
-    nextCursor: {
-      type: 'string',
-      description: 'Cursor for the next page of results (if available)',
-    },
-    hasMore: {
-      type: 'boolean',
-      description: 'Whether there are more results available',
+    metadata: {
+      type: 'object',
+      description: 'Pagination metadata',
+      properties: {
+        nextCursor: {
+          type: 'string',
+          description: 'Cursor for the next page of results (if available)',
+        },
+        hasMore: {
+          type: 'boolean',
+          description: 'Whether there are more results available',
+        },
+      },
     },
   },
 }

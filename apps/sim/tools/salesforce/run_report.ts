@@ -105,18 +105,15 @@ export const salesforceRunReportTool: ToolConfig<
         groupingsAcross: data.groupingsAcross,
         hasDetailRows: data.hasDetailRows,
         allData: data.allData,
-        metadata: {
-          operation: 'run_report',
-          reportName: data.reportMetadata?.name,
-          reportFormat: data.reportMetadata?.reportFormat,
-        },
+        reportName: data.reportMetadata?.name,
+        reportFormat: data.reportMetadata?.reportFormat,
         success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success status' },
+    success: { type: 'boolean', description: 'Operation success status' },
     output: {
       type: 'object',
       description: 'Report results',
@@ -129,8 +126,9 @@ export const salesforceRunReportTool: ToolConfig<
         groupingsAcross: { type: 'object', description: 'Column groupings' },
         hasDetailRows: { type: 'boolean', description: 'Whether report has detail rows' },
         allData: { type: 'boolean', description: 'Whether all data is returned' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success status' },
+        reportName: { type: 'string', description: 'Report name' },
+        reportFormat: { type: 'string', description: 'Report format type' },
+        success: { type: 'boolean', description: 'Salesforce operation success' },
       },
     },
   },

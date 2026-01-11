@@ -104,3 +104,54 @@ ${issue.body || 'No description provided'}`
     },
   },
 }
+
+export const getIssueV2Tool: ToolConfig<GetIssueParams, any> = {
+  id: 'github_get_issue_v2',
+  name: getIssueTool.name,
+  description: getIssueTool.description,
+  version: '2.0.0',
+  params: getIssueTool.params,
+  request: getIssueTool.request,
+
+  transformResponse: async (response: Response) => {
+    const issue = await response.json()
+    return {
+      success: true,
+      output: {
+        id: issue.id,
+        number: issue.number,
+        title: issue.title,
+        state: issue.state,
+        html_url: issue.html_url,
+        body: issue.body,
+        user: issue.user,
+        labels: issue.labels,
+        assignees: issue.assignees,
+        milestone: issue.milestone,
+        comments: issue.comments,
+        created_at: issue.created_at,
+        updated_at: issue.updated_at,
+        closed_at: issue.closed_at,
+        closed_by: issue.closed_by,
+      },
+    }
+  },
+
+  outputs: {
+    id: { type: 'number', description: 'Issue ID' },
+    number: { type: 'number', description: 'Issue number' },
+    title: { type: 'string', description: 'Issue title' },
+    state: { type: 'string', description: 'Issue state (open/closed)' },
+    html_url: { type: 'string', description: 'GitHub web URL' },
+    body: { type: 'string', description: 'Issue body/description' },
+    user: { type: 'json', description: 'User who created the issue' },
+    labels: { type: 'array', description: 'Array of label objects' },
+    assignees: { type: 'array', description: 'Array of assignee objects' },
+    milestone: { type: 'json', description: 'Milestone object' },
+    comments: { type: 'number', description: 'Number of comments' },
+    created_at: { type: 'string', description: 'Creation timestamp' },
+    updated_at: { type: 'string', description: 'Last update timestamp' },
+    closed_at: { type: 'string', description: 'Close timestamp' },
+    closed_by: { type: 'json', description: 'User who closed the issue' },
+  },
+}

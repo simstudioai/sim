@@ -20,13 +20,13 @@ export interface ZendeskSearchResponse {
   output: {
     results: any[]
     paging?: {
-      nextPage?: string | null
-      previousPage?: string | null
+      next_page?: string | null
+      previous_page?: string | null
       count: number
     }
     metadata: {
-      operation: 'search'
-      totalReturned: number
+      total_returned: number
+      has_more: boolean
     }
     success: boolean
   }
@@ -127,13 +127,13 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
       output: {
         results,
         paging: {
-          nextPage: data.next_page,
-          previousPage: data.previous_page,
+          next_page: data.next_page,
+          previous_page: data.previous_page,
           count: data.count || results.length,
         },
         metadata: {
-          operation: 'search' as const,
-          totalReturned: results.length,
+          total_returned: results.length,
+          has_more: !!data.next_page,
         },
         success: true,
       },
@@ -142,7 +142,25 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
 
   outputs: {
     results: { type: 'array', description: 'Array of result objects' },
-    paging: { type: 'object', description: 'Pagination information' },
-    metadata: { type: 'object', description: 'Operation metadata' },
+    paging: {
+      type: 'object',
+      description: 'Pagination information',
+      properties: {
+        next_page: { type: 'string', description: 'URL for next page of results' },
+        previous_page: { type: 'string', description: 'URL for previous page of results' },
+        count: { type: 'number', description: 'Total count of results' },
+      },
+    },
+    metadata: {
+      type: 'object',
+      description: 'Response metadata',
+      properties: {
+        total_returned: {
+          type: 'number',
+          description: 'Number of results returned in this response',
+        },
+        has_more: { type: 'boolean', description: 'Whether more results are available' },
+      },
+    },
   },
 }

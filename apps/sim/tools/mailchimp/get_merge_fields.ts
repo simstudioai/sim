@@ -16,12 +16,8 @@ export interface MailchimpGetMergeFieldsResponse {
   success: boolean
   output: {
     mergeFields: MailchimpMergeField[]
-    totalItems: number
-    metadata: {
-      operation: 'get_merge_fields'
-      totalReturned: number
-    }
-    success: boolean
+    total_items: number
+    total_returned: number
   }
 }
 
@@ -91,26 +87,27 @@ export const mailchimpGetMergeFieldsTool: ToolConfig<
       success: true,
       output: {
         mergeFields,
-        totalItems: data.total_items || mergeFields.length,
-        metadata: {
-          operation: 'get_merge_fields' as const,
-          totalReturned: mergeFields.length,
-        },
-        success: true,
+        total_items: data.total_items || mergeFields.length,
+        total_returned: mergeFields.length,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
+    success: {
+      type: 'boolean',
+      description: 'Whether the merge fields were successfully retrieved',
+    },
     output: {
       type: 'object',
-      description: 'Merge fields data and metadata',
+      description: 'Merge fields data',
       properties: {
-        mergeFields: { type: 'array', description: 'Array of merge field objects' },
-        totalItems: { type: 'number', description: 'Total number of merge fields' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        mergeFields: { type: 'json', description: 'Array of merge field objects' },
+        total_items: { type: 'number', description: 'Total number of merge fields' },
+        total_returned: {
+          type: 'number',
+          description: 'Number of merge fields returned in this response',
+        },
       },
     },
   },

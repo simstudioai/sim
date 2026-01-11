@@ -87,3 +87,44 @@ Updated: ${data.updated_at}`
     },
   },
 }
+
+export const getWorkflowV2Tool: ToolConfig<GetWorkflowParams, any> = {
+  id: 'github_get_workflow_v2',
+  name: getWorkflowTool.name,
+  description: getWorkflowTool.description,
+  version: '2.0.0',
+  params: getWorkflowTool.params,
+  request: getWorkflowTool.request,
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: true,
+      output: {
+        id: data.id,
+        node_id: data.node_id,
+        name: data.name,
+        path: data.path,
+        state: data.state,
+        html_url: data.html_url,
+        badge_url: data.badge_url,
+        url: data.url,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+      },
+    }
+  },
+
+  outputs: {
+    id: { type: 'number', description: 'Workflow ID' },
+    node_id: { type: 'string', description: 'Workflow node ID' },
+    name: { type: 'string', description: 'Workflow name' },
+    path: { type: 'string', description: 'Path to workflow file' },
+    state: { type: 'string', description: 'Workflow state (active/disabled)' },
+    html_url: { type: 'string', description: 'GitHub web URL' },
+    badge_url: { type: 'string', description: 'Badge URL' },
+    url: { type: 'string', description: 'API URL' },
+    created_at: { type: 'string', description: 'Creation timestamp' },
+    updated_at: { type: 'string', description: 'Last update timestamp' },
+  },
+}

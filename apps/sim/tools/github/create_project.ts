@@ -146,3 +146,45 @@ export const createProjectTool: ToolConfig<CreateProjectParams, ProjectResponse>
     },
   },
 }
+
+export const createProjectV2Tool: ToolConfig = {
+  id: 'github_create_project_v2',
+  name: createProjectTool.name,
+  description: createProjectTool.description,
+  version: '2.0.0',
+  params: createProjectTool.params,
+  request: createProjectTool.request,
+  oauth: createProjectTool.oauth,
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    if (data.errors) {
+      return {
+        success: false,
+        output: { id: '', title: '', number: 0, url: '' },
+        error: data.errors[0].message,
+      }
+    }
+    const project = data.data?.createProjectV2?.projectV2 || {}
+    return {
+      success: true,
+      output: {
+        id: project.id,
+        title: project.title,
+        number: project.number,
+        url: project.url,
+        closed: project.closed,
+        public: project.public,
+        shortDescription: project.shortDescription,
+      },
+    }
+  },
+  outputs: {
+    id: { type: 'string', description: 'Project node ID' },
+    title: { type: 'string', description: 'Project title' },
+    number: { type: 'number', description: 'Project number' },
+    url: { type: 'string', description: 'Project URL' },
+    closed: { type: 'boolean', description: 'Whether project is closed' },
+    public: { type: 'boolean', description: 'Whether project is public' },
+    shortDescription: { type: 'string', description: 'Short description' },
+  },
+}
