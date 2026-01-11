@@ -4295,45 +4295,15 @@ export function InsForgeIcon(props: SVGProps<SVGSVGElement>) {
       {...props}
       width='24'
       height='24'
-      viewBox='0 0 24 24'
+      viewBox='0 0 240 240'
       fill='none'
       xmlns='http://www.w3.org/2000/svg'
     >
       <path
-        d='M12 2L2 7V17L12 22L22 17V7L12 2Z'
-        stroke='currentColor'
-        strokeWidth='2'
-        strokeLinecap='round'
-        strokeLinejoin='round'
+        d='M26.1184 101.6C23.2939 98.7833 23.2939 94.2166 26.1184 91.4L97.7167 20L200 20L77.26 142.4C74.4355 145.217 69.8562 145.217 67.0317 142.4L26.1184 101.6Z'
+        fill='currentColor'
       />
-      <path
-        d='M12 22V12'
-        stroke='currentColor'
-        strokeWidth='2'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      />
-      <path
-        d='M22 7L12 12L2 7'
-        stroke='currentColor'
-        strokeWidth='2'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      />
-      <path
-        d='M2 17L12 12'
-        stroke='currentColor'
-        strokeWidth='2'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      />
-      <path
-        d='M22 17L12 12'
-        stroke='currentColor'
-        strokeWidth='2'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      />
+      <path d='M155.251 77.375L200 122V224L104.109 128.375L155.251 77.375Z' fill='currentColor' />
     </svg>
   )
 }

@@ -11,7 +11,7 @@ export const InsForgeBlock: BlockConfig<InsForgeBaseResponse> = {
     'Integrate InsForge into the workflow. Supports database operations (query, insert, update, delete, upsert), storage management (upload, download, list, delete files), serverless function invocation, and AI capabilities (chat completions, vision, image generation).',
   docsLink: 'https://docs.sim.ai/tools/insforge',
   category: 'tools',
-  bgColor: '#6366F1',
+  bgColor: '#000000',
   icon: InsForgeIcon,
   subBlocks: [
     {
