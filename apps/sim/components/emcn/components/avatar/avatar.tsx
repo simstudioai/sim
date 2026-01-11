@@ -12,10 +12,10 @@ import { cn } from '@/lib/core/utils/cn'
 const avatarVariants = cva('relative flex shrink-0 overflow-hidden rounded-full', {
   variants: {
     size: {
-      xs: 'h-6 w-6',
-      sm: 'h-8 w-8',
-      md: 'h-10 w-10',
-      lg: 'h-12 w-12',
+      xs: 'h-3.5 w-3.5',
+      sm: 'h-6 w-6',
+      md: 'h-8 w-8',
+      lg: 'h-10 w-10',
     },
   },
   defaultVariants: {
@@ -37,10 +37,10 @@ const avatarStatusVariants = cva(
         away: 'bg-[#f59e0b]',
       },
       size: {
-        xs: 'h-2 w-2',
-        sm: 'h-2.5 w-2.5',
-        md: 'h-3 w-3',
-        lg: 'h-3.5 w-3.5',
+        xs: 'h-1.5 w-1.5 border',
+        sm: 'h-2 w-2',
+        md: 'h-2.5 w-2.5',
+        lg: 'h-3 w-3',
       },
     },
     defaultVariants: {

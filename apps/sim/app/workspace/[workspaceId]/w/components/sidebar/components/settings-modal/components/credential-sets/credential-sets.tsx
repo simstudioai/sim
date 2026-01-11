@@ -434,12 +434,10 @@ export function CredentialSets() {
     filteredOwnedSets.length === 0 &&
     !hasNoContent
 
-  // Early returns AFTER all hooks
   if (membershipsLoading || invitationsLoading) {
     return <CredentialSetsSkeleton />
   }
 
-  // Detail view for a polling group
   if (viewingSet) {
     const activeMembers = members.filter((m) => m.status === 'active')
     const totalCount = activeMembers.length + pendingInvitations.length
@@ -529,7 +527,7 @@ export function CredentialSets() {
                       return (
                         <div key={member.id} className='flex items-center justify-between'>
                           <div className='flex flex-1 items-center gap-[12px]'>
-                            <Avatar size='sm'>
+                            <Avatar size='md'>
                               {member.userImage && (
                                 <AvatarImage src={member.userImage} alt={name} />
                               )}
@@ -583,7 +581,7 @@ export function CredentialSets() {
                       return (
                         <div key={invitation.id} className='flex items-center justify-between'>
                           <div className='flex flex-1 items-center gap-[12px]'>
-                            <Avatar size='sm'>
+                            <Avatar size='md'>
                               <AvatarFallback
                                 style={{ background: getUserColor(email) }}
                                 className='border-0 text-white'

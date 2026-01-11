@@ -1,10 +1,10 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useDuplicateWorkflowMutation } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { getNextWorkflowColor } from '@/stores/workflows/registry/utils'
 
 const logger = createLogger('useDuplicateWorkflow')
 

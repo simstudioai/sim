@@ -1,13 +1,11 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useCreateWorkflow, useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import {
-  generateCreativeWorkflowName,
-  getNextWorkflowColor,
-} from '@/stores/workflows/registry/utils'
+import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
 
 const logger = createLogger('useWorkflowOperations')
 

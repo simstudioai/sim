@@ -3,8 +3,9 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
-import { ChevronRight, Folder, FolderOpen } from 'lucide-react'
+import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
@@ -23,10 +24,7 @@ import {
 import { useCreateFolder, useUpdateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import type { FolderTreeNode } from '@/stores/folders/types'
-import {
-  generateCreativeWorkflowName,
-  getNextWorkflowColor,
-} from '@/stores/workflows/registry/utils'
+import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
 
 const logger = createLogger('FolderItem')
 
@@ -173,6 +171,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
     menuRef,
     handleContextMenu,
     closeMenu,
+    preventDismiss,
   } = useContextMenu()
 
   // Rename hook
@@ -242,6 +241,40 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
     [isEditing, handleRenameKeyDown, handleExpandKeyDown]
   )
 
+  /**
+   * Handle more button pointerdown - prevents click-outside dismissal when toggling
+   */
+  const handleMorePointerDown = useCallback(() => {
+    if (isContextMenuOpen) {
+      preventDismiss()
+    }
+  }, [isContextMenuOpen, preventDismiss])
+
+  /**
+   * Handle more button click - toggles context menu at button position
+   */
+  const handleMoreClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      // Toggle: close if open, open if closed
+      if (isContextMenuOpen) {
+        closeMenu()
+        return
+      }
+
+      const rect = e.currentTarget.getBoundingClientRect()
+      handleContextMenu({
+        preventDefault: () => {},
+        stopPropagation: () => {},
+        clientX: rect.right,
+        clientY: rect.top,
+      } as React.MouseEvent)
+    },
+    [isContextMenuOpen, closeMenu, handleContextMenu]
+  )
+
   return (
     <>
       <div
@@ -303,12 +336,22 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
             spellCheck='false'
           />
         ) : (
-          <span
-            className='truncate font-medium text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
-            onDoubleClick={handleDoubleClick}
-          >
-            {folder.name}
-          </span>
+          <>
+            <span
+              className='min-w-0 flex-1 truncate font-medium text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+              onDoubleClick={handleDoubleClick}
+            >
+              {folder.name}
+            </span>
+            <button
+              type='button'
+              onPointerDown={handleMorePointerDown}
+              onClick={handleMoreClick}
+              className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)] group-hover:opacity-100'
+            >
+              <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+            </button>
+          </>
         )}
       </div>
 
