@@ -213,7 +213,6 @@ const WorkflowContent = React.memo(() => {
   const [isCanvasReady, setIsCanvasReady] = useState(false)
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
   const [selectedEdges, setSelectedEdges] = useState<SelectedEdgesMap>(new Map())
-  const [isShiftPressed, setIsShiftPressed] = useState(false)
   const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
   const canvasMode = useCanvasModeStore((state) => state.mode)
   const isHandMode = canvasMode === 'hand'
@@ -1933,46 +1932,6 @@ const WorkflowContent = React.memo(() => {
   const [displayNodes, setDisplayNodes] = useState<Node[]>([])
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') setIsShiftPressed(true)
-    }
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') setIsShiftPressed(false)
-    }
-    const handleFocusLoss = () => {
-      setIsShiftPressed(false)
-    }
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        handleFocusLoss()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
-    window.addEventListener('blur', handleFocusLoss)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
-      window.removeEventListener('blur', handleFocusLoss)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (isShiftPressed) {
-      document.body.style.userSelect = 'none'
-    } else {
-      document.body.style.userSelect = ''
-    }
-    return () => {
-      document.body.style.userSelect = ''
-    }
-  }, [isShiftPressed])
-
-  useEffect(() => {
     // Check for pending selection (from paste/duplicate), otherwise preserve existing selection
     const pendingSelection = pendingSelectionRef.current
     pendingSelectionRef.current = null
@@ -2872,19 +2831,19 @@ const WorkflowContent = React.memo(() => {
     ]
   )
 
-  // Lock selection mode when selection drag starts (captures Shift state at drag start)
-  const onSelectionStart = useCallback(() => {
-    if (isShiftPressed) {
-      setIsSelectionDragActive(true)
-    }
-  }, [isShiftPressed])
+  // // Lock selection mode when selection drag starts (captures Shift state at drag start)
+  // const onSelectionStart = useCallback(() => {
+  //   if (isShiftPressed) {
+  //     setIsSelectionDragActive(true)
+  //   }
+  // }, [isShiftPressed])
 
-  const onSelectionEnd = useCallback(() => {
-    requestAnimationFrame(() => {
-      setIsSelectionDragActive(false)
-      setDisplayNodes((nodes) => resolveParentChildSelectionConflicts(nodes, blocks))
-    })
-  }, [blocks])
+  // const onSelectionEnd = useCallback(() => {
+  //   requestAnimationFrame(() => {
+  //     setIsSelectionDragActive(false)
+  //     setDisplayNodes((nodes) => resolveParentChildSelectionConflicts(nodes, blocks))
+  //   })
+  // }, [blocks])
 
   /** Captures initial positions when selection drag starts (for marquee-selected nodes). */
   const onSelectionDragStart = useCallback(
