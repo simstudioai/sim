@@ -49,6 +49,7 @@ import { HunterBlock } from '@/blocks/blocks/hunter'
 import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
 import { IncidentioBlock } from '@/blocks/blocks/incidentio'
 import { InputTriggerBlock } from '@/blocks/blocks/input_trigger'
+import { InsForgeBlock } from '@/blocks/blocks/insforge'
 import { IntercomBlock } from '@/blocks/blocks/intercom'
 import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
@@ -190,6 +191,7 @@ export const registry: Record<string, BlockConfig> = {
   hunter: HunterBlock,
   image_generator: ImageGeneratorBlock,
   incidentio: IncidentioBlock,
+  insforge: InsForgeBlock,
   input_trigger: InputTriggerBlock,
   intercom: IntercomBlock,
   jina: JinaBlock,

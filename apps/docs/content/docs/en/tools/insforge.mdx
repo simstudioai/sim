@@ -1,0 +1,349 @@
+---
+title: InsForge
+description: Use InsForge backend services
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="insforge"
+  color="#1C1C1C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[InsForge](https://insforge.app/) is a powerful backend-as-a-service (BaaS) platform that provides developers with a comprehensive suite of tools to build, scale, and manage modern applications. InsForge offers a fully managed PostgreSQL database with PostgREST API, robust authentication, file storage, serverless functions, and AI capabilities—all accessible through a unified and developer-friendly interface.
+
+**Why InsForge?**
+- **Instant APIs:** Every table in your database is instantly available via REST endpoints, making it easy to build data-driven applications without writing custom backend code.
+- **AI Integration:** Built-in support for chat completions, vision analysis, and image generation using OpenAI-compatible APIs.
+- **Storage:** Securely upload, download, and manage files with built-in storage that integrates seamlessly with your database.
+- **Serverless Functions:** Deploy and invoke serverless functions for custom backend logic.
+
+**Using InsForge in Sim**
+
+Sim's InsForge integration makes it effortless to connect your agentic workflows to your InsForge projects. With just a few configuration fields—your Base URL, Table name, and API Key—you can securely interact with your database, storage, functions, and AI services directly from your Sim blocks. The integration abstracts away the complexity of API calls, letting you focus on building logic and automations.
+
+**Key benefits of using InsForge in Sim:**
+- **No-code/low-code database operations:** Query, insert, update, and delete rows in your InsForge tables without writing SQL or backend code.
+- **Flexible querying:** Use PostgREST filter syntax to perform advanced queries, including filtering, ordering, and limiting results.
+- **AI-powered workflows:** Generate text with chat completions, analyze images with vision, and create images with AI—all within your workflow.
+- **Seamless integration:** Easily connect InsForge to other tools and services in your workflow, enabling powerful automations.
+- **Secure and scalable:** All operations use your InsForge API Key, ensuring secure access to your data with the scalability of a managed cloud platform.
+
+Whether you're building internal tools, automating business processes, or powering production applications, InsForge in Sim provides a fast, reliable, and developer-friendly way to manage your data, storage, functions, and AI—no infrastructure management required.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate InsForge into the workflow. Supports database operations (query, get_row, insert, update, delete, upsert), storage management (upload, download, list, delete), serverless function invocation, and AI capabilities (chat completion, vision, image generation).
+
+
+
+## Tools
+
+### `insforge_query`
+
+Query data from an InsForge table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Your InsForge backend URL \(e.g., https://your-app.insforge.app\) |
+| `table` | string | Yes | The name of the InsForge table to query |
+| `filter` | string | No | PostgREST filter \(e.g., "id=eq.123"\) |
+| `orderBy` | string | No | Column to order by \(add .desc for descending\) |
+| `limit` | number | No | Maximum number of rows to return |
+| `apiKey` | string | Yes | Your InsForge anon key or service role key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of records returned from the query |
+
+### `insforge_get_row`
+
+Get a single row from an InsForge table based on filter criteria
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Your InsForge backend URL \(e.g., https://your-app.insforge.app\) |
+| `table` | string | Yes | The name of the InsForge table to query |
+| `filter` | string | Yes | PostgREST filter to find the specific row \(e.g., "id=eq.123"\) |
+| `apiKey` | string | Yes | Your InsForge anon key or service role key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array containing the row data if found, empty array if not found |
+
+### `insforge_insert`
+
+Insert data into an InsForge table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Your InsForge backend URL \(e.g., https://your-app.insforge.app\) |
+| `table` | string | Yes | The name of the InsForge table to insert data into |
+| `data` | array | Yes | The data to insert \(array of objects or a single object\) |
+| `apiKey` | string | Yes | Your InsForge anon key or service role key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of inserted records |
+
+### `insforge_update`
+
+Update rows in an InsForge table based on filter criteria
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Your InsForge backend URL \(e.g., https://your-app.insforge.app\) |
+| `table` | string | Yes | The name of the InsForge table to update |
+| `filter` | string | Yes | PostgREST filter to identify rows to update \(e.g., "id=eq.123"\) |
+| `data` | object | Yes | Data to update in the matching rows |
+| `apiKey` | string | Yes | Your InsForge anon key or service role key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of updated records |
+
+### `insforge_delete`
+
+Delete rows from an InsForge table based on filter criteria
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Your InsForge backend URL \(e.g., https://your-app.insforge.app\) |
+| `table` | string | Yes | The name of the InsForge table to delete from |
+| `filter` | string | Yes | PostgREST filter to identify rows to delete \(e.g., "id=eq.123"\) |
+| `apiKey` | string | Yes | Your InsForge anon key or service role key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of deleted records |
+
+### `insforge_upsert`
+
+Insert or update data in an InsForge table (upsert operation)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Your InsForge backend URL \(e.g., https://your-app.insforge.app\) |
+| `table` | string | Yes | The name of the InsForge table to upsert data into |
+| `data` | array | Yes | The data to upsert \(insert or update\) - array of objects or a single object |
+| `apiKey` | string | Yes | Your InsForge anon key or service role key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of upserted records |
+
+### `insforge_storage_upload`
+
+Upload a file to an InsForge storage bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Your InsForge backend URL \(e.g., https://your-app.insforge.app\) |
+| `bucket` | string | Yes | The name of the storage bucket |
+| `path` | string | Yes | The path where the file will be stored \(e.g., "folder/file.jpg"\) |
+| `fileContent` | string | Yes | The file content \(base64 encoded for binary files, or plain text\) |
+| `contentType` | string | No | MIME type of the file \(e.g., "image/jpeg", "text/plain"\) |
+| `upsert` | boolean | No | If true, overwrites existing file \(default: false\) |
+| `apiKey` | string | Yes | Your InsForge anon key or service role key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | object | Upload result including file path and metadata |
+
+### `insforge_storage_download`
+
+Download a file from an InsForge storage bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Your InsForge backend URL \(e.g., https://your-app.insforge.app\) |
+| `bucket` | string | Yes | The name of the storage bucket |
+| `path` | string | Yes | The path to the file to download \(e.g., "folder/file.jpg"\) |
+| `apiKey` | string | Yes | Your InsForge anon key or service role key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `content` | string | File content \(base64 encoded for binary files\) |
+| `contentType` | string | MIME type of the file |
+
+### `insforge_storage_list`
+
+List files in an InsForge storage bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Your InsForge backend URL \(e.g., https://your-app.insforge.app\) |
+| `bucket` | string | Yes | The name of the storage bucket |
+| `path` | string | No | The folder path to list files from \(default: root\) |
+| `limit` | number | No | Maximum number of files to return |
+| `offset` | number | No | Number of files to skip \(for pagination\) |
+| `apiKey` | string | Yes | Your InsForge anon key or service role key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `files` | array | Array of file objects with metadata |
+
+### `insforge_storage_delete`
+
+Delete a file from an InsForge storage bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Your InsForge backend URL \(e.g., https://your-app.insforge.app\) |
+| `bucket` | string | Yes | The name of the storage bucket |
+| `path` | string | Yes | The path to the file to delete \(e.g., "folder/file.jpg"\) |
+| `apiKey` | string | Yes | Your InsForge anon key or service role key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `insforge_invoke`
+
+Invoke an InsForge serverless function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Your InsForge backend URL \(e.g., https://your-app.insforge.app\) |
+| `functionName` | string | Yes | The name of the function to invoke |
+| `body` | object | No | Request body to pass to the function |
+| `method` | string | No | HTTP method \(GET, POST, PUT, DELETE\) - default: POST |
+| `apiKey` | string | Yes | Your InsForge anon key or service role key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `result` | json | Result returned from the function |
+
+### `insforge_completion`
+
+Generate text using InsForge AI chat completion
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Your InsForge backend URL \(e.g., https://your-app.insforge.app\) |
+| `model` | string | No | The model to use \(e.g., "gpt-4o-mini"\) |
+| `systemPrompt` | string | No | System message to set the assistant's behavior |
+| `prompt` | string | Yes | The user message/prompt to send |
+| `temperature` | number | No | Sampling temperature \(0-2\) |
+| `maxTokens` | number | No | Maximum tokens to generate |
+| `apiKey` | string | Yes | Your InsForge anon key or service role key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `content` | string | The generated text response |
+| `usage` | object | Token usage statistics |
+
+### `insforge_vision`
+
+Analyze images using InsForge AI vision
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Your InsForge backend URL \(e.g., https://your-app.insforge.app\) |
+| `model` | string | No | The vision model to use \(e.g., "gpt-4o"\) |
+| `imageUrl` | string | Yes | URL of the image to analyze |
+| `prompt` | string | Yes | Question or instruction about the image |
+| `maxTokens` | number | No | Maximum tokens to generate |
+| `apiKey` | string | Yes | Your InsForge anon key or service role key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `content` | string | The vision analysis response |
+| `usage` | object | Token usage statistics |
+
+### `insforge_image_generation`
+
+Generate images using InsForge AI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Your InsForge backend URL \(e.g., https://your-app.insforge.app\) |
+| `model` | string | No | The image generation model to use \(e.g., "dall-e-3"\) |
+| `prompt` | string | Yes | The prompt describing the image to generate |
+| `size` | string | No | Image size \(e.g., "1024x1024", "1792x1024", "1024x1792"\) |
+| `quality` | string | No | Image quality \("standard" or "hd"\) |
+| `n` | number | No | Number of images to generate \(default: 1\) |
+| `apiKey` | string | Yes | Your InsForge anon key or service role key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `images` | array | Array of generated images with URLs |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `insforge`
