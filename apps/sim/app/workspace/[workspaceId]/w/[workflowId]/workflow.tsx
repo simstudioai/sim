@@ -691,8 +691,11 @@ const WorkflowContent = React.memo(() => {
       return
     }
 
-    // Set pending selection before adding blocks - sync effect will apply it
-    pendingSelectionRef.current = new Set(pastedBlocksArray.map((b) => b.id))
+    // Set pending selection before adding blocks - sync effect will apply it (accumulates for rapid pastes)
+    pendingSelectionRef.current = new Set([
+      ...(pendingSelectionRef.current ?? []),
+      ...pastedBlocksArray.map((b) => b.id),
+    ])
 
     collaborativeBatchAddBlocks(
       pastedBlocksArray,
@@ -737,8 +740,11 @@ const WorkflowContent = React.memo(() => {
       return
     }
 
-    // Set pending selection before adding blocks - sync effect will apply it
-    pendingSelectionRef.current = new Set(pastedBlocksArray.map((b) => b.id))
+    // Set pending selection before adding blocks - sync effect will apply it (accumulates for rapid pastes)
+    pendingSelectionRef.current = new Set([
+      ...(pendingSelectionRef.current ?? []),
+      ...pastedBlocksArray.map((b) => b.id),
+    ])
 
     collaborativeBatchAddBlocks(
       pastedBlocksArray,
@@ -880,8 +886,11 @@ const WorkflowContent = React.memo(() => {
               return
             }
 
-            // Set pending selection before adding blocks - sync effect will apply it
-            pendingSelectionRef.current = new Set(pastedBlocks.map((b) => b.id))
+            // Set pending selection before adding blocks - sync effect will apply it (accumulates for rapid pastes)
+            pendingSelectionRef.current = new Set([
+              ...(pendingSelectionRef.current ?? []),
+              ...pastedBlocks.map((b) => b.id),
+            ])
 
             collaborativeBatchAddBlocks(
               pastedBlocks,
