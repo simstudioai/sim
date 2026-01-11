@@ -24,6 +24,7 @@ import {
 import { Trash } from '@/components/emcn/icons/trash'
 import {
   CopilotMessage,
+  MigrationDialog,
   PlanModeSection,
   TodoList,
   UserInput,
@@ -75,6 +76,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const [isEditingMessage, setIsEditingMessage] = useState(false)
   const [revertingMessageId, setRevertingMessageId] = useState<string | null>(null)
   const [isHistoryDropdownOpen, setIsHistoryDropdownOpen] = useState(false)
+  const [isMigrationDialogOpen, setIsMigrationDialogOpen] = useState(false)
 
   const { activeWorkflowId } = useWorkflowRegistry()
 
@@ -499,7 +501,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                   />
                 </div>
                 <div className='flex-shrink-0 pt-[8px]'>
-                  <Welcome onQuestionClick={handleSubmit} mode={mode} />
+                  <Welcome 
+                    onQuestionClick={handleSubmit} 
+                    mode={mode}
+                    onMigrateClick={() => setIsMigrationDialogOpen(true)}
+                  />
                 </div>
               </div>
             ) : (
@@ -610,6 +616,14 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
           </>
         )}
       </div>
+      
+      <MigrationDialog
+        open={isMigrationDialogOpen}
+        onOpenChange={setIsMigrationDialogOpen}
+        onSubmitToChat={(jsonContent) => {
+          handleSubmit(jsonContent)
+        }}
+      />
     </>
   )
 })
