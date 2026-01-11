@@ -110,7 +110,7 @@ export interface InsForgeStorageDeleteParams {
   apiKey: string
   baseUrl: string
   bucket: string
-  paths: string[]
+  path: string
 }
 
 export type InsForgeStorageDeleteResponse = InsForgeBaseResponse

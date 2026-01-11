@@ -49,31 +49,32 @@ export const storageListTool: ToolConfig<InsForgeStorageListParams, InsForgeStor
   request: {
     url: (params) => {
       const base = params.baseUrl.replace(/\/$/, '')
-      return `${base}/storage/v1/object/list/${params.bucket}`
-    },
-    method: 'POST',
-    headers: (params) => ({
-      apikey: params.apiKey,
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => {
-      const body: Record<string, unknown> = {}
+      let url = `${base}/api/storage/buckets/${params.bucket}/objects`
+      const queryParams: string[] = []
 
       if (params.path) {
-        body.prefix = params.path
+        queryParams.push(`prefix=${encodeURIComponent(params.path)}`)
       }
 
       if (params.limit) {
-        body.limit = Number(params.limit)
+        queryParams.push(`limit=${Number(params.limit)}`)
       }
 
       if (params.offset) {
-        body.offset = Number(params.offset)
+        queryParams.push(`offset=${Number(params.offset)}`)
       }
 
-      return body
+      if (queryParams.length > 0) {
+        url += `?${queryParams.join('&')}`
+      }
+
+      return url
     },
+    method: 'GET',
+    headers: (params) => ({
+      apikey: params.apiKey,
+      Authorization: `Bearer ${params.apiKey}`,
+    }),
   },
 
   transformResponse: async (response: Response) => {

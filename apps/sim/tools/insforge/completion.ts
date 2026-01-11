@@ -49,7 +49,7 @@ export const completionTool: ToolConfig<InsForgeCompletionParams, InsForgeComple
   request: {
     url: (params) => {
       const base = params.baseUrl.replace(/\/$/, '')
-      return `${base}/ai/v1/chat/completions`
+      return `${base}/api/ai/chat/completion`
     },
     method: 'POST',
     headers: (params) => ({

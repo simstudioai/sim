@@ -37,7 +37,7 @@ export const getRowTool: ToolConfig<InsForgeGetRowParams, InsForgeGetRowResponse
   request: {
     url: (params) => {
       const base = params.baseUrl.replace(/\/$/, '')
-      let url = `${base}/rest/v1/${params.table}?select=*`
+      let url = `${base}/api/database/${params.table}?select=*`
 
       if (params.filter?.trim()) {
         url += `&${params.filter.trim()}`

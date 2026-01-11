@@ -61,7 +61,7 @@ export const imageGenerationTool: ToolConfig<
   request: {
     url: (params) => {
       const base = params.baseUrl.replace(/\/$/, '')
-      return `${base}/ai/v1/images/generations`
+      return `${base}/api/ai/image/generation`
     },
     method: 'POST',
     headers: (params) => ({

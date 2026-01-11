@@ -52,7 +52,7 @@ export const storageDownloadTool: ToolConfig<
   request: {
     url: (params) => {
       const base = params.baseUrl.replace(/\/$/, '')
-      return `${base}/storage/v1/object/${params.bucket}/${params.path}`
+      return `${base}/api/storage/buckets/${params.bucket}/objects/${params.path}`
     },
     method: 'GET',
     headers: (params) => ({
