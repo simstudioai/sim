@@ -166,6 +166,8 @@ export interface TagInputProps extends VariantProps<typeof tagInputVariants> {
   onAdd: (value: string) => boolean
   /** Callback when a tag is removed (receives value, index, and isValid) */
   onRemove: (value: string, index: number, isValid: boolean) => void
+  /** Callback when the input value changes (useful for clearing errors) */
+  onInputChange?: (value: string) => void
   /** Placeholder text for the input */
   placeholder?: string
   /** Placeholder text when there are existing tags */
@@ -207,6 +209,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
       items,
       onAdd,
       onRemove,
+      onInputChange,
       placeholder = 'Enter values',
       placeholderWithTags = 'Add another',
       disabled = false,
@@ -344,10 +347,12 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
         })
 
         if (addedCount === 0 && pastedValues.length === 1) {
-          setInputValue(inputValue + pastedValues[0])
+          const newValue = inputValue + pastedValues[0]
+          setInputValue(newValue)
+          onInputChange?.(newValue)
         }
       },
-      [onAdd, inputValue]
+      [onAdd, inputValue, onInputChange]
     )
 
     const handleBlur = React.useCallback(() => {
@@ -422,7 +427,10 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
               name={name}
               type='text'
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              onChange={(e) => {
+                setInputValue(e.target.value)
+                onInputChange?.(e.target.value)
+              }}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               onBlur={handleBlur}

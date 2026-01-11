@@ -657,6 +657,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                   items={emailItems}
                   onAdd={(value) => addEmail(value)}
                   onRemove={removeEmailItem}
+                  onInputChange={() => setErrorMessage(null)}
                   placeholder={
                     !userPerms.canAdmin
                       ? 'Only administrators can invite new members'
