@@ -2047,9 +2047,7 @@ const WorkflowContent = React.memo(() => {
     (changes: NodeChange[]) => {
       setDisplayNodes((nds) => {
         const updated = applyNodeChanges(changes, nds)
-        const hasSelectionChange = changes.some(
-          (c) => c.type === 'select' && (c as { selected?: boolean }).selected
-        )
+        const hasSelectionChange = changes.some((c) => c.type === 'select')
         return hasSelectionChange ? resolveParentChildSelectionConflicts(updated, blocks) : updated
       })
     },
@@ -2857,9 +2855,6 @@ const WorkflowContent = React.memo(() => {
         setDragStartParentId(firstNodeParentId)
       }
 
-      // Resolve parent-child conflicts and capture positions for undo/redo
-      setDisplayNodes((allNodes) => resolveParentChildSelectionConflicts(allNodes, blocks))
-
       // Filter to nodes that won't be deselected (exclude children whose parent is selected)
       const nodeIds = new Set(nodes.map((n) => n.id))
       const effectiveNodes = nodes.filter((n) => {
@@ -2867,6 +2862,7 @@ const WorkflowContent = React.memo(() => {
         return !parentId || !nodeIds.has(parentId)
       })
 
+      // Capture positions for undo/redo before applying display changes
       multiNodeDragStartRef.current.clear()
       effectiveNodes.forEach((n) => {
         const blk = blocks[n.id]
@@ -2878,6 +2874,9 @@ const WorkflowContent = React.memo(() => {
           })
         }
       })
+
+      // Apply visual deselection of children
+      setDisplayNodes((allNodes) => resolveParentChildSelectionConflicts(allNodes, blocks))
     },
     [blocks]
   )

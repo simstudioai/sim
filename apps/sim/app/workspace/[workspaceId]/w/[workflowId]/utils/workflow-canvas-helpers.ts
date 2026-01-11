@@ -202,7 +202,7 @@ export function resolveParentChildSelectionConflicts(
   let hasConflict = false
   const resolved = nodes.map((n) => {
     if (!n.selected) return n
-    const parentId = n.parentId || n.data?.parentId || blocks[n.id]?.data?.parentId
+    const parentId = n.parentId || blocks[n.id]?.data?.parentId
     if (parentId && selectedIds.has(parentId)) {
       hasConflict = true
       return { ...n, selected: false }
