@@ -8,7 +8,10 @@ import {
   BubbleChatClose,
   BubbleChatPreview,
   Button,
+  ChevronDown,
   Copy,
+  Cursor,
+  Hand,
   Layout,
   Modal,
   ModalBody,
@@ -43,6 +46,7 @@ import { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hook
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
 import type { PanelTab } from '@/stores/panel'
 import { usePanelStore, useVariablesStore as usePanelVariablesStore } from '@/stores/panel'
@@ -92,6 +96,7 @@ export function Panel() {
   const [isExporting, setIsExporting] = useState(false)
   const [isDuplicating, setIsDuplicating] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isCanvasModeOpen, setIsCanvasModeOpen] = useState(false)
 
   // Hooks
   const userPermissions = useUserPermissionsContext()
@@ -159,6 +164,9 @@ export function Panel() {
   // Chat state
   const { isChatOpen, setIsChatOpen } = useChatStore()
   const { isOpen: isVariablesOpen, setIsOpen: setVariablesOpen } = useVariablesStore()
+
+  // Canvas mode
+  const { mode: canvasMode, setMode: setCanvasMode } = useCanvasModeStore()
 
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
 
@@ -495,6 +503,59 @@ export function Panel() {
                 Editor
               </Button>
             </div>
+
+            {/* Canvas Mode Selector */}
+            <Popover
+              open={isCanvasModeOpen}
+              onOpenChange={setIsCanvasModeOpen}
+              variant='secondary'
+              size='sm'
+            >
+              <PopoverTrigger asChild>
+                <div className='flex cursor-pointer items-center gap-[4px]'>
+                  <Button className='h-[28px] w-[28px] rounded-[6px] p-0' variant='active'>
+                    {canvasMode === 'hand' ? (
+                      <Hand className='h-[14px] w-[14px]' />
+                    ) : (
+                      <Cursor className='h-[14px] w-[14px]' />
+                    )}
+                  </Button>
+                  <Button className='!p-[2px] group' variant='ghost'>
+                    <ChevronDown
+                      className={`h-[8px] w-[10px] text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${
+                        isCanvasModeOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </Button>
+                </div>
+              </PopoverTrigger>
+              <PopoverContent
+                align='end'
+                side='bottom'
+                sideOffset={8}
+                maxWidth={100}
+                minWidth={100}
+              >
+                <PopoverItem
+                  onClick={() => {
+                    setCanvasMode('cursor')
+                    setIsCanvasModeOpen(false)
+                  }}
+                >
+                  <Cursor className='h-3 w-3' />
+                  <span>Pointer</span>
+                </PopoverItem>
+                <PopoverItem
+                  onClick={() => {
+                    setCanvasMode('hand')
+                    setIsCanvasModeOpen(false)
+                  }}
+                >
+                  <Hand className='h-3 w-3' />
+                  <span>Mover</span>
+                </PopoverItem>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Tab Content - Keep all tabs mounted but hidden to preserve state */}

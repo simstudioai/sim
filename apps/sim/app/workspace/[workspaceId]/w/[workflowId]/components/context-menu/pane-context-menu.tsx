@@ -27,6 +27,9 @@ export function PaneContextMenu({
   onToggleVariables,
   onToggleChat,
   onInvite,
+  onZoomIn,
+  onZoomOut,
+  onFitView,
   isVariablesOpen = false,
   isChatOpen = false,
   hasClipboard = false,
@@ -111,6 +114,33 @@ export function PaneContextMenu({
         >
           <span>Auto-layout</span>
           <span className='ml-auto opacity-70 group-hover:opacity-100'>⇧L</span>
+        </PopoverItem>
+
+        {/* View actions */}
+        <PopoverDivider />
+        <PopoverItem
+          onClick={() => {
+            onZoomIn()
+            onClose()
+          }}
+        >
+          Zoom In
+        </PopoverItem>
+        <PopoverItem
+          onClick={() => {
+            onZoomOut()
+            onClose()
+          }}
+        >
+          Zoom Out
+        </PopoverItem>
+        <PopoverItem
+          onClick={() => {
+            onFitView()
+            onClose()
+          }}
+        >
+          Fit to View
         </PopoverItem>
 
         {/* Navigation actions */}

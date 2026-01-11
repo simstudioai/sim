@@ -7,7 +7,12 @@ import { cn } from '@/lib/core/utils/cn'
 /**
  * Tooltip provider component that must wrap your app or tooltip usage area.
  */
-const Provider = TooltipPrimitive.Provider
+const Provider = ({
+  delayDuration = 400,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Provider>) => (
+  <TooltipPrimitive.Provider delayDuration={delayDuration} {...props} />
+)
 
 /**
  * Root tooltip component that wraps trigger and content.
