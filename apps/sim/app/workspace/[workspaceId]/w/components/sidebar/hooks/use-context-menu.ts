@@ -27,6 +27,8 @@ export function useContextMenu({ onContextMenu }: UseContextMenuProps = {}) {
   const [isOpen, setIsOpen] = useState(false)
   const [position, setPosition] = useState<ContextMenuPosition>({ x: 0, y: 0 })
   const menuRef = useRef<HTMLDivElement>(null)
+  // Used to prevent click-outside dismissal when trigger is clicked
+  const dismissPreventedRef = useRef(false)
 
   /**
    * Handle right-click event
@@ -56,12 +58,25 @@ export function useContextMenu({ onContextMenu }: UseContextMenuProps = {}) {
   }, [])
 
   /**
+   * Prevent the next click-outside from dismissing the menu.
+   * Call this on pointerdown of a toggle trigger to allow proper toggle behavior.
+   */
+  const preventDismiss = useCallback(() => {
+    dismissPreventedRef.current = true
+  }, [])
+
+  /**
    * Handle clicks outside the menu to close it
    */
   useEffect(() => {
     if (!isOpen) return
 
     const handleClickOutside = (e: MouseEvent) => {
+      // Check if dismissal was prevented (e.g., by toggle trigger's pointerdown)
+      if (dismissPreventedRef.current) {
+        dismissPreventedRef.current = false
+        return
+      }
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         closeMenu()
       }
@@ -84,5 +99,6 @@ export function useContextMenu({ onContextMenu }: UseContextMenuProps = {}) {
     menuRef,
     handleContextMenu,
     closeMenu,
+    preventDismiss,
   }
 }

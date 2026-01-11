@@ -163,7 +163,7 @@ function AddMembersModal({
                           className='flex items-center gap-[10px] rounded-[4px] px-[8px] py-[6px] hover:bg-[var(--surface-2)]'
                         >
                           <Checkbox checked={isSelected} />
-                          <Avatar size='xs'>
+                          <Avatar size='sm'>
                             {member.user?.image && (
                               <AvatarImage src={member.user.image} alt={name} />
                             )}
@@ -663,7 +663,7 @@ export function AccessControl() {
                     return (
                       <div key={member.id} className='flex items-center justify-between'>
                         <div className='flex flex-1 items-center gap-[12px]'>
-                          <Avatar size='sm'>
+                          <Avatar size='md'>
                             {member.userImage && <AvatarImage src={member.userImage} alt={name} />}
                             <AvatarFallback
                               style={{

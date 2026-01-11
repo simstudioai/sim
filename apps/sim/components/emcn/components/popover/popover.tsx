@@ -52,6 +52,7 @@
 import * as React from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { Check, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { cn } from '@/lib/core/utils/cn'
 
 type PopoverSize = 'sm' | 'md'
@@ -166,6 +167,9 @@ interface PopoverContextValue {
   colorScheme: PopoverColorScheme
   searchQuery: string
   setSearchQuery: (query: string) => void
+  /** ID of the last hovered item (for hover submenus) */
+  lastHoveredItem: string | null
+  setLastHoveredItem: (id: string | null) => void
 }
 
 const PopoverContext = React.createContext<PopoverContextValue | null>(null)
@@ -208,12 +212,24 @@ const Popover: React.FC<PopoverProps> = ({
   variant = 'default',
   size = 'md',
   colorScheme = 'default',
+  open,
   ...props
 }) => {
   const [currentFolder, setCurrentFolder] = React.useState<string | null>(null)
   const [folderTitle, setFolderTitle] = React.useState<string | null>(null)
   const [onFolderSelect, setOnFolderSelect] = React.useState<(() => void) | null>(null)
   const [searchQuery, setSearchQuery] = React.useState<string>('')
+  const [lastHoveredItem, setLastHoveredItem] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (open === false) {
+      setCurrentFolder(null)
+      setFolderTitle(null)
+      setOnFolderSelect(null)
+      setSearchQuery('')
+      setLastHoveredItem(null)
+    }
+  }, [open])
 
   const openFolder = React.useCallback(
     (id: string, title: string, onLoad?: () => void | Promise<void>, onSelect?: () => void) => {
@@ -246,6 +262,8 @@ const Popover: React.FC<PopoverProps> = ({
       colorScheme,
       searchQuery,
       setSearchQuery,
+      lastHoveredItem,
+      setLastHoveredItem,
     }),
     [
       openFolder,
@@ -257,12 +275,15 @@ const Popover: React.FC<PopoverProps> = ({
       size,
       colorScheme,
       searchQuery,
+      lastHoveredItem,
     ]
   )
 
   return (
     <PopoverContext.Provider value={contextValue}>
-      <PopoverPrimitive.Root {...props}>{children}</PopoverPrimitive.Root>
+      <PopoverPrimitive.Root open={open} {...props}>
+        {children}
+      </PopoverPrimitive.Root>
     </PopoverContext.Provider>
   )
 }
@@ -496,7 +517,17 @@ export interface PopoverItemProps extends React.HTMLAttributes<HTMLDivElement> {
  */
 const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
   (
-    { className, active, rootOnly, disabled, showCheck = false, children, onClick, ...props },
+    {
+      className,
+      active,
+      rootOnly,
+      disabled,
+      showCheck = false,
+      children,
+      onClick,
+      onMouseEnter,
+      ...props
+    },
     ref
   ) => {
     const context = React.useContext(PopoverContext)
@@ -514,6 +545,12 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
       onClick?.(e)
     }
 
+    const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
+      // Clear last hovered item to close any open hover submenus
+      context?.setLastHoveredItem(null)
+      onMouseEnter?.(e)
+    }
+
     return (
       <div
         className={cn(
@@ -529,6 +566,7 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
         aria-selected={active}
         aria-disabled={disabled}
         onClick={handleClick}
+        onMouseEnter={handleMouseEnter}
         {...props}
       >
         {children}
@@ -589,44 +627,150 @@ export interface PopoverFolderProps extends Omit<React.HTMLAttributes<HTMLDivEle
   children?: React.ReactNode
   /** Whether currently active/selected */
   active?: boolean
+  /**
+   * Expand folder on hover to show submenu alongside parent
+   * When true, hovering shows a floating submenu; clicking still uses inline navigation
+   * @default false
+   */
+  expandOnHover?: boolean
 }
 
 /**
  * Expandable folder that shows nested content.
+ * Supports two modes:
+ * - Click mode (default): Replaces parent content, shows back button
+ * - Hover mode (expandOnHover): Shows floating submenu alongside parent
  */
 const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
-  ({ className, id, title, icon, onOpen, onSelect, children, active, ...props }, ref) => {
-    const { openFolder, currentFolder, isInFolder, variant, size, colorScheme } =
-      usePopoverContext()
+  (
+    {
+      className,
+      id,
+      title,
+      icon,
+      onOpen,
+      onSelect,
+      children,
+      active,
+      expandOnHover = false,
+      ...props
+    },
+    ref
+  ) => {
+    const {
+      openFolder,
+      currentFolder,
+      isInFolder,
+      variant,
+      size,
+      colorScheme,
+      lastHoveredItem,
+      setLastHoveredItem,
+    } = usePopoverContext()
+    const [submenuPosition, setSubmenuPosition] = React.useState<{ top: number; left: number }>({
+      top: 0,
+      left: 0,
+    })
+    const triggerRef = React.useRef<HTMLDivElement>(null)
 
+    // Submenu is open when this folder is the last hovered item (for expandOnHover mode)
+    const isHoverOpen = expandOnHover && lastHoveredItem === id
+
+    // Merge refs
+    const mergedRef = React.useCallback(
+      (node: HTMLDivElement | null) => {
+        triggerRef.current = node
+        if (typeof ref === 'function') {
+          ref(node)
+        } else if (ref) {
+          ref.current = node
+        }
+      },
+      [ref]
+    )
+
+    // If we're in a folder and this isn't the current one, hide
     if (isInFolder && currentFolder !== id) return null
+    // If this folder is open via click (inline mode), render children directly
     if (currentFolder === id) return <>{children}</>
 
-    const handleClick = (e: React.MouseEvent) => {
-      e.stopPropagation()
+    const handleClickOpen = () => {
       openFolder(id, title, onOpen, onSelect)
     }
 
+    const handleClick = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (expandOnHover) {
+        // In hover mode, clicking opens inline and clears hover state
+        setLastHoveredItem(null)
+      }
+      handleClickOpen()
+    }
+
+    const handleMouseEnter = () => {
+      if (!expandOnHover) return
+
+      // Calculate position for submenu
+      if (triggerRef.current) {
+        const rect = triggerRef.current.getBoundingClientRect()
+        const parentPopover = triggerRef.current.closest('[data-radix-popper-content-wrapper]')
+        const parentRect = parentPopover?.getBoundingClientRect()
+
+        // Position to the right of the parent popover with a small gap
+        setSubmenuPosition({
+          top: rect.top,
+          left: parentRect ? parentRect.right + 4 : rect.right + 4,
+        })
+      }
+
+      setLastHoveredItem(id)
+      onOpen?.()
+    }
+
     return (
-      <div
-        ref={ref}
-        className={cn(
-          STYLES.itemBase,
-          STYLES.colorScheme[colorScheme].text,
-          STYLES.size[size].item,
-          getItemStateClasses(variant, colorScheme, !!active),
-          className
-        )}
-        role='menuitem'
-        aria-haspopup='true'
-        aria-expanded={false}
-        onClick={handleClick}
-        {...props}
-      >
-        {icon}
-        <span className='flex-1'>{title}</span>
-        <ChevronRight className={STYLES.size[size].icon} />
-      </div>
+      <>
+        <div
+          ref={mergedRef}
+          className={cn(
+            STYLES.itemBase,
+            STYLES.colorScheme[colorScheme].text,
+            STYLES.size[size].item,
+            getItemStateClasses(variant, colorScheme, !!active || isHoverOpen),
+            className
+          )}
+          role='menuitem'
+          aria-haspopup='true'
+          aria-expanded={isHoverOpen}
+          onClick={handleClick}
+          onMouseEnter={handleMouseEnter}
+          {...props}
+        >
+          {icon}
+          <span className='flex-1'>{title}</span>
+          <ChevronRight className={STYLES.size[size].icon} />
+        </div>
+
+        {/* Hover submenu - rendered as a portal to escape overflow clipping */}
+        {isHoverOpen &&
+          typeof document !== 'undefined' &&
+          createPortal(
+            <div
+              className={cn(
+                'fixed z-[10000201] min-w-[120px]',
+                STYLES.content,
+                STYLES.colorScheme[colorScheme].content,
+                'shadow-lg'
+              )}
+              style={{
+                top: submenuPosition.top,
+                left: submenuPosition.left,
+              }}
+            >
+              {children}
+            </div>,
+            document.body
+          )}
+      </>
     )
   }
 )
@@ -665,7 +809,10 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
             className
           )}
           role='button'
-          onClick={closeFolder}
+          onClick={(e) => {
+            e.stopPropagation()
+            closeFolder()
+          }}
           {...props}
         >
           <ChevronLeft className={STYLES.size[size].icon} />
