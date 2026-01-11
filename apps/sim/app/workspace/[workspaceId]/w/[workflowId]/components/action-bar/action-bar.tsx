@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useReactFlow } from 'reactflow'
 import {
   Button,
@@ -25,6 +26,8 @@ import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useGeneralStore } from '@/stores/settings/general'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+
+const logger = createLogger('ActionBar')
 
 export function ActionBar() {
   const reactFlowInstance = useReactFlow()
@@ -55,6 +58,8 @@ export function ActionBar() {
   const handleHide = async () => {
     try {
       await updateSetting.mutateAsync({ key: 'showActionBar', value: false })
+    } catch (error) {
+      logger.error('Failed to hide action bar', error)
     } finally {
       setContextMenu(null)
     }
