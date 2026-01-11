@@ -214,7 +214,6 @@ const WorkflowContent = React.memo(() => {
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
   const [selectedEdges, setSelectedEdges] = useState<SelectedEdgesMap>(new Map())
   const [isShiftPressed, setIsShiftPressed] = useState(false)
-  const [isSelectionDragActive, setIsSelectionDragActive] = useState(false)
   const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
   const canvasMode = useCanvasModeStore((state) => state.mode)
   const isHandMode = canvasMode === 'hand'
@@ -1942,7 +1941,6 @@ const WorkflowContent = React.memo(() => {
     }
     const handleFocusLoss = () => {
       setIsShiftPressed(false)
-      setIsSelectionDragActive(false)
     }
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -3045,7 +3043,6 @@ const WorkflowContent = React.memo(() => {
 
   const onSelectionDragStop = useCallback(
     (_event: React.MouseEvent, nodes: any[]) => {
-      requestAnimationFrame(() => setIsSelectionDragActive(false))
       clearDragHighlights()
       if (nodes.length === 0) return
 
@@ -3351,9 +3348,9 @@ const WorkflowContent = React.memo(() => {
               edgeTypes={edgeTypes}
               onDrop={effectivePermissions.canEdit ? onDrop : undefined}
               onDragOver={effectivePermissions.canEdit ? onDragOver : undefined}
-              onInit={() => {
+              onInit={(instance) => {
                 requestAnimationFrame(() => {
-                  fitViewToBounds({ padding: 0.1, maxZoom: 1.0 })
+                  instance.fitView(reactFlowFitViewOptions)
                   setIsCanvasReady(true)
                 })
               }}
@@ -3374,11 +3371,9 @@ const WorkflowContent = React.memo(() => {
               onPointerMove={handleCanvasPointerMove}
               onPointerLeave={handleCanvasPointerLeave}
               elementsSelectable={true}
-              selectionOnDrag={!isHandMode || isSelectionDragActive}
+              selectionOnDrag={!isHandMode}
               selectionMode={SelectionMode.Partial}
               panOnDrag={isHandMode ? [0, 1] : false}
-              onSelectionStart={onSelectionStart}
-              onSelectionEnd={onSelectionEnd}
               multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
               nodesConnectable={effectivePermissions.canEdit}
               nodesDraggable={effectivePermissions.canEdit}
