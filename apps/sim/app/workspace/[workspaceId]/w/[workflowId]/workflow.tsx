@@ -47,6 +47,7 @@ import {
   computeClampedPositionUpdates,
   getClampedPositionForNode,
   isInEditableElement,
+  resolveParentChildSelectionConflicts,
   selectNodesDeferred,
   useAutoLayout,
   useCurrentWorkflow,
@@ -55,6 +56,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCanvasContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-canvas-context-menu'
 import {
+  calculateContainerDimensions,
   clampPositionToContainer,
   estimateBlockDimensions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-node-utilities'
@@ -697,7 +699,8 @@ const WorkflowContent = React.memo(() => {
 
     selectNodesDeferred(
       pastedBlocksArray.map((b) => b.id),
-      setDisplayNodes
+      setDisplayNodes,
+      blocks
     )
   }, [
     hasClipboard,
@@ -745,7 +748,8 @@ const WorkflowContent = React.memo(() => {
 
     selectNodesDeferred(
       pastedBlocksArray.map((b) => b.id),
-      setDisplayNodes
+      setDisplayNodes,
+      blocks
     )
   }, [
     contextMenuBlocks,
@@ -890,7 +894,8 @@ const WorkflowContent = React.memo(() => {
 
             selectNodesDeferred(
               pastedBlocks.map((b) => b.id),
-              setDisplayNodes
+              setDisplayNodes,
+              blocks
             )
           }
         }
@@ -2037,10 +2042,19 @@ const WorkflowContent = React.memo(() => {
       window.removeEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
   }, [blocks, edgesForDisplay, getNodeAbsolutePosition, collaborativeBatchUpdateParent])
 
-  /** Handles node position changes - updates local state for smooth drag, syncs to store only on drag end. */
-  const onNodesChange = useCallback((changes: NodeChange[]) => {
-    setDisplayNodes((nds) => applyNodeChanges(changes, nds))
-  }, [])
+  /** Handles node changes - applies changes and resolves parent-child selection conflicts. */
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      setDisplayNodes((nds) => {
+        const updated = applyNodeChanges(changes, nds)
+        const hasSelectionChange = changes.some(
+          (c) => c.type === 'select' && (c as { selected?: boolean }).selected
+        )
+        return hasSelectionChange ? resolveParentChildSelectionConflicts(updated, blocks) : updated
+      })
+    },
+    [blocks]
+  )
 
   /**
    * Updates container dimensions in displayNodes during drag.
@@ -2055,28 +2069,13 @@ const WorkflowContent = React.memo(() => {
         const childNodes = currentNodes.filter((n) => n.parentId === parentId)
         if (childNodes.length === 0) return currentNodes
 
-        let maxRight = 0
-        let maxBottom = 0
-
-        childNodes.forEach((node) => {
+        const childPositions = childNodes.map((node) => {
           const nodePosition = node.id === draggedNodeId ? draggedNodePosition : node.position
-          const { width: nodeWidth, height: nodeHeight } = getBlockDimensions(node.id)
-
-          maxRight = Math.max(maxRight, nodePosition.x + nodeWidth)
-          maxBottom = Math.max(maxBottom, nodePosition.y + nodeHeight)
+          const { width, height } = getBlockDimensions(node.id)
+          return { x: nodePosition.x, y: nodePosition.y, width, height }
         })
 
-        const newWidth = Math.max(
-          CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-          CONTAINER_DIMENSIONS.LEFT_PADDING + maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
-        )
-        const newHeight = Math.max(
-          CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-          CONTAINER_DIMENSIONS.HEADER_HEIGHT +
-            CONTAINER_DIMENSIONS.TOP_PADDING +
-            maxBottom +
-            CONTAINER_DIMENSIONS.BOTTOM_PADDING
-        )
+        const { width: newWidth, height: newHeight } = calculateContainerDimensions(childPositions)
 
         return currentNodes.map((node) => {
           if (node.id === parentId) {
@@ -2844,27 +2843,38 @@ const WorkflowContent = React.memo(() => {
   }, [isShiftPressed])
 
   const onSelectionEnd = useCallback(() => {
-    requestAnimationFrame(() => setIsSelectionDragActive(false))
-  }, [])
+    requestAnimationFrame(() => {
+      setIsSelectionDragActive(false)
+      setDisplayNodes((nodes) => resolveParentChildSelectionConflicts(nodes, blocks))
+    })
+  }, [blocks])
 
   /** Captures initial positions when selection drag starts (for marquee-selected nodes). */
   const onSelectionDragStart = useCallback(
     (_event: React.MouseEvent, nodes: Node[]) => {
-      // Capture the parent ID of the first node as reference (they should all be in the same context)
       if (nodes.length > 0) {
         const firstNodeParentId = blocks[nodes[0].id]?.data?.parentId || null
         setDragStartParentId(firstNodeParentId)
       }
 
-      // Capture all selected nodes' positions for undo/redo
+      // Resolve parent-child conflicts and capture positions for undo/redo
+      setDisplayNodes((allNodes) => resolveParentChildSelectionConflicts(allNodes, blocks))
+
+      // Filter to nodes that won't be deselected (exclude children whose parent is selected)
+      const nodeIds = new Set(nodes.map((n) => n.id))
+      const effectiveNodes = nodes.filter((n) => {
+        const parentId = blocks[n.id]?.data?.parentId
+        return !parentId || !nodeIds.has(parentId)
+      })
+
       multiNodeDragStartRef.current.clear()
-      nodes.forEach((n) => {
-        const block = blocks[n.id]
-        if (block) {
+      effectiveNodes.forEach((n) => {
+        const blk = blocks[n.id]
+        if (blk) {
           multiNodeDragStartRef.current.set(n.id, {
             x: n.position.x,
             y: n.position.y,
-            parentId: block.data?.parentId,
+            parentId: blk.data?.parentId,
           })
         }
       })
@@ -2903,7 +2913,6 @@ const WorkflowContent = React.memo(() => {
 
       eligibleNodes.forEach((node) => {
         const absolutePos = getNodeAbsolutePosition(node.id)
-        const block = blocks[node.id]
         const width = BLOCK_DIMENSIONS.FIXED_WIDTH
         const height = Math.max(
           node.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
@@ -3129,13 +3138,11 @@ const WorkflowContent = React.memo(() => {
 
   /**
    * Handles node click to select the node in ReactFlow.
-   * This ensures clicking anywhere on a block (not just the drag handle)
-   * selects it for delete/backspace and multi-select operations.
+   * Parent-child conflict resolution happens automatically in onNodesChange.
    */
   const handleNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
       const isMultiSelect = event.shiftKey || event.metaKey || event.ctrlKey
-
       setNodes((nodes) =>
         nodes.map((n) => ({
           ...n,

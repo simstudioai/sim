@@ -63,6 +63,47 @@ export function clampPositionToContainer(
 }
 
 /**
+ * Calculates container dimensions based on child block positions.
+ * Single source of truth for container sizing - ensures consistency between
+ * live drag updates and final dimension calculations.
+ *
+ * @param childPositions - Array of child positions with their dimensions
+ * @returns Calculated width and height for the container
+ */
+export function calculateContainerDimensions(
+  childPositions: Array<{ x: number; y: number; width: number; height: number }>
+): { width: number; height: number } {
+  if (childPositions.length === 0) {
+    return {
+      width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+      height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+    }
+  }
+
+  let maxRight = 0
+  let maxBottom = 0
+
+  for (const child of childPositions) {
+    maxRight = Math.max(maxRight, child.x + child.width)
+    maxBottom = Math.max(maxBottom, child.y + child.height)
+  }
+
+  const width = Math.max(
+    CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+    CONTAINER_DIMENSIONS.LEFT_PADDING + maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
+  )
+  const height = Math.max(
+    CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+    CONTAINER_DIMENSIONS.HEADER_HEIGHT +
+      CONTAINER_DIMENSIONS.TOP_PADDING +
+      maxBottom +
+      CONTAINER_DIMENSIONS.BOTTOM_PADDING
+  )
+
+  return { width, height }
+}
+
+/**
  * Hook providing utilities for node position, hierarchy, and dimension calculations
  */
 export function useNodeUtilities(blocks: Record<string, any>) {
@@ -306,36 +347,16 @@ export function useNodeUtilities(blocks: Record<string, any>) {
         (id) => currentBlocks[id]?.data?.parentId === nodeId
       )
 
-      if (childBlockIds.length === 0) {
-        return {
-          width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-          height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-        }
-      }
+      const childPositions = childBlockIds
+        .map((childId) => {
+          const child = currentBlocks[childId]
+          if (!child?.position) return null
+          const { width, height } = getBlockDimensions(childId)
+          return { x: child.position.x, y: child.position.y, width, height }
+        })
+        .filter((p): p is NonNullable<typeof p> => p !== null)
 
-      let maxRight = 0
-      let maxBottom = 0
-
-      for (const childId of childBlockIds) {
-        const child = currentBlocks[childId]
-        if (!child?.position) continue
-
-        const { width: childWidth, height: childHeight } = getBlockDimensions(childId)
-
-        maxRight = Math.max(maxRight, child.position.x + childWidth)
-        maxBottom = Math.max(maxBottom, child.position.y + childHeight)
-      }
-
-      const width = Math.max(
-        CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-        maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
-      )
-      const height = Math.max(
-        CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-        maxBottom + CONTAINER_DIMENSIONS.BOTTOM_PADDING
-      )
-
-      return { width, height }
+      return calculateContainerDimensions(childPositions)
     },
     [getBlockDimensions]
   )

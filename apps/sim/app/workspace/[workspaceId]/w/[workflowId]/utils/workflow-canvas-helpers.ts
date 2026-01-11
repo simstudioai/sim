@@ -70,19 +70,22 @@ export function clearDragHighlights(): void {
  * Defers selection to next animation frame to allow displayNodes to sync from store first.
  * This is necessary because the component uses controlled state (nodes={displayNodes})
  * and newly added blocks need time to propagate through the store → derivedNodes → displayNodes cycle.
+ * Automatically resolves parent-child selection conflicts to prevent wiggle during drag.
  */
 export function selectNodesDeferred(
   nodeIds: string[],
-  setDisplayNodes: (updater: (nodes: Node[]) => Node[]) => void
+  setDisplayNodes: (updater: (nodes: Node[]) => Node[]) => void,
+  blocks: Record<string, { data?: { parentId?: string } }>
 ): void {
   const idsSet = new Set(nodeIds)
   requestAnimationFrame(() => {
-    setDisplayNodes((nodes) =>
-      nodes.map((node) => ({
+    setDisplayNodes((nodes) => {
+      const withSelection = nodes.map((node) => ({
         ...node,
         selected: idsSet.has(node.id),
       }))
-    )
+      return resolveParentChildSelectionConflicts(withSelection, blocks)
+    })
   })
 }
 
@@ -185,4 +188,27 @@ export function computeParentUpdateEntries(
       affectedEdges: edgesForThisNode,
     }
   })
+}
+
+/**
+ * Resolves parent-child selection conflicts by deselecting children whose parent is also selected.
+ */
+export function resolveParentChildSelectionConflicts(
+  nodes: Node[],
+  blocks: Record<string, { data?: { parentId?: string } }>
+): Node[] {
+  const selectedIds = new Set(nodes.filter((n) => n.selected).map((n) => n.id))
+
+  let hasConflict = false
+  const resolved = nodes.map((n) => {
+    if (!n.selected) return n
+    const parentId = n.parentId || n.data?.parentId || blocks[n.id]?.data?.parentId
+    if (parentId && selectedIds.has(parentId)) {
+      hasConflict = true
+      return { ...n, selected: false }
+    }
+    return n
+  })
+
+  return hasConflict ? resolved : nodes
 }
