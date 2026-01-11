@@ -14,6 +14,7 @@ const initialState: General = {
   isBillingUsageNotificationsEnabled: true,
   isErrorNotificationsEnabled: true,
   snapToGridSize: 0,
+  showActionBar: true,
 }
 
 export const useGeneralStore = create<GeneralStore>()(

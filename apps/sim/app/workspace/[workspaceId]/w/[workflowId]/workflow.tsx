@@ -24,6 +24,7 @@ import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/b
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
+  ActionBar,
   CommandList,
   DiffControls,
   Notifications,
@@ -62,8 +63,10 @@ import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
+import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
+import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 import { useExecutionStore } from '@/stores/execution'
@@ -208,9 +211,9 @@ const WorkflowContent = React.memo(() => {
   const [isCanvasReady, setIsCanvasReady] = useState(false)
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
   const [selectedEdges, setSelectedEdges] = useState<SelectedEdgesMap>(new Map())
-  const [isShiftPressed, setIsShiftPressed] = useState(false)
-  const [isSelectionDragActive, setIsSelectionDragActive] = useState(false)
   const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
+  const canvasMode = useCanvasModeStore((state) => state.mode)
+  const isHandMode = canvasMode === 'hand'
   const [oauthModal, setOauthModal] = useState<{
     provider: OAuthProvider
     serviceId: string
@@ -221,7 +224,9 @@ const WorkflowContent = React.memo(() => {
 
   const params = useParams()
   const router = useRouter()
-  const { screenToFlowPosition, getNodes, setNodes, fitView, getIntersectingNodes } = useReactFlow()
+  const reactFlowInstance = useReactFlow()
+  const { screenToFlowPosition, getNodes, setNodes, getIntersectingNodes } = reactFlowInstance
+  const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
   const { emitCursorUpdate } = useSocket()
 
   const workspaceId = params.workspaceId as string
@@ -1498,10 +1503,10 @@ const WorkflowContent = React.memo(() => {
             foundNodes: changedNodes.length,
           })
           requestAnimationFrame(() => {
-            fitView({
+            fitViewToBounds({
               nodes: changedNodes,
               duration: 600,
-              padding: 0.3,
+              padding: 0.1,
               minZoom: 0.5,
               maxZoom: 1.0,
             })
@@ -1509,18 +1514,18 @@ const WorkflowContent = React.memo(() => {
         } else {
           logger.info('Diff ready - no changed nodes found, fitting all')
           requestAnimationFrame(() => {
-            fitView({ padding: 0.3, duration: 600 })
+            fitViewToBounds({ padding: 0.1, duration: 600 })
           })
         }
       } else {
         logger.info('Diff ready - no changed blocks, fitting all')
         requestAnimationFrame(() => {
-          fitView({ padding: 0.3, duration: 600 })
+          fitViewToBounds({ padding: 0.1, duration: 600 })
         })
       }
     }
     prevDiffReadyRef.current = isDiffReady
-  }, [isDiffReady, diffAnalysis, fitView, getNodes])
+  }, [isDiffReady, diffAnalysis, fitViewToBounds, getNodes])
 
   /** Displays trigger warning notifications. */
   useEffect(() => {
@@ -1911,47 +1916,6 @@ const WorkflowContent = React.memo(() => {
 
   // Local state for nodes - allows smooth drag without store updates on every frame
   const [displayNodes, setDisplayNodes] = useState<Node[]>([])
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') setIsShiftPressed(true)
-    }
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') setIsShiftPressed(false)
-    }
-    const handleFocusLoss = () => {
-      setIsShiftPressed(false)
-      setIsSelectionDragActive(false)
-    }
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        handleFocusLoss()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
-    window.addEventListener('blur', handleFocusLoss)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
-      window.removeEventListener('blur', handleFocusLoss)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (isShiftPressed) {
-      document.body.style.userSelect = 'none'
-    } else {
-      document.body.style.userSelect = ''
-    }
-    return () => {
-      document.body.style.userSelect = ''
-    }
-  }, [isShiftPressed])
 
   useEffect(() => {
     // Preserve selection state when syncing from derivedNodes
@@ -2836,17 +2800,6 @@ const WorkflowContent = React.memo(() => {
     ]
   )
 
-  // Lock selection mode when selection drag starts (captures Shift state at drag start)
-  const onSelectionStart = useCallback(() => {
-    if (isShiftPressed) {
-      setIsSelectionDragActive(true)
-    }
-  }, [isShiftPressed])
-
-  const onSelectionEnd = useCallback(() => {
-    requestAnimationFrame(() => setIsSelectionDragActive(false))
-  }, [])
-
   /** Captures initial positions when selection drag starts (for marquee-selected nodes). */
   const onSelectionDragStart = useCallback(
     (_event: React.MouseEvent, nodes: Node[]) => {
@@ -2996,7 +2949,6 @@ const WorkflowContent = React.memo(() => {
 
   const onSelectionDragStop = useCallback(
     (_event: React.MouseEvent, nodes: any[]) => {
-      requestAnimationFrame(() => setIsSelectionDragActive(false))
       clearDragHighlights()
       if (nodes.length === 0) return
 
@@ -3327,11 +3279,9 @@ const WorkflowContent = React.memo(() => {
               onPointerMove={handleCanvasPointerMove}
               onPointerLeave={handleCanvasPointerLeave}
               elementsSelectable={true}
-              selectionOnDrag={isShiftPressed || isSelectionDragActive}
+              selectionOnDrag={!isHandMode}
               selectionMode={SelectionMode.Partial}
-              panOnDrag={isShiftPressed || isSelectionDragActive ? false : [0, 1]}
-              onSelectionStart={onSelectionStart}
-              onSelectionEnd={onSelectionEnd}
+              panOnDrag={isHandMode ? [0, 1] : false}
               multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
               nodesConnectable={effectivePermissions.canEdit}
               nodesDraggable={effectivePermissions.canEdit}
@@ -3357,6 +3307,8 @@ const WorkflowContent = React.memo(() => {
             />
 
             <Cursors />
+
+            <ActionBar />
 
             <Suspense fallback={null}>
               <LazyChat />

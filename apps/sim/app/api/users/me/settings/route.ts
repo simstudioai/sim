@@ -27,6 +27,7 @@ const SettingsSchema = z.object({
   superUserModeEnabled: z.boolean().optional(),
   errorNotificationsEnabled: z.boolean().optional(),
   snapToGridSize: z.number().min(0).max(50).optional(),
+  showActionBar: z.boolean().optional(),
 })
 
 const defaultSettings = {
@@ -39,6 +40,7 @@ const defaultSettings = {
   superUserModeEnabled: false,
   errorNotificationsEnabled: true,
   snapToGridSize: 0,
+  showActionBar: true,
 }
 
 export async function GET() {
@@ -73,6 +75,7 @@ export async function GET() {
           superUserModeEnabled: userSettings.superUserModeEnabled ?? true,
           errorNotificationsEnabled: userSettings.errorNotificationsEnabled ?? true,
           snapToGridSize: userSettings.snapToGridSize ?? 0,
+          showActionBar: userSettings.showActionBar ?? true,
         },
       },
       { status: 200 }

@@ -495,9 +495,6 @@ export function Panel() {
                 Editor
               </Button>
             </div>
-
-            {/* Workflow Controls (Undo/Redo) */}
-            {/* <WorkflowControls /> */}
           </div>
 
           {/* Tab Content - Keep all tabs mounted but hidden to preserve state */}
