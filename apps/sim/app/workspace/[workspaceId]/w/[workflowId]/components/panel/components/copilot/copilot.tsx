@@ -124,8 +124,10 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     isSendingMessage,
   })
 
-  // Handle scroll management
-  const { scrollAreaRef, scrollToBottom } = useScrollManagement(messages, isSendingMessage)
+  // Handle scroll management (80px stickiness for copilot)
+  const { scrollAreaRef, scrollToBottom } = useScrollManagement(messages, isSendingMessage, {
+    stickinessThreshold: 80,
+  })
 
   // Handle chat history grouping
   const { groupedChats, handleHistoryDropdownOpen: handleHistoryDropdownOpenHook } = useChatHistory(

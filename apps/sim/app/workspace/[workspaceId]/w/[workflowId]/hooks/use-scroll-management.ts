@@ -12,6 +12,12 @@ interface UseScrollManagementOptions {
    * - `auto`: immediate scroll to bottom (used by floating chat to avoid jitter).
    */
   behavior?: 'auto' | 'smooth'
+  /**
+   * Distance from bottom (in pixels) within which auto-scroll stays active.
+   * Lower values = less sticky (user can scroll away easier).
+   * Default is 100px.
+   */
+  stickinessThreshold?: number
 }
 
 /**
@@ -34,6 +40,7 @@ export function useScrollManagement(
   const programmaticScrollInProgressRef = useRef(false)
   const lastScrollTopRef = useRef(0)
   const scrollBehavior: 'auto' | 'smooth' = options?.behavior ?? 'smooth'
+  const stickinessThreshold = options?.stickinessThreshold ?? 100
 
   /**
    * Scrolls the container to the bottom with smooth animation
@@ -74,7 +81,7 @@ export function useScrollManagement(
     const { scrollTop, scrollHeight, clientHeight } = scrollContainer
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight
 
-    const nearBottom = distanceFromBottom <= 100
+    const nearBottom = distanceFromBottom <= stickinessThreshold
     setIsNearBottom(nearBottom)
 
     if (isSendingMessage) {
@@ -95,7 +102,7 @@ export function useScrollManagement(
 
     // Track last scrollTop for direction detection
     lastScrollTopRef.current = scrollTop
-  }, [getScrollContainer, isSendingMessage, userHasScrolledDuringStream])
+  }, [getScrollContainer, isSendingMessage, userHasScrolledDuringStream, stickinessThreshold])
 
   // Attach scroll listener
   useEffect(() => {
@@ -174,14 +181,20 @@ export function useScrollManagement(
 
       const { scrollTop, scrollHeight, clientHeight } = scrollContainer
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-      const nearBottom = distanceFromBottom <= 120
+      const nearBottom = distanceFromBottom <= stickinessThreshold
       if (nearBottom) {
         scrollToBottom()
       }
     }, 100)
 
     return () => window.clearInterval(intervalId)
-  }, [isSendingMessage, userHasScrolledDuringStream, getScrollContainer, scrollToBottom])
+  }, [
+    isSendingMessage,
+    userHasScrolledDuringStream,
+    getScrollContainer,
+    scrollToBottom,
+    stickinessThreshold,
+  ])
 
   return {
     scrollAreaRef,

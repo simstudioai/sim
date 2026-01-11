@@ -271,11 +271,31 @@ function resolveToolDisplay(
       if (cand?.text || cand?.icon) return { text: cand.text, icon: cand.icon }
     }
   } catch {}
-  // Humanized fallback as last resort
+  // Humanized fallback as last resort - include state verb for proper verb-noun styling
   try {
     if (toolName) {
-      const text = toolName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-      return { text, icon: undefined as any }
+      const formattedName = toolName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+      // Add state verb prefix for verb-noun rendering in tool-call component
+      let stateVerb: string
+      switch (state) {
+        case ClientToolCallState.pending:
+        case ClientToolCallState.executing:
+          stateVerb = 'Executing'
+          break
+        case ClientToolCallState.success:
+          stateVerb = 'Executed'
+          break
+        case ClientToolCallState.error:
+          stateVerb = 'Failed'
+          break
+        case ClientToolCallState.rejected:
+        case ClientToolCallState.aborted:
+          stateVerb = 'Skipped'
+          break
+        default:
+          stateVerb = 'Executing'
+      }
+      return { text: `${stateVerb} ${formattedName}`, icon: undefined as any }
     }
   } catch {}
   return undefined
@@ -572,8 +592,30 @@ function stripTodoTags(text: string): string {
  */
 function deepClone<T>(obj: T): T {
   try {
-    return JSON.parse(JSON.stringify(obj))
-  } catch {
+    const json = JSON.stringify(obj)
+    if (!json || json === 'undefined') {
+      logger.warn('[deepClone] JSON.stringify returned empty for object', {
+        type: typeof obj,
+        isArray: Array.isArray(obj),
+        length: Array.isArray(obj) ? obj.length : undefined,
+      })
+      return obj
+    }
+    const parsed = JSON.parse(json)
+    // Verify the clone worked
+    if (Array.isArray(obj) && (!Array.isArray(parsed) || parsed.length !== obj.length)) {
+      logger.warn('[deepClone] Array clone mismatch', {
+        originalLength: obj.length,
+        clonedLength: Array.isArray(parsed) ? parsed.length : 'not array',
+      })
+    }
+    return parsed
+  } catch (err) {
+    logger.error('[deepClone] Failed to clone object', {
+      error: String(err),
+      type: typeof obj,
+      isArray: Array.isArray(obj),
+    })
     return obj
   }
 }
@@ -587,11 +629,18 @@ function serializeMessagesForDB(messages: CopilotMessage[]): any[] {
   const result = messages
     .map((msg) => {
       // Deep clone the entire message to ensure all nested data is serializable
+      // Ensure timestamp is always a string (Zod schema requires it)
+      let timestamp: string = msg.timestamp
+      if (typeof timestamp !== 'string') {
+        const ts = timestamp as any
+        timestamp = ts instanceof Date ? ts.toISOString() : new Date().toISOString()
+      }
+
       const serialized: any = {
         id: msg.id,
         role: msg.role,
         content: msg.content || '',
-        timestamp: msg.timestamp,
+        timestamp,
       }
 
       // Deep clone contentBlocks (the main rendering data)
@@ -3151,7 +3200,7 @@ export const useCopilotStore = create<CopilotStore>()(
               model: selectedModel,
             }
 
-            await fetch('/api/copilot/chat/update-messages', {
+            const saveResponse = await fetch('/api/copilot/chat/update-messages', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -3162,6 +3211,18 @@ export const useCopilotStore = create<CopilotStore>()(
               }),
             })
 
+            if (!saveResponse.ok) {
+              const errorText = await saveResponse.text().catch(() => '')
+              logger.error('[Stream Done] Failed to save messages to DB', {
+                status: saveResponse.status,
+                error: errorText,
+              })
+            } else {
+              logger.info('[Stream Done] Successfully saved messages to DB', {
+                messageCount: dbMessages.length,
+              })
+            }
+
             // Update local chat object with plan artifact and config
             set({
               currentChat: {
@@ -3170,7 +3231,9 @@ export const useCopilotStore = create<CopilotStore>()(
                 config,
               },
             })
-          } catch {}
+          } catch (err) {
+            logger.error('[Stream Done] Exception saving messages', { error: String(err) })
+          }
         }
 
         // Post copilot_stats record (input/output tokens can be null for now)
