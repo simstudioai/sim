@@ -303,8 +303,8 @@ export const DiffControls = memo(function DiffControls() {
         !isResizing && 'transition-[bottom,right] duration-100 ease-out'
       )}
       style={{
-        bottom: 'calc(var(--terminal-height) + 8px)',
-        right: 'calc(var(--panel-width) + 8px)',
+        bottom: 'calc(var(--terminal-height) + 16px)',
+        right: 'calc(var(--panel-width) + 16px)',
       }}
     >
       <div

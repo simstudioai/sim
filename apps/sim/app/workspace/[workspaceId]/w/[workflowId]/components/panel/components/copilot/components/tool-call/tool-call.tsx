@@ -413,6 +413,8 @@ const ACTION_VERBS = [
   'Listed',
   'Editing',
   'Edited',
+  'Executing',
+  'Executed',
   'Running',
   'Ran',
   'Designing',
@@ -2443,8 +2445,8 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           <ShimmerOverlayText
             text={displayName}
             active={isLoadingState}
-            isSpecial={false}
-            className='font-[470] font-season text-[var(--text-muted)] text-sm'
+            isSpecial={isSpecial}
+            className='font-[470] font-season text-[var(--text-secondary)] text-sm dark:text-[var(--text-muted)]'
           />
         </div>
         {code && (

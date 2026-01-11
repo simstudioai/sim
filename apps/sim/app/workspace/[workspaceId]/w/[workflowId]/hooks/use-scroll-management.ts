@@ -188,7 +188,13 @@ export function useScrollManagement(
     }, 100)
 
     return () => window.clearInterval(intervalId)
-  }, [isSendingMessage, userHasScrolledDuringStream, getScrollContainer, scrollToBottom, stickinessThreshold])
+  }, [
+    isSendingMessage,
+    userHasScrolledDuringStream,
+    getScrollContainer,
+    scrollToBottom,
+    stickinessThreshold,
+  ])
 
   return {
     scrollAreaRef,

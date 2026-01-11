@@ -271,11 +271,31 @@ function resolveToolDisplay(
       if (cand?.text || cand?.icon) return { text: cand.text, icon: cand.icon }
     }
   } catch {}
-  // Humanized fallback as last resort
+  // Humanized fallback as last resort - include state verb for proper verb-noun styling
   try {
     if (toolName) {
-      const text = toolName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-      return { text, icon: undefined as any }
+      const formattedName = toolName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+      // Add state verb prefix for verb-noun rendering in tool-call component
+      let stateVerb: string
+      switch (state) {
+        case ClientToolCallState.pending:
+        case ClientToolCallState.executing:
+          stateVerb = 'Executing'
+          break
+        case ClientToolCallState.success:
+          stateVerb = 'Executed'
+          break
+        case ClientToolCallState.error:
+          stateVerb = 'Failed'
+          break
+        case ClientToolCallState.rejected:
+        case ClientToolCallState.aborted:
+          stateVerb = 'Skipped'
+          break
+        default:
+          stateVerb = 'Executing'
+      }
+      return { text: `${stateVerb} ${formattedName}`, icon: undefined as any }
     }
   } catch {}
   return undefined
