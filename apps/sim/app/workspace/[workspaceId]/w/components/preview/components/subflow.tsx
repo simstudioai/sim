@@ -38,7 +38,7 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
 
   return (
     <div
-      className='relative select-none rounded-[8px] border border-[var(--border)]'
+      className='relative select-none rounded-[8px] border border-[var(--border-1)]'
       style={{
         width,
         height,
