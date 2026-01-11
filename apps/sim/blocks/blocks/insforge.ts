@@ -228,10 +228,10 @@ export const InsForgeBlock: BlockConfig<InsForgeBaseResponse> = {
     },
     // Storage Delete fields
     {
-      id: 'paths',
-      title: 'File Paths (JSON array)',
-      type: 'code',
-      placeholder: '["folder/file1.jpg", "folder/file2.jpg"]',
+      id: 'path',
+      title: 'File Path',
+      type: 'short-input',
+      placeholder: 'folder/file.jpg',
       condition: { field: 'operation', value: 'storage_delete' },
       required: true,
     },
