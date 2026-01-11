@@ -48,7 +48,6 @@ import {
   getClampedPositionForNode,
   isInEditableElement,
   resolveParentChildSelectionConflicts,
-  selectNodesDeferred,
   useAutoLayout,
   useCurrentWorkflow,
   useNodeUtilities,
@@ -357,6 +356,9 @@ const WorkflowContent = React.memo(() => {
   const multiNodeDragStartRef = useRef<Map<string, { x: number; y: number; parentId?: string }>>(
     new Map()
   )
+
+  /** Stores node IDs to select on next derivedNodes sync (for paste/duplicate operations). */
+  const pendingSelectionRef = useRef<Set<string> | null>(null)
 
   /** Re-applies diff markers when blocks change after socket rehydration. */
   const blocksRef = useRef(blocks)
@@ -689,18 +691,15 @@ const WorkflowContent = React.memo(() => {
       return
     }
 
+    // Set pending selection before adding blocks - sync effect will apply it
+    pendingSelectionRef.current = new Set(pastedBlocksArray.map((b) => b.id))
+
     collaborativeBatchAddBlocks(
       pastedBlocksArray,
       pastedEdges,
       pastedLoops,
       pastedParallels,
       pastedSubBlockValues
-    )
-
-    selectNodesDeferred(
-      pastedBlocksArray.map((b) => b.id),
-      setDisplayNodes,
-      blocks
     )
   }, [
     hasClipboard,
@@ -738,18 +737,15 @@ const WorkflowContent = React.memo(() => {
       return
     }
 
+    // Set pending selection before adding blocks - sync effect will apply it
+    pendingSelectionRef.current = new Set(pastedBlocksArray.map((b) => b.id))
+
     collaborativeBatchAddBlocks(
       pastedBlocksArray,
       pastedEdges,
       pastedLoops,
       pastedParallels,
       pastedSubBlockValues
-    )
-
-    selectNodesDeferred(
-      pastedBlocksArray.map((b) => b.id),
-      setDisplayNodes,
-      blocks
     )
   }, [
     contextMenuBlocks,
@@ -884,18 +880,15 @@ const WorkflowContent = React.memo(() => {
               return
             }
 
+            // Set pending selection before adding blocks - sync effect will apply it
+            pendingSelectionRef.current = new Set(pastedBlocks.map((b) => b.id))
+
             collaborativeBatchAddBlocks(
               pastedBlocks,
               pasteData.edges,
               pasteData.loops,
               pasteData.parallels,
               pasteData.subBlockValues
-            )
-
-            selectNodesDeferred(
-              pastedBlocks.map((b) => b.id),
-              setDisplayNodes,
-              blocks
             )
           }
         }
@@ -1959,15 +1952,27 @@ const WorkflowContent = React.memo(() => {
   }, [isShiftPressed])
 
   useEffect(() => {
-    // Preserve selection state when syncing from derivedNodes
+    // Check for pending selection (from paste/duplicate), otherwise preserve existing selection
+    const pendingSelection = pendingSelectionRef.current
+    pendingSelectionRef.current = null
+
     setDisplayNodes((currentNodes) => {
+      if (pendingSelection) {
+        // Apply pending selection and resolve parent-child conflicts
+        const withSelection = derivedNodes.map((node) => ({
+          ...node,
+          selected: pendingSelection.has(node.id),
+        }))
+        return resolveParentChildSelectionConflicts(withSelection, blocks)
+      }
+      // Preserve existing selection state
       const selectedIds = new Set(currentNodes.filter((n) => n.selected).map((n) => n.id))
       return derivedNodes.map((node) => ({
         ...node,
         selected: selectedIds.has(node.id),
       }))
     })
-  }, [derivedNodes])
+  }, [derivedNodes, blocks])
 
   /** Handles ActionBar remove-from-subflow events. */
   useEffect(() => {

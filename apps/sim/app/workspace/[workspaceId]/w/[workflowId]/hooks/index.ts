@@ -5,7 +5,6 @@ export {
   getClampedPositionForNode,
   isInEditableElement,
   resolveParentChildSelectionConflicts,
-  selectNodesDeferred,
   validateTriggerPaste,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-canvas-helpers'
 export { useFloatBoundarySync, useFloatDrag, useFloatResize } from './float'

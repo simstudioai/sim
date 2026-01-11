@@ -65,30 +65,6 @@ export function clearDragHighlights(): void {
   document.body.style.cursor = ''
 }
 
-/**
- * Selects nodes by their IDs after paste/duplicate operations.
- * Defers selection to next animation frame to allow displayNodes to sync from store first.
- * This is necessary because the component uses controlled state (nodes={displayNodes})
- * and newly added blocks need time to propagate through the store → derivedNodes → displayNodes cycle.
- * Automatically resolves parent-child selection conflicts to prevent wiggle during drag.
- */
-export function selectNodesDeferred(
-  nodeIds: string[],
-  setDisplayNodes: (updater: (nodes: Node[]) => Node[]) => void,
-  blocks: Record<string, { data?: { parentId?: string } }>
-): void {
-  const idsSet = new Set(nodeIds)
-  requestAnimationFrame(() => {
-    setDisplayNodes((nodes) => {
-      const withSelection = nodes.map((node) => ({
-        ...node,
-        selected: idsSet.has(node.id),
-      }))
-      return resolveParentChildSelectionConflicts(withSelection, blocks)
-    })
-  })
-}
-
 interface BlockData {
   height?: number
   data?: {
