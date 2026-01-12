@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { sanitizeSqlIdentifier } from '@/lib/core/security/input-validation'
+import { escapeSqlString } from '@/lib/core/security/input-validation'
 import type {
   SupabaseColumnSchema,
   SupabaseIntrospectParams,
@@ -152,7 +152,7 @@ SELECT json_build_object(
  * SQL query filtered by specific schema
  */
 const getSchemaFilteredSQL = (schema: string) => {
-  const safeSchema = sanitizeSqlIdentifier(schema)
+  const safeSchema = escapeSqlString(schema)
   return `
 WITH table_info AS (
   SELECT

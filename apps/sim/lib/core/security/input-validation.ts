@@ -1006,25 +1006,20 @@ export function validateGoogleCalendarId(
 }
 
 /**
- * Sanitizes a SQL identifier by escaping single quotes
+ * Escapes a value for use in single-quoted SQL string contexts
  *
- * This function escapes single quotes by doubling them (PostgreSQL/MySQL standard)
- * to prevent SQL injection while allowing all valid identifier names.
+ * Escapes single quotes by doubling them (SQL standard: `'` → `''`).
+ * This prevents SQL injection because `''` inside a single-quoted string
+ * represents a literal quote character, keeping the entire value as one string.
  *
- * @param name - The identifier name to sanitize
- * @param maxLength - Maximum length allowed (default: 63 for PostgreSQL)
- * @returns The sanitized identifier
- * @throws Error if name is empty or exceeds maxLength
- *
- * @example
- * ```typescript
- * const safeSchema = sanitizeSqlIdentifier(schema)
- * const query = `SELECT * FROM ${safeSchema}.users`
- * ```
+ * @param value - The value to escape
+ * @param maxLength - Maximum length allowed (default: 63)
+ * @returns The escaped value safe for single-quoted SQL strings
+ * @throws Error if value is empty or exceeds maxLength
  */
-export function sanitizeSqlIdentifier(name: string, maxLength = 63): string {
-  if (!name || name.length > maxLength) {
-    throw new Error(`Invalid identifier: ${name}`)
+export function escapeSqlString(value: string, maxLength = 63): string {
+  if (!value || value.length > maxLength) {
+    throw new Error(`Invalid value: ${value}`)
   }
-  return name.replace(/'/g, "''")
+  return value.replace(/'/g, "''")
 }
