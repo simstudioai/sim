@@ -1004,22 +1004,3 @@ export function validateGoogleCalendarId(
 
   return { isValid: true, sanitized: value }
 }
-
-/**
- * Escapes a value for use in single-quoted SQL string contexts
- *
- * Escapes single quotes by doubling them (SQL standard: `'` → `''`).
- * This prevents SQL injection because `''` inside a single-quoted string
- * represents a literal quote character, keeping the entire value as one string.
- *
- * @param value - The value to escape
- * @param maxLength - Maximum length allowed (default: 63)
- * @returns The escaped value safe for single-quoted SQL strings
- * @throws Error if value is empty or exceeds maxLength
- */
-export function escapeSqlString(value: string, maxLength = 63): string {
-  if (!value || value.length > maxLength) {
-    throw new Error(`Invalid value: ${value}`)
-  }
-  return value.replace(/'/g, "''")
-}

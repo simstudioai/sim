@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { escapeSqlString } from '@/lib/core/security/input-validation'
 import type {
   SupabaseColumnSchema,
   SupabaseIntrospectParams,
@@ -147,6 +146,16 @@ SELECT json_build_object(
   )
 ) AS result;
 `
+
+/**
+ * Escapes a value for single-quoted SQL strings by doubling single quotes
+ */
+function escapeSqlString(value: string): string {
+  if (!value || value.length > 63) {
+    throw new Error(`Invalid value: ${value}`)
+  }
+  return value.replace(/'/g, "''")
+}
 
 /**
  * SQL query filtered by specific schema
