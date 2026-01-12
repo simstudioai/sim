@@ -4594,3 +4594,22 @@ export function BedrockIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function InsForgeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      width='24'
+      height='24'
+      viewBox='0 0 240 240'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path
+        d='M26.1184 101.6C23.2939 98.7833 23.2939 94.2166 26.1184 91.4L97.7167 20L200 20L77.26 142.4C74.4355 145.217 69.8562 145.217 67.0317 142.4L26.1184 101.6Z'
+        fill='currentColor'
+      />
+      <path d='M155.251 77.375L200 122V224L104.109 128.375L155.251 77.375Z' fill='currentColor' />
+    </svg>
+  )
+}

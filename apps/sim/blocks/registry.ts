@@ -54,6 +54,7 @@ import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
 import { ImapBlock } from '@/blocks/blocks/imap'
 import { IncidentioBlock } from '@/blocks/blocks/incidentio'
 import { InputTriggerBlock } from '@/blocks/blocks/input_trigger'
+import { InsForgeBlock } from '@/blocks/blocks/insforge'
 import { IntercomBlock } from '@/blocks/blocks/intercom'
 import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
@@ -201,6 +202,7 @@ export const registry: Record<string, BlockConfig> = {
   image_generator: ImageGeneratorBlock,
   imap: ImapBlock,
   incidentio: IncidentioBlock,
+  insforge: InsForgeBlock,
   input_trigger: InputTriggerBlock,
   intercom: IntercomBlock,
   jina: JinaBlock,
