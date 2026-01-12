@@ -123,7 +123,6 @@ interface GoogleCalendarListV2Response {
   success: boolean
   output: {
     nextPageToken?: string
-    nextSyncToken?: string
     timeZone?: string
     events: Array<Record<string, any>>
   }
@@ -145,7 +144,6 @@ export const listV2Tool: ToolConfig<GoogleCalendarListParams, GoogleCalendarList
       success: true,
       output: {
         nextPageToken: data.nextPageToken,
-        nextSyncToken: data.nextSyncToken,
         timeZone: data.timeZone,
         events: events.map((event: GoogleCalendarApiEventResponse) => ({
           id: event.id,
@@ -165,7 +163,6 @@ export const listV2Tool: ToolConfig<GoogleCalendarListParams, GoogleCalendarList
   },
   outputs: {
     nextPageToken: { type: 'string', description: 'Next page token', optional: true },
-    nextSyncToken: { type: 'string', description: 'Next sync token', optional: true },
     timeZone: { type: 'string', description: 'Calendar time zone', optional: true },
     events: { type: 'json', description: 'List of events' },
   },
