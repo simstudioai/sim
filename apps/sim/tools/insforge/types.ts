@@ -120,6 +120,7 @@ export interface InsForgeInvokeParams {
   apiKey: string
   baseUrl: string
   functionName: string
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   body?: Record<string, unknown>
 }
 

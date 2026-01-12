@@ -20,6 +20,12 @@ export const invokeTool: ToolConfig<InsForgeInvokeParams, InsForgeInvokeResponse
       visibility: 'user-or-llm',
       description: 'The name of the function to invoke',
     },
+    method: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'HTTP method (GET, POST, PUT, DELETE). Default: POST',
+    },
     body: {
       type: 'json',
       required: false,
@@ -39,7 +45,7 @@ export const invokeTool: ToolConfig<InsForgeInvokeParams, InsForgeInvokeResponse
       const base = params.baseUrl.replace(/\/$/, '')
       return `${base}/functions/${params.functionName}`
     },
-    method: 'POST',
+    method: (params) => (params.method as 'GET' | 'POST' | 'PUT' | 'DELETE') || 'POST',
     headers: (params) => ({
       apikey: params.apiKey,
       Authorization: `Bearer ${params.apiKey}`,
