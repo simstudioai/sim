@@ -43,7 +43,7 @@ export const invokeTool: ToolConfig<InsForgeInvokeParams, InsForgeInvokeResponse
   request: {
     url: (params) => {
       const base = params.baseUrl.replace(/\/$/, '')
-      return `${base}/functions/${params.functionName}`
+      return `${base}/functions/${encodeURIComponent(params.functionName)}`
     },
     method: (params) => (params.method as 'GET' | 'POST' | 'PUT' | 'DELETE') || 'POST',
     headers: (params) => ({
