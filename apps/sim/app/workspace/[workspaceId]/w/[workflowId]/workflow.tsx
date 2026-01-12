@@ -3398,6 +3398,7 @@ const WorkflowContent = React.memo(() => {
               onPaste={handleContextPaste}
               onAddBlock={handleContextAddBlock}
               onAutoLayout={handleAutoLayout}
+              onFitToView={() => fitViewToBounds({ padding: 0.1, duration: 300 })}
               onOpenLogs={handleContextOpenLogs}
               onToggleVariables={handleContextToggleVariables}
               onToggleChat={handleContextToggleChat}
