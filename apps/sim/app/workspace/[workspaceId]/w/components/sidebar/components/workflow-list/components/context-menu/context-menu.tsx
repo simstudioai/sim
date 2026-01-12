@@ -347,11 +347,11 @@ export function ContextMenu({
                     title={name}
                     onClick={(e) => {
                       e.stopPropagation()
-                      onColorChange(color)
+                      setHexInput(color)
                     }}
                     className={cn(
                       'h-[20px] w-[20px] rounded-[4px]',
-                      currentColor?.toLowerCase() === color.toLowerCase() && 'ring-1 ring-white'
+                      hexInput.toLowerCase() === color.toLowerCase() && 'ring-1 ring-white'
                     )}
                     style={{ backgroundColor: color }}
                   />
