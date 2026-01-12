@@ -187,6 +187,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
   const { initialSection, mcpServerId, clearInitialState } = useSettingsModalStore()
   const [pendingMcpServerId, setPendingMcpServerId] = useState<string | null>(null)
+  const [workflowMcpResetKey, setWorkflowMcpResetKey] = useState(0)
   const { data: session } = useSession()
   const queryClient = useQueryClient()
   const { data: organizationsData } = useOrganizations()
@@ -297,7 +298,12 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   const handleSectionChange = useCallback(
     (sectionId: SettingsSection) => {
-      if (sectionId === activeSection) return
+      if (sectionId === activeSection) {
+        if (sectionId === 'workflow-mcp-servers') {
+          setWorkflowMcpResetKey((prev) => prev + 1)
+        }
+        return
+      }
 
       if (activeSection === 'environment' && environmentBeforeLeaveHandler.current) {
         environmentBeforeLeaveHandler.current(() => setActiveSection(sectionId))
@@ -523,7 +529,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             {activeSection === 'copilot' && <Copilot />}
             {activeSection === 'mcp' && <MCP initialServerId={pendingMcpServerId} />}
             {activeSection === 'custom-tools' && <CustomTools />}
-            {activeSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
+            {activeSection === 'workflow-mcp-servers' && (
+              <WorkflowMcpServers resetKey={workflowMcpResetKey} />
+            )}
           </SModalMainBody>
         </SModalMain>
       </SModalContent>

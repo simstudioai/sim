@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Check, Clipboard, Plus, Search } from 'lucide-react'
+import { Check, Clipboard, Plus, Search, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -36,13 +36,108 @@ import { FormField, McpServerSkeleton } from '../mcp/components'
 
 const logger = createLogger('WorkflowMcpServers')
 
+interface WorkflowTagSelectProps {
+  workflows: { id: string; name: string }[]
+  selectedIds: string[]
+  onSelectionChange: (ids: string[]) => void
+  isLoading?: boolean
+  disabled?: boolean
+}
+
+/**
+ * Multi-select workflow selector using Combobox.
+ * Shows selected workflows as removable badges inside the trigger.
+ */
+function WorkflowTagSelect({
+  workflows,
+  selectedIds,
+  onSelectionChange,
+  isLoading = false,
+  disabled = false,
+}: WorkflowTagSelectProps) {
+  const options: ComboboxOption[] = useMemo(() => {
+    return workflows.map((w) => ({
+      label: w.name,
+      value: w.id,
+    }))
+  }, [workflows])
+
+  const selectedWorkflows = useMemo(() => {
+    return workflows.filter((w) => selectedIds.includes(w.id))
+  }, [workflows, selectedIds])
+
+  const validSelectedIds = useMemo(() => {
+    const workflowIds = new Set(workflows.map((w) => w.id))
+    return selectedIds.filter((id) => workflowIds.has(id))
+  }, [workflows, selectedIds])
+
+  const handleRemove = (e: React.MouseEvent, id: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    onSelectionChange(selectedIds.filter((i) => i !== id))
+  }
+
+  const overlayContent = useMemo(() => {
+    if (selectedWorkflows.length === 0) {
+      return null
+    }
+
+    return (
+      <div className='flex items-center gap-[4px] overflow-hidden'>
+        {selectedWorkflows.slice(0, 2).map((w) => (
+          <Badge
+            key={w.id}
+            variant='outline'
+            className='pointer-events-auto cursor-pointer gap-[4px] rounded-[6px] px-[8px] py-[2px] text-[11px]'
+            onMouseDown={(e) => handleRemove(e, w.id)}
+          >
+            {w.name}
+            <X className='h-3 w-3' />
+          </Badge>
+        ))}
+        {selectedWorkflows.length > 2 && (
+          <Badge variant='outline' className='rounded-[6px] px-[8px] py-[2px] text-[11px]'>
+            +{selectedWorkflows.length - 2}
+          </Badge>
+        )}
+      </div>
+    )
+  }, [selectedWorkflows, selectedIds])
+
+  const isEmpty = workflows.length === 0
+
+  if (isLoading) {
+    return <Skeleton className='h-[34px] w-full rounded-[6px]' />
+  }
+
+  return (
+    <Combobox
+      options={options}
+      multiSelect
+      multiSelectValues={validSelectedIds}
+      onMultiSelectChange={onSelectionChange}
+      placeholder={isEmpty ? 'No deployed workflows available' : 'Select deployed workflows...'}
+      overlayContent={overlayContent}
+      searchable
+      searchPlaceholder='Search workflows...'
+      disabled={disabled || isEmpty}
+    />
+  )
+}
+
 interface ServerDetailViewProps {
   workspaceId: string
   serverId: string
   onBack: () => void
+  onToolsChanged?: () => void
 }
 
-function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewProps) {
+function ServerDetailView({
+  workspaceId,
+  serverId,
+  onBack,
+  onToolsChanged,
+}: ServerDetailViewProps) {
   const { data, isLoading, error, refetch } = useWorkflowMcpServer(workspaceId, serverId)
   const { data: deployedWorkflows = [], isLoading: isLoadingWorkflows } =
     useDeployedWorkflows(workspaceId)
@@ -81,6 +176,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         toolId: toolToDelete.id,
       })
       setToolToDelete(null)
+      onToolsChanged?.()
     } catch (err) {
       logger.error('Failed to delete tool:', err)
     }
@@ -97,6 +193,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
       setShowAddWorkflow(false)
       setSelectedWorkflowId(null)
       refetch()
+      onToolsChanged?.()
     } catch (err) {
       logger.error('Failed to add workflow:', err)
     }
@@ -119,6 +216,8 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   const selectedWorkflow = useMemo(() => {
     return availableWorkflows.find((w) => w.id === selectedWorkflowId)
   }, [availableWorkflows, selectedWorkflowId])
+
+  const selectedWorkflowInvalid = selectedWorkflow && selectedWorkflow.hasStartBlock !== true
 
   if (isLoading) {
     return (
@@ -175,6 +274,17 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                     <Clipboard className='h-[14px] w-[14px]' />
                   )}
                 </Button>
+              </div>
+            </div>
+
+            <div className='flex flex-col gap-[8px]'>
+              <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                Authentication Header
+              </span>
+              <div className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'>
+                <code className='font-mono text-[12px] text-[var(--text-primary)]'>
+                  X-API-Key: {'<your-api-key>'}
+                </code>
               </div>
             </div>
 
@@ -407,7 +517,12 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                   ) : undefined
                 }
               />
-              {addToolMutation.isError && (
+              {selectedWorkflowInvalid && (
+                <p className='text-[11px] text-[var(--text-error)] leading-tight'>
+                  Workflow must have a Start block to be used as an MCP tool
+                </p>
+              )}
+              {addToolMutation.isError && !selectedWorkflowInvalid && (
                 <p className='text-[11px] text-[var(--text-error)] leading-tight'>
                   {addToolMutation.error?.message || 'Failed to add workflow'}
                 </p>
@@ -428,7 +543,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             <Button
               variant='tertiary'
               onClick={handleAddWorkflow}
-              disabled={!selectedWorkflowId || addToolMutation.isPending}
+              disabled={!selectedWorkflowId || selectedWorkflowInvalid || addToolMutation.isPending}
             >
               {addToolMutation.isPending ? 'Adding...' : 'Add Workflow'}
             </Button>
@@ -439,24 +554,44 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   )
 }
 
+interface WorkflowMcpServersProps {
+  resetKey?: number
+}
+
 /**
  * MCP Servers settings component.
  * Allows users to create and manage MCP servers that expose workflows as tools.
  */
-export function WorkflowMcpServers() {
+export function WorkflowMcpServers({ resetKey }: WorkflowMcpServersProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  const { data: servers = [], isLoading, error } = useWorkflowMcpServers(workspaceId)
+  const {
+    data: servers = [],
+    isLoading,
+    error,
+    refetch: refetchServers,
+  } = useWorkflowMcpServers(workspaceId)
+  const { data: deployedWorkflows = [], isLoading: isLoadingWorkflows } =
+    useDeployedWorkflows(workspaceId)
   const createServerMutation = useCreateWorkflowMcpServer()
+  const addToolMutation = useAddWorkflowMcpTool()
   const deleteServerMutation = useDeleteWorkflowMcpServer()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
   const [formData, setFormData] = useState({ name: '' })
+  const [selectedWorkflowIds, setSelectedWorkflowIds] = useState<string[]>([])
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null)
   const [serverToDelete, setServerToDelete] = useState<WorkflowMcpServer | null>(null)
   const [deletingServers, setDeletingServers] = useState<Set<string>>(new Set())
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (resetKey !== undefined) {
+      setSelectedServerId(null)
+    }
+  }, [resetKey])
 
   const filteredServers = useMemo(() => {
     if (!searchTerm.trim()) return servers
@@ -464,23 +599,64 @@ export function WorkflowMcpServers() {
     return servers.filter((server) => server.name.toLowerCase().includes(search))
   }, [servers, searchTerm])
 
+  const invalidWorkflows = useMemo(() => {
+    return selectedWorkflowIds
+      .map((id) => deployedWorkflows.find((w) => w.id === id))
+      .filter((w) => w && w.hasStartBlock !== true)
+      .map((w) => w!.name)
+  }, [selectedWorkflowIds, deployedWorkflows])
+
+  const hasInvalidWorkflows = invalidWorkflows.length > 0
+
   const resetForm = useCallback(() => {
     setFormData({ name: '' })
+    setSelectedWorkflowIds([])
     setShowAddForm(false)
+    setCreateError(null)
   }, [])
 
   const handleCreateServer = async () => {
     if (!formData.name.trim()) return
 
+    setCreateError(null)
+
+    let server: WorkflowMcpServer | undefined
     try {
-      await createServerMutation.mutateAsync({
+      server = await createServerMutation.mutateAsync({
         workspaceId,
         name: formData.name.trim(),
       })
-      resetForm()
     } catch (err) {
       logger.error('Failed to create server:', err)
+      setCreateError(err instanceof Error ? err.message : 'Failed to create server')
+      return
     }
+
+    if (selectedWorkflowIds.length > 0 && server?.id) {
+      const workflowErrors: string[] = []
+
+      for (const workflowId of selectedWorkflowIds) {
+        try {
+          await addToolMutation.mutateAsync({
+            workspaceId,
+            serverId: server.id,
+            workflowId,
+          })
+        } catch (err) {
+          const workflowName =
+            deployedWorkflows.find((w) => w.id === workflowId)?.name || workflowId
+          workflowErrors.push(workflowName)
+          logger.error(`Failed to add workflow ${workflowId} to server:`, err)
+        }
+      }
+
+      if (workflowErrors.length > 0) {
+        setCreateError(`Server created but failed to add workflows: ${workflowErrors.join(', ')}`)
+        return
+      }
+    }
+
+    resetForm()
   }
 
   const handleDeleteServer = async () => {
@@ -516,6 +692,7 @@ export function WorkflowMcpServers() {
         workspaceId={workspaceId}
         serverId={selectedServerId}
         onBack={() => setSelectedServerId(null)}
+        onToolsChanged={refetchServers}
       />
     )
   }
@@ -544,7 +721,11 @@ export function WorkflowMcpServers() {
 
         {shouldShowForm && !isLoading && (
           <div className='rounded-[8px] border p-[10px]'>
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-[12px]'>
+              <p className='text-[12px] text-[var(--text-secondary)] leading-relaxed'>
+                Create an MCP server to expose your deployed workflows as tools.
+              </p>
+
               <FormField label='Server Name'>
                 <EmcnInput
                   placeholder='e.g., My MCP Server'
@@ -554,16 +735,44 @@ export function WorkflowMcpServers() {
                 />
               </FormField>
 
-              <div className='flex items-center justify-end gap-[8px] pt-[12px]'>
+              <p className='ml-[112px] text-[12px] text-[var(--text-secondary)]'>
+                Select deployed workflows to add to this MCP server. Each workflow will be available
+                as a tool.
+              </p>
+              <FormField label='Workflows'>
+                <WorkflowTagSelect
+                  workflows={deployedWorkflows}
+                  selectedIds={selectedWorkflowIds}
+                  onSelectionChange={setSelectedWorkflowIds}
+                  isLoading={isLoadingWorkflows}
+                  disabled={deployedWorkflows.length === 0}
+                />
+              </FormField>
+              {hasInvalidWorkflows && (
+                <p className='ml-[112px] text-[11px] text-[var(--text-error)] leading-tight'>
+                  Workflow must have a Start block to be used as an MCP tool
+                </p>
+              )}
+
+              {createError && <p className='text-[12px] text-[var(--text-error)]'>{createError}</p>}
+
+              <div className='flex items-center justify-end gap-[8px] pt-[4px]'>
                 <Button variant='ghost' onClick={resetForm}>
                   Cancel
                 </Button>
                 <Button
                   onClick={handleCreateServer}
-                  disabled={!isFormValid || createServerMutation.isPending}
+                  disabled={
+                    !isFormValid ||
+                    hasInvalidWorkflows ||
+                    createServerMutation.isPending ||
+                    addToolMutation.isPending
+                  }
                   variant='tertiary'
                 >
-                  {createServerMutation.isPending ? 'Adding...' : 'Add Server'}
+                  {createServerMutation.isPending || addToolMutation.isPending
+                    ? 'Adding...'
+                    : 'Add Server'}
                 </Button>
               </div>
             </div>
