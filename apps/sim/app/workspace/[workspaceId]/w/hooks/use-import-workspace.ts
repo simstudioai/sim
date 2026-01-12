@@ -21,15 +21,6 @@ interface UseImportWorkspaceProps {
 /**
  * Hook for managing workspace import from ZIP files.
  *
- * Handles:
- * - Extracting workflows from ZIP file
- * - Creating new workspace
- * - Recreating folder structure
- * - Importing all workflows with states and variables
- * - Navigation to imported workspace
- * - Loading state management
- * - Error handling and logging
- *
  * @param props - Hook configuration
  * @returns Import workspace handlers and state
  */
@@ -37,6 +28,7 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
   const router = useRouter()
   const [isImporting, setIsImporting] = useState(false)
   const createFolderMutation = useCreateFolder()
+  const clearDiff = useWorkflowDiffStore((state) => state.clearDiff)
 
   /**
    * Handle workspace import from ZIP file
@@ -56,7 +48,6 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
       try {
         logger.info('Importing workspace from ZIP')
 
-        // Extract workflows from ZIP
         const { workflows: extractedWorkflows, metadata } = await extractWorkflowsFromZip(zipFile)
 
         if (extractedWorkflows.length === 0) {
@@ -64,7 +55,6 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
           return
         }
 
-        // Create new workspace
         const workspaceName = metadata?.workspaceName || zipFile.name.replace(/\.zip$/i, '')
         const createResponse = await fetch('/api/workspaces', {
           method: 'POST',
@@ -81,7 +71,6 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
 
         const folderMap = new Map<string, string>()
 
-        // Import workflows
         for (const workflow of extractedWorkflows) {
           try {
             const { data: workflowData, errors: parseErrors } = parseWorkflowJson(workflow.content)
@@ -91,7 +80,6 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
               continue
             }
 
-            // Recreate folder structure
             let targetFolderId: string | null = null
             if (workflow.folderPath.length > 0) {
               const folderPathKey = workflow.folderPath.join('/')
@@ -120,14 +108,12 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
             }
 
             const workflowName = extractWorkflowName(workflow.content, workflow.name)
-            useWorkflowDiffStore.getState().clearDiff()
+            clearDiff()
 
-            // Extract color from workflow metadata
             const parsedContent = JSON.parse(workflow.content)
             const workflowColor =
               parsedContent.state?.metadata?.color || parsedContent.metadata?.color || '#3972F6'
 
-            // Create workflow
             const createWorkflowResponse = await fetch('/api/workflows', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -147,7 +133,6 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
 
             const newWorkflow = await createWorkflowResponse.json()
 
-            // Save workflow state
             const stateResponse = await fetch(`/api/workflows/${newWorkflow.id}/state`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
@@ -159,9 +144,7 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
               continue
             }
 
-            // Save variables if any (handle both legacy Array and current Record formats)
             if (workflowData.variables) {
-              // Convert to Record format for API (handles backwards compatibility with old Array exports)
               const variablesArray = Array.isArray(workflowData.variables)
                 ? workflowData.variables
                 : Object.values(workflowData.variables)
@@ -199,7 +182,6 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
 
         logger.info(`Workspace import complete. Imported ${extractedWorkflows.length} workflows`)
 
-        // Navigate to new workspace
         router.push(`/workspace/${newWorkspace.id}/w`)
 
         onSuccess?.()
@@ -210,7 +192,7 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
         setIsImporting(false)
       }
     },
-    [isImporting, router, onSuccess, createFolderMutation]
+    [isImporting, router, onSuccess, createFolderMutation, clearDiff]
   )
 
   return {
