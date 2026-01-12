@@ -206,9 +206,11 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
 
         logger.info(`Import complete. Imported ${importedWorkflowIds.length} workflow(s)`)
 
-        // Navigate to first imported workflow if any
+        // Navigate to last imported workflow if any
         if (importedWorkflowIds.length > 0) {
-          router.push(`/workspace/${workspaceId}/w/${importedWorkflowIds[0]}`)
+          router.push(
+            `/workspace/${workspaceId}/w/${importedWorkflowIds[importedWorkflowIds.length - 1]}`
+          )
         }
       } catch (error) {
         logger.error('Failed to import workflows:', error)

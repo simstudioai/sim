@@ -373,7 +373,7 @@ export function ContextMenu({
                   onKeyDown={handleHexKeyDown}
                   onFocus={handleHexFocus}
                   onClick={(e) => e.stopPropagation()}
-                  className='h-[20px] min-w-0 flex-1 rounded-[4px] bg-[#363636] px-[6px] text-[11px] text-white uppercase focus:outline-none'
+                  className='h-[20px] min-w-0 flex-1 rounded-[4px] bg-[#363636] px-[6px] text-[11px] text-white uppercase caret-white focus:outline-none'
                 />
                 <button
                   type='button'
