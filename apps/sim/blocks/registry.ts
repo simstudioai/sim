@@ -13,6 +13,7 @@ import { CalendlyBlock } from '@/blocks/blocks/calendly'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { CirclebackBlock } from '@/blocks/blocks/circleback'
 import { ClayBlock } from '@/blocks/blocks/clay'
+import { commandBlock } from '@/blocks/blocks/command'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock } from '@/blocks/blocks/confluence'
 import { CursorBlock } from '@/blocks/blocks/cursor'
@@ -162,6 +163,7 @@ export const registry: Record<string, BlockConfig> = {
   chat_trigger: ChatTriggerBlock,
   circleback: CirclebackBlock,
   clay: ClayBlock,
+  command: commandBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
   cursor: CursorBlock,
