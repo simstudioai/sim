@@ -414,7 +414,7 @@ export const InsForgeBlock: BlockConfig<InsForgeBaseResponse> = {
       },
       params: (params) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { operation, data, paths, body, messages, upsert, ...rest } = params
+        const { operation, data, body, messages, upsert, ...rest } = params
 
         // Parse JSON data if it's a string
         let parsedData
@@ -427,19 +427,6 @@ export const InsForgeBlock: BlockConfig<InsForgeBaseResponse> = {
           }
         } else if (data && typeof data === 'object') {
           parsedData = data
-        }
-
-        // Handle paths array for storage delete
-        let parsedPaths
-        if (paths && typeof paths === 'string' && paths.trim()) {
-          try {
-            parsedPaths = JSON.parse(paths)
-          } catch (parseError) {
-            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
-            throw new Error(`Invalid paths format: ${errorMsg}`)
-          }
-        } else if (paths && Array.isArray(paths)) {
-          parsedPaths = paths
         }
 
         // Handle body for function invoke
@@ -476,10 +463,6 @@ export const InsForgeBlock: BlockConfig<InsForgeBaseResponse> = {
 
         if (parsedData !== undefined) {
           result.data = parsedData
-        }
-
-        if (parsedPaths !== undefined) {
-          result.paths = parsedPaths
         }
 
         if (parsedBody !== undefined) {
