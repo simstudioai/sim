@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createLogger } from '@/lib/logs/console/logger'
 import { createNeo4jDriver } from '@/app/api/tools/neo4j/utils'
 import type { Neo4jNodeSchema, Neo4jRelationshipSchema } from '@/tools/neo4j/types'
 

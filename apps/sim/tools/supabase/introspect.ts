@@ -1,4 +1,5 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
+import { sanitizeSqlIdentifier } from '@/lib/core/security/input-validation'
 import type {
   SupabaseColumnSchema,
   SupabaseIntrospectParams,
@@ -150,14 +151,16 @@ SELECT json_build_object(
 /**
  * SQL query filtered by specific schema
  */
-const getSchemaFilteredSQL = (schema: string) => `
+const getSchemaFilteredSQL = (schema: string) => {
+  const safeSchema = sanitizeSqlIdentifier(schema)
+  return `
 WITH table_info AS (
   SELECT
     t.table_schema,
     t.table_name
   FROM information_schema.tables t
   WHERE t.table_type = 'BASE TABLE'
-    AND t.table_schema = '${schema}'
+    AND t.table_schema = '${safeSchema}'
 ),
 columns_info AS (
   SELECT
@@ -181,7 +184,7 @@ pk_info AS (
     ON tc.constraint_name = kcu.constraint_name
     AND tc.table_schema = kcu.table_schema
   WHERE tc.constraint_type = 'PRIMARY KEY'
-    AND tc.table_schema = '${schema}'
+    AND tc.table_schema = '${safeSchema}'
 ),
 fk_info AS (
   SELECT
@@ -197,7 +200,7 @@ fk_info AS (
   JOIN information_schema.constraint_column_usage ccu
     ON ccu.constraint_name = tc.constraint_name
   WHERE tc.constraint_type = 'FOREIGN KEY'
-    AND tc.table_schema = '${schema}'
+    AND tc.table_schema = '${safeSchema}'
 ),
 index_info AS (
   SELECT
@@ -207,7 +210,7 @@ index_info AS (
     CASE WHEN indexdef LIKE '%UNIQUE%' THEN true ELSE false END AS is_unique,
     indexdef
   FROM pg_indexes
-  WHERE schemaname = '${schema}'
+  WHERE schemaname = '${safeSchema}'
 )
 SELECT json_build_object(
   'tables', (
@@ -285,6 +288,7 @@ SELECT json_build_object(
   )
 ) AS result;
 `
+}
 
 /**
  * Tool for introspecting Supabase database schema
