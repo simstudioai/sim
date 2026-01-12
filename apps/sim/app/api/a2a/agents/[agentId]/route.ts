@@ -45,7 +45,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
     }
 
     if (!agent.agent.isPublished) {
-      // Check if requester has access (for preview)
       const auth = await checkHybridAuth(request, { requireWorkflowId: false })
       if (!auth.success) {
         return NextResponse.json({ error: 'Agent not published' }, { status: 404 })
@@ -104,7 +103,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<Ro
 
     const body = await request.json()
 
-    // Update agent
     const [updatedAgent] = await db
       .update(a2aAgent)
       .set({
@@ -191,7 +189,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
     const action = body.action as 'publish' | 'unpublish' | 'refresh'
 
     if (action === 'publish') {
-      // Verify workflow is deployed
       const [wf] = await db
         .select({ isDeployed: workflow.isDeployed })
         .from(workflow)
@@ -232,7 +229,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
     }
 
     if (action === 'refresh') {
-      // Refresh skills from workflow
       const workflowData = await loadWorkflowFromNormalizedTables(existingAgent.workflowId)
       if (!workflowData) {
         return NextResponse.json({ error: 'Failed to load workflow' }, { status: 500 })

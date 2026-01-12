@@ -5,7 +5,7 @@
  */
 
 import { db } from '@sim/db'
-import { a2aAgent, workflow, workspace } from '@sim/db/schema'
+import { a2aAgent, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -16,6 +16,7 @@ import { sanitizeAgentName } from '@/lib/a2a/utils'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-utils'
+import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('A2AAgentsAPI')
 
@@ -38,18 +39,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 })
     }
 
-    // Verify workspace access
-    const [ws] = await db
-      .select({ id: workspace.id })
-      .from(workspace)
-      .where(eq(workspace.id, workspaceId))
-      .limit(1)
-
+    const ws = await getWorkspaceById(workspaceId)
     if (!ws) {
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
-    // Get agents with workflow info
     const agents = await db
       .select({
         id: a2aAgent.id,
@@ -108,7 +102,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify workflow exists and belongs to workspace
     const [wf] = await db
       .select({
         id: workflow.id,
@@ -128,7 +121,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if agent already exists for this workflow
     const [existing] = await db
       .select({ id: a2aAgent.id })
       .from(a2aAgent)
@@ -142,7 +134,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify workflow has a start block
     const workflowData = await loadWorkflowFromNormalizedTables(workflowId)
     if (!workflowData || !hasValidStartBlockInState(workflowData)) {
       return NextResponse.json(
@@ -151,10 +142,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate skills from workflow
     const skills = generateSkillsFromWorkflow(name || wf.name, description || wf.description)
 
-    // Create agent
     const agentId = uuidv4()
     const agentName = name || sanitizeAgentName(wf.name)
 

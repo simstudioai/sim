@@ -49,7 +49,6 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
   const { agentId } = await params
 
-  // Try Redis cache first
   const redis = getRedisClient()
   const cacheKey = `a2a:agent:${agentId}:card`
 
@@ -113,7 +112,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
       defaultOutputModes: ['text'],
     }
 
-    // Cache result in Redis
     if (redis) {
       try {
         await redis.set(cacheKey, JSON.stringify(agentCard), 'EX', 3600)
@@ -142,7 +140,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
   const { agentId } = await params
 
   try {
-    // Verify agent exists and is published
     const [agent] = await db
       .select({
         id: a2aAgent.id,
@@ -170,7 +167,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
       )
     }
 
-    // Auth check
     const auth = await checkHybridAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       return NextResponse.json(
@@ -179,7 +175,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
       )
     }
 
-    // Verify workflow is deployed
     const [wf] = await db
       .select({ isDeployed: workflow.isDeployed })
       .from(workflow)
@@ -193,7 +188,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
       )
     }
 
-    // Parse JSON-RPC request
     const body = await request.json()
 
     if (!isJSONRPCRequest(body)) {
@@ -274,10 +268,9 @@ async function handleMessageSend(
   const taskId = message.taskId || generateTaskId()
   const contextId = message.contextId || uuidv4() // Generate contextId if not provided
 
-  // Distributed lock for concurrent message protection (graceful degradation)
   const lockKey = `a2a:task:${taskId}:lock`
   const lockValue = uuidv4()
-  const acquired = await acquireLock(lockKey, lockValue, 60) // 60 second lock
+  const acquired = await acquireLock(lockKey, lockValue, 60)
 
   if (!acquired) {
     return NextResponse.json(
@@ -287,7 +280,6 @@ async function handleMessageSend(
   }
 
   try {
-    // Check if task exists (continuation)
     let existingTask: typeof a2aTask.$inferSelect | null = null
     if (message.taskId) {
       const [found] = await db.select().from(a2aTask).where(eq(a2aTask.id, message.taskId)).limit(1)
@@ -308,13 +300,10 @@ async function handleMessageSend(
       }
     }
 
-    // Get existing history or start fresh
     const history: Message[] = existingTask?.messages ? (existingTask.messages as Message[]) : []
 
-    // Add the new user message
     history.push(message)
 
-    // Create or update task
     if (existingTask) {
       await db
         .update(a2aTask)
@@ -337,7 +326,6 @@ async function handleMessageSend(
       })
     }
 
-    // Execute the workflow
     const executeUrl = `${getBaseUrl()}/api/workflows/${agent.workflowId}/execute`
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (apiKey) headers['X-API-Key'] = apiKey
@@ -345,7 +333,6 @@ async function handleMessageSend(
     logger.info(`Executing workflow ${agent.workflowId} for A2A task ${taskId}`)
 
     try {
-      // Extract text content from the Message for workflow consumption
       const messageText = extractTextContent(message)
 
       const response = await fetch(executeUrl, {
@@ -360,10 +347,8 @@ async function handleMessageSend(
 
       const executeResult = await response.json()
 
-      // Determine final state
       const finalState: TaskState = response.ok ? 'completed' : 'failed'
 
-      // Create agent response message
       const agentContent =
         executeResult.output?.content ||
         (typeof executeResult.output === 'object'
@@ -371,15 +356,12 @@ async function handleMessageSend(
           : String(executeResult.output || executeResult.error || 'Task completed'))
 
       const agentMessage = createAgentMessage(agentContent)
-      // Add taskId and contextId to the response message
       agentMessage.taskId = taskId
       if (contextId) agentMessage.contextId = contextId
       history.push(agentMessage)
 
-      // Extract artifacts if present
       const artifacts = executeResult.output?.artifacts || []
 
-      // Update task with result
       await db
         .update(a2aTask)
         .set({
@@ -392,7 +374,6 @@ async function handleMessageSend(
         })
         .where(eq(a2aTask.id, taskId))
 
-      // Trigger push notification (fire and forget)
       if (isTerminalState(finalState)) {
         notifyTaskStateChange(taskId, finalState).catch((err) => {
           logger.error('Failed to trigger push notification', { taskId, error: err })
@@ -412,7 +393,6 @@ async function handleMessageSend(
     } catch (error) {
       logger.error(`Error executing workflow for task ${taskId}:`, error)
 
-      // Mark task as failed
       const errorMessage = error instanceof Error ? error.message : 'Workflow execution failed'
 
       await db
@@ -424,7 +404,6 @@ async function handleMessageSend(
         })
         .where(eq(a2aTask.id, taskId))
 
-      // Trigger push notification for failure (fire and forget)
       notifyTaskStateChange(taskId, 'failed').catch((err) => {
         logger.error('Failed to trigger push notification for failure', { taskId, error: err })
       })
@@ -463,7 +442,6 @@ async function handleMessageStream(
   const message = params.message
   const contextId = message.contextId || uuidv4() // Generate contextId if not provided
 
-  // Get existing task or prepare for new one
   let history: Message[] = []
   let existingTask: typeof a2aTask.$inferSelect | null = null
 
@@ -490,7 +468,6 @@ async function handleMessageStream(
   const taskId = message.taskId || generateTaskId()
   history.push(message)
 
-  // Create or update task record
   if (existingTask) {
     await db
       .update(a2aTask)
@@ -513,7 +490,6 @@ async function handleMessageStream(
     })
   }
 
-  // Create SSE stream
   const encoder = new TextEncoder()
 
   const stream = new ReadableStream({
@@ -526,7 +502,6 @@ async function handleMessageStream(
         }
       }
 
-      // Send initial status update (v0.3 format)
       sendEvent('status', {
         kind: 'status',
         taskId,
@@ -535,7 +510,6 @@ async function handleMessageStream(
       })
 
       try {
-        // Execute workflow with streaming
         const executeUrl = `${getBaseUrl()}/api/workflows/${agent.workflowId}/execute`
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
@@ -543,7 +517,6 @@ async function handleMessageStream(
         }
         if (apiKey) headers['X-API-Key'] = apiKey
 
-        // Extract text content from the Message for workflow consumption
         const messageText = extractTextContent(message)
 
         const response = await fetch(executeUrl, {
@@ -568,13 +541,11 @@ async function handleMessageStream(
           throw new Error(errorMessage)
         }
 
-        // Check content type to determine response handling
         const contentType = response.headers.get('content-type') || ''
         const isStreamingResponse =
           contentType.includes('text/event-stream') || contentType.includes('text/plain')
 
         if (response.body && isStreamingResponse) {
-          // Handle streaming response - forward chunks
           const reader = response.body.getReader()
           const decoder = new TextDecoder()
           let fullContent = ''
@@ -586,7 +557,6 @@ async function handleMessageStream(
             const chunk = decoder.decode(value, { stream: true })
             fullContent += chunk
 
-            // Forward chunk as message event (v0.3 format)
             sendEvent('message', {
               kind: 'message',
               taskId,
@@ -597,13 +567,11 @@ async function handleMessageStream(
             })
           }
 
-          // Create final agent message
           const agentMessage = createAgentMessage(fullContent || 'Task completed')
           agentMessage.taskId = taskId
           if (contextId) agentMessage.contextId = contextId
           history.push(agentMessage)
 
-          // Update task
           await db
             .update(a2aTask)
             .set({
@@ -614,7 +582,6 @@ async function handleMessageStream(
             })
             .where(eq(a2aTask.id, taskId))
 
-          // Trigger push notification (fire and forget)
           notifyTaskStateChange(taskId, 'completed').catch((err) => {
             logger.error('Failed to trigger push notification', { taskId, error: err })
           })
@@ -627,7 +594,6 @@ async function handleMessageStream(
             final: true,
           })
         } else {
-          // Handle JSON response (non-streaming workflow)
           const result = await response.json()
 
           const content =
@@ -636,7 +602,6 @@ async function handleMessageStream(
               ? JSON.stringify(result.output)
               : String(result.output || 'Task completed'))
 
-          // Send the complete content as a final message
           sendEvent('message', {
             kind: 'message',
             taskId,
@@ -653,7 +618,6 @@ async function handleMessageStream(
 
           const artifacts = (result.output?.artifacts as Artifact[]) || []
 
-          // Update task with result
           await db
             .update(a2aTask)
             .set({
@@ -666,7 +630,6 @@ async function handleMessageStream(
             })
             .where(eq(a2aTask.id, taskId))
 
-          // Trigger push notification (fire and forget)
           notifyTaskStateChange(taskId, 'completed').catch((err) => {
             logger.error('Failed to trigger push notification', { taskId, error: err })
           })
@@ -691,7 +654,6 @@ async function handleMessageStream(
           })
           .where(eq(a2aTask.id, taskId))
 
-        // Trigger push notification for failure (fire and forget)
         notifyTaskStateChange(taskId, 'failed').catch((err) => {
           logger.error('Failed to trigger push notification for failure', { taskId, error: err })
         })
@@ -725,7 +687,6 @@ async function handleTaskGet(id: string | number, params: TaskIdParams): Promise
     )
   }
 
-  // Validate historyLength if provided
   const historyLength =
     params.historyLength !== undefined && params.historyLength >= 0
       ? params.historyLength
@@ -742,7 +703,7 @@ async function handleTaskGet(id: string | number, params: TaskIdParams): Promise
   const taskResponse: Task = {
     kind: 'task',
     id: task.id,
-    contextId: task.sessionId || task.id, // Use task ID as fallback contextId
+    contextId: task.sessionId || task.id,
     status: createTaskStatus(task.status as TaskState),
     history: task.messages as Message[],
     artifacts: (task.artifacts as Artifact[]) || [],
@@ -779,7 +740,6 @@ async function handleTaskCancel(id: string | number, params: TaskIdParams): Prom
     )
   }
 
-  // Cancel running workflow execution if exists
   if (task.executionId) {
     try {
       await markExecutionCancelled(task.executionId)
@@ -805,7 +765,6 @@ async function handleTaskCancel(id: string | number, params: TaskIdParams): Prom
     })
     .where(eq(a2aTask.id, params.id))
 
-  // Trigger push notification for cancellation (fire and forget)
   notifyTaskStateChange(params.id, 'canceled').catch((err) => {
     logger.error('Failed to trigger push notification for cancellation', {
       taskId: params.id,
@@ -816,7 +775,7 @@ async function handleTaskCancel(id: string | number, params: TaskIdParams): Prom
   const canceledTask: Task = {
     kind: 'task',
     id: task.id,
-    contextId: task.sessionId || task.id, // Use task ID as fallback contextId
+    contextId: task.sessionId || task.id,
     status: createTaskStatus('canceled'),
     history: task.messages as Message[],
     artifacts: (task.artifacts as Artifact[]) || [],
@@ -849,11 +808,10 @@ async function handleTaskResubscribe(
   }
 
   if (isTerminalState(task.status as TaskState)) {
-    // Task already completed - return final state as regular response
     const completedTask: Task = {
       kind: 'task',
       id: task.id,
-      contextId: task.sessionId || task.id, // Use task ID as fallback contextId
+      contextId: task.sessionId || task.id,
       status: createTaskStatus(task.status as TaskState),
       history: task.messages as Message[],
       artifacts: (task.artifacts as Artifact[]) || [],
@@ -861,7 +819,6 @@ async function handleTaskResubscribe(
     return NextResponse.json(createResponse(id, completedTask))
   }
 
-  // Create SSE stream for ongoing task updates
   const encoder = new TextEncoder()
   let isCancelled = false
   let pollTimeoutId: ReturnType<typeof setTimeout> | null = null
@@ -888,7 +845,6 @@ async function handleTaskResubscribe(
         }
       }
 
-      // Send current status (v0.3 format)
       if (
         !sendEvent('status', {
           kind: 'status',
@@ -901,7 +857,6 @@ async function handleTaskResubscribe(
         return
       }
 
-      // Poll for updates until task completes
       const pollInterval = 3000 // 3 seconds (reduced from 1s to lower DB load)
       const maxPolls = 100 // 5 minutes max (100 * 3s = 300s)
 
@@ -962,7 +917,6 @@ async function handleTaskResubscribe(
           }
 
           if (isTerminalState(updatedTask.status as TaskState)) {
-            // Send final message if available
             const messages = updatedTask.messages as Message[]
             const lastMessage = messages[messages.length - 1]
             if (lastMessage && lastMessage.role === 'agent') {
@@ -1039,7 +993,6 @@ async function handlePushNotificationSet(
     )
   }
 
-  // Validate URL is HTTPS (security requirement)
   try {
     const url = new URL(params.pushNotificationConfig.url)
     if (url.protocol !== 'https:') {
@@ -1063,7 +1016,6 @@ async function handlePushNotificationSet(
     })
   }
 
-  // Check if config already exists
   const [existingConfig] = await db
     .select()
     .from(a2aPushNotificationConfig)

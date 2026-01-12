@@ -3,6 +3,112 @@ import { permissions, type permissionTypeEnum, user, workspace } from '@sim/db/s
 import { and, eq } from 'drizzle-orm'
 
 export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
+export interface WorkspaceBasic {
+  id: string
+}
+
+export interface WorkspaceWithOwner {
+  id: string
+  ownerId: string
+}
+
+export interface WorkspaceAccess {
+  exists: boolean
+  hasAccess: boolean
+  canWrite: boolean
+  workspace: WorkspaceWithOwner | null
+}
+
+/**
+ * Get a workspace by ID (basic existence check)
+ *
+ * @param workspaceId - The workspace ID to look up
+ * @returns The workspace if found, null otherwise
+ */
+export async function getWorkspaceById(workspaceId: string): Promise<WorkspaceBasic | null> {
+  const [ws] = await db
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1)
+
+  return ws || null
+}
+
+/**
+ * Get a workspace with owner info by ID
+ *
+ * @param workspaceId - The workspace ID to look up
+ * @returns The workspace with owner info if found, null otherwise
+ */
+export async function getWorkspaceWithOwner(
+  workspaceId: string
+): Promise<WorkspaceWithOwner | null> {
+  const [ws] = await db
+    .select({ id: workspace.id, ownerId: workspace.ownerId })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1)
+
+  return ws || null
+}
+
+/**
+ * Check if a workspace exists
+ *
+ * @param workspaceId - The workspace ID to check
+ * @returns True if the workspace exists, false otherwise
+ */
+export async function workspaceExists(workspaceId: string): Promise<boolean> {
+  const ws = await getWorkspaceById(workspaceId)
+  return ws !== null
+}
+
+/**
+ * Check workspace access for a user
+ *
+ * Verifies the workspace exists and the user has access to it.
+ * Returns access level (read/write) based on ownership and permissions.
+ *
+ * @param workspaceId - The workspace ID to check
+ * @param userId - The user ID to check access for
+ * @returns WorkspaceAccess object with exists, hasAccess, canWrite, and workspace data
+ */
+export async function checkWorkspaceAccess(
+  workspaceId: string,
+  userId: string
+): Promise<WorkspaceAccess> {
+  const ws = await getWorkspaceWithOwner(workspaceId)
+
+  if (!ws) {
+    return { exists: false, hasAccess: false, canWrite: false, workspace: null }
+  }
+
+  if (ws.ownerId === userId) {
+    return { exists: true, hasAccess: true, canWrite: true, workspace: ws }
+  }
+
+  const [permissionRow] = await db
+    .select({ permissionType: permissions.permissionType })
+    .from(permissions)
+    .where(
+      and(
+        eq(permissions.userId, userId),
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, workspaceId)
+      )
+    )
+    .limit(1)
+
+  if (!permissionRow) {
+    return { exists: true, hasAccess: false, canWrite: false, workspace: ws }
+  }
+
+  const canWrite =
+    permissionRow.permissionType === 'write' || permissionRow.permissionType === 'admin'
+
+  return { exists: true, hasAccess: true, canWrite, workspace: ws }
+}
 
 /**
  * Get the highest permission level a user has for a specific entity
@@ -111,17 +217,13 @@ export async function hasWorkspaceAdminAccess(
   userId: string,
   workspaceId: string
 ): Promise<boolean> {
-  const workspaceResult = await db
-    .select({ ownerId: workspace.ownerId })
-    .from(workspace)
-    .where(eq(workspace.id, workspaceId))
-    .limit(1)
+  const ws = await getWorkspaceWithOwner(workspaceId)
 
-  if (workspaceResult.length === 0) {
+  if (!ws) {
     return false
   }
 
-  if (workspaceResult[0].ownerId === userId) {
+  if (ws.ownerId === userId) {
     return true
   }
 

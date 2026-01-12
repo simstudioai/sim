@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { environment, workspace, workspaceEnvironment } from '@sim/db/schema'
+import { environment, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceEnvironmentAPI')
 
@@ -33,8 +33,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const userId = session.user.id
 
     // Validate workspace exists
-    const ws = await db.select().from(workspace).where(eq(workspace.id, workspaceId)).limit(1)
-    if (!ws.length) {
+    const ws = await getWorkspaceById(workspaceId)
+    if (!ws) {
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 

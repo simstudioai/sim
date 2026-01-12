@@ -40,11 +40,15 @@ vi.mock('drizzle-orm', () => drizzleOrmMock)
 
 import { db } from '@sim/db'
 import {
+  checkWorkspaceAccess,
   getManageableWorkspaces,
   getUserEntityPermissions,
   getUsersWithPermissions,
+  getWorkspaceById,
+  getWorkspaceWithOwner,
   hasAdminPermission,
   hasWorkspaceAdminAccess,
+  workspaceExists,
 } from '@/lib/workspaces/permissions/utils'
 
 const mockDb = db as any
@@ -608,6 +612,211 @@ describe('Permission Utils', () => {
       const result = await getManageableWorkspaces('')
 
       expect(result).toEqual([])
+    })
+  })
+
+  describe('getWorkspaceById', () => {
+    it.concurrent('should return workspace when it exists', async () => {
+      const chain = createMockChain([{ id: 'workspace123' }])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await getWorkspaceById('workspace123')
+
+      expect(result).toEqual({ id: 'workspace123' })
+    })
+
+    it.concurrent('should return null when workspace does not exist', async () => {
+      const chain = createMockChain([])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await getWorkspaceById('non-existent')
+
+      expect(result).toBeNull()
+    })
+
+    it.concurrent('should handle empty workspace ID', async () => {
+      const chain = createMockChain([])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await getWorkspaceById('')
+
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('getWorkspaceWithOwner', () => {
+    it.concurrent('should return workspace with owner when it exists', async () => {
+      const chain = createMockChain([{ id: 'workspace123', ownerId: 'owner456' }])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await getWorkspaceWithOwner('workspace123')
+
+      expect(result).toEqual({ id: 'workspace123', ownerId: 'owner456' })
+    })
+
+    it.concurrent('should return null when workspace does not exist', async () => {
+      const chain = createMockChain([])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await getWorkspaceWithOwner('non-existent')
+
+      expect(result).toBeNull()
+    })
+
+    it.concurrent('should handle workspace with null owner ID', async () => {
+      const chain = createMockChain([{ id: 'workspace123', ownerId: null }])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await getWorkspaceWithOwner('workspace123')
+
+      expect(result).toEqual({ id: 'workspace123', ownerId: null })
+    })
+  })
+
+  describe('workspaceExists', () => {
+    it.concurrent('should return true when workspace exists', async () => {
+      const chain = createMockChain([{ id: 'workspace123' }])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await workspaceExists('workspace123')
+
+      expect(result).toBe(true)
+    })
+
+    it.concurrent('should return false when workspace does not exist', async () => {
+      const chain = createMockChain([])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await workspaceExists('non-existent')
+
+      expect(result).toBe(false)
+    })
+
+    it.concurrent('should handle empty workspace ID', async () => {
+      const chain = createMockChain([])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await workspaceExists('')
+
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('checkWorkspaceAccess', () => {
+    it('should return exists=false when workspace does not exist', async () => {
+      const chain = createMockChain([])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await checkWorkspaceAccess('non-existent', 'user123')
+
+      expect(result).toEqual({
+        exists: false,
+        hasAccess: false,
+        canWrite: false,
+        workspace: null,
+      })
+    })
+
+    it('should return full access when user is workspace owner', async () => {
+      const chain = createMockChain([{ id: 'workspace123', ownerId: 'user123' }])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await checkWorkspaceAccess('workspace123', 'user123')
+
+      expect(result).toEqual({
+        exists: true,
+        hasAccess: true,
+        canWrite: true,
+        workspace: { id: 'workspace123', ownerId: 'user123' },
+      })
+    })
+
+    it('should return hasAccess=false when user has no permissions', async () => {
+      let callCount = 0
+      mockDb.select.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) {
+          return createMockChain([{ id: 'workspace123', ownerId: 'other-user' }])
+        }
+        return createMockChain([]) // No permissions
+      })
+
+      const result = await checkWorkspaceAccess('workspace123', 'user123')
+
+      expect(result.exists).toBe(true)
+      expect(result.hasAccess).toBe(false)
+      expect(result.canWrite).toBe(false)
+    })
+
+    it('should return canWrite=true when user has admin permission', async () => {
+      let callCount = 0
+      mockDb.select.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) {
+          return createMockChain([{ id: 'workspace123', ownerId: 'other-user' }])
+        }
+        return createMockChain([{ permissionType: 'admin' }])
+      })
+
+      const result = await checkWorkspaceAccess('workspace123', 'user123')
+
+      expect(result.exists).toBe(true)
+      expect(result.hasAccess).toBe(true)
+      expect(result.canWrite).toBe(true)
+    })
+
+    it('should return canWrite=true when user has write permission', async () => {
+      let callCount = 0
+      mockDb.select.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) {
+          return createMockChain([{ id: 'workspace123', ownerId: 'other-user' }])
+        }
+        return createMockChain([{ permissionType: 'write' }])
+      })
+
+      const result = await checkWorkspaceAccess('workspace123', 'user123')
+
+      expect(result.exists).toBe(true)
+      expect(result.hasAccess).toBe(true)
+      expect(result.canWrite).toBe(true)
+    })
+
+    it('should return canWrite=false when user has read permission', async () => {
+      let callCount = 0
+      mockDb.select.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) {
+          return createMockChain([{ id: 'workspace123', ownerId: 'other-user' }])
+        }
+        return createMockChain([{ permissionType: 'read' }])
+      })
+
+      const result = await checkWorkspaceAccess('workspace123', 'user123')
+
+      expect(result.exists).toBe(true)
+      expect(result.hasAccess).toBe(true)
+      expect(result.canWrite).toBe(false)
+    })
+
+    it('should handle empty user ID', async () => {
+      const chain = createMockChain([])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await checkWorkspaceAccess('workspace123', '')
+
+      expect(result.exists).toBe(false)
+      expect(result.hasAccess).toBe(false)
+    })
+
+    it('should handle empty workspace ID', async () => {
+      const chain = createMockChain([])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await checkWorkspaceAccess('', 'user123')
+
+      expect(result.exists).toBe(false)
+      expect(result.hasAccess).toBe(false)
     })
   })
 })
