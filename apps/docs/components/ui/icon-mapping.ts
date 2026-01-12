@@ -4,6 +4,7 @@
 
 import type { ComponentType, SVGProps } from 'react'
 import {
+  A2AIcon,
   AhrefsIcon,
   AirtableIcon,
   ApifyIcon,
@@ -126,6 +127,7 @@ import {
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 
 export const blockTypeToIconMap: Record<string, IconComponent> = {
+  a2a: A2AIcon,
   ahrefs: AhrefsIcon,
   airtable: AirtableIcon,
   apify: ApifyIcon,

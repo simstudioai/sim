@@ -1,89 +1,58 @@
 /**
- * A2A Protocol Utilities
+ * A2A Protocol Utilities (v0.3)
+ *
+ * App-specific utilities. SDK handles protocol-level operations.
  */
 
-import { v4 as uuidv4 } from 'uuid'
-import { A2A_VALID_TRANSITIONS } from './constants'
-import type { MessagePart, Task, TaskMessage, TaskState, TaskStatusObject, TextPart } from './types'
-
-/**
- * Generate a unique task ID
- */
-export function generateTaskId(): string {
-  return uuidv4()
-}
-
-/**
- * Generate a unique context ID
- */
-export function generateContextId(): string {
-  return `ctx_${uuidv4()}`
-}
-
-/**
- * Check if a task status transition is valid
- */
-export function isValidStatusTransition(from: TaskState, to: TaskState): boolean {
-  const validTransitions = A2A_VALID_TRANSITIONS[from]
-  return validTransitions?.includes(to) ?? false
-}
+import type { Message, Part, Task, TaskState, TextPart } from '@a2a-js/sdk'
+import { A2A_TERMINAL_STATES } from './constants'
 
 /**
  * Check if a task is in a terminal state
  */
 export function isTerminalState(state: TaskState): boolean {
-  return state === 'completed' || state === 'failed' || state === 'canceled' || state === 'rejected'
-}
-
-/**
- * Create a TaskStatusObject from a state
- */
-export function createTaskStatus(state: TaskState, message?: TaskMessage): TaskStatusObject {
-  return {
-    state,
-    message,
-    timestamp: new Date().toISOString(),
-  }
-}
-
-/**
- * Create a text message part
- */
-export function createTextPart(text: string): TextPart {
-  return { type: 'text', text }
-}
-
-/**
- * Create a user message
- */
-export function createUserMessage(content: string | MessagePart[]): TaskMessage {
-  const parts = typeof content === 'string' ? [createTextPart(content)] : content
-  return { role: 'user', parts }
-}
-
-/**
- * Create an agent message
- */
-export function createAgentMessage(content: string | MessagePart[]): TaskMessage {
-  const parts = typeof content === 'string' ? [createTextPart(content)] : content
-  return { role: 'agent', parts }
+  return (A2A_TERMINAL_STATES as readonly string[]).includes(state)
 }
 
 /**
  * Extract text content from a message
  */
-export function extractTextContent(message: TaskMessage): string {
+export function extractTextContent(message: Message): string {
   return message.parts
-    .filter((part): part is TextPart => part.type === 'text')
+    .filter((part): part is TextPart => part.kind === 'text')
     .map((part) => part.text)
     .join('\n')
 }
 
 /**
- * Extract text content from multiple messages
+ * Create a text part (SDK format)
  */
-export function extractConversationText(messages: TaskMessage[]): string {
-  return messages.map((m) => `${m.role}: ${extractTextContent(m)}`).join('\n\n')
+export function createTextPart(text: string): Part {
+  return { kind: 'text', text }
+}
+
+/**
+ * Create a user message (SDK format)
+ */
+export function createUserMessage(text: string): Message {
+  return {
+    kind: 'message',
+    messageId: crypto.randomUUID(),
+    role: 'user',
+    parts: [{ kind: 'text', text }],
+  }
+}
+
+/**
+ * Create an agent message (SDK format)
+ */
+export function createAgentMessage(text: string): Message {
+  return {
+    kind: 'message',
+    messageId: crypto.randomUUID(),
+    role: 'agent',
+    parts: [{ kind: 'text', text }],
+  }
 }
 
 /**
@@ -116,62 +85,6 @@ export function sanitizeAgentName(name: string): string {
 }
 
 /**
- * Validate task structure
- */
-export function validateTask(task: unknown): task is Task {
-  if (!task || typeof task !== 'object') return false
-  const t = task as Record<string, unknown>
-
-  if (typeof t.id !== 'string') return false
-  if (!t.status || typeof t.status !== 'object') return false
-  const status = t.status as Record<string, unknown>
-  if (typeof status.state !== 'string') return false
-
-  return true
-}
-
-/**
- * Create a minimal task object
- */
-export function createTask(params: {
-  id?: string
-  contextId?: string
-  state?: TaskState
-  history?: TaskMessage[]
-  metadata?: Record<string, unknown>
-}): Task {
-  return {
-    id: params.id || generateTaskId(),
-    contextId: params.contextId,
-    status: createTaskStatus(params.state || 'submitted'),
-    history: params.history || [],
-    artifacts: [],
-    metadata: params.metadata,
-    kind: 'task',
-  }
-}
-
-/**
- * Format task for API response (remove internal fields)
- */
-export function formatTaskResponse(task: Task, historyLength?: number): Task {
-  let history = task.history || []
-  if (historyLength !== undefined && historyLength >= 0) {
-    history = history.slice(-historyLength)
-  }
-
-  return {
-    id: task.id,
-    contextId: task.contextId,
-    status: task.status,
-    history,
-    artifacts: task.artifacts,
-    metadata: task.metadata,
-    kind: 'task',
-  }
-}
-
-/**
  * Build A2A endpoint URL
  */
 export function buildA2AEndpointUrl(baseUrl: string, agentId: string): string {
@@ -185,4 +98,19 @@ export function buildA2AEndpointUrl(baseUrl: string, agentId: string): string {
 export function buildAgentCardUrl(baseUrl: string, agentId: string): string {
   const base = baseUrl.replace(/\/$/, '')
   return `${base}/api/a2a/agents/${agentId}`
+}
+
+/**
+ * Get last agent message from task history
+ */
+export function getLastAgentMessage(task: Task): Message | undefined {
+  return task.history?.filter((m) => m.role === 'agent').pop()
+}
+
+/**
+ * Get last agent message text from task
+ */
+export function getLastAgentMessageText(task: Task): string {
+  const message = getLastAgentMessage(task)
+  return message ? extractTextContent(message) : ''
 }

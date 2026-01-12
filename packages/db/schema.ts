@@ -1831,6 +1831,8 @@ export const a2aAgent = pgTable(
     skills: jsonb('skills').notNull().default('[]'),
     /** Authentication configuration */
     authentication: jsonb('authentication').notNull().default('{}'),
+    /** Agent card signatures for verification (v0.3) */
+    signatures: jsonb('signatures').default('[]'),
 
     /** Whether the agent is published and discoverable */
     isPublished: boolean('is_published').notNull().default(false),
@@ -1852,7 +1854,7 @@ export const a2aAgent = pgTable(
 )
 
 /**
- * A2A Tasks - Tracks task state for A2A agent interactions (v0.2.6)
+ * A2A Tasks - Tracks task state for A2A agent interactions (v0.3)
  * Each task represents a conversation/interaction with an agent
  */
 export const a2aTask = pgTable(
@@ -1891,6 +1893,42 @@ export const a2aTask = pgTable(
     statusIdx: index('a2a_task_status_idx').on(table.status),
     executionIdIdx: index('a2a_task_execution_id_idx').on(table.executionId),
     createdAtIdx: index('a2a_task_created_at_idx').on(table.createdAt),
+  })
+)
+
+/**
+ * A2A Push Notification Config - Webhook configuration for task updates
+ * Stores push notification webhooks for async task updates
+ */
+export const a2aPushNotificationConfig = pgTable(
+  'a2a_push_notification_config',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => a2aTask.id, { onDelete: 'cascade' }),
+
+    /** Webhook URL for notifications */
+    url: text('url').notNull(),
+
+    /** Optional token for client-side validation */
+    token: text('token'),
+
+    /** Authentication schemes (e.g., ['bearer', 'apiKey']) */
+    authSchemes: jsonb('auth_schemes').default('[]'),
+
+    /** Authentication credentials hint */
+    authCredentials: text('auth_credentials'),
+
+    /** Whether this config is active */
+    isActive: boolean('is_active').notNull().default(true),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    taskIdIdx: index('a2a_push_notification_config_task_id_idx').on(table.taskId),
+    taskIdUnique: uniqueIndex('a2a_push_notification_config_task_unique').on(table.taskId),
   })
 )
 

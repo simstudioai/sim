@@ -152,12 +152,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate skills from workflow
-    const skills = generateSkillsFromWorkflow(
-      workflowId,
-      name || wf.name,
-      description || wf.description,
-      workflowData.blocks
-    )
+    const skills = generateSkillsFromWorkflow(name || wf.name, description || wf.description)
 
     // Create agent
     const agentId = uuidv4()

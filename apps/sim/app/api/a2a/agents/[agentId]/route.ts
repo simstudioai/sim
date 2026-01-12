@@ -11,7 +11,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { generateAgentCard, generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
-import type { AgentAuthentication, AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
+import type { AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 
@@ -60,7 +60,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
         version: agent.agent.version,
         capabilities: agent.agent.capabilities as AgentCapabilities,
         skills: agent.agent.skills as AgentSkill[],
-        authentication: agent.agent.authentication as AgentAuthentication,
       },
       {
         id: agent.workflow.id,
@@ -245,12 +244,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
         .where(eq(workflow.id, existingAgent.workflowId))
         .limit(1)
 
-      const skills = generateSkillsFromWorkflow(
-        existingAgent.workflowId,
-        wf?.name || existingAgent.name,
-        wf?.description,
-        workflowData.blocks
-      )
+      const skills = generateSkillsFromWorkflow(wf?.name || existingAgent.name, wf?.description)
 
       await db
         .update(a2aAgent)

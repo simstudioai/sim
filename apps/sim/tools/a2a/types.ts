@@ -1,119 +1,135 @@
-/**
- * A2A Tool Types (v0.2.6)
- */
-
-import type {
-  AgentAuthentication,
-  AgentCapabilities,
-  AgentSkill,
-  Artifact,
-  InputMode,
-  OutputMode,
-  TaskMessage,
-  TaskState,
-} from '@/lib/a2a/types'
+import type { Artifact, Message, TaskState } from '@a2a-js/sdk'
 import type { ToolResponse } from '@/tools/types'
 
 export interface A2AGetAgentCardParams {
-  /** A2A agent endpoint URL */
   agentUrl: string
-  /** API key for authentication (if required) */
   apiKey?: string
 }
 
 export interface A2AGetAgentCardResponse extends ToolResponse {
   output: {
-    /** Agent name */
     name: string
-    /** Agent description */
     description?: string
-    /** Agent endpoint URL */
     url: string
-    /** Agent version */
     version: string
-    /** Agent capabilities */
-    capabilities?: AgentCapabilities
-    /** Skills the agent can perform */
-    skills?: AgentSkill[]
-    /** Supported authentication schemes */
-    authentication?: AgentAuthentication
-    /** Default input modes */
-    defaultInputModes?: InputMode[]
-    /** Default output modes */
-    defaultOutputModes?: OutputMode[]
+    capabilities?: {
+      streaming?: boolean
+      pushNotifications?: boolean
+      stateTransitionHistory?: boolean
+    }
+    skills?: Array<{
+      id: string
+      name: string
+      description?: string
+    }>
   }
 }
 
-export interface A2ASendTaskParams {
-  /** A2A agent endpoint URL */
+export interface A2ASendMessageParams {
   agentUrl: string
-  /** Message to send */
   message: string
-  /** Task ID (for continuing a task) */
   taskId?: string
-  /** Context ID (for multi-turn conversations) */
   contextId?: string
-  /** API key for authentication */
   apiKey?: string
 }
 
-export interface A2ASendTaskResponse extends ToolResponse {
+export interface A2ASendMessageResponse extends ToolResponse {
   output: {
-    /** Response content text */
     content: string
-    /** Task ID */
     taskId: string
-    /** Context ID */
     contextId?: string
-    /** Task state */
     state: TaskState
-    /** Output artifacts */
     artifacts?: Artifact[]
-    /** Message history */
-    history?: TaskMessage[]
+    history?: Message[]
   }
 }
 
 export interface A2AGetTaskParams {
-  /** A2A agent endpoint URL */
   agentUrl: string
-  /** Task ID to query */
   taskId: string
-  /** API key for authentication */
   apiKey?: string
-  /** Number of history messages to include */
   historyLength?: number
 }
 
 export interface A2AGetTaskResponse extends ToolResponse {
   output: {
-    /** Task ID */
     taskId: string
-    /** Context ID */
     contextId?: string
-    /** Task state */
     state: TaskState
-    /** Output artifacts */
     artifacts?: Artifact[]
-    /** Message history */
-    history?: TaskMessage[]
+    history?: Message[]
   }
 }
 
 export interface A2ACancelTaskParams {
-  /** A2A agent endpoint URL */
   agentUrl: string
-  /** Task ID to cancel */
   taskId: string
-  /** API key for authentication */
   apiKey?: string
 }
 
 export interface A2ACancelTaskResponse extends ToolResponse {
   output: {
-    /** Whether cancellation was successful */
     cancelled: boolean
-    /** Task state after cancellation */
     state: TaskState
+  }
+}
+
+export interface A2AResubscribeParams {
+  agentUrl: string
+  taskId: string
+  apiKey?: string
+}
+
+export interface A2AResubscribeResponse extends ToolResponse {
+  output: {
+    taskId: string
+    contextId?: string
+    state: TaskState
+    isRunning: boolean
+    artifacts?: Artifact[]
+    history?: Message[]
+  }
+}
+
+export interface A2ASetPushNotificationParams {
+  agentUrl: string
+  taskId: string
+  webhookUrl: string
+  token?: string
+  apiKey?: string
+}
+
+export interface A2ASetPushNotificationResponse extends ToolResponse {
+  output: {
+    url: string
+    token?: string
+    success: boolean
+  }
+}
+
+export interface A2AGetPushNotificationParams {
+  agentUrl: string
+  taskId: string
+  apiKey?: string
+}
+
+export interface A2AGetPushNotificationResponse extends ToolResponse {
+  output: {
+    url?: string
+    token?: string
+    exists: boolean
+  }
+}
+
+export interface A2ADeletePushNotificationParams {
+  agentUrl: string
+  taskId: string
+  pushNotificationConfigId?: string
+  apiKey?: string
+}
+
+export interface A2ADeletePushNotificationResponse extends ToolResponse {
+  output: {
+    success: boolean
   }
 }

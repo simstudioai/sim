@@ -27,6 +27,7 @@ import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { A2aDeploy } from './components/a2a/a2a'
 import { ApiDeploy } from './components/api/api'
 import { ChatDeploy, type ExistingChat } from './components/chat/chat'
 import { GeneralDeploy } from './components/general/general'
@@ -55,7 +56,7 @@ interface WorkflowDeploymentInfo {
   needsRedeployment: boolean
 }
 
-type TabView = 'general' | 'api' | 'chat' | 'template' | 'mcp' | 'form'
+type TabView = 'general' | 'api' | 'chat' | 'template' | 'mcp' | 'form' | 'a2a'
 
 export function DeployModal({
   open,
@@ -96,6 +97,9 @@ export function DeployModal({
   const [mcpToolSubmitting, setMcpToolSubmitting] = useState(false)
   const [mcpToolCanSave, setMcpToolCanSave] = useState(false)
   const [hasMcpServers, setHasMcpServers] = useState(false)
+  const [a2aSubmitting, setA2aSubmitting] = useState(false)
+  const [a2aCanSave, setA2aCanSave] = useState(false)
+  const [hasA2aAgent, setHasA2aAgent] = useState(false)
   const [hasExistingTemplate, setHasExistingTemplate] = useState(false)
   const [templateStatus, setTemplateStatus] = useState<{
     status: 'pending' | 'approved' | 'rejected' | null
@@ -368,7 +372,6 @@ export function DeployModal({
     async (version: number) => {
       if (!workflowId) return
 
-      // Optimistically update versions to show the new active version immediately
       const previousVersions = [...versions]
       setVersions((prev) =>
         prev.map((v) => ({
@@ -402,7 +405,6 @@ export function DeployModal({
 
         setDeploymentStatus(workflowId, true, deployedAtTime, apiKeyLabel)
 
-        // Refresh deployed state in background (no loading flash)
         refetchDeployedState()
         fetchVersions()
 
@@ -423,7 +425,6 @@ export function DeployModal({
           })
         }
       } catch (error) {
-        // Rollback optimistic update on error
         setVersions(previousVersions)
         throw error
       }
@@ -578,6 +579,31 @@ export function DeployModal({
     form?.requestSubmit()
   }, [])
 
+  const handleA2aFormSubmit = useCallback(() => {
+    const form = document.getElementById('a2a-deploy-form') as HTMLFormElement
+    form?.requestSubmit()
+  }, [])
+
+  const handleA2aPublish = useCallback(() => {
+    const form = document.getElementById('a2a-deploy-form')
+    const publishTrigger = form?.querySelector('[data-a2a-publish-trigger]') as HTMLButtonElement
+    publishTrigger?.click()
+  }, [])
+
+  const handleA2aUnpublish = useCallback(() => {
+    const form = document.getElementById('a2a-deploy-form')
+    const unpublishTrigger = form?.querySelector(
+      '[data-a2a-unpublish-trigger]'
+    ) as HTMLButtonElement
+    unpublishTrigger?.click()
+  }, [])
+
+  const handleA2aDelete = useCallback(() => {
+    const form = document.getElementById('a2a-deploy-form')
+    const deleteTrigger = form?.querySelector('[data-a2a-delete-trigger]') as HTMLButtonElement
+    deleteTrigger?.click()
+  }, [])
+
   const handleTemplateDelete = useCallback(() => {
     const form = document.getElementById('template-deploy-form')
     const deleteTrigger = form?.querySelector('[data-template-delete-trigger]') as HTMLButtonElement
@@ -610,6 +636,7 @@ export function DeployModal({
               <ModalTabsTrigger value='general'>General</ModalTabsTrigger>
               <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
               <ModalTabsTrigger value='mcp'>MCP</ModalTabsTrigger>
+              <ModalTabsTrigger value='a2a'>A2A</ModalTabsTrigger>
               <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
               {/* <ModalTabsTrigger value='form'>Form</ModalTabsTrigger> */}
               <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
@@ -697,6 +724,20 @@ export function DeployModal({
                     onSubmittingChange={setMcpToolSubmitting}
                     onCanSaveChange={setMcpToolCanSave}
                     onHasServersChange={setHasMcpServers}
+                  />
+                )}
+              </ModalTabsContent>
+
+              <ModalTabsContent value='a2a' className='h-full'>
+                {workflowId && (
+                  <A2aDeploy
+                    workflowId={workflowId}
+                    workflowName={workflowMetadata?.name || 'Workflow'}
+                    workflowDescription={workflowMetadata?.description}
+                    isDeployed={isDeployed}
+                    onSubmittingChange={setA2aSubmitting}
+                    onCanSaveChange={setA2aCanSave}
+                    onAgentExistsChange={setHasA2aAgent}
                   />
                 )}
               </ModalTabsContent>
@@ -853,6 +894,56 @@ export function DeployModal({
               </div>
             </ModalFooter>
           )} */}
+          {activeTab === 'a2a' && isDeployed && (
+            <ModalFooter className='items-center'>
+              <div className='flex gap-2'>
+                {hasA2aAgent && (
+                  <Button
+                    type='button'
+                    variant='destructive'
+                    onClick={handleA2aDelete}
+                    disabled={a2aSubmitting}
+                  >
+                    Delete
+                  </Button>
+                )}
+                {hasA2aAgent && (
+                  <Button
+                    type='button'
+                    variant='default'
+                    onClick={handleA2aUnpublish}
+                    disabled={a2aSubmitting}
+                  >
+                    Unpublish
+                  </Button>
+                )}
+                {hasA2aAgent && (
+                  <Button
+                    type='button'
+                    variant='tertiary'
+                    onClick={handleA2aPublish}
+                    disabled={a2aSubmitting}
+                  >
+                    {a2aSubmitting ? 'Publishing...' : 'Publish'}
+                  </Button>
+                )}
+                <Button
+                  type='button'
+                  variant='tertiary'
+                  onClick={handleA2aFormSubmit}
+                  disabled={a2aSubmitting || !a2aCanSave}
+                >
+                  {a2aSubmitting
+                    ? hasA2aAgent
+                      ? 'Saving...'
+                      : 'Creating...'
+                    : hasA2aAgent
+                      ? 'Save'
+                      : 'Create Agent'}
+                </Button>
+              </div>
+            </ModalFooter>
+          )}
         </ModalContent>
       </Modal>
 

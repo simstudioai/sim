@@ -1,40 +1,38 @@
 /**
- * A2A Serve Endpoint - Implements A2A protocol for workflow agents
+ * A2A Serve Endpoint (v0.3)
  *
- * Handles JSON-RPC 2.0 requests for:
- * - tasks/send: Create or continue a task
- * - tasks/get: Query task status
- * - tasks/cancel: Cancel a running task
- * - tasks/sendSubscribe: SSE streaming for real-time updates
+ * Implements A2A protocol v0.3 for workflow agents using the SDK server components.
+ * Handles JSON-RPC 2.0 requests for message sending, task management, and push notifications.
  */
 
+import type { Artifact, Message, PushNotificationConfig, Task, TaskState } from '@a2a-js/sdk'
 import { db } from '@sim/db'
-import { a2aAgent, a2aTask, workflow } from '@sim/db/schema'
+import { a2aAgent, a2aPushNotificationConfig, a2aTask, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { A2A_DEFAULT_TIMEOUT, A2A_METHODS } from '@/lib/a2a/constants'
-import {
-  A2AErrorCode,
-  type Artifact,
-  type Task,
-  type TaskCancelParams,
-  type TaskMessage,
-  type TaskQueryParams,
-  type TaskSendParams,
-  type TaskState,
-} from '@/lib/a2a/types'
-import {
-  createAgentMessage,
-  createTaskStatus,
-  extractTextContent,
-  formatTaskResponse,
-  generateTaskId,
-  isTerminalState,
-} from '@/lib/a2a/utils'
+import { v4 as uuidv4 } from 'uuid'
+import { A2A_DEFAULT_TIMEOUT } from '@/lib/a2a/constants'
+import { notifyTaskStateChange } from '@/lib/a2a/push-notifications'
+import { createAgentMessage, extractTextContent, isTerminalState } from '@/lib/a2a/utils'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { markExecutionCancelled } from '@/lib/execution/cancellation'
+import {
+  A2A_ERROR_CODES,
+  A2A_METHODS,
+  createError,
+  createResponse,
+  createTaskStatus,
+  formatTaskResponse,
+  generateTaskId,
+  isJSONRPCRequest,
+  type MessageSendParams,
+  type PushNotificationSetParams,
+  type TaskIdParams,
+} from './utils'
 
 const logger = createLogger('A2AServeAPI')
 
@@ -45,50 +43,32 @@ interface RouteParams {
   agentId: string
 }
 
-interface JSONRPCRequest {
-  jsonrpc: '2.0'
-  id: string | number
-  method: string
-  params?: unknown
-}
-
-interface JSONRPCResponse {
-  jsonrpc: '2.0'
-  id: string | number | null
-  result?: unknown
-  error?: {
-    code: number
-    message: string
-    data?: unknown
-  }
-}
-
-function createResponse(id: string | number | null, result: unknown): JSONRPCResponse {
-  return { jsonrpc: '2.0', id, result }
-}
-
-function createError(
-  id: string | number | null,
-  code: number,
-  message: string,
-  data?: unknown
-): JSONRPCResponse {
-  return { jsonrpc: '2.0', id, error: { code, message, data } }
-}
-
-function isJSONRPCRequest(obj: unknown): obj is JSONRPCRequest {
-  if (!obj || typeof obj !== 'object') return false
-  const r = obj as Record<string, unknown>
-  return r.jsonrpc === '2.0' && typeof r.method === 'string' && r.id !== undefined
-}
-
 /**
  * GET - Returns the Agent Card (discovery document)
- *
- * This allows clients to discover the agent's capabilities by calling GET on the serve endpoint.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
   const { agentId } = await params
+
+  // Try Redis cache first
+  const redis = getRedisClient()
+  const cacheKey = `a2a:agent:${agentId}:card`
+
+  if (redis) {
+    try {
+      const cached = await redis.get(cacheKey)
+      if (cached) {
+        return NextResponse.json(JSON.parse(cached), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=3600',
+            'X-Cache': 'HIT',
+          },
+        })
+      }
+    } catch (err) {
+      logger.warn('Redis cache read failed', { agentId, error: err })
+    }
+  }
 
   try {
     const [agent] = await db
@@ -116,31 +96,39 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
 
     const baseUrl = getBaseUrl()
 
-    // Return full Agent Card for discovery
-    return NextResponse.json(
-      {
-        name: agent.name,
-        description: agent.description,
-        url: `${baseUrl}/api/a2a/serve/${agent.id}`,
-        version: agent.version,
-        documentationUrl: `${baseUrl}/docs/a2a`,
-        provider: {
-          organization: 'Sim Studio',
-          url: baseUrl,
-        },
-        capabilities: agent.capabilities,
-        skills: agent.skills,
-        authentication: agent.authentication,
-        defaultInputModes: ['text', 'data'],
-        defaultOutputModes: ['text', 'data'],
+    const agentCard = {
+      name: agent.name,
+      description: agent.description,
+      url: `${baseUrl}/api/a2a/serve/${agent.id}`,
+      version: agent.version,
+      documentationUrl: `${baseUrl}/docs/a2a`,
+      provider: {
+        organization: 'Sim Studio',
+        url: baseUrl,
       },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=3600',
-        },
+      capabilities: agent.capabilities,
+      skills: agent.skills,
+      authentication: agent.authentication,
+      defaultInputModes: ['text'],
+      defaultOutputModes: ['text'],
+    }
+
+    // Cache result in Redis
+    if (redis) {
+      try {
+        await redis.set(cacheKey, JSON.stringify(agentCard), 'EX', 3600)
+      } catch (err) {
+        logger.warn('Redis cache write failed', { agentId, error: err })
       }
-    )
+    }
+
+    return NextResponse.json(agentCard, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=3600',
+        'X-Cache': 'MISS',
+      },
+    })
   } catch (error) {
     logger.error('Error getting Agent Card:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -170,14 +158,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
 
     if (!agent) {
       return NextResponse.json(
-        createError(null, A2AErrorCode.AGENT_UNAVAILABLE, 'Agent not found'),
+        createError(null, A2A_ERROR_CODES.AGENT_UNAVAILABLE, 'Agent not found'),
         { status: 404 }
       )
     }
 
     if (!agent.isPublished) {
       return NextResponse.json(
-        createError(null, A2AErrorCode.AGENT_UNAVAILABLE, 'Agent not published'),
+        createError(null, A2A_ERROR_CODES.AGENT_UNAVAILABLE, 'Agent not published'),
         { status: 404 }
       )
     }
@@ -186,7 +174,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
     const auth = await checkHybridAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       return NextResponse.json(
-        createError(null, A2AErrorCode.AUTHENTICATION_REQUIRED, 'Unauthorized'),
+        createError(null, A2A_ERROR_CODES.AUTHENTICATION_REQUIRED, 'Unauthorized'),
         { status: 401 }
       )
     }
@@ -200,7 +188,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
 
     if (!wf?.isDeployed) {
       return NextResponse.json(
-        createError(null, A2AErrorCode.AGENT_UNAVAILABLE, 'Workflow is not deployed'),
+        createError(null, A2A_ERROR_CODES.AGENT_UNAVAILABLE, 'Workflow is not deployed'),
         { status: 400 }
       )
     }
@@ -210,7 +198,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
 
     if (!isJSONRPCRequest(body)) {
       return NextResponse.json(
-        createError(null, A2AErrorCode.INVALID_REQUEST, 'Invalid JSON-RPC request'),
+        createError(null, A2A_ERROR_CODES.INVALID_REQUEST, 'Invalid JSON-RPC request'),
         { status: 400 }
       )
     }
@@ -223,36 +211,48 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
     logger.info(`A2A request: ${method} for agent ${agentId}`)
 
     switch (method) {
-      case A2A_METHODS.TASKS_SEND:
-        return handleTaskSend(id, agent, rpcParams as TaskSendParams, apiKey)
+      case A2A_METHODS.MESSAGE_SEND:
+        return handleMessageSend(id, agent, rpcParams as MessageSendParams, apiKey)
+
+      case A2A_METHODS.MESSAGE_STREAM:
+        return handleMessageStream(request, id, agent, rpcParams as MessageSendParams, apiKey)
 
       case A2A_METHODS.TASKS_GET:
-        return handleTaskGet(id, rpcParams as TaskQueryParams)
+        return handleTaskGet(id, rpcParams as TaskIdParams)
 
       case A2A_METHODS.TASKS_CANCEL:
-        return handleTaskCancel(id, rpcParams as TaskCancelParams)
+        return handleTaskCancel(id, rpcParams as TaskIdParams)
 
-      case A2A_METHODS.TASKS_SEND_SUBSCRIBE:
-        return handleTaskSendSubscribe(request, id, agent, rpcParams as TaskSendParams, apiKey)
+      case A2A_METHODS.TASKS_RESUBSCRIBE:
+        return handleTaskResubscribe(request, id, rpcParams as TaskIdParams)
+
+      case A2A_METHODS.PUSH_NOTIFICATION_SET:
+        return handlePushNotificationSet(id, rpcParams as PushNotificationSetParams)
+
+      case A2A_METHODS.PUSH_NOTIFICATION_GET:
+        return handlePushNotificationGet(id, rpcParams as TaskIdParams)
+
+      case A2A_METHODS.PUSH_NOTIFICATION_DELETE:
+        return handlePushNotificationDelete(id, rpcParams as TaskIdParams)
 
       default:
         return NextResponse.json(
-          createError(id, A2AErrorCode.METHOD_NOT_FOUND, `Method not found: ${method}`),
+          createError(id, A2A_ERROR_CODES.METHOD_NOT_FOUND, `Method not found: ${method}`),
           { status: 404 }
         )
     }
   } catch (error) {
     logger.error('Error handling A2A request:', error)
-    return NextResponse.json(createError(null, A2AErrorCode.INTERNAL_ERROR, 'Internal error'), {
+    return NextResponse.json(createError(null, A2A_ERROR_CODES.INTERNAL_ERROR, 'Internal error'), {
       status: 500,
     })
   }
 }
 
 /**
- * Handle tasks/send - Create or continue a task
+ * Handle message/send - Send a message (v0.3)
  */
-async function handleTaskSend(
+async function handleMessageSend(
   id: string | number,
   agent: {
     id: string
@@ -260,246 +260,188 @@ async function handleTaskSend(
     workflowId: string
     workspaceId: string
   },
-  params: TaskSendParams,
+  params: MessageSendParams,
   apiKey?: string | null
 ): Promise<NextResponse> {
   if (!params?.message) {
-    return NextResponse.json(createError(id, A2AErrorCode.INVALID_PARAMS, 'Message is required'), {
-      status: 400,
-    })
-  }
-
-  const taskId = params.id || generateTaskId()
-  const contextId = params.contextId
-
-  // Check if task exists (continuation)
-  let existingTask: typeof a2aTask.$inferSelect | null = null
-  if (params.id) {
-    const [found] = await db.select().from(a2aTask).where(eq(a2aTask.id, params.id)).limit(1)
-    existingTask = found || null
-
-    if (!existingTask) {
-      return NextResponse.json(createError(id, A2AErrorCode.TASK_NOT_FOUND, 'Task not found'), {
-        status: 404,
-      })
-    }
-
-    if (isTerminalState(existingTask.status as TaskState)) {
-      return NextResponse.json(
-        createError(id, A2AErrorCode.TASK_ALREADY_COMPLETE, 'Task already in terminal state'),
-        { status: 400 }
-      )
-    }
-  }
-
-  // Get existing history or start fresh
-  const history: TaskMessage[] = existingTask?.messages
-    ? (existingTask.messages as TaskMessage[])
-    : []
-
-  // Add the new user message
-  history.push(params.message)
-
-  // Create or update task
-  if (existingTask) {
-    await db
-      .update(a2aTask)
-      .set({
-        status: 'working',
-        messages: history,
-        updatedAt: new Date(),
-      })
-      .where(eq(a2aTask.id, taskId))
-  } else {
-    await db.insert(a2aTask).values({
-      id: taskId,
-      agentId: agent.id,
-      sessionId: contextId || null,
-      status: 'working',
-      messages: history,
-      metadata: params.metadata || {},
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-  }
-
-  // Execute the workflow
-  const executeUrl = `${getBaseUrl()}/api/workflows/${agent.workflowId}/execute`
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (apiKey) headers['X-API-Key'] = apiKey
-
-  logger.info(`Executing workflow ${agent.workflowId} for A2A task ${taskId}`)
-
-  try {
-    // Extract text content from the TaskMessage for easier workflow consumption
-    const messageText = extractTextContent(params.message)
-
-    const response = await fetch(executeUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        input: messageText,
-        triggerType: 'api',
-      }),
-      signal: AbortSignal.timeout(A2A_DEFAULT_TIMEOUT),
-    })
-
-    const executeResult = await response.json()
-
-    // Determine final state
-    const finalState: TaskState = response.ok ? 'completed' : 'failed'
-
-    // Create agent response message
-    const agentContent =
-      executeResult.output?.content ||
-      (typeof executeResult.output === 'object'
-        ? JSON.stringify(executeResult.output)
-        : String(executeResult.output || executeResult.error || 'Task completed'))
-
-    const agentMessage = createAgentMessage(agentContent)
-    history.push(agentMessage)
-
-    // Extract artifacts if present
-    const artifacts = executeResult.output?.artifacts || []
-
-    // Update task with result
-    await db
-      .update(a2aTask)
-      .set({
-        status: finalState,
-        messages: history,
-        artifacts,
-        executionId: executeResult.metadata?.executionId,
-        completedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(a2aTask.id, taskId))
-
-    const task: Task = {
-      id: taskId,
-      contextId: contextId || undefined,
-      status: createTaskStatus(finalState),
-      history,
-      artifacts,
-      metadata: params.metadata,
-      kind: 'task',
-    }
-
-    return NextResponse.json(createResponse(id, task))
-  } catch (error) {
-    logger.error(`Error executing workflow for task ${taskId}:`, error)
-
-    // Mark task as failed
-    const errorMessage = error instanceof Error ? error.message : 'Workflow execution failed'
-
-    await db
-      .update(a2aTask)
-      .set({
-        status: 'failed',
-        updatedAt: new Date(),
-        completedAt: new Date(),
-      })
-      .where(eq(a2aTask.id, taskId))
-
-    return NextResponse.json(createError(id, A2AErrorCode.INTERNAL_ERROR, errorMessage), {
-      status: 500,
-    })
-  }
-}
-
-/**
- * Handle tasks/get - Query task status
- */
-async function handleTaskGet(id: string | number, params: TaskQueryParams): Promise<NextResponse> {
-  if (!params?.id) {
-    return NextResponse.json(createError(id, A2AErrorCode.INVALID_PARAMS, 'Task ID is required'), {
-      status: 400,
-    })
-  }
-
-  // Validate historyLength if provided
-  const historyLength =
-    params.historyLength !== undefined && params.historyLength >= 0
-      ? params.historyLength
-      : undefined
-
-  const [task] = await db.select().from(a2aTask).where(eq(a2aTask.id, params.id)).limit(1)
-
-  if (!task) {
-    return NextResponse.json(createError(id, A2AErrorCode.TASK_NOT_FOUND, 'Task not found'), {
-      status: 404,
-    })
-  }
-
-  const result = formatTaskResponse(
-    {
-      id: task.id,
-      contextId: task.sessionId || undefined,
-      status: createTaskStatus(task.status as TaskState),
-      history: task.messages as TaskMessage[],
-      artifacts: (task.artifacts as Artifact[]) || [],
-      metadata: (task.metadata as Record<string, unknown>) || {},
-      kind: 'task',
-    },
-    historyLength
-  )
-
-  return NextResponse.json(createResponse(id, result))
-}
-
-/**
- * Handle tasks/cancel - Cancel a running task
- */
-async function handleTaskCancel(
-  id: string | number,
-  params: TaskCancelParams
-): Promise<NextResponse> {
-  if (!params?.id) {
-    return NextResponse.json(createError(id, A2AErrorCode.INVALID_PARAMS, 'Task ID is required'), {
-      status: 400,
-    })
-  }
-
-  const [task] = await db.select().from(a2aTask).where(eq(a2aTask.id, params.id)).limit(1)
-
-  if (!task) {
-    return NextResponse.json(createError(id, A2AErrorCode.TASK_NOT_FOUND, 'Task not found'), {
-      status: 404,
-    })
-  }
-
-  if (isTerminalState(task.status as TaskState)) {
     return NextResponse.json(
-      createError(id, A2AErrorCode.TASK_ALREADY_COMPLETE, 'Task already in terminal state'),
+      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Message is required'),
       { status: 400 }
     )
   }
 
-  await db
-    .update(a2aTask)
-    .set({
-      status: 'canceled',
-      updatedAt: new Date(),
-      completedAt: new Date(),
-    })
-    .where(eq(a2aTask.id, params.id))
+  const message = params.message
+  const taskId = message.taskId || generateTaskId()
+  const contextId = message.contextId || uuidv4() // Generate contextId if not provided
 
-  const result: Task = {
-    id: task.id,
-    contextId: task.sessionId || undefined,
-    status: createTaskStatus('canceled'),
-    history: task.messages as TaskMessage[],
-    artifacts: (task.artifacts as Artifact[]) || [],
-    kind: 'task',
+  // Distributed lock for concurrent message protection (graceful degradation)
+  const lockKey = `a2a:task:${taskId}:lock`
+  const lockValue = uuidv4()
+  const acquired = await acquireLock(lockKey, lockValue, 60) // 60 second lock
+
+  if (!acquired) {
+    return NextResponse.json(
+      createError(id, A2A_ERROR_CODES.INTERNAL_ERROR, 'Task is currently being processed'),
+      { status: 409 }
+    )
   }
 
-  return NextResponse.json(createResponse(id, result))
+  try {
+    // Check if task exists (continuation)
+    let existingTask: typeof a2aTask.$inferSelect | null = null
+    if (message.taskId) {
+      const [found] = await db.select().from(a2aTask).where(eq(a2aTask.id, message.taskId)).limit(1)
+      existingTask = found || null
+
+      if (!existingTask) {
+        return NextResponse.json(
+          createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'),
+          { status: 404 }
+        )
+      }
+
+      if (isTerminalState(existingTask.status as TaskState)) {
+        return NextResponse.json(
+          createError(id, A2A_ERROR_CODES.TASK_ALREADY_COMPLETE, 'Task already in terminal state'),
+          { status: 400 }
+        )
+      }
+    }
+
+    // Get existing history or start fresh
+    const history: Message[] = existingTask?.messages ? (existingTask.messages as Message[]) : []
+
+    // Add the new user message
+    history.push(message)
+
+    // Create or update task
+    if (existingTask) {
+      await db
+        .update(a2aTask)
+        .set({
+          status: 'working',
+          messages: history,
+          updatedAt: new Date(),
+        })
+        .where(eq(a2aTask.id, taskId))
+    } else {
+      await db.insert(a2aTask).values({
+        id: taskId,
+        agentId: agent.id,
+        sessionId: contextId || null,
+        status: 'working',
+        messages: history,
+        metadata: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+    }
+
+    // Execute the workflow
+    const executeUrl = `${getBaseUrl()}/api/workflows/${agent.workflowId}/execute`
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (apiKey) headers['X-API-Key'] = apiKey
+
+    logger.info(`Executing workflow ${agent.workflowId} for A2A task ${taskId}`)
+
+    try {
+      // Extract text content from the Message for workflow consumption
+      const messageText = extractTextContent(message)
+
+      const response = await fetch(executeUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          input: messageText,
+          triggerType: 'api',
+        }),
+        signal: AbortSignal.timeout(A2A_DEFAULT_TIMEOUT),
+      })
+
+      const executeResult = await response.json()
+
+      // Determine final state
+      const finalState: TaskState = response.ok ? 'completed' : 'failed'
+
+      // Create agent response message
+      const agentContent =
+        executeResult.output?.content ||
+        (typeof executeResult.output === 'object'
+          ? JSON.stringify(executeResult.output)
+          : String(executeResult.output || executeResult.error || 'Task completed'))
+
+      const agentMessage = createAgentMessage(agentContent)
+      // Add taskId and contextId to the response message
+      agentMessage.taskId = taskId
+      if (contextId) agentMessage.contextId = contextId
+      history.push(agentMessage)
+
+      // Extract artifacts if present
+      const artifacts = executeResult.output?.artifacts || []
+
+      // Update task with result
+      await db
+        .update(a2aTask)
+        .set({
+          status: finalState,
+          messages: history,
+          artifacts,
+          executionId: executeResult.metadata?.executionId,
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(a2aTask.id, taskId))
+
+      // Trigger push notification (fire and forget)
+      if (isTerminalState(finalState)) {
+        notifyTaskStateChange(taskId, finalState).catch((err) => {
+          logger.error('Failed to trigger push notification', { taskId, error: err })
+        })
+      }
+
+      const task: Task = {
+        kind: 'task',
+        id: taskId,
+        contextId,
+        status: createTaskStatus(finalState),
+        history,
+        artifacts,
+      }
+
+      return NextResponse.json(createResponse(id, task))
+    } catch (error) {
+      logger.error(`Error executing workflow for task ${taskId}:`, error)
+
+      // Mark task as failed
+      const errorMessage = error instanceof Error ? error.message : 'Workflow execution failed'
+
+      await db
+        .update(a2aTask)
+        .set({
+          status: 'failed',
+          updatedAt: new Date(),
+          completedAt: new Date(),
+        })
+        .where(eq(a2aTask.id, taskId))
+
+      // Trigger push notification for failure (fire and forget)
+      notifyTaskStateChange(taskId, 'failed').catch((err) => {
+        logger.error('Failed to trigger push notification for failure', { taskId, error: err })
+      })
+
+      return NextResponse.json(createError(id, A2A_ERROR_CODES.INTERNAL_ERROR, errorMessage), {
+        status: 500,
+      })
+    }
+  } finally {
+    await releaseLock(lockKey, lockValue)
+  }
 }
 
 /**
- * Handle tasks/sendSubscribe - SSE streaming
+ * Handle message/stream - Stream a message response (v0.3)
  */
-async function handleTaskSendSubscribe(
+async function handleMessageStream(
   request: NextRequest,
   id: string | number,
   agent: {
@@ -508,43 +450,45 @@ async function handleTaskSendSubscribe(
     workflowId: string
     workspaceId: string
   },
-  params: TaskSendParams,
+  params: MessageSendParams,
   apiKey?: string | null
 ): Promise<NextResponse> {
   if (!params?.message) {
-    return NextResponse.json(createError(id, A2AErrorCode.INVALID_PARAMS, 'Message is required'), {
-      status: 400,
-    })
+    return NextResponse.json(
+      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Message is required'),
+      { status: 400 }
+    )
   }
 
-  const contextId = params.contextId
+  const message = params.message
+  const contextId = message.contextId || uuidv4() // Generate contextId if not provided
 
   // Get existing task or prepare for new one
-  let history: TaskMessage[] = []
+  let history: Message[] = []
   let existingTask: typeof a2aTask.$inferSelect | null = null
 
-  if (params.id) {
-    const [found] = await db.select().from(a2aTask).where(eq(a2aTask.id, params.id)).limit(1)
+  if (message.taskId) {
+    const [found] = await db.select().from(a2aTask).where(eq(a2aTask.id, message.taskId)).limit(1)
     existingTask = found || null
 
     if (!existingTask) {
-      return NextResponse.json(createError(id, A2AErrorCode.TASK_NOT_FOUND, 'Task not found'), {
+      return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
         status: 404,
       })
     }
 
     if (isTerminalState(existingTask.status as TaskState)) {
       return NextResponse.json(
-        createError(id, A2AErrorCode.TASK_ALREADY_COMPLETE, 'Task already in terminal state'),
+        createError(id, A2A_ERROR_CODES.TASK_ALREADY_COMPLETE, 'Task already in terminal state'),
         { status: 400 }
       )
     }
 
-    history = existingTask.messages as TaskMessage[]
+    history = existingTask.messages as Message[]
   }
 
-  const taskId = params.id || generateTaskId()
-  history.push(params.message)
+  const taskId = message.taskId || generateTaskId()
+  history.push(message)
 
   // Create or update task record
   if (existingTask) {
@@ -563,7 +507,7 @@ async function handleTaskSendSubscribe(
       sessionId: contextId || null,
       status: 'working',
       messages: history,
-      metadata: params.metadata || {},
+      metadata: {},
       createdAt: new Date(),
       updatedAt: new Date(),
     })
@@ -582,9 +526,11 @@ async function handleTaskSendSubscribe(
         }
       }
 
-      // Send initial status
-      sendEvent('task:status', {
-        id: taskId,
+      // Send initial status update (v0.3 format)
+      sendEvent('status', {
+        kind: 'status',
+        taskId,
+        contextId,
         status: { state: 'working', timestamp: new Date().toISOString() },
       })
 
@@ -597,8 +543,8 @@ async function handleTaskSendSubscribe(
         }
         if (apiKey) headers['X-API-Key'] = apiKey
 
-        // Extract text content from the TaskMessage for easier workflow consumption
-        const messageText = extractTextContent(params.message)
+        // Extract text content from the Message for workflow consumption
+        const messageText = extractTextContent(message)
 
         const response = await fetch(executeUrl, {
           method: 'POST',
@@ -640,15 +586,21 @@ async function handleTaskSendSubscribe(
             const chunk = decoder.decode(value, { stream: true })
             fullContent += chunk
 
-            // Forward chunk as message event
-            sendEvent('task:message', {
-              id: taskId,
-              chunk,
+            // Forward chunk as message event (v0.3 format)
+            sendEvent('message', {
+              kind: 'message',
+              taskId,
+              contextId,
+              role: 'agent',
+              parts: [{ kind: 'text', text: chunk }],
+              final: false,
             })
           }
 
           // Create final agent message
           const agentMessage = createAgentMessage(fullContent || 'Task completed')
+          agentMessage.taskId = taskId
+          if (contextId) agentMessage.contextId = contextId
           history.push(agentMessage)
 
           // Update task
@@ -662,8 +614,15 @@ async function handleTaskSendSubscribe(
             })
             .where(eq(a2aTask.id, taskId))
 
-          sendEvent('task:status', {
-            id: taskId,
+          // Trigger push notification (fire and forget)
+          notifyTaskStateChange(taskId, 'completed').catch((err) => {
+            logger.error('Failed to trigger push notification', { taskId, error: err })
+          })
+
+          sendEvent('status', {
+            kind: 'status',
+            taskId,
+            contextId,
             status: { state: 'completed', timestamp: new Date().toISOString() },
             final: true,
           })
@@ -677,13 +636,19 @@ async function handleTaskSendSubscribe(
               ? JSON.stringify(result.output)
               : String(result.output || 'Task completed'))
 
-          // Send the complete content as a single message
-          sendEvent('task:message', {
-            id: taskId,
-            chunk: content,
+          // Send the complete content as a final message
+          sendEvent('message', {
+            kind: 'message',
+            taskId,
+            contextId,
+            role: 'agent',
+            parts: [{ kind: 'text', text: content }],
+            final: true,
           })
 
           const agentMessage = createAgentMessage(content)
+          agentMessage.taskId = taskId
+          if (contextId) agentMessage.contextId = contextId
           history.push(agentMessage)
 
           const artifacts = (result.output?.artifacts as Artifact[]) || []
@@ -701,8 +666,15 @@ async function handleTaskSendSubscribe(
             })
             .where(eq(a2aTask.id, taskId))
 
-          sendEvent('task:status', {
-            id: taskId,
+          // Trigger push notification (fire and forget)
+          notifyTaskStateChange(taskId, 'completed').catch((err) => {
+            logger.error('Failed to trigger push notification', { taskId, error: err })
+          })
+
+          sendEvent('status', {
+            kind: 'status',
+            taskId,
+            contextId,
             status: { state: 'completed', timestamp: new Date().toISOString() },
             final: true,
           })
@@ -719,12 +691,16 @@ async function handleTaskSendSubscribe(
           })
           .where(eq(a2aTask.id, taskId))
 
+        // Trigger push notification for failure (fire and forget)
+        notifyTaskStateChange(taskId, 'failed').catch((err) => {
+          logger.error('Failed to trigger push notification for failure', { taskId, error: err })
+        })
+
         sendEvent('error', {
-          code: A2AErrorCode.INTERNAL_ERROR,
+          code: A2A_ERROR_CODES.INTERNAL_ERROR,
           message: error instanceof Error ? error.message : 'Streaming failed',
         })
       } finally {
-        sendEvent('task:done', { id: taskId })
         controller.close()
       }
     },
@@ -736,4 +712,475 @@ async function handleTaskSendSubscribe(
       'X-Task-Id': taskId,
     },
   })
+}
+
+/**
+ * Handle tasks/get - Query task status
+ */
+async function handleTaskGet(id: string | number, params: TaskIdParams): Promise<NextResponse> {
+  if (!params?.id) {
+    return NextResponse.json(
+      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
+      { status: 400 }
+    )
+  }
+
+  // Validate historyLength if provided
+  const historyLength =
+    params.historyLength !== undefined && params.historyLength >= 0
+      ? params.historyLength
+      : undefined
+
+  const [task] = await db.select().from(a2aTask).where(eq(a2aTask.id, params.id)).limit(1)
+
+  if (!task) {
+    return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
+      status: 404,
+    })
+  }
+
+  const taskResponse: Task = {
+    kind: 'task',
+    id: task.id,
+    contextId: task.sessionId || task.id, // Use task ID as fallback contextId
+    status: createTaskStatus(task.status as TaskState),
+    history: task.messages as Message[],
+    artifacts: (task.artifacts as Artifact[]) || [],
+  }
+
+  const result = formatTaskResponse(taskResponse, historyLength)
+
+  return NextResponse.json(createResponse(id, result))
+}
+
+/**
+ * Handle tasks/cancel - Cancel a running task
+ */
+async function handleTaskCancel(id: string | number, params: TaskIdParams): Promise<NextResponse> {
+  if (!params?.id) {
+    return NextResponse.json(
+      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
+      { status: 400 }
+    )
+  }
+
+  const [task] = await db.select().from(a2aTask).where(eq(a2aTask.id, params.id)).limit(1)
+
+  if (!task) {
+    return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
+      status: 404,
+    })
+  }
+
+  if (isTerminalState(task.status as TaskState)) {
+    return NextResponse.json(
+      createError(id, A2A_ERROR_CODES.TASK_ALREADY_COMPLETE, 'Task already in terminal state'),
+      { status: 400 }
+    )
+  }
+
+  // Cancel running workflow execution if exists
+  if (task.executionId) {
+    try {
+      await markExecutionCancelled(task.executionId)
+      logger.info('Cancelled workflow execution', {
+        taskId: task.id,
+        executionId: task.executionId,
+      })
+    } catch (error) {
+      logger.warn('Failed to cancel workflow execution', {
+        taskId: task.id,
+        executionId: task.executionId,
+        error,
+      })
+    }
+  }
+
+  await db
+    .update(a2aTask)
+    .set({
+      status: 'canceled',
+      updatedAt: new Date(),
+      completedAt: new Date(),
+    })
+    .where(eq(a2aTask.id, params.id))
+
+  // Trigger push notification for cancellation (fire and forget)
+  notifyTaskStateChange(params.id, 'canceled').catch((err) => {
+    logger.error('Failed to trigger push notification for cancellation', {
+      taskId: params.id,
+      error: err,
+    })
+  })
+
+  const canceledTask: Task = {
+    kind: 'task',
+    id: task.id,
+    contextId: task.sessionId || task.id, // Use task ID as fallback contextId
+    status: createTaskStatus('canceled'),
+    history: task.messages as Message[],
+    artifacts: (task.artifacts as Artifact[]) || [],
+  }
+
+  return NextResponse.json(createResponse(id, canceledTask))
+}
+
+/**
+ * Handle tasks/resubscribe - Reconnect to SSE stream for an ongoing task
+ */
+async function handleTaskResubscribe(
+  request: NextRequest,
+  id: string | number,
+  params: TaskIdParams
+): Promise<NextResponse> {
+  if (!params?.id) {
+    return NextResponse.json(
+      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
+      { status: 400 }
+    )
+  }
+
+  const [task] = await db.select().from(a2aTask).where(eq(a2aTask.id, params.id)).limit(1)
+
+  if (!task) {
+    return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
+      status: 404,
+    })
+  }
+
+  if (isTerminalState(task.status as TaskState)) {
+    // Task already completed - return final state as regular response
+    const completedTask: Task = {
+      kind: 'task',
+      id: task.id,
+      contextId: task.sessionId || task.id, // Use task ID as fallback contextId
+      status: createTaskStatus(task.status as TaskState),
+      history: task.messages as Message[],
+      artifacts: (task.artifacts as Artifact[]) || [],
+    }
+    return NextResponse.json(createResponse(id, completedTask))
+  }
+
+  // Create SSE stream for ongoing task updates
+  const encoder = new TextEncoder()
+  let isCancelled = false
+  let pollTimeoutId: ReturnType<typeof setTimeout> | null = null
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const sendEvent = (event: string, data: unknown): boolean => {
+        if (isCancelled) return false
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
+          return true
+        } catch (error) {
+          logger.error('Error sending SSE event:', error)
+          isCancelled = true
+          return false
+        }
+      }
+
+      const cleanup = () => {
+        isCancelled = true
+        if (pollTimeoutId) {
+          clearTimeout(pollTimeoutId)
+          pollTimeoutId = null
+        }
+      }
+
+      // Send current status (v0.3 format)
+      if (
+        !sendEvent('status', {
+          kind: 'status',
+          taskId: task.id,
+          contextId: task.sessionId,
+          status: { state: task.status, timestamp: new Date().toISOString() },
+        })
+      ) {
+        cleanup()
+        return
+      }
+
+      // Poll for updates until task completes
+      const pollInterval = 3000 // 3 seconds (reduced from 1s to lower DB load)
+      const maxPolls = 100 // 5 minutes max (100 * 3s = 300s)
+
+      let polls = 0
+      const poll = async () => {
+        if (isCancelled) {
+          cleanup()
+          return
+        }
+
+        polls++
+        if (polls > maxPolls) {
+          cleanup()
+          try {
+            controller.close()
+          } catch {
+            // Already closed
+          }
+          return
+        }
+
+        try {
+          const [updatedTask] = await db
+            .select()
+            .from(a2aTask)
+            .where(eq(a2aTask.id, params.id))
+            .limit(1)
+
+          if (isCancelled) {
+            cleanup()
+            return
+          }
+
+          if (!updatedTask) {
+            sendEvent('error', { code: A2A_ERROR_CODES.TASK_NOT_FOUND, message: 'Task not found' })
+            cleanup()
+            try {
+              controller.close()
+            } catch {
+              // Already closed
+            }
+            return
+          }
+
+          if (updatedTask.status !== task.status) {
+            if (
+              !sendEvent('status', {
+                kind: 'status',
+                taskId: updatedTask.id,
+                contextId: updatedTask.sessionId,
+                status: { state: updatedTask.status, timestamp: new Date().toISOString() },
+                final: isTerminalState(updatedTask.status as TaskState),
+              })
+            ) {
+              cleanup()
+              return
+            }
+          }
+
+          if (isTerminalState(updatedTask.status as TaskState)) {
+            // Send final message if available
+            const messages = updatedTask.messages as Message[]
+            const lastMessage = messages[messages.length - 1]
+            if (lastMessage && lastMessage.role === 'agent') {
+              sendEvent('message', {
+                ...lastMessage,
+                taskId: updatedTask.id,
+                contextId: updatedTask.sessionId || updatedTask.id,
+                final: true,
+              })
+            }
+
+            cleanup()
+            try {
+              controller.close()
+            } catch {
+              // Already closed
+            }
+            return
+          }
+
+          pollTimeoutId = setTimeout(poll, pollInterval)
+        } catch (error) {
+          logger.error('Error during SSE poll:', error)
+          sendEvent('error', {
+            code: A2A_ERROR_CODES.INTERNAL_ERROR,
+            message: error instanceof Error ? error.message : 'Polling failed',
+          })
+          cleanup()
+          try {
+            controller.close()
+          } catch {
+            // Already closed
+          }
+        }
+      }
+
+      poll()
+    },
+    cancel() {
+      isCancelled = true
+      if (pollTimeoutId) {
+        clearTimeout(pollTimeoutId)
+        pollTimeoutId = null
+      }
+    },
+  })
+
+  return new NextResponse(stream, {
+    headers: {
+      ...SSE_HEADERS,
+      'X-Task-Id': params.id,
+    },
+  })
+}
+
+/**
+ * Handle tasks/pushNotificationConfig/set - Set webhook for task updates
+ */
+async function handlePushNotificationSet(
+  id: string | number,
+  params: PushNotificationSetParams
+): Promise<NextResponse> {
+  if (!params?.id) {
+    return NextResponse.json(
+      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
+      { status: 400 }
+    )
+  }
+
+  if (!params?.pushNotificationConfig?.url) {
+    return NextResponse.json(
+      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Push notification URL is required'),
+      { status: 400 }
+    )
+  }
+
+  // Validate URL is HTTPS (security requirement)
+  try {
+    const url = new URL(params.pushNotificationConfig.url)
+    if (url.protocol !== 'https:') {
+      return NextResponse.json(
+        createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Push notification URL must use HTTPS'),
+        { status: 400 }
+      )
+    }
+  } catch {
+    return NextResponse.json(
+      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Invalid push notification URL'),
+      { status: 400 }
+    )
+  }
+
+  const [task] = await db.select().from(a2aTask).where(eq(a2aTask.id, params.id)).limit(1)
+
+  if (!task) {
+    return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
+      status: 404,
+    })
+  }
+
+  // Check if config already exists
+  const [existingConfig] = await db
+    .select()
+    .from(a2aPushNotificationConfig)
+    .where(eq(a2aPushNotificationConfig.taskId, params.id))
+    .limit(1)
+
+  const config = params.pushNotificationConfig
+
+  if (existingConfig) {
+    await db
+      .update(a2aPushNotificationConfig)
+      .set({
+        url: config.url,
+        token: config.token || null,
+        isActive: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(a2aPushNotificationConfig.id, existingConfig.id))
+  } else {
+    await db.insert(a2aPushNotificationConfig).values({
+      id: uuidv4(),
+      taskId: params.id,
+      url: config.url,
+      token: config.token || null,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  }
+
+  const result: PushNotificationConfig = {
+    url: config.url,
+    token: config.token,
+  }
+
+  return NextResponse.json(createResponse(id, result))
+}
+
+/**
+ * Handle tasks/pushNotificationConfig/get - Get webhook config for a task
+ */
+async function handlePushNotificationGet(
+  id: string | number,
+  params: TaskIdParams
+): Promise<NextResponse> {
+  if (!params?.id) {
+    return NextResponse.json(
+      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
+      { status: 400 }
+    )
+  }
+
+  const [task] = await db.select().from(a2aTask).where(eq(a2aTask.id, params.id)).limit(1)
+
+  if (!task) {
+    return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
+      status: 404,
+    })
+  }
+
+  const [config] = await db
+    .select()
+    .from(a2aPushNotificationConfig)
+    .where(eq(a2aPushNotificationConfig.taskId, params.id))
+    .limit(1)
+
+  if (!config) {
+    return NextResponse.json(
+      createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Push notification config not found'),
+      { status: 404 }
+    )
+  }
+
+  const result: PushNotificationConfig = {
+    url: config.url,
+    token: config.token || undefined,
+  }
+
+  return NextResponse.json(createResponse(id, result))
+}
+
+/**
+ * Handle tasks/pushNotificationConfig/delete - Delete webhook config for a task
+ */
+async function handlePushNotificationDelete(
+  id: string | number,
+  params: TaskIdParams
+): Promise<NextResponse> {
+  if (!params?.id) {
+    return NextResponse.json(
+      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
+      { status: 400 }
+    )
+  }
+
+  const [task] = await db.select().from(a2aTask).where(eq(a2aTask.id, params.id)).limit(1)
+
+  if (!task) {
+    return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
+      status: 404,
+    })
+  }
+
+  const [config] = await db
+    .select()
+    .from(a2aPushNotificationConfig)
+    .where(eq(a2aPushNotificationConfig.taskId, params.id))
+    .limit(1)
+
+  if (!config) {
+    return NextResponse.json(
+      createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Push notification config not found'),
+      { status: 404 }
+    )
+  }
+
+  await db.delete(a2aPushNotificationConfig).where(eq(a2aPushNotificationConfig.id, config.id))
+
+  return NextResponse.json(createResponse(id, { success: true }))
 }

@@ -1,10 +1,10 @@
 import type { ToolConfig } from '@/tools/types'
-import type { A2AGetTaskParams, A2AGetTaskResponse } from './types'
+import type { A2AResubscribeParams, A2AResubscribeResponse } from './types'
 
-export const a2aGetTaskTool: ToolConfig<A2AGetTaskParams, A2AGetTaskResponse> = {
-  id: 'a2a_get_task',
-  name: 'A2A Get Task',
-  description: 'Query the status of an existing A2A task.',
+export const a2aResubscribeTool: ToolConfig<A2AResubscribeParams, A2AResubscribeResponse> = {
+  id: 'a2a_resubscribe',
+  name: 'A2A Resubscribe',
+  description: 'Reconnect to an ongoing A2A task stream after connection interruption.',
   version: '1.0.0',
 
   params: {
@@ -16,35 +16,46 @@ export const a2aGetTaskTool: ToolConfig<A2AGetTaskParams, A2AGetTaskResponse> = 
     taskId: {
       type: 'string',
       required: true,
-      description: 'Task ID to query',
+      description: 'Task ID to resubscribe to',
     },
     apiKey: {
       type: 'string',
       description: 'API key for authentication',
     },
-    historyLength: {
-      type: 'number',
-      description: 'Number of history messages to include',
-    },
   },
 
   request: {
-    url: '/api/tools/a2a/get-task',
+    url: '/api/tools/a2a/resubscribe',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: A2AGetTaskParams) => ({
+    body: (params: A2AResubscribeParams) => ({
       agentUrl: params.agentUrl,
       taskId: params.taskId,
       apiKey: params.apiKey,
-      historyLength: params.historyLength,
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response) => {
     const data = await response.json()
-    return data
+
+    if (!data.success) {
+      return {
+        success: false,
+        output: {
+          taskId: '',
+          state: 'failed' as const,
+          isRunning: false,
+        },
+        error: data.error || 'Failed to resubscribe',
+      }
+    }
+
+    return {
+      success: true,
+      output: data.output,
+    }
   },
 
   outputs: {
@@ -58,7 +69,11 @@ export const a2aGetTaskTool: ToolConfig<A2AGetTaskParams, A2AGetTaskResponse> = 
     },
     state: {
       type: 'string',
-      description: 'Task state',
+      description: 'Current task state',
+    },
+    isRunning: {
+      type: 'boolean',
+      description: 'Whether the task is still running',
     },
     artifacts: {
       type: 'array',

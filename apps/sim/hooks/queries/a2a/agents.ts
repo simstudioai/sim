@@ -4,8 +4,9 @@
  * Hooks for managing A2A agents in the UI.
  */
 
+import type { AgentCapabilities, AgentSkill } from '@a2a-js/sdk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { AgentAuthentication, AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
+import type { AgentAuthentication } from '@/lib/a2a/types'
 
 /**
  * A2A Agent as returned from the API
@@ -274,5 +275,33 @@ export function usePublishA2AAgent() {
         queryKey: a2aAgentKeys.list(variables.workspaceId),
       })
     },
+  })
+}
+
+/**
+ * Fetch A2A agent by workflow ID
+ */
+async function fetchA2AAgentByWorkflow(
+  workspaceId: string,
+  workflowId: string
+): Promise<A2AAgent | null> {
+  const response = await fetch(`/api/a2a/agents?workspaceId=${workspaceId}`)
+  if (!response.ok) {
+    throw new Error('Failed to fetch A2A agents')
+  }
+  const data = await response.json()
+  const agents = data.agents as A2AAgent[]
+  return agents.find((agent) => agent.workflowId === workflowId) || null
+}
+
+/**
+ * Hook to get A2A agent by workflow ID
+ */
+export function useA2AAgentByWorkflow(workspaceId: string, workflowId: string) {
+  return useQuery({
+    queryKey: [...a2aAgentKeys.all, 'byWorkflow', workspaceId, workflowId] as const,
+    queryFn: () => fetchA2AAgentByWorkflow(workspaceId, workflowId),
+    enabled: Boolean(workspaceId) && Boolean(workflowId),
+    staleTime: 30 * 1000, // 30 seconds
   })
 }
