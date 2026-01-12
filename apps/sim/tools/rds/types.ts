@@ -33,6 +33,11 @@ export interface RdsExecuteParams extends RdsConnectionConfig {
   query: string
 }
 
+export interface RdsIntrospectParams extends RdsConnectionConfig {
+  schema?: string
+  engine?: 'aurora-postgresql' | 'aurora-mysql'
+}
+
 export interface RdsBaseResponse extends ToolResponse {
   output: {
     message: string
@@ -48,3 +53,43 @@ export interface RdsUpdateResponse extends RdsBaseResponse {}
 export interface RdsDeleteResponse extends RdsBaseResponse {}
 export interface RdsExecuteResponse extends RdsBaseResponse {}
 export interface RdsResponse extends RdsBaseResponse {}
+
+export interface RdsTableColumn {
+  name: string
+  type: string
+  nullable: boolean
+  default: string | null
+  isPrimaryKey: boolean
+  isForeignKey: boolean
+  references?: {
+    table: string
+    column: string
+  }
+}
+
+export interface RdsTableSchema {
+  name: string
+  schema: string
+  columns: RdsTableColumn[]
+  primaryKey: string[]
+  foreignKeys: Array<{
+    column: string
+    referencesTable: string
+    referencesColumn: string
+  }>
+  indexes: Array<{
+    name: string
+    columns: string[]
+    unique: boolean
+  }>
+}
+
+export interface RdsIntrospectResponse extends ToolResponse {
+  output: {
+    message: string
+    engine: string
+    tables: RdsTableSchema[]
+    schemas: string[]
+  }
+  error?: string
+}

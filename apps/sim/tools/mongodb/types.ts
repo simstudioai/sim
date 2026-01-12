@@ -41,6 +41,28 @@ export interface MongoDBExecuteParams extends MongoDBConnectionConfig {
   pipeline: string
 }
 
+export interface MongoDBIntrospectParams {
+  host: string
+  port: number
+  database?: string
+  username?: string
+  password?: string
+  authSource?: string
+  ssl?: 'disabled' | 'required' | 'preferred'
+}
+
+export interface MongoDBCollectionInfo {
+  name: string
+  type: string
+  documentCount: number
+  indexes: Array<{
+    name: string
+    key: Record<string, number>
+    unique: boolean
+    sparse?: boolean
+  }>
+}
+
 export interface MongoDBBaseResponse extends ToolResponse {
   output: {
     message: string
@@ -61,3 +83,12 @@ export interface MongoDBUpdateResponse extends MongoDBBaseResponse {}
 export interface MongoDBDeleteResponse extends MongoDBBaseResponse {}
 export interface MongoDBExecuteResponse extends MongoDBBaseResponse {}
 export interface MongoDBResponse extends MongoDBBaseResponse {}
+
+export interface MongoDBIntrospectResponse extends ToolResponse {
+  output: {
+    message: string
+    databases: string[]
+    collections: MongoDBCollectionInfo[]
+  }
+  error?: string
+}

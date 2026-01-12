@@ -23,6 +23,7 @@ export const PostgreSQLBlock: BlockConfig<PostgresResponse> = {
         { label: 'Update Data', id: 'update' },
         { label: 'Delete Data', id: 'delete' },
         { label: 'Execute Raw SQL', id: 'execute' },
+        { label: 'Introspect Schema', id: 'introspect' },
       ],
       value: () => 'query',
     },
@@ -285,6 +286,14 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
       condition: { field: 'operation', value: 'delete' },
       required: true,
     },
+    {
+      id: 'schema',
+      title: 'Schema Name',
+      type: 'short-input',
+      placeholder: 'public',
+      value: () => 'public',
+      condition: { field: 'operation', value: 'introspect' },
+    },
   ],
   tools: {
     access: [
@@ -293,6 +302,7 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
       'postgresql_update',
       'postgresql_delete',
       'postgresql_execute',
+      'postgresql_introspect',
     ],
     config: {
       tool: (params) => {
@@ -307,6 +317,8 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
             return 'postgresql_delete'
           case 'execute':
             return 'postgresql_execute'
+          case 'introspect':
+            return 'postgresql_introspect'
           default:
             throw new Error(`Invalid PostgreSQL operation: ${params.operation}`)
         }
@@ -343,6 +355,7 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
         if (rest.table) result.table = rest.table
         if (rest.query) result.query = rest.query
         if (rest.where) result.where = rest.where
+        if (rest.schema) result.schema = rest.schema
         if (parsedData !== undefined) result.data = parsedData
 
         return result
@@ -361,6 +374,7 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
     query: { type: 'string', description: 'SQL query to execute' },
     data: { type: 'json', description: 'Data for insert/update operations' },
     where: { type: 'string', description: 'WHERE clause for update/delete' },
+    schema: { type: 'string', description: 'Schema name for introspection' },
   },
   outputs: {
     message: {
@@ -374,6 +388,14 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
     rowCount: {
       type: 'number',
       description: 'Number of rows affected by the operation',
+    },
+    tables: {
+      type: 'array',
+      description: 'Array of table schemas with columns, keys, and indexes (introspect operation)',
+    },
+    schemas: {
+      type: 'array',
+      description: 'List of available schemas in the database (introspect operation)',
     },
   },
 }

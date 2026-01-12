@@ -96,13 +96,13 @@ Download a file from Google Drive with complete metadata (exports Google Workspa
 | `fileId` | string | Yes | The ID of the file to download |
 | `mimeType` | string | No | The MIME type to export Google Workspace files to \(optional\) |
 | `fileName` | string | No | Optional filename override |
-| `includeRevisions` | boolean | No | Whether to include revision history in the metadata \(default: true\) |
+| `includeRevisions` | boolean | No | Whether to include revision history in the metadata \(default: true, returns first 100 revisions\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `file` | object | Downloaded file stored in execution files |
+| `file` | object | Downloaded file data |
 
 ### `google_drive_list`
 

@@ -1,8 +1,8 @@
 import { RDSIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import type { RdsResponse } from '@/tools/rds/types'
+import type { RdsIntrospectResponse, RdsResponse } from '@/tools/rds/types'
 
-export const RDSBlock: BlockConfig<RdsResponse> = {
+export const RDSBlock: BlockConfig<RdsResponse | RdsIntrospectResponse> = {
   type: 'rds',
   name: 'Amazon RDS',
   description: 'Connect to Amazon RDS via Data API',
@@ -23,6 +23,7 @@ export const RDSBlock: BlockConfig<RdsResponse> = {
         { label: 'Update Data', id: 'update' },
         { label: 'Delete Data', id: 'delete' },
         { label: 'Execute Raw SQL', id: 'execute' },
+        { label: 'Introspect Schema', id: 'introspect' },
       ],
       value: () => 'query',
     },
@@ -340,9 +341,36 @@ Return ONLY the JSON object.`,
         generationType: 'json-object',
       },
     },
+    {
+      id: 'schema',
+      title: 'Schema Name',
+      type: 'short-input',
+      placeholder: 'public (PostgreSQL) or database name (MySQL)',
+      condition: { field: 'operation', value: 'introspect' },
+      required: false,
+    },
+    {
+      id: 'engine',
+      title: 'Database Engine',
+      type: 'dropdown',
+      options: [
+        { label: 'Auto-detect', id: '' },
+        { label: 'Aurora PostgreSQL', id: 'aurora-postgresql' },
+        { label: 'Aurora MySQL', id: 'aurora-mysql' },
+      ],
+      condition: { field: 'operation', value: 'introspect' },
+      value: () => '',
+    },
   ],
   tools: {
-    access: ['rds_query', 'rds_insert', 'rds_update', 'rds_delete', 'rds_execute'],
+    access: [
+      'rds_query',
+      'rds_insert',
+      'rds_update',
+      'rds_delete',
+      'rds_execute',
+      'rds_introspect',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -356,12 +384,14 @@ Return ONLY the JSON object.`,
             return 'rds_delete'
           case 'execute':
             return 'rds_execute'
+          case 'introspect':
+            return 'rds_introspect'
           default:
             throw new Error(`Invalid RDS operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { operation, data, conditions, ...rest } = params
+        const { operation, data, conditions, schema, engine, ...rest } = params
 
         // Parse JSON fields
         const parseJson = (value: unknown, fieldName: string) => {
@@ -399,6 +429,8 @@ Return ONLY the JSON object.`,
         if (rest.query) result.query = rest.query
         if (parsedConditions !== undefined) result.conditions = parsedConditions
         if (parsedData !== undefined) result.data = parsedData
+        if (schema) result.schema = schema
+        if (engine) result.engine = engine
 
         return result
       },
@@ -416,6 +448,11 @@ Return ONLY the JSON object.`,
     query: { type: 'string', description: 'SQL query to execute' },
     data: { type: 'json', description: 'Data for insert/update operations' },
     conditions: { type: 'json', description: 'Conditions for update/delete (e.g., {"id": 1})' },
+    schema: { type: 'string', description: 'Schema to introspect (for introspect operation)' },
+    engine: {
+      type: 'string',
+      description: 'Database engine (aurora-postgresql or aurora-mysql, auto-detected if not set)',
+    },
   },
   outputs: {
     message: {
@@ -429,6 +466,19 @@ Return ONLY the JSON object.`,
     rowCount: {
       type: 'number',
       description: 'Number of rows affected by the operation',
+    },
+    engine: {
+      type: 'string',
+      description: 'Detected database engine type (for introspect operation)',
+    },
+    tables: {
+      type: 'array',
+      description:
+        'Array of table schemas with columns, keys, and indexes (for introspect operation)',
+    },
+    schemas: {
+      type: 'array',
+      description: 'List of available schemas in the database (for introspect operation)',
     },
   },
 }

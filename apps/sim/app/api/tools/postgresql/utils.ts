@@ -187,3 +187,184 @@ export async function executeDelete(
     rowCount,
   }
 }
+
+export interface IntrospectionResult {
+  tables: Array<{
+    name: string
+    schema: string
+    columns: Array<{
+      name: string
+      type: string
+      nullable: boolean
+      default: string | null
+      isPrimaryKey: boolean
+      isForeignKey: boolean
+      references?: {
+        table: string
+        column: string
+      }
+    }>
+    primaryKey: string[]
+    foreignKeys: Array<{
+      column: string
+      referencesTable: string
+      referencesColumn: string
+    }>
+    indexes: Array<{
+      name: string
+      columns: string[]
+      unique: boolean
+    }>
+  }>
+  schemas: string[]
+}
+
+export async function executeIntrospect(
+  sql: any,
+  schemaName = 'public'
+): Promise<IntrospectionResult> {
+  const schemasResult = await sql`
+    SELECT schema_name
+    FROM information_schema.schemata
+    WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+    ORDER BY schema_name
+  `
+  const schemas = schemasResult.map((row: { schema_name: string }) => row.schema_name)
+
+  const tablesResult = await sql`
+    SELECT table_name, table_schema
+    FROM information_schema.tables
+    WHERE table_schema = ${schemaName}
+      AND table_type = 'BASE TABLE'
+    ORDER BY table_name
+  `
+
+  const tables = []
+
+  for (const tableRow of tablesResult) {
+    const tableName = tableRow.table_name
+    const tableSchema = tableRow.table_schema
+
+    const columnsResult = await sql`
+      SELECT
+        c.column_name,
+        c.data_type,
+        c.is_nullable,
+        c.column_default,
+        c.udt_name
+      FROM information_schema.columns c
+      WHERE c.table_schema = ${tableSchema}
+        AND c.table_name = ${tableName}
+      ORDER BY c.ordinal_position
+    `
+
+    const pkResult = await sql`
+      SELECT kcu.column_name
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu
+        ON tc.constraint_name = kcu.constraint_name
+        AND tc.table_schema = kcu.table_schema
+      WHERE tc.constraint_type = 'PRIMARY KEY'
+        AND tc.table_schema = ${tableSchema}
+        AND tc.table_name = ${tableName}
+    `
+    const primaryKeyColumns = pkResult.map((row: { column_name: string }) => row.column_name)
+
+    const fkResult = await sql`
+      SELECT
+        kcu.column_name,
+        ccu.table_name AS foreign_table_name,
+        ccu.column_name AS foreign_column_name
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu
+        ON tc.constraint_name = kcu.constraint_name
+        AND tc.table_schema = kcu.table_schema
+      JOIN information_schema.constraint_column_usage ccu
+        ON ccu.constraint_name = tc.constraint_name
+        AND ccu.table_schema = tc.table_schema
+      WHERE tc.constraint_type = 'FOREIGN KEY'
+        AND tc.table_schema = ${tableSchema}
+        AND tc.table_name = ${tableName}
+    `
+
+    const foreignKeys = fkResult.map(
+      (row: { column_name: string; foreign_table_name: string; foreign_column_name: string }) => ({
+        column: row.column_name,
+        referencesTable: row.foreign_table_name,
+        referencesColumn: row.foreign_column_name,
+      })
+    )
+
+    const fkColumnSet = new Set(foreignKeys.map((fk: { column: string }) => fk.column))
+
+    const indexesResult = await sql`
+      SELECT
+        i.relname AS index_name,
+        a.attname AS column_name,
+        ix.indisunique AS is_unique
+      FROM pg_class t
+      JOIN pg_index ix ON t.oid = ix.indrelid
+      JOIN pg_class i ON i.oid = ix.indexrelid
+      JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+      WHERE t.relkind = 'r'
+        AND n.nspname = ${tableSchema}
+        AND t.relname = ${tableName}
+        AND NOT ix.indisprimary
+      ORDER BY i.relname, a.attnum
+    `
+
+    const indexMap = new Map<string, { name: string; columns: string[]; unique: boolean }>()
+    for (const row of indexesResult) {
+      const indexName = row.index_name
+      if (!indexMap.has(indexName)) {
+        indexMap.set(indexName, {
+          name: indexName,
+          columns: [],
+          unique: row.is_unique,
+        })
+      }
+      indexMap.get(indexName)!.columns.push(row.column_name)
+    }
+    const indexes = Array.from(indexMap.values())
+
+    const columns = columnsResult.map(
+      (col: {
+        column_name: string
+        data_type: string
+        is_nullable: string
+        column_default: string | null
+        udt_name: string
+      }) => {
+        const columnName = col.column_name
+        const fk = foreignKeys.find((f: { column: string }) => f.column === columnName)
+
+        return {
+          name: columnName,
+          type: col.data_type === 'USER-DEFINED' ? col.udt_name : col.data_type,
+          nullable: col.is_nullable === 'YES',
+          default: col.column_default,
+          isPrimaryKey: primaryKeyColumns.includes(columnName),
+          isForeignKey: fkColumnSet.has(columnName),
+          ...(fk && {
+            references: {
+              table: fk.referencesTable,
+              column: fk.referencesColumn,
+            },
+          }),
+        }
+      }
+    )
+
+    tables.push({
+      name: tableName,
+      schema: tableSchema,
+      columns,
+      primaryKey: primaryKeyColumns,
+      foreignKeys,
+      indexes,
+    })
+  }
+
+  return { tables, schemas }
+}

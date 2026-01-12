@@ -157,6 +157,30 @@ Execute raw SQL query on PostgreSQL database
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows affected |
 
+### `postgresql_introspect`
+
+Introspect PostgreSQL database schema to retrieve table structures, columns, and relationships
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | PostgreSQL server hostname or IP address |
+| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `schema` | string | No | Schema to introspect \(default: public\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `tables` | array | Array of table schemas with columns, keys, and indexes |
+| `schemas` | array | List of available schemas in the database |
+
 
 
 ## Notes
