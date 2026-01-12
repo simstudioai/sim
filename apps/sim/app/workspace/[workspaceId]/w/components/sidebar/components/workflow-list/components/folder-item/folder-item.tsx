@@ -20,6 +20,7 @@ import {
   useCanDelete,
   useDeleteFolder,
   useDuplicateFolder,
+  useExportFolder,
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCreateFolder, useUpdateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
@@ -71,6 +72,12 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   const { handleDuplicateFolder } = useDuplicateFolder({
     workspaceId,
     getFolderIds: () => folder.id,
+  })
+
+  // Export folder hook
+  const { isExporting, hasWorkflows, handleExportFolder } = useExportFolder({
+    workspaceId,
+    getFolderId: () => folder.id,
   })
 
   // Folder expand hook - must be declared before callbacks that use expandFolder
@@ -365,13 +372,16 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
         onCreate={handleCreateWorkflowInFolder}
         onCreateFolder={handleCreateFolderInFolder}
         onDuplicate={handleDuplicateFolder}
+        onExport={handleExportFolder}
         onDelete={() => setIsDeleteModalOpen(true)}
         showCreate={true}
         showCreateFolder={true}
+        showExport={true}
         disableRename={!userPermissions.canEdit}
         disableCreate={!userPermissions.canEdit || createWorkflowMutation.isPending}
         disableCreateFolder={!userPermissions.canEdit || createFolderMutation.isPending}
-        disableDuplicate={!userPermissions.canEdit}
+        disableDuplicate={!userPermissions.canEdit || !hasWorkflows}
+        disableExport={!userPermissions.canEdit || isExporting || !hasWorkflows}
         disableDelete={!userPermissions.canEdit || !canDelete}
       />
 
