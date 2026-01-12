@@ -78,8 +78,8 @@ export const queryTool: ToolConfig<TinybirdQueryParams, TinybirdQueryResponse> =
         const errorData = JSON.parse(responseText)
         errorMessage = errorData.error?.message || errorData.error || errorMessage
       } catch {
-        // If not JSON, use raw text
-        errorMessage = responseText || errorMessage
+        // If not JSON, use raw text (truncated if too long)
+        errorMessage = responseText ? responseText.substring(0, 500) : errorMessage
       }
       logger.error('Failed to execute Tinybird query', {
         status: response.status,
