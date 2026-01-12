@@ -84,12 +84,9 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
     {
       id: 'wait',
       title: 'Wait for Acknowledgment',
-      type: 'dropdown',
-      options: [
-        { label: 'No (faster, default)', id: 'false' },
-        { label: 'Yes (safer retries)', id: 'true' },
-      ],
+      type: 'switch',
       value: () => 'false',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tinybird_events' },
     },
     // Query operation inputs
@@ -113,6 +110,45 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
     access: ['tinybird_events', 'tinybird_query'],
     config: {
       tool: (params) => params.operation || 'tinybird_events',
+      params: (params) => {
+        const operation = params.operation || 'tinybird_events'
+        const result: Record<string, any> = {
+          base_url: params.base_url,
+          token: params.token,
+        }
+
+        if (operation === 'tinybird_events') {
+          // Send Events operation
+          if (!params.datasource) {
+            throw new Error('Data Source is required for Send Events operation')
+          }
+          if (!params.data) {
+            throw new Error('Data is required for Send Events operation')
+          }
+
+          result.datasource = params.datasource
+          result.data = params.data
+          result.format = params.format || 'ndjson'
+          result.compression = params.compression || 'none'
+
+          // Convert wait from string to boolean
+          if (params.wait !== undefined) {
+            result.wait = params.wait === 'true' || params.wait === true || params.wait === 'True'
+          }
+        } else if (operation === 'tinybird_query') {
+          // Query operation
+          if (!params.query) {
+            throw new Error('SQL Query is required for Query operation')
+          }
+
+          result.query = params.query
+          if (params.pipeline) {
+            result.pipeline = params.pipeline
+          }
+        }
+
+        return result
+      },
     },
   },
   inputs: {

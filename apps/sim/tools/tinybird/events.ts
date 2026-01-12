@@ -1,3 +1,4 @@
+import { gzipSync } from 'zlib'
 import { createLogger } from '@sim/logger'
 import type { TinybirdEventsParams, TinybirdEventsResponse } from '@/tools/tinybird/types'
 import type { ToolConfig } from '@/tools/types'
@@ -8,7 +9,7 @@ export const eventsTool: ToolConfig<TinybirdEventsParams, TinybirdEventsResponse
   id: 'tinybird_events',
   name: 'Tinybird Events',
   description:
-    'Send events to a Tinybird Data Source using the Events API. Supports JSON and NDJSON formats with optional compression.',
+    'Send events to a Tinybird Data Source using the Events API. Supports JSON and NDJSON formats with optional gzip compression.',
   version: '1.0.0',
 
   params: {
@@ -87,7 +88,13 @@ export const eventsTool: ToolConfig<TinybirdEventsParams, TinybirdEventsResponse
 
       return headers
     },
-    body: (params) => params.data,
+    body: (params) => {
+      const data = params.data
+      if (params.compression === 'gzip') {
+        return gzipSync(Buffer.from(data, 'utf-8'))
+      }
+      return data
+    },
   },
 
   transformResponse: async (response: Response) => {
