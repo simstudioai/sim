@@ -1,6 +1,7 @@
 import { GithubIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { createVersionedToolSelector } from '@/blocks/utils'
 import type { GitHubResponse } from '@/tools/github/types'
 import { getTrigger } from '@/triggers'
 
@@ -1347,10 +1348,11 @@ export const GitHubV2Block: BlockConfig<GitHubResponse> = {
     access: (GitHubBlock.tools?.access || []).map((toolId) => `${toolId}_v2`),
     config: {
       ...GitHubBlock.tools?.config,
-      tool: (params) => {
-        const baseToolId = (GitHubBlock.tools?.config as any)?.tool(params)
-        return `${baseToolId}_v2`
-      },
+      tool: createVersionedToolSelector({
+        baseToolSelector: (params) => (GitHubBlock.tools?.config as any)?.tool(params),
+        suffix: '_v2',
+        fallbackToolId: 'github_create_issue_v2',
+      }),
       params: (GitHubBlock.tools?.config as any)?.params,
     },
   },

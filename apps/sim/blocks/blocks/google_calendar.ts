@@ -1,6 +1,7 @@
 import { GoogleCalendarIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { createVersionedToolSelector } from '@/blocks/utils'
 import type { GoogleCalendarResponse } from '@/tools/google_calendar/types'
 
 export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
@@ -403,19 +404,11 @@ export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
     ],
     config: {
       ...GoogleCalendarBlock.tools?.config,
-      tool: (params) => {
-        const operation = params.operation || 'create'
-        if (
-          operation !== 'create' &&
-          operation !== 'list' &&
-          operation !== 'get' &&
-          operation !== 'quick_add' &&
-          operation !== 'invite'
-        ) {
-          throw new Error(`Invalid Google Calendar operation: ${operation}`)
-        }
-        return `google_calendar_${operation}_v2`
-      },
+      tool: createVersionedToolSelector({
+        baseToolSelector: (params) => `google_calendar_${params.operation || 'create'}`,
+        suffix: '_v2',
+        fallbackToolId: 'google_calendar_create_v2',
+      }),
       params: GoogleCalendarBlock.tools?.config?.params,
     },
   },

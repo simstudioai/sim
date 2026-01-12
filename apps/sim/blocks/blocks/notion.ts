@@ -1,6 +1,7 @@
 import { NotionIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { createVersionedToolSelector } from '@/blocks/utils'
 import type { NotionResponse } from '@/tools/notion/types'
 
 // Legacy block - hidden from toolbar
@@ -385,26 +386,11 @@ export const NotionV2Block: BlockConfig<any> = {
       'notion_create_database_v2',
     ],
     config: {
-      tool: (params) => {
-        switch (params.operation) {
-          case 'notion_read':
-            return 'notion_read_v2'
-          case 'notion_read_database':
-            return 'notion_read_database_v2'
-          case 'notion_write':
-            return 'notion_write_v2'
-          case 'notion_create_page':
-            return 'notion_create_page_v2'
-          case 'notion_query_database':
-            return 'notion_query_database_v2'
-          case 'notion_search':
-            return 'notion_search_v2'
-          case 'notion_create_database':
-            return 'notion_create_database_v2'
-          default:
-            return 'notion_read_v2'
-        }
-      },
+      tool: createVersionedToolSelector({
+        baseToolSelector: (params) => params.operation || 'notion_read',
+        suffix: '_v2',
+        fallbackToolId: 'notion_read_v2',
+      }),
       params: NotionBlock.tools?.config?.params,
     },
   },
