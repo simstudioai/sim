@@ -61,7 +61,7 @@ export const storageUploadTool: ToolConfig<
   request: {
     url: (params) => {
       const base = params.baseUrl.replace(/\/$/, '')
-      return `${base}/api/storage/buckets/${params.bucket}/objects/${params.path}`
+      return `${base}/api/storage/buckets/${encodeURIComponent(params.bucket)}/objects/${encodeURIComponent(params.path)}`
     },
     method: 'POST',
     headers: (params) => {

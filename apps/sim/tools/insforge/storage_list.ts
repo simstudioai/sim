@@ -49,7 +49,7 @@ export const storageListTool: ToolConfig<InsForgeStorageListParams, InsForgeStor
   request: {
     url: (params) => {
       const base = params.baseUrl.replace(/\/$/, '')
-      let url = `${base}/api/storage/buckets/${params.bucket}/objects`
+      let url = `${base}/api/storage/buckets/${encodeURIComponent(params.bucket)}/objects`
       const queryParams: string[] = []
 
       if (params.path) {
