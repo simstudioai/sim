@@ -37,7 +37,7 @@ export const insertTool: ToolConfig<InsForgeInsertParams, InsForgeInsertResponse
   request: {
     url: (params) => {
       const base = params.baseUrl.replace(/\/$/, '')
-      return `${base}/api/database/records/${params.table}?select=*`
+      return `${base}/api/database/records/${encodeURIComponent(params.table)}?select=*`
     },
     method: 'POST',
     headers: (params) => ({

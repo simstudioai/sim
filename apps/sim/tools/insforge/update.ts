@@ -43,7 +43,7 @@ export const updateTool: ToolConfig<InsForgeUpdateParams, InsForgeUpdateResponse
   request: {
     url: (params) => {
       const base = params.baseUrl.replace(/\/$/, '')
-      let url = `${base}/api/database/records/${params.table}?select=*`
+      let url = `${base}/api/database/records/${encodeURIComponent(params.table)}?select=*`
 
       if (params.filter?.trim()) {
         url += `&${params.filter.trim()}`
