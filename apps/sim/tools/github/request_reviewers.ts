@@ -163,8 +163,8 @@ export const requestReviewersV2Tool: ToolConfig = {
         number: pr.number,
         title: pr.title,
         html_url: pr.html_url,
-        requested_reviewers: pr.requested_reviewers,
-        requested_teams: pr.requested_teams,
+        requested_reviewers: pr.requested_reviewers ?? [],
+        requested_teams: pr.requested_teams ?? [],
       },
     }
   },

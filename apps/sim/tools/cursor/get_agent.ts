@@ -94,7 +94,7 @@ export const getAgentV2Tool: ToolConfig<GetAgentParams, GetAgentV2Response> = {
         status: data.status,
         source: data.source,
         target: data.target,
-        summary: data.summary,
+        summary: data.summary ?? null,
         createdAt: data.createdAt,
       },
     }

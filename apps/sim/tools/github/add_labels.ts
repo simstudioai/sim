@@ -108,7 +108,10 @@ export const addLabelsV2Tool: ToolConfig<AddLabelsParams, any> = {
     return {
       success: true,
       output: {
-        items: labels,
+        items: labels.map((label: any) => ({
+          ...label,
+          description: label.description ?? null,
+        })),
         count: labels.length,
       },
     }
@@ -124,7 +127,7 @@ export const addLabelsV2Tool: ToolConfig<AddLabelsParams, any> = {
           id: { type: 'number', description: 'Label ID' },
           name: { type: 'string', description: 'Label name' },
           color: { type: 'string', description: 'Label color' },
-          description: { type: 'string', description: 'Label description' },
+          description: { type: 'string', description: 'Label description', optional: true },
         },
       },
     },

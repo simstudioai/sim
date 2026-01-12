@@ -101,7 +101,7 @@ export const listAgentsV2Tool: ToolConfig<ListAgentsParams, ListAgentsV2Response
       success: true,
       output: {
         agents: data.agents,
-        nextCursor: data.nextCursor,
+        nextCursor: data.nextCursor ?? null,
       },
     }
   },

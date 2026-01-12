@@ -185,7 +185,18 @@ export const getTreeV2Tool: ToolConfig<GetTreeParams, any> = {
     return {
       success: true,
       output: {
-        items: data,
+        items: data.map((item: any) => ({
+          name: item.name,
+          path: item.path,
+          sha: item.sha,
+          size: item.size,
+          type: item.type,
+          html_url: item.html_url,
+          download_url: item.download_url ?? null,
+          git_url: item.git_url,
+          url: item.url,
+          _links: item._links,
+        })),
         count: data.length,
       },
     }
@@ -204,7 +215,10 @@ export const getTreeV2Tool: ToolConfig<GetTreeParams, any> = {
           size: { type: 'number', description: 'Size in bytes' },
           type: { type: 'string', description: 'Type (file/dir/symlink/submodule)' },
           html_url: { type: 'string', description: 'GitHub web URL' },
-          download_url: { type: 'string', description: 'Direct download URL' },
+          download_url: { type: 'string', description: 'Direct download URL', optional: true },
+          git_url: { type: 'string', description: 'Git blob API URL' },
+          url: { type: 'string', description: 'API URL for this item' },
+          _links: { type: 'json', description: 'Related links' },
         },
       },
     },

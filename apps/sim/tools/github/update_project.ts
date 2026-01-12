@@ -218,7 +218,7 @@ export const updateProjectV2Tool: ToolConfig = {
         url: project.url,
         closed: project.closed,
         public: project.public,
-        shortDescription: project.shortDescription,
+        shortDescription: project.shortDescription ?? null,
       },
     }
   },
@@ -229,6 +229,6 @@ export const updateProjectV2Tool: ToolConfig = {
     url: { type: 'string', description: 'Project URL' },
     closed: { type: 'boolean', description: 'Whether project is closed' },
     public: { type: 'boolean', description: 'Whether project is public' },
-    shortDescription: { type: 'string', description: 'Short description' },
+    shortDescription: { type: 'string', description: 'Short description', optional: true },
   },
 }

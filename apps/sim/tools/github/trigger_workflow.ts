@@ -92,15 +92,19 @@ export const triggerWorkflowV2Tool: ToolConfig = {
   params: triggerWorkflowTool.params,
   request: triggerWorkflowTool.request,
   oauth: triggerWorkflowTool.oauth,
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     return {
       success: true,
       output: {
         triggered: response.status === 204,
+        workflow_id: params?.workflow_id ?? null,
+        ref: params?.ref ?? null,
       },
     }
   },
   outputs: {
     triggered: { type: 'boolean', description: 'Whether workflow was triggered' },
+    workflow_id: { type: 'string', description: 'Workflow ID or filename', optional: true },
+    ref: { type: 'string', description: 'Git reference used', optional: true },
   },
 }

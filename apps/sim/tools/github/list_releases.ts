@@ -149,7 +149,11 @@ export const listReleasesV2Tool: ToolConfig<ListReleasesParams, any> = {
     return {
       success: true,
       output: {
-        items: releases,
+        items: releases.map((release: any) => ({
+          ...release,
+          body: release.body ?? null,
+          published_at: release.published_at ?? null,
+        })),
         count: releases.length,
       },
     }
@@ -165,6 +169,7 @@ export const listReleasesV2Tool: ToolConfig<ListReleasesParams, any> = {
           id: { type: 'number', description: 'Release ID' },
           tag_name: { type: 'string', description: 'Git tag name' },
           name: { type: 'string', description: 'Release name' },
+          body: { type: 'string', description: 'Release description', optional: true },
           html_url: { type: 'string', description: 'GitHub web URL' },
           tarball_url: { type: 'string', description: 'Tarball download URL' },
           zipball_url: { type: 'string', description: 'Zipball download URL' },
@@ -173,7 +178,7 @@ export const listReleasesV2Tool: ToolConfig<ListReleasesParams, any> = {
           author: { type: 'object', description: 'Release author' },
           assets: { type: 'array', description: 'Release assets' },
           created_at: { type: 'string', description: 'Creation timestamp' },
-          published_at: { type: 'string', description: 'Publication timestamp' },
+          published_at: { type: 'string', description: 'Publication timestamp', optional: true },
         },
       },
     },

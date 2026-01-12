@@ -111,6 +111,7 @@ export const getWorkflowV2Tool: ToolConfig<GetWorkflowParams, any> = {
         url: data.url,
         created_at: data.created_at,
         updated_at: data.updated_at,
+        deleted_at: data.deleted_at ?? null,
       },
     }
   },
@@ -126,5 +127,6 @@ export const getWorkflowV2Tool: ToolConfig<GetWorkflowParams, any> = {
     url: { type: 'string', description: 'API URL' },
     created_at: { type: 'string', description: 'Creation timestamp' },
     updated_at: { type: 'string', description: 'Last update timestamp' },
+    deleted_at: { type: 'string', description: 'Deletion timestamp', optional: true },
   },
 }

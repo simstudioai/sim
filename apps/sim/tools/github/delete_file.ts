@@ -161,14 +161,14 @@ export const deleteFileV2Tool: ToolConfig<DeleteFileParams, any> = {
     return {
       success: true,
       output: {
-        content: data.content,
+        content: data.content ?? null, // null when file is deleted
         commit: data.commit,
       },
     }
   },
 
   outputs: {
-    content: { type: 'json', description: 'File content info (null for delete)' },
+    content: { type: 'json', description: 'File content info (null for delete)', optional: true },
     commit: { type: 'json', description: 'Commit information' },
   },
 }

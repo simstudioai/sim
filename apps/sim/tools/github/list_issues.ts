@@ -178,10 +178,18 @@ export const listIssuesV2Tool: ToolConfig<ListIssuesParams, any> = {
 
   transformResponse: async (response: Response) => {
     const issues = await response.json()
+    const items = issues.map((issue: any) => ({
+      ...issue,
+      body: issue.body ?? null,
+      milestone: issue.milestone ?? null,
+      closed_at: issue.closed_at ?? null,
+      labels: issue.labels ?? [],
+      assignees: issue.assignees ?? [],
+    }))
     return {
       success: true,
       output: {
-        items: issues,
+        items,
         count: issues.length,
       },
     }
@@ -199,14 +207,14 @@ export const listIssuesV2Tool: ToolConfig<ListIssuesParams, any> = {
           title: { type: 'string', description: 'Issue title' },
           state: { type: 'string', description: 'Issue state (open/closed)' },
           html_url: { type: 'string', description: 'GitHub web URL' },
-          body: { type: 'string', description: 'Issue body' },
+          body: { type: 'string', description: 'Issue body', optional: true },
           user: { type: 'object', description: 'User who created the issue' },
           labels: { type: 'array', description: 'Array of label objects' },
           assignees: { type: 'array', description: 'Array of assignee objects' },
-          milestone: { type: 'object', description: 'Milestone object' },
+          milestone: { type: 'object', description: 'Milestone object', optional: true },
           created_at: { type: 'string', description: 'Creation timestamp' },
           updated_at: { type: 'string', description: 'Last update timestamp' },
-          closed_at: { type: 'string', description: 'Close timestamp' },
+          closed_at: { type: 'string', description: 'Close timestamp', optional: true },
         },
       },
     },

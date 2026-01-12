@@ -148,7 +148,10 @@ export const listWorkflowsV2Tool: ToolConfig<ListWorkflowsParams, any> = {
       success: true,
       output: {
         total_count: data.total_count,
-        items: data.workflows,
+        items: (data.workflows ?? []).map((workflow: Record<string, unknown>) => ({
+          ...workflow,
+          deleted_at: workflow.deleted_at ?? null,
+        })),
       },
     }
   },
@@ -170,6 +173,7 @@ export const listWorkflowsV2Tool: ToolConfig<ListWorkflowsParams, any> = {
           badge_url: { type: 'string', description: 'Badge URL' },
           created_at: { type: 'string', description: 'Creation timestamp' },
           updated_at: { type: 'string', description: 'Last update timestamp' },
+          deleted_at: { type: 'string', description: 'Deletion timestamp', optional: true },
         },
       },
     },

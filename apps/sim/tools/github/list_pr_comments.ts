@@ -168,8 +168,8 @@ export const listPRCommentsV2Tool: ToolConfig<ListPRCommentsParams, any> = {
     return {
       success: true,
       output: {
-        items: comments,
-        count: comments.length,
+        items: comments ?? [],
+        count: comments?.length ?? 0,
       },
     }
   },
@@ -184,7 +184,7 @@ export const listPRCommentsV2Tool: ToolConfig<ListPRCommentsParams, any> = {
           id: { type: 'number', description: 'Comment ID' },
           body: { type: 'string', description: 'Comment body' },
           path: { type: 'string', description: 'File path' },
-          line: { type: 'number', description: 'Line number' },
+          line: { type: 'number', description: 'Line number', optional: true },
           user: { type: 'object', description: 'User who created the comment' },
           html_url: { type: 'string', description: 'GitHub web URL' },
           diff_hunk: { type: 'string', description: 'Diff context' },

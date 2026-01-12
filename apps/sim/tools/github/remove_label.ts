@@ -112,12 +112,33 @@ export const removeLabelV2Tool: ToolConfig = {
   transformResponse: async (response: Response) => {
     if (response.status === 200) {
       const labels = await response.json()
-      return { success: true, output: { items: labels, count: labels.length } }
+      return {
+        success: true,
+        output: {
+          items: labels.map((label: any) => ({
+            ...label,
+            description: label.description ?? null,
+          })),
+          count: labels.length,
+        },
+      }
     }
     return { success: true, output: { items: [], count: 0 } }
   },
   outputs: {
-    items: { type: 'array', description: 'Remaining labels on the issue' },
+    items: {
+      type: 'array',
+      description: 'Remaining labels on the issue',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'number', description: 'Label ID' },
+          name: { type: 'string', description: 'Label name' },
+          color: { type: 'string', description: 'Label color' },
+          description: { type: 'string', description: 'Label description', optional: true },
+        },
+      },
+    },
     count: { type: 'number', description: 'Number of remaining labels' },
   },
 }

@@ -149,8 +149,8 @@ export const listBranchesV2Tool: ToolConfig<ListBranchesParams, any> = {
     return {
       success: true,
       output: {
-        items: branches,
-        count: branches.length,
+        items: branches ?? [],
+        count: branches?.length ?? 0,
       },
     }
   },

@@ -152,8 +152,8 @@ export const listIssueCommentsV2Tool: ToolConfig<ListIssueCommentsParams, any> =
     return {
       success: true,
       output: {
-        items: comments,
-        count: comments.length,
+        items: comments ?? [],
+        count: comments?.length ?? 0,
       },
     }
   },

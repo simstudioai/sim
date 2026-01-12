@@ -114,12 +114,12 @@ export const rerunWorkflowV2Tool: ToolConfig = {
       success: true,
       output: {
         rerun_requested: response.status === 201,
-        run_id: params?.run_id || 0,
+        run_id: params?.run_id ?? null,
       },
     }
   },
   outputs: {
     rerun_requested: { type: 'boolean', description: 'Whether rerun was requested' },
-    run_id: { type: 'number', description: 'Workflow run ID' },
+    run_id: { type: 'number', description: 'Workflow run ID', optional: true },
   },
 }

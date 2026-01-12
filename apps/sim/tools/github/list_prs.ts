@@ -165,8 +165,8 @@ export const listPRsV2Tool: ToolConfig<ListPRsParams, any> = {
     return {
       success: true,
       output: {
-        items: prs,
-        count: prs.length,
+        items: prs ?? [],
+        count: prs?.length ?? 0,
       },
     }
   },

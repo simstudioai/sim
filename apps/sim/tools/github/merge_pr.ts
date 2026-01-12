@@ -130,6 +130,19 @@ export const mergePRV2Tool: ToolConfig<MergePRParams, any> = {
   request: mergePRTool.request,
 
   transformResponse: async (response: Response) => {
+    if (response.status === 405) {
+      const error = await response.json()
+      return {
+        success: false,
+        error: error.message || 'Pull request is not mergeable',
+        output: {
+          sha: null,
+          merged: false,
+          message: error.message || 'Pull request is not mergeable',
+        },
+      }
+    }
+
     const result = await response.json()
     return {
       success: true,
@@ -142,7 +155,7 @@ export const mergePRV2Tool: ToolConfig<MergePRParams, any> = {
   },
 
   outputs: {
-    sha: { type: 'string', description: 'Merge commit SHA' },
+    sha: { type: 'string', description: 'Merge commit SHA', optional: true },
     merged: { type: 'boolean', description: 'Whether merge was successful' },
     message: { type: 'string', description: 'Response message' },
   },

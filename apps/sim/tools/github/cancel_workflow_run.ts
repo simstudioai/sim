@@ -136,12 +136,12 @@ export const cancelWorkflowRunV2Tool: ToolConfig = {
       success: true,
       output: {
         cancelled: response.status === 202,
-        run_id: params?.run_id || 0,
+        run_id: params?.run_id ?? null,
       },
     }
   },
   outputs: {
     cancelled: { type: 'boolean', description: 'Whether cancellation was initiated' },
-    run_id: { type: 'number', description: 'Workflow run ID' },
+    run_id: { type: 'number', description: 'Workflow run ID', optional: true },
   },
 }
