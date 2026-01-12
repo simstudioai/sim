@@ -227,7 +227,7 @@ export function useExportFolder({ workspaceId, folderId, onSuccess }: UseExportF
     } finally {
       setIsExporting(false)
     }
-  }, [folderId, isExporting, workflows, onSuccess])
+  }, [folderId, isExporting, workflows, folders, onSuccess])
 
   return {
     isExporting,

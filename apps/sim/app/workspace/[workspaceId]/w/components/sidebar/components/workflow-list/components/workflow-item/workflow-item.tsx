@@ -46,19 +46,15 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
   const userPermissions = useUserPermissionsContext()
   const isSelected = selectedWorkflows.has(workflow.id)
 
-  // Can delete check hook
   const { canDeleteWorkflows } = useCanDelete({ workspaceId })
 
-  // Delete modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [workflowIdsToDelete, setWorkflowIdsToDelete] = useState<string[]>([])
   const [deleteModalNames, setDeleteModalNames] = useState<string | string[]>('')
   const [canDeleteCaptured, setCanDeleteCaptured] = useState(true)
 
-  // Presence avatars state
   const [hasAvatars, setHasAvatars] = useState(false)
 
-  // Capture selection at right-click time (using ref to persist across renders)
   const capturedSelectionRef = useRef<{
     workflowIds: string[]
     workflowNames: string | string[]
@@ -68,7 +64,6 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
    * Handle opening the delete modal - uses pre-captured selection state
    */
   const handleOpenDeleteModal = useCallback(() => {
-    // Use the selection captured at right-click time
     if (capturedSelectionRef.current) {
       setWorkflowIdsToDelete(capturedSelectionRef.current.workflowIds)
       setDeleteModalNames(capturedSelectionRef.current.workflowNames)
@@ -76,7 +71,6 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
     }
   }, [])
 
-  // Delete workflow hook
   const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
     workspaceId,
     workflowIds: workflowIdsToDelete,
@@ -84,28 +78,25 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
     onSuccess: () => setIsDeleteModalOpen(false),
   })
 
-  // Duplicate workflow hook (uses captured selection from right-click)
-  const { handleDuplicateWorkflow } = useDuplicateWorkflow({
-    workspaceId,
-    workflowIds: capturedSelectionRef.current?.workflowIds || [],
-  })
+  const { handleDuplicateWorkflow: duplicateWorkflow } = useDuplicateWorkflow({ workspaceId })
 
-  // Export workflow hook (uses captured selection from right-click)
-  const { handleExportWorkflow } = useExportWorkflow({
-    workspaceId,
-    workflowIds: capturedSelectionRef.current?.workflowIds || [],
-  })
+  const { handleExportWorkflow: exportWorkflow } = useExportWorkflow({ workspaceId })
+  const handleDuplicateWorkflow = useCallback(() => {
+    const workflowIds = capturedSelectionRef.current?.workflowIds || []
+    if (workflowIds.length === 0) return
+    duplicateWorkflow(workflowIds)
+  }, [duplicateWorkflow])
 
-  /**
-   * Opens the workflow in a new browser tab
-   */
+  const handleExportWorkflow = useCallback(() => {
+    const workflowIds = capturedSelectionRef.current?.workflowIds || []
+    if (workflowIds.length === 0) return
+    exportWorkflow(workflowIds)
+  }, [exportWorkflow])
+
   const handleOpenInNewTab = useCallback(() => {
     window.open(`/workspace/${workspaceId}/w/${workflow.id}`, '_blank')
   }, [workspaceId, workflow.id])
 
-  /**
-   * Changes the workflow color
-   */
   const handleColorChange = useCallback(
     (color: string) => {
       updateWorkflow(workflow.id, { color })
@@ -120,7 +111,6 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
    */
   const onDragStart = useCallback(
     (e: React.DragEvent) => {
-      // Don't start drag if editing
       if (isEditing) {
         e.preventDefault()
         return
@@ -135,12 +125,10 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
     [isSelected, selectedWorkflows, workflow.id]
   )
 
-  // Item drag hook
   const { isDragging, shouldPreventClickRef, handleDragStart, handleDragEnd } = useItemDrag({
     onDragStart,
   })
 
-  // Context menu hook
   const {
     isOpen: isContextMenuOpen,
     position,
@@ -209,14 +197,12 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
       e.preventDefault()
       e.stopPropagation()
 
-      // Toggle: close if open, open if closed
       if (isContextMenuOpen) {
         closeMenu()
         return
       }
 
       captureSelectionState()
-      // Open context menu aligned with the button
       const rect = e.currentTarget.getBoundingClientRect()
       handleContextMenuBase({
         preventDefault: () => {},
@@ -228,7 +214,6 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
     [isContextMenuOpen, closeMenu, captureSelectionState, handleContextMenuBase]
   )
 
-  // Rename hook
   const {
     isEditing,
     editValue,
@@ -275,12 +260,10 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
 
       const isModifierClick = e.shiftKey || e.metaKey || e.ctrlKey
 
-      // Prevent default link behavior when using modifier keys
       if (isModifierClick) {
         e.preventDefault()
       }
 
-      // Use metaKey (Cmd on Mac) or ctrlKey (Ctrl on Windows/Linux)
       onWorkflowClick(workflow.id, e.shiftKey, e.metaKey || e.ctrlKey)
     },
     [shouldPreventClickRef, workflow.id, onWorkflowClick, isEditing]
