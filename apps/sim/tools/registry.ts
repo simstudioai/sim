@@ -1259,6 +1259,7 @@ import {
   telegramSendVideoTool,
 } from '@/tools/telegram'
 import { thinkingTool } from '@/tools/thinking'
+import { tinybirdEventsTool, tinybirdQueryTool } from '@/tools/tinybird'
 import {
   trelloAddCommentTool,
   trelloCreateCardTool,
@@ -2016,6 +2017,8 @@ export const tools: Record<string, ToolConfig> = {
   apollo_email_accounts: apolloEmailAccountsTool,
   mistral_parser: mistralParserTool,
   thinking_tool: thinkingTool,
+  tinybird_events: tinybirdEventsTool,
+  tinybird_query: tinybirdQueryTool,
   stagehand_extract: stagehandExtractTool,
   stagehand_agent: stagehandAgentTool,
   mem0_add_memories: mem0AddMemoriesTool,
