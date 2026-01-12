@@ -62,7 +62,7 @@ export const stripeRetrieveChargeTool: ToolConfig<RetrieveChargeParams, ChargeRe
         status: { type: 'string', description: 'Current state of the resource' },
         amount: { type: 'number', description: 'Amount in smallest currency unit (e.g., cents)' },
         currency: { type: 'string', description: 'Three-letter ISO currency code (lowercase)' },
-        paid: { type: 'string', description: 'Stripe unique identifier' },
+        paid: { type: 'boolean', description: 'Whether payment has been received' },
       },
     },
   },

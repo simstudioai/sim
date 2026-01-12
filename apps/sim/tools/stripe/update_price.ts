@@ -65,7 +65,7 @@ export const stripeUpdatePriceTool: ToolConfig<UpdatePriceParams, PriceResponse>
         metadata: {
           id: data.id,
           product: data.product,
-          unit_amount: data.unit_amount,
+          unit_amount: data.unit_amount ?? null,
           currency: data.currency,
         },
       },
@@ -86,6 +86,7 @@ export const stripeUpdatePriceTool: ToolConfig<UpdatePriceParams, PriceResponse>
         unit_amount: {
           type: 'number',
           description: 'Amount in smallest currency unit (e.g., cents)',
+          optional: true,
         },
         currency: { type: 'string', description: 'Three-letter ISO currency code (lowercase)' },
       },
