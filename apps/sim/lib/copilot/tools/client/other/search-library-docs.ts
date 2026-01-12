@@ -1,17 +1,9 @@
-import { createLogger } from '@sim/logger'
 import { BookOpen, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
-
-interface SearchLibraryDocsArgs {
-  library_name: string
-  query: string
-  version?: string
-}
 
 export class SearchLibraryDocsClientTool extends BaseClientTool {
   static readonly id = 'search_library_docs'
@@ -52,32 +44,7 @@ export class SearchLibraryDocsClientTool extends BaseClientTool {
     },
   }
 
-  async execute(args?: SearchLibraryDocsArgs): Promise<void> {
-    const logger = createLogger('SearchLibraryDocsClientTool')
-    try {
-      this.setState(ClientToolCallState.executing)
-      const res = await fetch('/api/copilot/execute-copilot-server-tool', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName: 'search_library_docs', payload: args || {} }),
-      })
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        throw new Error(txt || `Server error (${res.status})`)
-      }
-      const json = await res.json()
-      const parsed = ExecuteResponseSuccessSchema.parse(json)
-      this.setState(ClientToolCallState.success)
-      await this.markToolComplete(
-        200,
-        `Library documentation search complete for ${args?.library_name || 'unknown'}`,
-        parsed.result
-      )
-      this.setState(ClientToolCallState.success)
-    } catch (e: any) {
-      logger.error('execute failed', { message: e?.message })
-      this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'Library documentation search failed')
-    }
+  async execute(): Promise<void> {
+    return
   }
 }

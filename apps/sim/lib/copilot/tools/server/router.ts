@@ -6,7 +6,6 @@ import { getBlocksAndToolsServerTool } from '@/lib/copilot/tools/server/blocks/g
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
-import { searchLibraryDocsServerTool } from '@/lib/copilot/tools/server/docs/search-library-docs'
 import {
   KnowledgeBaseInput,
   knowledgeBaseServerTool,
@@ -48,7 +47,6 @@ serverToolRegistry[getTriggerBlocksServerTool.name] = getTriggerBlocksServerTool
 serverToolRegistry[editWorkflowServerTool.name] = editWorkflowServerTool
 serverToolRegistry[getWorkflowConsoleServerTool.name] = getWorkflowConsoleServerTool
 serverToolRegistry[searchDocumentationServerTool.name] = searchDocumentationServerTool
-serverToolRegistry[searchLibraryDocsServerTool.name] = searchLibraryDocsServerTool
 serverToolRegistry[searchOnlineServerTool.name] = searchOnlineServerTool
 serverToolRegistry[setEnvironmentVariablesServerTool.name] = setEnvironmentVariablesServerTool
 serverToolRegistry[getCredentialsServerTool.name] = getCredentialsServerTool
