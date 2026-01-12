@@ -42,6 +42,7 @@ import { RememberDebugClientTool } from '@/lib/copilot/tools/client/other/rememb
 import { ResearchClientTool } from '@/lib/copilot/tools/client/other/research'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
 import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
+import { SearchLibraryDocsClientTool } from '@/lib/copilot/tools/client/other/search-library-docs'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
 import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
 import { SleepClientTool } from '@/lib/copilot/tools/client/other/sleep'
@@ -116,6 +117,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   get_trigger_blocks: (id) => new GetTriggerBlocksClientTool(id),
   search_online: (id) => new SearchOnlineClientTool(id),
   search_documentation: (id) => new SearchDocumentationClientTool(id),
+  search_library_docs: (id) => new SearchLibraryDocsClientTool(id),
   search_patterns: (id) => new SearchPatternsClientTool(id),
   search_errors: (id) => new SearchErrorsClientTool(id),
   remember_debug: (id) => new RememberDebugClientTool(id),
@@ -174,6 +176,7 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   get_trigger_blocks: (GetTriggerBlocksClientTool as any)?.metadata,
   search_online: (SearchOnlineClientTool as any)?.metadata,
   search_documentation: (SearchDocumentationClientTool as any)?.metadata,
+  search_library_docs: (SearchLibraryDocsClientTool as any)?.metadata,
   search_patterns: (SearchPatternsClientTool as any)?.metadata,
   search_errors: (SearchErrorsClientTool as any)?.metadata,
   remember_debug: (RememberDebugClientTool as any)?.metadata,
