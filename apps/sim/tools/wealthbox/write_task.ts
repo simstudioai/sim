@@ -83,8 +83,16 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
           type: 'object',
           description: 'Operation metadata',
           properties: {
-            itemId: { type: 'string', description: 'ID of the created/updated task' },
-            taskId: { type: 'string', description: 'ID of the created/updated task' },
+            itemId: {
+              type: 'string',
+              description: 'ID of the created/updated task',
+              optional: true,
+            },
+            taskId: {
+              type: 'string',
+              description: 'ID of the created/updated task',
+              optional: true,
+            },
             itemType: { type: 'string', description: 'Type of item (task)' },
           },
         },

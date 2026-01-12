@@ -86,8 +86,8 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
         content,
         note,
         metadata: {
-          itemId: note.id?.toString() || '',
-          noteId: note.id?.toString() || '',
+          itemId: note.id?.toString() ?? null,
+          noteId: note.id?.toString() ?? null,
           itemType: 'note' as const,
         },
       },
@@ -106,8 +106,8 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
           type: 'object',
           description: 'Operation metadata',
           properties: {
-            itemId: { type: 'string', description: 'ID of the note' },
-            noteId: { type: 'string', description: 'ID of the note' },
+            itemId: { type: 'string', description: 'ID of the note', optional: true },
+            noteId: { type: 'string', description: 'ID of the note', optional: true },
             itemType: { type: 'string', description: 'Type of item (note)' },
           },
         },

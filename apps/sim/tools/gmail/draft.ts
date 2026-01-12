@@ -165,17 +165,22 @@ export const gmailDraftV2Tool: ToolConfig<GmailSendParams, GmailDraftV2Response>
     return {
       success: true,
       output: {
-        draftId: metadata?.id,
-        messageId: metadata?.message?.id,
-        threadId: metadata?.message?.threadId,
-        labelIds: metadata?.message?.labelIds,
+        draftId: metadata?.id ?? null,
+        messageId: metadata?.message?.id ?? null,
+        threadId: metadata?.message?.threadId ?? null,
+        labelIds: metadata?.message?.labelIds ?? null,
       },
     }
   },
   outputs: {
-    draftId: { type: 'string', description: 'Draft ID' },
-    messageId: { type: 'string', description: 'Gmail message ID for the draft' },
-    threadId: { type: 'string', description: 'Gmail thread ID' },
-    labelIds: { type: 'array', items: { type: 'string' }, description: 'Email labels' },
+    draftId: { type: 'string', description: 'Draft ID', optional: true },
+    messageId: { type: 'string', description: 'Gmail message ID for the draft', optional: true },
+    threadId: { type: 'string', description: 'Gmail thread ID', optional: true },
+    labelIds: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Email labels',
+      optional: true,
+    },
   },
 }

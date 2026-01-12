@@ -84,18 +84,14 @@ export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTask
     return {
       success: true,
       output: {
-        task: data.task || {
-          note: '',
-          created: true,
-          message: 'Task created successfully. Apollo API does not return task details.',
-        },
+        task: data.task ?? null,
         created: data === true || !!data.task,
       },
     }
   },
 
   outputs: {
-    task: { type: 'json', description: 'Created task data from Apollo' },
+    task: { type: 'json', description: 'Created task data from Apollo', optional: true },
     created: { type: 'boolean', description: 'Whether the task was successfully created' },
   },
 }

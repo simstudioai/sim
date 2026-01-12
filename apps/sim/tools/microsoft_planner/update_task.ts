@@ -204,7 +204,7 @@ export const updateTaskTool: ToolConfig<
     logger.info('Updated task:', task)
 
     // Extract and clean the new etag for subsequent operations
-    let newEtag = task['@odata.etag']
+    let newEtag = task['@odata.etag'] ?? null
     if (newEtag && typeof newEtag === 'string' && newEtag.includes('\\"')) {
       newEtag = newEtag.replace(/\\"/g, '"')
     }
@@ -235,6 +235,7 @@ export const updateTaskTool: ToolConfig<
     etag: {
       type: 'string',
       description: 'New ETag after update - use this for subsequent operations',
+      optional: true,
     },
     metadata: {
       type: 'object',

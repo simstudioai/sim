@@ -77,18 +77,18 @@ export const apolloTaskSearchTool: ToolConfig<ApolloTaskSearchParams, ApolloTask
     return {
       success: true,
       output: {
-        tasks: data.tasks || [],
-        page: data.pagination?.page || 1,
-        per_page: data.pagination?.per_page || 25,
-        total_entries: data.pagination?.total_entries || 0,
+        tasks: data.tasks ?? null,
+        pagination: data.pagination ?? null,
       },
     }
   },
 
   outputs: {
-    tasks: { type: 'json', description: 'Array of tasks matching the search criteria' },
-    page: { type: 'number', description: 'Current page number' },
-    per_page: { type: 'number', description: 'Results per page' },
-    total_entries: { type: 'number', description: 'Total matching entries' },
+    tasks: {
+      type: 'json',
+      description: 'Array of tasks matching the search criteria',
+      optional: true,
+    },
+    pagination: { type: 'json', description: 'Pagination information', optional: true },
   },
 }

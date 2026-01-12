@@ -149,8 +149,8 @@ export const hubspotSearchContactsTool: ToolConfig<
       success: true,
       output: {
         contacts: data.results || [],
-        total: data.total,
-        paging: data.paging,
+        total: data.total ?? null,
+        paging: data.paging ?? null,
         metadata: {
           totalReturned: data.results?.length || 0,
           hasMore: !!data.paging?.next,
@@ -162,8 +162,8 @@ export const hubspotSearchContactsTool: ToolConfig<
 
   outputs: {
     contacts: { type: 'array', description: 'Array of matching HubSpot contact objects' },
-    total: { type: 'number', description: 'Total number of matching contacts' },
-    paging: { type: 'object', description: 'Pagination information' },
+    total: { type: 'number', description: 'Total number of matching contacts', optional: true },
+    paging: { type: 'object', description: 'Pagination information', optional: true },
     metadata: { type: 'object', description: 'Metadata with totalReturned and hasMore' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

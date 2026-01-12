@@ -149,8 +149,8 @@ export const hubspotSearchCompaniesTool: ToolConfig<
       success: true,
       output: {
         companies: data.results || [],
-        total: data.total,
-        paging: data.paging,
+        total: data.total ?? null,
+        paging: data.paging ?? null,
         metadata: {
           totalReturned: data.results?.length || 0,
           hasMore: !!data.paging?.next,
@@ -162,8 +162,8 @@ export const hubspotSearchCompaniesTool: ToolConfig<
 
   outputs: {
     companies: { type: 'array', description: 'Array of matching HubSpot company objects' },
-    total: { type: 'number', description: 'Total number of matching companies' },
-    paging: { type: 'object', description: 'Pagination information' },
+    total: { type: 'number', description: 'Total number of matching companies', optional: true },
+    paging: { type: 'object', description: 'Pagination information', optional: true },
     metadata: { type: 'object', description: 'Metadata with totalReturned and hasMore' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

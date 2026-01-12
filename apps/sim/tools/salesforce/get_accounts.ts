@@ -138,7 +138,7 @@ export const salesforceGetAccountsTool: ToolConfig<
       output: {
         accounts,
         paging: {
-          nextRecordsUrl: data.nextRecordsUrl,
+          nextRecordsUrl: data.nextRecordsUrl ?? null,
           totalSize: data.totalSize || accounts.length,
           done: data.done !== false,
         },
@@ -162,7 +162,11 @@ export const salesforceGetAccountsTool: ToolConfig<
           type: 'object',
           description: 'Pagination information',
           properties: {
-            nextRecordsUrl: { type: 'string', description: 'URL for next page of results' },
+            nextRecordsUrl: {
+              type: 'string',
+              description: 'URL for next page of results',
+              optional: true,
+            },
             totalSize: { type: 'number', description: 'Total number of records' },
             done: { type: 'boolean', description: 'Whether all records returned' },
           },

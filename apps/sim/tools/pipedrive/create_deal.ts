@@ -122,14 +122,14 @@ export const pipedriveCreateDealTool: ToolConfig<
     return {
       success: true,
       output: {
-        deal: data.data,
+        deal: data.data ?? null,
         success: true,
       },
     }
   },
 
   outputs: {
-    deal: { type: 'object', description: 'The created deal object' },
+    deal: { type: 'object', description: 'The created deal object', optional: true },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

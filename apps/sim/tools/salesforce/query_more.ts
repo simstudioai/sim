@@ -79,7 +79,7 @@ export const salesforceQueryMoreTool: ToolConfig<
         records,
         totalSize: data.totalSize || records.length,
         done: data.done !== false,
-        nextRecordsUrl: data.nextRecordsUrl,
+        nextRecordsUrl: data.nextRecordsUrl ?? null,
         metadata: {
           totalReturned: records.length,
           hasMore: !data.done,
@@ -98,7 +98,11 @@ export const salesforceQueryMoreTool: ToolConfig<
         records: { type: 'array', description: 'Array of record objects' },
         totalSize: { type: 'number', description: 'Total number of records matching query' },
         done: { type: 'boolean', description: 'Whether all records have been returned' },
-        nextRecordsUrl: { type: 'string', description: 'URL to fetch next batch of records' },
+        nextRecordsUrl: {
+          type: 'string',
+          description: 'URL to fetch next batch of records',
+          optional: true,
+        },
         metadata: {
           type: 'object',
           description: 'Response metadata',

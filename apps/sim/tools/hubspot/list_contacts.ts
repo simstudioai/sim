@@ -98,7 +98,7 @@ export const hubspotListContactsTool: ToolConfig<
       success: true,
       output: {
         contacts: data.results || [],
-        paging: data.paging,
+        paging: data.paging ?? null,
         metadata: {
           totalReturned: data.results?.length || 0,
           hasMore: !!data.paging?.next,
@@ -110,7 +110,7 @@ export const hubspotListContactsTool: ToolConfig<
 
   outputs: {
     contacts: { type: 'array', description: 'Array of HubSpot contact objects' },
-    paging: { type: 'object', description: 'Pagination information' },
+    paging: { type: 'object', description: 'Pagination information', optional: true },
     metadata: { type: 'object', description: 'Metadata with totalReturned and hasMore' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

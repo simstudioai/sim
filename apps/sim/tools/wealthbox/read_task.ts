@@ -84,8 +84,8 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
         content,
         task,
         metadata: {
-          itemId: task.id?.toString() || '',
-          taskId: task.id?.toString() || '',
+          itemId: task.id?.toString() ?? null,
+          taskId: task.id?.toString() ?? null,
           itemType: 'task' as const,
         },
       },
@@ -104,8 +104,8 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
           type: 'object',
           description: 'Operation metadata',
           properties: {
-            itemId: { type: 'string', description: 'ID of the task' },
-            taskId: { type: 'string', description: 'ID of the task' },
+            itemId: { type: 'string', description: 'ID of the task', optional: true },
+            taskId: { type: 'string', description: 'ID of the task', optional: true },
             itemType: { type: 'string', description: 'Type of item (task)' },
           },
         },

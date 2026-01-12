@@ -96,14 +96,18 @@ export const apolloOpportunityUpdateTool: ToolConfig<
     return {
       success: true,
       output: {
-        opportunity: data.opportunity || {},
+        opportunity: data.opportunity ?? null,
         updated: !!data.opportunity,
       },
     }
   },
 
   outputs: {
-    opportunity: { type: 'json', description: 'Updated opportunity data from Apollo' },
+    opportunity: {
+      type: 'json',
+      description: 'Updated opportunity data from Apollo',
+      optional: true,
+    },
     updated: { type: 'boolean', description: 'Whether the opportunity was successfully updated' },
   },
 }

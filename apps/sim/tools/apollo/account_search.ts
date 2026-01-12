@@ -83,18 +83,18 @@ export const apolloAccountSearchTool: ToolConfig<
     return {
       success: true,
       output: {
-        accounts: data.accounts || [],
-        page: data.pagination?.page || 1,
-        per_page: data.pagination?.per_page || 25,
-        total_entries: data.pagination?.total_entries || 0,
+        accounts: data.accounts ?? null,
+        pagination: data.pagination ?? null,
       },
     }
   },
 
   outputs: {
-    accounts: { type: 'json', description: 'Array of accounts matching the search criteria' },
-    page: { type: 'number', description: 'Current page number' },
-    per_page: { type: 'number', description: 'Results per page' },
-    total_entries: { type: 'number', description: 'Total matching entries' },
+    accounts: {
+      type: 'json',
+      description: 'Array of accounts matching the search criteria',
+      optional: true,
+    },
+    pagination: { type: 'json', description: 'Pagination information', optional: true },
   },
 }

@@ -70,7 +70,7 @@ export const salesforceQueryTool: ToolConfig<SalesforceQueryParams, SalesforceQu
         records,
         totalSize: data.totalSize || records.length,
         done: data.done !== false,
-        nextRecordsUrl: data.nextRecordsUrl,
+        nextRecordsUrl: data.nextRecordsUrl ?? null,
         query: params?.query || '',
         metadata: {
           totalReturned: records.length,
@@ -90,7 +90,11 @@ export const salesforceQueryTool: ToolConfig<SalesforceQueryParams, SalesforceQu
         records: { type: 'array', description: 'Array of record objects' },
         totalSize: { type: 'number', description: 'Total number of records matching query' },
         done: { type: 'boolean', description: 'Whether all records have been returned' },
-        nextRecordsUrl: { type: 'string', description: 'URL to fetch next batch of records' },
+        nextRecordsUrl: {
+          type: 'string',
+          description: 'URL to fetch next batch of records',
+          optional: true,
+        },
         query: { type: 'string', description: 'The executed SOQL query' },
         metadata: {
           type: 'object',

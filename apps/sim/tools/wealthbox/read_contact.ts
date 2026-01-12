@@ -82,8 +82,8 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
         content,
         contact,
         metadata: {
-          itemId: contact.id?.toString() || '',
-          contactId: contact.id?.toString() || '',
+          itemId: contact.id?.toString() ?? null,
+          contactId: contact.id?.toString() ?? null,
           itemType: 'contact' as const,
         },
       },
@@ -102,8 +102,8 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
           type: 'object',
           description: 'Operation metadata',
           properties: {
-            itemId: { type: 'string', description: 'ID of the contact' },
-            contactId: { type: 'string', description: 'ID of the contact' },
+            itemId: { type: 'string', description: 'ID of the contact', optional: true },
+            contactId: { type: 'string', description: 'ID of the contact', optional: true },
             itemType: { type: 'string', description: 'Type of item (contact)' },
           },
         },

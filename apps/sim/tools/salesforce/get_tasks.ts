@@ -94,7 +94,7 @@ export const salesforceGetTasksTool: ToolConfig<
       output: {
         tasks,
         paging: {
-          nextRecordsUrl: data.nextRecordsUrl,
+          nextRecordsUrl: data.nextRecordsUrl ?? null,
           totalSize: data.totalSize || tasks.length,
           done: data.done !== false,
         },
@@ -119,7 +119,11 @@ export const salesforceGetTasksTool: ToolConfig<
           type: 'object',
           description: 'Pagination information',
           properties: {
-            nextRecordsUrl: { type: 'string', description: 'URL for next page of results' },
+            nextRecordsUrl: {
+              type: 'string',
+              description: 'URL for next page of results',
+              optional: true,
+            },
             totalSize: { type: 'number', description: 'Total number of records' },
             done: { type: 'boolean', description: 'Whether all records returned' },
           },

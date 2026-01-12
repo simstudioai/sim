@@ -93,14 +93,14 @@ export const apolloContactUpdateTool: ToolConfig<
     return {
       success: true,
       output: {
-        contact: data.contact || {},
+        contact: data.contact ?? null,
         updated: !!data.contact,
       },
     }
   },
 
   outputs: {
-    contact: { type: 'json', description: 'Updated contact data from Apollo' },
+    contact: { type: 'json', description: 'Updated contact data from Apollo', optional: true },
     updated: { type: 'boolean', description: 'Whether the contact was successfully updated' },
   },
 }

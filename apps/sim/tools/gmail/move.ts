@@ -116,15 +116,20 @@ export const gmailMoveV2Tool: ToolConfig<GmailMoveParams, GmailModifyV2Response>
     return {
       success: true,
       output: {
-        id: metadata?.id,
-        threadId: metadata?.threadId,
-        labelIds: metadata?.labelIds,
+        id: metadata?.id ?? null,
+        threadId: metadata?.threadId ?? null,
+        labelIds: metadata?.labelIds ?? null,
       },
     }
   },
   outputs: {
-    id: { type: 'string', description: 'Gmail message ID' },
-    threadId: { type: 'string', description: 'Gmail thread ID' },
-    labelIds: { type: 'array', items: { type: 'string' }, description: 'Email labels' },
+    id: { type: 'string', description: 'Gmail message ID', optional: true },
+    threadId: { type: 'string', description: 'Gmail thread ID', optional: true },
+    labelIds: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Email labels',
+      optional: true,
+    },
   },
 }

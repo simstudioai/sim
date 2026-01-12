@@ -99,12 +99,21 @@ export const gmailUnarchiveV2Tool: ToolConfig<GmailMarkReadParams, GmailModifyV2
     const metadata = legacy.output.metadata as any
     return {
       success: true,
-      output: { id: metadata?.id, threadId: metadata?.threadId, labelIds: metadata?.labelIds },
+      output: {
+        id: metadata?.id ?? null,
+        threadId: metadata?.threadId ?? null,
+        labelIds: metadata?.labelIds ?? null,
+      },
     }
   },
   outputs: {
-    id: { type: 'string', description: 'Gmail message ID' },
-    threadId: { type: 'string', description: 'Gmail thread ID' },
-    labelIds: { type: 'array', items: { type: 'string' }, description: 'Updated email labels' },
+    id: { type: 'string', description: 'Gmail message ID', optional: true },
+    threadId: { type: 'string', description: 'Gmail thread ID', optional: true },
+    labelIds: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Updated email labels',
+      optional: true,
+    },
   },
 }

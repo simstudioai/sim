@@ -87,14 +87,14 @@ export const pipedriveCreateProjectTool: ToolConfig<
     return {
       success: true,
       output: {
-        project: data.data,
+        project: data.data ?? null,
         success: true,
       },
     }
   },
 
   outputs: {
-    project: { type: 'object', description: 'The created project object' },
+    project: { type: 'object', description: 'The created project object', optional: true },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

@@ -101,7 +101,7 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
     const rawTasks = data.value ? data.value : Array.isArray(data) ? data : [data]
 
     const tasks = rawTasks.map((task: any) => {
-      let etagValue = task['@odata.etag']
+      let etagValue = task['@odata.etag'] ?? null
       logger.info('ETag value extracted (raw):', {
         raw: etagValue,
         type: typeof etagValue,
@@ -119,12 +119,12 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
         id: task.id,
         title: task.title,
         planId: task.planId,
-        bucketId: task.bucketId,
+        bucketId: task.bucketId ?? null,
         percentComplete: task.percentComplete,
         priority: task.priority,
-        dueDateTime: task.dueDateTime,
+        dueDateTime: task.dueDateTime ?? null,
         createdDateTime: task.createdDateTime,
-        completedDateTime: task.completedDateTime,
+        completedDateTime: task.completedDateTime ?? null,
         hasDescription: task.hasDescription,
         assignments: task.assignments ? Object.keys(task.assignments) : [],
         etag: etagValue,
@@ -136,12 +136,12 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
       output: {
         tasks,
         metadata: {
-          planId: tasks.length > 0 ? tasks[0].planId : '',
-          userId: data.value ? undefined : 'me',
+          planId: tasks.length > 0 ? tasks[0].planId : null,
+          userId: data.value ? null : 'me',
           planUrl:
             tasks.length > 0
               ? `https://graph.microsoft.com/v1.0/planner/plans/${tasks[0].planId}`
-              : undefined,
+              : null,
         },
       },
     }
@@ -157,9 +157,13 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
       type: 'object',
       description: 'Metadata including planId, userId, and planUrl',
       properties: {
-        planId: { type: 'string', description: 'Plan ID' },
-        userId: { type: 'string', description: 'User ID' },
-        planUrl: { type: 'string', description: 'Microsoft Graph API URL for the plan' },
+        planId: { type: 'string', description: 'Plan ID', optional: true },
+        userId: { type: 'string', description: 'User ID', optional: true },
+        planUrl: {
+          type: 'string',
+          description: 'Microsoft Graph API URL for the plan',
+          optional: true,
+        },
       },
     },
   },

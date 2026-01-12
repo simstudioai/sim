@@ -79,14 +79,14 @@ export const apolloAccountUpdateTool: ToolConfig<
     return {
       success: true,
       output: {
-        account: data.account || {},
+        account: data.account ?? null,
         updated: !!data.account,
       },
     }
   },
 
   outputs: {
-    account: { type: 'json', description: 'Updated account data from Apollo' },
+    account: { type: 'json', description: 'Updated account data from Apollo', optional: true },
     updated: { type: 'boolean', description: 'Whether the account was successfully updated' },
   },
 }

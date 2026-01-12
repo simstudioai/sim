@@ -113,11 +113,11 @@ export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCrea
             id: release.id,
             version: release.version,
             shortVersion: release.shortVersion,
-            ref: release.ref,
-            url: release.url,
-            dateReleased: release.dateReleased,
+            ref: release.ref ?? null,
+            url: release.url ?? null,
+            dateReleased: release.dateReleased ?? null,
             dateCreated: release.dateCreated,
-            dateStarted: release.dateStarted,
+            dateStarted: release.dateStarted ?? null,
             data: release.data || {},
             newGroups: release.newGroups || 0,
             owner: release.owner
@@ -157,8 +157,8 @@ export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCrea
                 slug: project.slug,
                 platform: project.platform,
               })) || [],
-            firstEvent: release.firstEvent,
-            lastEvent: release.lastEvent,
+            firstEvent: release.firstEvent ?? null,
+            lastEvent: release.lastEvent ?? null,
             versionInfo: {
               buildHash: release.versionInfo?.buildHash || null,
               version: {
@@ -179,11 +179,16 @@ export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCrea
           id: { type: 'string', description: 'Unique release ID' },
           version: { type: 'string', description: 'Release version identifier' },
           shortVersion: { type: 'string', description: 'Shortened version identifier' },
-          ref: { type: 'string', description: 'Git reference (commit SHA, tag, or branch)' },
-          url: { type: 'string', description: 'URL to the release' },
+          ref: {
+            type: 'string',
+            description: 'Git reference (commit SHA, tag, or branch)',
+            optional: true,
+          },
+          url: { type: 'string', description: 'URL to the release', optional: true },
           dateReleased: {
             type: 'string',
             description: 'When the release was deployed (ISO timestamp)',
+            optional: true,
           },
           dateCreated: {
             type: 'string',
@@ -192,6 +197,7 @@ export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCrea
           dateStarted: {
             type: 'string',
             description: 'When the release started (ISO timestamp)',
+            optional: true,
           },
           newGroups: { type: 'number', description: 'Number of new issues introduced' },
           commitCount: { type: 'number', description: 'Number of commits in this release' },
@@ -249,8 +255,8 @@ export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCrea
               },
             },
           },
-          firstEvent: { type: 'string', description: 'First event timestamp' },
-          lastEvent: { type: 'string', description: 'Last event timestamp' },
+          firstEvent: { type: 'string', description: 'First event timestamp', optional: true },
+          lastEvent: { type: 'string', description: 'Last event timestamp', optional: true },
           versionInfo: {
             type: 'object',
             description: 'Version metadata',

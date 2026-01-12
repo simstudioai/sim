@@ -92,8 +92,8 @@ export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, Wealthb
         contact,
         success: true,
         metadata: {
-          itemId: contact.id?.toString() || '',
-          contactId: contact.id?.toString() || '',
+          itemId: contact.id?.toString() ?? null,
+          contactId: contact.id?.toString() ?? null,
           itemType: 'contact' as const,
         },
       },
@@ -112,8 +112,16 @@ export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, Wealthb
           type: 'object',
           description: 'Operation metadata',
           properties: {
-            itemId: { type: 'string', description: 'ID of the created/updated contact' },
-            contactId: { type: 'string', description: 'ID of the created/updated contact' },
+            itemId: {
+              type: 'string',
+              description: 'ID of the created/updated contact',
+              optional: true,
+            },
+            contactId: {
+              type: 'string',
+              description: 'ID of the created/updated contact',
+              optional: true,
+            },
             itemType: { type: 'string', description: 'Type of item (contact)' },
           },
         },

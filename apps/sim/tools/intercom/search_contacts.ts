@@ -344,9 +344,9 @@ export const intercomSearchContactsV2Tool: ToolConfig<
     return {
       success: true,
       output: {
-        contacts: data.data || [],
-        pages: data.pages,
-        total_count: data.total_count,
+        contacts: data.data ?? null,
+        pages: data.pages ?? null,
+        total_count: data.total_count ?? null,
       },
     }
   },
@@ -355,31 +355,48 @@ export const intercomSearchContactsV2Tool: ToolConfig<
     contacts: {
       type: 'array',
       description: 'Array of matching contact objects',
+      optional: true,
       items: {
         type: 'object',
         properties: {
           id: { type: 'string', description: 'Unique identifier for the contact' },
           type: { type: 'string', description: 'Object type (contact)' },
           role: { type: 'string', description: 'Role of the contact (user or lead)' },
-          email: { type: 'string', description: 'Email address of the contact' },
-          phone: { type: 'string', description: 'Phone number of the contact' },
-          name: { type: 'string', description: 'Name of the contact' },
-          avatar: { type: 'string', description: 'Avatar URL of the contact' },
-          owner_id: { type: 'string', description: 'ID of the admin assigned to this contact' },
-          external_id: { type: 'string', description: 'External identifier for the contact' },
+          email: { type: 'string', description: 'Email address of the contact', optional: true },
+          phone: { type: 'string', description: 'Phone number of the contact', optional: true },
+          name: { type: 'string', description: 'Name of the contact', optional: true },
+          avatar: { type: 'string', description: 'Avatar URL of the contact', optional: true },
+          owner_id: {
+            type: 'string',
+            description: 'ID of the admin assigned to this contact',
+            optional: true,
+          },
+          external_id: {
+            type: 'string',
+            description: 'External identifier for the contact',
+            optional: true,
+          },
           created_at: { type: 'number', description: 'Unix timestamp when contact was created' },
           updated_at: {
             type: 'number',
             description: 'Unix timestamp when contact was last updated',
           },
-          signed_up_at: { type: 'number', description: 'Unix timestamp when user signed up' },
-          last_seen_at: { type: 'number', description: 'Unix timestamp when user was last seen' },
+          signed_up_at: {
+            type: 'number',
+            description: 'Unix timestamp when user signed up',
+            optional: true,
+          },
+          last_seen_at: {
+            type: 'number',
+            description: 'Unix timestamp when user was last seen',
+            optional: true,
+          },
           workspace_id: { type: 'string', description: 'Workspace ID the contact belongs to' },
           custom_attributes: {
             type: 'object',
             description: 'Custom attributes set on the contact',
           },
-          tags: { type: 'object', description: 'Tags associated with the contact' },
+          tags: { type: 'object', description: 'Tags associated with the contact', optional: true },
           notes: { type: 'object', description: 'Notes associated with the contact' },
           companies: { type: 'object', description: 'Companies associated with the contact' },
           location: { type: 'object', description: 'Location information for the contact' },
@@ -394,6 +411,7 @@ export const intercomSearchContactsV2Tool: ToolConfig<
     pages: {
       type: 'object',
       description: 'Pagination information',
+      optional: true,
       properties: {
         type: { type: 'string', description: 'Pages type identifier' },
         page: { type: 'number', description: 'Current page number' },
@@ -401,6 +419,10 @@ export const intercomSearchContactsV2Tool: ToolConfig<
         total_pages: { type: 'number', description: 'Total number of pages' },
       },
     },
-    total_count: { type: 'number', description: 'Total number of matching contacts' },
+    total_count: {
+      type: 'number',
+      description: 'Total number of matching contacts',
+      optional: true,
+    },
   },
 }

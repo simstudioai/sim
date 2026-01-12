@@ -122,8 +122,8 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
 interface GoogleCalendarListV2Response {
   success: boolean
   output: {
-    nextPageToken?: string
-    timeZone?: string
+    nextPageToken: string | null
+    timeZone: string | null
     events: Array<Record<string, any>>
   }
 }

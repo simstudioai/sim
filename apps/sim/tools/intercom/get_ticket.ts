@@ -90,7 +90,7 @@ export const intercomGetTicketTool: ToolConfig<IntercomGetTicketParams, Intercom
           id: { type: 'string', description: 'Unique identifier for the ticket' },
           type: { type: 'string', description: 'Object type (ticket)' },
           ticket_id: { type: 'string', description: 'Ticket ID' },
-          ticket_type: { type: 'object', description: 'Type of the ticket' },
+          ticket_type: { type: 'object', description: 'Type of the ticket', optional: true },
           ticket_attributes: { type: 'object', description: 'Attributes of the ticket' },
           ticket_state: { type: 'string', description: 'State of the ticket' },
           ticket_state_internal_label: {
@@ -160,7 +160,7 @@ export const intercomGetTicketV2Tool: ToolConfig<
         id: { type: 'string', description: 'Unique identifier for the ticket' },
         type: { type: 'string', description: 'Object type (ticket)' },
         ticket_id: { type: 'string', description: 'Ticket ID' },
-        ticket_type: { type: 'object', description: 'Type of the ticket' },
+        ticket_type: { type: 'object', description: 'Type of the ticket', optional: true },
         ticket_attributes: { type: 'object', description: 'Attributes of the ticket' },
         ticket_state: { type: 'string', description: 'State of the ticket' },
         ticket_state_internal_label: {

@@ -226,9 +226,9 @@ export const intercomSearchConversationsV2Tool: ToolConfig<
     return {
       success: true,
       output: {
-        conversations: data.conversations || [],
-        pages: data.pages,
-        total_count: data.total_count,
+        conversations: data.conversations ?? null,
+        pages: data.pages ?? null,
+        total_count: data.total_count ?? null,
         success: true,
       },
     }
@@ -238,12 +238,13 @@ export const intercomSearchConversationsV2Tool: ToolConfig<
     conversations: {
       type: 'array',
       description: 'Array of matching conversation objects',
+      optional: true,
       items: {
         type: 'object',
         properties: {
           id: { type: 'string', description: 'Unique identifier for the conversation' },
           type: { type: 'string', description: 'Object type (conversation)' },
-          title: { type: 'string', description: 'Title of the conversation' },
+          title: { type: 'string', description: 'Title of the conversation', optional: true },
           created_at: {
             type: 'number',
             description: 'Unix timestamp when conversation was created',
@@ -252,13 +253,21 @@ export const intercomSearchConversationsV2Tool: ToolConfig<
             type: 'number',
             description: 'Unix timestamp when conversation was last updated',
           },
-          waiting_since: { type: 'number', description: 'Unix timestamp when waiting for reply' },
+          waiting_since: {
+            type: 'number',
+            description: 'Unix timestamp when waiting for reply',
+            optional: true,
+          },
           open: { type: 'boolean', description: 'Whether the conversation is open' },
           state: { type: 'string', description: 'State of the conversation' },
           read: { type: 'boolean', description: 'Whether the conversation has been read' },
           priority: { type: 'string', description: 'Priority of the conversation' },
-          admin_assignee_id: { type: 'number', description: 'ID of assigned admin' },
-          team_assignee_id: { type: 'string', description: 'ID of assigned team' },
+          admin_assignee_id: {
+            type: 'number',
+            description: 'ID of assigned admin',
+            optional: true,
+          },
+          team_assignee_id: { type: 'string', description: 'ID of assigned team', optional: true },
           tags: { type: 'object', description: 'Tags on the conversation' },
           source: { type: 'object', description: 'Source of the conversation' },
           contacts: { type: 'object', description: 'Contacts in the conversation' },
@@ -268,6 +277,7 @@ export const intercomSearchConversationsV2Tool: ToolConfig<
     pages: {
       type: 'object',
       description: 'Pagination information',
+      optional: true,
       properties: {
         type: { type: 'string', description: 'Pages type identifier' },
         page: { type: 'number', description: 'Current page number' },
@@ -275,7 +285,11 @@ export const intercomSearchConversationsV2Tool: ToolConfig<
         total_pages: { type: 'number', description: 'Total number of pages' },
       },
     },
-    total_count: { type: 'number', description: 'Total number of matching conversations' },
+    total_count: {
+      type: 'number',
+      description: 'Total number of matching conversations',
+      optional: true,
+    },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

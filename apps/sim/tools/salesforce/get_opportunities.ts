@@ -85,7 +85,7 @@ export const salesforceGetOpportunitiesTool: ToolConfig<
       output: {
         opportunities,
         paging: {
-          nextRecordsUrl: data.nextRecordsUrl,
+          nextRecordsUrl: data.nextRecordsUrl ?? null,
           totalSize: data.totalSize || opportunities.length,
           done: data.done !== false,
         },
@@ -116,7 +116,11 @@ export const salesforceGetOpportunitiesTool: ToolConfig<
           type: 'object',
           description: 'Pagination information',
           properties: {
-            nextRecordsUrl: { type: 'string', description: 'URL for next page of results' },
+            nextRecordsUrl: {
+              type: 'string',
+              description: 'URL for next page of results',
+              optional: true,
+            },
             totalSize: { type: 'number', description: 'Total number of records' },
             done: { type: 'boolean', description: 'Whether all records returned' },
           },

@@ -87,14 +87,14 @@ export const apolloContactCreateTool: ToolConfig<
     return {
       success: true,
       output: {
-        contact: data.contact || {},
+        contact: data.contact ?? null,
         created: !!data.contact,
       },
     }
   },
 
   outputs: {
-    contact: { type: 'json', description: 'Created contact data from Apollo' },
+    contact: { type: 'json', description: 'Created contact data from Apollo', optional: true },
     created: { type: 'boolean', description: 'Whether the contact was successfully created' },
   },
 }

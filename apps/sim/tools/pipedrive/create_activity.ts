@@ -122,14 +122,14 @@ export const pipedriveCreateActivityTool: ToolConfig<
     return {
       success: true,
       output: {
-        activity: data.data,
+        activity: data.data ?? null,
         success: true,
       },
     }
   },
 
   outputs: {
-    activity: { type: 'object', description: 'The created activity object' },
+    activity: { type: 'object', description: 'The created activity object', optional: true },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

@@ -106,8 +106,8 @@ export const zendeskGetOrganizationsTool: ToolConfig<
       output: {
         organizations,
         paging: {
-          next_page: data.next_page,
-          previous_page: data.previous_page,
+          next_page: data.next_page ?? null,
+          previous_page: data.previous_page ?? null,
           count: data.count || organizations.length,
         },
         metadata: {
@@ -125,8 +125,12 @@ export const zendeskGetOrganizationsTool: ToolConfig<
       type: 'object',
       description: 'Pagination information',
       properties: {
-        next_page: { type: 'string', description: 'URL for next page of results' },
-        previous_page: { type: 'string', description: 'URL for previous page of results' },
+        next_page: { type: 'string', description: 'URL for next page of results', optional: true },
+        previous_page: {
+          type: 'string',
+          description: 'URL for previous page of results',
+          optional: true,
+        },
         count: { type: 'number', description: 'Total count of organizations' },
       },
     },

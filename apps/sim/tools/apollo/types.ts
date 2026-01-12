@@ -195,7 +195,7 @@ export interface ApolloContactCreateParams extends ApolloBaseParams {
 
 export interface ApolloContactCreateResponse extends ToolResponse {
   output: {
-    contact: ApolloContact
+    contact: ApolloContact | null
     created: boolean
   }
 }
@@ -213,7 +213,7 @@ export interface ApolloContactUpdateParams extends ApolloBaseParams {
 
 export interface ApolloContactUpdateResponse extends ToolResponse {
   output: {
-    contact: ApolloContact
+    contact: ApolloContact | null
     updated: boolean
   }
 }
@@ -272,12 +272,17 @@ export interface ApolloContactSearchParams extends ApolloBaseParams {
   per_page?: number
 }
 
+export interface ApolloPagination {
+  page?: number
+  per_page?: number
+  total_entries?: number
+  total_pages?: number
+}
+
 export interface ApolloContactSearchResponse extends ToolResponse {
   output: {
-    contacts: ApolloContact[]
-    page: number
-    per_page: number
-    total_entries: number
+    contacts: ApolloContact[] | null
+    pagination: ApolloPagination | null
   }
 }
 
@@ -291,7 +296,7 @@ export interface ApolloAccountCreateParams extends ApolloBaseParams {
 
 export interface ApolloAccountCreateResponse extends ToolResponse {
   output: {
-    account: ApolloAccount
+    account: ApolloAccount | null
     created: boolean
   }
 }
@@ -307,7 +312,7 @@ export interface ApolloAccountUpdateParams extends ApolloBaseParams {
 
 export interface ApolloAccountUpdateResponse extends ToolResponse {
   output: {
-    account: ApolloAccount
+    account: ApolloAccount | null
     updated: boolean
   }
 }
@@ -323,10 +328,8 @@ export interface ApolloAccountSearchParams extends ApolloBaseParams {
 
 export interface ApolloAccountSearchResponse extends ToolResponse {
   output: {
-    accounts: ApolloAccount[]
-    page: number
-    per_page: number
-    total_entries: number
+    accounts: ApolloAccount[] | null
+    pagination: ApolloPagination | null
   }
 }
 
@@ -399,7 +402,7 @@ export interface ApolloTaskCreateParams extends ApolloBaseParams {
 
 export interface ApolloTaskCreateResponse extends ToolResponse {
   output: {
-    task: ApolloTask
+    task: ApolloTask | null
     created: boolean
   }
 }
@@ -415,10 +418,8 @@ export interface ApolloTaskSearchParams extends ApolloBaseParams {
 
 export interface ApolloTaskSearchResponse extends ToolResponse {
   output: {
-    tasks: ApolloTask[]
-    page: number
-    per_page: number
-    total_entries: number
+    tasks: ApolloTask[] | null
+    pagination: ApolloPagination | null
   }
 }
 
@@ -449,7 +450,7 @@ export interface ApolloOpportunityCreateParams extends ApolloBaseParams {
 
 export interface ApolloOpportunityCreateResponse extends ToolResponse {
   output: {
-    opportunity: ApolloOpportunity
+    opportunity: ApolloOpportunity | null
     created: boolean
   }
 }
@@ -498,7 +499,7 @@ export interface ApolloOpportunityUpdateParams extends ApolloBaseParams {
 
 export interface ApolloOpportunityUpdateResponse extends ToolResponse {
   output: {
-    opportunity: ApolloOpportunity
+    opportunity: ApolloOpportunity | null
     updated: boolean
   }
 }

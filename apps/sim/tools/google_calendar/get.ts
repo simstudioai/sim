@@ -87,16 +87,16 @@ interface GoogleCalendarGetV2Response {
   success: boolean
   output: {
     id: string
-    htmlLink?: string
-    status?: string
-    summary?: string
-    description?: string
-    location?: string
-    start?: any
-    end?: any
-    attendees?: any
-    creator?: any
-    organizer?: any
+    htmlLink: string
+    status: string
+    summary: string | null
+    description: string | null
+    location: string | null
+    start: any
+    end: any
+    attendees: any | null
+    creator: any
+    organizer: any
   }
 }
 
