@@ -30,6 +30,7 @@ import {
   type OAuthProvider,
   type OAuthService,
 } from '@/lib/oauth'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   CheckboxList,
   Code,
@@ -769,9 +770,10 @@ function WorkflowToolDeployBadge({
 }) {
   const { isDeployed, needsRedeploy, isLoading, refetch } = useChildDeployment(workflowId)
   const [isDeploying, setIsDeploying] = useState(false)
+  const userPermissions = useUserPermissionsContext()
 
   const deployWorkflow = useCallback(async () => {
-    if (isDeploying || !workflowId) return
+    if (isDeploying || !workflowId || !userPermissions.canAdmin) return
 
     try {
       setIsDeploying(true)
@@ -796,7 +798,7 @@ function WorkflowToolDeployBadge({
     } finally {
       setIsDeploying(false)
     }
-  }, [isDeploying, workflowId, refetch, onDeploySuccess])
+  }, [isDeploying, workflowId, refetch, onDeploySuccess, userPermissions.canAdmin])
 
   if (isLoading || (isDeployed && !needsRedeploy)) {
     return null
@@ -811,13 +813,13 @@ function WorkflowToolDeployBadge({
       <Tooltip.Trigger asChild>
         <Badge
           variant={!isDeployed ? 'red' : 'amber'}
-          className='cursor-pointer'
+          className={userPermissions.canAdmin ? 'cursor-pointer' : 'cursor-not-allowed'}
           size='sm'
           dot
           onClick={(e: React.MouseEvent) => {
             e.stopPropagation()
             e.preventDefault()
-            if (!isDeploying) {
+            if (!isDeploying && userPermissions.canAdmin) {
               deployWorkflow()
             }
           }}
@@ -826,7 +828,13 @@ function WorkflowToolDeployBadge({
         </Badge>
       </Tooltip.Trigger>
       <Tooltip.Content>
-        <span className='text-sm'>{!isDeployed ? 'Click to deploy' : 'Click to redeploy'}</span>
+        <span className='text-sm'>
+          {!userPermissions.canAdmin
+            ? 'Admin permission required to deploy'
+            : !isDeployed
+              ? 'Click to deploy'
+              : 'Click to redeploy'}
+        </span>
       </Tooltip.Content>
     </Tooltip.Root>
   )
