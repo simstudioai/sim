@@ -9,7 +9,6 @@ import {
   useDragDrop,
   useWorkflowSelection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks/use-import-workflow'
 import { useFolders } from '@/hooks/queries/folders'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
@@ -25,15 +24,13 @@ const TREE_SPACING = {
 interface WorkflowListProps {
   regularWorkflows: WorkflowMetadata[]
   isLoading?: boolean
-  isImporting: boolean
-  setIsImporting: (value: boolean) => void
+  handleFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
 }
 
 /**
  * WorkflowList component displays workflows organized by folders with drag-and-drop support.
- * Uses the workflow import hook for handling JSON imports.
  *
  * @param props - Component props
  * @returns Workflow list with folders and drag-drop support
@@ -41,8 +38,7 @@ interface WorkflowListProps {
 export function WorkflowList({
   regularWorkflows,
   isLoading = false,
-  isImporting,
-  setIsImporting,
+  handleFileChange,
   fileInputRef,
   scrollContainerRef,
 }: WorkflowListProps) {
@@ -64,9 +60,6 @@ export function WorkflowList({
     createRootDragHandlers,
     createFolderHeaderHoverHandlers,
   } = useDragDrop()
-
-  // Workflow import hook
-  const { handleFileChange } = useImportWorkflow({ workspaceId })
 
   // Set scroll container when ref changes
   useEffect(() => {

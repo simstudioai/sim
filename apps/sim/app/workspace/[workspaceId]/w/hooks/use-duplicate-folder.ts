@@ -7,7 +7,10 @@ const logger = createLogger('useDuplicateFolder')
 
 interface UseDuplicateFolderProps {
   workspaceId: string
-  getFolderIds: () => string | string[]
+  /**
+   * The folder ID(s) to duplicate
+   */
+  folderIds: string | string[]
   onSuccess?: () => void
 }
 
@@ -17,11 +20,7 @@ interface UseDuplicateFolderProps {
  * @param props - Hook configuration
  * @returns Duplicate folder handlers and state
  */
-export function useDuplicateFolder({
-  workspaceId,
-  getFolderIds,
-  onSuccess,
-}: UseDuplicateFolderProps) {
+export function useDuplicateFolder({ workspaceId, folderIds, onSuccess }: UseDuplicateFolderProps) {
   const duplicateFolderMutation = useDuplicateFolderMutation()
   const [isDuplicating, setIsDuplicating] = useState(false)
 
@@ -46,21 +45,17 @@ export function useDuplicateFolder({
       return
     }
 
+    if (!folderIds) {
+      return
+    }
+
     setIsDuplicating(true)
     try {
-      // Get fresh folder IDs at duplication time
-      const folderIdsOrId = getFolderIds()
-      if (!folderIdsOrId) {
-        return
-      }
-
-      // Normalize to array for consistent handling
-      const folderIdsToDuplicate = Array.isArray(folderIdsOrId) ? folderIdsOrId : [folderIdsOrId]
+      const folderIdsToDuplicate = Array.isArray(folderIds) ? folderIds : [folderIds]
 
       const duplicatedIds: string[] = []
       const folderStore = useFolderStore.getState()
 
-      // Duplicate each folder sequentially
       for (const folderId of folderIdsToDuplicate) {
         const folder = folderStore.getFolderById(folderId)
 
@@ -72,7 +67,6 @@ export function useDuplicateFolder({
         const siblingNames = new Set(
           folderStore.getChildFolders(folder.parentId).map((sibling) => sibling.name)
         )
-        // Avoid colliding with the original folder name
         siblingNames.add(folder.name)
 
         const duplicateName = generateDuplicateName(folder.name, siblingNames)
@@ -90,7 +84,6 @@ export function useDuplicateFolder({
         }
       }
 
-      // Clear selection after successful duplication
       const { clearSelection } = useFolderStore.getState()
       clearSelection()
 
@@ -107,7 +100,7 @@ export function useDuplicateFolder({
       setIsDuplicating(false)
     }
   }, [
-    getFolderIds,
+    folderIds,
     generateDuplicateName,
     isDuplicating,
     duplicateFolderMutation,

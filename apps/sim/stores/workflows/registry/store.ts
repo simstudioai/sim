@@ -97,11 +97,18 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           return acc
         }, {})
 
-        set((state) => ({
-          workflows: mapped,
-          error: null,
-          hydration:
-            state.hydration.phase === 'state-loading'
+        set((state) => {
+          // Preserve hydration if workflow is loading or already ready and still exists
+          const shouldPreserveHydration =
+            state.hydration.phase === 'state-loading' ||
+            (state.hydration.phase === 'ready' &&
+              state.hydration.workflowId &&
+              mapped[state.hydration.workflowId])
+
+          return {
+            workflows: mapped,
+            error: null,
+            hydration: shouldPreserveHydration
               ? state.hydration
               : {
                   phase: 'metadata-ready',
@@ -110,7 +117,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   requestId: null,
                   error: null,
                 },
-        }))
+          }
+        })
       },
 
       failMetadataLoad: (workspaceId: string | null, errorMessage: string) => {

@@ -33,6 +33,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
   const createWorkflowMutation = useCreateWorkflow()
   const queryClient = useQueryClient()
   const createFolderMutation = useCreateFolder()
+  const clearDiff = useWorkflowDiffStore((state) => state.clearDiff)
   const [isImporting, setIsImporting] = useState(false)
 
   /**
@@ -48,9 +49,8 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
       }
 
       const workflowName = extractWorkflowName(content, filename)
-      useWorkflowDiffStore.getState().clearDiff()
+      clearDiff()
 
-      // Extract color from metadata
       const parsedContent = JSON.parse(content)
       const workflowColor =
         parsedContent.state?.metadata?.color || parsedContent.metadata?.color || '#3972F6'
@@ -63,7 +63,6 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
       })
       const newWorkflowId = result.id
 
-      // Update workflow color if we extracted one
       if (workflowColor !== '#3972F6') {
         await fetch(`/api/workflows/${newWorkflowId}`, {
           method: 'PATCH',
@@ -72,16 +71,13 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
         })
       }
 
-      // Save workflow state
       await fetch(`/api/workflows/${newWorkflowId}/state`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(workflowData),
       })
 
-      // Save variables if any (handle both legacy Array and current Record formats)
       if (workflowData.variables) {
-        // Convert to Record format for API (handles backwards compatibility with old Array exports)
         const variablesArray = Array.isArray(workflowData.variables)
           ? workflowData.variables
           : Object.values(workflowData.variables)
@@ -114,7 +110,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
       logger.info(`Imported workflow: ${workflowName}`)
       return newWorkflowId
     },
-    [createWorkflowMutation, workspaceId]
+    [clearDiff, createWorkflowMutation, workspaceId]
   )
 
   /**
@@ -134,7 +130,6 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
         const importedWorkflowIds: string[] = []
 
         if (hasZip && fileArray.length === 1) {
-          // Import from ZIP - preserves folder structure
           const zipFile = fileArray[0]
           const { workflows: extractedWorkflows, metadata } = await extractWorkflowsFromZip(zipFile)
 
@@ -149,7 +144,6 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
             try {
               let targetFolderId = importFolder.id
 
-              // Recreate nested folder structure
               if (workflow.folderPath.length > 0) {
                 const folderPathKey = workflow.folderPath.join('/')
 
@@ -187,7 +181,6 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
             }
           }
         } else if (jsonFiles.length > 0) {
-          // Import multiple JSON files or single JSON
           const extractedWorkflows = await extractWorkflowsFromFiles(jsonFiles)
 
           for (const workflow of extractedWorkflows) {
@@ -200,22 +193,21 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
           }
         }
 
-        // Reload workflows and folders to show newly imported ones
         await queryClient.invalidateQueries({ queryKey: workflowKeys.list(workspaceId) })
         await queryClient.invalidateQueries({ queryKey: folderKeys.list(workspaceId) })
 
         logger.info(`Import complete. Imported ${importedWorkflowIds.length} workflow(s)`)
 
-        // Navigate to first imported workflow if any
         if (importedWorkflowIds.length > 0) {
-          router.push(`/workspace/${workspaceId}/w/${importedWorkflowIds[0]}`)
+          router.push(
+            `/workspace/${workspaceId}/w/${importedWorkflowIds[importedWorkflowIds.length - 1]}`
+          )
         }
       } catch (error) {
         logger.error('Failed to import workflows:', error)
       } finally {
         setIsImporting(false)
 
-        // Reset file input
         if (event.target) {
           event.target.value = ''
         }

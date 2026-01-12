@@ -14,10 +14,9 @@ interface UseExportWorkflowProps {
    */
   workspaceId: string
   /**
-   * Function that returns the workflow ID(s) to export
-   * This function is called when export occurs to get fresh selection state
+   * The workflow ID(s) to export
    */
-  getWorkflowIds: () => string | string[]
+  workflowIds: string | string[]
   /**
    * Optional callback after successful export
    */
@@ -27,23 +26,10 @@ interface UseExportWorkflowProps {
 /**
  * Hook for managing workflow export to JSON.
  *
- * Handles:
- * - Single or bulk workflow export
- * - Fetching workflow data and variables from API
- * - Sanitizing workflow state for export
- * - Downloading as JSON file(s)
- * - Loading state management
- * - Error handling and logging
- * - Clearing selection after export
- *
  * @param props - Hook configuration
  * @returns Export workflow handlers and state
  */
-export function useExportWorkflow({
-  workspaceId,
-  getWorkflowIds,
-  onSuccess,
-}: UseExportWorkflowProps) {
+export function useExportWorkflow({ workspaceId, workflowIds, onSuccess }: UseExportWorkflowProps) {
   const { workflows } = useWorkflowRegistry()
   const [isExporting, setIsExporting] = useState(false)
 
@@ -81,18 +67,13 @@ export function useExportWorkflow({
       return
     }
 
+    if (!workflowIds || (Array.isArray(workflowIds) && workflowIds.length === 0)) {
+      return
+    }
+
     setIsExporting(true)
     try {
-      // Get fresh workflow IDs at export time
-      const workflowIdsOrId = getWorkflowIds()
-      if (!workflowIdsOrId) {
-        return
-      }
-
-      // Normalize to array for consistent handling
-      const workflowIdsToExport = Array.isArray(workflowIdsOrId)
-        ? workflowIdsOrId
-        : [workflowIdsOrId]
+      const workflowIdsToExport = Array.isArray(workflowIds) ? workflowIds : [workflowIds]
 
       logger.info('Starting workflow export', {
         workflowIdsToExport,
@@ -101,7 +82,6 @@ export function useExportWorkflow({
 
       const exportedWorkflows: Array<{ name: string; content: string }> = []
 
-      // Export each workflow
       for (const workflowId of workflowIdsToExport) {
         try {
           const workflow = workflows[workflowId]
@@ -110,7 +90,6 @@ export function useExportWorkflow({
             continue
           }
 
-          // Fetch workflow state from API
           const workflowResponse = await fetch(`/api/workflows/${workflowId}`)
           if (!workflowResponse.ok) {
             logger.error(`Failed to fetch workflow ${workflowId}`)
@@ -123,7 +102,6 @@ export function useExportWorkflow({
             continue
           }
 
-          // Fetch workflow variables (API returns Record format directly)
           const variablesResponse = await fetch(`/api/workflows/${workflowId}/variables`)
           let workflowVariables: Record<string, Variable> | undefined
           if (variablesResponse.ok) {
@@ -131,7 +109,6 @@ export function useExportWorkflow({
             workflowVariables = variablesData?.data
           }
 
-          // Prepare export state
           const workflowState = {
             ...workflowData.state,
             metadata: {
@@ -162,17 +139,22 @@ export function useExportWorkflow({
         return
       }
 
-      // Download as single JSON or ZIP depending on count
       if (exportedWorkflows.length === 1) {
-        // Single workflow - download as JSON
         const filename = `${exportedWorkflows[0].name.replace(/[^a-z0-9]/gi, '-')}.json`
         downloadFile(exportedWorkflows[0].content, filename, 'application/json')
       } else {
-        // Multiple workflows - download as ZIP
         const zip = new JSZip()
+        const seenFilenames = new Set<string>()
 
         for (const exportedWorkflow of exportedWorkflows) {
-          const filename = `${exportedWorkflow.name.replace(/[^a-z0-9]/gi, '-')}.json`
+          const baseName = exportedWorkflow.name.replace(/[^a-z0-9]/gi, '-')
+          let filename = `${baseName}.json`
+          let counter = 1
+          while (seenFilenames.has(filename.toLowerCase())) {
+            filename = `${baseName}-${counter}.json`
+            counter++
+          }
+          seenFilenames.add(filename.toLowerCase())
           zip.file(filename, exportedWorkflow.content)
         }
 
@@ -181,7 +163,6 @@ export function useExportWorkflow({
         downloadFile(zipBlob, zipFilename, 'application/zip')
       }
 
-      // Clear selection after successful export
       const { clearSelection } = useFolderStore.getState()
       clearSelection()
 
@@ -198,7 +179,7 @@ export function useExportWorkflow({
     } finally {
       setIsExporting(false)
     }
-  }, [getWorkflowIds, isExporting, workflows, onSuccess])
+  }, [workflowIds, isExporting, workflows, onSuccess])
 
   return {
     isExporting,

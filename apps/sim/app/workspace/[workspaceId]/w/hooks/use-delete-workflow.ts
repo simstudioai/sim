@@ -12,10 +12,9 @@ interface UseDeleteWorkflowProps {
    */
   workspaceId: string
   /**
-   * Function that returns the workflow ID(s) to delete
-   * This function is called when deletion occurs to get fresh selection state
+   * Workflow ID(s) to delete
    */
-  getWorkflowIds: () => string | string[]
+  workflowIds: string | string[]
   /**
    * Whether the active workflow is being deleted
    * Can be a boolean or a function that receives the workflow IDs
@@ -30,20 +29,12 @@ interface UseDeleteWorkflowProps {
 /**
  * Hook for managing workflow deletion with navigation logic.
  *
- * Handles:
- * - Single or bulk workflow deletion
- * - Finding next workflow to navigate to
- * - Navigating before deletion (if active workflow)
- * - Removing workflow(s) from registry
- * - Loading state management
- * - Error handling and logging
- *
  * @param props - Hook configuration
  * @returns Delete workflow handlers and state
  */
 export function useDeleteWorkflow({
   workspaceId,
-  getWorkflowIds,
+  workflowIds,
   isActive = false,
   onSuccess,
 }: UseDeleteWorkflowProps) {
@@ -59,30 +50,21 @@ export function useDeleteWorkflow({
       return
     }
 
+    if (!workflowIds) {
+      return
+    }
+
     setIsDeleting(true)
     try {
-      // Get fresh workflow IDs at deletion time
-      const workflowIdsOrId = getWorkflowIds()
-      if (!workflowIdsOrId) {
-        return
-      }
+      const workflowIdsToDelete = Array.isArray(workflowIds) ? workflowIds : [workflowIds]
 
-      // Normalize to array for consistent handling
-      const workflowIdsToDelete = Array.isArray(workflowIdsOrId)
-        ? workflowIdsOrId
-        : [workflowIdsOrId]
-
-      // Determine if active workflow is being deleted
       const isActiveWorkflowBeingDeleted =
         typeof isActive === 'function' ? isActive(workflowIdsToDelete) : isActive
 
-      // Find next workflow to navigate to (if active workflow is being deleted)
       const sidebarWorkflows = Object.values(workflows).filter((w) => w.workspaceId === workspaceId)
 
-      // Find which specific workflow is the active one (if any in the deletion list)
       let activeWorkflowId: string | null = null
       if (isActiveWorkflowBeingDeleted && typeof isActive === 'function') {
-        // Check each workflow being deleted to find which one is active
         activeWorkflowId =
           workflowIdsToDelete.find((id) => isActive([id])) || workflowIdsToDelete[0]
       } else {
@@ -93,13 +75,11 @@ export function useDeleteWorkflow({
 
       let nextWorkflowId: string | null = null
       if (isActiveWorkflowBeingDeleted && sidebarWorkflows.length > workflowIdsToDelete.length) {
-        // Find the first workflow that's not being deleted
         const remainingWorkflows = sidebarWorkflows.filter(
           (w) => !workflowIdsToDelete.includes(w.id)
         )
 
         if (remainingWorkflows.length > 0) {
-          // Try to find the next workflow after the current one
           const workflowsAfterCurrent = remainingWorkflows.filter((w) => {
             const idx = sidebarWorkflows.findIndex((sw) => sw.id === w.id)
             return idx > currentIndex
@@ -108,13 +88,11 @@ export function useDeleteWorkflow({
           if (workflowsAfterCurrent.length > 0) {
             nextWorkflowId = workflowsAfterCurrent[0].id
           } else {
-            // Otherwise, use the first remaining workflow
             nextWorkflowId = remainingWorkflows[0].id
           }
         }
       }
 
-      // Navigate first if this is the active workflow
       if (isActiveWorkflowBeingDeleted) {
         if (nextWorkflowId) {
           router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
@@ -123,10 +101,8 @@ export function useDeleteWorkflow({
         }
       }
 
-      // Delete all workflows
       await Promise.all(workflowIdsToDelete.map((id) => removeWorkflow(id)))
 
-      // Clear selection after successful deletion
       const { clearSelection } = useFolderStore.getState()
       clearSelection()
 
@@ -138,16 +114,7 @@ export function useDeleteWorkflow({
     } finally {
       setIsDeleting(false)
     }
-  }, [
-    getWorkflowIds,
-    isDeleting,
-    workflows,
-    workspaceId,
-    isActive,
-    router,
-    removeWorkflow,
-    onSuccess,
-  ])
+  }, [workflowIds, isDeleting, workflows, workspaceId, isActive, router, removeWorkflow, onSuccess])
 
   return {
     isDeleting,
