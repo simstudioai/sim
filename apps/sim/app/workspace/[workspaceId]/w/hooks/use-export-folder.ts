@@ -16,10 +16,9 @@ interface UseExportFolderProps {
    */
   workspaceId: string
   /**
-   * Function that returns the folder ID to export
-   * This function is called when export occurs to get fresh state
+   * The folder ID to export
    */
-  getFolderId: () => string
+  folderId: string
   /**
    * Optional callback after successful export
    */
@@ -41,14 +40,12 @@ function collectWorkflowsInFolder(
 ): string[] {
   const workflowIds: string[] = []
 
-  // Get workflows directly in this folder
   for (const workflow of Object.values(workflows)) {
     if (workflow.folderId === folderId) {
       workflowIds.push(workflow.id)
     }
   }
 
-  // Recursively get workflows from child folders
   for (const folder of Object.values(folders)) {
     if (folder.parentId === folderId) {
       const childWorkflowIds = collectWorkflowsInFolder(folder.id, workflows, folders)
@@ -65,7 +62,7 @@ function collectWorkflowsInFolder(
  * @param props - Hook configuration
  * @returns Export folder handlers and state
  */
-export function useExportFolder({ workspaceId, getFolderId, onSuccess }: UseExportFolderProps) {
+export function useExportFolder({ workspaceId, folderId, onSuccess }: UseExportFolderProps) {
   const { workflows } = useWorkflowRegistry()
   const { folders } = useFolderStore()
   const [isExporting, setIsExporting] = useState(false)
@@ -74,10 +71,9 @@ export function useExportFolder({ workspaceId, getFolderId, onSuccess }: UseExpo
    * Check if the folder has any workflows (recursively)
    */
   const hasWorkflows = useMemo(() => {
-    const folderId = getFolderId()
     if (!folderId) return false
     return collectWorkflowsInFolder(folderId, workflows, folders).length > 0
-  }, [workflows, folders])
+  }, [folderId, workflows, folders])
 
   /**
    * Download file helper
@@ -106,14 +102,13 @@ export function useExportFolder({ workspaceId, getFolderId, onSuccess }: UseExpo
       return
     }
 
+    if (!folderId) {
+      logger.warn('No folder ID provided for export')
+      return
+    }
+
     setIsExporting(true)
     try {
-      const folderId = getFolderId()
-      if (!folderId) {
-        logger.warn('No folder ID provided for export')
-        return
-      }
-
       const folderStore = useFolderStore.getState()
       const folder = folderStore.getFolderById(folderId)
 
@@ -204,11 +199,11 @@ export function useExportFolder({ workspaceId, getFolderId, onSuccess }: UseExpo
         const baseName = exportedWorkflow.name.replace(/[^a-z0-9]/gi, '-')
         let filename = `${baseName}.json`
         let counter = 1
-        while (seenFilenames.has(filename)) {
+        while (seenFilenames.has(filename.toLowerCase())) {
           filename = `${baseName}-${counter}.json`
           counter++
         }
-        seenFilenames.add(filename)
+        seenFilenames.add(filename.toLowerCase())
         zip.file(filename, exportedWorkflow.content)
       }
 
@@ -232,7 +227,7 @@ export function useExportFolder({ workspaceId, getFolderId, onSuccess }: UseExpo
     } finally {
       setIsExporting(false)
     }
-  }, [getFolderId, isExporting, workflows, onSuccess])
+  }, [folderId, isExporting, workflows, onSuccess])
 
   return {
     isExporting,

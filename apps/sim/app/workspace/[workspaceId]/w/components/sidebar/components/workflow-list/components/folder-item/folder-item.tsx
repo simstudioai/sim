@@ -58,29 +58,24 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   const { canDeleteFolder } = useCanDelete({ workspaceId })
   const canDelete = useMemo(() => canDeleteFolder(folder.id), [canDeleteFolder, folder.id])
 
-  // Delete modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 
-  // Delete folder hook
   const { isDeleting, handleDeleteFolder } = useDeleteFolder({
     workspaceId,
-    getFolderIds: () => folder.id,
+    folderIds: folder.id,
     onSuccess: () => setIsDeleteModalOpen(false),
   })
 
-  // Duplicate folder hook
   const { handleDuplicateFolder } = useDuplicateFolder({
     workspaceId,
-    getFolderIds: () => folder.id,
+    folderIds: folder.id,
   })
 
-  // Export folder hook
   const { isExporting, hasWorkflows, handleExportFolder } = useExportFolder({
     workspaceId,
-    getFolderId: () => folder.id,
+    folderId: folder.id,
   })
 
-  // Folder expand hook - must be declared before callbacks that use expandFolder
   const {
     isExpanded,
     handleToggleExpanded,
@@ -97,7 +92,6 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
    */
   const handleCreateWorkflowInFolder = useCallback(async () => {
     try {
-      // Generate name and color upfront for optimistic updates
       const name = generateCreativeWorkflowName()
       const color = getNextWorkflowColor()
 
@@ -110,15 +104,12 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
 
       if (result.id) {
         router.push(`/workspace/${workspaceId}/w/${result.id}`)
-        // Expand the parent folder so the new workflow is visible
         expandFolder()
-        // Scroll to the newly created workflow
         window.dispatchEvent(
           new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: result.id } })
         )
       }
     } catch (error) {
-      // Error already handled by mutation's onError callback
       logger.error('Failed to create workflow in folder:', error)
     }
   }, [createWorkflowMutation, workspaceId, folder.id, router, expandFolder])
@@ -135,9 +126,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
         parentId: folder.id,
       })
       if (result.id) {
-        // Expand the parent folder so the new folder is visible
         expandFolder()
-        // Scroll to the newly created folder
         window.dispatchEvent(
           new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: result.id } })
         )
@@ -154,7 +143,6 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
    */
   const onDragStart = useCallback(
     (e: React.DragEvent) => {
-      // Don't start drag if editing
       if (isEditing) {
         e.preventDefault()
         return
@@ -166,12 +154,10 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
     [folder.id]
   )
 
-  // Item drag hook
   const { isDragging, shouldPreventClickRef, handleDragStart, handleDragEnd } = useItemDrag({
     onDragStart,
   })
 
-  // Context menu hook
   const {
     isOpen: isContextMenuOpen,
     position,
@@ -181,7 +167,6 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
     preventDismiss,
   } = useContextMenu()
 
-  // Rename hook
   const {
     isEditing,
     editValue,
@@ -265,7 +250,6 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
       e.preventDefault()
       e.stopPropagation()
 
-      // Toggle: close if open, open if closed
       if (isContextMenuOpen) {
         closeMenu()
         return

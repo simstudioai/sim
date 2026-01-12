@@ -79,27 +79,21 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
   // Delete workflow hook
   const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
     workspaceId,
-    getWorkflowIds: () => workflowIdsToDelete,
+    workflowIds: workflowIdsToDelete,
     isActive: (workflowIds) => workflowIds.includes(params.workflowId as string),
     onSuccess: () => setIsDeleteModalOpen(false),
   })
 
-  // Duplicate workflow hook
+  // Duplicate workflow hook (uses captured selection from right-click)
   const { handleDuplicateWorkflow } = useDuplicateWorkflow({
     workspaceId,
-    getWorkflowIds: () => {
-      // Use the selection captured at right-click time
-      return capturedSelectionRef.current?.workflowIds || []
-    },
+    workflowIds: capturedSelectionRef.current?.workflowIds || [],
   })
 
-  // Export workflow hook
+  // Export workflow hook (uses captured selection from right-click)
   const { handleExportWorkflow } = useExportWorkflow({
     workspaceId,
-    getWorkflowIds: () => {
-      // Use the selection captured at right-click time
-      return capturedSelectionRef.current?.workflowIds || []
-    },
+    workflowIds: capturedSelectionRef.current?.workflowIds || [],
   })
 
   /**

@@ -216,7 +216,7 @@ export function Sidebar() {
   }, [activeNavItemHref])
 
   const { handleDuplicateWorkspace: duplicateWorkspace } = useDuplicateWorkspace({
-    getWorkspaceId: () => workspaceId,
+    workspaceId,
   })
 
   const searchModalWorkflows = useMemo(
