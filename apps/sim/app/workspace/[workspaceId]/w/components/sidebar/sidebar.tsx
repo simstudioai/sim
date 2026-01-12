@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { Database, HelpCircle, Layout, Plus, Search, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { Button, Download, FolderPlus, Library, Tooltip } from '@/components/emcn'
+import { Button, Download, FolderPlus, Library, Loader, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -572,9 +572,9 @@ export function Sidebar() {
                         <Button
                           variant='ghost'
                           className='translate-y-[-0.25px] p-[1px]'
-                          disabled={!canEdit}
+                          disabled={!canEdit || isImporting}
                         >
-                          <Download className='h-[14px] w-[14px]' animate />
+                          <Loader className='h-[14px] w-[14px]' animate />
                         </Button>
                       ) : (
                         <Tooltip.Root>
