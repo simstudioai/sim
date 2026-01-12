@@ -62,15 +62,6 @@ function collectWorkflowsInFolder(
 /**
  * Hook for managing folder export to ZIP.
  *
- * Handles:
- * - Collecting all workflows within a folder (including nested subfolders)
- * - Fetching workflow data and variables from API
- * - Sanitizing workflow state for export
- * - Downloading as ZIP file
- * - Loading state management
- * - Error handling and logging
- * - Clearing selection after export
- *
  * @param props - Hook configuration
  * @returns Export folder handlers and state
  */
@@ -86,7 +77,7 @@ export function useExportFolder({ workspaceId, getFolderId, onSuccess }: UseExpo
     const folderId = getFolderId()
     if (!folderId) return false
     return collectWorkflowsInFolder(folderId, workflows, folders).length > 0
-  }, [getFolderId, workflows, folders])
+  }, [workflows, folders])
 
   /**
    * Download file helper
@@ -117,7 +108,6 @@ export function useExportFolder({ workspaceId, getFolderId, onSuccess }: UseExpo
 
     setIsExporting(true)
     try {
-      // Get fresh folder ID at export time
       const folderId = getFolderId()
       if (!folderId) {
         logger.warn('No folder ID provided for export')
@@ -132,7 +122,6 @@ export function useExportFolder({ workspaceId, getFolderId, onSuccess }: UseExpo
         return
       }
 
-      // Collect all workflow IDs recursively
       const workflowIdsToExport = collectWorkflowsInFolder(folderId, workflows, folderStore.folders)
 
       if (workflowIdsToExport.length === 0) {
@@ -148,7 +137,6 @@ export function useExportFolder({ workspaceId, getFolderId, onSuccess }: UseExpo
 
       const exportedWorkflows: Array<{ name: string; content: string }> = []
 
-      // Export each workflow
       for (const workflowId of workflowIdsToExport) {
         try {
           const workflow = workflows[workflowId]
@@ -157,7 +145,6 @@ export function useExportFolder({ workspaceId, getFolderId, onSuccess }: UseExpo
             continue
           }
 
-          // Fetch workflow state from API
           const workflowResponse = await fetch(`/api/workflows/${workflowId}`)
           if (!workflowResponse.ok) {
             logger.error(`Failed to fetch workflow ${workflowId}`)
@@ -170,7 +157,6 @@ export function useExportFolder({ workspaceId, getFolderId, onSuccess }: UseExpo
             continue
           }
 
-          // Fetch workflow variables (API returns Record format directly)
           const variablesResponse = await fetch(`/api/workflows/${workflowId}/variables`)
           let workflowVariables: Record<string, Variable> | undefined
           if (variablesResponse.ok) {
@@ -178,7 +164,6 @@ export function useExportFolder({ workspaceId, getFolderId, onSuccess }: UseExpo
             workflowVariables = variablesData?.data
           }
 
-          // Prepare export state
           const workflowState = {
             ...workflowData.state,
             metadata: {
@@ -212,11 +197,18 @@ export function useExportFolder({ workspaceId, getFolderId, onSuccess }: UseExpo
         return
       }
 
-      // Always export as ZIP for folders (even with single workflow)
       const zip = new JSZip()
+      const seenFilenames = new Set<string>()
 
       for (const exportedWorkflow of exportedWorkflows) {
-        const filename = `${exportedWorkflow.name.replace(/[^a-z0-9]/gi, '-')}.json`
+        const baseName = exportedWorkflow.name.replace(/[^a-z0-9]/gi, '-')
+        let filename = `${baseName}.json`
+        let counter = 1
+        while (seenFilenames.has(filename)) {
+          filename = `${baseName}-${counter}.json`
+          counter++
+        }
+        seenFilenames.add(filename)
         zip.file(filename, exportedWorkflow.content)
       }
 
@@ -224,7 +216,6 @@ export function useExportFolder({ workspaceId, getFolderId, onSuccess }: UseExpo
       const zipFilename = `${folder.name.replace(/[^a-z0-9]/gi, '-')}-export.zip`
       downloadFile(zipBlob, zipFilename, 'application/zip')
 
-      // Clear selection after successful export
       const { clearSelection } = useFolderStore.getState()
       clearSelection()
 
