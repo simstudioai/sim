@@ -185,7 +185,7 @@ export const notionSearchV2Tool: ToolConfig<NotionSearchParams, NotionSearchV2Re
       },
     },
     has_more: { type: 'boolean', description: 'Whether more results are available' },
-    next_cursor: { type: 'string', description: 'Cursor for pagination' },
+    next_cursor: { type: 'string', description: 'Cursor for pagination', optional: true },
     total_results: { type: 'number', description: 'Number of results returned' },
   },
 }
