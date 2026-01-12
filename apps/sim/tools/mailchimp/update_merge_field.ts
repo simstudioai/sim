@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { MailchimpMergeField } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpUpdateMergeField')
 
 export interface MailchimpUpdateMergeFieldParams {
   apiKey: string
@@ -16,10 +13,7 @@ export interface MailchimpUpdateMergeFieldResponse {
   success: boolean
   output: {
     mergeField: MailchimpMergeField
-    metadata: {
-      operation: 'update_merge_field'
-      mergeId: string
-    }
+    merge_id: string
     success: boolean
   }
 }
@@ -89,10 +83,7 @@ export const mailchimpUpdateMergeFieldTool: ToolConfig<
       success: true,
       output: {
         mergeField: data,
-        metadata: {
-          operation: 'update_merge_field' as const,
-          mergeId: data.merge_id,
-        },
+        merge_id: data.merge_id,
         success: true,
       },
     }
@@ -105,7 +96,7 @@ export const mailchimpUpdateMergeFieldTool: ToolConfig<
       description: 'Updated merge field data',
       properties: {
         mergeField: { type: 'object', description: 'Updated merge field object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
+        merge_id: { type: 'string', description: 'Merge field ID' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

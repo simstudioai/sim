@@ -54,6 +54,12 @@ export const stripeRetrieveCustomerTool: ToolConfig<RetrieveCustomerParams, Cust
     metadata: {
       type: 'json',
       description: 'Customer metadata',
+
+      properties: {
+        id: { type: 'string', description: 'Stripe unique identifier' },
+        email: { type: 'string', description: 'Customer email address' },
+        name: { type: 'string', description: 'Display name' },
+      },
     },
   },
 }

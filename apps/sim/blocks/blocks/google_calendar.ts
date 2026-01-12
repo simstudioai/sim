@@ -5,7 +5,7 @@ import type { GoogleCalendarResponse } from '@/tools/google_calendar/types'
 
 export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   type: 'google_calendar',
-  name: 'Google Calendar',
+  name: 'Google Calendar (Legacy)',
   description: 'Manage Google Calendar events',
   authMode: AuthMode.OAuth,
   longDescription:
@@ -14,6 +14,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: GoogleCalendarIcon,
+  hideFromToolbar: true,
   subBlocks: [
     {
       id: 'operation',
@@ -383,5 +384,56 @@ Return ONLY the natural language event text - no explanations.`,
   outputs: {
     content: { type: 'string', description: 'Operation response content' },
     metadata: { type: 'json', description: 'Event metadata' },
+  },
+}
+
+export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
+  ...GoogleCalendarBlock,
+  type: 'google_calendar_v2',
+  name: 'Google Calendar',
+  hideFromToolbar: false,
+  tools: {
+    ...GoogleCalendarBlock.tools,
+    access: [
+      'google_calendar_create_v2',
+      'google_calendar_list_v2',
+      'google_calendar_get_v2',
+      'google_calendar_quick_add_v2',
+      'google_calendar_invite_v2',
+    ],
+    config: {
+      ...GoogleCalendarBlock.tools?.config,
+      tool: (params) => {
+        const operation = params.operation || 'create'
+        if (
+          operation !== 'create' &&
+          operation !== 'list' &&
+          operation !== 'get' &&
+          operation !== 'quick_add' &&
+          operation !== 'invite'
+        ) {
+          throw new Error(`Invalid Google Calendar operation: ${operation}`)
+        }
+        return `google_calendar_${operation}_v2`
+      },
+      params: GoogleCalendarBlock.tools?.config?.params,
+    },
+  },
+  outputs: {
+    id: { type: 'string', description: 'Event ID' },
+    htmlLink: { type: 'string', description: 'Event link' },
+    status: { type: 'string', description: 'Event status' },
+    summary: { type: 'string', description: 'Event title' },
+    description: { type: 'string', description: 'Event description' },
+    location: { type: 'string', description: 'Event location' },
+    start: { type: 'json', description: 'Event start' },
+    end: { type: 'json', description: 'Event end' },
+    attendees: { type: 'json', description: 'Event attendees' },
+    creator: { type: 'json', description: 'Event creator' },
+    organizer: { type: 'json', description: 'Event organizer' },
+    events: { type: 'json', description: 'List of events (list operation)' },
+    nextPageToken: { type: 'string', description: 'Next page token' },
+    nextSyncToken: { type: 'string', description: 'Next sync token' },
+    timeZone: { type: 'string', description: 'Calendar time zone' },
   },
 }

@@ -93,3 +93,60 @@ Logs: ${data.logs_url}`
     },
   },
 }
+
+export const getWorkflowRunV2Tool: ToolConfig<GetWorkflowRunParams, any> = {
+  id: 'github_get_workflow_run_v2',
+  name: getWorkflowRunTool.name,
+  description: getWorkflowRunTool.description,
+  version: '2.0.0',
+  params: getWorkflowRunTool.params,
+  request: getWorkflowRunTool.request,
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: true,
+      output: {
+        id: data.id,
+        name: data.name,
+        head_branch: data.head_branch,
+        head_sha: data.head_sha,
+        run_number: data.run_number,
+        run_attempt: data.run_attempt,
+        event: data.event,
+        status: data.status,
+        conclusion: data.conclusion,
+        workflow_id: data.workflow_id,
+        html_url: data.html_url,
+        logs_url: data.logs_url,
+        jobs_url: data.jobs_url,
+        artifacts_url: data.artifacts_url,
+        triggering_actor: data.triggering_actor,
+        run_started_at: data.run_started_at,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+      },
+    }
+  },
+
+  outputs: {
+    id: { type: 'number', description: 'Workflow run ID' },
+    name: { type: 'string', description: 'Workflow name' },
+    head_branch: { type: 'string', description: 'Branch name' },
+    head_sha: { type: 'string', description: 'Commit SHA' },
+    run_number: { type: 'number', description: 'Run number' },
+    run_attempt: { type: 'number', description: 'Run attempt number' },
+    event: { type: 'string', description: 'Trigger event type' },
+    status: { type: 'string', description: 'Run status' },
+    conclusion: { type: 'string', description: 'Run conclusion' },
+    workflow_id: { type: 'number', description: 'Workflow ID' },
+    html_url: { type: 'string', description: 'GitHub web URL' },
+    logs_url: { type: 'string', description: 'Logs download URL' },
+    jobs_url: { type: 'string', description: 'Jobs API URL' },
+    artifacts_url: { type: 'string', description: 'Artifacts API URL' },
+    triggering_actor: { type: 'json', description: 'User who triggered the run' },
+    run_started_at: { type: 'string', description: 'Run start timestamp' },
+    created_at: { type: 'string', description: 'Creation timestamp' },
+    updated_at: { type: 'string', description: 'Last update timestamp' },
+  },
+}

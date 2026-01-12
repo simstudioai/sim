@@ -12,13 +12,6 @@ export interface MailchimpDeleteMemberParams {
 
 export interface MailchimpDeleteMemberResponse {
   success: boolean
-  output: {
-    metadata: {
-      operation: 'delete_member'
-      subscriberHash: string
-    }
-    success: boolean
-  }
 }
 
 export const mailchimpDeleteMemberTool: ToolConfig<
@@ -69,25 +62,10 @@ export const mailchimpDeleteMemberTool: ToolConfig<
 
     return {
       success: true,
-      output: {
-        metadata: {
-          operation: 'delete_member' as const,
-          subscriberHash: '',
-        },
-        success: true,
-      },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Deletion confirmation',
-      properties: {
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
-    },
+    success: { type: 'boolean', description: 'Whether the member was successfully deleted' },
   },
 }

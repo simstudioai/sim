@@ -133,3 +133,59 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
     },
   },
 }
+
+// V2 Tool with API-aligned outputs
+interface NotionSearchV2Response {
+  success: boolean
+  output: {
+    results: any[]
+    has_more: boolean
+    next_cursor: string | null
+    total_results: number
+  }
+}
+
+export const notionSearchV2Tool: ToolConfig<NotionSearchParams, NotionSearchV2Response> = {
+  id: 'notion_search_v2',
+  name: 'Search Notion Workspace',
+  description: 'Search across all pages and databases in Notion workspace',
+  version: '2.0.0',
+  oauth: notionSearchTool.oauth,
+  params: notionSearchTool.params,
+  request: notionSearchTool.request,
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    const results = data.results || []
+
+    return {
+      success: true,
+      output: {
+        results,
+        has_more: data.has_more || false,
+        next_cursor: data.next_cursor || null,
+        total_results: results.length,
+      },
+    }
+  },
+
+  outputs: {
+    results: {
+      type: 'array',
+      description: 'Array of search results (pages and databases)',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Object ID' },
+          object: { type: 'string', description: 'Object type (page or database)' },
+          url: { type: 'string', description: 'Object URL' },
+          created_time: { type: 'string', description: 'Creation timestamp' },
+          last_edited_time: { type: 'string', description: 'Last edit timestamp' },
+        },
+      },
+    },
+    has_more: { type: 'boolean', description: 'Whether more results are available' },
+    next_cursor: { type: 'string', description: 'Cursor for pagination' },
+    total_results: { type: 'number', description: 'Number of results returned' },
+  },
+}

@@ -14,11 +14,7 @@ export interface MailchimpGetMergeFieldResponse {
   success: boolean
   output: {
     mergeField: any
-    metadata: {
-      operation: 'get_merge_field'
-      mergeId: string
-    }
-    success: boolean
+    merge_id: string
   }
 }
 
@@ -74,24 +70,19 @@ export const mailchimpGetMergeFieldTool: ToolConfig<
       success: true,
       output: {
         mergeField: data,
-        metadata: {
-          operation: 'get_merge_field' as const,
-          mergeId: data.merge_id,
-        },
-        success: true,
+        merge_id: data.merge_id,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
+    success: { type: 'boolean', description: 'Whether the merge field was successfully retrieved' },
     output: {
       type: 'object',
-      description: 'Merge field data and metadata',
+      description: 'Merge field data',
       properties: {
-        mergeField: { type: 'object', description: 'Merge field object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        mergeField: { type: 'json', description: 'Merge field object' },
+        merge_id: { type: 'string', description: 'The unique ID of the merge field' },
       },
     },
   },

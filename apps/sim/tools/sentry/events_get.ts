@@ -79,7 +79,11 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
           contexts: event.contexts || {},
           platform: event.platform,
           type: event.type,
-          metadata: event.metadata || {},
+          metadata: {
+            type: event.metadata?.type || null,
+            value: event.metadata?.value || null,
+            function: event.metadata?.function || null,
+          },
           entries: event.entries || [],
           errors: event.errors || [],
           dist: event.dist,
@@ -143,7 +147,12 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
         type: { type: 'string', description: 'Event type (error, transaction, etc.)' },
         metadata: {
           type: 'object',
-          description: 'Metadata about the event including error type and value',
+          description: 'Error metadata',
+          properties: {
+            type: { type: 'string', description: 'Type of error (e.g., TypeError, ValueError)' },
+            value: { type: 'string', description: 'Error message or value' },
+            function: { type: 'string', description: 'Function where the error occurred' },
+          },
         },
         entries: {
           type: 'array',

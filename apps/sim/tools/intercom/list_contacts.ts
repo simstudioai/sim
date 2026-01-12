@@ -23,15 +23,7 @@ export interface IntercomListContactsResponse {
   }
 }
 
-export const intercomListContactsTool: ToolConfig<
-  IntercomListContactsParams,
-  IntercomListContactsResponse
-> = {
-  id: 'intercom_list_contacts',
-  name: 'List Contacts from Intercom',
-  description: 'List all contacts from Intercom with pagination support',
-  version: '1.0.0',
-
+const listContactsBase = {
   params: {
     accessToken: {
       type: 'string',
@@ -54,7 +46,7 @@ export const intercomListContactsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
+    url: (params: IntercomListContactsParams) => {
       const url = buildIntercomUrl('/contacts')
       const queryParams = new URLSearchParams()
 
@@ -65,13 +57,25 @@ export const intercomListContactsTool: ToolConfig<
       return queryString ? `${url}?${queryString}` : url
     },
     method: 'GET',
-    headers: (params) => ({
+    headers: (params: IntercomListContactsParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
       Accept: 'application/json',
       'Content-Type': 'application/json',
       'Intercom-Version': '2.14',
     }),
   },
+} satisfies Pick<ToolConfig<IntercomListContactsParams, any>, 'params' | 'request'>
+
+export const intercomListContactsTool: ToolConfig<
+  IntercomListContactsParams,
+  IntercomListContactsResponse
+> = {
+  id: 'intercom_list_contacts',
+  name: 'List Contacts from Intercom',
+  description: 'List all contacts from Intercom with pagination support',
+  version: '1.0.0',
+
+  ...listContactsBase,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
@@ -143,5 +147,85 @@ export const intercomListContactsTool: ToolConfig<
       },
     },
     success: { type: 'boolean', description: 'Operation success status' },
+  },
+}
+
+interface IntercomListContactsV2Response {
+  success: boolean
+  output: {
+    contacts: any[]
+    pages?: any
+    total_count?: number
+  }
+}
+
+export const intercomListContactsV2Tool: ToolConfig<
+  IntercomListContactsParams,
+  IntercomListContactsV2Response
+> = {
+  ...listContactsBase,
+  id: 'intercom_list_contacts_v2',
+  name: 'List Contacts from Intercom',
+  description: 'List all contacts from Intercom with pagination support',
+  version: '2.0.0',
+
+  transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const data = await response.json()
+      handleIntercomError(data, response.status, 'list_contacts')
+    }
+
+    const data = await response.json()
+
+    return {
+      success: true,
+      output: {
+        contacts: data.data || [],
+        pages: data.pages,
+        total_count: data.total_count,
+      },
+    }
+  },
+
+  outputs: {
+    contacts: {
+      type: 'array',
+      description: 'Array of contact objects',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Unique identifier for the contact' },
+          type: { type: 'string', description: 'Object type (contact)' },
+          role: { type: 'string', description: 'Role of the contact (user or lead)' },
+          email: { type: 'string', description: 'Email address of the contact' },
+          phone: { type: 'string', description: 'Phone number of the contact' },
+          name: { type: 'string', description: 'Name of the contact' },
+          external_id: { type: 'string', description: 'External identifier for the contact' },
+          created_at: { type: 'number', description: 'Unix timestamp when contact was created' },
+          updated_at: {
+            type: 'number',
+            description: 'Unix timestamp when contact was last updated',
+          },
+          workspace_id: { type: 'string', description: 'Workspace ID the contact belongs to' },
+          custom_attributes: {
+            type: 'object',
+            description: 'Custom attributes set on the contact',
+          },
+          tags: { type: 'object', description: 'Tags associated with the contact' },
+          companies: { type: 'object', description: 'Companies associated with the contact' },
+        },
+      },
+    },
+    pages: {
+      type: 'object',
+      description: 'Pagination information',
+      properties: {
+        type: { type: 'string', description: 'Pages type identifier' },
+        page: { type: 'number', description: 'Current page number' },
+        per_page: { type: 'number', description: 'Number of results per page' },
+        total_pages: { type: 'number', description: 'Total number of pages' },
+      },
+    },
+    total_count: { type: 'number', description: 'Total number of contacts' },
   },
 }

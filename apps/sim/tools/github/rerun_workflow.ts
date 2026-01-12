@@ -100,3 +100,26 @@ The rerun should start shortly.`
     },
   },
 }
+
+export const rerunWorkflowV2Tool: ToolConfig = {
+  id: 'github_rerun_workflow_v2',
+  name: rerunWorkflowTool.name,
+  description: rerunWorkflowTool.description,
+  version: '2.0.0',
+  params: rerunWorkflowTool.params,
+  request: rerunWorkflowTool.request,
+  oauth: rerunWorkflowTool.oauth,
+  transformResponse: async (response: Response, params) => {
+    return {
+      success: true,
+      output: {
+        rerun_requested: response.status === 201,
+        run_id: params?.run_id || 0,
+      },
+    }
+  },
+  outputs: {
+    rerun_requested: { type: 'boolean', description: 'Whether rerun was requested' },
+    run_id: { type: 'number', description: 'Workflow run ID' },
+  },
+}

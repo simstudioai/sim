@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpUnpublishLandingPage')
 
 export interface MailchimpUnpublishLandingPageParams {
   apiKey: string
@@ -12,10 +9,6 @@ export interface MailchimpUnpublishLandingPageParams {
 export interface MailchimpUnpublishLandingPageResponse {
   success: boolean
   output: {
-    metadata: {
-      operation: 'unpublish_landing_page'
-      pageId: string
-    }
     success: boolean
   }
 }
@@ -63,10 +56,6 @@ export const mailchimpUnpublishLandingPageTool: ToolConfig<
     return {
       success: true,
       output: {
-        metadata: {
-          operation: 'unpublish_landing_page' as const,
-          pageId: '',
-        },
         success: true,
       },
     }
@@ -78,7 +67,6 @@ export const mailchimpUnpublishLandingPageTool: ToolConfig<
       type: 'object',
       description: 'Unpublish confirmation',
       properties: {
-        metadata: { type: 'object', description: 'Operation metadata' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

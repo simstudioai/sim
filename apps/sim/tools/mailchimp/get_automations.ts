@@ -15,12 +15,8 @@ export interface MailchimpGetAutomationsResponse {
   success: boolean
   output: {
     automations: MailchimpAutomation[]
-    totalItems: number
-    metadata: {
-      operation: 'get_automations'
-      totalReturned: number
-    }
-    success: boolean
+    total_items: number
+    total_returned: number
   }
 }
 
@@ -84,26 +80,27 @@ export const mailchimpGetAutomationsTool: ToolConfig<
       success: true,
       output: {
         automations,
-        totalItems: data.total_items || automations.length,
-        metadata: {
-          operation: 'get_automations' as const,
-          totalReturned: automations.length,
-        },
-        success: true,
+        total_items: data.total_items || automations.length,
+        total_returned: automations.length,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
+    success: {
+      type: 'boolean',
+      description: 'Whether the automations were successfully retrieved',
+    },
     output: {
       type: 'object',
-      description: 'Automations data and metadata',
+      description: 'Automations data',
       properties: {
-        automations: { type: 'array', description: 'Array of automation objects' },
-        totalItems: { type: 'number', description: 'Total number of automations' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        automations: { type: 'json', description: 'Array of automation objects' },
+        total_items: { type: 'number', description: 'Total number of automations' },
+        total_returned: {
+          type: 'number',
+          description: 'Number of automations returned in this response',
+        },
       },
     },
   },

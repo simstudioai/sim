@@ -96,10 +96,7 @@ export const hubspotUpdateCompanyTool: ToolConfig<
       success: true,
       output: {
         company: data,
-        metadata: {
-          operation: 'update_company' as const,
-          companyId: data.id,
-        },
+        companyId: data.id,
         success: true,
       },
     }
@@ -107,7 +104,7 @@ export const hubspotUpdateCompanyTool: ToolConfig<
 
   outputs: {
     company: { type: 'object', description: 'Updated HubSpot company object' },
-    metadata: { type: 'object', description: 'Operation metadata' },
+    companyId: { type: 'string', description: 'The updated company ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

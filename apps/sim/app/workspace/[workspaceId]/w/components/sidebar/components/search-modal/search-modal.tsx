@@ -182,7 +182,7 @@ export function SearchModal({
     const allBlocks = getAllBlocks()
     const filteredAllBlocks = filterBlocks(allBlocks)
     return filteredAllBlocks
-      .filter((block) => block.category === 'tools')
+      .filter((block) => !block.hideFromToolbar && block.category === 'tools')
       .map(
         (block): ToolItem => ({
           id: block.type,
@@ -225,7 +225,7 @@ export function SearchModal({
     const docsItems: DocItem[] = []
 
     allBlocks.forEach((block) => {
-      if (block.docsLink) {
+      if (block.docsLink && !block.hideFromToolbar) {
         docsItems.push({
           id: `docs-${block.type}`,
           name: block.name,

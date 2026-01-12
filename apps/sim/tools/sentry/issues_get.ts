@@ -64,7 +64,11 @@ export const getIssueTool: ToolConfig<SentryGetIssueParams, SentryGetIssueRespon
             platform: issue.project?.platform || '',
           },
           type: issue.type,
-          metadata: issue.metadata || {},
+          metadata: {
+            type: issue.metadata?.type || null,
+            value: issue.metadata?.value || null,
+            function: issue.metadata?.function || null,
+          },
           numComments: issue.numComments || 0,
           assignedTo: issue.assignedTo
             ? {
@@ -119,7 +123,15 @@ export const getIssueTool: ToolConfig<SentryGetIssueParams, SentryGetIssueRespon
           },
         },
         type: { type: 'string', description: 'Issue type' },
-        metadata: { type: 'object', description: 'Additional metadata about the issue' },
+        metadata: {
+          type: 'object',
+          description: 'Error metadata',
+          properties: {
+            type: { type: 'string', description: 'Type of error (e.g., TypeError, ValueError)' },
+            value: { type: 'string', description: 'Error message or value' },
+            function: { type: 'string', description: 'Function where the error occurred' },
+          },
+        },
         numComments: { type: 'number', description: 'Number of comments on the issue' },
         assignedTo: {
           type: 'object',

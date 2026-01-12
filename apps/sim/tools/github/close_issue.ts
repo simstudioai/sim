@@ -113,3 +113,50 @@ URL: ${issue.html_url}`
     },
   },
 }
+
+export const closeIssueV2Tool: ToolConfig<CloseIssueParams, any> = {
+  id: 'github_close_issue_v2',
+  name: closeIssueTool.name,
+  description: closeIssueTool.description,
+  version: '2.0.0',
+  params: closeIssueTool.params,
+  request: closeIssueTool.request,
+
+  transformResponse: async (response: Response) => {
+    const issue = await response.json()
+    return {
+      success: true,
+      output: {
+        id: issue.id,
+        number: issue.number,
+        title: issue.title,
+        state: issue.state,
+        state_reason: issue.state_reason,
+        html_url: issue.html_url,
+        body: issue.body,
+        user: issue.user,
+        labels: issue.labels,
+        assignees: issue.assignees,
+        closed_at: issue.closed_at,
+        created_at: issue.created_at,
+        updated_at: issue.updated_at,
+      },
+    }
+  },
+
+  outputs: {
+    id: { type: 'number', description: 'Issue ID' },
+    number: { type: 'number', description: 'Issue number' },
+    title: { type: 'string', description: 'Issue title' },
+    state: { type: 'string', description: 'Issue state (closed)' },
+    state_reason: { type: 'string', description: 'Reason for closing' },
+    html_url: { type: 'string', description: 'GitHub web URL' },
+    body: { type: 'string', description: 'Issue body' },
+    user: { type: 'json', description: 'User who created the issue' },
+    labels: { type: 'array', description: 'Array of label objects' },
+    assignees: { type: 'array', description: 'Array of assignee objects' },
+    closed_at: { type: 'string', description: 'Close timestamp' },
+    created_at: { type: 'string', description: 'Creation timestamp' },
+    updated_at: { type: 'string', description: 'Last update timestamp' },
+  },
+}

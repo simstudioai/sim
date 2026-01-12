@@ -17,12 +17,8 @@ export interface MailchimpGetSegmentMembersResponse {
   success: boolean
   output: {
     members: MailchimpMember[]
-    totalItems: number
-    metadata: {
-      operation: 'get_segment_members'
-      totalReturned: number
-    }
-    success: boolean
+    total_items: number
+    total_returned: number
   }
 }
 
@@ -101,26 +97,27 @@ export const mailchimpGetSegmentMembersTool: ToolConfig<
       success: true,
       output: {
         members,
-        totalItems: data.total_items || members.length,
-        metadata: {
-          operation: 'get_segment_members' as const,
-          totalReturned: members.length,
-        },
-        success: true,
+        total_items: data.total_items || members.length,
+        total_returned: members.length,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
+    success: {
+      type: 'boolean',
+      description: 'Whether the segment members were successfully retrieved',
+    },
     output: {
       type: 'object',
-      description: 'Segment members data and metadata',
+      description: 'Segment members data',
       properties: {
-        members: { type: 'array', description: 'Array of member objects' },
-        totalItems: { type: 'number', description: 'Total number of members' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        members: { type: 'json', description: 'Array of member objects' },
+        total_items: { type: 'number', description: 'Total number of members' },
+        total_returned: {
+          type: 'number',
+          description: 'Number of members returned in this response',
+        },
       },
     },
   },

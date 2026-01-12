@@ -23,10 +23,7 @@ export interface ZendeskUpdateUserResponse {
   success: boolean
   output: {
     user: any
-    metadata: {
-      operation: 'update_user'
-      userId: string
-    }
+    user_id: number
     success: boolean
   }
 }
@@ -160,17 +157,14 @@ export const zendeskUpdateUserTool: ToolConfig<ZendeskUpdateUserParams, ZendeskU
         success: true,
         output: {
           user: data.user,
-          metadata: {
-            operation: 'update_user' as const,
-            userId: data.user?.id,
-          },
+          user_id: data.user?.id,
           success: true,
         },
       }
     },
 
     outputs: {
-      user: { type: 'object', description: 'Updated user object' },
-      metadata: { type: 'object', description: 'Operation metadata' },
+      user: { type: 'json', description: 'Updated user object' },
+      user_id: { type: 'number', description: 'The updated user ID' },
     },
   }

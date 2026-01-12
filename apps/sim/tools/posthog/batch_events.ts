@@ -10,7 +10,7 @@ export interface PostHogBatchEventsResponse {
   success: boolean
   output: {
     status: string
-    eventsProcessed: number
+    events_processed: number
   }
 }
 
@@ -76,7 +76,7 @@ export const batchEventsTool: ToolConfig<PostHogBatchEventsParams, PostHogBatchE
         success: true,
         output: {
           status: 'Batch events captured successfully',
-          eventsProcessed: data.status === 1 ? JSON.parse(data.batch || '[]').length : 0,
+          events_processed: data.status === 1 ? JSON.parse(data.batch || '[]').length : 0,
         },
       }
     }
@@ -86,7 +86,7 @@ export const batchEventsTool: ToolConfig<PostHogBatchEventsParams, PostHogBatchE
       success: false,
       output: {
         status: 'Failed to capture batch events',
-        eventsProcessed: 0,
+        events_processed: 0,
       },
       error: error || 'Unknown error occurred',
     }
@@ -97,7 +97,7 @@ export const batchEventsTool: ToolConfig<PostHogBatchEventsParams, PostHogBatchE
       type: 'string',
       description: 'Status message indicating whether the batch was captured successfully',
     },
-    eventsProcessed: {
+    events_processed: {
       type: 'number',
       description: 'Number of events processed in the batch',
     },

@@ -144,3 +144,52 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
     },
   },
 }
+
+// V2 Tool with API-aligned outputs
+interface NotionCreateDatabaseV2Response {
+  success: boolean
+  output: {
+    id: string
+    title: string
+    url: string
+    created_time: string
+    properties: Record<string, any>
+  }
+}
+
+export const notionCreateDatabaseV2Tool: ToolConfig<
+  NotionCreateDatabaseParams,
+  NotionCreateDatabaseV2Response
+> = {
+  id: 'notion_create_database_v2',
+  name: 'Create Notion Database',
+  description: 'Create a new database in Notion with custom properties',
+  version: '2.0.0',
+  oauth: notionCreateDatabaseTool.oauth,
+  params: notionCreateDatabaseTool.params,
+  request: notionCreateDatabaseTool.request,
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    const title = data.title?.map((t: any) => t.plain_text || '').join('') || 'Untitled Database'
+
+    return {
+      success: true,
+      output: {
+        id: data.id,
+        title,
+        url: data.url,
+        created_time: data.created_time,
+        properties: data.properties || {},
+      },
+    }
+  },
+
+  outputs: {
+    id: { type: 'string', description: 'Database ID' },
+    title: { type: 'string', description: 'Database title' },
+    url: { type: 'string', description: 'Database URL' },
+    created_time: { type: 'string', description: 'Creation timestamp' },
+    properties: { type: 'object', description: 'Database properties schema' },
+  },
+}

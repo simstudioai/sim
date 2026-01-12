@@ -161,3 +161,53 @@ Total items: ${items.length}
     },
   },
 }
+
+export const getTreeV2Tool: ToolConfig<GetTreeParams, any> = {
+  id: 'github_get_tree_v2',
+  name: getTreeTool.name,
+  description: getTreeTool.description,
+  version: '2.0.0',
+  params: getTreeTool.params,
+  request: getTreeTool.request,
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    // API returns array for directory, object for file
+    if (!Array.isArray(data)) {
+      return {
+        success: false,
+        output: { items: [], count: 0 },
+        error: 'Path points to a file. Use github_get_file_content to get file contents.',
+      }
+    }
+
+    return {
+      success: true,
+      output: {
+        items: data,
+        count: data.length,
+      },
+    }
+  },
+
+  outputs: {
+    items: {
+      type: 'array',
+      description: 'Array of file/directory objects',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'File or directory name' },
+          path: { type: 'string', description: 'Full path in repository' },
+          sha: { type: 'string', description: 'Git object SHA' },
+          size: { type: 'number', description: 'Size in bytes' },
+          type: { type: 'string', description: 'Type (file/dir/symlink/submodule)' },
+          html_url: { type: 'string', description: 'GitHub web URL' },
+          download_url: { type: 'string', description: 'Direct download URL' },
+        },
+      },
+    },
+    count: { type: 'number', description: 'Total number of items' },
+  },
+}

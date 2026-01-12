@@ -155,3 +155,49 @@ Download URLs:
     },
   },
 }
+
+export const createReleaseV2Tool: ToolConfig = {
+  id: 'github_create_release_v2',
+  name: createReleaseTool.name,
+  description: createReleaseTool.description,
+  version: '2.0.0',
+  params: createReleaseTool.params,
+  request: createReleaseTool.request,
+  oauth: createReleaseTool.oauth,
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: true,
+      output: {
+        id: data.id,
+        tag_name: data.tag_name,
+        name: data.name,
+        body: data.body,
+        html_url: data.html_url,
+        tarball_url: data.tarball_url,
+        zipball_url: data.zipball_url,
+        draft: data.draft,
+        prerelease: data.prerelease,
+        author: data.author,
+        assets: data.assets,
+        created_at: data.created_at,
+        published_at: data.published_at,
+      },
+    }
+  },
+  outputs: {
+    id: { type: 'number', description: 'Release ID' },
+    tag_name: { type: 'string', description: 'Git tag name' },
+    name: { type: 'string', description: 'Release name' },
+    body: { type: 'string', description: 'Release description' },
+    html_url: { type: 'string', description: 'GitHub web URL' },
+    tarball_url: { type: 'string', description: 'Tarball download URL' },
+    zipball_url: { type: 'string', description: 'Zipball download URL' },
+    draft: { type: 'boolean', description: 'Whether this is a draft' },
+    prerelease: { type: 'boolean', description: 'Whether this is a prerelease' },
+    author: { type: 'json', description: 'Release author' },
+    assets: { type: 'array', description: 'Release assets' },
+    created_at: { type: 'string', description: 'Creation timestamp' },
+    published_at: { type: 'string', description: 'Publication timestamp' },
+  },
+}

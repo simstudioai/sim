@@ -96,3 +96,27 @@ Note: The associated Git tag has not been deleted and remains in the repository.
     },
   },
 }
+
+export const deleteReleaseV2Tool: ToolConfig<DeleteReleaseParams, any> = {
+  id: 'github_delete_release_v2',
+  name: deleteReleaseTool.name,
+  description: deleteReleaseTool.description,
+  version: '2.0.0',
+  params: deleteReleaseTool.params,
+  request: deleteReleaseTool.request,
+
+  transformResponse: async (response: Response, params) => {
+    return {
+      success: true,
+      output: {
+        deleted: response.status === 204,
+        release_id: params?.release_id || 0,
+      },
+    }
+  },
+
+  outputs: {
+    deleted: { type: 'boolean', description: 'Whether the release was deleted' },
+    release_id: { type: 'number', description: 'ID of the deleted release' },
+  },
+}

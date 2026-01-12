@@ -267,3 +267,75 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
     attachments: { type: 'file[]', description: 'Attachments of the email' },
   },
 }
+
+interface GmailReadV2Response {
+  success: boolean
+  output: {
+    id?: string
+    threadId?: string
+    labelIds?: string[]
+    from?: string
+    to?: string
+    subject?: string
+    date?: string
+    body?: string
+    hasAttachments?: boolean
+    attachmentCount?: number
+    attachments?: GmailAttachment[]
+    results?: Array<Record<string, any>>
+  }
+}
+
+export const gmailReadV2Tool: ToolConfig<GmailReadParams, GmailReadV2Response> = {
+  id: 'gmail_read_v2',
+  name: 'Gmail Read',
+  description: 'Read emails from Gmail. Returns API-aligned fields only.',
+  version: '2.0.0',
+  oauth: gmailReadTool.oauth,
+  params: gmailReadTool.params,
+  request: gmailReadTool.request,
+  transformResponse: async (response: Response, params?: GmailReadParams) => {
+    const legacy = await gmailReadTool.transformResponse!(response, params)
+    if (!legacy.success) {
+      return {
+        success: false,
+        output: {},
+        error: legacy.error,
+      }
+    }
+
+    const metadata = (legacy.output.metadata || {}) as any
+
+    return {
+      success: true,
+      output: {
+        id: metadata.id,
+        threadId: metadata.threadId,
+        labelIds: metadata.labelIds,
+        from: metadata.from,
+        to: metadata.to,
+        subject: metadata.subject,
+        date: metadata.date,
+        body: legacy.output.content,
+        hasAttachments: metadata.hasAttachments,
+        attachmentCount: metadata.attachmentCount,
+        attachments: legacy.output.attachments || [],
+        results: metadata.results,
+      },
+    }
+  },
+  outputs: {
+    id: { type: 'string', description: 'Gmail message ID' },
+    threadId: { type: 'string', description: 'Gmail thread ID' },
+    labelIds: { type: 'array', items: { type: 'string' }, description: 'Email labels' },
+    from: { type: 'string', description: 'Sender email address' },
+    to: { type: 'string', description: 'Recipient email address' },
+    subject: { type: 'string', description: 'Email subject' },
+    date: { type: 'string', description: 'Email date' },
+    body: { type: 'string', description: 'Email body text (best-effort plain text)' },
+    hasAttachments: { type: 'boolean', description: 'Whether the email has attachments' },
+    attachmentCount: { type: 'number', description: 'Number of attachments' },
+    attachments: { type: 'file[]', description: 'Downloaded attachments (if enabled)' },
+    results: { type: 'json', description: 'Summary results when reading multiple messages' },
+  },
+}

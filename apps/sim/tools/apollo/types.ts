@@ -89,11 +89,9 @@ export interface ApolloPeopleSearchParams extends ApolloBaseParams {
 export interface ApolloPeopleSearchResponse extends ToolResponse {
   output: {
     people: ApolloPerson[]
-    metadata: {
-      page: number
-      per_page: number
-      total_entries: number
-    }
+    page: number
+    per_page: number
+    total_entries: number
   }
 }
 
@@ -112,9 +110,7 @@ export interface ApolloPeopleEnrichParams extends ApolloBaseParams {
 export interface ApolloPeopleEnrichResponse extends ToolResponse {
   output: {
     person: ApolloPerson
-    metadata: {
-      enriched: boolean
-    }
+    enriched: boolean
   }
 }
 
@@ -134,10 +130,8 @@ export interface ApolloPeopleBulkEnrichParams extends ApolloBaseParams {
 export interface ApolloPeopleBulkEnrichResponse extends ToolResponse {
   output: {
     people: ApolloPerson[]
-    metadata: {
-      total: number
-      enriched: number
-    }
+    total: number
+    enriched: number
   }
 }
 
@@ -154,11 +148,9 @@ export interface ApolloOrganizationSearchParams extends ApolloBaseParams {
 export interface ApolloOrganizationSearchResponse extends ToolResponse {
   output: {
     organizations: ApolloOrganization[]
-    metadata: {
-      page: number
-      per_page: number
-      total_entries: number
-    }
+    page: number
+    per_page: number
+    total_entries: number
   }
 }
 
@@ -171,9 +163,7 @@ export interface ApolloOrganizationEnrichParams extends ApolloBaseParams {
 export interface ApolloOrganizationEnrichResponse extends ToolResponse {
   output: {
     organization: ApolloOrganization
-    metadata: {
-      enriched: boolean
-    }
+    enriched: boolean
   }
 }
 
@@ -188,10 +178,8 @@ export interface ApolloOrganizationBulkEnrichParams extends ApolloBaseParams {
 export interface ApolloOrganizationBulkEnrichResponse extends ToolResponse {
   output: {
     organizations: ApolloOrganization[]
-    metadata: {
-      total: number
-      enriched: number
-    }
+    total: number
+    enriched: number
   }
 }
 
@@ -208,9 +196,7 @@ export interface ApolloContactCreateParams extends ApolloBaseParams {
 export interface ApolloContactCreateResponse extends ToolResponse {
   output: {
     contact: ApolloContact
-    metadata: {
-      created: boolean
-    }
+    created: boolean
   }
 }
 
@@ -228,9 +214,7 @@ export interface ApolloContactUpdateParams extends ApolloBaseParams {
 export interface ApolloContactUpdateResponse extends ToolResponse {
   output: {
     contact: ApolloContact
-    metadata: {
-      updated: boolean
-    }
+    updated: boolean
   }
 }
 
@@ -251,11 +235,9 @@ export interface ApolloContactBulkCreateResponse extends ToolResponse {
   output: {
     created_contacts: ApolloContact[]
     existing_contacts: ApolloContact[]
-    metadata: {
-      total_submitted: number
-      created: number
-      existing: number
-    }
+    total_submitted: number
+    created: number
+    existing: number
   }
 }
 
@@ -276,11 +258,9 @@ export interface ApolloContactBulkUpdateResponse extends ToolResponse {
   output: {
     updated_contacts: ApolloContact[]
     failed_contacts: Array<{ id: string; error: string }>
-    metadata: {
-      total_submitted: number
-      updated: number
-      failed: number
-    }
+    total_submitted: number
+    updated: number
+    failed: number
   }
 }
 
@@ -295,11 +275,9 @@ export interface ApolloContactSearchParams extends ApolloBaseParams {
 export interface ApolloContactSearchResponse extends ToolResponse {
   output: {
     contacts: ApolloContact[]
-    metadata: {
-      page: number
-      per_page: number
-      total_entries: number
-    }
+    page: number
+    per_page: number
+    total_entries: number
   }
 }
 
@@ -314,9 +292,7 @@ export interface ApolloAccountCreateParams extends ApolloBaseParams {
 export interface ApolloAccountCreateResponse extends ToolResponse {
   output: {
     account: ApolloAccount
-    metadata: {
-      created: boolean
-    }
+    created: boolean
   }
 }
 
@@ -332,9 +308,7 @@ export interface ApolloAccountUpdateParams extends ApolloBaseParams {
 export interface ApolloAccountUpdateResponse extends ToolResponse {
   output: {
     account: ApolloAccount
-    metadata: {
-      updated: boolean
-    }
+    updated: boolean
   }
 }
 
@@ -350,11 +324,9 @@ export interface ApolloAccountSearchParams extends ApolloBaseParams {
 export interface ApolloAccountSearchResponse extends ToolResponse {
   output: {
     accounts: ApolloAccount[]
-    metadata: {
-      page: number
-      per_page: number
-      total_entries: number
-    }
+    page: number
+    per_page: number
+    total_entries: number
   }
 }
 
@@ -372,11 +344,9 @@ export interface ApolloAccountBulkCreateResponse extends ToolResponse {
   output: {
     created_accounts: ApolloAccount[]
     failed_accounts: Array<{ name: string; error: string }>
-    metadata: {
-      total_submitted: number
-      created: number
-      failed: number
-    }
+    total_submitted: number
+    created: number
+    failed: number
   }
 }
 
@@ -395,11 +365,9 @@ export interface ApolloAccountBulkUpdateResponse extends ToolResponse {
   output: {
     updated_accounts: ApolloAccount[]
     failed_accounts: Array<{ id: string; error: string }>
-    metadata: {
-      total_submitted: number
-      updated: number
-      failed: number
-    }
+    total_submitted: number
+    updated: number
+    failed: number
   }
 }
 
@@ -414,10 +382,8 @@ export interface ApolloSequenceAddContactsParams extends ApolloBaseParams {
 export interface ApolloSequenceAddContactsResponse extends ToolResponse {
   output: {
     contacts_added: string[]
-    metadata: {
-      sequence_id: string
-      total_added: number
-    }
+    sequence_id: string
+    total_added: number
   }
 }
 
@@ -434,9 +400,7 @@ export interface ApolloTaskCreateParams extends ApolloBaseParams {
 export interface ApolloTaskCreateResponse extends ToolResponse {
   output: {
     task: ApolloTask
-    metadata: {
-      created: boolean
-    }
+    created: boolean
   }
 }
 
@@ -452,11 +416,9 @@ export interface ApolloTaskSearchParams extends ApolloBaseParams {
 export interface ApolloTaskSearchResponse extends ToolResponse {
   output: {
     tasks: ApolloTask[]
-    metadata: {
-      page: number
-      per_page: number
-      total_entries: number
-    }
+    page: number
+    per_page: number
+    total_entries: number
   }
 }
 
@@ -470,9 +432,7 @@ export interface ApolloEmailAccountsResponse extends ToolResponse {
       email: string
       active: boolean
     }>
-    metadata: {
-      total: number
-    }
+    total: number
   }
 }
 
@@ -490,9 +450,7 @@ export interface ApolloOpportunityCreateParams extends ApolloBaseParams {
 export interface ApolloOpportunityCreateResponse extends ToolResponse {
   output: {
     opportunity: ApolloOpportunity
-    metadata: {
-      created: boolean
-    }
+    created: boolean
   }
 }
 
@@ -509,11 +467,9 @@ export interface ApolloOpportunitySearchParams extends ApolloBaseParams {
 export interface ApolloOpportunitySearchResponse extends ToolResponse {
   output: {
     opportunities: ApolloOpportunity[]
-    metadata: {
-      page: number
-      per_page: number
-      total_entries: number
-    }
+    page: number
+    per_page: number
+    total_entries: number
   }
 }
 
@@ -525,9 +481,7 @@ export interface ApolloOpportunityGetParams extends ApolloBaseParams {
 export interface ApolloOpportunityGetResponse extends ToolResponse {
   output: {
     opportunity: ApolloOpportunity
-    metadata: {
-      found: boolean
-    }
+    found: boolean
   }
 }
 
@@ -545,9 +499,7 @@ export interface ApolloOpportunityUpdateParams extends ApolloBaseParams {
 export interface ApolloOpportunityUpdateResponse extends ToolResponse {
   output: {
     opportunity: ApolloOpportunity
-    metadata: {
-      updated: boolean
-    }
+    updated: boolean
   }
 }
 
@@ -575,11 +527,9 @@ export interface ApolloSequenceSearchParams extends ApolloBaseParams {
 export interface ApolloSequenceSearchResponse extends ToolResponse {
   output: {
     sequences: ApolloSequence[]
-    metadata: {
-      page: number
-      per_page: number
-      total_entries: number
-    }
+    page: number
+    per_page: number
+    total_entries: number
   }
 }
 

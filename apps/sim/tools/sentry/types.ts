@@ -1,15 +1,16 @@
 import type { ToolResponse } from '@/tools/types'
 
-// Base parameter interface shared across all Sentry tools
+/**
+ * Base parameter interface shared across all Sentry tools
+ */
 export interface SentryBaseParams {
   apiKey: string
   organizationSlug: string
 }
 
-// ============================================================================
-// ISSUE TYPES
-// ============================================================================
-
+/**
+ * Sentry issue representation
+ */
 export interface SentryIssue {
   id: string
   shortId: string
@@ -29,7 +30,11 @@ export interface SentryIssue {
     platform: string
   }
   type: string
-  metadata: Record<string, any>
+  metadata: {
+    type: string | null
+    value: string | null
+    function: string | null
+  }
   numComments: number
   assignedTo: {
     id: string
@@ -62,8 +67,10 @@ export interface SentryListIssuesParams extends SentryBaseParams {
 export interface SentryListIssuesResponse extends ToolResponse {
   output: {
     issues: SentryIssue[]
-    nextCursor?: string
-    hasMore: boolean
+    metadata: {
+      nextCursor?: string
+      hasMore: boolean
+    }
   }
 }
 
@@ -92,10 +99,9 @@ export interface SentryUpdateIssueResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
-// PROJECT TYPES
-// ============================================================================
-
+/**
+ * Sentry project representation
+ */
 export interface SentryProject {
   id: string
   slug: string
@@ -143,8 +149,10 @@ export interface SentryListProjectsParams extends SentryBaseParams {
 export interface SentryListProjectsResponse extends ToolResponse {
   output: {
     projects: SentryProject[]
-    nextCursor?: string
-    hasMore: boolean
+    metadata: {
+      nextCursor?: string
+      hasMore: boolean
+    }
   }
 }
 
@@ -188,10 +196,9 @@ export interface SentryUpdateProjectResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
-// EVENT TYPES
-// ============================================================================
-
+/**
+ * Sentry event representation
+ */
 export interface SentryEvent {
   id: string
   eventID: string
@@ -217,7 +224,11 @@ export interface SentryEvent {
   contexts: Record<string, any>
   platform: string
   type: string
-  metadata: Record<string, any>
+  metadata: {
+    type: string | null
+    value: string | null
+    function: string | null
+  }
   entries: Array<{
     type: string
     data: Record<string, any>
@@ -247,8 +258,10 @@ export interface SentryListEventsParams extends SentryBaseParams {
 export interface SentryListEventsResponse extends ToolResponse {
   output: {
     events: SentryEvent[]
-    nextCursor?: string
-    hasMore: boolean
+    metadata: {
+      nextCursor?: string
+      hasMore: boolean
+    }
   }
 }
 
@@ -263,10 +276,9 @@ export interface SentryGetEventResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
-// RELEASE TYPES
-// ============================================================================
-
+/**
+ * Sentry release representation
+ */
 export interface SentryRelease {
   id: string
   version: string
@@ -328,8 +340,10 @@ export interface SentryListReleasesParams extends SentryBaseParams {
 export interface SentryListReleasesResponse extends ToolResponse {
   output: {
     releases: SentryRelease[]
-    nextCursor?: string
-    hasMore: boolean
+    metadata: {
+      nextCursor?: string
+      hasMore: boolean
+    }
   }
 }
 
@@ -337,9 +351,9 @@ export interface SentryCreateReleaseParams extends SentryBaseParams {
   version: string
   ref?: string
   url?: string
-  projects: string // Comma-separated list of project slugs
+  projects: string
   dateReleased?: string
-  commits?: string // JSON string of commit objects
+  commits?: string
 }
 
 export interface SentryCreateReleaseResponse extends ToolResponse {
@@ -370,10 +384,9 @@ export interface SentryCreateDeployResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
-// UNION RESPONSE TYPE
-// ============================================================================
-
+/**
+ * Union response type for all Sentry operations
+ */
 export type SentryResponse =
   | SentryListIssuesResponse
   | SentryGetIssueResponse

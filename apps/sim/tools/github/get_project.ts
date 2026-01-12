@@ -161,3 +161,86 @@ export const getProjectTool: ToolConfig<GetProjectParams, ProjectResponse> = {
     },
   },
 }
+
+export const getProjectV2Tool: ToolConfig<GetProjectParams, any> = {
+  id: 'github_get_project_v2',
+  name: getProjectTool.name,
+  description: getProjectTool.description,
+  version: '2.0.0',
+  params: getProjectTool.params,
+  request: getProjectTool.request,
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    if (data.errors) {
+      return {
+        success: false,
+        output: {
+          id: '',
+          title: '',
+          number: 0,
+          url: '',
+          closed: false,
+          public: false,
+          shortDescription: '',
+          readme: '',
+          createdAt: '',
+          updatedAt: '',
+        },
+        error: data.errors[0].message,
+      }
+    }
+
+    const ownerData = data.data?.organization || data.data?.user
+    const project = ownerData?.projectV2
+
+    if (!project) {
+      return {
+        success: false,
+        output: {
+          id: '',
+          title: '',
+          number: 0,
+          url: '',
+          closed: false,
+          public: false,
+          shortDescription: '',
+          readme: '',
+          createdAt: '',
+          updatedAt: '',
+        },
+        error: 'Project not found',
+      }
+    }
+
+    return {
+      success: true,
+      output: {
+        id: project.id,
+        title: project.title,
+        number: project.number,
+        url: project.url,
+        closed: project.closed,
+        public: project.public,
+        shortDescription: project.shortDescription,
+        readme: project.readme,
+        createdAt: project.createdAt,
+        updatedAt: project.updatedAt,
+      },
+    }
+  },
+
+  outputs: {
+    id: { type: 'string', description: 'Project node ID' },
+    title: { type: 'string', description: 'Project title' },
+    number: { type: 'number', description: 'Project number' },
+    url: { type: 'string', description: 'Project URL' },
+    closed: { type: 'boolean', description: 'Whether project is closed' },
+    public: { type: 'boolean', description: 'Whether project is public' },
+    shortDescription: { type: 'string', description: 'Short description' },
+    readme: { type: 'string', description: 'Project readme' },
+    createdAt: { type: 'string', description: 'Creation timestamp' },
+    updatedAt: { type: 'string', description: 'Last update timestamp' },
+  },
+}

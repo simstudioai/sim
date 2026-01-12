@@ -6,7 +6,7 @@ import { getTrigger } from '@/triggers'
 
 export const GitHubBlock: BlockConfig<GitHubResponse> = {
   type: 'github',
-  name: 'GitHub',
+  name: 'GitHub (Legacy)',
   description: 'Interact with GitHub or trigger workflows from GitHub events',
   authMode: AuthMode.ApiKey,
   longDescription:
@@ -16,6 +16,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
   bgColor: '#181C1E',
   icon: GithubIcon,
   triggerAllowed: true,
+  hideFromToolbar: true,
   subBlocks: [
     {
       id: 'operation',
@@ -1333,5 +1334,46 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       'github_release_published',
       'github_workflow_run',
     ],
+  },
+}
+
+export const GitHubV2Block: BlockConfig<GitHubResponse> = {
+  ...GitHubBlock,
+  type: 'github_v2',
+  name: 'GitHub',
+  hideFromToolbar: false,
+  tools: {
+    ...GitHubBlock.tools,
+    access: (GitHubBlock.tools?.access || []).map((toolId) => `${toolId}_v2`),
+    config: {
+      ...GitHubBlock.tools?.config,
+      tool: (params) => {
+        const baseToolId = (GitHubBlock.tools?.config as any)?.tool(params)
+        return `${baseToolId}_v2`
+      },
+      params: (GitHubBlock.tools?.config as any)?.params,
+    },
+  },
+  outputs: {
+    data: { type: 'json', description: 'Operation result data (API-aligned)' },
+
+    // Trigger outputs (unchanged)
+    action: { type: 'string', description: 'The action that was performed' },
+    event_type: { type: 'string', description: 'Type of GitHub event' },
+    repository: { type: 'string', description: 'Repository full name' },
+    repository_name: { type: 'string', description: 'Repository name only' },
+    repository_owner: { type: 'string', description: 'Repository owner username' },
+    sender: { type: 'string', description: 'Username of the user who triggered the event' },
+    sender_id: { type: 'string', description: 'User ID of the sender' },
+    ref: { type: 'string', description: 'Git reference (for push events)' },
+    before: { type: 'string', description: 'SHA of the commit before the push' },
+    after: { type: 'string', description: 'SHA of the commit after the push' },
+    commits: { type: 'string', description: 'Array of commit objects (for push events)' },
+    pull_request: { type: 'string', description: 'Pull request object (for pull_request events)' },
+    issue: { type: 'string', description: 'Issue object (for issues events)' },
+    comment: { type: 'string', description: 'Comment object (for comment events)' },
+    branch: { type: 'string', description: 'Branch name extracted from ref' },
+    commit_message: { type: 'string', description: 'Latest commit message' },
+    commit_author: { type: 'string', description: 'Author of the latest commit' },
   },
 }

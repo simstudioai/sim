@@ -33,15 +33,7 @@ export interface IntercomUpdateContactResponse {
   }
 }
 
-export const intercomUpdateContactTool: ToolConfig<
-  IntercomUpdateContactParams,
-  IntercomUpdateContactResponse
-> = {
-  id: 'intercom_update_contact',
-  name: 'Update Contact in Intercom',
-  description: 'Update an existing contact in Intercom',
-  version: '1.0.0',
-
+const intercomUpdateContactBase = {
   params: {
     accessToken: {
       type: 'string',
@@ -165,6 +157,18 @@ export const intercomUpdateContactTool: ToolConfig<
       return contact
     },
   },
+} satisfies Pick<ToolConfig<IntercomUpdateContactParams, any>, 'params' | 'request'>
+
+export const intercomUpdateContactTool: ToolConfig<
+  IntercomUpdateContactParams,
+  IntercomUpdateContactResponse
+> = {
+  id: 'intercom_update_contact',
+  name: 'Update Contact in Intercom',
+  description: 'Update an existing contact in Intercom',
+  version: '1.0.0',
+
+  ...intercomUpdateContactBase,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
@@ -225,5 +229,73 @@ export const intercomUpdateContactTool: ToolConfig<
       },
     },
     success: { type: 'boolean', description: 'Operation success status' },
+  },
+}
+
+interface IntercomUpdateContactV2Response {
+  success: boolean
+  output: {
+    contact: any
+    contactId: string
+  }
+}
+
+export const intercomUpdateContactV2Tool: ToolConfig<
+  IntercomUpdateContactParams,
+  IntercomUpdateContactV2Response
+> = {
+  ...intercomUpdateContactBase,
+  id: 'intercom_update_contact_v2',
+  name: 'Update Contact in Intercom',
+  description: 'Update an existing contact in Intercom. Returns API-aligned fields only.',
+  version: '2.0.0',
+
+  transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const data = await response.json()
+      handleIntercomError(data, response.status, 'update_contact')
+    }
+
+    const data = await response.json()
+
+    return {
+      success: true,
+      output: {
+        contact: data,
+        contactId: data.id,
+      },
+    }
+  },
+
+  outputs: {
+    contact: {
+      type: 'object',
+      description: 'Updated contact object',
+      properties: {
+        id: { type: 'string', description: 'Unique identifier for the contact' },
+        type: { type: 'string', description: 'Object type (contact)' },
+        role: { type: 'string', description: 'Role of the contact (user or lead)' },
+        email: { type: 'string', description: 'Email address of the contact' },
+        phone: { type: 'string', description: 'Phone number of the contact' },
+        name: { type: 'string', description: 'Name of the contact' },
+        avatar: { type: 'string', description: 'Avatar URL of the contact' },
+        owner_id: { type: 'string', description: 'ID of the admin assigned to this contact' },
+        external_id: { type: 'string', description: 'External identifier for the contact' },
+        created_at: { type: 'number', description: 'Unix timestamp when contact was created' },
+        updated_at: { type: 'number', description: 'Unix timestamp when contact was last updated' },
+        workspace_id: { type: 'string', description: 'Workspace ID the contact belongs to' },
+        custom_attributes: { type: 'object', description: 'Custom attributes set on the contact' },
+        tags: { type: 'object', description: 'Tags associated with the contact' },
+        notes: { type: 'object', description: 'Notes associated with the contact' },
+        companies: { type: 'object', description: 'Companies associated with the contact' },
+        location: { type: 'object', description: 'Location information for the contact' },
+        social_profiles: { type: 'object', description: 'Social profiles of the contact' },
+        unsubscribed_from_emails: {
+          type: 'boolean',
+          description: 'Whether contact is unsubscribed from emails',
+        },
+      },
+    },
+    contactId: { type: 'string', description: 'ID of the updated contact' },
   },
 }

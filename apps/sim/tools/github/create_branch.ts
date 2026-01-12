@@ -91,3 +91,32 @@ URL: ${ref.url}`
     },
   },
 }
+
+export const createBranchV2Tool: ToolConfig<CreateBranchParams, any> = {
+  id: 'github_create_branch_v2',
+  name: createBranchTool.name,
+  description: createBranchTool.description,
+  version: '2.0.0',
+  params: createBranchTool.params,
+  request: createBranchTool.request,
+
+  transformResponse: async (response: Response) => {
+    const ref = await response.json()
+    return {
+      success: true,
+      output: {
+        ref: ref.ref,
+        node_id: ref.node_id,
+        url: ref.url,
+        object: ref.object,
+      },
+    }
+  },
+
+  outputs: {
+    ref: { type: 'string', description: 'Full reference name (refs/heads/branch)' },
+    node_id: { type: 'string', description: 'Git ref node ID' },
+    url: { type: 'string', description: 'API URL for the reference' },
+    object: { type: 'json', description: 'Git object with type and sha' },
+  },
+}

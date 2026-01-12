@@ -16,12 +16,9 @@ export interface ZendeskMergeTicketsParams {
 export interface ZendeskMergeTicketsResponse {
   success: boolean
   output: {
-    jobStatus: any
-    metadata: {
-      operation: 'merge_tickets'
-      jobId?: string
-      targetTicketId: string
-    }
+    job_status: any
+    job_id?: string
+    target_ticket_id: string
     success: boolean
   }
 }
@@ -109,19 +106,20 @@ export const zendeskMergeTicketsTool: ToolConfig<
     return {
       success: true,
       output: {
-        jobStatus: data.job_status,
-        metadata: {
-          operation: 'merge_tickets' as const,
-          jobId: data.job_status?.id,
-          targetTicketId: params?.targetTicketId || '',
-        },
+        job_status: data.job_status,
+        job_id: data.job_status?.id,
+        target_ticket_id: params?.targetTicketId || '',
         success: true,
       },
     }
   },
 
   outputs: {
-    jobStatus: { type: 'object', description: 'Job status object' },
-    metadata: { type: 'object', description: 'Operation metadata' },
+    job_status: { type: 'object', description: 'Job status object' },
+    job_id: { type: 'string', description: 'The merge job ID' },
+    target_ticket_id: {
+      type: 'string',
+      description: 'The target ticket ID that tickets were merged into',
+    },
   },
 }

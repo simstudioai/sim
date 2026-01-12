@@ -100,3 +100,24 @@ ${labels.length > 0 ? `Remaining labels: ${labels.join(', ')}` : 'No labels rema
     },
   },
 }
+
+export const removeLabelV2Tool: ToolConfig = {
+  id: 'github_remove_label_v2',
+  name: removeLabelTool.name,
+  description: removeLabelTool.description,
+  version: '2.0.0',
+  params: removeLabelTool.params,
+  request: removeLabelTool.request,
+  oauth: removeLabelTool.oauth,
+  transformResponse: async (response: Response) => {
+    if (response.status === 200) {
+      const labels = await response.json()
+      return { success: true, output: { items: labels, count: labels.length } }
+    }
+    return { success: true, output: { items: [], count: 0 } }
+  },
+  outputs: {
+    items: { type: 'array', description: 'Remaining labels on the issue' },
+    count: { type: 'number', description: 'Number of remaining labels' },
+  },
+}

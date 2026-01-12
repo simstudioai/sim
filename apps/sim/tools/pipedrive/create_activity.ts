@@ -123,9 +123,6 @@ export const pipedriveCreateActivityTool: ToolConfig<
       success: true,
       output: {
         activity: data.data,
-        metadata: {
-          operation: 'create_activity' as const,
-        },
         success: true,
       },
     }
@@ -133,7 +130,6 @@ export const pipedriveCreateActivityTool: ToolConfig<
 
   outputs: {
     activity: { type: 'object', description: 'The created activity object' },
-    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

@@ -16,11 +16,6 @@ export interface MailchimpAddSubscriberToAutomationResponse {
   success: boolean
   output: {
     subscriber: MailchimpMember
-    metadata: {
-      operation: 'add_subscriber_to_automation'
-      workflowId: string
-      workflowEmailId: string
-    }
     success: boolean
   }
 }
@@ -89,11 +84,6 @@ export const mailchimpAddSubscriberToAutomationTool: ToolConfig<
       success: true,
       output: {
         subscriber: data,
-        metadata: {
-          operation: 'add_subscriber_to_automation' as const,
-          workflowId: '',
-          workflowEmailId: '',
-        },
         success: true,
       },
     }
@@ -105,8 +95,7 @@ export const mailchimpAddSubscriberToAutomationTool: ToolConfig<
       type: 'object',
       description: 'Subscriber queue data',
       properties: {
-        subscriber: { type: 'object', description: 'Subscriber object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
+        subscriber: { type: 'json', description: 'Subscriber object' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

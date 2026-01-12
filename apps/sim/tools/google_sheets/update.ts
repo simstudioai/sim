@@ -169,6 +169,13 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
     updatedRows: { type: 'number', description: 'Number of rows updated' },
     updatedColumns: { type: 'number', description: 'Number of columns updated' },
     updatedCells: { type: 'number', description: 'Number of cells updated' },
-    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
+    metadata: {
+      type: 'json',
+      description: 'Spreadsheet metadata including ID and URL',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'Google Sheets spreadsheet ID' },
+        spreadsheetUrl: { type: 'string', description: 'Spreadsheet URL' },
+      },
+    },
   },
 }

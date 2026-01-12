@@ -132,9 +132,6 @@ export const pipedriveCreateLeadTool: ToolConfig<
       success: true,
       output: {
         lead: data.data,
-        metadata: {
-          operation: 'create_lead' as const,
-        },
         success: true,
       },
     }
@@ -142,7 +139,6 @@ export const pipedriveCreateLeadTool: ToolConfig<
 
   outputs: {
     lead: { type: 'object', description: 'The created lead object' },
-    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

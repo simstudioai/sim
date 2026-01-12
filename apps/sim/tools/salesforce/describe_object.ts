@@ -81,17 +81,14 @@ export const salesforceDescribeObjectTool: ToolConfig<
         deletable: data.deletable,
         childRelationships: data.childRelationships,
         recordTypeInfos: data.recordTypeInfos,
-        metadata: {
-          operation: 'describe_object',
-          fieldCount: data.fields?.length || 0,
-        },
+        fieldCount: data.fields?.length || 0,
         success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success status' },
+    success: { type: 'boolean', description: 'Operation success status' },
     output: {
       type: 'object',
       description: 'Object metadata',
@@ -107,8 +104,8 @@ export const salesforceDescribeObjectTool: ToolConfig<
         deletable: { type: 'boolean', description: 'Whether records can be deleted' },
         childRelationships: { type: 'array', description: 'Child relationship definitions' },
         recordTypeInfos: { type: 'array', description: 'Record type information' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success status' },
+        fieldCount: { type: 'number', description: 'Number of fields in the object' },
+        success: { type: 'boolean', description: 'Salesforce operation success' },
       },
     },
   },

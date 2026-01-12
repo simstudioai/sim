@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { buildMailchimpUrl, handleMailchimpError, type MailchimpCampaignContent } from './types'
-
-const logger = createLogger('MailchimpSetCampaignContent')
 
 export interface MailchimpSetCampaignContentParams {
   apiKey: string
@@ -16,10 +13,6 @@ export interface MailchimpSetCampaignContentResponse {
   success: boolean
   output: {
     content: MailchimpCampaignContent
-    metadata: {
-      operation: 'set_campaign_content'
-      campaignId: string
-    }
     success: boolean
   }
 }
@@ -96,10 +89,6 @@ export const mailchimpSetCampaignContentTool: ToolConfig<
       success: true,
       output: {
         content: data,
-        metadata: {
-          operation: 'set_campaign_content' as const,
-          campaignId: '',
-        },
         success: true,
       },
     }
@@ -112,7 +101,6 @@ export const mailchimpSetCampaignContentTool: ToolConfig<
       description: 'Campaign content data',
       properties: {
         content: { type: 'object', description: 'Campaign content object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

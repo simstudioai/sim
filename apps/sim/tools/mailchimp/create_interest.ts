@@ -16,10 +16,7 @@ export interface MailchimpCreateInterestResponse {
   success: boolean
   output: {
     interest: MailchimpInterest
-    metadata: {
-      operation: 'create_interest'
-      interestId: string
-    }
+    interest_id: string
     success: boolean
   }
 }
@@ -88,10 +85,7 @@ export const mailchimpCreateInterestTool: ToolConfig<
       success: true,
       output: {
         interest: data,
-        metadata: {
-          operation: 'create_interest' as const,
-          interestId: data.id,
-        },
+        interest_id: data.id,
         success: true,
       },
     }
@@ -103,8 +97,8 @@ export const mailchimpCreateInterestTool: ToolConfig<
       type: 'object',
       description: 'Created interest data',
       properties: {
-        interest: { type: 'object', description: 'Created interest object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
+        interest: { type: 'json', description: 'Created interest object' },
+        interest_id: { type: 'string', description: 'Created interest ID' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

@@ -17,10 +17,7 @@ export interface MailchimpUpdateSegmentResponse {
   success: boolean
   output: {
     segment: MailchimpSegment
-    metadata: {
-      operation: 'update_segment'
-      segmentId: string
-    }
+    segment_id: string
     success: boolean
   }
 }
@@ -105,10 +102,7 @@ export const mailchimpUpdateSegmentTool: ToolConfig<
       success: true,
       output: {
         segment: data,
-        metadata: {
-          operation: 'update_segment' as const,
-          segmentId: data.id,
-        },
+        segment_id: data.id,
         success: true,
       },
     }
@@ -121,7 +115,7 @@ export const mailchimpUpdateSegmentTool: ToolConfig<
       description: 'Updated segment data',
       properties: {
         segment: { type: 'object', description: 'Updated segment object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
+        segment_id: { type: 'string', description: 'Segment ID' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

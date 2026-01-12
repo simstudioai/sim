@@ -94,15 +94,13 @@ export const apolloContactUpdateTool: ToolConfig<
       success: true,
       output: {
         contact: data.contact || {},
-        metadata: {
-          updated: !!data.contact,
-        },
+        updated: !!data.contact,
       },
     }
   },
 
   outputs: {
     contact: { type: 'json', description: 'Updated contact data from Apollo' },
-    metadata: { type: 'json', description: 'Update metadata including updated status' },
+    updated: { type: 'boolean', description: 'Whether the contact was successfully updated' },
   },
 }

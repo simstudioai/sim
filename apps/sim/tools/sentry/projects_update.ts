@@ -176,6 +176,14 @@ export const updateProjectTool: ToolConfig<SentryUpdateProjectParams, SentryUpda
           teams: {
             type: 'array',
             description: 'Teams associated with the project',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'Team ID' },
+                name: { type: 'string', description: 'Team name' },
+                slug: { type: 'string', description: 'Team slug' },
+              },
+            },
           },
         },
       },

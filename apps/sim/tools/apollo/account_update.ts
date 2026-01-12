@@ -80,15 +80,13 @@ export const apolloAccountUpdateTool: ToolConfig<
       success: true,
       output: {
         account: data.account || {},
-        metadata: {
-          updated: !!data.account,
-        },
+        updated: !!data.account,
       },
     }
   },
 
   outputs: {
     account: { type: 'json', description: 'Updated account data from Apollo' },
-    metadata: { type: 'json', description: 'Update metadata including updated status' },
+    updated: { type: 'boolean', description: 'Whether the account was successfully updated' },
   },
 }

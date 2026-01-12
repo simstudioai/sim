@@ -94,13 +94,20 @@ export const salesforceCreateLeadTool: ToolConfig<
         id: data.id,
         success: data.success,
         created: true,
-        metadata: { operation: 'create_lead' },
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success' },
-    output: { type: 'object', description: 'Created lead' },
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Created lead data',
+      properties: {
+        id: { type: 'string', description: 'Created lead ID' },
+        success: { type: 'boolean', description: 'Salesforce operation success' },
+        created: { type: 'boolean', description: 'Whether lead was created' },
+      },
+    },
   },
 }

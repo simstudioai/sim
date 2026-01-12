@@ -126,3 +126,42 @@ export const deleteProjectTool: ToolConfig<DeleteProjectParams, ProjectResponse>
     },
   },
 }
+
+export const deleteProjectV2Tool: ToolConfig<DeleteProjectParams, any> = {
+  id: 'github_delete_project_v2',
+  name: deleteProjectTool.name,
+  description: deleteProjectTool.description,
+  version: '2.0.0',
+  params: deleteProjectTool.params,
+  request: deleteProjectTool.request,
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    if (data.errors) {
+      return {
+        success: false,
+        output: { id: '', title: '', number: 0, url: '' },
+        error: data.errors[0].message,
+      }
+    }
+
+    const project = data.data?.deleteProjectV2?.projectV2 || {}
+    return {
+      success: true,
+      output: {
+        id: project.id,
+        title: project.title,
+        number: project.number,
+        url: project.url,
+      },
+    }
+  },
+
+  outputs: {
+    id: { type: 'string', description: 'Deleted project node ID' },
+    title: { type: 'string', description: 'Deleted project title' },
+    number: { type: 'number', description: 'Deleted project number' },
+    url: { type: 'string', description: 'Deleted project URL' },
+  },
+}

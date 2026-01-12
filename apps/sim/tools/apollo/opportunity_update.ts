@@ -97,15 +97,13 @@ export const apolloOpportunityUpdateTool: ToolConfig<
       success: true,
       output: {
         opportunity: data.opportunity || {},
-        metadata: {
-          updated: !!data.opportunity,
-        },
+        updated: !!data.opportunity,
       },
     }
   },
 
   outputs: {
     opportunity: { type: 'json', description: 'Updated opportunity data from Apollo' },
-    metadata: { type: 'json', description: 'Update metadata including updated status' },
+    updated: { type: 'boolean', description: 'Whether the opportunity was successfully updated' },
   },
 }

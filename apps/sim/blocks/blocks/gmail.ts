@@ -1,12 +1,44 @@
 import { GmailIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { createVersionedToolSelector } from '@/blocks/utils'
 import type { GmailToolResponse } from '@/tools/gmail/types'
 import { getTrigger } from '@/triggers'
 
+function selectGmailToolId(params: Record<string, any>): string {
+  switch (params.operation) {
+    case 'send_gmail':
+      return 'gmail_send'
+    case 'draft_gmail':
+      return 'gmail_draft'
+    case 'search_gmail':
+      return 'gmail_search'
+    case 'read_gmail':
+      return 'gmail_read'
+    case 'move_gmail':
+      return 'gmail_move'
+    case 'mark_read_gmail':
+      return 'gmail_mark_read'
+    case 'mark_unread_gmail':
+      return 'gmail_mark_unread'
+    case 'archive_gmail':
+      return 'gmail_archive'
+    case 'unarchive_gmail':
+      return 'gmail_unarchive'
+    case 'delete_gmail':
+      return 'gmail_delete'
+    case 'add_label_gmail':
+      return 'gmail_add_label'
+    case 'remove_label_gmail':
+      return 'gmail_remove_label'
+    default:
+      throw new Error(`Invalid Gmail operation: ${params.operation}`)
+  }
+}
+
 export const GmailBlock: BlockConfig<GmailToolResponse> = {
   type: 'gmail',
-  name: 'Gmail',
+  name: 'Gmail (Legacy)',
   description: 'Send, read, search, and move Gmail messages or trigger workflows from Gmail events',
   authMode: AuthMode.OAuth,
   longDescription:
@@ -15,6 +47,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: GmailIcon,
+  hideFromToolbar: true,
   triggerAllowed: true,
   subBlocks: [
     // Operation selector
@@ -376,36 +409,7 @@ Return ONLY the search query - no explanations, no extra text.`,
       'gmail_remove_label',
     ],
     config: {
-      tool: (params) => {
-        switch (params.operation) {
-          case 'send_gmail':
-            return 'gmail_send'
-          case 'draft_gmail':
-            return 'gmail_draft'
-          case 'search_gmail':
-            return 'gmail_search'
-          case 'read_gmail':
-            return 'gmail_read'
-          case 'move_gmail':
-            return 'gmail_move'
-          case 'mark_read_gmail':
-            return 'gmail_mark_read'
-          case 'mark_unread_gmail':
-            return 'gmail_mark_unread'
-          case 'archive_gmail':
-            return 'gmail_archive'
-          case 'unarchive_gmail':
-            return 'gmail_unarchive'
-          case 'delete_gmail':
-            return 'gmail_delete'
-          case 'add_label_gmail':
-            return 'gmail_add_label'
-          case 'remove_label_gmail':
-            return 'gmail_remove_label'
-          default:
-            throw new Error(`Invalid Gmail operation: ${params.operation}`)
-        }
-      },
+      tool: selectGmailToolId,
       params: (params) => {
         const {
           credential,
@@ -537,5 +541,61 @@ Return ONLY the search query - no explanations, no extra text.`,
   triggers: {
     enabled: true,
     available: ['gmail_poller'],
+  },
+}
+
+export const GmailV2Block: BlockConfig<GmailToolResponse> = {
+  ...GmailBlock,
+  type: 'gmail_v2',
+  name: 'Gmail',
+  hideFromToolbar: false,
+  tools: {
+    ...GmailBlock.tools,
+    access: [
+      'gmail_send_v2',
+      'gmail_draft_v2',
+      'gmail_read_v2',
+      'gmail_search_v2',
+      'gmail_move_v2',
+      'gmail_mark_read_v2',
+      'gmail_mark_unread_v2',
+      'gmail_archive_v2',
+      'gmail_unarchive_v2',
+      'gmail_delete_v2',
+      'gmail_add_label_v2',
+      'gmail_remove_label_v2',
+    ],
+    config: {
+      ...GmailBlock.tools?.config,
+      tool: createVersionedToolSelector({
+        baseToolSelector: selectGmailToolId,
+        suffix: '_v2',
+        fallbackToolId: 'gmail_send_v2',
+      }),
+    },
+  },
+  outputs: {
+    // V2 tool outputs (API-aligned)
+    id: { type: 'string', description: 'Gmail message ID' },
+    threadId: { type: 'string', description: 'Gmail thread ID' },
+    labelIds: { type: 'array', description: 'Email label IDs' },
+    from: { type: 'string', description: 'Sender' },
+    to: { type: 'string', description: 'To' },
+    subject: { type: 'string', description: 'Subject' },
+    date: { type: 'string', description: 'Date' },
+    body: { type: 'string', description: 'Email body text (best-effort)' },
+    results: { type: 'json', description: 'Search/read summary results' },
+    attachments: { type: 'json', description: 'Downloaded attachments (if enabled)' },
+
+    // Trigger outputs (unchanged)
+    email_id: { type: 'string', description: 'Gmail message ID' },
+    thread_id: { type: 'string', description: 'Gmail thread ID' },
+    cc: { type: 'string', description: 'CC recipients (comma-separated)' },
+    body_text: { type: 'string', description: 'Plain text email body' },
+    body_html: { type: 'string', description: 'HTML email body' },
+    labels: { type: 'string', description: 'Email labels (comma-separated)' },
+    has_attachments: { type: 'boolean', description: 'Whether email has attachments' },
+    raw_email: { type: 'json', description: 'Complete raw email data from Gmail API (if enabled)' },
+    timestamp: { type: 'string', description: 'Event timestamp' },
   },
 }

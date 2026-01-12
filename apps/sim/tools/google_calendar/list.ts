@@ -118,3 +118,55 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
     },
   },
 }
+
+interface GoogleCalendarListV2Response {
+  success: boolean
+  output: {
+    nextPageToken?: string
+    nextSyncToken?: string
+    timeZone?: string
+    events: Array<Record<string, any>>
+  }
+}
+
+export const listV2Tool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListV2Response> = {
+  id: 'google_calendar_list_v2',
+  name: 'Google Calendar List Events',
+  description: 'List events from Google Calendar. Returns API-aligned fields only.',
+  version: '2.0.0',
+  oauth: listTool.oauth,
+  params: listTool.params,
+  request: listTool.request,
+  transformResponse: async (response: Response) => {
+    const data: GoogleCalendarApiListResponse = await response.json()
+    const events = data.items || []
+
+    return {
+      success: true,
+      output: {
+        nextPageToken: data.nextPageToken,
+        nextSyncToken: data.nextSyncToken,
+        timeZone: data.timeZone,
+        events: events.map((event: GoogleCalendarApiEventResponse) => ({
+          id: event.id,
+          htmlLink: event.htmlLink,
+          status: event.status,
+          summary: event.summary || 'No title',
+          description: event.description,
+          location: event.location,
+          start: event.start,
+          end: event.end,
+          attendees: event.attendees,
+          creator: event.creator,
+          organizer: event.organizer,
+        })),
+      },
+    }
+  },
+  outputs: {
+    nextPageToken: { type: 'string', description: 'Next page token', optional: true },
+    nextSyncToken: { type: 'string', description: 'Next sync token', optional: true },
+    timeZone: { type: 'string', description: 'Calendar time zone', optional: true },
+    events: { type: 'json', description: 'List of events' },
+  },
+}

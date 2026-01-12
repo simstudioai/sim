@@ -15,12 +15,8 @@ export interface MailchimpGetLandingPagesResponse {
   success: boolean
   output: {
     landingPages: MailchimpLandingPage[]
-    totalItems: number
-    metadata: {
-      operation: 'get_landing_pages'
-      totalReturned: number
-    }
-    success: boolean
+    total_items: number
+    total_returned: number
   }
 }
 
@@ -84,26 +80,27 @@ export const mailchimpGetLandingPagesTool: ToolConfig<
       success: true,
       output: {
         landingPages,
-        totalItems: data.total_items || landingPages.length,
-        metadata: {
-          operation: 'get_landing_pages' as const,
-          totalReturned: landingPages.length,
-        },
-        success: true,
+        total_items: data.total_items || landingPages.length,
+        total_returned: landingPages.length,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
+    success: {
+      type: 'boolean',
+      description: 'Whether the landing pages were successfully retrieved',
+    },
     output: {
       type: 'object',
-      description: 'Landing pages data and metadata',
+      description: 'Landing pages data',
       properties: {
-        landingPages: { type: 'array', description: 'Array of landing page objects' },
-        totalItems: { type: 'number', description: 'Total number of landing pages' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        landingPages: { type: 'json', description: 'Array of landing page objects' },
+        total_items: { type: 'number', description: 'Total number of landing pages' },
+        total_returned: {
+          type: 'number',
+          description: 'Number of landing pages returned in this response',
+        },
       },
     },
   },

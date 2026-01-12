@@ -143,7 +143,6 @@ export const salesforceGetAccountsTool: ToolConfig<
           done: data.done !== false,
         },
         metadata: {
-          operation: 'get_accounts' as const,
           totalReturned: accounts.length,
           hasMore: !data.done,
         },
@@ -158,19 +157,25 @@ export const salesforceGetAccountsTool: ToolConfig<
       type: 'object',
       description: 'Accounts data',
       properties: {
-        accounts: {
-          type: 'array',
-          description: 'Array of account objects',
-        },
+        accounts: { type: 'array', description: 'Array of account objects' },
         paging: {
           type: 'object',
           description: 'Pagination information',
+          properties: {
+            nextRecordsUrl: { type: 'string', description: 'URL for next page of results' },
+            totalSize: { type: 'number', description: 'Total number of records' },
+            done: { type: 'boolean', description: 'Whether all records returned' },
+          },
         },
         metadata: {
           type: 'object',
-          description: 'Operation metadata',
+          description: 'Response metadata',
+          properties: {
+            totalReturned: { type: 'number', description: 'Number of accounts returned' },
+            hasMore: { type: 'boolean', description: 'Whether more records exist' },
+          },
         },
-        success: { type: 'boolean', description: 'Operation success status' },
+        success: { type: 'boolean', description: 'Salesforce operation success' },
       },
     },
   },

@@ -145,21 +145,18 @@ export const hubspotSearchContactsTool: ToolConfig<
       throw new Error(data.message || 'Failed to search contacts in HubSpot')
     }
 
-    const result = {
-      contacts: data.results || [],
-      total: data.total,
-      paging: data.paging,
-      metadata: {
-        operation: 'search_contacts' as const,
-        totalReturned: data.results?.length || 0,
-        total: data.total,
-      },
-    }
-
     return {
       success: true,
-      output: result,
-      ...result,
+      output: {
+        contacts: data.results || [],
+        total: data.total,
+        paging: data.paging,
+        metadata: {
+          totalReturned: data.results?.length || 0,
+          hasMore: !!data.paging?.next,
+        },
+        success: true,
+      },
     }
   },
 
@@ -167,7 +164,7 @@ export const hubspotSearchContactsTool: ToolConfig<
     contacts: { type: 'array', description: 'Array of matching HubSpot contact objects' },
     total: { type: 'number', description: 'Total number of matching contacts' },
     paging: { type: 'object', description: 'Pagination information' },
-    metadata: { type: 'object', description: 'Operation metadata' },
+    metadata: { type: 'object', description: 'Metadata with totalReturned and hasMore' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

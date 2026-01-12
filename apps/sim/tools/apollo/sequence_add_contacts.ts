@@ -81,19 +81,15 @@ export const apolloSequenceAddContactsTool: ToolConfig<
       success: true,
       output: {
         contacts_added: data.contacts || params?.contact_ids || [],
-        metadata: {
-          sequence_id: params?.sequence_id || '',
-          total_added: data.contacts?.length || params?.contact_ids?.length || 0,
-        },
+        sequence_id: params?.sequence_id || '',
+        total_added: data.contacts?.length || params?.contact_ids?.length || 0,
       },
     }
   },
 
   outputs: {
     contacts_added: { type: 'json', description: 'Array of contact IDs added to the sequence' },
-    metadata: {
-      type: 'json',
-      description: 'Sequence metadata including sequence_id and total_added count',
-    },
+    sequence_id: { type: 'string', description: 'ID of the sequence contacts were added to' },
+    total_added: { type: 'number', description: 'Total number of contacts added' },
   },
 }

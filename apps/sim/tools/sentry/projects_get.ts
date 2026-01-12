@@ -112,6 +112,11 @@ export const getProjectTool: ToolConfig<SentryGetProjectParams, SentryGetProject
           type: 'string',
           description: 'When the first event was received (ISO timestamp)',
         },
+        firstTransactionEvent: {
+          type: 'string',
+          description: 'When the first transaction event was received',
+        },
+        access: { type: 'array', description: 'Access permissions' },
         organization: {
           type: 'object',
           description: 'Organization information',
@@ -119,6 +124,15 @@ export const getProjectTool: ToolConfig<SentryGetProjectParams, SentryGetProject
             id: { type: 'string', description: 'Organization ID' },
             slug: { type: 'string', description: 'Organization slug' },
             name: { type: 'string', description: 'Organization name' },
+          },
+        },
+        team: {
+          type: 'object',
+          description: 'Primary team for the project',
+          properties: {
+            id: { type: 'string', description: 'Team ID' },
+            name: { type: 'string', description: 'Team name' },
+            slug: { type: 'string', description: 'Team slug' },
           },
         },
         teams: {
@@ -136,7 +150,12 @@ export const getProjectTool: ToolConfig<SentryGetProjectParams, SentryGetProject
         status: { type: 'string', description: 'Project status' },
         color: { type: 'string', description: 'Project color code' },
         isPublic: { type: 'boolean', description: 'Whether the project is publicly visible' },
+        isInternal: { type: 'boolean', description: 'Whether the project is internal' },
         hasAccess: { type: 'boolean', description: 'Whether the user has access to this project' },
+        hasMinifiedStackTrace: {
+          type: 'boolean',
+          description: 'Whether minified stack traces are available',
+        },
         hasMonitors: {
           type: 'boolean',
           description: 'Whether the project has monitors configured',

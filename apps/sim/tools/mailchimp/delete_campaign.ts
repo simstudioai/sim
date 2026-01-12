@@ -11,13 +11,6 @@ export interface MailchimpDeleteCampaignParams {
 
 export interface MailchimpDeleteCampaignResponse {
   success: boolean
-  output: {
-    metadata: {
-      operation: 'delete_campaign'
-      campaignId: string
-    }
-    success: boolean
-  }
 }
 
 export const mailchimpDeleteCampaignTool: ToolConfig<
@@ -61,25 +54,10 @@ export const mailchimpDeleteCampaignTool: ToolConfig<
 
     return {
       success: true,
-      output: {
-        metadata: {
-          operation: 'delete_campaign' as const,
-          campaignId: '',
-        },
-        success: true,
-      },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Deletion confirmation',
-      properties: {
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
-    },
+    success: { type: 'boolean', description: 'Whether the campaign was successfully deleted' },
   },
 }

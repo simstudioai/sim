@@ -153,6 +153,14 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
   outputs: {
     success: { type: 'boolean', description: 'Whether tasks were retrieved successfully' },
     tasks: { type: 'array', description: 'Array of task objects with filtered properties' },
-    metadata: { type: 'object', description: 'Metadata including planId, userId, and planUrl' },
+    metadata: {
+      type: 'object',
+      description: 'Metadata including planId, userId, and planUrl',
+      properties: {
+        planId: { type: 'string', description: 'Plan ID' },
+        userId: { type: 'string', description: 'User ID' },
+        planUrl: { type: 'string', description: 'Microsoft Graph API URL for the plan' },
+      },
+    },
   },
 }

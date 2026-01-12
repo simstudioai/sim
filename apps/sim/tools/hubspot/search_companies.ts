@@ -145,21 +145,18 @@ export const hubspotSearchCompaniesTool: ToolConfig<
       throw new Error(data.message || 'Failed to search companies in HubSpot')
     }
 
-    const result = {
-      companies: data.results || [],
-      total: data.total,
-      paging: data.paging,
-      metadata: {
-        operation: 'search_companies' as const,
-        totalReturned: data.results?.length || 0,
-        total: data.total,
-      },
-    }
-
     return {
       success: true,
-      output: result,
-      ...result,
+      output: {
+        companies: data.results || [],
+        total: data.total,
+        paging: data.paging,
+        metadata: {
+          totalReturned: data.results?.length || 0,
+          hasMore: !!data.paging?.next,
+        },
+        success: true,
+      },
     }
   },
 
@@ -167,7 +164,7 @@ export const hubspotSearchCompaniesTool: ToolConfig<
     companies: { type: 'array', description: 'Array of matching HubSpot company objects' },
     total: { type: 'number', description: 'Total number of matching companies' },
     paging: { type: 'object', description: 'Pagination information' },
-    metadata: { type: 'object', description: 'Operation metadata' },
+    metadata: { type: 'object', description: 'Metadata with totalReturned and hasMore' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

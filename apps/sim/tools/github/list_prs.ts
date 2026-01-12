@@ -151,3 +151,46 @@ ${prs
     },
   },
 }
+
+export const listPRsV2Tool: ToolConfig<ListPRsParams, any> = {
+  id: 'github_list_prs_v2',
+  name: listPRsTool.name,
+  description: listPRsTool.description,
+  version: '2.0.0',
+  params: listPRsTool.params,
+  request: listPRsTool.request,
+
+  transformResponse: async (response: Response) => {
+    const prs = await response.json()
+    return {
+      success: true,
+      output: {
+        items: prs,
+        count: prs.length,
+      },
+    }
+  },
+
+  outputs: {
+    items: {
+      type: 'array',
+      description: 'Array of pull request objects',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'number', description: 'PR ID' },
+          number: { type: 'number', description: 'PR number' },
+          title: { type: 'string', description: 'PR title' },
+          state: { type: 'string', description: 'PR state' },
+          html_url: { type: 'string', description: 'GitHub web URL' },
+          user: { type: 'object', description: 'Author object' },
+          head: { type: 'object', description: 'Head branch info' },
+          base: { type: 'object', description: 'Base branch info' },
+          created_at: { type: 'string', description: 'Creation timestamp' },
+          updated_at: { type: 'string', description: 'Last update timestamp' },
+        },
+      },
+    },
+    count: { type: 'number', description: 'Number of PRs returned' },
+  },
+}

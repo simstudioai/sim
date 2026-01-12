@@ -72,3 +72,27 @@ export const deleteCommentTool: ToolConfig<DeleteCommentParams, DeleteCommentRes
     },
   },
 }
+
+export const deleteCommentV2Tool: ToolConfig<DeleteCommentParams, any> = {
+  id: 'github_delete_comment_v2',
+  name: deleteCommentTool.name,
+  description: deleteCommentTool.description,
+  version: '2.0.0',
+  params: deleteCommentTool.params,
+  request: deleteCommentTool.request,
+
+  transformResponse: async (response: Response, params) => {
+    return {
+      success: true,
+      output: {
+        deleted: response.status === 204,
+        comment_id: params?.comment_id || 0,
+      },
+    }
+  },
+
+  outputs: {
+    deleted: { type: 'boolean', description: 'Whether deletion was successful' },
+    comment_id: { type: 'number', description: 'Deleted comment ID' },
+  },
+}

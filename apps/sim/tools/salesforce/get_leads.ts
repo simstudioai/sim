@@ -75,7 +75,7 @@ export const salesforceGetLeadsTool: ToolConfig<
         success: true,
         output: {
           lead: data,
-          metadata: { operation: 'get_leads', singleLead: true },
+          singleLead: true,
           success: true,
         },
       }
@@ -90,14 +90,43 @@ export const salesforceGetLeadsTool: ToolConfig<
           totalSize: data.totalSize || leads.length,
           done: data.done !== false,
         },
-        metadata: { operation: 'get_leads', totalReturned: leads.length, hasMore: !data.done },
+        metadata: {
+          totalReturned: leads.length,
+          hasMore: !data.done,
+        },
         success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success status' },
-    output: { type: 'object', description: 'Lead data' },
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Lead data',
+      properties: {
+        lead: { type: 'object', description: 'Single lead object (when leadId provided)' },
+        leads: { type: 'array', description: 'Array of lead objects (when listing)' },
+        paging: {
+          type: 'object',
+          description: 'Pagination information',
+          properties: {
+            nextRecordsUrl: { type: 'string', description: 'URL for next page of results' },
+            totalSize: { type: 'number', description: 'Total number of records' },
+            done: { type: 'boolean', description: 'Whether all records returned' },
+          },
+        },
+        metadata: {
+          type: 'object',
+          description: 'Response metadata',
+          properties: {
+            totalReturned: { type: 'number', description: 'Number of leads returned' },
+            hasMore: { type: 'boolean', description: 'Whether more records exist' },
+          },
+        },
+        singleLead: { type: 'boolean', description: 'Whether single lead was returned' },
+        success: { type: 'boolean', description: 'Operation success status' },
+      },
+    },
   },
 }

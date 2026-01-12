@@ -13,13 +13,6 @@ export interface MailchimpDeleteInterestParams {
 
 export interface MailchimpDeleteInterestResponse {
   success: boolean
-  output: {
-    metadata: {
-      operation: 'delete_interest'
-      interestId: string
-    }
-    success: boolean
-  }
 }
 
 export const mailchimpDeleteInterestTool: ToolConfig<
@@ -79,25 +72,10 @@ export const mailchimpDeleteInterestTool: ToolConfig<
 
     return {
       success: true,
-      output: {
-        metadata: {
-          operation: 'delete_interest' as const,
-          interestId: '',
-        },
-        success: true,
-      },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Deletion confirmation',
-      properties: {
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
-    },
+    success: { type: 'boolean', description: 'Whether the interest was successfully deleted' },
   },
 }

@@ -72,15 +72,13 @@ export const apolloAccountCreateTool: ToolConfig<
       success: true,
       output: {
         account: data.account || {},
-        metadata: {
-          created: !!data.account,
-        },
+        created: !!data.account,
       },
     }
   },
 
   outputs: {
     account: { type: 'json', description: 'Created account data from Apollo' },
-    metadata: { type: 'json', description: 'Creation metadata including created status' },
+    created: { type: 'boolean', description: 'Whether the account was successfully created' },
   },
 }

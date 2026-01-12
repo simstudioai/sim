@@ -93,10 +93,7 @@ export const hubspotGetContactTool: ToolConfig<HubSpotGetContactParams, HubSpotG
         success: true,
         output: {
           contact: data,
-          metadata: {
-            operation: 'get_contact' as const,
-            contactId: data.id,
-          },
+          contactId: data.id,
           success: true,
         },
       }
@@ -104,7 +101,7 @@ export const hubspotGetContactTool: ToolConfig<HubSpotGetContactParams, HubSpotG
 
     outputs: {
       contact: { type: 'object', description: 'HubSpot contact object with properties' },
-      metadata: { type: 'object', description: 'Operation metadata' },
+      contactId: { type: 'string', description: 'The retrieved contact ID' },
       success: { type: 'boolean', description: 'Operation success status' },
     },
   }

@@ -56,11 +56,9 @@ export const apolloContactBulkUpdateTool: ToolConfig<
       output: {
         updated_contacts: data.contacts || data.updated_contacts || [],
         failed_contacts: data.failed_contacts || [],
-        metadata: {
-          total_submitted: data.contacts?.length || 0,
-          updated: data.updated_contacts?.length || data.contacts?.length || 0,
-          failed: data.failed_contacts?.length || 0,
-        },
+        total_submitted: data.contacts?.length || 0,
+        updated: data.updated_contacts?.length || data.contacts?.length || 0,
+        failed: data.failed_contacts?.length || 0,
       },
     }
   },
@@ -74,9 +72,17 @@ export const apolloContactBulkUpdateTool: ToolConfig<
       type: 'json',
       description: 'Array of contacts that failed to update',
     },
-    metadata: {
-      type: 'json',
-      description: 'Bulk update metadata including counts of updated and failed contacts',
+    total_submitted: {
+      type: 'number',
+      description: 'Total number of contacts submitted',
+    },
+    updated: {
+      type: 'number',
+      description: 'Number of contacts successfully updated',
+    },
+    failed: {
+      type: 'number',
+      description: 'Number of contacts that failed to update',
     },
   },
 }

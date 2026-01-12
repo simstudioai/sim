@@ -119,9 +119,8 @@ export interface PipedriveGetAllDealsParams {
 export interface PipedriveGetAllDealsOutput {
   deals: PipedriveDeal[]
   metadata: {
-    operation: 'get_all_deals'
-    totalItems: number
-    hasMore: boolean
+    total_items: number
+    has_more: boolean
   }
   success: boolean
 }
@@ -138,9 +137,6 @@ export interface PipedriveGetDealParams {
 
 export interface PipedriveGetDealOutput {
   deal: PipedriveDeal
-  metadata: {
-    operation: 'get_deal'
-  }
   success: boolean
 }
 
@@ -164,9 +160,6 @@ export interface PipedriveCreateDealParams {
 
 export interface PipedriveCreateDealOutput {
   deal: PipedriveDeal
-  metadata: {
-    operation: 'create_deal'
-  }
   success: boolean
 }
 
@@ -187,9 +180,6 @@ export interface PipedriveUpdateDealParams {
 
 export interface PipedriveUpdateDealOutput {
   deal: PipedriveDeal
-  metadata: {
-    operation: 'update_deal'
-  }
   success: boolean
 }
 
@@ -208,10 +198,7 @@ export interface PipedriveGetFilesParams {
 
 export interface PipedriveGetFilesOutput {
   files: PipedriveFile[]
-  metadata: {
-    operation: 'get_files'
-    totalItems: number
-  }
+  total_items: number
   success: boolean
 }
 
@@ -227,10 +214,7 @@ export interface PipedriveGetMailMessagesParams {
 
 export interface PipedriveGetMailMessagesOutput {
   messages: PipedriveMailMessage[]
-  metadata: {
-    operation: 'get_mail_messages'
-    totalItems: number
-  }
+  total_items: number
   success: boolean
 }
 
@@ -247,9 +231,8 @@ export interface PipedriveGetMailThreadParams {
 export interface PipedriveGetMailThreadOutput {
   messages: PipedriveMailMessage[]
   metadata: {
-    operation: 'get_mail_thread'
-    threadId: string
-    totalItems: number
+    thread_id: string
+    total_items: number
   }
   success: boolean
 }
@@ -269,10 +252,7 @@ export interface PipedriveGetPipelinesParams {
 
 export interface PipedriveGetPipelinesOutput {
   pipelines: PipedrivePipeline[]
-  metadata: {
-    operation: 'get_pipelines'
-    totalItems: number
-  }
+  total_items: number
   success: boolean
 }
 
@@ -292,9 +272,8 @@ export interface PipedriveGetPipelineDealsParams {
 export interface PipedriveGetPipelineDealsOutput {
   deals: PipedriveDeal[]
   metadata: {
-    operation: 'get_pipeline_deals'
-    pipelineId: string
-    totalItems: number
+    pipeline_id: string
+    total_items: number
   }
   success: boolean
 }
@@ -314,10 +293,7 @@ export interface PipedriveGetProjectsParams {
 export interface PipedriveGetProjectsOutput {
   projects?: PipedriveProject[]
   project?: PipedriveProject
-  metadata: {
-    operation: 'get_projects'
-    totalItems?: number
-  }
+  total_items?: number
   success: boolean
 }
 
@@ -336,9 +312,6 @@ export interface PipedriveCreateProjectParams {
 
 export interface PipedriveCreateProjectOutput {
   project: PipedriveProject
-  metadata: {
-    operation: 'create_project'
-  }
   success: boolean
 }
 
@@ -359,10 +332,7 @@ export interface PipedriveGetActivitiesParams {
 
 export interface PipedriveGetActivitiesOutput {
   activities: PipedriveActivity[]
-  metadata: {
-    operation: 'get_activities'
-    totalItems: number
-  }
+  total_items: number
   success: boolean
 }
 
@@ -386,9 +356,6 @@ export interface PipedriveCreateActivityParams {
 
 export interface PipedriveCreateActivityOutput {
   activity: PipedriveActivity
-  metadata: {
-    operation: 'create_activity'
-  }
   success: boolean
 }
 
@@ -410,9 +377,6 @@ export interface PipedriveUpdateActivityParams {
 
 export interface PipedriveUpdateActivityOutput {
   activity: PipedriveActivity
-  metadata: {
-    operation: 'update_activity'
-  }
   success: boolean
 }
 
@@ -434,10 +398,7 @@ export interface PipedriveGetLeadsParams {
 export interface PipedriveGetLeadsOutput {
   leads?: PipedriveLead[]
   lead?: PipedriveLead
-  metadata: {
-    operation: 'get_leads'
-    totalItems?: number
-  }
+  total_items?: number
   success: boolean
 }
 
@@ -460,9 +421,6 @@ export interface PipedriveCreateLeadParams {
 
 export interface PipedriveCreateLeadOutput {
   lead: PipedriveLead
-  metadata: {
-    operation: 'create_lead'
-  }
   success: boolean
 }
 
@@ -486,9 +444,6 @@ export interface PipedriveUpdateLeadParams {
 
 export interface PipedriveUpdateLeadOutput {
   lead: PipedriveLead
-  metadata: {
-    operation: 'update_lead'
-  }
   success: boolean
 }
 
@@ -504,9 +459,6 @@ export interface PipedriveDeleteLeadParams {
 
 export interface PipedriveDeleteLeadOutput {
   data: any
-  metadata: {
-    operation: 'delete_lead'
-  }
   success: boolean
 }
 

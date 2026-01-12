@@ -70,8 +70,8 @@ Retrieve a list of audiences (lists) from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Audiences data and metadata |
+| `success` | boolean | Whether the audiences were successfully retrieved |
+| `output` | object | Audiences data |
 
 ### `mailchimp_get_audience`
 
@@ -88,8 +88,8 @@ Retrieve details of a specific audience (list) from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Audience data and metadata |
+| `success` | boolean | Whether the audience was successfully retrieved |
+| `output` | object | Audience data |
 
 ### `mailchimp_create_audience`
 
@@ -150,8 +150,7 @@ Delete an audience (list) from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the audience was successfully deleted |
 
 ### `mailchimp_get_members`
 
@@ -171,8 +170,8 @@ Retrieve a list of members from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Members data and metadata |
+| `success` | boolean | Whether the members were successfully retrieved |
+| `output` | object | Members data |
 
 ### `mailchimp_get_member`
 
@@ -190,8 +189,8 @@ Retrieve details of a specific member from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Member data and metadata |
+| `success` | boolean | Whether the member was successfully retrieved |
+| `output` | object | Member data |
 
 ### `mailchimp_add_member`
 
@@ -277,8 +276,7 @@ Delete a member from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the member was successfully deleted |
 
 ### `mailchimp_archive_member`
 
@@ -338,8 +336,8 @@ Retrieve a list of campaigns from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Campaigns data and metadata |
+| `success` | boolean | Whether the campaigns were successfully retrieved |
+| `output` | object | Campaigns data |
 
 ### `mailchimp_get_campaign`
 
@@ -356,8 +354,8 @@ Retrieve details of a specific campaign from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Campaign data and metadata |
+| `success` | boolean | Whether the campaign was successfully retrieved |
+| `output` | object | Campaign data |
 
 ### `mailchimp_create_campaign`
 
@@ -414,8 +412,7 @@ Delete a campaign from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the campaign was successfully deleted |
 
 ### `mailchimp_send_campaign`
 
@@ -451,8 +448,7 @@ Schedule a Mailchimp campaign to be sent at a specific time
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Schedule confirmation |
+| `success` | boolean | Whether the campaign was successfully scheduled |
 
 ### `mailchimp_unschedule_campaign`
 
@@ -505,7 +501,7 @@ Retrieve the HTML and plain-text content for a Mailchimp campaign
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
+| `success` | boolean | Whether the campaign content was successfully retrieved |
 | `output` | object | Campaign content data |
 
 ### `mailchimp_set_campaign_content`
@@ -545,8 +541,8 @@ Retrieve a list of automations from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Automations data and metadata |
+| `success` | boolean | Whether the automations were successfully retrieved |
+| `output` | object | Automations data |
 
 ### `mailchimp_get_automation`
 
@@ -563,8 +559,8 @@ Retrieve details of a specific automation from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Automation data and metadata |
+| `success` | boolean | Whether the automation was successfully retrieved |
+| `output` | object | Automation data |
 
 ### `mailchimp_start_automation`
 
@@ -638,8 +634,8 @@ Retrieve a list of templates from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Templates data and metadata |
+| `success` | boolean | Whether the templates were successfully retrieved |
+| `output` | object | Templates data |
 
 ### `mailchimp_get_template`
 
@@ -656,8 +652,8 @@ Retrieve details of a specific template from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Template data and metadata |
+| `success` | boolean | Whether the template was successfully retrieved |
+| `output` | object | Template data |
 
 ### `mailchimp_create_template`
 
@@ -713,8 +709,7 @@ Delete a template from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the template was successfully deleted |
 
 ### `mailchimp_get_campaign_reports`
 
@@ -732,8 +727,8 @@ Retrieve a list of campaign reports from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Campaign reports data and metadata |
+| `success` | boolean | Whether the campaign reports were successfully retrieved |
+| `output` | object | Campaign reports data |
 
 ### `mailchimp_get_campaign_report`
 
@@ -750,8 +745,8 @@ Retrieve the report for a specific campaign from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Campaign report data and metadata |
+| `success` | boolean | Whether the campaign report was successfully retrieved |
+| `output` | object | Campaign report data |
 
 ### `mailchimp_get_segments`
 
@@ -770,8 +765,8 @@ Retrieve a list of segments from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Segments data and metadata |
+| `success` | boolean | Whether the segments were successfully retrieved |
+| `output` | object | Segments data |
 
 ### `mailchimp_get_segment`
 
@@ -789,8 +784,8 @@ Retrieve details of a specific segment from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Segment data and metadata |
+| `success` | boolean | Whether the segment was successfully retrieved |
+| `output` | object | Segment data |
 
 ### `mailchimp_create_segment`
 
@@ -849,8 +844,7 @@ Delete a segment from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the segment was successfully deleted |
 
 ### `mailchimp_get_segment_members`
 
@@ -870,8 +864,8 @@ Retrieve members of a specific segment from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Segment members data and metadata |
+| `success` | boolean | Whether the segment members were successfully retrieved |
+| `output` | object | Segment members data |
 
 ### `mailchimp_add_segment_member`
 
@@ -929,8 +923,8 @@ Retrieve tags associated with a member in a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Member tags data and metadata |
+| `success` | boolean | Whether the member tags were successfully retrieved |
+| `output` | object | Member tags data |
 
 ### `mailchimp_add_member_tags`
 
@@ -989,8 +983,8 @@ Retrieve a list of merge fields from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Merge fields data and metadata |
+| `success` | boolean | Whether the merge fields were successfully retrieved |
+| `output` | object | Merge fields data |
 
 ### `mailchimp_get_merge_field`
 
@@ -1008,8 +1002,8 @@ Retrieve details of a specific merge field from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Merge field data and metadata |
+| `success` | boolean | Whether the merge field was successfully retrieved |
+| `output` | object | Merge field data |
 
 ### `mailchimp_create_merge_field`
 
@@ -1067,8 +1061,7 @@ Delete a merge field from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the merge field was successfully deleted |
 
 ### `mailchimp_get_interest_categories`
 
@@ -1087,8 +1080,8 @@ Retrieve a list of interest categories from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Interest categories data and metadata |
+| `success` | boolean | Whether the interest categories were successfully retrieved |
+| `output` | object | Interest categories data |
 
 ### `mailchimp_get_interest_category`
 
@@ -1106,8 +1099,8 @@ Retrieve details of a specific interest category from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Interest category data and metadata |
+| `success` | boolean | Whether the interest category was successfully retrieved |
+| `output` | object | Interest category data |
 
 ### `mailchimp_create_interest_category`
 
@@ -1165,8 +1158,7 @@ Delete an interest category from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the interest category was successfully deleted |
 
 ### `mailchimp_get_interests`
 
@@ -1186,8 +1178,8 @@ Retrieve a list of interests from an interest category in a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Interests data and metadata |
+| `success` | boolean | Whether the interests were successfully retrieved |
+| `output` | object | Interests data |
 
 ### `mailchimp_get_interest`
 
@@ -1206,8 +1198,8 @@ Retrieve details of a specific interest from an interest category in a Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Interest data and metadata |
+| `success` | boolean | Whether the interest was successfully retrieved |
+| `output` | object | Interest data |
 
 ### `mailchimp_create_interest`
 
@@ -1267,8 +1259,7 @@ Delete an interest from an interest category in a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the interest was successfully deleted |
 
 ### `mailchimp_get_landing_pages`
 
@@ -1286,8 +1277,8 @@ Retrieve a list of landing pages from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Landing pages data and metadata |
+| `success` | boolean | Whether the landing pages were successfully retrieved |
+| `output` | object | Landing pages data |
 
 ### `mailchimp_get_landing_page`
 
@@ -1304,8 +1295,8 @@ Retrieve details of a specific landing page from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Landing page data and metadata |
+| `success` | boolean | Whether the landing page was successfully retrieved |
+| `output` | object | Landing page data |
 
 ### `mailchimp_create_landing_page`
 
@@ -1360,8 +1351,7 @@ Delete a landing page from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the landing page was successfully deleted |
 
 ### `mailchimp_publish_landing_page`
 
@@ -1415,8 +1405,8 @@ Retrieve a list of batch operations from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Batch operations data and metadata |
+| `success` | boolean | Whether the batch operations were successfully retrieved |
+| `output` | object | Batch operations data |
 
 ### `mailchimp_get_batch_operation`
 
@@ -1433,8 +1423,8 @@ Retrieve details of a specific batch operation from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Batch operation data and metadata |
+| `success` | boolean | Whether the batch operation was successfully retrieved |
+| `output` | object | Batch operation data |
 
 ### `mailchimp_create_batch_operation`
 
@@ -1469,8 +1459,7 @@ Delete a batch operation from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the batch operation was successfully deleted |
 
 
 

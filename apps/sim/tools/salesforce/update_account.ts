@@ -206,9 +206,6 @@ export const salesforceUpdateAccountTool: ToolConfig<
       output: {
         id: params?.accountId || '',
         updated: true,
-        metadata: {
-          operation: 'update_account' as const,
-        },
       },
     }
   },
@@ -221,7 +218,6 @@ export const salesforceUpdateAccountTool: ToolConfig<
       properties: {
         id: { type: 'string', description: 'Updated account ID' },
         updated: { type: 'boolean', description: 'Whether account was updated' },
-        metadata: { type: 'object', description: 'Operation metadata' },
       },
     },
   },

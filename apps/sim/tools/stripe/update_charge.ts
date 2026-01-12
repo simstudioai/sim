@@ -81,6 +81,13 @@ export const stripeUpdateChargeTool: ToolConfig<UpdateChargeParams, ChargeRespon
     metadata: {
       type: 'json',
       description: 'Charge metadata including ID, status, amount, currency, and paid status',
+      properties: {
+        id: { type: 'string', description: 'Stripe unique identifier' },
+        status: { type: 'string', description: 'Current state of the resource' },
+        amount: { type: 'number', description: 'Amount in smallest currency unit (e.g., cents)' },
+        currency: { type: 'string', description: 'Three-letter ISO currency code (lowercase)' },
+        paid: { type: 'boolean', description: 'Whether payment has been received' },
+      },
     },
   },
 }

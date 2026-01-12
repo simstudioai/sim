@@ -87,3 +87,28 @@ export const deleteBranchTool: ToolConfig<DeleteBranchParams, DeleteBranchRespon
     },
   },
 }
+
+export const deleteBranchV2Tool: ToolConfig<DeleteBranchParams, any> = {
+  id: 'github_delete_branch_v2',
+  name: deleteBranchTool.name,
+  description: deleteBranchTool.description,
+  version: '2.0.0',
+  params: deleteBranchTool.params,
+  request: deleteBranchTool.request,
+
+  transformResponse: async (response: Response, params) => {
+    // DELETE returns 204 No Content on success
+    return {
+      success: true,
+      output: {
+        deleted: response.status === 204,
+        branch: params?.branch || '',
+      },
+    }
+  },
+
+  outputs: {
+    deleted: { type: 'boolean', description: 'Whether the branch was deleted' },
+    branch: { type: 'string', description: 'Name of the deleted branch' },
+  },
+}

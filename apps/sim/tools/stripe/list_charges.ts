@@ -75,6 +75,10 @@ export const stripeListChargesTool: ToolConfig<ListChargesParams, ChargeListResp
     metadata: {
       type: 'json',
       description: 'List metadata including count and has_more',
+      properties: {
+        count: { type: 'number', description: 'Number of items returned' },
+        has_more: { type: 'boolean', description: 'Whether more items exist beyond this page' },
+      },
     },
   },
 }
