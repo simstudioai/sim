@@ -23,6 +23,7 @@ export function PaneContextMenu({
   onPaste,
   onAddBlock,
   onAutoLayout,
+  onFitToView,
   onOpenLogs,
   onToggleVariables,
   onToggleChat,
@@ -114,6 +115,14 @@ export function PaneContextMenu({
         >
           <span>Auto-layout</span>
           <span className='ml-auto opacity-70 group-hover:opacity-100'>⇧L</span>
+        </PopoverItem>
+        <PopoverItem
+          onClick={() => {
+            onFitToView()
+            onClose()
+          }}
+        >
+          Fit to View
         </PopoverItem>
 
         {/* View actions */}

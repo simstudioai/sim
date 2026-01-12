@@ -76,6 +76,7 @@ export interface PaneContextMenuProps {
   onPaste: () => void
   onAddBlock: () => void
   onAutoLayout: () => void
+  onFitToView: () => void
   onOpenLogs: () => void
   onToggleVariables: () => void
   onToggleChat: () => void
