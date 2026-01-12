@@ -16,7 +16,7 @@ import {
   Switch,
   Tooltip,
 } from '@/components/emcn'
-import { McpIcon } from '@/components/icons'
+import { McpIcon, WorkflowIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import {
   getIssueBadgeLabel,
@@ -933,6 +933,13 @@ export function ToolInput({
   const forceRefreshMcpTools = useForceRefreshMcpTools()
   const openSettingsModal = useSettingsModalStore((state) => state.openModal)
   const mcpDataLoading = mcpLoading || mcpServersLoading
+
+  // Fetch workflows for the Workflows section in the dropdown
+  const { data: workflowsList = [] } = useWorkflows(workspaceId, { syncRegistry: false })
+  const availableWorkflows = useMemo(
+    () => workflowsList.filter((w) => w.id !== workflowId),
+    [workflowsList, workflowId]
+  )
   const hasRefreshedRef = useRef(false)
 
   const hasMcpTools = selectedTools.some((tool) => tool.type === 'mcp')
@@ -1735,6 +1742,36 @@ export function ToolInput({
       })
     }
 
+    // Workflows section - shows available workflows that can be executed as tools
+    if (availableWorkflows.length > 0) {
+      groups.push({
+        section: 'Workflows',
+        items: availableWorkflows.map((workflow) => ({
+          label: workflow.name,
+          value: `workflow-${workflow.id}`,
+          iconElement: createToolIcon('#6366F1', WorkflowIcon),
+          onSelect: () => {
+            const newTool: StoredTool = {
+              type: 'workflow',
+              title: 'Workflow',
+              toolId: 'workflow_executor',
+              params: {
+                workflowId: workflow.id,
+              },
+              isExpanded: true,
+              usageControl: 'auto',
+            }
+            setStoreValue([
+              ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
+              newTool,
+            ])
+            setOpen(false)
+          },
+          disabled: isPreview || disabled,
+        })),
+      })
+    }
+
     return groups
   }, [
     customTools,
@@ -1749,6 +1786,7 @@ export function ToolInput({
     handleSelectTool,
     permissionConfig.disableCustomTools,
     permissionConfig.disableMcpTools,
+    availableWorkflows,
   ])
 
   const toolRequiresOAuth = (toolId: string): boolean => {

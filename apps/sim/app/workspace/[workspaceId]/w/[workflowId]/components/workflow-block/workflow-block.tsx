@@ -1021,11 +1021,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                   <Tooltip.Trigger asChild>
                     <Badge
                       variant={!childIsDeployed ? 'red' : 'amber'}
-                      className='cursor-pointer'
+                      className={userPermissions.canAdmin ? 'cursor-pointer' : 'cursor-not-allowed'}
                       dot
                       onClick={(e) => {
                         e.stopPropagation()
-                        if (childWorkflowId && !isDeploying) {
+                        if (childWorkflowId && !isDeploying && userPermissions.canAdmin) {
                           deployWorkflow(childWorkflowId)
                         }
                       }}
@@ -1035,7 +1035,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                   </Tooltip.Trigger>
                   <Tooltip.Content>
                     <span className='text-sm'>
-                      {!childIsDeployed ? 'Click to deploy' : 'Click to redeploy'}
+                      {!userPermissions.canAdmin
+                        ? 'Admin permission required to deploy'
+                        : !childIsDeployed
+                          ? 'Click to deploy'
+                          : 'Click to redeploy'}
                     </span>
                   </Tooltip.Content>
                 </Tooltip.Root>
