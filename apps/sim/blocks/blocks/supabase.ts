@@ -34,6 +34,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
         { label: 'Full-Text Search', id: 'text_search' },
         { label: 'Vector Search', id: 'vector_search' },
         { label: 'Call RPC Function', id: 'rpc' },
+        { label: 'Introspect Schema', id: 'introspect' },
         // Storage - File Operations
         { label: 'Storage: Upload File', id: 'storage_upload' },
         { label: 'Storage: Download File', id: 'storage_download' },
@@ -490,6 +491,14 @@ Return ONLY the order by expression - no explanations, no extra text.`,
       placeholder: '{\n  "param1": "value1",\n  "param2": "value2"\n}',
       condition: { field: 'operation', value: 'rpc' },
     },
+    // Introspect operation fields
+    {
+      id: 'schema',
+      title: 'Schema',
+      type: 'short-input',
+      placeholder: 'public (leave empty for all user schemas)',
+      condition: { field: 'operation', value: 'introspect' },
+    },
     // Text Search operation fields
     {
       id: 'column',
@@ -876,6 +885,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       'supabase_text_search',
       'supabase_vector_search',
       'supabase_rpc',
+      'supabase_introspect',
       'supabase_storage_upload',
       'supabase_storage_download',
       'supabase_storage_list',
@@ -911,6 +921,8 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
             return 'supabase_vector_search'
           case 'rpc':
             return 'supabase_rpc'
+          case 'introspect':
+            return 'supabase_introspect'
           case 'storage_upload':
             return 'supabase_storage_upload'
           case 'storage_download':
@@ -1085,7 +1097,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     operation: { type: 'string', description: 'Operation to perform' },
     projectId: { type: 'string', description: 'Supabase project identifier' },
     table: { type: 'string', description: 'Database table name' },
-    schema: { type: 'string', description: 'Database schema (default: public)' },
     select: { type: 'string', description: 'Columns to return (comma-separated, defaults to *)' },
     apiKey: { type: 'string', description: 'Service role secret key' },
     // Data for insert/update operations
@@ -1113,6 +1124,8 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     language: { type: 'string', description: 'Language for text search' },
     // Count operation inputs
     countType: { type: 'string', description: 'Count type: exact, planned, or estimated' },
+    // Introspect operation inputs
+    schema: { type: 'string', description: 'Database schema to introspect (e.g., public)' },
     // Storage operation inputs
     bucket: { type: 'string', description: 'Storage bucket name' },
     path: { type: 'string', description: 'File or folder path in storage' },
@@ -1157,6 +1170,14 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     signedUrl: {
       type: 'string',
       description: 'Temporary signed URL for storage file',
+    },
+    tables: {
+      type: 'json',
+      description: 'Array of table schemas for introspect operation',
+    },
+    schemas: {
+      type: 'json',
+      description: 'Array of schema names found in the database',
     },
   },
 }

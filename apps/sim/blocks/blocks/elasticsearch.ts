@@ -33,6 +33,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
         { label: 'Create Index', id: 'elasticsearch_create_index' },
         { label: 'Delete Index', id: 'elasticsearch_delete_index' },
         { label: 'Get Index Info', id: 'elasticsearch_get_index' },
+        { label: 'List Indices', id: 'elasticsearch_list_indices' },
         // Cluster Operations
         { label: 'Cluster Health', id: 'elasticsearch_cluster_health' },
         { label: 'Cluster Stats', id: 'elasticsearch_cluster_stats' },
@@ -452,6 +453,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       'elasticsearch_get_index',
       'elasticsearch_cluster_health',
       'elasticsearch_cluster_stats',
+      'elasticsearch_list_indices',
     ],
     config: {
       tool: (params) => {

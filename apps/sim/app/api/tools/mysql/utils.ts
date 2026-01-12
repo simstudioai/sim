@@ -166,3 +166,146 @@ function sanitizeSingleIdentifier(identifier: string): string {
 
   return `\`${cleaned}\``
 }
+
+export interface MySQLIntrospectionResult {
+  tables: Array<{
+    name: string
+    database: string
+    columns: Array<{
+      name: string
+      type: string
+      nullable: boolean
+      default: string | null
+      isPrimaryKey: boolean
+      isForeignKey: boolean
+      autoIncrement: boolean
+      references?: {
+        table: string
+        column: string
+      }
+    }>
+    primaryKey: string[]
+    foreignKeys: Array<{
+      column: string
+      referencesTable: string
+      referencesColumn: string
+    }>
+    indexes: Array<{
+      name: string
+      columns: string[]
+      unique: boolean
+    }>
+  }>
+  databases: string[]
+}
+
+export async function executeIntrospect(
+  connection: mysql.Connection,
+  databaseName: string
+): Promise<MySQLIntrospectionResult> {
+  const [databasesRows] = await connection.execute<mysql.RowDataPacket[]>(
+    `SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA
+     WHERE SCHEMA_NAME NOT IN ('mysql', 'information_schema', 'performance_schema', 'sys')
+     ORDER BY SCHEMA_NAME`
+  )
+  const databases = databasesRows.map((row) => row.SCHEMA_NAME)
+
+  const [tablesRows] = await connection.execute<mysql.RowDataPacket[]>(
+    `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+     WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'
+     ORDER BY TABLE_NAME`,
+    [databaseName]
+  )
+
+  const tables = []
+
+  for (const tableRow of tablesRows) {
+    const tableName = tableRow.TABLE_NAME
+
+    const [columnsRows] = await connection.execute<mysql.RowDataPacket[]>(
+      `SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+       ORDER BY ORDINAL_POSITION`,
+      [databaseName, tableName]
+    )
+
+    const [pkRows] = await connection.execute<mysql.RowDataPacket[]>(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = 'PRIMARY'
+       ORDER BY ORDINAL_POSITION`,
+      [databaseName, tableName]
+    )
+    const primaryKeyColumns = pkRows.map((row) => row.COLUMN_NAME)
+
+    const [fkRows] = await connection.execute<mysql.RowDataPacket[]>(
+      `SELECT kcu.COLUMN_NAME, kcu.REFERENCED_TABLE_NAME, kcu.REFERENCED_COLUMN_NAME
+       FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+       WHERE kcu.TABLE_SCHEMA = ? AND kcu.TABLE_NAME = ? AND kcu.REFERENCED_TABLE_NAME IS NOT NULL`,
+      [databaseName, tableName]
+    )
+
+    const foreignKeys = fkRows.map((row) => ({
+      column: row.COLUMN_NAME,
+      referencesTable: row.REFERENCED_TABLE_NAME,
+      referencesColumn: row.REFERENCED_COLUMN_NAME,
+    }))
+
+    const fkColumnSet = new Set(foreignKeys.map((fk) => fk.column))
+
+    const [indexRows] = await connection.execute<mysql.RowDataPacket[]>(
+      `SELECT INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX, NON_UNIQUE
+       FROM INFORMATION_SCHEMA.STATISTICS
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME != 'PRIMARY'
+       ORDER BY INDEX_NAME, SEQ_IN_INDEX`,
+      [databaseName, tableName]
+    )
+
+    const indexMap = new Map<string, { name: string; columns: string[]; unique: boolean }>()
+    for (const row of indexRows) {
+      const indexName = row.INDEX_NAME
+      if (!indexMap.has(indexName)) {
+        indexMap.set(indexName, {
+          name: indexName,
+          columns: [],
+          unique: row.NON_UNIQUE === 0,
+        })
+      }
+      indexMap.get(indexName)!.columns.push(row.COLUMN_NAME)
+    }
+    const indexes = Array.from(indexMap.values())
+
+    const columns = columnsRows.map((col) => {
+      const columnName = col.COLUMN_NAME
+      const fk = foreignKeys.find((f) => f.column === columnName)
+      const isAutoIncrement = col.EXTRA?.toLowerCase().includes('auto_increment') || false
+
+      return {
+        name: columnName,
+        type: col.COLUMN_TYPE || col.DATA_TYPE,
+        nullable: col.IS_NULLABLE === 'YES',
+        default: col.COLUMN_DEFAULT,
+        isPrimaryKey: primaryKeyColumns.includes(columnName),
+        isForeignKey: fkColumnSet.has(columnName),
+        autoIncrement: isAutoIncrement,
+        ...(fk && {
+          references: {
+            table: fk.referencesTable,
+            column: fk.referencesColumn,
+          },
+        }),
+      }
+    })
+
+    tables.push({
+      name: tableName,
+      database: databaseName,
+      columns,
+      primaryKey: primaryKeyColumns,
+      foreignKeys,
+      indexes,
+    })
+  }
+
+  return { tables, databases }
+}
