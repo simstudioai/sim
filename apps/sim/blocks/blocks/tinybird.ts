@@ -52,7 +52,7 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
     {
       id: 'data',
       title: 'Data',
-      type: 'long-input',
+      type: 'code',
       placeholder:
         '{"event": "click", "timestamp": "2024-01-01T12:00:00Z"}\n{"event": "view", "timestamp": "2024-01-01T12:00:01Z"}',
       condition: { field: 'operation', value: 'tinybird_events' },
@@ -96,7 +96,7 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
     {
       id: 'query',
       title: 'SQL Query',
-      type: 'long-input',
+      type: 'code',
       placeholder: 'SELECT * FROM my_pipe FORMAT JSON\nOR\nSELECT * FROM my_pipe FORMAT CSV',
       condition: { field: 'operation', value: 'tinybird_query' },
       required: true,
