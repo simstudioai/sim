@@ -215,10 +215,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       workflowStateOverride,
     } = validation.data
 
-    // For API key auth, the entire body is the input (except for our control fields)
+    // For API key and internal JWT auth, the entire body is the input (except for our control fields)
     // For session auth, the input is explicitly provided in the input field
     const input =
-      auth.authType === 'api_key'
+      auth.authType === 'api_key' || auth.authType === 'internal_jwt'
         ? (() => {
             const {
               selectedOutputs,
@@ -226,6 +226,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               stream,
               useDraftState,
               workflowStateOverride,
+              workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
               ...rest
             } = body
             return Object.keys(rest).length > 0 ? rest : validatedInput

@@ -4,7 +4,7 @@
  * App-specific utilities. SDK handles protocol-level operations.
  */
 
-import type { Message, Part, Task, TaskState, TextPart } from '@a2a-js/sdk'
+import type { DataPart, FilePart, Message, Part, Task, TaskState, TextPart } from '@a2a-js/sdk'
 import { A2A_TERMINAL_STATES } from './constants'
 
 /**
@@ -22,6 +22,110 @@ export function extractTextContent(message: Message): string {
     .filter((part): part is TextPart => part.kind === 'text')
     .map((part) => part.text)
     .join('\n')
+}
+
+/**
+ * Extract structured data from DataParts in a message
+ * Later parts override earlier ones if keys conflict
+ */
+export function extractDataContent(message: Message): Record<string, unknown> {
+  const dataParts = message.parts.filter((part): part is DataPart => part.kind === 'data')
+  return dataParts.reduce((acc, part) => ({ ...acc, ...part.data }), {})
+}
+
+/**
+ * A2A file extracted from FilePart
+ */
+export interface A2AFile {
+  name?: string
+  mimeType?: string
+  uri?: string
+  bytes?: string
+}
+
+/**
+ * Extract files from FileParts in a message
+ */
+export function extractFileContent(message: Message): A2AFile[] {
+  return message.parts
+    .filter((part): part is FilePart => part.kind === 'file')
+    .map((part) => ({
+      name: part.file.name,
+      mimeType: part.file.mimeType,
+      ...('uri' in part.file ? { uri: part.file.uri } : {}),
+      ...('bytes' in part.file ? { bytes: part.file.bytes } : {}),
+    }))
+}
+
+/**
+ * File format expected by workflow execute endpoint for processing
+ */
+export interface ExecutionFileInput {
+  type: 'file' | 'url'
+  data: string
+  name: string
+  mime?: string
+}
+
+/**
+ * Convert A2A FileParts to execution file format
+ * This format is then processed by processInputFileFields in the execute endpoint
+ * FileWithUri → type 'url', FileWithBytes → type 'file' with data URL
+ * Files without uri or bytes are filtered out as invalid
+ */
+export function convertFilesToExecutionFormat(files: A2AFile[]): ExecutionFileInput[] {
+  return files
+    .filter((file) => file.uri || file.bytes) // Skip invalid files without content
+    .map((file) => {
+      if (file.uri) {
+        return {
+          type: 'url' as const,
+          data: file.uri,
+          name: file.name || 'file',
+          mime: file.mimeType,
+        }
+      }
+      // FileWithBytes - create data URL format (bytes guaranteed by filter)
+      const dataUrl = `data:${file.mimeType || 'application/octet-stream'};base64,${file.bytes}`
+      return {
+        type: 'file' as const,
+        data: dataUrl,
+        name: file.name || 'file',
+        mime: file.mimeType,
+      }
+    })
+}
+
+/**
+ * Workflow input format extracted from A2A message parts
+ */
+export interface WorkflowInput {
+  input: string
+  data?: Record<string, unknown>
+  files?: ExecutionFileInput[]
+}
+
+/**
+ * Extract workflow input from an A2A message
+ * Returns null if message has no content (empty parts)
+ */
+export function extractWorkflowInput(message: Message): WorkflowInput | null {
+  const messageText = extractTextContent(message)
+  const dataContent = extractDataContent(message)
+  const fileContent = extractFileContent(message)
+  const files = convertFilesToExecutionFormat(fileContent)
+  const hasData = Object.keys(dataContent).length > 0
+
+  // Return null if no content
+  if (!messageText && !hasData && files.length === 0) {
+    return null
+  }
+
+  return {
+    input: messageText,
+    ...(hasData ? { data: dataContent } : {}),
+    ...(files.length > 0 ? { files } : {}),
+  }
 }
 
 /**

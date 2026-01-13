@@ -53,6 +53,8 @@ const tagVariants = cva(
     variants: {
       variant: {
         default: 'bg-[#bfdbfe] text-[#1d4ed8] dark:bg-[rgba(59,130,246,0.2)] dark:text-[#93c5fd]',
+        secondary:
+          'border border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
         invalid:
           'bg-[#fecaca] text-[var(--text-error)] dark:bg-[#551a1a] dark:text-[var(--text-error)]',
       },
@@ -102,7 +104,9 @@ const Tag = React.memo(function Tag({
             'flex-shrink-0 opacity-80 transition-opacity hover:opacity-100 focus:outline-none',
             variant === 'invalid'
               ? 'text-[var(--text-error)]'
-              : 'text-[#1d4ed8] dark:text-[#93c5fd]'
+              : variant === 'secondary'
+                ? 'text-[var(--text-tertiary)]'
+                : 'text-[#1d4ed8] dark:text-[#93c5fd]'
           )}
           aria-label={`Remove ${value}`}
         >
@@ -192,6 +196,8 @@ export interface TagInputProps extends VariantProps<typeof tagInputVariants> {
   renderTagSuffix?: (value: string, index: number) => React.ReactNode
   /** Options for enabling file input (drag/drop and file picker) */
   fileInputOptions?: FileInputOptions
+  /** Variant for valid tags (defaults to 'default') */
+  tagVariant?: 'default' | 'secondary'
 }
 
 /**
@@ -222,6 +228,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
       triggerKeys = ['Enter', ',', ' '],
       renderTagSuffix,
       fileInputOptions,
+      tagVariant = 'default',
       variant,
     },
     ref
@@ -399,7 +406,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           <Tag
             key={`item-${index}`}
             value={item.value}
-            variant={item.isValid ? 'default' : 'invalid'}
+            variant={item.isValid ? tagVariant : 'invalid'}
             onRemove={() => onRemove(item.value, index, item.isValid)}
             disabled={disabled}
             suffix={item.isValid ? renderTagSuffix?.(item.value, index) : undefined}
@@ -409,7 +416,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           className={cn(
             'flex items-center',
             inputValue.trim() &&
-              cn(tagVariants({ variant: 'default' }), 'gap-0 py-0 pr-0 pl-[4px] opacity-80')
+              cn(tagVariants({ variant: tagVariant }), 'gap-0 py-0 pr-0 pl-[4px] opacity-80')
           )}
         >
           <div className='relative inline-flex'>

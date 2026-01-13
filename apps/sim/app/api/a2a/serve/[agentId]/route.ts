@@ -1,10 +1,3 @@
-/**
- * A2A Serve Endpoint (v0.3)
- *
- * Implements A2A protocol v0.3 for workflow agents using the SDK server components.
- * Handles JSON-RPC 2.0 requests for message sending, task management, and push notifications.
- */
-
 import type { Artifact, Message, PushNotificationConfig, Task, TaskState } from '@a2a-js/sdk'
 import { db } from '@sim/db'
 import { a2aAgent, a2aPushNotificationConfig, a2aTask, workflow } from '@sim/db/schema'
@@ -14,8 +7,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { A2A_DEFAULT_TIMEOUT } from '@/lib/a2a/constants'
 import { notifyTaskStateChange } from '@/lib/a2a/push-notifications'
-import { createAgentMessage, extractTextContent, isTerminalState } from '@/lib/a2a/utils'
+import { createAgentMessage, extractWorkflowInput, isTerminalState } from '@/lib/a2a/utils'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { generateInternalToken } from '@/lib/auth/internal'
+import { getBrandConfig } from '@/lib/branding/branding'
 import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -32,7 +27,7 @@ import {
   type MessageSendParams,
   type PushNotificationSetParams,
   type TaskIdParams,
-} from './utils'
+} from '@/app/api/a2a/serve/[agentId]/utils'
 
 const logger = createLogger('A2AServeAPI')
 
@@ -94,22 +89,41 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
     }
 
     const baseUrl = getBaseUrl()
+    const brandConfig = getBrandConfig()
+
+    const authConfig = agent.authentication as { schemes?: string[] } | undefined
+    const schemes = authConfig?.schemes || []
+    const isPublic = schemes.includes('none')
 
     const agentCard = {
+      protocolVersion: '0.3.0',
       name: agent.name,
-      description: agent.description,
+      description: agent.description || '',
       url: `${baseUrl}/api/a2a/serve/${agent.id}`,
       version: agent.version,
+      preferredTransport: 'JSONRPC',
       documentationUrl: `${baseUrl}/docs/a2a`,
       provider: {
-        organization: 'Sim Studio',
+        organization: brandConfig.name,
         url: baseUrl,
       },
       capabilities: agent.capabilities,
-      skills: agent.skills,
-      authentication: agent.authentication,
-      defaultInputModes: ['text'],
-      defaultOutputModes: ['text'],
+      skills: agent.skills || [],
+      ...(isPublic
+        ? {}
+        : {
+            securitySchemes: {
+              apiKey: {
+                type: 'apiKey' as const,
+                name: 'X-API-Key',
+                in: 'header' as const,
+                description: 'API key authentication',
+              },
+            },
+            security: [{ apiKey: [] }],
+          }),
+      defaultInputModes: ['text/plain', 'application/json'],
+      defaultOutputModes: ['text/plain', 'application/json'],
     }
 
     if (redis) {
@@ -148,6 +162,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
         workspaceId: a2aAgent.workspaceId,
         isPublished: a2aAgent.isPublished,
         capabilities: a2aAgent.capabilities,
+        authentication: a2aAgent.authentication,
       })
       .from(a2aAgent)
       .where(eq(a2aAgent.id, agentId))
@@ -167,12 +182,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
       )
     }
 
-    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
-    if (!auth.success || !auth.userId) {
-      return NextResponse.json(
-        createError(null, A2A_ERROR_CODES.AUTHENTICATION_REQUIRED, 'Unauthorized'),
-        { status: 401 }
-      )
+    const authSchemes = (agent.authentication as { schemes?: string[] })?.schemes || []
+    const requiresAuth = !authSchemes.includes('none')
+
+    if (requiresAuth) {
+      const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+      if (!auth.success || !auth.userId) {
+        return NextResponse.json(
+          createError(null, A2A_ERROR_CODES.AUTHENTICATION_REQUIRED, 'Unauthorized'),
+          { status: 401 }
+        )
+      }
     }
 
     const [wf] = await db
@@ -266,7 +286,7 @@ async function handleMessageSend(
 
   const message = params.message
   const taskId = message.taskId || generateTaskId()
-  const contextId = message.contextId || uuidv4() // Generate contextId if not provided
+  const contextId = message.contextId || uuidv4()
 
   const lockKey = `a2a:task:${taskId}:lock`
   const lockValue = uuidv4()
@@ -328,19 +348,38 @@ async function handleMessageSend(
 
     const executeUrl = `${getBaseUrl()}/api/workflows/${agent.workflowId}/execute`
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (apiKey) headers['X-API-Key'] = apiKey
+    let useInternalAuth = false
+    if (apiKey) {
+      headers['X-API-Key'] = apiKey
+    } else {
+      const internalToken = await generateInternalToken()
+      headers.Authorization = `Bearer ${internalToken}`
+      useInternalAuth = true
+    }
 
     logger.info(`Executing workflow ${agent.workflowId} for A2A task ${taskId}`)
 
     try {
-      const messageText = extractTextContent(message)
+      // Extract workflow input from A2A message parts
+      const workflowInput = extractWorkflowInput(message)
+      if (!workflowInput) {
+        return NextResponse.json(
+          createError(
+            id,
+            A2A_ERROR_CODES.INVALID_PARAMS,
+            'Message must contain at least one part with content'
+          ),
+          { status: 400 }
+        )
+      }
 
       const response = await fetch(executeUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          input: messageText,
+          ...workflowInput,
           triggerType: 'api',
+          ...(useInternalAuth && { workflowId: agent.workflowId }),
         }),
         signal: AbortSignal.timeout(A2A_DEFAULT_TIMEOUT),
       })
@@ -440,7 +479,27 @@ async function handleMessageStream(
   }
 
   const message = params.message
-  const contextId = message.contextId || uuidv4() // Generate contextId if not provided
+  const contextId = message.contextId || uuidv4()
+  const taskId = message.taskId || generateTaskId()
+
+  const lockKey = `a2a:task:${taskId}:lock`
+  const lockValue = uuidv4()
+  const acquired = await acquireLock(lockKey, lockValue, 300) // 5 minute timeout for streaming
+
+  if (!acquired) {
+    const encoder = new TextEncoder()
+    const errorStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode(
+            `event: error\ndata: ${JSON.stringify({ code: A2A_ERROR_CODES.INTERNAL_ERROR, message: 'Task is currently being processed' })}\n\n`
+          )
+        )
+        controller.close()
+      },
+    })
+    return new NextResponse(errorStream, { headers: SSE_HEADERS })
+  }
 
   let history: Message[] = []
   let existingTask: typeof a2aTask.$inferSelect | null = null
@@ -450,12 +509,14 @@ async function handleMessageStream(
     existingTask = found || null
 
     if (!existingTask) {
+      await releaseLock(lockKey, lockValue)
       return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
         status: 404,
       })
     }
 
     if (isTerminalState(existingTask.status as TaskState)) {
+      await releaseLock(lockKey, lockValue)
       return NextResponse.json(
         createError(id, A2A_ERROR_CODES.TASK_ALREADY_COMPLETE, 'Task already in terminal state'),
         { status: 400 }
@@ -465,7 +526,6 @@ async function handleMessageStream(
     history = existingTask.messages as Message[]
   }
 
-  const taskId = message.taskId || generateTaskId()
   history.push(message)
 
   if (existingTask) {
@@ -515,17 +575,35 @@ async function handleMessageStream(
           'Content-Type': 'application/json',
           'X-Stream-Response': 'true',
         }
-        if (apiKey) headers['X-API-Key'] = apiKey
+        let useInternalAuth = false
+        if (apiKey) {
+          headers['X-API-Key'] = apiKey
+        } else {
+          const internalToken = await generateInternalToken()
+          headers.Authorization = `Bearer ${internalToken}`
+          useInternalAuth = true
+        }
 
-        const messageText = extractTextContent(message)
+        // Extract workflow input from A2A message parts
+        const workflowInput = extractWorkflowInput(message)
+        if (!workflowInput) {
+          sendEvent('error', {
+            code: A2A_ERROR_CODES.INVALID_PARAMS,
+            message: 'Message must contain at least one part with content',
+          })
+          await releaseLock(lockKey, lockValue)
+          controller.close()
+          return
+        }
 
         const response = await fetch(executeUrl, {
           method: 'POST',
           headers,
           body: JSON.stringify({
-            input: messageText,
+            ...workflowInput,
             triggerType: 'api',
             stream: true,
+            ...(useInternalAuth && { workflowId: agent.workflowId }),
           }),
           signal: AbortSignal.timeout(A2A_DEFAULT_TIMEOUT),
         })
@@ -663,6 +741,7 @@ async function handleMessageStream(
           message: error instanceof Error ? error.message : 'Streaming failed',
         })
       } finally {
+        await releaseLock(lockKey, lockValue)
         controller.close()
       }
     },
@@ -788,7 +867,7 @@ async function handleTaskCancel(id: string | number, params: TaskIdParams): Prom
  * Handle tasks/resubscribe - Reconnect to SSE stream for an ongoing task
  */
 async function handleTaskResubscribe(
-  request: NextRequest,
+  _request: NextRequest,
   id: string | number,
   params: TaskIdParams
 ): Promise<NextResponse> {

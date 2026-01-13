@@ -93,7 +93,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { workspaceId, workflowId, name, description, capabilities, authentication } = body
+    const { workspaceId, workflowId, name, description, capabilities, authentication, skillTags } =
+      body
 
     if (!workspaceId || !workflowId) {
       return NextResponse.json(
@@ -142,7 +143,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const skills = generateSkillsFromWorkflow(name || wf.name, description || wf.description)
+    const skills = generateSkillsFromWorkflow(
+      name || wf.name,
+      description || wf.description,
+      skillTags
+    )
 
     const agentId = uuidv4()
     const agentName = name || sanitizeAgentName(wf.name)

@@ -1,16 +1,9 @@
 'use client'
 
 import type React from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, RepeatIcon, SplitIcon } from 'lucide-react'
-import {
-  Badge,
-  Popover,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
-  PopoverTrigger,
-} from '@/components/emcn'
+import { useMemo } from 'react'
+import { RepeatIcon, SplitIcon } from 'lucide-react'
+import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
 import {
   extractFieldsFromSchema,
   parseResponseFormatSafely,
@@ -21,7 +14,7 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
- * Renders a tag icon with background color.
+ * Renders a tag icon with background color for block section headers.
  *
  * @param icon - Either a letter string or a Lucide icon component
  * @param color - Background color for the icon container
@@ -62,14 +55,9 @@ interface OutputSelectProps {
   placeholder?: string
   /** Whether to emit output IDs or labels in onOutputSelect callback */
   valueMode?: 'id' | 'label'
-  /**
-   * When true, renders the underlying popover content inline instead of in a portal.
-   * Useful when used inside dialogs or other portalled components that manage scroll locking.
-   */
-  disablePopoverPortal?: boolean
-  /** Alignment of the popover relative to the trigger */
+  /** Alignment of the dropdown relative to the trigger */
   align?: 'start' | 'end' | 'center'
-  /** Maximum height of the popover content in pixels */
+  /** Maximum height of the dropdown content in pixels */
   maxHeight?: number
 }
 
@@ -90,14 +78,9 @@ export function OutputSelect({
   disabled = false,
   placeholder = 'Select outputs',
   valueMode = 'id',
-  disablePopoverPortal = false,
   align = 'start',
   maxHeight = 200,
 }: OutputSelectProps) {
-  const [open, setOpen] = useState(false)
-  const [highlightedIndex, setHighlightedIndex] = useState(-1)
-  const triggerRef = useRef<HTMLDivElement>(null)
-  const popoverRef = useRef<HTMLDivElement>(null)
   const blocks = useWorkflowStore((state) => state.blocks)
   const { isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore()
   const subBlockValues = useSubBlockStore((state) =>
@@ -207,20 +190,9 @@ export function OutputSelect({
   ])
 
   /**
-   * Checks if an output is currently selected by comparing both ID and label
-   * @param o - The output object to check
-   * @returns True if the output is selected, false otherwise
-   */
-  const isSelectedValue = useCallback(
-    (o: { id: string; label: string }) =>
-      selectedOutputs.includes(o.id) || selectedOutputs.includes(o.label),
-    [selectedOutputs]
-  )
-
-  /**
    * Gets display text for selected outputs
    */
-  const selectedOutputsDisplayText = useMemo(() => {
+  const selectedDisplayText = useMemo(() => {
     if (!selectedOutputs || selectedOutputs.length === 0) {
       return placeholder
     }
@@ -234,19 +206,27 @@ export function OutputSelect({
     }
 
     if (validOutputs.length === 1) {
-      const output = workflowOutputs.find(
-        (o) => o.id === validOutputs[0] || o.label === validOutputs[0]
-      )
-      return output?.label || placeholder
+      return '1 output'
     }
 
     return `${validOutputs.length} outputs`
   }, [selectedOutputs, workflowOutputs, placeholder])
 
   /**
-   * Groups outputs by block and sorts by distance from starter block
+   * Gets the background color for a block output based on its type
+   * @param blockType - The type of the block
+   * @returns The hex color code for the block
    */
-  const groupedOutputs = useMemo(() => {
+  const getOutputColor = (blockType: string) => {
+    const blockConfig = getBlock(blockType)
+    return blockConfig?.bgColor || '#2F55FF'
+  }
+
+  /**
+   * Groups outputs by block and sorts by distance from starter block.
+   * Returns ComboboxOptionGroup[] for use with Combobox.
+   */
+  const comboboxGroups = useMemo((): ComboboxOptionGroup[] => {
     const groups: Record<string, typeof workflowOutputs> = {}
     const blockDistances: Record<string, number> = {}
     const edges = useWorkflowStore.getState().edges
@@ -283,242 +263,75 @@ export function OutputSelect({
       groups[output.blockName].push(output)
     })
 
-    return Object.entries(groups)
+    const sortedGroups = Object.entries(groups)
       .map(([blockName, outputs]) => ({
         blockName,
         outputs,
         distance: blockDistances[outputs[0]?.blockId] || 0,
       }))
       .sort((a, b) => b.distance - a.distance)
-      .reduce(
-        (acc, { blockName, outputs }) => {
-          acc[blockName] = outputs
-          return acc
-        },
-        {} as Record<string, typeof workflowOutputs>
-      )
-  }, [workflowOutputs, blocks])
 
-  /**
-   * Gets the background color for a block output based on its type
-   * @param blockId - The block ID (unused but kept for future extensibility)
-   * @param blockType - The type of the block
-   * @returns The hex color code for the block
-   */
-  const getOutputColor = (blockId: string, blockType: string) => {
-    const blockConfig = getBlock(blockType)
-    return blockConfig?.bgColor || '#2F55FF'
-  }
+    return sortedGroups.map(({ blockName, outputs }) => {
+      const firstOutput = outputs[0]
+      const blockConfig = getBlock(firstOutput.blockType)
+      const blockColor = getOutputColor(firstOutput.blockType)
 
-  /**
-   * Flattened outputs for keyboard navigation
-   */
-  const flattenedOutputs = useMemo(() => {
-    return Object.values(groupedOutputs).flat()
-  }, [groupedOutputs])
+      let blockIcon: string | React.ComponentType<{ className?: string }> = blockName
+        .charAt(0)
+        .toUpperCase()
 
-  /**
-   * Handles output selection by toggling the selected state
-   * @param value - The output label to toggle
-   */
-  const handleOutputSelection = useCallback(
-    (value: string) => {
-      const emittedValue =
-        valueMode === 'label' ? value : workflowOutputs.find((o) => o.label === value)?.id || value
-      const index = selectedOutputs.indexOf(emittedValue)
-
-      const newSelectedOutputs =
-        index === -1
-          ? [...new Set([...selectedOutputs, emittedValue])]
-          : selectedOutputs.filter((id) => id !== emittedValue)
-
-      onOutputSelect(newSelectedOutputs)
-    },
-    [valueMode, workflowOutputs, selectedOutputs, onOutputSelect]
-  )
-
-  /**
-   * Handles keyboard navigation within the output list
-   * Supports ArrowUp, ArrowDown, Enter, and Escape keys
-   */
-  useEffect(() => {
-    if (!open || flattenedOutputs.length === 0) return
-
-    const handleKeyboardEvent = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault()
-          e.stopPropagation()
-          setHighlightedIndex((prev) => {
-            if (prev === -1 || prev >= flattenedOutputs.length - 1) {
-              return 0
-            }
-            return prev + 1
-          })
-          break
-
-        case 'ArrowUp':
-          e.preventDefault()
-          e.stopPropagation()
-          setHighlightedIndex((prev) => {
-            if (prev <= 0) {
-              return flattenedOutputs.length - 1
-            }
-            return prev - 1
-          })
-          break
-
-        case 'Enter':
-          e.preventDefault()
-          e.stopPropagation()
-          setHighlightedIndex((currentIndex) => {
-            if (currentIndex >= 0 && currentIndex < flattenedOutputs.length) {
-              handleOutputSelection(flattenedOutputs[currentIndex].label)
-            }
-            return currentIndex
-          })
-          break
-
-        case 'Escape':
-          e.preventDefault()
-          e.stopPropagation()
-          setOpen(false)
-          break
+      if (blockConfig?.icon) {
+        blockIcon = blockConfig.icon
+      } else if (firstOutput.blockType === 'loop') {
+        blockIcon = RepeatIcon
+      } else if (firstOutput.blockType === 'parallel') {
+        blockIcon = SplitIcon
       }
-    }
 
-    window.addEventListener('keydown', handleKeyboardEvent, true)
-    return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
-  }, [open, flattenedOutputs, handleOutputSelection])
-
-  /**
-   * Reset highlighted index when popover opens/closes
-   */
-  useEffect(() => {
-    if (open) {
-      const firstSelectedIndex = flattenedOutputs.findIndex((output) => isSelectedValue(output))
-      setHighlightedIndex(firstSelectedIndex >= 0 ? firstSelectedIndex : -1)
-    } else {
-      setHighlightedIndex(-1)
-    }
-  }, [open, flattenedOutputs, isSelectedValue])
-
-  /**
-   * Scroll highlighted item into view
-   */
-  useEffect(() => {
-    if (highlightedIndex >= 0 && popoverRef.current) {
-      const highlightedElement = popoverRef.current.querySelector(
-        `[data-option-index="${highlightedIndex}"]`
-      )
-      if (highlightedElement) {
-        highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      return {
+        sectionElement: (
+          <div className='flex items-center gap-1.5 px-[6px] py-[4px]'>
+            <TagIcon icon={blockIcon} color={blockColor} />
+            <span className='font-medium text-[13px]'>{blockName}</span>
+          </div>
+        ),
+        items: outputs.map((output) => ({
+          label: output.path,
+          value: valueMode === 'label' ? output.label : output.id,
+        })),
       }
-    }
-  }, [highlightedIndex])
+    })
+  }, [workflowOutputs, blocks, valueMode])
 
   /**
-   * Closes popover when clicking outside
+   * Normalize selected values to match the valueMode
    */
-  useEffect(() => {
-    if (!open) return
-
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node
-      const insideTrigger = triggerRef.current?.contains(target)
-      const insidePopover = popoverRef.current?.contains(target)
-
-      if (!insideTrigger && !insidePopover) {
-        setOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [open])
+  const normalizedSelectedValues = useMemo(() => {
+    return selectedOutputs
+      .map((val) => {
+        // Find the output that matches either id or label
+        const output = workflowOutputs.find((o) => o.id === val || o.label === val)
+        if (!output) return null
+        // Return in the format matching valueMode
+        return valueMode === 'label' ? output.label : output.id
+      })
+      .filter((v): v is string => v !== null)
+  }, [selectedOutputs, workflowOutputs, valueMode])
 
   return (
-    <Popover open={open} variant='default'>
-      <PopoverTrigger asChild>
-        <div ref={triggerRef} className='min-w-0 max-w-full'>
-          <Badge
-            variant='outline'
-            className='flex-none cursor-pointer whitespace-nowrap rounded-[6px]'
-            title='Select outputs'
-            aria-expanded={open}
-            onMouseDown={(e) => {
-              if (disabled || workflowOutputs.length === 0) return
-              e.stopPropagation()
-              setOpen((prev) => !prev)
-            }}
-          >
-            <span className='whitespace-nowrap text-[12px]'>{selectedOutputsDisplayText}</span>
-          </Badge>
-        </div>
-      </PopoverTrigger>
-      <PopoverContent
-        ref={popoverRef}
-        side='bottom'
-        align={align}
-        sideOffset={4}
-        maxHeight={maxHeight}
-        maxWidth={300}
-        minWidth={160}
-        border
-        disablePortal={disablePopoverPortal}
-      >
-        <div className='space-y-[2px]'>
-          {Object.entries(groupedOutputs).map(([blockName, outputs], groupIndex, groupArray) => {
-            const startIndex = flattenedOutputs.findIndex((o) => o.blockName === blockName)
-
-            const firstOutput = outputs[0]
-            const blockConfig = getBlock(firstOutput.blockType)
-            const blockColor = getOutputColor(firstOutput.blockId, firstOutput.blockType)
-
-            let blockIcon: string | React.ComponentType<{ className?: string }> = blockName
-              .charAt(0)
-              .toUpperCase()
-
-            if (blockConfig?.icon) {
-              blockIcon = blockConfig.icon
-            } else if (firstOutput.blockType === 'loop') {
-              blockIcon = RepeatIcon
-            } else if (firstOutput.blockType === 'parallel') {
-              blockIcon = SplitIcon
-            }
-
-            return (
-              <div key={blockName}>
-                <div className='flex items-center gap-1.5 px-[6px] py-[4px]'>
-                  <TagIcon icon={blockIcon} color={blockColor} />
-                  <span className='font-medium text-[13px]'>{blockName}</span>
-                </div>
-
-                <div className='flex flex-col gap-[2px]'>
-                  {outputs.map((output, localIndex) => {
-                    const globalIndex = startIndex + localIndex
-                    const isHighlighted = globalIndex === highlightedIndex
-
-                    return (
-                      <PopoverItem
-                        key={output.id}
-                        active={isSelectedValue(output) || isHighlighted}
-                        data-option-index={globalIndex}
-                        onClick={() => handleOutputSelection(output.label)}
-                        onMouseEnter={() => setHighlightedIndex(globalIndex)}
-                      >
-                        <span className='min-w-0 flex-1 truncate'>{output.path}</span>
-                        {isSelectedValue(output) && <Check className='h-3 w-3 flex-shrink-0' />}
-                      </PopoverItem>
-                    )
-                  })}
-                </div>
-                {groupIndex < groupArray.length - 1 && <PopoverDivider />}
-              </div>
-            )
-          })}
-        </div>
-      </PopoverContent>
-    </Popover>
+    <Combobox
+      size='sm'
+      className='!w-fit !py-[2px] [&>svg]:!ml-[4px] [&>svg]:!h-3 [&>svg]:!w-3 [&>span]:!text-[var(--text-secondary)] min-w-[100px] rounded-[6px] bg-transparent px-[9px] hover:bg-[var(--surface-5)] dark:hover:border-[var(--surface-6)] dark:hover:bg-transparent [&>span]:text-center'
+      groups={comboboxGroups}
+      options={[]}
+      multiSelect
+      multiSelectValues={normalizedSelectedValues}
+      onMultiSelectChange={onOutputSelect}
+      placeholder={selectedDisplayText}
+      disabled={disabled || workflowOutputs.length === 0}
+      align={align}
+      maxHeight={maxHeight}
+      dropdownWidth={220}
+    />
   )
 }

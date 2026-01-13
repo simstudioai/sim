@@ -103,6 +103,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<Ro
 
     const body = await request.json()
 
+    let skills = body.skills ?? existingAgent.skills
+    if (body.skillTags !== undefined) {
+      const agentName = body.name ?? existingAgent.name
+      const agentDescription = body.description ?? existingAgent.description
+      skills = generateSkillsFromWorkflow(agentName, agentDescription, body.skillTags)
+    }
+
     const [updatedAgent] = await db
       .update(a2aAgent)
       .set({
@@ -110,7 +117,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<Ro
         description: body.description ?? existingAgent.description,
         version: body.version ?? existingAgent.version,
         capabilities: body.capabilities ?? existingAgent.capabilities,
-        skills: body.skills ?? existingAgent.skills,
+        skills,
         authentication: body.authentication ?? existingAgent.authentication,
         isPublished: body.isPublished ?? existingAgent.isPublished,
         publishedAt:

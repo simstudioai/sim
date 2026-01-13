@@ -100,6 +100,8 @@ export function DeployModal({
   const [a2aSubmitting, setA2aSubmitting] = useState(false)
   const [a2aCanSave, setA2aCanSave] = useState(false)
   const [hasA2aAgent, setHasA2aAgent] = useState(false)
+  const [isA2aPublished, setIsA2aPublished] = useState(false)
+  const [a2aNeedsRepublish, setA2aNeedsRepublish] = useState(false)
   const [hasExistingTemplate, setHasExistingTemplate] = useState(false)
   const [templateStatus, setTemplateStatus] = useState<{
     status: 'pending' | 'approved' | 'rejected' | null
@@ -598,10 +600,20 @@ export function DeployModal({
     unpublishTrigger?.click()
   }, [])
 
-  const handleA2aDelete = useCallback(() => {
+  const handleA2aPublishNew = useCallback(() => {
     const form = document.getElementById('a2a-deploy-form')
-    const deleteTrigger = form?.querySelector('[data-a2a-delete-trigger]') as HTMLButtonElement
-    deleteTrigger?.click()
+    const publishNewTrigger = form?.querySelector(
+      '[data-a2a-publish-new-trigger]'
+    ) as HTMLButtonElement
+    publishNewTrigger?.click()
+  }, [])
+
+  const handleA2aUpdateRepublish = useCallback(() => {
+    const form = document.getElementById('a2a-deploy-form')
+    const updateRepublishTrigger = form?.querySelector(
+      '[data-a2a-update-republish-trigger]'
+    ) as HTMLButtonElement
+    updateRepublishTrigger?.click()
   }, [])
 
   const handleTemplateDelete = useCallback(() => {
@@ -735,9 +747,15 @@ export function DeployModal({
                     workflowName={workflowMetadata?.name || 'Workflow'}
                     workflowDescription={workflowMetadata?.description}
                     isDeployed={isDeployed}
+                    workflowDeployedAt={
+                      deploymentInfo?.deployedAt ? new Date(deploymentInfo.deployedAt) : undefined
+                    }
                     onSubmittingChange={setA2aSubmitting}
                     onCanSaveChange={setA2aCanSave}
                     onAgentExistsChange={setHasA2aAgent}
+                    onPublishedChange={setIsA2aPublished}
+                    onNeedsRepublishChange={setA2aNeedsRepublish}
+                    onDeployWorkflow={onDeploy}
                   />
                 )}
               </ModalTabsContent>
@@ -756,19 +774,23 @@ export function DeployModal({
             />
           )}
           {activeTab === 'api' && (
-            <ModalFooter className='items-center justify-end'>
-              <Button
-                variant='tertiary'
-                onClick={() => setIsCreateKeyModalOpen(true)}
-                disabled={createButtonDisabled}
-              >
-                Generate API Key
-              </Button>
+            <ModalFooter className='items-center justify-between'>
+              <div />
+              <div className='flex items-center gap-2'>
+                <Button
+                  variant='tertiary'
+                  onClick={() => setIsCreateKeyModalOpen(true)}
+                  disabled={createButtonDisabled}
+                >
+                  Generate API Key
+                </Button>
+              </div>
             </ModalFooter>
           )}
           {activeTab === 'chat' && (
-            <ModalFooter className='items-center'>
-              <div className='flex gap-2'>
+            <ModalFooter className='items-center justify-between'>
+              <div />
+              <div className='flex items-center gap-2'>
                 {chatExists && (
                   <Button
                     type='button'
@@ -801,8 +823,9 @@ export function DeployModal({
             </ModalFooter>
           )}
           {activeTab === 'mcp' && isDeployed && hasMcpServers && (
-            <ModalFooter className='items-center'>
-              <div className='flex gap-2'>
+            <ModalFooter className='items-center justify-between'>
+              <div />
+              <div className='flex items-center gap-2'>
                 <Button
                   type='button'
                   variant='default'
@@ -822,17 +845,17 @@ export function DeployModal({
             </ModalFooter>
           )}
           {activeTab === 'template' && (
-            <ModalFooter
-              className={`items-center ${hasExistingTemplate && templateStatus ? 'justify-between' : ''}`}
-            >
-              {hasExistingTemplate && templateStatus && (
+            <ModalFooter className='items-center justify-between'>
+              {hasExistingTemplate && templateStatus ? (
                 <TemplateStatusBadge
                   status={templateStatus.status}
                   views={templateStatus.views}
                   stars={templateStatus.stars}
                 />
+              ) : (
+                <div />
               )}
-              <div className='flex gap-2'>
+              <div className='flex items-center gap-2'>
                 {hasExistingTemplate && (
                   <Button
                     type='button'
@@ -861,8 +884,9 @@ export function DeployModal({
             </ModalFooter>
           )}
           {/* {activeTab === 'form' && (
-            <ModalFooter className='items-center'>
-              <div className='flex gap-2'>
+            <ModalFooter className='items-center justify-between'>
+              <div />
+              <div className='flex items-center gap-2'>
                 {formExists && (
                   <Button
                     type='button'
@@ -894,53 +918,68 @@ export function DeployModal({
               </div>
             </ModalFooter>
           )} */}
-          {activeTab === 'a2a' && isDeployed && (
-            <ModalFooter className='items-center'>
-              <div className='flex gap-2'>
-                {hasA2aAgent && (
+          {activeTab === 'a2a' && (
+            <ModalFooter className='items-center justify-between'>
+              {/* Status badge on left */}
+              {hasA2aAgent ? (
+                isA2aPublished ? (
+                  <Badge variant={a2aNeedsRepublish ? 'amber' : 'green'} size='lg' dot>
+                    {a2aNeedsRepublish ? 'Update deployment' : 'Live'}
+                  </Badge>
+                ) : (
+                  <Badge variant='red' size='lg' dot>
+                    Unpublished
+                  </Badge>
+                )
+              ) : (
+                <div />
+              )}
+              <div className='flex items-center gap-2'>
+                {/* No agent exists: Show "Publish Agent" button */}
+                {!hasA2aAgent && (
                   <Button
                     type='button'
-                    variant='destructive'
-                    onClick={handleA2aDelete}
-                    disabled={a2aSubmitting}
+                    variant='tertiary'
+                    onClick={handleA2aPublishNew}
+                    disabled={a2aSubmitting || !a2aCanSave}
                   >
-                    Delete
+                    {a2aSubmitting ? 'Publishing...' : 'Publish Agent'}
                   </Button>
                 )}
-                {hasA2aAgent && (
-                  <Button
-                    type='button'
-                    variant='default'
-                    onClick={handleA2aUnpublish}
-                    disabled={a2aSubmitting}
-                  >
-                    Unpublish
-                  </Button>
+
+                {/* Agent exists and published: Show Unpublish and Update */}
+                {hasA2aAgent && isA2aPublished && (
+                  <>
+                    <Button
+                      type='button'
+                      variant='default'
+                      onClick={handleA2aUnpublish}
+                      disabled={a2aSubmitting}
+                    >
+                      Unpublish
+                    </Button>
+                    <Button
+                      type='button'
+                      variant='tertiary'
+                      onClick={handleA2aUpdateRepublish}
+                      disabled={a2aSubmitting || !a2aCanSave || !a2aNeedsRepublish}
+                    >
+                      {a2aSubmitting ? 'Updating...' : 'Update'}
+                    </Button>
+                  </>
                 )}
-                {hasA2aAgent && (
+
+                {/* Agent exists but unpublished: Show Publish only */}
+                {hasA2aAgent && !isA2aPublished && (
                   <Button
                     type='button'
                     variant='tertiary'
                     onClick={handleA2aPublish}
-                    disabled={a2aSubmitting}
+                    disabled={a2aSubmitting || !a2aCanSave}
                   >
                     {a2aSubmitting ? 'Publishing...' : 'Publish'}
                   </Button>
                 )}
-                <Button
-                  type='button'
-                  variant='tertiary'
-                  onClick={handleA2aFormSubmit}
-                  disabled={a2aSubmitting || !a2aCanSave}
-                >
-                  {a2aSubmitting
-                    ? hasA2aAgent
-                      ? 'Saving...'
-                      : 'Creating...'
-                    : hasA2aAgent
-                      ? 'Save'
-                      : 'Create Agent'}
-                </Button>
               </div>
             </ModalFooter>
           )}
@@ -1043,10 +1082,13 @@ function GeneralFooter({
 }: GeneralFooterProps) {
   if (!isDeployed) {
     return (
-      <ModalFooter>
-        <Button variant='tertiary' onClick={onDeploy} disabled={isSubmitting}>
-          {isSubmitting ? 'Deploying...' : 'Deploy'}
-        </Button>
+      <ModalFooter className='items-center justify-between'>
+        <div />
+        <div className='flex items-center gap-2'>
+          <Button variant='tertiary' onClick={onDeploy} disabled={isSubmitting}>
+            {isSubmitting ? 'Deploying...' : 'Deploy'}
+          </Button>
+        </div>
       </ModalFooter>
     )
   }

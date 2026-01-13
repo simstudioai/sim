@@ -88,13 +88,14 @@ export function generateAgentCard(agent: AgentData, workflow: WorkflowData): App
  */
 export function generateSkillsFromWorkflow(
   workflowName: string,
-  workflowDescription: string | undefined | null
+  workflowDescription: string | undefined | null,
+  tags?: string[]
 ): AgentSkill[] {
   const skill: AgentSkill = {
     id: 'execute',
     name: `Execute ${workflowName}`,
     description: workflowDescription || `Execute the ${workflowName} workflow`,
-    tags: ['workflow', 'automation'],
+    tags: tags?.length ? tags : ['workflow', 'automation'],
   }
 
   return [skill]

@@ -557,7 +557,6 @@ export function McpDeploy({
           searchable
           searchPlaceholder='Search servers...'
           disabled={!toolName.trim() || isPending}
-          isLoading={isPending}
           overlayContent={
             <span className='truncate text-[var(--text-primary)]'>{selectedServersLabel}</span>
           }

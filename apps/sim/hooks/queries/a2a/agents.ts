@@ -116,6 +116,7 @@ export interface CreateA2AAgentParams {
   description?: string
   capabilities?: AgentCapabilities
   authentication?: AgentAuthentication
+  skillTags?: string[]
 }
 
 /**
@@ -163,6 +164,7 @@ export interface UpdateA2AAgentParams {
   skills?: AgentSkill[]
   authentication?: AgentAuthentication
   isPublished?: boolean
+  skillTags?: string[]
 }
 
 /**

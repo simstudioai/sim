@@ -3,21 +3,28 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { Copy, ExternalLink, RefreshCw } from 'lucide-react'
+import { Check, Clipboard } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
+  ButtonGroup,
+  ButtonGroupItem,
   Checkbox,
+  Code,
   Combobox,
   type ComboboxOption,
   Input,
   Label,
+  TagInput,
   Textarea,
+  Tooltip,
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import type { AgentAuthentication, AgentCapabilities } from '@/lib/a2a/types'
-import { getEnv } from '@/lib/core/config/env'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
+import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import {
   a2aAgentKeys,
   useA2AAgentByWorkflow,
@@ -26,29 +33,75 @@ import {
   usePublishA2AAgent,
   useUpdateA2AAgent,
 } from '@/hooks/queries/a2a/agents'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('A2ADeploy')
+
+interface InputFormatField {
+  id?: string
+  name?: string
+  type?: string
+  value?: unknown
+  collapsed?: boolean
+}
+
+/**
+ * Check if a description is a default/placeholder value that should be filtered out
+ */
+function isDefaultDescription(desc: string | null | undefined, workflowName: string): boolean {
+  if (!desc) return true
+  const normalized = desc.toLowerCase().trim()
+  return (
+    normalized === '' || normalized === 'new workflow' || normalized === workflowName.toLowerCase()
+  )
+}
+
+type CodeLanguage = 'curl' | 'python' | 'javascript' | 'typescript'
+
+const LANGUAGE_LABELS: Record<CodeLanguage, string> = {
+  curl: 'cURL',
+  python: 'Python',
+  javascript: 'JavaScript',
+  typescript: 'TypeScript',
+}
+
+const LANGUAGE_SYNTAX: Record<CodeLanguage, 'python' | 'javascript' | 'json'> = {
+  curl: 'javascript',
+  python: 'python',
+  javascript: 'javascript',
+  typescript: 'javascript',
+}
 
 interface A2aDeployProps {
   workflowId: string
   workflowName: string
   workflowDescription?: string | null
   isDeployed: boolean
+  workflowDeployedAt?: Date
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
   onAgentExistsChange?: (exists: boolean) => void
+  onPublishedChange?: (published: boolean) => void
+  onNeedsRepublishChange?: (needsRepublish: boolean) => void
+  onDeployWorkflow?: () => Promise<void>
 }
 
-type AuthScheme = 'none' | 'apiKey' | 'bearer'
+type AuthScheme = 'none' | 'apiKey'
 
 export function A2aDeploy({
   workflowId,
   workflowName,
   workflowDescription,
   isDeployed,
+  workflowDeployedAt,
   onSubmittingChange,
   onCanSaveChange,
   onAgentExistsChange,
+  onPublishedChange,
+  onNeedsRepublishChange,
+  onDeployWorkflow,
 }: A2aDeployProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -61,36 +114,128 @@ export function A2aDeploy({
   const deleteAgent = useDeleteA2AAgent()
   const publishAgent = usePublishA2AAgent()
 
+  // Start block input field detection
+  const blocks = useWorkflowStore((state) => state.blocks)
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
+
+  const startBlockId = useMemo(() => {
+    if (!blocks || Object.keys(blocks).length === 0) return null
+    const candidate = TriggerUtils.findStartBlock(blocks, 'api')
+    if (!candidate || candidate.path !== StartBlockPath.UNIFIED) return null
+    return candidate.blockId
+  }, [blocks])
+
+  const startBlockInputFormat = useSubBlockStore((state) => {
+    if (!workflowId || !startBlockId) return null
+    const workflowValues = state.workflowValues[workflowId]
+    const fromStore = workflowValues?.[startBlockId]?.inputFormat
+    if (fromStore !== undefined) return fromStore
+    const startBlock = blocks[startBlockId]
+    return startBlock?.subBlocks?.inputFormat?.value ?? null
+  })
+
+  const missingFields = useMemo(() => {
+    if (!startBlockId) return { input: false, data: false, files: false, any: false }
+    const normalizedFields = normalizeInputFormatValue(startBlockInputFormat)
+    const existingNames = new Set(
+      normalizedFields
+        .map((field) => field.name)
+        .filter((n): n is string => typeof n === 'string' && n.trim() !== '')
+        .map((n) => n.trim().toLowerCase())
+    )
+    const missing = {
+      input: !existingNames.has('input'),
+      data: !existingNames.has('data'),
+      files: !existingNames.has('files'),
+      any: false,
+    }
+    missing.any = missing.input || missing.data || missing.files
+    return missing
+  }, [startBlockId, startBlockInputFormat])
+
+  const handleAddA2AInputs = useCallback(() => {
+    if (!startBlockId) return
+
+    const normalizedExisting = normalizeInputFormatValue(startBlockInputFormat)
+    const newFields: InputFormatField[] = []
+
+    // Add input field if missing (for TextPart)
+    if (missingFields.input) {
+      newFields.push({
+        id: crypto.randomUUID(),
+        name: 'input',
+        type: 'string',
+        value: '',
+        collapsed: false,
+      })
+    }
+
+    // Add data field if missing (for DataPart)
+    if (missingFields.data) {
+      newFields.push({
+        id: crypto.randomUUID(),
+        name: 'data',
+        type: 'object',
+        value: '',
+        collapsed: false,
+      })
+    }
+
+    // Add files field if missing (for FilePart)
+    if (missingFields.files) {
+      newFields.push({
+        id: crypto.randomUUID(),
+        name: 'files',
+        type: 'files',
+        value: '',
+        collapsed: false,
+      })
+    }
+
+    if (newFields.length > 0) {
+      const updatedFields = [...newFields, ...normalizedExisting]
+      // Use collaborative update to ensure proper socket sync
+      collaborativeSetSubblockValue(startBlockId, 'inputFormat', updatedFields)
+      logger.info(
+        `Added A2A input fields to Start block: ${newFields.map((f) => f.name).join(', ')}`
+      )
+    }
+  }, [startBlockId, startBlockInputFormat, missingFields, collaborativeSetSubblockValue])
+
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [version, setVersion] = useState('1.0.0')
   const [authScheme, setAuthScheme] = useState<AuthScheme>('apiKey')
-  const [streamingEnabled, setStreamingEnabled] = useState(true)
   const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(false)
+  const [skillTags, setSkillTags] = useState<string[]>(['workflow', 'automation'])
+  const [language, setLanguage] = useState<CodeLanguage>('curl')
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (existingAgent) {
       setName(existingAgent.name)
-      setDescription(existingAgent.description || '')
-      setVersion(existingAgent.version)
-      setStreamingEnabled(existingAgent.capabilities?.streaming ?? true)
+      // Filter out default descriptions to encourage user to enter a meaningful one
+      const savedDesc = existingAgent.description || ''
+      setDescription(isDefaultDescription(savedDesc, workflowName) ? '' : savedDesc)
       setPushNotificationsEnabled(existingAgent.capabilities?.pushNotifications ?? false)
       const schemes = existingAgent.authentication?.schemes || []
       if (schemes.includes('apiKey')) {
         setAuthScheme('apiKey')
-      } else if (schemes.includes('bearer')) {
-        setAuthScheme('bearer')
       } else {
         setAuthScheme('none')
       }
+      // Extract tags from first skill if available
+      const skills = existingAgent.skills as Array<{ tags?: string[] }> | undefined
+      const savedTags = skills?.[0]?.tags
+      setSkillTags(savedTags?.length ? savedTags : ['workflow', 'automation'])
     } else {
       setName(workflowName)
-      setDescription(workflowDescription || '')
-      setVersion('1.0.0')
+      // Filter out default descriptions to encourage user to enter a meaningful one
+      setDescription(
+        isDefaultDescription(workflowDescription, workflowName) ? '' : workflowDescription || ''
+      )
       setAuthScheme('apiKey')
-      setStreamingEnabled(true)
       setPushNotificationsEnabled(false)
+      setSkillTags(['workflow', 'automation'])
     }
   }, [existingAgent, workflowName, workflowDescription])
 
@@ -98,16 +243,62 @@ export function A2aDeploy({
     onAgentExistsChange?.(!!existingAgent)
   }, [existingAgent, onAgentExistsChange])
 
+  useEffect(() => {
+    onPublishedChange?.(existingAgent?.isPublished ?? false)
+  }, [existingAgent?.isPublished, onPublishedChange])
+
+  // Detect form changes compared to saved agent state
+  const hasFormChanges = useMemo(() => {
+    if (!existingAgent) return false
+    const savedSchemes = existingAgent.authentication?.schemes || []
+    const savedAuthScheme = savedSchemes.includes('apiKey') ? 'apiKey' : 'none'
+    // Compare description, filtering out default values for both
+    const savedDesc = existingAgent.description || ''
+    const normalizedSavedDesc = isDefaultDescription(savedDesc, workflowName) ? '' : savedDesc
+    // Compare tags
+    const skills = existingAgent.skills as Array<{ tags?: string[] }> | undefined
+    const savedTags = skills?.[0]?.tags || ['workflow', 'automation']
+    const tagsChanged =
+      skillTags.length !== savedTags.length || skillTags.some((t, i) => t !== savedTags[i])
+    return (
+      name !== existingAgent.name ||
+      description !== normalizedSavedDesc ||
+      pushNotificationsEnabled !== (existingAgent.capabilities?.pushNotifications ?? false) ||
+      authScheme !== savedAuthScheme ||
+      tagsChanged
+    )
+  }, [
+    existingAgent,
+    name,
+    description,
+    pushNotificationsEnabled,
+    authScheme,
+    skillTags,
+    workflowName,
+  ])
+
+  // Detect workflow changes (workflow was redeployed after agent was last updated)
+  const hasWorkflowChanges = useMemo(() => {
+    if (!existingAgent || !existingAgent.updatedAt || !workflowDeployedAt) return false
+    return new Date(workflowDeployedAt) > new Date(existingAgent.updatedAt)
+  }, [existingAgent, existingAgent?.updatedAt, workflowDeployedAt])
+
+  const needsRepublish = existingAgent && (hasFormChanges || hasWorkflowChanges)
+
+  useEffect(() => {
+    onNeedsRepublishChange?.(!!needsRepublish)
+  }, [needsRepublish, onNeedsRepublishChange])
+
   const authSchemeOptions: ComboboxOption[] = useMemo(
     () => [
       { label: 'API Key', value: 'apiKey' },
-      { label: 'Bearer Token', value: 'bearer' },
       { label: 'None (Public)', value: 'none' },
     ],
     []
   )
 
-  const canSave = name.trim().length > 0
+  // Require both name and description to publish
+  const canSave = name.trim().length > 0 && description.trim().length > 0
   useEffect(() => {
     onCanSaveChange?.(canSave)
   }, [canSave, onCanSaveChange])
@@ -124,7 +315,7 @@ export function A2aDeploy({
 
   const handleCreateOrUpdate = useCallback(async () => {
     const capabilities: AgentCapabilities = {
-      streaming: streamingEnabled,
+      streaming: true,
       pushNotifications: pushNotificationsEnabled,
       stateTransitionHistory: true,
     }
@@ -139,9 +330,9 @@ export function A2aDeploy({
           agentId: existingAgent.id,
           name: name.trim(),
           description: description.trim() || undefined,
-          version,
           capabilities,
           authentication,
+          skillTags,
         })
       } else {
         await createAgent.mutateAsync({
@@ -151,6 +342,7 @@ export function A2aDeploy({
           description: description.trim() || undefined,
           capabilities,
           authentication,
+          skillTags,
         })
       }
       queryClient.invalidateQueries({
@@ -163,10 +355,9 @@ export function A2aDeploy({
     existingAgent,
     name,
     description,
-    version,
-    streamingEnabled,
     pushNotificationsEnabled,
     authScheme,
+    skillTags,
     workspaceId,
     workflowId,
     createAgent,
@@ -202,20 +393,6 @@ export function A2aDeploy({
     }
   }, [existingAgent, workspaceId, publishAgent, refetch])
 
-  const handleRefreshSkills = useCallback(async () => {
-    if (!existingAgent) return
-    try {
-      await publishAgent.mutateAsync({
-        agentId: existingAgent.id,
-        workspaceId,
-        action: 'refresh',
-      })
-      refetch()
-    } catch (error) {
-      logger.error('Failed to refresh A2A agent skills:', error)
-    }
-  }, [existingAgent, workspaceId, publishAgent, refetch])
-
   const handleDelete = useCallback(async () => {
     if (!existingAgent) return
     try {
@@ -225,7 +402,6 @@ export function A2aDeploy({
       })
       setName(workflowName)
       setDescription(workflowDescription || '')
-      setVersion('1.0.0')
     } catch (error) {
       logger.error('Failed to delete A2A agent:', error)
     }
@@ -233,19 +409,289 @@ export function A2aDeploy({
 
   const handleCopyEndpoint = useCallback(() => {
     if (!existingAgent) return
-    const endpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/a2a/serve/${existingAgent.id}`
-    navigator.clipboard.writeText(endpoint)
+    const copyEndpoint = `${getBaseUrl()}/api/a2a/serve/${existingAgent.id}`
+    navigator.clipboard.writeText(copyEndpoint)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }, [existingAgent])
 
-  if (!isDeployed) {
-    return (
-      <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
-        Deploy your workflow first to expose it as an A2A agent.
-      </div>
+  // Combined create + publish action (auto-deploys workflow if needed)
+  const handlePublishNewAgent = useCallback(async () => {
+    const capabilities: AgentCapabilities = {
+      streaming: true,
+      pushNotifications: pushNotificationsEnabled,
+      stateTransitionHistory: true,
+    }
+
+    const authentication: AgentAuthentication = {
+      schemes: authScheme === 'none' ? ['none'] : [authScheme],
+    }
+
+    try {
+      // Auto-deploy workflow if not deployed
+      if (!isDeployed && onDeployWorkflow) {
+        await onDeployWorkflow()
+      }
+
+      // First create the agent
+      const newAgent = await createAgent.mutateAsync({
+        workspaceId,
+        workflowId,
+        name: name.trim(),
+        description: description.trim() || undefined,
+        capabilities,
+        authentication,
+        skillTags,
+      })
+
+      // Then immediately publish it
+      await publishAgent.mutateAsync({
+        agentId: newAgent.id,
+        workspaceId,
+        action: 'publish',
+      })
+
+      queryClient.invalidateQueries({
+        queryKey: [...a2aAgentKeys.all, 'byWorkflow', workspaceId, workflowId],
+      })
+    } catch (error) {
+      logger.error('Failed to publish A2A agent:', error)
+    }
+  }, [
+    name,
+    description,
+    pushNotificationsEnabled,
+    authScheme,
+    skillTags,
+    workspaceId,
+    workflowId,
+    createAgent,
+    publishAgent,
+    queryClient,
+    isDeployed,
+    onDeployWorkflow,
+  ])
+
+  // Update agent and republish (auto-deploys workflow if needed)
+  const handleUpdateAndRepublish = useCallback(async () => {
+    if (!existingAgent) return
+
+    const capabilities: AgentCapabilities = {
+      streaming: true,
+      pushNotifications: pushNotificationsEnabled,
+      stateTransitionHistory: true,
+    }
+
+    const authentication: AgentAuthentication = {
+      schemes: authScheme === 'none' ? ['none'] : [authScheme],
+    }
+
+    try {
+      // Auto-deploy workflow if not deployed
+      if (!isDeployed && onDeployWorkflow) {
+        await onDeployWorkflow()
+      }
+
+      // First update the agent
+      await updateAgent.mutateAsync({
+        agentId: existingAgent.id,
+        name: name.trim(),
+        description: description.trim() || undefined,
+        capabilities,
+        authentication,
+        skillTags,
+      })
+
+      // Then republish it
+      await publishAgent.mutateAsync({
+        agentId: existingAgent.id,
+        workspaceId,
+        action: 'publish',
+      })
+
+      queryClient.invalidateQueries({
+        queryKey: [...a2aAgentKeys.all, 'byWorkflow', workspaceId, workflowId],
+      })
+    } catch (error) {
+      logger.error('Failed to update and republish A2A agent:', error)
+    }
+  }, [
+    existingAgent,
+    isDeployed,
+    onDeployWorkflow,
+    name,
+    description,
+    pushNotificationsEnabled,
+    authScheme,
+    skillTags,
+    workspaceId,
+    workflowId,
+    updateAgent,
+    publishAgent,
+    queryClient,
+  ])
+
+  // Curl preview generation
+  const baseUrl = getBaseUrl()
+  const endpoint = existingAgent ? `${baseUrl}/api/a2a/serve/${existingAgent.id}` : null
+
+  // Get additional input fields from Start block (excluding reserved fields handled via A2A parts)
+  const additionalInputFields = useMemo(() => {
+    const allFields = normalizeInputFormatValue(startBlockInputFormat)
+    return allFields.filter(
+      (field): field is InputFormatField & { name: string } =>
+        !!field.name &&
+        field.name.toLowerCase() !== 'input' &&
+        field.name.toLowerCase() !== 'data' &&
+        field.name.toLowerCase() !== 'files'
     )
-  }
+  }, [startBlockInputFormat])
+
+  const getExampleInputData = useCallback((): Record<string, unknown> => {
+    const data: Record<string, unknown> = {}
+    for (const field of additionalInputFields) {
+      switch (field.type) {
+        case 'string':
+          data[field.name] = 'example'
+          break
+        case 'number':
+          data[field.name] = 42
+          break
+        case 'boolean':
+          data[field.name] = true
+          break
+        case 'object':
+          data[field.name] = { key: 'value' }
+          break
+        case 'array':
+          data[field.name] = [1, 2, 3]
+          break
+        default:
+          data[field.name] = 'example'
+      }
+    }
+    return data
+  }, [additionalInputFields])
+
+  const getJsonRpcPayload = useCallback((): Record<string, unknown> => {
+    const inputData = getExampleInputData()
+    const hasAdditionalData = Object.keys(inputData).length > 0
+
+    // Build parts array: TextPart for message text, DataPart for additional fields
+    const parts: Array<Record<string, unknown>> = [{ kind: 'text', text: 'Hello, agent!' }]
+    if (hasAdditionalData) {
+      parts.push({ kind: 'data', data: inputData })
+    }
+
+    return {
+      jsonrpc: '2.0',
+      id: '1',
+      method: 'message/send',
+      params: {
+        message: {
+          role: 'user',
+          parts,
+        },
+      },
+    }
+  }, [getExampleInputData])
+
+  const getCurlCommand = useCallback((): string => {
+    if (!endpoint) return ''
+    const payload = getJsonRpcPayload()
+    const requiresAuth = authScheme !== 'none'
+
+    switch (language) {
+      case 'curl':
+        return requiresAuth
+          ? `curl -X POST \\
+  -H "X-API-Key: $SIM_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '${JSON.stringify(payload)}' \\
+  ${endpoint}`
+          : `curl -X POST \\
+  -H "Content-Type: application/json" \\
+  -d '${JSON.stringify(payload)}' \\
+  ${endpoint}`
+
+      case 'python':
+        return requiresAuth
+          ? `import requests
+
+response = requests.post(
+    "${endpoint}",
+    headers={
+        "X-API-Key": SIM_API_KEY,
+        "Content-Type": "application/json"
+    },
+    json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')}
+)
+
+print(response.json())`
+          : `import requests
+
+response = requests.post(
+    "${endpoint}",
+    headers={"Content-Type": "application/json"},
+    json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')}
+)
+
+print(response.json())`
+
+      case 'javascript':
+        return requiresAuth
+          ? `const response = await fetch("${endpoint}", {
+  method: "POST",
+  headers: {
+    "X-API-Key": SIM_API_KEY,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify(${JSON.stringify(payload)})
+});
+
+const data = await response.json();
+console.log(data);`
+          : `const response = await fetch("${endpoint}", {
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: JSON.stringify(${JSON.stringify(payload)})
+});
+
+const data = await response.json();
+console.log(data);`
+
+      case 'typescript':
+        return requiresAuth
+          ? `const response = await fetch("${endpoint}", {
+  method: "POST",
+  headers: {
+    "X-API-Key": SIM_API_KEY,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify(${JSON.stringify(payload)})
+});
+
+const data: Record<string, unknown> = await response.json();
+console.log(data);`
+          : `const response = await fetch("${endpoint}", {
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: JSON.stringify(${JSON.stringify(payload)})
+});
+
+const data: Record<string, unknown> = await response.json();
+console.log(data);`
+
+      default:
+        return ''
+    }
+  }, [endpoint, language, getJsonRpcPayload, authScheme])
+
+  const handleCopyCommand = useCallback(() => {
+    navigator.clipboard.writeText(getCurlCommand())
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [getCurlCommand])
 
   if (isLoading) {
     return (
@@ -271,10 +717,6 @@ export function A2aDeploy({
     )
   }
 
-  const endpoint = existingAgent
-    ? `${getEnv('NEXT_PUBLIC_APP_URL')}/api/a2a/serve/${existingAgent.id}`
-    : null
-
   return (
     <form
       id='a2a-deploy-form'
@@ -284,40 +726,13 @@ export function A2aDeploy({
       }}
       className='-mx-1 space-y-[12px] overflow-y-auto px-1'
     >
-      {/* Status Badge */}
-      {existingAgent && (
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-[8px]'>
-            <Badge variant={existingAgent.isPublished ? 'green' : 'default'} size='lg' dot>
-              {existingAgent.isPublished ? 'Published' : 'Unpublished'}
-            </Badge>
-            {existingAgent.taskCount !== undefined && existingAgent.taskCount > 0 && (
-              <span className='text-[11px] text-[var(--text-tertiary)]'>
-                {existingAgent.taskCount} task{existingAgent.taskCount !== 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-          {existingAgent.isPublished && (
-            <a
-              href={`${getEnv('NEXT_PUBLIC_APP_URL')}/docs/a2a`}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='flex items-center gap-[4px] text-[11px] text-[var(--text-link)] hover:underline'
-            >
-              Documentation
-              <ExternalLink className='h-[12px] w-[12px]' />
-            </a>
-          )}
-        </div>
-      )}
-
       {/* Agent Name */}
       <div>
         <Label
           htmlFor='a2a-name'
           className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
         >
-          Agent name
+          Agent name <span className='text-red-500'>*</span>
         </Label>
         <Input
           id='a2a-name'
@@ -337,7 +752,7 @@ export function A2aDeploy({
           htmlFor='a2a-description'
           className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
         >
-          Description
+          Description <span className='text-red-500'>*</span>
         </Label>
         <Textarea
           id='a2a-description'
@@ -345,22 +760,7 @@ export function A2aDeploy({
           onChange={(e) => setDescription(e.target.value)}
           placeholder='Describe what this agent does...'
           className='min-h-[80px] resize-none'
-        />
-      </div>
-
-      {/* Version */}
-      <div>
-        <Label
-          htmlFor='a2a-version'
-          className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
-        >
-          Version
-        </Label>
-        <Input
-          id='a2a-version'
-          value={version}
-          onChange={(e) => setVersion(e.target.value)}
-          placeholder='1.0.0'
+          required
         />
       </div>
 
@@ -378,9 +778,7 @@ export function A2aDeploy({
         <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
           {authScheme === 'none'
             ? 'Anyone can call this agent without authentication'
-            : authScheme === 'apiKey'
-              ? 'Requires X-API-Key header or API key query parameter'
-              : 'Requires Authorization: Bearer token header'}
+            : 'Requires X-API-Key header or API key query parameter'}
         </p>
       </div>
 
@@ -390,16 +788,6 @@ export function A2aDeploy({
           Capabilities
         </Label>
         <div className='space-y-[8px]'>
-          <div className='flex items-center gap-[8px]'>
-            <Checkbox
-              id='a2a-streaming'
-              checked={streamingEnabled}
-              onCheckedChange={(checked) => setStreamingEnabled(checked === true)}
-            />
-            <label htmlFor='a2a-streaming' className='text-[13px] text-[var(--text-primary)]'>
-              Streaming responses (SSE)
-            </label>
-          </div>
           <div className='flex items-center gap-[8px]'>
             <Checkbox
               id='a2a-push'
@@ -413,71 +801,96 @@ export function A2aDeploy({
         </div>
       </div>
 
-      {/* Endpoint URL (only shown when agent exists) */}
-      {existingAgent && endpoint && (
-        <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Endpoint URL
-          </Label>
-          <div className='flex items-center gap-[8px]'>
-            <Input value={endpoint} readOnly className='font-mono text-[12px]' />
-            <Button type='button' variant='outline' size='sm' onClick={handleCopyEndpoint}>
-              <Copy className='h-[14px] w-[14px]' />
-              {copied ? 'Copied!' : 'Copy'}
-            </Button>
-          </div>
-          <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
-            External A2A clients can discover and call your agent at this URL
-          </p>
-        </div>
-      )}
+      {/* Tags */}
+      <div>
+        <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          Tags
+        </Label>
+        <TagInput
+          items={skillTags.map((tag) => ({ value: tag, isValid: true }))}
+          onAdd={(value) => {
+            if (!skillTags.includes(value)) {
+              setSkillTags((prev) => [...prev, value])
+              return true
+            }
+            return false
+          }}
+          onRemove={(_value, index) => {
+            setSkillTags((prev) => prev.filter((_, i) => i !== index))
+          }}
+          placeholder='Add tags'
+          placeholderWithTags='Add another'
+          tagVariant='secondary'
+          triggerKeys={['Enter', ',']}
+        />
+      </div>
 
-      {/* Skills (only shown when agent exists) */}
-      {existingAgent?.skills && existingAgent.skills.length > 0 && (
-        <div>
-          <div className='mb-[6.5px] flex items-center justify-between'>
-            <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-              Skills
-            </Label>
-            <Button
-              type='button'
-              variant='ghost'
-              size='sm'
-              onClick={handleRefreshSkills}
-              disabled={isSubmitting}
-              className='h-[24px] px-[8px] text-[11px]'
-            >
-              <RefreshCw className='mr-[4px] h-[12px] w-[12px]' />
-              Refresh
-            </Button>
+      {/* Curl Preview (shown when agent exists) */}
+      {existingAgent && endpoint && (
+        <>
+          <div>
+            <div className='mb-[6.5px] flex items-center justify-between'>
+              <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+                Language
+              </Label>
+            </div>
+            <ButtonGroup value={language} onValueChange={(val) => setLanguage(val as CodeLanguage)}>
+              {(Object.keys(LANGUAGE_LABELS) as CodeLanguage[]).map((lang) => (
+                <ButtonGroupItem key={lang} value={lang}>
+                  {LANGUAGE_LABELS[lang]}
+                </ButtonGroupItem>
+              ))}
+            </ButtonGroup>
           </div>
-          <div className='flex flex-col gap-[8px]'>
-            {existingAgent.skills.map((skill) => (
-              <div
-                key={skill.id}
-                className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
-              >
-                <div className='font-medium text-[13px] text-[var(--text-primary)]'>
-                  {skill.name}
-                </div>
-                {skill.description && (
-                  <div className='mt-[4px] text-[11px] text-[var(--text-secondary)]'>
-                    {skill.description}
-                  </div>
-                )}
-                {skill.tags && skill.tags.length > 0 && (
-                  <div className='mt-[6px] flex flex-wrap gap-[4px]'>
-                    {skill.tags.map((tag) => (
-                      <Badge key={tag} variant='outline' className='text-[10px]'>
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+
+          <div>
+            <div className='mb-[6.5px] flex items-center justify-between'>
+              <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+                Send message (JSON-RPC)
+              </Label>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    onClick={handleCopyCommand}
+                    aria-label='Copy command'
+                    className='!p-1.5 -my-1.5'
+                  >
+                    {copied ? <Check className='h-3 w-3' /> : <Clipboard className='h-3 w-3' />}
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span>{copied ? 'Copied' : 'Copy'}</span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            </div>
+            <Code.Viewer
+              code={getCurlCommand()}
+              language={LANGUAGE_SYNTAX[language]}
+              wrapText
+              className='!min-h-0 rounded-[4px] border border-[var(--border-1)]'
+            />
+            <div className='mt-[6.5px] flex items-start justify-between gap-2'>
+              <p className='text-[11px] text-[var(--text-secondary)]'>
+                External A2A clients can discover and call your agent. TextPart →{' '}
+                <code className='text-[10px]'>&lt;start.input&gt;</code>, DataPart →{' '}
+                <code className='text-[10px]'>&lt;start.data&gt;</code>, FilePart →{' '}
+                <code className='text-[10px]'>&lt;start.files&gt;</code>.
+              </p>
+              {missingFields.any && (
+                <Badge
+                  variant='outline'
+                  className='flex-none cursor-pointer whitespace-nowrap rounded-[6px]'
+                  title='Add required A2A input fields to Start block'
+                  onClick={handleAddA2AInputs}
+                >
+                  <span className='whitespace-nowrap text-[12px]'>Add inputs</span>
+                </Badge>
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Hidden triggers for modal footer */}
@@ -490,6 +903,18 @@ export function A2aDeploy({
         onClick={handleUnpublish}
       />
       <button type='button' data-a2a-delete-trigger className='hidden' onClick={handleDelete} />
+      <button
+        type='button'
+        data-a2a-publish-new-trigger
+        className='hidden'
+        onClick={handlePublishNewAgent}
+      />
+      <button
+        type='button'
+        data-a2a-update-republish-trigger
+        className='hidden'
+        onClick={handleUpdateAndRepublish}
+      />
     </form>
   )
 }

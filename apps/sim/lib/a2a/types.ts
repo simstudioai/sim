@@ -48,6 +48,16 @@ export {
 } from '@a2a-js/sdk/server'
 
 /**
+ * App-specific: Extended MessageSendParams
+ * Note: Structured inputs should be passed via DataPart in message.parts (A2A spec compliant)
+ * Files should be passed via FilePart in message.parts
+ */
+export interface ExtendedMessageSendParams {
+  message: import('@a2a-js/sdk').Message
+  configuration?: import('@a2a-js/sdk').MessageSendConfiguration
+}
+
+/**
  * App-specific: Database model for A2A Agent configuration
  */
 export interface A2AAgentConfig {
