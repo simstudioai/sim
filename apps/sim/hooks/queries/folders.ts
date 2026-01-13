@@ -285,9 +285,66 @@ export function useDuplicateFolderMutation() {
     },
     ...handlers,
     onSettled: (_data, _error, variables) => {
-      // Invalidate both folders and workflows (duplicated folder may contain workflows)
       queryClient.invalidateQueries({ queryKey: folderKeys.list(variables.workspaceId) })
       queryClient.invalidateQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
+    },
+  })
+}
+
+interface ReorderFoldersVariables {
+  workspaceId: string
+  updates: Array<{
+    id: string
+    sortOrder: number
+    parentId?: string | null
+  }>
+}
+
+export function useReorderFolders() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (variables: ReorderFoldersVariables): Promise<void> => {
+      const response = await fetch('/api/folders/reorder', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(variables),
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.error || 'Failed to reorder folders')
+      }
+    },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: folderKeys.list(variables.workspaceId) })
+
+      const snapshot = { ...useFolderStore.getState().folders }
+
+      useFolderStore.setState((state) => {
+        const updated = { ...state.folders }
+        for (const update of variables.updates) {
+          if (updated[update.id]) {
+            updated[update.id] = {
+              ...updated[update.id],
+              sortOrder: update.sortOrder,
+              parentId:
+                update.parentId !== undefined ? update.parentId : updated[update.id].parentId,
+            }
+          }
+        }
+        return { folders: updated }
+      })
+
+      return { snapshot }
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.snapshot) {
+        useFolderStore.setState({ folders: context.snapshot })
+      }
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: folderKeys.list(variables.workspaceId) })
     },
   })
 }

@@ -36,6 +36,8 @@ interface FolderItemProps {
     onDragEnter?: (e: React.DragEvent<HTMLElement>) => void
     onDragLeave?: (e: React.DragEvent<HTMLElement>) => void
   }
+  onDragStart?: () => void
+  onDragEnd?: () => void
 }
 
 /**
@@ -46,7 +48,13 @@ interface FolderItemProps {
  * @param props - Component props
  * @returns Folder item with drag and expand support
  */
-export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
+export function FolderItem({
+  folder,
+  level,
+  hoverHandlers,
+  onDragStart: onDragStartProp,
+  onDragEnd: onDragEndProp,
+}: FolderItemProps) {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -136,11 +144,6 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
     }
   }, [createFolderMutation, workspaceId, folder.id, expandFolder])
 
-  /**
-   * Drag start handler - sets folder data for drag operation
-   *
-   * @param e - React drag event
-   */
   const onDragStart = useCallback(
     (e: React.DragEvent) => {
       if (isEditing) {
@@ -150,13 +153,24 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
 
       e.dataTransfer.setData('folder-id', folder.id)
       e.dataTransfer.effectAllowed = 'move'
+      onDragStartProp?.()
     },
-    [folder.id]
+    [folder.id, onDragStartProp]
   )
 
-  const { isDragging, shouldPreventClickRef, handleDragStart, handleDragEnd } = useItemDrag({
+  const {
+    isDragging,
+    shouldPreventClickRef,
+    handleDragStart,
+    handleDragEnd: handleDragEndBase,
+  } = useItemDrag({
     onDragStart,
   })
+
+  const handleDragEnd = useCallback(() => {
+    handleDragEndBase()
+    onDragEndProp?.()
+  }, [handleDragEndBase, onDragEndProp])
 
   const {
     isOpen: isContextMenuOpen,

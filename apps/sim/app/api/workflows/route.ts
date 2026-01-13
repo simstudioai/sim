@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull, max } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -131,11 +131,23 @@ export async function POST(req: NextRequest) {
         // Silently fail
       })
 
+    const folderCondition = folderId ? eq(workflow.folderId, folderId) : isNull(workflow.folderId)
+    const [maxResult] = await db
+      .select({ maxOrder: max(workflow.sortOrder) })
+      .from(workflow)
+      .where(
+        workspaceId
+          ? and(eq(workflow.workspaceId, workspaceId), folderCondition)
+          : and(eq(workflow.userId, session.user.id), folderCondition)
+      )
+    const sortOrder = (maxResult?.maxOrder ?? -1) + 1
+
     await db.insert(workflow).values({
       id: workflowId,
       userId: session.user.id,
       workspaceId: workspaceId || null,
       folderId: folderId || null,
+      sortOrder,
       name,
       description,
       color,
@@ -156,6 +168,7 @@ export async function POST(req: NextRequest) {
       color,
       workspaceId,
       folderId,
+      sortOrder,
       createdAt: now,
       updatedAt: now,
     })

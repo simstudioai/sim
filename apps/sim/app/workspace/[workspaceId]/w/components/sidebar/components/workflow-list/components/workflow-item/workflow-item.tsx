@@ -29,6 +29,8 @@ interface WorkflowItemProps {
   active: boolean
   level: number
   onWorkflowClick: (workflowId: string, shiftKey: boolean, metaKey: boolean) => void
+  onDragStart?: () => void
+  onDragEnd?: () => void
 }
 
 /**
@@ -38,7 +40,14 @@ interface WorkflowItemProps {
  * @param props - Component props
  * @returns Workflow item with drag and selection support
  */
-export function WorkflowItem({ workflow, active, level, onWorkflowClick }: WorkflowItemProps) {
+export function WorkflowItem({
+  workflow,
+  active,
+  level,
+  onWorkflowClick,
+  onDragStart: onDragStartProp,
+  onDragEnd: onDragEndProp,
+}: WorkflowItemProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const { selectedWorkflows } = useFolderStore()
@@ -104,11 +113,6 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
     [workflow.id, updateWorkflow]
   )
 
-  /**
-   * Drag start handler - handles workflow dragging with multi-selection support
-   *
-   * @param e - React drag event
-   */
   const onDragStart = useCallback(
     (e: React.DragEvent) => {
       if (isEditing) {
@@ -121,13 +125,24 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
 
       e.dataTransfer.setData('workflow-ids', JSON.stringify(workflowIds))
       e.dataTransfer.effectAllowed = 'move'
+      onDragStartProp?.()
     },
-    [isSelected, selectedWorkflows, workflow.id]
+    [isSelected, selectedWorkflows, workflow.id, onDragStartProp]
   )
 
-  const { isDragging, shouldPreventClickRef, handleDragStart, handleDragEnd } = useItemDrag({
+  const {
+    isDragging,
+    shouldPreventClickRef,
+    handleDragStart,
+    handleDragEnd: handleDragEndBase,
+  } = useItemDrag({
     onDragStart,
   })
+
+  const handleDragEnd = useCallback(() => {
+    handleDragEndBase()
+    onDragEndProp?.()
+  }, [handleDragEndBase, onDragEndProp])
 
   const {
     isOpen: isContextMenuOpen,

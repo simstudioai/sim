@@ -32,6 +32,7 @@ function mapWorkflow(workflow: any): WorkflowMetadata {
     color: workflow.color,
     workspaceId: workflow.workspaceId,
     folderId: workflow.folderId,
+    sortOrder: workflow.sortOrder ?? 0,
     createdAt: new Date(workflow.createdAt),
     lastModified: new Date(workflow.updatedAt || workflow.createdAt),
   }
@@ -100,6 +101,7 @@ interface CreateWorkflowResult {
   color: string
   workspaceId: string
   folderId?: string | null
+  sortOrder: number
 }
 
 interface DuplicateWorkflowVariables {
@@ -118,6 +120,7 @@ interface DuplicateWorkflowResult {
   color: string
   workspaceId: string
   folderId?: string | null
+  sortOrder: number
   blocksCount: number
   edgesCount: number
   subflowsCount: number
@@ -161,6 +164,7 @@ function createWorkflowMutationHandlers<TVariables extends { workspaceId: string
               color: data.color,
               workspaceId: data.workspaceId,
               folderId: data.folderId,
+              sortOrder: 'sortOrder' in data ? data.sortOrder : 0,
             },
           },
           error: null,
@@ -179,16 +183,26 @@ export function useCreateWorkflow() {
   const handlers = createWorkflowMutationHandlers<CreateWorkflowVariables>(
     queryClient,
     'CreateWorkflow',
-    (variables, tempId) => ({
-      id: tempId,
-      name: variables.name || generateCreativeWorkflowName(),
-      lastModified: new Date(),
-      createdAt: new Date(),
-      description: variables.description || 'New workflow',
-      color: variables.color || getNextWorkflowColor(),
-      workspaceId: variables.workspaceId,
-      folderId: variables.folderId || null,
-    })
+    (variables, tempId) => {
+      const currentWorkflows = useWorkflowRegistry.getState().workflows
+      const targetFolderId = variables.folderId || null
+      const workflowsInFolder = Object.values(currentWorkflows).filter(
+        (w) => w.folderId === targetFolderId
+      )
+      const maxSortOrder = workflowsInFolder.reduce((max, w) => Math.max(max, w.sortOrder ?? 0), -1)
+
+      return {
+        id: tempId,
+        name: variables.name || generateCreativeWorkflowName(),
+        lastModified: new Date(),
+        createdAt: new Date(),
+        description: variables.description || 'New workflow',
+        color: variables.color || getNextWorkflowColor(),
+        workspaceId: variables.workspaceId,
+        folderId: targetFolderId,
+        sortOrder: maxSortOrder + 1,
+      }
+    }
   )
 
   return useMutation({
@@ -243,13 +257,13 @@ export function useCreateWorkflow() {
         color: createdWorkflow.color,
         workspaceId,
         folderId: createdWorkflow.folderId,
+        sortOrder: createdWorkflow.sortOrder ?? 0,
       }
     },
     ...handlers,
     onSuccess: (data, variables, context) => {
       handlers.onSuccess(data, variables, context)
 
-      // Initialize subblock values for new workflow
       const { subBlockValues } = buildDefaultWorkflowArtifacts()
       useSubBlockStore.setState((state) => ({
         workflowValues: {
@@ -267,16 +281,26 @@ export function useDuplicateWorkflowMutation() {
   const handlers = createWorkflowMutationHandlers<DuplicateWorkflowVariables>(
     queryClient,
     'DuplicateWorkflow',
-    (variables, tempId) => ({
-      id: tempId,
-      name: variables.name,
-      lastModified: new Date(),
-      createdAt: new Date(),
-      description: variables.description,
-      color: variables.color,
-      workspaceId: variables.workspaceId,
-      folderId: variables.folderId || null,
-    })
+    (variables, tempId) => {
+      const currentWorkflows = useWorkflowRegistry.getState().workflows
+      const targetFolderId = variables.folderId || null
+      const workflowsInFolder = Object.values(currentWorkflows).filter(
+        (w) => w.folderId === targetFolderId
+      )
+      const maxSortOrder = workflowsInFolder.reduce((max, w) => Math.max(max, w.sortOrder ?? 0), -1)
+
+      return {
+        id: tempId,
+        name: variables.name,
+        lastModified: new Date(),
+        createdAt: new Date(),
+        description: variables.description,
+        color: variables.color,
+        workspaceId: variables.workspaceId,
+        folderId: targetFolderId,
+        sortOrder: maxSortOrder + 1,
+      }
+    }
   )
 
   return useMutation({
@@ -317,6 +341,7 @@ export function useDuplicateWorkflowMutation() {
         color: duplicatedWorkflow.color || color,
         workspaceId,
         folderId: duplicatedWorkflow.folderId ?? folderId,
+        sortOrder: duplicatedWorkflow.sortOrder ?? 0,
         blocksCount: duplicatedWorkflow.blocksCount || 0,
         edgesCount: duplicatedWorkflow.edgesCount || 0,
         subflowsCount: duplicatedWorkflow.subflowsCount || 0,
@@ -395,6 +420,64 @@ export function useRevertToVersion() {
       if (!response.ok) {
         throw new Error('Failed to load deployment')
       }
+    },
+  })
+}
+
+interface ReorderWorkflowsVariables {
+  workspaceId: string
+  updates: Array<{
+    id: string
+    sortOrder: number
+    folderId?: string | null
+  }>
+}
+
+export function useReorderWorkflows() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (variables: ReorderWorkflowsVariables): Promise<void> => {
+      const response = await fetch('/api/workflows/reorder', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(variables),
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.error || 'Failed to reorder workflows')
+      }
+    },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
+
+      const snapshot = { ...useWorkflowRegistry.getState().workflows }
+
+      useWorkflowRegistry.setState((state) => {
+        const updated = { ...state.workflows }
+        for (const update of variables.updates) {
+          if (updated[update.id]) {
+            updated[update.id] = {
+              ...updated[update.id],
+              sortOrder: update.sortOrder,
+              folderId:
+                update.folderId !== undefined ? update.folderId : updated[update.id].folderId,
+            }
+          }
+        }
+        return { workflows: updated }
+      })
+
+      return { snapshot }
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.snapshot) {
+        useWorkflowRegistry.setState({ workflows: context.snapshot })
+      }
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
     },
   })
 }

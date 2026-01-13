@@ -14,9 +14,6 @@ import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
-/**
- * Constants for tree layout and styling
- */
 const TREE_SPACING = {
   INDENT_PER_LEVEL: 20,
 } as const
@@ -29,12 +26,18 @@ interface WorkflowListProps {
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
 }
 
-/**
- * WorkflowList component displays workflows organized by folders with drag-and-drop support.
- *
- * @param props - Component props
- * @returns Workflow list with folders and drag-drop support
- */
+function DropIndicatorLine({ show, level = 0 }: { show: boolean; level?: number }) {
+  if (!show) return null
+  return (
+    <div
+      className='pointer-events-none absolute left-0 right-0 z-20 flex items-center'
+      style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
+    >
+      <div className='h-[2px] flex-1 rounded-full bg-[#0096FF]' />
+    </div>
+  )
+}
+
 export function WorkflowList({
   regularWorkflows,
   isLoading = false,
@@ -48,20 +51,20 @@ export function WorkflowList({
   const workflowId = params.workflowId as string
 
   const { isLoading: foldersLoading } = useFolders(workspaceId)
-
   const { getFolderTree, expandedFolders, getFolderPath, setExpanded } = useFolderStore()
 
   const {
-    dropTargetId,
+    dropIndicator,
     isDragging,
     setScrollContainer,
+    createWorkflowDragHandlers,
     createFolderDragHandlers,
-    createItemDragHandlers,
-    createRootDragHandlers,
-    createFolderHeaderHoverHandlers,
+    createEmptyFolderDropZone,
+    createRootDropZone,
+    handleDragStart,
+    handleDragEnd,
   } = useDragDrop()
 
-  // Set scroll container when ref changes
   useEffect(() => {
     if (scrollContainerRef.current) {
       setScrollContainer(scrollContainerRef.current)
@@ -76,23 +79,22 @@ export function WorkflowList({
     return activeWorkflow?.folderId || null
   }, [workflowId, regularWorkflows, isLoading, foldersLoading])
 
-  const workflowsByFolder = useMemo(
-    () =>
-      regularWorkflows.reduce(
-        (acc, workflow) => {
-          const folderId = workflow.folderId || 'root'
-          if (!acc[folderId]) acc[folderId] = []
-          acc[folderId].push(workflow)
-          return acc
-        },
-        {} as Record<string, WorkflowMetadata[]>
-      ),
-    [regularWorkflows]
-  )
+  const workflowsByFolder = useMemo(() => {
+    const grouped = regularWorkflows.reduce(
+      (acc, workflow) => {
+        const folderId = workflow.folderId || 'root'
+        if (!acc[folderId]) acc[folderId] = []
+        acc[folderId].push(workflow)
+        return acc
+      },
+      {} as Record<string, WorkflowMetadata[]>
+    )
+    for (const folderId of Object.keys(grouped)) {
+      grouped[folderId].sort((a, b) => a.sortOrder - b.sortOrder)
+    }
+    return grouped
+  }, [regularWorkflows])
 
-  /**
-   * Build a flat list of all workflow IDs in display order for range selection
-   */
   const orderedWorkflowIds = useMemo(() => {
     const ids: string[] = []
 
@@ -106,12 +108,10 @@ export function WorkflowList({
       }
     }
 
-    // Collect from folders first
     for (const folder of folderTree) {
       collectWorkflowIds(folder)
     }
 
-    // Then collect root workflows
     const rootWorkflows = workflowsByFolder.root || []
     for (const workflow of rootWorkflows) {
       ids.push(workflow.id)
@@ -120,30 +120,24 @@ export function WorkflowList({
     return ids
   }, [folderTree, workflowsByFolder])
 
-  // Workflow selection hook - uses active workflow ID as anchor for range selection
   const { handleWorkflowClick } = useWorkflowSelection({
     workflowIds: orderedWorkflowIds,
     activeWorkflowId: workflowId,
   })
 
   const isWorkflowActive = useCallback(
-    (workflowId: string) => pathname === `/workspace/${workspaceId}/w/${workflowId}`,
+    (wfId: string) => pathname === `/workspace/${workspaceId}/w/${wfId}`,
     [pathname, workspaceId]
   )
 
-  /**
-   * Auto-expand folders and select active workflow.
-   */
   useEffect(() => {
     if (!workflowId || isLoading || foldersLoading) return
 
-    // Expand folder path to reveal workflow
     if (activeWorkflowFolderId) {
       const folderPath = getFolderPath(activeWorkflowFolderId)
       folderPath.forEach((folder) => setExpanded(folder.id, true))
     }
 
-    // Select workflow if not already selected
     const { selectedWorkflows, selectOnly } = useFolderStore.getState()
     if (!selectedWorkflows.has(workflowId)) {
       selectOnly(workflowId)
@@ -151,23 +145,40 @@ export function WorkflowList({
   }, [workflowId, activeWorkflowFolderId, isLoading, foldersLoading, getFolderPath, setExpanded])
 
   const renderWorkflowItem = useCallback(
-    (workflow: WorkflowMetadata, level: number, parentFolderId: string | null = null) => (
-      <div key={workflow.id} className='relative' {...createItemDragHandlers(parentFolderId)}>
-        <div
-          style={{
-            paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px`,
-          }}
-        >
-          <WorkflowItem
-            workflow={workflow}
-            active={isWorkflowActive(workflow.id)}
-            level={level}
-            onWorkflowClick={handleWorkflowClick}
-          />
+    (workflow: WorkflowMetadata, level: number, folderId: string | null = null) => {
+      const showBefore =
+        dropIndicator?.targetId === workflow.id && dropIndicator?.position === 'before'
+      const showAfter =
+        dropIndicator?.targetId === workflow.id && dropIndicator?.position === 'after'
+
+      return (
+        <div key={workflow.id} className='relative'>
+          <DropIndicatorLine show={showBefore} level={level} />
+          <div
+            style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
+            {...createWorkflowDragHandlers(workflow.id, folderId)}
+          >
+            <WorkflowItem
+              workflow={workflow}
+              active={isWorkflowActive(workflow.id)}
+              level={level}
+              onWorkflowClick={handleWorkflowClick}
+              onDragStart={() => handleDragStart('workflow')}
+              onDragEnd={handleDragEnd}
+            />
+          </div>
+          <DropIndicatorLine show={showAfter} level={level} />
         </div>
-      </div>
-    ),
-    [isWorkflowActive, createItemDragHandlers, handleWorkflowClick]
+      )
+    },
+    [
+      dropIndicator,
+      isWorkflowActive,
+      createWorkflowDragHandlers,
+      handleWorkflowClick,
+      handleDragStart,
+      handleDragEnd,
+    ]
   )
 
   const renderFolderSection = useCallback(
@@ -179,45 +190,72 @@ export function WorkflowList({
       const workflowsInFolder = workflowsByFolder[folder.id] || []
       const isExpanded = expandedFolders.has(folder.id)
       const hasChildren = workflowsInFolder.length > 0 || folder.children.length > 0
-      const isDropTarget = dropTargetId === folder.id
+
+      const showBefore =
+        dropIndicator?.targetId === folder.id && dropIndicator?.position === 'before'
+      const showAfter = dropIndicator?.targetId === folder.id && dropIndicator?.position === 'after'
+      const showInside =
+        dropIndicator?.targetId === folder.id && dropIndicator?.position === 'inside'
+
+      const childItems: Array<{
+        type: 'folder' | 'workflow'
+        id: string
+        sortOrder: number
+        data: FolderTreeNode | WorkflowMetadata
+      }> = []
+      for (const childFolder of folder.children) {
+        childItems.push({
+          type: 'folder',
+          id: childFolder.id,
+          sortOrder: childFolder.sortOrder,
+          data: childFolder,
+        })
+      }
+      for (const workflow of workflowsInFolder) {
+        childItems.push({
+          type: 'workflow',
+          id: workflow.id,
+          sortOrder: workflow.sortOrder,
+          data: workflow,
+        })
+      }
+      childItems.sort((a, b) => a.sortOrder - b.sortOrder)
 
       return (
-        <div key={folder.id} className='relative' {...createFolderDragHandlers(folder.id)}>
-          {/* Drop target highlight overlay - always rendered for stable DOM */}
+        <div key={folder.id} className='relative'>
+          <DropIndicatorLine show={showBefore} level={level} />
           <div
             className={clsx(
-              'pointer-events-none absolute inset-0 z-10 rounded-[4px] transition-opacity duration-75',
-              isDropTarget && isDragging ? 'bg-gray-400/20 opacity-100' : 'opacity-0'
+              'rounded-[4px] transition-colors duration-75',
+              showInside && isDragging && 'bg-[#0096FF]/10'
             )}
-          />
-
-          <div
             style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
-            {...createItemDragHandlers(folder.id)}
+            {...createFolderDragHandlers(folder.id, parentFolderId)}
           >
             <FolderItem
               folder={folder}
               level={level}
-              hoverHandlers={createFolderHeaderHoverHandlers(folder.id)}
+              onDragStart={() => handleDragStart('folder')}
+              onDragEnd={handleDragEnd}
             />
           </div>
+          <DropIndicatorLine show={showAfter} level={level} />
 
-          {isExpanded && hasChildren && (
-            <div className='relative' {...createItemDragHandlers(folder.id)}>
-              {/* Vertical line - positioned to align under folder chevron */}
+          {isExpanded && (
+            <div className='relative'>
               <div
                 className='pointer-events-none absolute top-0 bottom-0 w-px bg-[var(--border)]'
                 style={{ left: `${level * TREE_SPACING.INDENT_PER_LEVEL + 12}px` }}
               />
               <div className='mt-[2px] space-y-[2px] pl-[2px]'>
-                {workflowsInFolder.map((workflow: WorkflowMetadata) =>
-                  renderWorkflowItem(workflow, level + 1, folder.id)
+                {childItems.map((item) =>
+                  item.type === 'folder'
+                    ? renderFolderSection(item.data as FolderTreeNode, level + 1, folder.id)
+                    : renderWorkflowItem(item.data as WorkflowMetadata, level + 1, folder.id)
                 )}
-                {folder.children.map((childFolder) => (
-                  <div key={childFolder.id} className='relative'>
-                    {renderFolderSection(childFolder, level + 1, folder.id)}
-                  </div>
-                ))}
+                {!hasChildren && (
+                  <div className='h-[24px]' {...createEmptyFolderDropZone(folder.id)} />
+                )}
               </div>
             </div>
           )}
@@ -227,29 +265,46 @@ export function WorkflowList({
     [
       workflowsByFolder,
       expandedFolders,
-      dropTargetId,
+      dropIndicator,
       isDragging,
       createFolderDragHandlers,
-      createItemDragHandlers,
-      createFolderHeaderHoverHandlers,
+      createEmptyFolderDropZone,
+      handleDragStart,
+      handleDragEnd,
       renderWorkflowItem,
     ]
   )
 
-  const handleRootDragEvents = createRootDragHandlers()
+  const rootDropZoneHandlers = createRootDropZone()
   const rootWorkflows = workflowsByFolder.root || []
-  const isRootDropTarget = dropTargetId === 'root'
-  const hasRootWorkflows = rootWorkflows.length > 0
-  const hasFolders = folderTree.length > 0
 
-  /**
-   * Handle click on empty space to revert to active workflow selection
-   */
+  const rootItems = useMemo(() => {
+    const items: Array<{
+      type: 'folder' | 'workflow'
+      id: string
+      sortOrder: number
+      data: FolderTreeNode | WorkflowMetadata
+    }> = []
+    for (const folder of folderTree) {
+      items.push({ type: 'folder', id: folder.id, sortOrder: folder.sortOrder, data: folder })
+    }
+    for (const workflow of rootWorkflows) {
+      items.push({
+        type: 'workflow',
+        id: workflow.id,
+        sortOrder: workflow.sortOrder,
+        data: workflow,
+      })
+    }
+    return items.sort((a, b) => a.sortOrder - b.sortOrder)
+  }, [folderTree, rootWorkflows])
+
+  const hasRootItems = rootItems.length > 0
+  const showRootInside = dropIndicator?.targetId === 'root' && dropIndicator?.position === 'inside'
+
   const handleContainerClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      // Only handle clicks directly on the container (empty space)
       if (e.target !== e.currentTarget) return
-
       const { selectOnly, clearSelection } = useFolderStore.getState()
       workflowId ? selectOnly(workflowId) : clearSelection()
     },
@@ -258,36 +313,20 @@ export function WorkflowList({
 
   return (
     <div className='flex min-h-full flex-col pb-[8px]' onClick={handleContainerClick}>
-      {/* Folders Section */}
-      {hasFolders && (
-        <div className='mb-[2px] space-y-[2px]'>
-          {folderTree.map((folder) => renderFolderSection(folder, 0))}
-        </div>
-      )}
-
-      {/* Root Workflows Section - Expands to fill remaining space */}
       <div
-        className={clsx('relative flex-1', !hasRootWorkflows && 'min-h-[26px]')}
-        {...handleRootDragEvents}
+        className={clsx(
+          'relative flex-1 rounded-[4px] transition-colors duration-75',
+          !hasRootItems && 'min-h-[26px]',
+          showRootInside && isDragging && 'bg-[#0096FF]/10'
+        )}
+        {...rootDropZoneHandlers}
       >
-        {/* Root drop target highlight overlay - always rendered for stable DOM */}
-        <div
-          className={clsx(
-            'pointer-events-none absolute inset-0 z-10 rounded-[4px] transition-opacity duration-75',
-            isRootDropTarget && isDragging ? 'bg-gray-400/20 opacity-100' : 'opacity-0'
-          )}
-        />
-
         <div className='space-y-[2px]'>
-          {rootWorkflows.map((workflow: WorkflowMetadata) => (
-            <WorkflowItem
-              key={workflow.id}
-              workflow={workflow}
-              active={isWorkflowActive(workflow.id)}
-              level={0}
-              onWorkflowClick={handleWorkflowClick}
-            />
-          ))}
+          {rootItems.map((item) =>
+            item.type === 'folder'
+              ? renderFolderSection(item.data as FolderTreeNode, 0, null)
+              : renderWorkflowItem(item.data as WorkflowMetadata, 0, null)
+          )}
         </div>
       </div>
 
