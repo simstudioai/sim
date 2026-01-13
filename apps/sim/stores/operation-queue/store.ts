@@ -95,41 +95,19 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       return
     }
 
-    // Enhanced duplicate content check - especially important for block and edge operations
-    const duplicateContent = state.operations.find((op) => {
-      if (
-        op.operation.operation !== operation.operation.operation ||
-        op.operation.target !== operation.operation.target ||
-        op.workflowId !== operation.workflowId
-      ) {
-        return false
-      }
-
-      // For block operations, check the block ID specifically
-      if (operation.operation.target === 'block') {
-        return op.operation.payload?.id === operation.operation.payload?.id
-      }
-
-      // For edge operations (batch-add-edges), check by source→target connection
-      // This prevents duplicate edges with different IDs but same connection
-      if (
-        operation.operation.target === 'edges' &&
-        operation.operation.operation === 'batch-add-edges'
-      ) {
-        const newEdges = operation.operation.payload?.edges || []
-        const existingEdges = op.operation.payload?.edges || []
-        // Check if any new edge has the same source→target as an existing operation's edges
-        return newEdges.some((newEdge: any) =>
-          existingEdges.some(
-            (existingEdge: any) =>
-              existingEdge.source === newEdge.source && existingEdge.target === newEdge.target
-          )
-        )
-      }
-
-      // For other operations, fall back to full payload comparison
-      return JSON.stringify(op.operation.payload) === JSON.stringify(operation.operation.payload)
-    })
+    // Enhanced duplicate content check - especially important for block operations
+    const duplicateContent = state.operations.find(
+      (op) =>
+        op.operation.operation === operation.operation.operation &&
+        op.operation.target === operation.operation.target &&
+        op.workflowId === operation.workflowId &&
+        // For block operations, check the block ID specifically
+        ((operation.operation.target === 'block' &&
+          op.operation.payload?.id === operation.operation.payload?.id) ||
+          // For other operations, fall back to full payload comparison
+          (operation.operation.target !== 'block' &&
+            JSON.stringify(op.operation.payload) === JSON.stringify(operation.operation.payload)))
+    )
 
     const isReplaceStateWorkflowOp =
       operation.operation.target === 'workflow' && operation.operation.operation === 'replace-state'

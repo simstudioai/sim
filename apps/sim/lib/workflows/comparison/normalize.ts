@@ -197,9 +197,10 @@ export function normalizeEdge(edge: Edge): NormalizedEdge {
 }
 
 /**
- * Sorts edges for consistent comparison
+ * Sorts and deduplicates edges for consistent comparison.
+ * Deduplication handles legacy data that may contain duplicate edges.
  * @param edges - Array of edges to sort
- * @returns Sorted array of normalized edges
+ * @returns Sorted array of unique normalized edges
  */
 export function sortEdges(
   edges: Array<{
@@ -214,7 +215,13 @@ export function sortEdges(
   target: string
   targetHandle?: string | null
 }> {
-  return [...edges].sort((a, b) =>
+  const uniqueEdges = new Map<string, (typeof edges)[number]>()
+  for (const edge of edges) {
+    const key = `${edge.source}-${edge.sourceHandle ?? 'null'}-${edge.target}-${edge.targetHandle ?? 'null'}`
+    uniqueEdges.set(key, edge)
+  }
+
+  return Array.from(uniqueEdges.values()).sort((a, b) =>
     `${a.source}-${a.sourceHandle}-${a.target}-${a.targetHandle}`.localeCompare(
       `${b.source}-${b.sourceHandle}-${b.target}-${b.targetHandle}`
     )
