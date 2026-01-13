@@ -75,12 +75,12 @@ export const sendEmailTool: ToolConfig<LemlistSendEmailParams, LemlistSendEmailR
       }
     },
     body: (params) => ({
-      sendUserId: params.sendUserId,
-      sendUserEmail: params.sendUserEmail,
-      sendUserMailboxId: params.sendUserMailboxId,
-      contactId: params.contactId,
-      leadId: params.leadId,
-      subject: params.subject,
+      sendUserId: params.sendUserId?.trim(),
+      sendUserEmail: params.sendUserEmail?.trim(),
+      sendUserMailboxId: params.sendUserMailboxId?.trim(),
+      contactId: params.contactId?.trim(),
+      leadId: params.leadId?.trim(),
+      subject: params.subject?.trim(),
       message: params.message,
       cc: params.cc ?? [],
     }),

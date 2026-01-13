@@ -31,8 +31,7 @@ export interface LemlistGetActivitiesResponse extends ToolResponse {
 }
 
 export interface LemlistGetLeadParams extends LemlistBaseParams {
-  email?: string
-  id?: string
+  leadIdentifier: string
 }
 
 export interface LemlistLead {

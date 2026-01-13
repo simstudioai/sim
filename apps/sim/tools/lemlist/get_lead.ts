@@ -14,29 +14,22 @@ export const getLeadTool: ToolConfig<LemlistGetLeadParams, LemlistGetLeadRespons
       visibility: 'user-only',
       description: 'Lemlist API key',
     },
-    email: {
+    leadIdentifier: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Lead email address (use either email or id)',
-    },
-    id: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Lead ID (use either email or id)',
+      description: 'Lead email address or lead ID',
     },
   },
 
   request: {
     url: (params) => {
-      const url = new URL('https://api.lemlist.com/api/leads')
-      url.searchParams.append('version', 'v2')
-
-      if (params.email) url.searchParams.append('email', params.email)
-      if (params.id) url.searchParams.append('id', params.id)
-
-      return url.toString()
+      const identifier = params.leadIdentifier || ''
+      const isEmail = identifier.includes('@')
+      if (isEmail) {
+        return `https://api.lemlist.com/api/leads/${encodeURIComponent(identifier)}`
+      }
+      return `https://api.lemlist.com/api/leads?id=${encodeURIComponent(identifier)}`
     },
     method: 'GET',
     headers: (params) => {
