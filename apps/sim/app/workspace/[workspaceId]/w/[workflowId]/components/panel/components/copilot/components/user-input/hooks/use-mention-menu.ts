@@ -130,11 +130,25 @@ export function useMentionMenu({
       // Ensure '/' starts a token (start or whitespace before)
       if (slashIndex > 0 && !/\s/.test(before.charAt(slashIndex - 1))) return null
 
-      // Check if this '/' is part of a completed slash token ( /command )
+      // Check if this '/' is part of a completed slash token
       if (selectedContexts.length > 0) {
-        const labels = selectedContexts.map((c) => c.label).filter(Boolean) as string[]
-        for (const label of labels) {
-          // Space-wrapped token: " /label "
+        // Only check slash_command contexts
+        const slashLabels = selectedContexts
+          .filter((c) => c.kind === 'slash_command')
+          .map((c) => c.label)
+          .filter(Boolean) as string[]
+
+        for (const label of slashLabels) {
+          // Check for token at start of text: "/label "
+          if (slashIndex === 0) {
+            const startToken = `/${label} `
+            if (text.startsWith(startToken)) {
+              // This slash is part of a completed token
+              return null
+            }
+          }
+
+          // Check for space-wrapped token: " /label "
           const token = ` /${label} `
           let fromIndex = 0
           while (fromIndex <= text.length) {
@@ -256,9 +270,10 @@ export function useMentionMenu({
       const before = message.slice(0, active.start)
       const after = message.slice(active.end)
 
-      // Always include leading space, avoid duplicate if one exists
-      const needsLeadingSpace = !before.endsWith(' ')
-      const insertion = `${needsLeadingSpace ? ' ' : ''}@${label} `
+      // Add leading space only if not at start and previous char isn't whitespace
+      const needsLeadingSpace = before.length > 0 && !before.endsWith(' ')
+      // Always add trailing space for easy continued typing
+      const insertion = `${needsLeadingSpace ? ' ' : ''}@${label}  `
 
       const next = `${before}${insertion}${after}`
       onMessageChange(next)
@@ -290,9 +305,10 @@ export function useMentionMenu({
       const before = message.slice(0, active.start)
       const after = message.slice(active.end)
 
-      // Always include leading space, avoid duplicate if one exists
-      const needsLeadingSpace = !before.endsWith(' ')
-      const insertion = `${needsLeadingSpace ? ' ' : ''}/${label} `
+      // Add leading space only if not at start and previous char isn't whitespace
+      const needsLeadingSpace = before.length > 0 && !before.endsWith(' ')
+      // Always add trailing space for easy continued typing
+      const insertion = `${needsLeadingSpace ? ' ' : ''}/${label}  `
 
       const next = `${before}${insertion}${after}`
       onMessageChange(next)

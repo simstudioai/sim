@@ -497,6 +497,11 @@ const ACTION_VERBS = [
   'Accessed',
   'Managing',
   'Managed',
+  'Scraping',
+  'Scraped',
+  'Crawling',
+  'Crawled',
+  'Getting',
 ] as const
 
 /**
@@ -1160,7 +1165,7 @@ function SubAgentThinkingContent({
  * Default behavior is to NOT collapse (stay expanded like edit).
  * Only these specific subagents collapse into "Planned for Xs >" style headers.
  */
-const COLLAPSIBLE_SUBAGENTS = new Set(['plan', 'debug', 'research', 'info'])
+const COLLAPSIBLE_SUBAGENTS = new Set(['plan', 'debug', 'research', 'info', 'superagent'])
 
 /**
  * SubagentContentRenderer handles the rendering of subagent content.
@@ -1968,6 +1973,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     'tour',
     'info',
     'workflow',
+    'superagent'
   ]
   const isSubagentTool = SUBAGENT_TOOLS.includes(toolCall.name)
 

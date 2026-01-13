@@ -21,6 +21,7 @@ const TOP_LEVEL_COMMANDS = [
   { id: 'fast', label: 'fast' },
   { id: 'superagent', label: 'superagent' },
   { id: 'deploy', label: 'deploy' },
+  { id: 'research', label: 'research' },
 ] as const
 
 /**
@@ -28,10 +29,9 @@ const TOP_LEVEL_COMMANDS = [
  */
 const WEB_COMMANDS = [
   { id: 'search', label: 'search' },
-  { id: 'research', label: 'research' },
-  { id: 'crawl', label: 'crawl' },
   { id: 'read', label: 'read' },
   { id: 'scrape', label: 'scrape' },
+  { id: 'crawl', label: 'crawl' },
 ] as const
 
 /**

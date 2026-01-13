@@ -68,6 +68,8 @@ interface UserInputProps {
   hideModeSelector?: boolean
   /** Disable @mention functionality */
   disableMentions?: boolean
+  /** Initial contexts for editing a message with existing context mentions */
+  initialContexts?: ChatContext[]
 }
 
 interface UserInputRef {
@@ -104,6 +106,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       onModelChangeOverride,
       hideModeSelector = false,
       disableMentions = false,
+      initialContexts,
     },
     ref
   ) => {
@@ -142,7 +145,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     // Custom hooks - order matters for ref sharing
     // Context management (manages selectedContexts state)
-    const contextManagement = useContextManagement({ message })
+    const contextManagement = useContextManagement({ message, initialContexts })
 
     // Mention menu
     const mentionMenu = useMentionMenu({
@@ -410,8 +413,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
         // Arrow navigation in slash menu
         if (showSlashMenu) {
-          const TOP_LEVEL_COMMANDS = ['plan', 'debug', 'fast', 'superagent', 'deploy']
-          const WEB_COMMANDS = ['search', 'research', 'crawl', 'read', 'scrape']
+          const TOP_LEVEL_COMMANDS = ['plan', 'debug', 'fast', 'superagent', 'deploy', 'research']
+          const WEB_COMMANDS = ['search', 'read', 'scrape', 'crawl']
           const ALL_COMMANDS = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
 
           const caretPos = mentionMenu.getCaretPos()
@@ -488,8 +491,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
           e.preventDefault()
           if (showSlashMenu) {
-            const TOP_LEVEL_COMMANDS = ['plan', 'debug', 'fast', 'superagent', 'deploy']
-            const WEB_COMMANDS = ['search', 'research', 'crawl', 'read', 'scrape']
+            const TOP_LEVEL_COMMANDS = ['plan', 'debug', 'fast', 'superagent', 'deploy', 'research']
+            const WEB_COMMANDS = ['search', 'read', 'scrape', 'crawl']
             const ALL_COMMANDS = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
 
             const caretPos = mentionMenu.getCaretPos()

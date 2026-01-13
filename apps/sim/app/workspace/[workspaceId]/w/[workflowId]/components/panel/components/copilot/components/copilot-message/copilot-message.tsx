@@ -279,6 +279,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 onModeChange={setMode}
                 panelWidth={panelWidth}
                 clearOnSubmit={false}
+                initialContexts={message.contexts}
               />
 
               {/* Inline Checkpoint Discard Confirmation - shown below input in edit mode */}

@@ -60,6 +60,12 @@ export function useMentionTokens({
       const isSlashCommand = matchingContext?.kind === 'slash_command'
       const prefix = isSlashCommand ? '/' : '@'
 
+      // Check for token at the very start of the message (no leading space)
+      const tokenAtStart = `${prefix}${label} `
+      if (message.startsWith(tokenAtStart)) {
+        ranges.push({ start: 0, end: tokenAtStart.length, label })
+      }
+
       // Space-wrapped token: " @label " or " /label " (search from start)
       const token = ` ${prefix}${label} `
       let fromIndex = 0
