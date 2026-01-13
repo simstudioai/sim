@@ -27,7 +27,7 @@ import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, IterationContext } from '@/executor/execution/types'
 import type { StreamingExecution } from '@/executor/types'
 import { Serializer } from '@/serializer'
-import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
+import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('WorkflowExecuteAPI')
 
@@ -109,7 +109,7 @@ type AsyncExecutionParams = {
   workflowId: string
   userId: string
   input: any
-  triggerType: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | 'mcp'
+  triggerType: CoreTriggerType
 }
 
 /**
@@ -253,17 +253,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     })
 
     const executionId = uuidv4()
-    type LoggingTriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | 'mcp'
-    let loggingTriggerType: LoggingTriggerType = 'manual'
-    if (
-      triggerType === 'api' ||
-      triggerType === 'chat' ||
-      triggerType === 'webhook' ||
-      triggerType === 'schedule' ||
-      triggerType === 'manual' ||
-      triggerType === 'mcp'
-    ) {
-      loggingTriggerType = triggerType as LoggingTriggerType
+    let loggingTriggerType: CoreTriggerType = 'manual'
+    if (CORE_TRIGGER_TYPES.includes(triggerType as CoreTriggerType)) {
+      loggingTriggerType = triggerType as CoreTriggerType
     }
     const loggingSession = new LoggingSession(
       workflowId,
