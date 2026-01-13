@@ -52,7 +52,7 @@ export const LemlistBlock: BlockConfig<LemlistResponse> = {
       condition: { field: 'operation', value: 'get_activities' },
     },
     {
-      id: 'leadId',
+      id: 'filterLeadId',
       title: 'Lead ID',
       type: 'short-input',
       placeholder: 'Filter by lead ID (optional)',
@@ -175,6 +175,10 @@ export const LemlistBlock: BlockConfig<LemlistResponse> = {
         if (params.offset) {
           params.offset = Number(params.offset)
         }
+        // Map filterLeadId to leadId for get_activities tool
+        if (params.filterLeadId) {
+          params.leadId = params.filterLeadId
+        }
 
         switch (params.operation) {
           case 'get_activities':
@@ -194,7 +198,8 @@ export const LemlistBlock: BlockConfig<LemlistResponse> = {
     apiKey: { type: 'string', description: 'Lemlist API key' },
     type: { type: 'string', description: 'Activity type filter' },
     campaignId: { type: 'string', description: 'Campaign ID filter' },
-    leadId: { type: 'string', description: 'Lead ID' },
+    filterLeadId: { type: 'string', description: 'Lead ID filter for activities' },
+    leadId: { type: 'string', description: 'Lead ID for send email' },
     limit: { type: 'number', description: 'Result limit' },
     offset: { type: 'number', description: 'Result offset' },
     leadIdentifier: { type: 'string', description: 'Lead email address or ID' },

@@ -2,6 +2,7 @@ import { LemlistIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildAllOutputs,
+  buildLemlistExtraFields,
   lemlistSetupInstructions,
   lemlistTriggerOptions,
 } from '@/triggers/lemlist/utils'
@@ -22,49 +23,8 @@ export const lemlistWebhookTrigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'lemlist_webhook',
     triggerOptions: lemlistTriggerOptions,
-    setupInstructions: lemlistSetupInstructions('All Events (omit type field)'),
-    extraFields: [
-      {
-        id: 'eventTypes',
-        title: 'Event Types to Listen For',
-        type: 'dropdown',
-        multiSelect: true,
-        options: [
-          // Email Events
-          { label: 'Email Sent', id: 'emailsSent' },
-          { label: 'Email Opened', id: 'emailsOpened' },
-          { label: 'Email Clicked', id: 'emailsClicked' },
-          { label: 'Email Replied', id: 'emailsReplied' },
-          { label: 'Email Bounced', id: 'emailsBounced' },
-          { label: 'Email Unsubscribed', id: 'emailsUnsubscribed' },
-          // LinkedIn Events
-          { label: 'LinkedIn Replied', id: 'linkedinReplied' },
-          { label: 'LinkedIn Invite Accepted', id: 'linkedinInviteAccepted' },
-          { label: 'LinkedIn Sent', id: 'linkedinSent' },
-          // Lead Status Events
-          { label: 'Interested', id: 'interested' },
-          { label: 'Not Interested', id: 'notInterested' },
-          { label: 'Contacted', id: 'contacted' },
-          { label: 'Paused', id: 'paused' },
-          // System Events
-          { label: 'Campaign Complete', id: 'campaignComplete' },
-        ],
-        placeholder: 'Leave empty to receive all events',
-        description:
-          'Select specific events to filter. Leave empty to receive all events from Lemlist.',
-        mode: 'trigger',
-        condition: { field: 'selectedTriggerId', value: 'lemlist_webhook' },
-      },
-      {
-        id: 'campaignId',
-        title: 'Campaign ID (Optional)',
-        type: 'short-input',
-        placeholder: 'cam_xxxxx (leave empty for all campaigns)',
-        description: 'Optionally scope the webhook to a specific campaign',
-        mode: 'trigger',
-        condition: { field: 'selectedTriggerId', value: 'lemlist_webhook' },
-      },
-    ],
+    setupInstructions: lemlistSetupInstructions('All Events (no type filter)'),
+    extraFields: buildLemlistExtraFields('lemlist_webhook'),
   }),
 
   outputs: buildAllOutputs(),
