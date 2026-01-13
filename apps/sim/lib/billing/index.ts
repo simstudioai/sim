@@ -20,7 +20,6 @@ export {
   isProPlan as hasProPlan,
   isTeamOrgAdminOrOwner,
   isTeamPlan as hasTeamPlan,
-  isWorkspaceOnEnterprisePlan,
   sendPlanWelcomeEmail,
 } from '@/lib/billing/core/subscription'
 export * from '@/lib/billing/core/usage'

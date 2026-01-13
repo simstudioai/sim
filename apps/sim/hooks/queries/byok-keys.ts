@@ -17,7 +17,6 @@ export interface BYOKKey {
 
 export interface BYOKKeysResponse {
   keys: BYOKKey[]
-  byokEnabled: boolean
 }
 
 export const byokKeysKeys = {
@@ -33,7 +32,6 @@ async function fetchBYOKKeys(workspaceId: string): Promise<BYOKKeysResponse> {
   const data = await response.json()
   return {
     keys: data.keys ?? [],
-    byokEnabled: data.byokEnabled ?? true,
   }
 }
 
