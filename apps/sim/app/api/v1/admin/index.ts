@@ -53,10 +53,6 @@
  *   GET    /api/v1/admin/subscriptions/:id                  - Get subscription details
  *   DELETE /api/v1/admin/subscriptions/:id                  - Cancel subscription (?atPeriodEnd=true for scheduled)
  *
- *   BYOK Keys:
- *   GET    /api/v1/admin/byok                               - List BYOK keys (?organizationId=X or ?workspaceId=X)
- *   DELETE /api/v1/admin/byok                               - Delete BYOK keys for org/workspace
- *
  *   Access Control (Permission Groups):
  *   GET    /api/v1/admin/access-control                     - List permission groups (?organizationId=X)
  *   DELETE /api/v1/admin/access-control                     - Delete permission groups for org (?organizationId=X)

@@ -6,8 +6,6 @@ import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { isEnterpriseOrgAdminOrOwner } from '@/lib/billing/core/subscription'
-import { isHosted } from '@/lib/core/config/feature-flags'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -56,15 +54,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (!permission) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    let byokEnabled = true
-    if (isHosted) {
-      byokEnabled = await isEnterpriseOrgAdminOrOwner(userId)
-    }
-
-    if (!byokEnabled) {
-      return NextResponse.json({ keys: [], byokEnabled: false })
     }
 
     const byokKeys = await db
@@ -130,20 +119,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const userId = session.user.id
-
-    if (isHosted) {
-      const canManageBYOK = await isEnterpriseOrgAdminOrOwner(userId)
-      if (!canManageBYOK) {
-        logger.warn(`[${requestId}] User not authorized to manage BYOK keys`, { userId })
-        return NextResponse.json(
-          {
-            error:
-              'BYOK is an Enterprise-only feature. Only organization admins and owners can manage API keys.',
-          },
-          { status: 403 }
-        )
-      }
-    }
 
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (permission !== 'admin') {
@@ -244,20 +219,6 @@ export async function DELETE(
     }
 
     const userId = session.user.id
-
-    if (isHosted) {
-      const canManageBYOK = await isEnterpriseOrgAdminOrOwner(userId)
-      if (!canManageBYOK) {
-        logger.warn(`[${requestId}] User not authorized to manage BYOK keys`, { userId })
-        return NextResponse.json(
-          {
-            error:
-              'BYOK is an Enterprise-only feature. Only organization admins and owners can manage API keys.',
-          },
-          { status: 403 }
-        )
-      }
-    }
 
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (permission !== 'admin') {

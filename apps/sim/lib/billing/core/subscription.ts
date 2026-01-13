@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, subscription, user, userStats, workspace } from '@sim/db/schema'
+import { member, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
@@ -214,34 +214,6 @@ export async function isTeamOrgAdminOrOwner(userId: string): Promise<boolean> {
     return !!hasTeamPlan
   } catch (error) {
     logger.error('Error checking team org admin/owner status', { error, userId })
-    return false
-  }
-}
-
-/**
- * Check if a workspace has access to enterprise features (BYOK)
- * Used at execution time to determine if BYOK keys should be used
- * Returns true if workspace's billed account is on enterprise plan
- */
-export async function isWorkspaceOnEnterprisePlan(workspaceId: string): Promise<boolean> {
-  try {
-    if (!isProd) {
-      return true
-    }
-
-    const [ws] = await db
-      .select({ billedAccountUserId: workspace.billedAccountUserId })
-      .from(workspace)
-      .where(eq(workspace.id, workspaceId))
-      .limit(1)
-
-    if (!ws) {
-      return false
-    }
-
-    return isEnterprisePlan(ws.billedAccountUserId)
-  } catch (error) {
-    logger.error('Error checking workspace enterprise status', { error, workspaceId })
     return false
   }
 }

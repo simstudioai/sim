@@ -31,33 +31,6 @@ Define permission groups to control what features and integrations team members 
 
 ---
 
-## Bring Your Own Key (BYOK)
-
-Use your own API keys for AI model providers instead of Sim Studio's hosted keys.
-
-### Supported Providers
-
-| Provider | Usage |
-|----------|-------|
-| OpenAI | Knowledge Base embeddings, Agent block |
-| Anthropic | Agent block |
-| Google | Agent block |
-| Mistral | Knowledge Base OCR |
-
-### Setup
-
-1. Navigate to **Settings** → **BYOK** in your workspace
-2. Click **Add Key** for your provider
-3. Enter your API key and save
-
-<Callout type="warn">
-  BYOK keys are encrypted at rest. Only organization admins and owners can manage keys.
-</Callout>
-
-When configured, workflows use your key instead of Sim Studio's hosted keys. If removed, workflows automatically fall back to hosted keys.
-
----
-
 ## Single Sign-On (SSO)
 
 Enterprise authentication with SAML 2.0 and OIDC support for centralized identity management.
