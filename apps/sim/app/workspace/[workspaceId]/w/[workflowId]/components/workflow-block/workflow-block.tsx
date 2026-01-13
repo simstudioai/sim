@@ -35,6 +35,7 @@ import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth-credentials'
+import { useTablesList } from '@/hooks/queries/use-tables'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { useVariablesStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -85,7 +86,11 @@ const isFieldFormatArray = (value: unknown): value is FieldFormat[] => {
   if (!Array.isArray(value) || value.length === 0) return false
   const firstItem = value[0]
   return (
-    typeof firstItem === 'object' && firstItem !== null && 'id' in firstItem && 'name' in firstItem
+    typeof firstItem === 'object' &&
+    firstItem !== null &&
+    'id' in firstItem &&
+    'name' in firstItem &&
+    typeof firstItem.name === 'string'
   )
 }
 
@@ -151,7 +156,8 @@ const isTagFilterArray = (value: unknown): value is TagFilterItem[] => {
     typeof firstItem === 'object' &&
     firstItem !== null &&
     'tagName' in firstItem &&
-    'tagValue' in firstItem
+    'tagValue' in firstItem &&
+    typeof firstItem.tagName === 'string'
   )
 }
 
@@ -173,7 +179,8 @@ const isDocumentTagArray = (value: unknown): value is DocumentTagItem[] => {
     firstItem !== null &&
     'tagName' in firstItem &&
     'value' in firstItem &&
-    !('tagValue' in firstItem) // Distinguish from tag filters
+    !('tagValue' in firstItem) && // Distinguish from tag filters
+    typeof firstItem.tagName === 'string'
   )
 }
 
@@ -222,7 +229,9 @@ export const getDisplayValue = (value: unknown): string => {
   }
 
   if (isTagFilterArray(parsedValue)) {
-    const validFilters = parsedValue.filter((f) => f.tagName?.trim())
+    const validFilters = parsedValue.filter(
+      (f) => typeof f.tagName === 'string' && f.tagName.trim() !== ''
+    )
     if (validFilters.length === 0) return '-'
     if (validFilters.length === 1) return validFilters[0].tagName
     if (validFilters.length === 2) return `${validFilters[0].tagName}, ${validFilters[1].tagName}`
@@ -230,7 +239,9 @@ export const getDisplayValue = (value: unknown): string => {
   }
 
   if (isDocumentTagArray(parsedValue)) {
-    const validTags = parsedValue.filter((t) => t.tagName?.trim())
+    const validTags = parsedValue.filter(
+      (t) => typeof t.tagName === 'string' && t.tagName.trim() !== ''
+    )
     if (validTags.length === 0) return '-'
     if (validTags.length === 1) return validTags[0].tagName
     if (validTags.length === 2) return `${validTags[0].tagName}, ${validTags[1].tagName}`
@@ -258,7 +269,9 @@ export const getDisplayValue = (value: unknown): string => {
   }
 
   if (isFieldFormatArray(parsedValue)) {
-    const namedFields = parsedValue.filter((field) => field.name && field.name.trim() !== '')
+    const namedFields = parsedValue.filter(
+      (field) => typeof field.name === 'string' && field.name.trim() !== ''
+    )
     if (namedFields.length === 0) return '-'
     if (namedFields.length === 1) return namedFields[0].name
     if (namedFields.length === 2) return `${namedFields[0].name}, ${namedFields[1].name}`
@@ -442,6 +455,15 @@ const SubBlockRow = ({
     return tool?.name ?? null
   }, [subBlock?.type, rawValue, mcpToolsData])
 
+  const { data: tables = [] } = useTablesList(workspaceId || '')
+  const tableDisplayName = useMemo(() => {
+    if (subBlock?.id !== 'tableId' || typeof rawValue !== 'string') {
+      return null
+    }
+    const table = tables.find((t) => t.id === rawValue)
+    return table?.name ?? null
+  }, [subBlock?.id, rawValue, tables])
+
   const webhookUrlDisplayValue = useMemo(() => {
     if (subBlock?.id !== 'webhookUrlDisplay' || !blockId) {
       return null
@@ -481,18 +503,42 @@ const SubBlockRow = ({
     return `${names[0]}, ${names[1]} +${names.length - 2}`
   }, [subBlock?.type, rawValue, workflowId, allVariables])
 
+  const filterDisplayValue = useMemo(() => {
+    const isFilterField =
+      subBlock?.id === 'filter' || subBlock?.id === 'filterCriteria' || subBlock?.id === 'sort'
+
+    if (!isFilterField || !rawValue) return null
+
+    const parsedValue = tryParseJson(rawValue)
+
+    if (isPlainObject(parsedValue) || Array.isArray(parsedValue)) {
+      try {
+        const jsonStr = JSON.stringify(parsedValue, null, 0)
+        if (jsonStr.length <= 35) return jsonStr
+        return `${jsonStr.slice(0, 32)}...`
+      } catch {
+        return null
+      }
+    }
+
+    return null
+  }, [subBlock?.id, rawValue])
+
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
+  const isMonospaceField = Boolean(filterDisplayValue)
 
   const isSelectorType = subBlock?.type && SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlock.type)
   const hydratedName =
     credentialName ||
     dropdownLabel ||
     variablesDisplayValue ||
+    filterDisplayValue ||
     knowledgeBaseDisplayName ||
     workflowSelectionName ||
     mcpServerDisplayName ||
     mcpToolDisplayName ||
+    tableDisplayName ||
     webhookUrlDisplayValue ||
     selectorDisplayName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
@@ -507,7 +553,10 @@ const SubBlockRow = ({
       </span>
       {displayValue !== undefined && (
         <span
-          className='flex-1 truncate text-right text-[14px] text-[var(--text-primary)]'
+          className={cn(
+            'flex-1 truncate text-right text-[14px] text-[var(--text-primary)]',
+            isMonospaceField && 'font-mono'
+          )}
           title={displayValue}
         >
           {displayValue}

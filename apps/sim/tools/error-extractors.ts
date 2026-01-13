@@ -58,6 +58,54 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     extract: (errorInfo) => errorInfo?.data?.details?.[0]?.message,
   },
   {
+    id: 'details-string-array',
+    description: 'Details array containing strings (validation errors)',
+    examples: ['Table API', 'Validation APIs'],
+    extract: (errorInfo) => {
+      const details = errorInfo?.data?.details
+      if (!Array.isArray(details) || details.length === 0) return undefined
+
+      // Check if it's an array of strings
+      if (details.every((d) => typeof d === 'string')) {
+        const errorMessage = errorInfo?.data?.error || 'Validation failed'
+        return `${errorMessage}: ${details.join('; ')}`
+      }
+
+      return undefined
+    },
+  },
+  {
+    id: 'batch-validation-errors',
+    description: 'Batch validation errors with row numbers and error arrays',
+    examples: ['Table Batch Insert'],
+    extract: (errorInfo) => {
+      const details = errorInfo?.data?.details
+      if (!Array.isArray(details) || details.length === 0) return undefined
+
+      // Check if it's an array of objects with row numbers and errors
+      if (
+        details.every(
+          (d) =>
+            typeof d === 'object' &&
+            d !== null &&
+            'row' in d &&
+            'errors' in d &&
+            Array.isArray(d.errors)
+        )
+      ) {
+        const errorMessage = errorInfo?.data?.error || 'Validation failed'
+        const rowErrors = details
+          .map((detail: { row: number; errors: string[] }) => {
+            return `Row ${detail.row}: ${detail.errors.join(', ')}`
+          })
+          .join('; ')
+        return `${errorMessage}: ${rowErrors}`
+      }
+
+      return undefined
+    },
+  },
+  {
     id: 'hunter-errors',
     description: 'Hunter API error details',
     examples: ['Hunter.io API'],
@@ -176,6 +224,8 @@ export const ErrorExtractorId = {
   GRAPHQL_ERRORS: 'graphql-errors',
   TWITTER_ERRORS: 'twitter-errors',
   DETAILS_ARRAY: 'details-array',
+  DETAILS_STRING_ARRAY: 'details-string-array',
+  BATCH_VALIDATION_ERRORS: 'batch-validation-errors',
   HUNTER_ERRORS: 'hunter-errors',
   ERRORS_ARRAY_STRING: 'errors-array-string',
   TELEGRAM_DESCRIPTION: 'telegram-description',
