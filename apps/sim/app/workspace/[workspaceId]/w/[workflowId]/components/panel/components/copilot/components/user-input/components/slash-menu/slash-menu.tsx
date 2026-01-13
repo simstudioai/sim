@@ -16,12 +16,12 @@ import type { useMentionMenu } from '../../hooks/use-mention-menu'
  * Top-level slash command options
  */
 const TOP_LEVEL_COMMANDS = [
+  { id: 'fast', label: 'fast' },
   { id: 'plan', label: 'plan' },
   { id: 'debug', label: 'debug' },
-  { id: 'fast', label: 'fast' },
-  { id: 'superagent', label: 'superagent' },
-  { id: 'deploy', label: 'deploy' },
   { id: 'research', label: 'research' },
+  { id: 'deploy', label: 'deploy' },
+  { id: 'superagent', label: 'superagent' },
 ] as const
 
 /**

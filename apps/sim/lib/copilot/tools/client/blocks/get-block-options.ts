@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { ListFilter, Loader2, MinusCircle, XCircle } from 'lucide-react'
+import { getBlock } from '@/blocks/registry'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -37,7 +38,9 @@ export class GetBlockOptionsClientTool extends BaseClientTool {
     },
     getDynamicText: (params, state) => {
       if (params?.blockId && typeof params.blockId === 'string') {
-        const blockName = params.blockId.replace(/_/g, ' ')
+        // Look up the block config to get the human-readable name
+        const blockConfig = getBlock(params.blockId)
+        const blockName = (blockConfig?.name ?? params.blockId.replace(/_/g, ' ')).toLowerCase()
 
         switch (state) {
           case ClientToolCallState.success:

@@ -413,7 +413,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
         // Arrow navigation in slash menu
         if (showSlashMenu) {
-          const TOP_LEVEL_COMMANDS = ['plan', 'debug', 'fast', 'superagent', 'deploy', 'research']
+          const TOP_LEVEL_COMMANDS = ['fast', 'plan', 'debug', 'research', 'deploy', 'superagent']
           const WEB_COMMANDS = ['search', 'read', 'scrape', 'crawl']
           const ALL_COMMANDS = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
 
