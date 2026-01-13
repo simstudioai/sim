@@ -87,3 +87,35 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
     },
   },
 }
+
+// V2 Tool with API-aligned outputs
+interface NotionWriteV2Response {
+  success: boolean
+  output: {
+    appended: boolean
+  }
+}
+
+export const notionWriteV2Tool: ToolConfig<NotionWriteParams, NotionWriteV2Response> = {
+  id: 'notion_write_v2',
+  name: 'Notion Content Appender',
+  description: 'Append content to a Notion page',
+  version: '2.0.0',
+  oauth: notionWriteTool.oauth,
+  params: notionWriteTool.params,
+  request: notionWriteTool.request,
+
+  transformResponse: async (response: Response) => {
+    await response.json()
+    return {
+      success: response.ok,
+      output: {
+        appended: response.ok,
+      },
+    }
+  },
+
+  outputs: {
+    appended: { type: 'boolean', description: 'Whether content was successfully appended' },
+  },
+}

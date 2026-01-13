@@ -168,9 +168,31 @@ Execute arbitrary Cypher queries on Neo4j graph database for complex operations
 | `recordCount` | number | Number of records returned |
 | `summary` | json | Execution summary with timing and counters |
 
+### `neo4j_introspect`
+
+Introspect a Neo4j database to discover its schema including node labels, relationship types, properties, constraints, and indexes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Neo4j server hostname or IP address |
+| `port` | number | Yes | Neo4j server port \(default: 7687 for Bolt protocol\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Neo4j username |
+| `password` | string | Yes | Neo4j password |
+| `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `labels` | array | Array of node labels in the database |
+| `relationshipTypes` | array | Array of relationship types in the database |
+| `nodeSchemas` | array | Array of node schemas with their properties |
+| `relationshipSchemas` | array | Array of relationship schemas with their properties |
+| `constraints` | array | Array of database constraints |
+| `indexes` | array | Array of database indexes |
 
 
-## Notes
-
-- Category: `tools`
-- Type: `neo4j`

@@ -13,7 +13,7 @@ export interface MailchimpPaginationParams {
 }
 
 export interface MailchimpPagingInfo {
-  totalItems: number
+  total_items: number
 }
 
 export interface MailchimpResponse<T> {
@@ -21,8 +21,7 @@ export interface MailchimpResponse<T> {
   output: {
     data?: T
     paging?: MailchimpPagingInfo
-    metadata: {
-      operation: string
+    metadata?: {
       [key: string]: unknown
     }
     success: boolean

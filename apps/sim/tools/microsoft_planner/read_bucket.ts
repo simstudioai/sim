@@ -76,6 +76,13 @@ export const readBucketTool: ToolConfig<
   outputs: {
     success: { type: 'boolean', description: 'Whether the bucket was retrieved successfully' },
     bucket: { type: 'object', description: 'The bucket object with all properties' },
-    metadata: { type: 'object', description: 'Metadata including bucketId and planId' },
+    metadata: {
+      type: 'object',
+      description: 'Metadata including bucketId and planId',
+      properties: {
+        bucketId: { type: 'string', description: 'Bucket ID' },
+        planId: { type: 'string', description: 'Parent plan ID' },
+      },
+    },
   },
 }

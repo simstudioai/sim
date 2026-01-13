@@ -102,13 +102,19 @@ export const salesforceUpdateTaskTool: ToolConfig<
       output: {
         id: params?.taskId || '',
         updated: true,
-        metadata: { operation: 'update_task' },
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success' },
-    output: { type: 'object', description: 'Updated task' },
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Updated task data',
+      properties: {
+        id: { type: 'string', description: 'Updated task ID' },
+        updated: { type: 'boolean', description: 'Whether task was updated' },
+      },
+    },
   },
 }

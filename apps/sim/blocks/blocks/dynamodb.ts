@@ -1,13 +1,13 @@
 import { DynamoDBIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import type { DynamoDBResponse } from '@/tools/dynamodb/types'
+import type { DynamoDBIntrospectResponse, DynamoDBResponse } from '@/tools/dynamodb/types'
 
-export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
+export const DynamoDBBlock: BlockConfig<DynamoDBResponse | DynamoDBIntrospectResponse> = {
   type: 'dynamodb',
   name: 'Amazon DynamoDB',
   description: 'Connect to Amazon DynamoDB',
   longDescription:
-    'Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, and Delete operations on DynamoDB tables.',
+    'Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.',
   docsLink: 'https://docs.sim.ai/tools/dynamodb',
   category: 'tools',
   bgColor: 'linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)',
@@ -24,6 +24,7 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
         { label: 'Scan', id: 'scan' },
         { label: 'Update Item', id: 'update' },
         { label: 'Delete Item', id: 'delete' },
+        { label: 'Introspect', id: 'introspect' },
       ],
       value: () => 'get',
     },
@@ -56,6 +57,19 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse> = {
       type: 'short-input',
       placeholder: 'my-table',
       required: true,
+      condition: {
+        field: 'operation',
+        value: 'introspect',
+        not: true,
+      },
+    },
+    {
+      id: 'tableName',
+      title: 'Table Name (Optional)',
+      type: 'short-input',
+      placeholder: 'Leave empty to list all tables',
+      required: false,
+      condition: { field: 'operation', value: 'introspect' },
     },
     // Key field for get, update, delete operations
     {
@@ -420,6 +434,7 @@ Return ONLY the expression - no explanations.`,
       'dynamodb_scan',
       'dynamodb_update',
       'dynamodb_delete',
+      'dynamodb_introspect',
     ],
     config: {
       tool: (params) => {
@@ -436,6 +451,8 @@ Return ONLY the expression - no explanations.`,
             return 'dynamodb_update'
           case 'delete':
             return 'dynamodb_delete'
+          case 'introspect':
+            return 'dynamodb_introspect'
           default:
             throw new Error(`Invalid DynamoDB operation: ${params.operation}`)
         }
@@ -551,6 +568,14 @@ Return ONLY the expression - no explanations.`,
     count: {
       type: 'number',
       description: 'Number of items returned',
+    },
+    tables: {
+      type: 'array',
+      description: 'List of table names from introspect operation',
+    },
+    tableDetails: {
+      type: 'json',
+      description: 'Detailed schema information for a specific table from introspect operation',
     },
   },
 }

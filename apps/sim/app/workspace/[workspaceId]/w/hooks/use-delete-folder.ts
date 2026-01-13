@@ -11,10 +11,9 @@ interface UseDeleteFolderProps {
    */
   workspaceId: string
   /**
-   * Function that returns the folder ID(s) to delete
-   * This function is called when deletion occurs to get fresh selection state
+   * The folder ID(s) to delete
    */
-  getFolderIds: () => string | string[]
+  folderIds: string | string[]
   /**
    * Optional callback after successful deletion
    */
@@ -24,17 +23,10 @@ interface UseDeleteFolderProps {
 /**
  * Hook for managing folder deletion.
  *
- * Handles:
- * - Single or bulk folder deletion
- * - Calling delete API for each folder
- * - Loading state management
- * - Error handling and logging
- * - Clearing selection after deletion
- *
  * @param props - Hook configuration
  * @returns Delete folder handlers and state
  */
-export function useDeleteFolder({ workspaceId, getFolderIds, onSuccess }: UseDeleteFolderProps) {
+export function useDeleteFolder({ workspaceId, folderIds, onSuccess }: UseDeleteFolderProps) {
   const deleteFolderMutation = useDeleteFolderMutation()
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -46,23 +38,18 @@ export function useDeleteFolder({ workspaceId, getFolderIds, onSuccess }: UseDel
       return
     }
 
+    if (!folderIds) {
+      return
+    }
+
     setIsDeleting(true)
     try {
-      // Get fresh folder IDs at deletion time
-      const folderIdsOrId = getFolderIds()
-      if (!folderIdsOrId) {
-        return
-      }
+      const folderIdsToDelete = Array.isArray(folderIds) ? folderIds : [folderIds]
 
-      // Normalize to array for consistent handling
-      const folderIdsToDelete = Array.isArray(folderIdsOrId) ? folderIdsOrId : [folderIdsOrId]
-
-      // Delete each folder sequentially
       for (const folderId of folderIdsToDelete) {
         await deleteFolderMutation.mutateAsync({ id: folderId, workspaceId })
       }
 
-      // Clear selection after successful deletion
       const { clearSelection } = useFolderStore.getState()
       clearSelection()
 
@@ -74,7 +61,7 @@ export function useDeleteFolder({ workspaceId, getFolderIds, onSuccess }: UseDel
     } finally {
       setIsDeleting(false)
     }
-  }, [getFolderIds, isDeleting, deleteFolderMutation, workspaceId, onSuccess])
+  }, [folderIds, isDeleting, deleteFolderMutation, workspaceId, onSuccess])
 
   return {
     isDeleting,

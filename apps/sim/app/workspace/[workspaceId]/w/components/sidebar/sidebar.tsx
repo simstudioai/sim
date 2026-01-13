@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowDown, Database, HelpCircle, Layout, Plus, Search, Settings } from 'lucide-react'
+import { Database, HelpCircle, Layout, Plus, Search, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { Button, FolderPlus, Library, Tooltip } from '@/components/emcn'
+import { Button, Download, FolderPlus, Library, Loader, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -30,6 +30,7 @@ import {
 import {
   useDuplicateWorkspace,
   useExportWorkspace,
+  useImportWorkflow,
   useImportWorkspace,
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -85,9 +86,11 @@ export function Sidebar() {
   const isCollapsed = hasHydrated ? isCollapsedStore : false
   const isOnWorkflowPage = !!workflowId
 
-  const [isImporting, setIsImporting] = useState(false)
   const workspaceFileInputRef = useRef<HTMLInputElement>(null)
 
+  const { isImporting, handleFileChange: handleImportFileChange } = useImportWorkflow({
+    workspaceId,
+  })
   const { isImporting: isImportingWorkspace, handleImportWorkspace: importWorkspace } =
     useImportWorkspace()
   const { handleExportWorkspace: exportWorkspace } = useExportWorkspace()
@@ -213,7 +216,7 @@ export function Sidebar() {
   }, [activeNavItemHref])
 
   const { handleDuplicateWorkspace: duplicateWorkspace } = useDuplicateWorkspace({
-    getWorkspaceId: () => workspaceId,
+    workspaceId,
   })
 
   const searchModalWorkflows = useMemo(
@@ -565,21 +568,31 @@ export function Sidebar() {
                       Workflows
                     </div>
                     <div className='flex items-center justify-center gap-[10px]'>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            variant='ghost'
-                            className='translate-y-[-0.25px] p-[1px]'
-                            onClick={handleImportWorkflow}
-                            disabled={isImporting || !canEdit}
-                          >
-                            <ArrowDown className='h-[14px] w-[14px]' />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>
-                          <p>{isImporting ? 'Importing workflow...' : 'Import workflow'}</p>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
+                      {isImporting ? (
+                        <Button
+                          variant='ghost'
+                          className='translate-y-[-0.25px] p-[1px]'
+                          disabled={!canEdit || isImporting}
+                        >
+                          <Loader className='h-[14px] w-[14px]' animate />
+                        </Button>
+                      ) : (
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <Button
+                              variant='ghost'
+                              className='translate-y-[-0.25px] p-[1px]'
+                              onClick={handleImportWorkflow}
+                              disabled={!canEdit}
+                            >
+                              <Download className='h-[14px] w-[14px]' />
+                            </Button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content>
+                            <p>Import workflows</p>
+                          </Tooltip.Content>
+                        </Tooltip.Root>
+                      )}
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
@@ -622,8 +635,7 @@ export function Sidebar() {
                   <WorkflowList
                     regularWorkflows={regularWorkflows}
                     isLoading={isLoading}
-                    isImporting={isImporting}
-                    setIsImporting={setIsImporting}
+                    handleFileChange={handleImportFileChange}
                     fileInputRef={fileInputRef}
                     scrollContainerRef={scrollContainerRef}
                   />

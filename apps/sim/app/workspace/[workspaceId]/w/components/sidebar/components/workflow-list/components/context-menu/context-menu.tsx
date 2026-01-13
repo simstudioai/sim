@@ -347,11 +347,11 @@ export function ContextMenu({
                     title={name}
                     onClick={(e) => {
                       e.stopPropagation()
-                      onColorChange(color)
+                      setHexInput(color)
                     }}
                     className={cn(
                       'h-[20px] w-[20px] rounded-[4px]',
-                      currentColor?.toLowerCase() === color.toLowerCase() && 'ring-1 ring-white'
+                      hexInput.toLowerCase() === color.toLowerCase() && 'ring-1 ring-white'
                     )}
                     style={{ backgroundColor: color }}
                   />
@@ -373,7 +373,7 @@ export function ContextMenu({
                   onKeyDown={handleHexKeyDown}
                   onFocus={handleHexFocus}
                   onClick={(e) => e.stopPropagation()}
-                  className='h-[20px] min-w-0 flex-1 rounded-[4px] bg-[#363636] px-[6px] text-[11px] text-white uppercase focus:outline-none'
+                  className='h-[20px] min-w-0 flex-1 rounded-[4px] bg-[#363636] px-[6px] text-[11px] text-white uppercase caret-white focus:outline-none'
                 />
                 <button
                   type='button'

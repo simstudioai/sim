@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
-import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { decryptSecret } from '@/lib/core/security/encryption'
@@ -91,18 +90,12 @@ export async function getApiKeyWithBYOK(
     logger.debug('BYOK check', { provider, model, workspaceId, isHosted, isModelHosted })
 
     if (isModelHosted || isMistralModel) {
-      const hasEnterprise = await isWorkspaceOnEnterprisePlan(workspaceId)
-
-      if (hasEnterprise) {
-        const byokResult = await getBYOKKey(workspaceId, byokProviderId)
-        if (byokResult) {
-          logger.info('Using BYOK key', { provider, model, workspaceId })
-          return byokResult
-        }
-        logger.debug('No BYOK key found, falling back', { provider, model, workspaceId })
-      } else {
-        logger.debug('Workspace not on enterprise plan, skipping BYOK', { workspaceId })
+      const byokResult = await getBYOKKey(workspaceId, byokProviderId)
+      if (byokResult) {
+        logger.info('Using BYOK key', { provider, model, workspaceId })
+        return byokResult
       }
+      logger.debug('No BYOK key found, falling back', { provider, model, workspaceId })
 
       if (isModelHosted) {
         try {

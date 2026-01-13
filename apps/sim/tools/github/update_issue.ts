@@ -137,3 +137,49 @@ ${assignees.length > 0 ? `Assignees: ${assignees.join(', ')}` : ''}`
     },
   },
 }
+
+export const updateIssueV2Tool: ToolConfig = {
+  id: 'github_update_issue_v2',
+  name: updateIssueTool.name,
+  description: updateIssueTool.description,
+  version: '2.0.0',
+  params: updateIssueTool.params,
+  request: updateIssueTool.request,
+  oauth: updateIssueTool.oauth,
+  transformResponse: async (response: Response) => {
+    const issue = await response.json()
+    return {
+      success: true,
+      output: {
+        id: issue.id,
+        number: issue.number,
+        title: issue.title,
+        state: issue.state,
+        html_url: issue.html_url,
+        body: issue.body ?? null,
+        user: issue.user,
+        labels: issue.labels ?? [],
+        assignees: issue.assignees ?? [],
+        milestone: issue.milestone ?? null,
+        created_at: issue.created_at,
+        updated_at: issue.updated_at,
+        closed_at: issue.closed_at ?? null,
+      },
+    }
+  },
+  outputs: {
+    id: { type: 'number', description: 'Issue ID' },
+    number: { type: 'number', description: 'Issue number' },
+    title: { type: 'string', description: 'Issue title' },
+    state: { type: 'string', description: 'Issue state' },
+    html_url: { type: 'string', description: 'GitHub web URL' },
+    body: { type: 'string', description: 'Issue body', optional: true },
+    user: { type: 'json', description: 'User who created the issue' },
+    labels: { type: 'array', description: 'Array of label objects' },
+    assignees: { type: 'array', description: 'Array of assignee objects' },
+    milestone: { type: 'json', description: 'Milestone object', optional: true },
+    created_at: { type: 'string', description: 'Creation timestamp' },
+    updated_at: { type: 'string', description: 'Last update timestamp' },
+    closed_at: { type: 'string', description: 'Close timestamp', optional: true },
+  },
+}

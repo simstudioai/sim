@@ -172,9 +172,28 @@ Execute MongoDB aggregation pipeline
 | `documents` | array | Array of documents returned from aggregation |
 | `documentCount` | number | Number of documents returned |
 
+### `mongodb_introspect`
+
+Introspect MongoDB database to list databases, collections, and indexes
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | MongoDB server hostname or IP address |
+| `port` | number | Yes | MongoDB server port \(default: 27017\) |
+| `database` | string | No | Database name to introspect \(optional - if not provided, lists all databases\) |
+| `username` | string | No | MongoDB username |
+| `password` | string | No | MongoDB password |
+| `authSource` | string | No | Authentication database |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `databases` | array | Array of database names |
+| `collections` | array | Array of collection info with name, type, document count, and indexes |
 
 
-## Notes
-
-- Category: `tools`
-- Type: `mongodb`

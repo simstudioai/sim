@@ -108,9 +108,8 @@ export const pipedriveGetAllDealsTool: ToolConfig<
       output: {
         deals,
         metadata: {
-          operation: 'get_all_deals' as const,
-          totalItems: deals.length,
-          hasMore,
+          total_items: deals.length,
+          has_more: hasMore,
         },
         success: true,
       },
@@ -119,7 +118,10 @@ export const pipedriveGetAllDealsTool: ToolConfig<
 
   outputs: {
     deals: { type: 'array', description: 'Array of deal objects from Pipedrive' },
-    metadata: { type: 'object', description: 'Operation metadata' },
+    metadata: {
+      type: 'object',
+      description: 'Pagination metadata for the response',
+    },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

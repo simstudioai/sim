@@ -199,10 +199,6 @@ export interface CustomerDeleteResponse extends ToolResponse {
   output: {
     deleted: boolean
     id: string
-    metadata: {
-      id: string
-      deleted: boolean
-    }
   }
 }
 
@@ -410,10 +406,6 @@ export interface InvoiceDeleteResponse extends ToolResponse {
   output: {
     deleted: boolean
     id: string
-    metadata: {
-      id: string
-      deleted: boolean
-    }
   }
 }
 
@@ -583,10 +575,6 @@ export interface ProductDeleteResponse extends ToolResponse {
   output: {
     deleted: boolean
     id: string
-    metadata: {
-      id: string
-      deleted: boolean
-    }
   }
 }
 

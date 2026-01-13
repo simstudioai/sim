@@ -84,10 +84,7 @@ export const pipedriveGetFilesTool: ToolConfig<PipedriveGetFilesParams, Pipedriv
         success: true,
         output: {
           files,
-          metadata: {
-            operation: 'get_files' as const,
-            totalItems: files.length,
-          },
+          total_items: files.length,
           success: true,
         },
       }
@@ -95,7 +92,7 @@ export const pipedriveGetFilesTool: ToolConfig<PipedriveGetFilesParams, Pipedriv
 
     outputs: {
       files: { type: 'array', description: 'Array of file objects from Pipedrive' },
-      metadata: { type: 'object', description: 'Operation metadata' },
+      total_items: { type: 'number', description: 'Total number of files returned' },
       success: { type: 'boolean', description: 'Operation success status' },
     },
   }

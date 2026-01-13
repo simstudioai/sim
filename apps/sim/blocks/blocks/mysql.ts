@@ -23,6 +23,7 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
         { label: 'Update Data', id: 'update' },
         { label: 'Delete Data', id: 'delete' },
         { label: 'Execute Raw SQL', id: 'execute' },
+        { label: 'Introspect Schema', id: 'introspect' },
       ],
       value: () => 'query',
     },
@@ -285,7 +286,14 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
     },
   ],
   tools: {
-    access: ['mysql_query', 'mysql_insert', 'mysql_update', 'mysql_delete', 'mysql_execute'],
+    access: [
+      'mysql_query',
+      'mysql_insert',
+      'mysql_update',
+      'mysql_delete',
+      'mysql_execute',
+      'mysql_introspect',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -299,6 +307,8 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
             return 'mysql_delete'
           case 'execute':
             return 'mysql_execute'
+          case 'introspect':
+            return 'mysql_introspect'
           default:
             throw new Error(`Invalid MySQL operation: ${params.operation}`)
         }

@@ -14,10 +14,7 @@ export interface MailchimpCreateTemplateResponse {
   success: boolean
   output: {
     template: any
-    metadata: {
-      operation: 'create_template'
-      templateId: string
-    }
+    template_id: string
     success: boolean
   }
 }
@@ -77,10 +74,7 @@ export const mailchimpCreateTemplateTool: ToolConfig<
       success: true,
       output: {
         template: data,
-        metadata: {
-          operation: 'create_template' as const,
-          templateId: data.id,
-        },
+        template_id: data.id,
         success: true,
       },
     }
@@ -92,8 +86,8 @@ export const mailchimpCreateTemplateTool: ToolConfig<
       type: 'object',
       description: 'Created template data',
       properties: {
-        template: { type: 'object', description: 'Created template object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
+        template: { type: 'json', description: 'Created template object' },
+        template_id: { type: 'string', description: 'Created template ID' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

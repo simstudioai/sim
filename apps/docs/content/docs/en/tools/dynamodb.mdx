@@ -37,7 +37,7 @@ This integration empowers Sim agents to automate data management tasks within yo
 
 ## Usage Instructions
 
-Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, and Delete operations on DynamoDB tables.
+Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.
 
 
 
@@ -185,9 +185,25 @@ Delete an item from a DynamoDB table
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+### `dynamodb_introspect`
+
+Introspect DynamoDB to list tables or get detailed schema information for a specific table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `tableName` | string | No | Optional table name to get detailed schema. If not provided, lists all tables. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `tables` | array | List of table names in the region |
+| `tableDetails` | object | Detailed schema information for a specific table |
 
 
-## Notes
-
-- Category: `tools`
-- Type: `dynamodb`

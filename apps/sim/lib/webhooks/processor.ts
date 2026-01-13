@@ -25,7 +25,6 @@ export interface WebhookProcessorOptions {
   requestId: string
   path?: string
   webhookId?: string
-  testMode?: boolean
   executionTarget?: 'deployed' | 'live'
 }
 
@@ -733,17 +732,12 @@ export async function verifyProviderAuth(
 /**
  * Run preprocessing checks for webhook execution
  * This replaces the old checkRateLimits and checkUsageLimits functions
- *
- * @param isTestMode - If true, skips deployment check (for test webhooks that run on live/draft state)
  */
 export async function checkWebhookPreprocessing(
   foundWorkflow: any,
   foundWebhook: any,
-  requestId: string,
-  options?: { isTestMode?: boolean }
+  requestId: string
 ): Promise<NextResponse | null> {
-  const { isTestMode = false } = options || {}
-
   try {
     const executionId = uuidv4()
 
@@ -753,8 +747,8 @@ export async function checkWebhookPreprocessing(
       triggerType: 'webhook',
       executionId,
       requestId,
-      checkRateLimit: true, // Webhooks need rate limiting
-      checkDeployment: !isTestMode, // Test webhooks skip deployment check (run on live state)
+      checkRateLimit: true,
+      checkDeployment: true,
       workspaceId: foundWorkflow.workspaceId,
     })
 
@@ -954,7 +948,6 @@ export async function queueWebhookExecution(
       headers,
       path: options.path || foundWebhook.path,
       blockId: foundWebhook.blockId,
-      testMode: options.testMode,
       executionTarget: options.executionTarget,
       ...(credentialId ? { credentialId } : {}),
     }
@@ -962,18 +955,14 @@ export async function queueWebhookExecution(
     if (isTriggerDevEnabled) {
       const handle = await tasks.trigger('webhook-execution', payload)
       logger.info(
-        `[${options.requestId}] Queued ${options.testMode ? 'TEST ' : ''}webhook execution task ${
-          handle.id
-        } for ${foundWebhook.provider} webhook`
+        `[${options.requestId}] Queued webhook execution task ${handle.id} for ${foundWebhook.provider} webhook`
       )
     } else {
       void executeWebhookJob(payload).catch((error) => {
         logger.error(`[${options.requestId}] Direct webhook execution failed`, error)
       })
       logger.info(
-        `[${options.requestId}] Queued direct ${
-          options.testMode ? 'TEST ' : ''
-        }webhook execution for ${foundWebhook.provider} webhook (Trigger.dev disabled)`
+        `[${options.requestId}] Queued direct webhook execution for ${foundWebhook.provider} webhook (Trigger.dev disabled)`
       )
     }
 

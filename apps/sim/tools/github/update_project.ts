@@ -190,3 +190,45 @@ export const updateProjectTool: ToolConfig<UpdateProjectParams, ProjectResponse>
     },
   },
 }
+
+export const updateProjectV2Tool: ToolConfig = {
+  id: 'github_update_project_v2',
+  name: updateProjectTool.name,
+  description: updateProjectTool.description,
+  version: '2.0.0',
+  params: updateProjectTool.params,
+  request: updateProjectTool.request,
+  oauth: updateProjectTool.oauth,
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    if (data.errors) {
+      return {
+        success: false,
+        output: { id: '', title: '', number: 0, url: '' },
+        error: data.errors[0].message,
+      }
+    }
+    const project = data.data?.updateProjectV2?.projectV2 || {}
+    return {
+      success: true,
+      output: {
+        id: project.id,
+        title: project.title,
+        number: project.number,
+        url: project.url,
+        closed: project.closed,
+        public: project.public,
+        shortDescription: project.shortDescription ?? null,
+      },
+    }
+  },
+  outputs: {
+    id: { type: 'string', description: 'Project node ID' },
+    title: { type: 'string', description: 'Project title' },
+    number: { type: 'number', description: 'Project number' },
+    url: { type: 'string', description: 'Project URL' },
+    closed: { type: 'boolean', description: 'Whether project is closed' },
+    public: { type: 'boolean', description: 'Whether project is public' },
+    shortDescription: { type: 'string', description: 'Short description', optional: true },
+  },
+}

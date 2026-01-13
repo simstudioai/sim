@@ -1,8 +1,8 @@
 import { MongoDBIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import type { MongoDBResponse } from '@/tools/mongodb/types'
+import type { MongoDBIntrospectResponse, MongoDBResponse } from '@/tools/mongodb/types'
 
-export const MongoDBBlock: BlockConfig<MongoDBResponse> = {
+export const MongoDBBlock: BlockConfig<MongoDBResponse | MongoDBIntrospectResponse> = {
   type: 'mongodb',
   name: 'MongoDB',
   description: 'Connect to MongoDB database',
@@ -23,6 +23,7 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse> = {
         { label: 'Update Documents', id: 'update' },
         { label: 'Delete Documents', id: 'delete' },
         { label: 'Aggregate Pipeline', id: 'execute' },
+        { label: 'Introspect Database', id: 'introspect' },
       ],
       value: () => 'query',
     },
@@ -86,6 +87,7 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse> = {
       type: 'short-input',
       placeholder: 'users',
       required: true,
+      condition: { field: 'operation', value: 'introspect', not: true },
     },
     {
       id: 'query',
@@ -803,6 +805,7 @@ Return ONLY the MongoDB query filter as valid JSON - no explanations, no markdow
       'mongodb_update',
       'mongodb_delete',
       'mongodb_execute',
+      'mongodb_introspect',
     ],
     config: {
       tool: (params) => {
@@ -817,6 +820,8 @@ Return ONLY the MongoDB query filter as valid JSON - no explanations, no markdow
             return 'mongodb_delete'
           case 'execute':
             return 'mongodb_execute'
+          case 'introspect':
+            return 'mongodb_introspect'
           default:
             throw new Error(`Invalid MongoDB operation: ${params.operation}`)
         }
@@ -935,6 +940,15 @@ Return ONLY the MongoDB query filter as valid JSON - no explanations, no markdow
     matchedCount: {
       type: 'number',
       description: 'Number of documents matched (update operations)',
+    },
+    databases: {
+      type: 'array',
+      description: 'Array of database names (introspect operation)',
+    },
+    collections: {
+      type: 'array',
+      description:
+        'Array of collection info with name, type, document count, and indexes (introspect operation)',
     },
   },
 }

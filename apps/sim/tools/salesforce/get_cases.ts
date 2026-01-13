@@ -74,7 +74,7 @@ export const salesforceGetCasesTool: ToolConfig<
     if (params?.caseId) {
       return {
         success: true,
-        output: { case: data, metadata: { operation: 'get_cases' }, success: true },
+        output: { case: data, success: true },
       }
     }
     const cases = data.records || []
@@ -83,18 +83,50 @@ export const salesforceGetCasesTool: ToolConfig<
       output: {
         cases,
         paging: {
-          nextRecordsUrl: data.nextRecordsUrl,
+          nextRecordsUrl: data.nextRecordsUrl ?? null,
           totalSize: data.totalSize || cases.length,
           done: data.done !== false,
         },
-        metadata: { operation: 'get_cases', totalReturned: cases.length, hasMore: !data.done },
+        metadata: {
+          totalReturned: cases.length,
+          hasMore: !data.done,
+        },
         success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success' },
-    output: { type: 'object', description: 'Case data' },
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Case data',
+      properties: {
+        case: { type: 'object', description: 'Single case object (when caseId provided)' },
+        cases: { type: 'array', description: 'Array of case objects (when listing)' },
+        paging: {
+          type: 'object',
+          description: 'Pagination information',
+          properties: {
+            nextRecordsUrl: {
+              type: 'string',
+              description: 'URL for next page of results',
+              optional: true,
+            },
+            totalSize: { type: 'number', description: 'Total number of records' },
+            done: { type: 'boolean', description: 'Whether all records returned' },
+          },
+        },
+        metadata: {
+          type: 'object',
+          description: 'Response metadata',
+          properties: {
+            totalReturned: { type: 'number', description: 'Number of cases returned' },
+            hasMore: { type: 'boolean', description: 'Whether more records exist' },
+          },
+        },
+        success: { type: 'boolean', description: 'Operation success status' },
+      },
+    },
   },
 }

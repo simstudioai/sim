@@ -68,3 +68,45 @@ export interface DynamoDBScanResponse extends DynamoDBBaseResponse {}
 export interface DynamoDBUpdateResponse extends DynamoDBBaseResponse {}
 export interface DynamoDBDeleteResponse extends DynamoDBBaseResponse {}
 export interface DynamoDBResponse extends DynamoDBBaseResponse {}
+
+export interface DynamoDBIntrospectParams extends DynamoDBConnectionConfig {
+  tableName?: string
+}
+
+export interface DynamoDBKeySchema {
+  attributeName: string
+  keyType: 'HASH' | 'RANGE'
+}
+
+export interface DynamoDBAttributeDefinition {
+  attributeName: string
+  attributeType: 'S' | 'N' | 'B'
+}
+
+export interface DynamoDBGSI {
+  indexName: string
+  keySchema: DynamoDBKeySchema[]
+  projectionType: string
+  indexStatus: string
+}
+
+export interface DynamoDBTableSchema {
+  tableName: string
+  tableStatus: string
+  keySchema: DynamoDBKeySchema[]
+  attributeDefinitions: DynamoDBAttributeDefinition[]
+  globalSecondaryIndexes: DynamoDBGSI[]
+  localSecondaryIndexes: DynamoDBGSI[]
+  itemCount: number
+  tableSizeBytes: number
+  billingMode: string
+}
+
+export interface DynamoDBIntrospectResponse extends ToolResponse {
+  output: {
+    message: string
+    tables: string[]
+    tableDetails?: DynamoDBTableSchema
+  }
+  error?: string
+}

@@ -76,7 +76,7 @@ export const salesforceGetOpportunitiesTool: ToolConfig<
     if (params?.opportunityId) {
       return {
         success: true,
-        output: { opportunity: data, metadata: { operation: 'get_opportunities' }, success: true },
+        output: { opportunity: data, success: true },
       }
     }
     const opportunities = data.records || []
@@ -85,12 +85,11 @@ export const salesforceGetOpportunitiesTool: ToolConfig<
       output: {
         opportunities,
         paging: {
-          nextRecordsUrl: data.nextRecordsUrl,
+          nextRecordsUrl: data.nextRecordsUrl ?? null,
           totalSize: data.totalSize || opportunities.length,
           done: data.done !== false,
         },
         metadata: {
-          operation: 'get_opportunities',
           totalReturned: opportunities.length,
           hasMore: !data.done,
         },
@@ -100,7 +99,42 @@ export const salesforceGetOpportunitiesTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success' },
-    output: { type: 'object', description: 'Opportunity data' },
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Opportunity data',
+      properties: {
+        opportunity: {
+          type: 'object',
+          description: 'Single opportunity object (when opportunityId provided)',
+        },
+        opportunities: {
+          type: 'array',
+          description: 'Array of opportunity objects (when listing)',
+        },
+        paging: {
+          type: 'object',
+          description: 'Pagination information',
+          properties: {
+            nextRecordsUrl: {
+              type: 'string',
+              description: 'URL for next page of results',
+              optional: true,
+            },
+            totalSize: { type: 'number', description: 'Total number of records' },
+            done: { type: 'boolean', description: 'Whether all records returned' },
+          },
+        },
+        metadata: {
+          type: 'object',
+          description: 'Response metadata',
+          properties: {
+            totalReturned: { type: 'number', description: 'Number of opportunities returned' },
+            hasMore: { type: 'boolean', description: 'Whether more records exist' },
+          },
+        },
+        success: { type: 'boolean', description: 'Operation success status' },
+      },
+    },
   },
 }

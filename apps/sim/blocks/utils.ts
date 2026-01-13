@@ -214,3 +214,38 @@ export const PROVIDER_CREDENTIAL_INPUTS = {
   bedrockSecretKey: { type: 'string', description: 'AWS Secret Access Key for Bedrock' },
   bedrockRegion: { type: 'string', description: 'AWS region for Bedrock' },
 } as const
+
+/**
+ * Create a versioned tool selector from an existing tool selector.
+ *
+ * This is useful for `*_v2` blocks where the operation UI remains the same, but
+ * the underlying tool IDs are suffixed (e.g. `cursor_launch_agent` -> `cursor_launch_agent_v2`).
+ *
+ * @example
+ * tools: {
+ *   config: {
+ *     tool: createVersionedToolSelector({
+ *       baseToolSelector: (params) => params.operation,
+ *       suffix: '_v2',
+ *       fallbackToolId: 'cursor_launch_agent_v2',
+ *     }),
+ *   },
+ * }
+ */
+export function createVersionedToolSelector<TParams extends Record<string, any>>(args: {
+  baseToolSelector: (params: TParams) => string
+  suffix: `_${string}`
+  fallbackToolId: string
+}): (params: TParams) => string {
+  const { baseToolSelector, suffix, fallbackToolId } = args
+
+  return (params: TParams) => {
+    try {
+      const baseToolId = baseToolSelector(params)
+      if (!baseToolId || typeof baseToolId !== 'string') return fallbackToolId
+      return baseToolId.endsWith(suffix) ? baseToolId : `${baseToolId}${suffix}`
+    } catch {
+      return fallbackToolId
+    }
+  }
+}

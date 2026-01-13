@@ -21,10 +21,7 @@ export interface ZendeskUpdateOrganizationResponse {
   success: boolean
   output: {
     organization: any
-    metadata: {
-      operation: 'update_organization'
-      organizationId: string
-    }
+    organization_id: number
     success: boolean
   }
 }
@@ -147,17 +144,14 @@ export const zendeskUpdateOrganizationTool: ToolConfig<
       success: true,
       output: {
         organization: data.organization,
-        metadata: {
-          operation: 'update_organization' as const,
-          organizationId: data.organization?.id,
-        },
+        organization_id: data.organization?.id,
         success: true,
       },
     }
   },
 
   outputs: {
-    organization: { type: 'object', description: 'Updated organization object' },
-    metadata: { type: 'object', description: 'Operation metadata' },
+    organization: { type: 'json', description: 'Updated organization object' },
+    organization_id: { type: 'number', description: 'The updated organization ID' },
   },
 }

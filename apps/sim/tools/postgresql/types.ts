@@ -33,6 +33,10 @@ export interface PostgresExecuteParams extends PostgresConnectionConfig {
   query: string
 }
 
+export interface PostgresIntrospectParams extends PostgresConnectionConfig {
+  schema?: string
+}
+
 export interface PostgresBaseResponse extends ToolResponse {
   output: {
     message: string
@@ -47,4 +51,44 @@ export interface PostgresInsertResponse extends PostgresBaseResponse {}
 export interface PostgresUpdateResponse extends PostgresBaseResponse {}
 export interface PostgresDeleteResponse extends PostgresBaseResponse {}
 export interface PostgresExecuteResponse extends PostgresBaseResponse {}
+
+export interface TableColumn {
+  name: string
+  type: string
+  nullable: boolean
+  default: string | null
+  isPrimaryKey: boolean
+  isForeignKey: boolean
+  references?: {
+    table: string
+    column: string
+  }
+}
+
+export interface TableSchema {
+  name: string
+  schema: string
+  columns: TableColumn[]
+  primaryKey: string[]
+  foreignKeys: Array<{
+    column: string
+    referencesTable: string
+    referencesColumn: string
+  }>
+  indexes: Array<{
+    name: string
+    columns: string[]
+    unique: boolean
+  }>
+}
+
+export interface PostgresIntrospectResponse extends ToolResponse {
+  output: {
+    message: string
+    tables: TableSchema[]
+    schemas: string[]
+  }
+  error?: string
+}
+
 export interface PostgresResponse extends PostgresBaseResponse {}

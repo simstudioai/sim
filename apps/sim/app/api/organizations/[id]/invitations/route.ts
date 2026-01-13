@@ -26,6 +26,10 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  InvitationsNotAllowedError,
+  validateInvitationsAllowed,
+} from '@/executor/utils/permission-check'
 
 const logger = createLogger('OrganizationInvitations')
 
@@ -115,6 +119,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    await validateInvitationsAllowed(session.user.id)
 
     const { id: organizationId } = await params
     const url = new URL(request.url)
@@ -427,6 +433,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     })
   } catch (error) {
+    if (error instanceof InvitationsNotAllowedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
+
     logger.error('Failed to create organization invitations', {
       organizationId: (await params).id,
       error,
@@ -486,10 +496,7 @@ export async function DELETE(
         and(
           eq(invitation.id, invitationId),
           eq(invitation.organizationId, organizationId),
-          or(
-            eq(invitation.status, 'pending'),
-            eq(invitation.status, 'rejected') // Allow cancelling rejected invitations too
-          )
+          or(eq(invitation.status, 'pending'), eq(invitation.status, 'rejected'))
         )
       )
       .returning()

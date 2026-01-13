@@ -15,12 +15,8 @@ export interface MailchimpGetInterestCategoriesResponse {
   success: boolean
   output: {
     categories: any[]
-    totalItems: number
-    metadata: {
-      operation: 'get_interest_categories'
-      totalReturned: number
-    }
-    success: boolean
+    total_items: number
+    total_returned: number
   }
 }
 
@@ -90,26 +86,27 @@ export const mailchimpGetInterestCategoriesTool: ToolConfig<
       success: true,
       output: {
         categories,
-        totalItems: data.total_items || categories.length,
-        metadata: {
-          operation: 'get_interest_categories' as const,
-          totalReturned: categories.length,
-        },
-        success: true,
+        total_items: data.total_items || categories.length,
+        total_returned: categories.length,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
+    success: {
+      type: 'boolean',
+      description: 'Whether the interest categories were successfully retrieved',
+    },
     output: {
       type: 'object',
-      description: 'Interest categories data and metadata',
+      description: 'Interest categories data',
       properties: {
-        categories: { type: 'array', description: 'Array of interest category objects' },
-        totalItems: { type: 'number', description: 'Total number of categories' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        categories: { type: 'json', description: 'Array of interest category objects' },
+        total_items: { type: 'number', description: 'Total number of categories' },
+        total_returned: {
+          type: 'number',
+          description: 'Number of categories returned in this response',
+        },
       },
     },
   },

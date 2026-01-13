@@ -147,3 +147,28 @@ View commit: ${data.commit.html_url || 'N/A'}`
     },
   },
 }
+
+export const deleteFileV2Tool: ToolConfig<DeleteFileParams, any> = {
+  id: 'github_delete_file_v2',
+  name: deleteFileTool.name,
+  description: deleteFileTool.description,
+  version: '2.0.0',
+  params: deleteFileTool.params,
+  request: deleteFileTool.request,
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: true,
+      output: {
+        content: data.content ?? null, // null when file is deleted
+        commit: data.commit,
+      },
+    }
+  },
+
+  outputs: {
+    content: { type: 'json', description: 'File content info (null for delete)', optional: true },
+    commit: { type: 'json', description: 'Commit information' },
+  },
+}

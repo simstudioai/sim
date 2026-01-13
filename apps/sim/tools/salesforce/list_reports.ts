@@ -90,24 +90,21 @@ export const salesforceListReportsTool: ToolConfig<
       success: true,
       output: {
         reports,
-        metadata: {
-          operation: 'list_reports',
-          totalReturned: reports.length,
-        },
+        totalReturned: reports.length,
         success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success status' },
+    success: { type: 'boolean', description: 'Operation success status' },
     output: {
       type: 'object',
       description: 'Reports data',
       properties: {
         reports: { type: 'array', description: 'Array of report objects' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success status' },
+        totalReturned: { type: 'number', description: 'Number of reports returned' },
+        success: { type: 'boolean', description: 'Salesforce operation success' },
       },
     },
   },

@@ -35,7 +35,6 @@ import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth-credentials'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { useVariablesStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -613,34 +612,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     [isDeploying, setDeploymentStatus, refetchDeployment]
   )
 
-  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
-
-  /**
-   * Clear credential-dependent fields when credential changes to prevent
-   * stale data from persisting with new credentials.
-   */
-  const prevCredRef = useRef<string | undefined>(undefined)
-  useEffect(() => {
-    const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-    if (!activeWorkflowId) return
-    const current = useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id]
-    if (!current) return
-    const credValue = current.credential
-    const cred =
-      typeof credValue === 'object' && credValue !== null && 'value' in credValue
-        ? ((credValue as { value?: unknown }).value as string | undefined)
-        : (credValue as string | undefined)
-    if (prevCredRef.current !== cred) {
-      const hadPreviousCredential = prevCredRef.current !== undefined
-      prevCredRef.current = cred
-      if (hadPreviousCredential) {
-        const keys = Object.keys(current)
-        const dependentKeys = keys.filter((k) => k !== 'credential')
-        dependentKeys.forEach((k) => collaborativeSetSubblockValue(id, k, ''))
-      }
-    }
-  }, [id, collaborativeSetSubblockValue])
-
   const currentStoreBlock = currentWorkflow.getBlockById(id)
 
   const isStarterBlock = type === 'starter'
@@ -1021,11 +992,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                   <Tooltip.Trigger asChild>
                     <Badge
                       variant={!childIsDeployed ? 'red' : 'amber'}
-                      className='cursor-pointer'
+                      className={userPermissions.canAdmin ? 'cursor-pointer' : 'cursor-not-allowed'}
                       dot
                       onClick={(e) => {
                         e.stopPropagation()
-                        if (childWorkflowId && !isDeploying) {
+                        if (childWorkflowId && !isDeploying && userPermissions.canAdmin) {
                           deployWorkflow(childWorkflowId)
                         }
                       }}
@@ -1035,7 +1006,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                   </Tooltip.Trigger>
                   <Tooltip.Content>
                     <span className='text-sm'>
-                      {!childIsDeployed ? 'Click to deploy' : 'Click to redeploy'}
+                      {!userPermissions.canAdmin
+                        ? 'Admin permission required to deploy'
+                        : !childIsDeployed
+                          ? 'Click to deploy'
+                          : 'Click to redeploy'}
                     </span>
                   </Tooltip.Content>
                 </Tooltip.Root>

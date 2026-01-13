@@ -519,6 +519,22 @@ export interface AdminMemberDetail extends AdminMember {
 }
 
 // =============================================================================
+// Workspace Member Types
+// =============================================================================
+
+export interface AdminWorkspaceMember {
+  id: string
+  workspaceId: string
+  userId: string
+  permissions: 'admin' | 'write' | 'read'
+  createdAt: string
+  updatedAt: string
+  userName: string
+  userEmail: string
+  userImage: string | null
+}
+
+// =============================================================================
 // User Billing Types
 // =============================================================================
 

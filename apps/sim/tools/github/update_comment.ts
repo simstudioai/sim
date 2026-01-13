@@ -101,3 +101,35 @@ export const updateCommentTool: ToolConfig<UpdateCommentParams, IssueCommentResp
     },
   },
 }
+
+export const updateCommentV2Tool: ToolConfig = {
+  id: 'github_update_comment_v2',
+  name: updateCommentTool.name,
+  description: updateCommentTool.description,
+  version: '2.0.0',
+  params: updateCommentTool.params,
+  request: updateCommentTool.request,
+  oauth: updateCommentTool.oauth,
+  transformResponse: async (response: Response) => {
+    const comment = await response.json()
+    return {
+      success: true,
+      output: {
+        id: comment.id,
+        body: comment.body,
+        html_url: comment.html_url,
+        user: comment.user,
+        created_at: comment.created_at,
+        updated_at: comment.updated_at,
+      },
+    }
+  },
+  outputs: {
+    id: { type: 'number', description: 'Comment ID' },
+    body: { type: 'string', description: 'Comment body' },
+    html_url: { type: 'string', description: 'GitHub web URL' },
+    user: { type: 'json', description: 'User who updated the comment' },
+    created_at: { type: 'string', description: 'Creation timestamp' },
+    updated_at: { type: 'string', description: 'Last update timestamp' },
+  },
+}

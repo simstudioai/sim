@@ -136,3 +136,57 @@ ${contentPreview}`
     },
   },
 }
+
+export const getFileContentV2Tool: ToolConfig<GetFileContentParams, any> = {
+  id: 'github_get_file_content_v2',
+  name: getFileContentTool.name,
+  description: getFileContentTool.description,
+  version: '2.0.0',
+  params: getFileContentTool.params,
+  request: getFileContentTool.request,
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    // Decode base64 content if present
+    let decodedContent = ''
+    if (data.content && data.encoding === 'base64') {
+      try {
+        decodedContent = Buffer.from(data.content, 'base64').toString('utf-8')
+      } catch {
+        decodedContent = data.content
+      }
+    }
+
+    return {
+      success: true,
+      output: {
+        name: data.name,
+        path: data.path,
+        sha: data.sha,
+        size: data.size,
+        type: data.type,
+        content: (decodedContent || data.content) ?? null,
+        encoding: data.encoding,
+        html_url: data.html_url,
+        download_url: data.download_url ?? null,
+        git_url: data.git_url,
+        _links: data._links,
+      },
+    }
+  },
+
+  outputs: {
+    name: { type: 'string', description: 'File name' },
+    path: { type: 'string', description: 'Full path in repository' },
+    sha: { type: 'string', description: 'Git blob SHA' },
+    size: { type: 'number', description: 'File size in bytes' },
+    type: { type: 'string', description: 'Content type (file/dir/symlink/submodule)' },
+    content: { type: 'string', description: 'Decoded file content', optional: true },
+    encoding: { type: 'string', description: 'Content encoding' },
+    html_url: { type: 'string', description: 'GitHub web URL' },
+    download_url: { type: 'string', description: 'Direct download URL', optional: true },
+    git_url: { type: 'string', description: 'Git blob API URL' },
+    _links: { type: 'json', description: 'Related links' },
+  },
+}

@@ -2,13 +2,10 @@
  * Centralized redaction utilities for sensitive data
  */
 
-/** Standard marker used for all redacted values */
 export const REDACTED_MARKER = '[REDACTED]'
 
-/**
- * Patterns for sensitive key names (case-insensitive matching)
- * These patterns match common naming conventions for sensitive data
- */
+const BYPASS_REDACTION_KEYS = new Set(['nextPageToken'])
+
 const SENSITIVE_KEY_PATTERNS: RegExp[] = [
   /^api[_-]?key$/i,
   /^access[_-]?token$/i,
@@ -66,12 +63,10 @@ const SENSITIVE_VALUE_PATTERNS: Array<{
   },
 ]
 
-/**
- * Checks if a key name matches any sensitive pattern
- * @param key - The key name to check
- * @returns True if the key is considered sensitive
- */
 export function isSensitiveKey(key: string): boolean {
+  if (BYPASS_REDACTION_KEYS.has(key)) {
+    return false
+  }
   const lowerKey = key.toLowerCase()
   return SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(lowerKey))
 }
@@ -93,12 +88,6 @@ export function redactSensitiveValues(value: string): string {
   return result
 }
 
-/**
- * Recursively redacts sensitive data (API keys, passwords, tokens, etc.) from an object
- *
- * @param obj - The object to redact sensitive data from
- * @returns A new object with sensitive data redacted
- */
 export function redactApiKeys(obj: any): any {
   if (obj === null || obj === undefined) {
     return obj

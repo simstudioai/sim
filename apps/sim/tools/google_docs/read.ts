@@ -79,6 +79,15 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
 
   outputs: {
     content: { type: 'string', description: 'Extracted document text content' },
-    metadata: { type: 'json', description: 'Document metadata including ID, title, and URL' },
+    metadata: {
+      type: 'json',
+      description: 'Document metadata including ID, title, and URL',
+      properties: {
+        documentId: { type: 'string', description: 'Google Docs document ID' },
+        title: { type: 'string', description: 'Document title' },
+        mimeType: { type: 'string', description: 'Document MIME type' },
+        url: { type: 'string', description: 'Document URL' },
+      },
+    },
   },
 }

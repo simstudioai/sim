@@ -70,6 +70,8 @@ export interface QueuedMessage {
   fileAttachments?: MessageFileAttachment[]
   contexts?: ChatContext[]
   queuedAt: number
+  /** Original messageId to use when processing (for edit/resend flows) */
+  originalMessageId?: string
 }
 
 // Contexts attached to a user message
@@ -249,6 +251,8 @@ export interface CopilotActions {
     options?: {
       fileAttachments?: MessageFileAttachment[]
       contexts?: ChatContext[]
+      /** Original messageId to preserve (for edit/resend flows) */
+      messageId?: string
     }
   ) => void
   removeFromQueue: (id: string) => void

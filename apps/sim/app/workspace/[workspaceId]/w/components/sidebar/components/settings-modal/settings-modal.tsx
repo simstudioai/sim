@@ -152,9 +152,8 @@ const allNavigationItems: NavigationItem[] = [
     id: 'byok',
     label: 'BYOK',
     icon: KeySquare,
-    section: 'enterprise',
+    section: 'system',
     requiresHosted: true,
-    requiresEnterprise: true,
   },
   {
     id: 'copilot',

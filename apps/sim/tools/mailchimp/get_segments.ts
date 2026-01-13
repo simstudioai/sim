@@ -15,12 +15,8 @@ export interface MailchimpGetSegmentsResponse {
   success: boolean
   output: {
     segments: any[]
-    totalItems: number
-    metadata: {
-      operation: 'get_segments'
-      totalReturned: number
-    }
-    success: boolean
+    total_items: number
+    total_returned: number
   }
 }
 
@@ -90,26 +86,24 @@ export const mailchimpGetSegmentsTool: ToolConfig<
       success: true,
       output: {
         segments,
-        totalItems: data.total_items || segments.length,
-        metadata: {
-          operation: 'get_segments' as const,
-          totalReturned: segments.length,
-        },
-        success: true,
+        total_items: data.total_items || segments.length,
+        total_returned: segments.length,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
+    success: { type: 'boolean', description: 'Whether the segments were successfully retrieved' },
     output: {
       type: 'object',
-      description: 'Segments data and metadata',
+      description: 'Segments data',
       properties: {
-        segments: { type: 'array', description: 'Array of segment objects' },
-        totalItems: { type: 'number', description: 'Total number of segments' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        segments: { type: 'json', description: 'Array of segment objects' },
+        total_items: { type: 'number', description: 'Total number of segments' },
+        total_returned: {
+          type: 'number',
+          description: 'Number of segments returned in this response',
+        },
       },
     },
   },

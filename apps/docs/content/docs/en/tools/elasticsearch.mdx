@@ -362,9 +362,27 @@ Get comprehensive statistics about the Elasticsearch cluster.
 | `nodes` | object | Node statistics including count and versions |
 | `indices` | object | Index statistics including document count and store size |
 
+### `elasticsearch_list_indices`
+
+List all indices in the Elasticsearch cluster with their health, status, and statistics.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Yes | Deployment type: self_hosted or cloud |
+| `host` | string | No | Elasticsearch host URL \(for self-hosted\) |
+| `cloudId` | string | No | Elastic Cloud ID \(for cloud deployments\) |
+| `authMethod` | string | Yes | Authentication method: api_key or basic_auth |
+| `apiKey` | string | No | Elasticsearch API key |
+| `username` | string | No | Username for basic auth |
+| `password` | string | No | Password for basic auth |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Summary message about the indices |
+| `indices` | json | Array of index information objects |
 
 
-## Notes
-
-- Category: `tools`
-- Type: `elasticsearch`

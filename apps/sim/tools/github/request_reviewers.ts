@@ -145,3 +145,35 @@ Team Reviewers: ${teamsList}`
     },
   },
 }
+
+export const requestReviewersV2Tool: ToolConfig = {
+  id: 'github_request_reviewers_v2',
+  name: requestReviewersTool.name,
+  description: requestReviewersTool.description,
+  version: '2.0.0',
+  params: requestReviewersTool.params,
+  request: requestReviewersTool.request,
+  oauth: requestReviewersTool.oauth,
+  transformResponse: async (response: Response) => {
+    const pr = await response.json()
+    return {
+      success: true,
+      output: {
+        id: pr.id,
+        number: pr.number,
+        title: pr.title,
+        html_url: pr.html_url,
+        requested_reviewers: pr.requested_reviewers ?? [],
+        requested_teams: pr.requested_teams ?? [],
+      },
+    }
+  },
+  outputs: {
+    id: { type: 'number', description: 'PR ID' },
+    number: { type: 'number', description: 'PR number' },
+    title: { type: 'string', description: 'PR title' },
+    html_url: { type: 'string', description: 'GitHub web URL' },
+    requested_reviewers: { type: 'array', description: 'Array of requested reviewer objects' },
+    requested_teams: { type: 'array', description: 'Array of requested team objects' },
+  },
+}

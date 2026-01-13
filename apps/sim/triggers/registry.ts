@@ -66,6 +66,17 @@ import {
   jiraWorklogCreatedTrigger,
 } from '@/triggers/jira'
 import {
+  lemlistEmailBouncedTrigger,
+  lemlistEmailClickedTrigger,
+  lemlistEmailOpenedTrigger,
+  lemlistEmailRepliedTrigger,
+  lemlistEmailSentTrigger,
+  lemlistInterestedTrigger,
+  lemlistLinkedInRepliedTrigger,
+  lemlistNotInterestedTrigger,
+  lemlistWebhookTrigger,
+} from '@/triggers/lemlist'
+import {
   linearCommentCreatedTrigger,
   linearCommentUpdatedTrigger,
   linearCustomerRequestCreatedTrigger,
@@ -139,6 +150,15 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   jira_issue_deleted: jiraIssueDeletedTrigger,
   jira_issue_commented: jiraIssueCommentedTrigger,
   jira_worklog_created: jiraWorklogCreatedTrigger,
+  lemlist_webhook: lemlistWebhookTrigger,
+  lemlist_email_replied: lemlistEmailRepliedTrigger,
+  lemlist_email_opened: lemlistEmailOpenedTrigger,
+  lemlist_email_clicked: lemlistEmailClickedTrigger,
+  lemlist_email_sent: lemlistEmailSentTrigger,
+  lemlist_email_bounced: lemlistEmailBouncedTrigger,
+  lemlist_linkedin_replied: lemlistLinkedInRepliedTrigger,
+  lemlist_interested: lemlistInterestedTrigger,
+  lemlist_not_interested: lemlistNotInterestedTrigger,
   linear_webhook: linearWebhookTrigger,
   linear_issue_created: linearIssueCreatedTrigger,
   linear_issue_updated: linearIssueUpdatedTrigger,

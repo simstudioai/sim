@@ -99,18 +99,14 @@ export const pipedriveUpdateDealTool: ToolConfig<
     return {
       success: true,
       output: {
-        deal: data.data,
-        metadata: {
-          operation: 'update_deal' as const,
-        },
+        deal: data.data ?? null,
         success: true,
       },
     }
   },
 
   outputs: {
-    deal: { type: 'object', description: 'The updated deal object' },
-    metadata: { type: 'object', description: 'Operation metadata' },
+    deal: { type: 'object', description: 'The updated deal object', optional: true },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

@@ -89,10 +89,7 @@ export const hubspotCreateCompanyTool: ToolConfig<
       success: true,
       output: {
         company: data,
-        metadata: {
-          operation: 'create_company' as const,
-          companyId: data.id,
-        },
+        companyId: data.id,
         success: true,
       },
     }
@@ -100,7 +97,7 @@ export const hubspotCreateCompanyTool: ToolConfig<
 
   outputs: {
     company: { type: 'object', description: 'Created HubSpot company object' },
-    metadata: { type: 'object', description: 'Operation metadata' },
+    companyId: { type: 'string', description: 'The created company ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

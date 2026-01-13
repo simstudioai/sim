@@ -1,12 +1,7 @@
 import type { StopAgentParams, StopAgentResponse } from '@/tools/cursor/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const stopAgentTool: ToolConfig<StopAgentParams, StopAgentResponse> = {
-  id: 'cursor_stop_agent',
-  name: 'Cursor Stop Agent',
-  description: 'Stop a running cloud agent. This pauses the agent without deleting it.',
-  version: '1.0.0',
-
+const stopAgentBase = {
   params: {
     apiKey: {
       type: 'string',
@@ -21,14 +16,22 @@ export const stopAgentTool: ToolConfig<StopAgentParams, StopAgentResponse> = {
       description: 'Unique identifier for the cloud agent (e.g., bc_abc123)',
     },
   },
-
   request: {
-    url: (params) => `https://api.cursor.com/v0/agents/${params.agentId}/stop`,
+    url: (params: StopAgentParams) => `https://api.cursor.com/v0/agents/${params.agentId}/stop`,
     method: 'POST',
-    headers: (params) => ({
+    headers: (params: StopAgentParams) => ({
       Authorization: `Basic ${Buffer.from(`${params.apiKey}:`).toString('base64')}`,
     }),
   },
+} satisfies Pick<ToolConfig<StopAgentParams, any>, 'params' | 'request'>
+
+export const stopAgentTool: ToolConfig<StopAgentParams, StopAgentResponse> = {
+  id: 'cursor_stop_agent',
+  name: 'Cursor Stop Agent',
+  description: 'Stop a running cloud agent. This pauses the agent without deleting it.',
+  version: '1.0.0',
+
+  ...stopAgentBase,
 
   transformResponse: async (response) => {
     const data = await response.json()
@@ -55,5 +58,33 @@ export const stopAgentTool: ToolConfig<StopAgentParams, StopAgentResponse> = {
         id: { type: 'string', description: 'Agent ID' },
       },
     },
+  },
+}
+
+interface StopAgentV2Response {
+  success: boolean
+  output: {
+    id: string
+  }
+}
+
+export const stopAgentV2Tool: ToolConfig<StopAgentParams, StopAgentV2Response> = {
+  ...stopAgentBase,
+  id: 'cursor_stop_agent_v2',
+  name: 'Cursor Stop Agent',
+  description: 'Stop a running cloud agent. Returns API-aligned fields only.',
+  version: '2.0.0',
+  transformResponse: async (response) => {
+    const data = await response.json()
+
+    return {
+      success: true,
+      output: {
+        id: data.id,
+      },
+    }
+  },
+  outputs: {
+    id: { type: 'string', description: 'Agent ID' },
   },
 }

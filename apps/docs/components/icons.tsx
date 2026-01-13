@@ -1853,6 +1853,23 @@ export function LinearIcon(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
+export function LemlistIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 24 24'
+      width='24'
+      height='24'
+      fill='none'
+    >
+      <rect width='24' height='24' rx='4' fill='#316BFF' />
+      <path d='M7 6h2v9h5v2H7V6Z' fill='white' />
+      <circle cx='17' cy='8' r='2' fill='white' />
+    </svg>
+  )
+}
+
 export function TelegramIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

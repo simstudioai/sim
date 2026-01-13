@@ -326,8 +326,8 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
       ),
 
       table: ({ children }: React.TableHTMLAttributes<HTMLTableElement>) => (
-        <div className='my-4 max-w-full overflow-x-auto'>
-          <table className='min-w-full table-auto border border-[var(--border-1)] font-season text-sm'>
+        <div className='my-3 max-w-full overflow-x-auto'>
+          <table className='min-w-full table-auto border border-[var(--border-1)] font-season text-xs'>
             {children}
           </table>
         </div>
@@ -346,12 +346,12 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
         </tr>
       ),
       th: ({ children }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
-        <th className='border-[var(--border-1)] border-r px-4 py-2 align-top font-base text-[var(--text-secondary)] last:border-r-0 dark:font-[470]'>
+        <th className='border-[var(--border-1)] border-r px-2.5 py-1.5 align-top font-base text-[var(--text-secondary)] last:border-r-0 dark:font-[470]'>
           {children}
         </th>
       ),
       td: ({ children }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
-        <td className='break-words border-[var(--border-1)] border-r px-4 py-2 align-top font-base text-[var(--text-primary)] last:border-r-0 dark:font-[470]'>
+        <td className='break-words border-[var(--border-1)] border-r px-2.5 py-1.5 align-top font-base text-[var(--text-primary)] last:border-r-0 dark:font-[470]'>
           {children}
         </td>
       ),

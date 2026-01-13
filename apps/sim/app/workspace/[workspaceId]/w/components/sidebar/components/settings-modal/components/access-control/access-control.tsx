@@ -342,6 +342,12 @@ export function AccessControl() {
         category: 'Logs',
         configKey: 'hideTraceSpans' as const,
       },
+      {
+        id: 'disable-invitations',
+        label: 'Invitations',
+        category: 'Collaboration',
+        configKey: 'disableInvitations' as const,
+      },
     ],
     []
   )
@@ -869,7 +875,8 @@ export function AccessControl() {
                             !editingConfig?.hideFilesTab &&
                             !editingConfig?.disableMcpTools &&
                             !editingConfig?.disableCustomTools &&
-                            !editingConfig?.hideTraceSpans
+                            !editingConfig?.hideTraceSpans &&
+                            !editingConfig?.disableInvitations
                           setEditingConfig((prev) =>
                             prev
                               ? {
@@ -883,6 +890,7 @@ export function AccessControl() {
                                   disableMcpTools: allVisible,
                                   disableCustomTools: allVisible,
                                   hideTraceSpans: allVisible,
+                                  disableInvitations: allVisible,
                                 }
                               : prev
                           )
@@ -896,7 +904,8 @@ export function AccessControl() {
                         !editingConfig?.hideFilesTab &&
                         !editingConfig?.disableMcpTools &&
                         !editingConfig?.disableCustomTools &&
-                        !editingConfig?.hideTraceSpans
+                        !editingConfig?.hideTraceSpans &&
+                        !editingConfig?.disableInvitations
                           ? 'Deselect All'
                           : 'Select All'}
                       </Button>

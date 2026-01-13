@@ -17,13 +17,13 @@ export interface ZendeskGetOrganizationsResponse {
   output: {
     organizations: any[]
     paging?: {
-      nextPage?: string | null
-      previousPage?: string | null
+      next_page?: string | null
+      previous_page?: string | null
       count: number
     }
     metadata: {
-      operation: 'get_organizations'
-      totalReturned: number
+      total_returned: number
+      has_more: boolean
     }
     success: boolean
   }
@@ -106,13 +106,13 @@ export const zendeskGetOrganizationsTool: ToolConfig<
       output: {
         organizations,
         paging: {
-          nextPage: data.next_page,
-          previousPage: data.previous_page,
+          next_page: data.next_page ?? null,
+          previous_page: data.previous_page ?? null,
           count: data.count || organizations.length,
         },
         metadata: {
-          operation: 'get_organizations' as const,
-          totalReturned: organizations.length,
+          total_returned: organizations.length,
+          has_more: !!data.next_page,
         },
         success: true,
       },
@@ -121,7 +121,29 @@ export const zendeskGetOrganizationsTool: ToolConfig<
 
   outputs: {
     organizations: { type: 'array', description: 'Array of organization objects' },
-    paging: { type: 'object', description: 'Pagination information' },
-    metadata: { type: 'object', description: 'Operation metadata' },
+    paging: {
+      type: 'object',
+      description: 'Pagination information',
+      properties: {
+        next_page: { type: 'string', description: 'URL for next page of results', optional: true },
+        previous_page: {
+          type: 'string',
+          description: 'URL for previous page of results',
+          optional: true,
+        },
+        count: { type: 'number', description: 'Total count of organizations' },
+      },
+    },
+    metadata: {
+      type: 'object',
+      description: 'Response metadata',
+      properties: {
+        total_returned: {
+          type: 'number',
+          description: 'Number of organizations returned in this response',
+        },
+        has_more: { type: 'boolean', description: 'Whether more organizations are available' },
+      },
+    },
   },
 }

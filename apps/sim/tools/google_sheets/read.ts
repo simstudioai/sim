@@ -101,6 +101,13 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
 
   outputs: {
     data: { type: 'json', description: 'Sheet data including range and cell values' },
-    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
+    metadata: {
+      type: 'json',
+      description: 'Spreadsheet metadata including ID and URL',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'Google Sheets spreadsheet ID' },
+        spreadsheetUrl: { type: 'string', description: 'Spreadsheet URL' },
+      },
+    },
   },
 }

@@ -51,18 +51,14 @@ export const pipedriveGetDealTool: ToolConfig<PipedriveGetDealParams, PipedriveG
     return {
       success: true,
       output: {
-        deal: data.data,
-        metadata: {
-          operation: 'get_deal' as const,
-        },
+        deal: data.data ?? null,
         success: true,
       },
     }
   },
 
   outputs: {
-    deal: { type: 'object', description: 'Deal object with full details' },
-    metadata: { type: 'object', description: 'Operation metadata' },
+    deal: { type: 'object', description: 'Deal object with full details', optional: true },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

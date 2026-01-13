@@ -113,8 +113,8 @@ export const listRecordingPlaylistsTool: ToolConfig<
       output: {
         playlists: data.results || [],
         count: data.count || 0,
-        next: data.next,
-        previous: data.previous,
+        next: data.next ?? null,
+        previous: data.previous ?? null,
       },
     }
   },

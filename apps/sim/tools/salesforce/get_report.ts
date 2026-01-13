@@ -70,24 +70,20 @@ export const salesforceGetReportTool: ToolConfig<
       output: {
         report: data,
         reportId: params?.reportId || '',
-        metadata: {
-          operation: 'get_report',
-        },
         success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success status' },
+    success: { type: 'boolean', description: 'Operation success status' },
     output: {
       type: 'object',
       description: 'Report metadata',
       properties: {
         report: { type: 'object', description: 'Report metadata object' },
         reportId: { type: 'string', description: 'Report ID' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success status' },
+        success: { type: 'boolean', description: 'Salesforce operation success' },
       },
     },
   },

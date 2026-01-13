@@ -98,8 +98,8 @@ export interface PlannerTaskDetails {
 export interface MicrosoftPlannerMetadata {
   planId?: string
   taskId?: string
-  userId?: string
-  planUrl?: string
+  userId?: string | null
+  planUrl?: string | null
   taskUrl?: string
   bucketId?: string
   groupId?: string

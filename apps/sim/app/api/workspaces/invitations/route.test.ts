@@ -101,6 +101,16 @@ describe('Workspace Invitations API Route', () => {
       eq: vi.fn().mockImplementation((field, value) => ({ type: 'eq', field, value })),
       inArray: vi.fn().mockImplementation((field, values) => ({ type: 'inArray', field, values })),
     }))
+
+    vi.doMock('@/executor/utils/permission-check', () => ({
+      validateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
+      InvitationsNotAllowedError: class InvitationsNotAllowedError extends Error {
+        constructor() {
+          super('Invitations are not allowed based on your permission group settings')
+          this.name = 'InvitationsNotAllowedError'
+        }
+      },
+    }))
   })
 
   describe('GET /api/workspaces/invitations', () => {
