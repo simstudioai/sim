@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { FileCode, Loader2, MinusCircle, XCircle } from 'lucide-react'
-import { getBlock } from '@/blocks/registry'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -11,6 +10,7 @@ import {
   GetBlockConfigInput,
   GetBlockConfigResult,
 } from '@/lib/copilot/tools/shared/schemas'
+import { getBlock } from '@/blocks/registry'
 
 interface GetBlockConfigArgs {
   blockType: string

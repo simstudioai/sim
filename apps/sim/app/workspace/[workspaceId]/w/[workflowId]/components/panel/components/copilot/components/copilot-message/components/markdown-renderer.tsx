@@ -158,7 +158,7 @@ const markdownComponents = {
 
   // Headings - minimal margins for chat context
   h1: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-    <h1 className='mt-2 mb-1 font-season font-semibold text-base text-[var(--text-primary)] first:mt-0'>
+    <h1 className='mt-2 mb-1 font-season font-semibold text-[var(--text-primary)] text-base first:mt-0'>
       {children}
     </h1>
   ),
@@ -168,12 +168,12 @@ const markdownComponents = {
     </h2>
   ),
   h3: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-    <h3 className='mt-1.5 mb-0.5 font-season font-semibold text-sm text-[var(--text-primary)] first:mt-0'>
+    <h3 className='mt-1.5 mb-0.5 font-season font-semibold text-[var(--text-primary)] text-sm first:mt-0'>
       {children}
     </h3>
   ),
   h4: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-    <h4 className='mt-1.5 mb-0.5 font-season font-semibold text-sm text-[var(--text-primary)] first:mt-0'>
+    <h4 className='mt-1.5 mb-0.5 font-season font-semibold text-[var(--text-primary)] text-sm first:mt-0'>
       {children}
     </h4>
   ),
@@ -197,7 +197,7 @@ const markdownComponents = {
   ),
   li: ({ children }: React.LiHTMLAttributes<HTMLLIElement>) => (
     <li
-      className='font-base font-season text-sm text-[var(--text-primary)] leading-[1.4] dark:font-[470]'
+      className='font-base font-season text-[var(--text-primary)] text-sm leading-[1.4] dark:font-[470]'
       style={{ display: 'list-item' }}
     >
       {children}
@@ -295,9 +295,7 @@ const markdownComponents = {
     </div>
   ),
   thead: ({ children }: React.HTMLAttributes<HTMLTableSectionElement>) => (
-    <thead className='bg-[var(--surface-5)] text-left dark:bg-[var(--surface-4)]'>
-      {children}
-    </thead>
+    <thead className='bg-[var(--surface-5)] text-left dark:bg-[var(--surface-4)]'>{children}</thead>
   ),
   tbody: ({ children }: React.HTMLAttributes<HTMLTableSectionElement>) => (
     <tbody className='divide-y divide-[var(--border-1)]'>{children}</tbody>
@@ -331,7 +329,7 @@ const markdownComponents = {
  */
 function CopilotMarkdownRenderer({ content }: CopilotMarkdownRendererProps) {
   return (
-    <div className='max-w-full break-words font-base font-season text-[var(--text-primary)] text-sm leading-[1.4] [&_*]:max-w-full [&_a]:break-all [&_code:not(pre_code)]:break-words [&_li]:break-words [&_p]:break-words dark:font-[470]'>
+    <div className='max-w-full break-words font-base font-season text-[var(--text-primary)] text-sm leading-[1.4] dark:font-[470] [&_*]:max-w-full [&_a]:break-all [&_code:not(pre_code)]:break-words [&_li]:break-words [&_p]:break-words'>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
         {content}
       </ReactMarkdown>

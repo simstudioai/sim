@@ -77,7 +77,10 @@ const SmoothThinkingText = memo(
             if (elapsed >= THINKING_DELAY) {
               if (currentIndex < currentContent.length) {
                 // Reveal multiple characters per frame for faster streaming
-                const newIndex = Math.min(currentIndex + THINKING_CHARS_PER_FRAME, currentContent.length)
+                const newIndex = Math.min(
+                  currentIndex + THINKING_CHARS_PER_FRAME,
+                  currentContent.length
+                )
                 const newDisplayed = currentContent.slice(0, newIndex)
                 setDisplayedContent(newDisplayed)
                 indexRef.current = newIndex
@@ -142,7 +145,9 @@ const SmoothThinkingText = memo(
     )
   },
   (prevProps, nextProps) => {
-    return prevProps.content === nextProps.content && prevProps.isStreaming === nextProps.isStreaming
+    return (
+      prevProps.content === nextProps.content && prevProps.isStreaming === nextProps.isStreaming
+    )
   }
 )
 

@@ -430,7 +430,13 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               const last = WEB_COMMANDS.length - 1
               mentionMenu.setSubmenuActiveIndex((prev) => {
                 const next =
-                  e.key === 'ArrowDown' ? (prev >= last ? 0 : prev + 1) : prev <= 0 ? last : prev - 1
+                  e.key === 'ArrowDown'
+                    ? prev >= last
+                      ? 0
+                      : prev + 1
+                    : prev <= 0
+                      ? last
+                      : prev - 1
                 requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(next))
                 return next
               })
@@ -441,7 +447,13 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               mentionMenu.setSubmenuActiveIndex((prev) => {
                 if (filtered.length === 0) return 0
                 const next =
-                  e.key === 'ArrowDown' ? (prev >= last ? 0 : prev + 1) : prev <= 0 ? last : prev - 1
+                  e.key === 'ArrowDown'
+                    ? prev >= last
+                      ? 0
+                      : prev + 1
+                    : prev <= 0
+                      ? last
+                      : prev - 1
                 requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(next))
                 return next
               })
@@ -451,7 +463,13 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               const last = totalItems - 1
               mentionMenu.setMentionActiveIndex((prev) => {
                 const next =
-                  e.key === 'ArrowDown' ? (prev >= last ? 0 : prev + 1) : prev <= 0 ? last : prev - 1
+                  e.key === 'ArrowDown'
+                    ? prev >= last
+                      ? 0
+                      : prev + 1
+                    : prev <= 0
+                      ? last
+                      : prev - 1
                 requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(next))
                 return next
               })
@@ -502,7 +520,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
             if (mentionMenu.openSubmenuFor === 'Web') {
               // Select from Web submenu
-              const selectedCommand = WEB_COMMANDS[mentionMenu.submenuActiveIndex] || WEB_COMMANDS[0]
+              const selectedCommand =
+                WEB_COMMANDS[mentionMenu.submenuActiveIndex] || WEB_COMMANDS[0]
               handleSlashCommandSelect(selectedCommand)
             } else if (showAggregatedView) {
               // Select from filtered view
@@ -831,7 +850,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                       (disabled || isLoading) && 'cursor-not-allowed'
                     )}
                   >
-                    <span className='flex h-3 w-3 items-center justify-center text-[11px] font-medium leading-none'>/</span>
+                    <span className='flex h-3 w-3 items-center justify-center font-medium text-[11px] leading-none'>
+                      /
+                    </span>
                   </Badge>
 
                   {/* Selected Context Pills */}

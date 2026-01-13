@@ -27,11 +27,13 @@ import {
 import { NavigateUIClientTool } from '@/lib/copilot/tools/client/navigation/navigate-ui'
 import { AuthClientTool } from '@/lib/copilot/tools/client/other/auth'
 import { CheckoffTodoClientTool } from '@/lib/copilot/tools/client/other/checkoff-todo'
+import { CrawlWebsiteClientTool } from '@/lib/copilot/tools/client/other/crawl-website'
 import { CustomToolClientTool } from '@/lib/copilot/tools/client/other/custom-tool'
 import { DebugClientTool } from '@/lib/copilot/tools/client/other/debug'
 import { DeployClientTool } from '@/lib/copilot/tools/client/other/deploy'
 import { EditClientTool } from '@/lib/copilot/tools/client/other/edit'
 import { EvaluateClientTool } from '@/lib/copilot/tools/client/other/evaluate'
+import { GetPageContentsClientTool } from '@/lib/copilot/tools/client/other/get-page-contents'
 import { InfoClientTool } from '@/lib/copilot/tools/client/other/info'
 import { KnowledgeClientTool } from '@/lib/copilot/tools/client/other/knowledge'
 import { MakeApiRequestClientTool } from '@/lib/copilot/tools/client/other/make-api-request'
@@ -40,12 +42,10 @@ import { OAuthRequestAccessClientTool } from '@/lib/copilot/tools/client/other/o
 import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
 import { RememberDebugClientTool } from '@/lib/copilot/tools/client/other/remember-debug'
 import { ResearchClientTool } from '@/lib/copilot/tools/client/other/research'
+import { ScrapePageClientTool } from '@/lib/copilot/tools/client/other/scrape-page'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
 import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
 import { SearchLibraryDocsClientTool } from '@/lib/copilot/tools/client/other/search-library-docs'
-import { CrawlWebsiteClientTool } from '@/lib/copilot/tools/client/other/crawl-website'
-import { GetPageContentsClientTool } from '@/lib/copilot/tools/client/other/get-page-contents'
-import { ScrapePageClientTool } from '@/lib/copilot/tools/client/other/scrape-page'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
 import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
 import { SleepClientTool } from '@/lib/copilot/tools/client/other/sleep'
@@ -1877,7 +1877,11 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
           Promise.resolve()
             .then(() => def.execute(ctx, args || {}))
             .catch((execErr: any) => {
-              logger.error('[SubAgent] Tool execution failed', { id, name, error: execErr?.message })
+              logger.error('[SubAgent] Tool execution failed', {
+                id,
+                name,
+                error: execErr?.message,
+              })
             })
         }
       } else {

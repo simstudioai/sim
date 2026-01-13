@@ -1973,7 +1973,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     'tour',
     'info',
     'workflow',
-    'superagent'
+    'superagent',
   ]
   const isSubagentTool = SUBAGENT_TOOLS.includes(toolCall.name)
 

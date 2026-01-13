@@ -52,4 +52,3 @@ export class GetPageContentsClientTool extends BaseClientTool {
     return
   }
 }
-

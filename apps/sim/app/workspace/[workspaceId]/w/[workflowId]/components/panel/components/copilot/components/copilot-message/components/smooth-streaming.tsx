@@ -168,7 +168,9 @@ export const SmoothStreamingText = memo(
   },
   (prevProps, nextProps) => {
     // Prevent re-renders during streaming unless content actually changed
-    return prevProps.content === nextProps.content && prevProps.isStreaming === nextProps.isStreaming
+    return (
+      prevProps.content === nextProps.content && prevProps.isStreaming === nextProps.isStreaming
+    )
   }
 )
 

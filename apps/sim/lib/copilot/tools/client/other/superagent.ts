@@ -54,4 +54,3 @@ export class SuperagentClientTool extends BaseClientTool {
 
 // Register UI config at module load
 registerToolUIConfig(SuperagentClientTool.id, SuperagentClientTool.metadata.uiConfig!)
-

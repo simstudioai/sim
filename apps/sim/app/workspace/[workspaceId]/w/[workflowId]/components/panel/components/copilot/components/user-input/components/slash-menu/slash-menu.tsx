@@ -229,7 +229,9 @@ export function SlashMenu({ mentionMenu, message, onSelectCommand }: SlashMenuPr
                 id='web'
                 title='Web'
                 onOpen={() => setOpenSubmenuFor('Web')}
-                active={isInFolderNavigationMode && mentionActiveIndex === TOP_LEVEL_COMMANDS.length}
+                active={
+                  isInFolderNavigationMode && mentionActiveIndex === TOP_LEVEL_COMMANDS.length
+                }
                 data-idx={TOP_LEVEL_COMMANDS.length}
               >
                 {WEB_COMMANDS.map((cmd) => (

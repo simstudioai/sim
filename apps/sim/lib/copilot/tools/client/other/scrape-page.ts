@@ -51,4 +51,3 @@ export class ScrapePageClientTool extends BaseClientTool {
     return
   }
 }
-
