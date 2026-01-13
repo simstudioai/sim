@@ -246,7 +246,7 @@ export function ThinkingBlock({
           )}
         >
           {/* Render markdown during streaming with thinking text styling */}
-          <div className='[&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-none [&_*]:!m-0 [&_*]:!p-0 [&_*]:!mb-0 [&_*]:!mt-0 [&_p]:!m-0 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_code]:!text-[11px] [&_ul]:!pl-4 [&_ul]:!my-0 [&_ol]:!pl-4 [&_ol]:!my-0 [&_li]:!my-0 [&_li]:!py-0 [&_br]:!leading-[0.5] whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-muted)] leading-none'>
+          <div className='[&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-[1.3] [&_p]:!m-0 [&_p]:!mb-1 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h1]:!m-0 [&_h1]:!mb-1 [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h2]:!m-0 [&_h2]:!mb-1 [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_h3]:!m-0 [&_h3]:!mb-1 [&_code]:!text-[11px] [&_ul]:!pl-5 [&_ul]:!my-1 [&_ol]:!pl-6 [&_ol]:!my-1 [&_li]:!my-0.5 [&_li]:!py-0 [&_br]:!leading-[0.5] [&_table]:!my-2 [&_th]:!px-2 [&_th]:!py-1 [&_th]:!text-[11px] [&_td]:!px-2 [&_td]:!py-1 [&_td]:!text-[11px] whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-muted)]'>
             <CopilotMarkdownRenderer content={content} />
             <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[var(--text-muted)]' />
           </div>
@@ -286,7 +286,7 @@ export function ThinkingBlock({
         )}
       >
         {/* Use markdown renderer for completed content */}
-        <div className='[&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-none [&_*]:!m-0 [&_*]:!p-0 [&_*]:!mb-0 [&_*]:!mt-0 [&_p]:!m-0 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_code]:!text-[11px] [&_ul]:!pl-4 [&_ul]:!my-0 [&_ol]:!pl-4 [&_ol]:!my-0 [&_li]:!my-0 [&_li]:!py-0 [&_br]:!leading-[0.5] whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-muted)] leading-none'>
+        <div className='[&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-[1.3] [&_p]:!m-0 [&_p]:!mb-1 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h1]:!m-0 [&_h1]:!mb-1 [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h2]:!m-0 [&_h2]:!mb-1 [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_h3]:!m-0 [&_h3]:!mb-1 [&_code]:!text-[11px] [&_ul]:!pl-5 [&_ul]:!my-1 [&_ol]:!pl-6 [&_ol]:!my-1 [&_li]:!my-0.5 [&_li]:!py-0 [&_br]:!leading-[0.5] [&_table]:!my-2 [&_th]:!px-2 [&_th]:!py-1 [&_th]:!text-[11px] [&_td]:!px-2 [&_td]:!py-1 [&_td]:!text-[11px] whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-muted)]'>
           <CopilotMarkdownRenderer content={content} />
         </div>
       </div>
