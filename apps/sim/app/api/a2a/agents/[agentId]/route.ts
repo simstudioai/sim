@@ -103,6 +103,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<Ro
 
     const body = await request.json()
 
+    if (
+      body.skillTags !== undefined &&
+      (!Array.isArray(body.skillTags) ||
+        !body.skillTags.every((tag: unknown): tag is string => typeof tag === 'string'))
+    ) {
+      return NextResponse.json({ error: 'skillTags must be an array of strings' }, { status: 400 })
+    }
+
     let skills = body.skills ?? existingAgent.skills
     if (body.skillTags !== undefined) {
       const agentName = body.name ?? existingAgent.name

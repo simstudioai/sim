@@ -6,11 +6,10 @@ import type {
   TaskState,
   TaskStatusUpdateEvent,
 } from '@a2a-js/sdk'
-import { ClientFactory } from '@a2a-js/sdk/client'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { extractTextContent, isTerminalState } from '@/lib/a2a/utils'
+import { createA2AClient, extractTextContent, isTerminalState } from '@/lib/a2a/utils'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 
@@ -44,8 +43,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = A2AResubscribeSchema.parse(body)
 
-    const factory = new ClientFactory()
-    const client = await factory.createFromUrl(validatedData.agentUrl)
+    const client = await createA2AClient(validatedData.agentUrl, validatedData.apiKey)
 
     const stream = client.resubscribeTask({ id: validatedData.taskId })
 

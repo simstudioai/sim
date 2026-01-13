@@ -99,6 +99,14 @@ export function validateAgentCard(card: unknown): card is AppAgentCard {
   if (typeof c.url !== 'string' || !c.url) return false
   if (typeof c.description !== 'string') return false
 
+  // Validate URL format
+  try {
+    const url = new URL(c.url)
+    if (!['http:', 'https:'].includes(url.protocol)) return false
+  } catch {
+    return false
+  }
+
   if (c.capabilities && typeof c.capabilities !== 'object') return false
 
   if (!Array.isArray(c.skills)) return false

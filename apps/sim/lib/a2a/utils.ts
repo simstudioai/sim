@@ -1,5 +1,52 @@
 import type { DataPart, FilePart, Message, Part, Task, TaskState, TextPart } from '@a2a-js/sdk'
+import {
+  type BeforeArgs,
+  type CallInterceptor,
+  type Client,
+  ClientFactory,
+  ClientFactoryOptions,
+} from '@a2a-js/sdk/client'
+import { createLogger } from '@sim/logger'
 import { A2A_TERMINAL_STATES } from './constants'
+
+const logger = createLogger('A2AUtils')
+
+/**
+ * Interceptor to add X-API-Key header to outgoing A2A requests
+ */
+class ApiKeyInterceptor implements CallInterceptor {
+  constructor(private apiKey: string) {}
+
+  before(args: BeforeArgs): Promise<void> {
+    args.options = {
+      ...args.options,
+      serviceParameters: {
+        ...args.options?.serviceParameters,
+        'X-API-Key': this.apiKey,
+      },
+    }
+    return Promise.resolve()
+  }
+
+  after(): Promise<void> {
+    return Promise.resolve()
+  }
+}
+
+/**
+ * Create an A2A client from an agent URL with optional API key authentication
+ */
+export async function createA2AClient(agentUrl: string, apiKey?: string): Promise<Client> {
+  const factoryOptions = apiKey
+    ? ClientFactoryOptions.createFrom(ClientFactoryOptions.default, {
+        clientConfig: {
+          interceptors: [new ApiKeyInterceptor(apiKey)],
+        },
+      })
+    : ClientFactoryOptions.default
+  const factory = new ClientFactory(factoryOptions)
+  return factory.createFromUrl(agentUrl)
+}
 
 export function isTerminalState(state: TaskState): boolean {
   return (A2A_TERMINAL_STATES as readonly string[]).includes(state)
@@ -43,14 +90,28 @@ export interface ExecutionFileInput {
 }
 
 /**
+ * Validate base64 string format
+ */
+function isValidBase64(str: string): boolean {
+  if (!str || str.length === 0) return false
+  return /^[A-Za-z0-9+/]*={0,2}$/.test(str)
+}
+
+/**
  * Convert A2A FileParts to execution file format
  * This format is then processed by processInputFileFields in the execute endpoint
  * FileWithUri → type 'url', FileWithBytes → type 'file' with data URL
- * Files without uri or bytes are filtered out as invalid
+ * Files without uri or bytes, or with invalid base64, are filtered out
  */
 export function convertFilesToExecutionFormat(files: A2AFile[]): ExecutionFileInput[] {
   return files
-    .filter((file) => file.uri || file.bytes) // Skip invalid files without content
+    .filter((file) => {
+      // Skip files without content
+      if (!file.uri && !file.bytes) return false
+      // Validate base64 if bytes are provided
+      if (file.bytes && !isValidBase64(file.bytes)) return false
+      return true
+    })
     .map((file) => {
       if (file.uri) {
         return {
@@ -204,7 +265,12 @@ export function parseWorkflowSSEChunk(chunk: string): ParsedSSEChunk {
         result.isDone = true
       }
     } catch {
-      // Not valid JSON, skip
+      // Only log if content looks like it should be JSON (starts with { or [)
+      if (dataContent.startsWith('{') || dataContent.startsWith('[')) {
+        logger.debug('Failed to parse SSE data as JSON', {
+          dataPreview: dataContent.substring(0, 100),
+        })
+      }
     }
   }
 

@@ -177,8 +177,9 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
       title: 'API Key',
       type: 'short-input',
       password: true,
-      placeholder: 'API key for the remote agent',
-      description: 'Authentication key for the A2A agent',
+      placeholder: 'Optional API key for authenticated agents',
+      description:
+        'Optional API key sent via X-API-Key header for agents that require authentication',
     },
   ],
   tools: {

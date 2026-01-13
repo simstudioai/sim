@@ -10,6 +10,11 @@ const logger = createLogger('A2APushNotifications')
 /**
  * Deliver push notification for a task state change.
  * Works without any external dependencies (DB-only).
+ *
+ * Note: Push notifications are best-effort delivery. Failed deliveries are logged
+ * for monitoring but not retried (unless trigger.dev is enabled for durable delivery).
+ * The webhook URL must use HTTPS (validated at configuration time).
+ * Tokens are stored in plaintext and sent as Bearer tokens for webhook validation.
  */
 export async function deliverPushNotification(taskId: string, state: TaskState): Promise<boolean> {
   const [config] = await db

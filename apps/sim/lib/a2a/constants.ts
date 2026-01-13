@@ -3,6 +3,11 @@ export const A2A_PROTOCOL_VERSION = '0.3.0'
 
 export const A2A_DEFAULT_TIMEOUT = 300000
 
+/**
+ * Maximum number of messages stored per task in the database.
+ * Messages beyond this limit should be truncated to prevent unbounded array growth.
+ * For capacity planning: ~100 messages * ~1KB avg = ~100KB per task max.
+ */
 export const A2A_MAX_HISTORY_LENGTH = 100
 
 export const A2A_DEFAULT_CAPABILITIES = {

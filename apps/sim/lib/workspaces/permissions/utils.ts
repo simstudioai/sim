@@ -20,19 +20,30 @@ export interface WorkspaceAccess {
 }
 
 /**
- * Get a workspace by ID (basic existence check)
+ * Check if a workspace exists
  *
- * @param workspaceId - The workspace ID to look up
- * @returns The workspace if found, null otherwise
+ * @param workspaceId - The workspace ID to check
+ * @returns True if the workspace exists, false otherwise
  */
-export async function getWorkspaceById(workspaceId: string): Promise<WorkspaceBasic | null> {
+export async function workspaceExists(workspaceId: string): Promise<boolean> {
   const [ws] = await db
     .select({ id: workspace.id })
     .from(workspace)
     .where(eq(workspace.id, workspaceId))
     .limit(1)
 
-  return ws || null
+  return !!ws
+}
+
+/**
+ * Get a workspace by ID for existence check
+ *
+ * @param workspaceId - The workspace ID to look up
+ * @returns The workspace if found, null otherwise
+ */
+export async function getWorkspaceById(workspaceId: string): Promise<WorkspaceBasic | null> {
+  const exists = await workspaceExists(workspaceId)
+  return exists ? { id: workspaceId } : null
 }
 
 /**
@@ -51,17 +62,6 @@ export async function getWorkspaceWithOwner(
     .limit(1)
 
   return ws || null
-}
-
-/**
- * Check if a workspace exists
- *
- * @param workspaceId - The workspace ID to check
- * @returns True if the workspace exists, false otherwise
- */
-export async function workspaceExists(workspaceId: string): Promise<boolean> {
-  const ws = await getWorkspaceById(workspaceId)
-  return ws !== null
 }
 
 /**

@@ -140,12 +140,22 @@ export function extractAgentContent(executeResult: {
   output?: { content?: string; [key: string]: unknown }
   error?: string
 }): string {
-  return (
-    executeResult.output?.content ||
-    (typeof executeResult.output === 'object'
-      ? JSON.stringify(executeResult.output)
-      : String(executeResult.output || executeResult.error || 'Task completed'))
-  )
+  // Prefer explicit content field
+  if (executeResult.output?.content) {
+    return executeResult.output.content
+  }
+
+  // If output is an object with meaningful data, stringify it
+  if (typeof executeResult.output === 'object' && executeResult.output !== null) {
+    const keys = Object.keys(executeResult.output)
+    // Skip empty objects or objects with only undefined values
+    if (keys.length > 0 && keys.some((k) => executeResult.output![k] !== undefined)) {
+      return JSON.stringify(executeResult.output)
+    }
+  }
+
+  // Fallback to error message or default
+  return executeResult.error || 'Task completed'
 }
 
 export function buildTaskResponse(params: {

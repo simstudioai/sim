@@ -122,6 +122,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const workflowData = await loadWorkflowFromNormalizedTables(workflowId)
+    if (!workflowData || !hasValidStartBlockInState(workflowData)) {
+      return NextResponse.json(
+        { error: 'Workflow must have a Start block to be exposed as an A2A agent' },
+        { status: 400 }
+      )
+    }
+
     const [existing] = await db
       .select({ id: a2aAgent.id })
       .from(a2aAgent)
@@ -132,14 +140,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'An agent already exists for this workflow' },
         { status: 409 }
-      )
-    }
-
-    const workflowData = await loadWorkflowFromNormalizedTables(workflowId)
-    if (!workflowData || !hasValidStartBlockInState(workflowData)) {
-      return NextResponse.json(
-        { error: 'Workflow must have a Start block to be exposed as an A2A agent' },
-        { status: 400 }
       )
     }
 

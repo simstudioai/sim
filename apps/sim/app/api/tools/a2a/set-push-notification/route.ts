@@ -1,7 +1,7 @@
-import { ClientFactory } from '@a2a-js/sdk/client'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { createA2AClient } from '@/lib/a2a/utils'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 
@@ -45,8 +45,7 @@ export async function POST(request: NextRequest) {
       webhookUrl: validatedData.webhookUrl,
     })
 
-    const factory = new ClientFactory()
-    const client = await factory.createFromUrl(validatedData.agentUrl)
+    const client = await createA2AClient(validatedData.agentUrl, validatedData.apiKey)
 
     const result = await client.setTaskPushNotificationConfig({
       taskId: validatedData.taskId,

@@ -224,9 +224,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
     }
 
     const { id, method, params: rpcParams } = body
-    const apiKey =
-      request.headers.get('X-API-Key') ||
-      request.headers.get('Authorization')?.replace('Bearer ', '')
+    // Only accept API keys from X-API-Key header to maintain proper auth boundaries
+    const apiKey = request.headers.get('X-API-Key')
 
     logger.info(`A2A request: ${method} for agent ${agentId}`)
 
@@ -294,6 +293,9 @@ async function handleMessageSend(
   const taskId = message.taskId || generateTaskId()
   const contextId = message.contextId || uuidv4()
 
+  // Distributed lock to prevent concurrent task processing
+  // Note: When Redis is unavailable, acquireLock returns true (degraded mode).
+  // In production, ensure Redis is available for proper distributed locking.
   const lockKey = `a2a:task:${taskId}:lock`
   const lockValue = uuidv4()
   const acquired = await acquireLock(lockKey, lockValue, 60)
@@ -427,9 +429,14 @@ async function handleMessageSend(
 
       return NextResponse.json(createResponse(id, task))
     } catch (error) {
-      logger.error(`Error executing workflow for task ${taskId}:`, error)
+      const isTimeout = error instanceof Error && error.name === 'TimeoutError'
+      logger.error(`Error executing workflow for task ${taskId}:`, { error, isTimeout })
 
-      const errorMessage = error instanceof Error ? error.message : 'Workflow execution failed'
+      const errorMessage = isTimeout
+        ? `Workflow execution timed out after ${A2A_DEFAULT_TIMEOUT}ms`
+        : error instanceof Error
+          ? error.message
+          : 'Workflow execution failed'
 
       await db
         .update(a2aTask)
@@ -479,9 +486,14 @@ async function handleMessageStream(
   const contextId = message.contextId || uuidv4()
   const taskId = message.taskId || generateTaskId()
 
+  // Distributed lock to prevent concurrent task processing
+  // Note: When Redis is unavailable, acquireLock returns true (degraded mode).
+  // Lock timeout: 5 minutes for streaming to handle long-running workflows.
+  // If a streaming request fails without releasing the lock, subsequent requests
+  // will be blocked until timeout. The lock is released in finally block below.
   const lockKey = `a2a:task:${taskId}:lock`
   const lockValue = uuidv4()
-  const acquired = await acquireLock(lockKey, lockValue, 300) // 5 minute timeout for streaming
+  const acquired = await acquireLock(lockKey, lockValue, 300)
 
   if (!acquired) {
     const encoder = new TextEncoder()
@@ -645,7 +657,11 @@ async function handleMessageStream(
             }
           }
 
-          const messageContent = finalContent || accumulatedContent || 'Task completed'
+          // Use finalContent if available and non-empty, otherwise fall back to accumulated content
+          const messageContent =
+            (finalContent !== undefined && finalContent.length > 0
+              ? finalContent
+              : accumulatedContent) || 'Task completed'
           const agentMessage = createAgentMessage(messageContent)
           agentMessage.taskId = taskId
           if (contextId) agentMessage.contextId = contextId
@@ -718,7 +734,14 @@ async function handleMessageStream(
           })
         }
       } catch (error) {
-        logger.error(`Streaming error for task ${taskId}:`, error)
+        const isTimeout = error instanceof Error && error.name === 'TimeoutError'
+        logger.error(`Streaming error for task ${taskId}:`, { error, isTimeout })
+
+        const errorMessage = isTimeout
+          ? `Workflow execution timed out after ${A2A_DEFAULT_TIMEOUT}ms`
+          : error instanceof Error
+            ? error.message
+            : 'Streaming failed'
 
         await db
           .update(a2aTask)
@@ -735,7 +758,7 @@ async function handleMessageStream(
 
         sendEvent('error', {
           code: A2A_ERROR_CODES.INTERNAL_ERROR,
-          message: error instanceof Error ? error.message : 'Streaming failed',
+          message: errorMessage,
         })
       } finally {
         await releaseLock(lockKey, lockValue)
@@ -862,7 +885,7 @@ async function handleTaskCancel(id: string | number, params: TaskIdParams): Prom
  * Handle tasks/resubscribe - Reconnect to SSE stream for an ongoing task
  */
 async function handleTaskResubscribe(
-  _request: NextRequest,
+  request: NextRequest,
   id: string | number,
   params: TaskIdParams
 ): Promise<NextResponse> {
@@ -896,10 +919,20 @@ async function handleTaskResubscribe(
   let isCancelled = false
   let pollTimeoutId: ReturnType<typeof setTimeout> | null = null
 
+  // Listen for client disconnection via request signal
+  const abortSignal = request.signal
+  abortSignal.addEventListener('abort', () => {
+    isCancelled = true
+    if (pollTimeoutId) {
+      clearTimeout(pollTimeoutId)
+      pollTimeoutId = null
+    }
+  })
+
   const stream = new ReadableStream({
     async start(controller) {
       const sendEvent = (event: string, data: unknown): boolean => {
-        if (isCancelled) return false
+        if (isCancelled || abortSignal.aborted) return false
         try {
           controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
           return true
@@ -935,7 +968,7 @@ async function handleTaskResubscribe(
 
       let polls = 0
       const poll = async () => {
-        if (isCancelled) {
+        if (isCancelled || abortSignal.aborted) {
           cleanup()
           return
         }
