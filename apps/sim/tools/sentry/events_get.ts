@@ -58,8 +58,8 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
           groupID: event.groupID,
           message: event.message || '',
           title: event.title,
-          location: event.location,
-          culprit: event.culprit,
+          location: event.location ?? null,
+          culprit: event.culprit ?? null,
           dateCreated: event.dateCreated,
           dateReceived: event.dateReceived,
           user: event.user
@@ -77,12 +77,16 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
               value: tag.value,
             })) || [],
           contexts: event.contexts || {},
-          platform: event.platform,
-          type: event.type,
-          metadata: event.metadata || {},
+          platform: event.platform ?? null,
+          type: event.type ?? null,
+          metadata: {
+            type: event.metadata?.type || null,
+            value: event.metadata?.value || null,
+            function: event.metadata?.function || null,
+          },
           entries: event.entries || [],
           errors: event.errors || [],
-          dist: event.dist,
+          dist: event.dist ?? null,
           fingerprints: event.fingerprints || [],
           sdk: event.sdk
             ? {
@@ -106,8 +110,12 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
         groupID: { type: 'string', description: 'Issue group ID this event belongs to' },
         message: { type: 'string', description: 'Event message' },
         title: { type: 'string', description: 'Event title' },
-        location: { type: 'string', description: 'Location information' },
-        culprit: { type: 'string', description: 'Function or location that caused the event' },
+        location: { type: 'string', description: 'Location information', optional: true },
+        culprit: {
+          type: 'string',
+          description: 'Function or location that caused the event',
+          optional: true,
+        },
         dateCreated: { type: 'string', description: 'When the event was created (ISO timestamp)' },
         dateReceived: {
           type: 'string',
@@ -139,11 +147,24 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
           type: 'object',
           description: 'Additional context data (device, OS, browser, etc.)',
         },
-        platform: { type: 'string', description: 'Platform where the event occurred' },
-        type: { type: 'string', description: 'Event type (error, transaction, etc.)' },
+        platform: {
+          type: 'string',
+          description: 'Platform where the event occurred',
+          optional: true,
+        },
+        type: {
+          type: 'string',
+          description: 'Event type (error, transaction, etc.)',
+          optional: true,
+        },
         metadata: {
           type: 'object',
-          description: 'Metadata about the event including error type and value',
+          description: 'Error metadata',
+          properties: {
+            type: { type: 'string', description: 'Type of error (e.g., TypeError, ValueError)' },
+            value: { type: 'string', description: 'Error message or value' },
+            function: { type: 'string', description: 'Function where the error occurred' },
+          },
         },
         entries: {
           type: 'array',
@@ -153,7 +174,7 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
           type: 'array',
           description: 'Processing errors that occurred',
         },
-        dist: { type: 'string', description: 'Distribution identifier' },
+        dist: { type: 'string', description: 'Distribution identifier', optional: true },
         fingerprints: {
           type: 'array',
           description: 'Fingerprints used for grouping events',

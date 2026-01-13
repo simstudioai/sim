@@ -21,6 +21,7 @@ import { env } from '@/lib/core/config/env'
 import { CopilotFiles } from '@/lib/uploads'
 import { createFileContent } from '@/lib/uploads/utils/file-utils'
 import { tools } from '@/tools/registry'
+import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 
 const logger = createLogger('CopilotChatAPI')
 
@@ -411,11 +412,14 @@ export async function POST(req: NextRequest) {
       try {
         const { createUserToolSchema } = await import('@/tools/params')
 
-        integrationTools = Object.entries(tools).map(([toolId, toolConfig]) => {
+        const latestTools = getLatestVersionTools(tools)
+
+        integrationTools = Object.entries(latestTools).map(([toolId, toolConfig]) => {
           const userSchema = createUserToolSchema(toolConfig)
+          const strippedName = stripVersionSuffix(toolId)
           return {
-            name: toolId,
-            description: toolConfig.description || toolConfig.name || toolId,
+            name: strippedName,
+            description: toolConfig.description || toolConfig.name || strippedName,
             input_schema: userSchema,
             defer_loading: true, // Anthropic Advanced Tool Use
             ...(toolConfig.oauth?.required && {

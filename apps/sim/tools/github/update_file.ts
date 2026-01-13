@@ -177,3 +177,27 @@ View file: ${data.content.html_url}`
     },
   },
 }
+
+export const updateFileV2Tool: ToolConfig = {
+  id: 'github_update_file_v2',
+  name: updateFileTool.name,
+  description: updateFileTool.description,
+  version: '2.0.0',
+  params: updateFileTool.params,
+  request: updateFileTool.request,
+  oauth: updateFileTool.oauth,
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: true,
+      output: {
+        content: data.content,
+        commit: data.commit,
+      },
+    }
+  },
+  outputs: {
+    content: { type: 'json', description: 'Updated file content info' },
+    commit: { type: 'json', description: 'Commit information' },
+  },
+}

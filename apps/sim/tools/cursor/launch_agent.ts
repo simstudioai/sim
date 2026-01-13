@@ -1,13 +1,7 @@
 import type { LaunchAgentParams, LaunchAgentResponse } from '@/tools/cursor/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const launchAgentTool: ToolConfig<LaunchAgentParams, LaunchAgentResponse> = {
-  id: 'cursor_launch_agent',
-  name: 'Cursor Launch Agent',
-  description:
-    'Start a new cloud agent to work on a GitHub repository with the given instructions.',
-  version: '1.0.0',
-
+const launchAgentBase = {
   params: {
     apiKey: {
       type: 'string',
@@ -70,15 +64,14 @@ export const launchAgentTool: ToolConfig<LaunchAgentParams, LaunchAgentResponse>
       description: 'Skip requesting reviewers on the PR',
     },
   },
-
   request: {
     url: () => 'https://api.cursor.com/v0/agents',
     method: 'POST',
-    headers: (params) => ({
+    headers: (params: LaunchAgentParams) => ({
       'Content-Type': 'application/json',
       Authorization: `Basic ${Buffer.from(`${params.apiKey}:`).toString('base64')}`,
     }),
-    body: (params) => {
+    body: (params: LaunchAgentParams) => {
       const body: Record<string, any> = {
         source: {
           repository: params.repository,
@@ -119,6 +112,16 @@ export const launchAgentTool: ToolConfig<LaunchAgentParams, LaunchAgentResponse>
       return body
     },
   },
+} satisfies Pick<ToolConfig<LaunchAgentParams, any>, 'params' | 'request'>
+
+export const launchAgentTool: ToolConfig<LaunchAgentParams, LaunchAgentResponse> = {
+  id: 'cursor_launch_agent',
+  name: 'Cursor Launch Agent',
+  description:
+    'Start a new cloud agent to work on a GitHub repository with the given instructions.',
+  version: '1.0.0',
+
+  ...launchAgentBase,
 
   transformResponse: async (response) => {
     const data = await response.json()
@@ -146,5 +149,38 @@ export const launchAgentTool: ToolConfig<LaunchAgentParams, LaunchAgentResponse>
         url: { type: 'string', description: 'Agent URL' },
       },
     },
+  },
+}
+
+interface LaunchAgentV2Response {
+  success: boolean
+  output: {
+    id: string
+    url: string
+  }
+}
+
+export const launchAgentV2Tool: ToolConfig<LaunchAgentParams, LaunchAgentV2Response> = {
+  ...launchAgentBase,
+  id: 'cursor_launch_agent_v2',
+  name: 'Cursor Launch Agent',
+  description:
+    'Start a new cloud agent to work on a GitHub repository with the given instructions. Returns API-aligned fields only.',
+  version: '2.0.0',
+  transformResponse: async (response) => {
+    const data = await response.json()
+    const agentUrl = `https://cursor.com/agents?selectedBcId=${data.id}`
+
+    return {
+      success: true,
+      output: {
+        id: data.id,
+        url: agentUrl,
+      },
+    }
+  },
+  outputs: {
+    id: { type: 'string', description: 'Agent ID' },
+    url: { type: 'string', description: 'Agent URL' },
   },
 }

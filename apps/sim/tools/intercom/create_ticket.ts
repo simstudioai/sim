@@ -27,15 +27,16 @@ export interface IntercomCreateTicketResponse {
   }
 }
 
-export const intercomCreateTicketTool: ToolConfig<
-  IntercomCreateTicketParams,
-  IntercomCreateTicketResponse
-> = {
-  id: 'intercom_create_ticket',
-  name: 'Create Ticket in Intercom',
-  description: 'Create a new ticket in Intercom',
-  version: '1.0.0',
+export interface IntercomCreateTicketV2Response {
+  success: boolean
+  output: {
+    ticket: any
+    ticketId: string
+    success: boolean
+  }
+}
 
+const createTicketBase = {
   params: {
     accessToken: {
       type: 'string',
@@ -88,16 +89,15 @@ export const intercomCreateTicketTool: ToolConfig<
       description: 'When true, suppresses notifications when the ticket is created',
     },
   },
-
   request: {
     url: () => buildIntercomUrl('/tickets'),
     method: 'POST',
-    headers: (params) => ({
+    headers: (params: IntercomCreateTicketParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
       'Intercom-Version': '2.14',
     }),
-    body: (params) => {
+    body: (params: IntercomCreateTicketParams) => {
       const ticket: any = {
         ticket_type_id: params.ticket_type_id,
       }
@@ -126,6 +126,18 @@ export const intercomCreateTicketTool: ToolConfig<
       return ticket
     },
   },
+} satisfies Pick<ToolConfig<IntercomCreateTicketParams, any>, 'params' | 'request'>
+
+export const intercomCreateTicketTool: ToolConfig<
+  IntercomCreateTicketParams,
+  IntercomCreateTicketResponse
+> = {
+  id: 'intercom_create_ticket',
+  name: 'Create Ticket in Intercom',
+  description: 'Create a new ticket in Intercom',
+  version: '1.0.0',
+
+  ...createTicketBase,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
@@ -156,7 +168,7 @@ export const intercomCreateTicketTool: ToolConfig<
         id: { type: 'string', description: 'Unique identifier for the ticket' },
         type: { type: 'string', description: 'Object type (ticket)' },
         ticket_id: { type: 'string', description: 'Ticket ID' },
-        ticket_type: { type: 'object', description: 'Type of the ticket' },
+        ticket_type: { type: 'object', description: 'Type of the ticket', optional: true },
         ticket_attributes: { type: 'object', description: 'Attributes of the ticket' },
         ticket_state: { type: 'string', description: 'State of the ticket' },
         ticket_state_internal_label: {
@@ -184,6 +196,67 @@ export const intercomCreateTicketTool: ToolConfig<
         ticketId: { type: 'string', description: 'ID of the created ticket' },
       },
     },
+    success: { type: 'boolean', description: 'Operation success status' },
+  },
+}
+
+export const intercomCreateTicketV2Tool: ToolConfig<
+  IntercomCreateTicketParams,
+  IntercomCreateTicketV2Response
+> = {
+  ...createTicketBase,
+  id: 'intercom_create_ticket_v2',
+  name: 'Create Ticket in Intercom',
+  description: 'Create a new ticket in Intercom. Returns API-aligned fields only.',
+  version: '2.0.0',
+
+  transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const data = await response.json()
+      handleIntercomError(data, response.status, 'create_ticket')
+    }
+
+    const data = await response.json()
+
+    return {
+      success: true,
+      output: {
+        ticket: data,
+        ticketId: data.id,
+        success: true,
+      },
+    }
+  },
+
+  outputs: {
+    ticket: {
+      type: 'object',
+      description: 'Created ticket object',
+      properties: {
+        id: { type: 'string', description: 'Unique identifier for the ticket' },
+        type: { type: 'string', description: 'Object type (ticket)' },
+        ticket_id: { type: 'string', description: 'Ticket ID' },
+        ticket_type: { type: 'object', description: 'Type of the ticket', optional: true },
+        ticket_attributes: { type: 'object', description: 'Attributes of the ticket' },
+        ticket_state: { type: 'string', description: 'State of the ticket' },
+        ticket_state_internal_label: {
+          type: 'string',
+          description: 'Internal label for ticket state',
+        },
+        ticket_state_external_label: {
+          type: 'string',
+          description: 'External label for ticket state',
+        },
+        created_at: { type: 'number', description: 'Unix timestamp when ticket was created' },
+        updated_at: { type: 'number', description: 'Unix timestamp when ticket was last updated' },
+        contacts: { type: 'object', description: 'Contacts associated with the ticket' },
+        admin_assignee_id: { type: 'string', description: 'ID of assigned admin' },
+        team_assignee_id: { type: 'string', description: 'ID of assigned team' },
+        is_shared: { type: 'boolean', description: 'Whether the ticket is shared' },
+        open: { type: 'boolean', description: 'Whether the ticket is open' },
+      },
+    },
+    ticketId: { type: 'string', description: 'ID of the created ticket' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

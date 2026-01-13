@@ -14,10 +14,7 @@ export interface MailchimpCreateBatchOperationResponse {
   success: boolean
   output: {
     batch: MailchimpBatchOperation
-    metadata: {
-      operation: 'create_batch_operation'
-      batchId: string
-    }
+    batch_id: string
     success: boolean
   }
 }
@@ -77,10 +74,7 @@ export const mailchimpCreateBatchOperationTool: ToolConfig<
       success: true,
       output: {
         batch: data,
-        metadata: {
-          operation: 'create_batch_operation' as const,
-          batchId: data.id,
-        },
+        batch_id: data.id,
         success: true,
       },
     }
@@ -92,8 +86,8 @@ export const mailchimpCreateBatchOperationTool: ToolConfig<
       type: 'object',
       description: 'Created batch operation data',
       properties: {
-        batch: { type: 'object', description: 'Created batch operation object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
+        batch: { type: 'json', description: 'Created batch operation object' },
+        batch_id: { type: 'string', description: 'Created batch operation ID' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

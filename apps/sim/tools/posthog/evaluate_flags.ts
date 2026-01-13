@@ -14,9 +14,9 @@ interface FlagEvaluation {
 }
 
 interface EvaluateFlagsResponse {
-  featureFlags: FlagEvaluation
-  featureFlagPayloads: Record<string, any>
-  errorsWhileComputingFlags: boolean
+  feature_flags: FlagEvaluation
+  feature_flag_payloads: Record<string, any>
+  errors_while_computing_flags: boolean
 }
 
 export const evaluateFlagsTool: ToolConfig<EvaluateFlagsParams, EvaluateFlagsResponse> = {
@@ -113,23 +113,23 @@ export const evaluateFlagsTool: ToolConfig<EvaluateFlagsParams, EvaluateFlagsRes
     const data = await response.json()
 
     return {
-      featureFlags: data.featureFlags || {},
-      featureFlagPayloads: data.featureFlagPayloads || {},
-      errorsWhileComputingFlags: data.errorsWhileComputingFlags || false,
+      feature_flags: data.featureFlags || {},
+      feature_flag_payloads: data.featureFlagPayloads || {},
+      errors_while_computing_flags: data.errorsWhileComputingFlags || false,
     }
   },
 
   outputs: {
-    featureFlags: {
+    feature_flags: {
       type: 'object',
       description:
         'Feature flag evaluations (key-value pairs where values are boolean or string variants)',
     },
-    featureFlagPayloads: {
+    feature_flag_payloads: {
       type: 'object',
       description: 'Additional payloads attached to feature flags',
     },
-    errorsWhileComputingFlags: {
+    errors_while_computing_flags: {
       type: 'boolean',
       description: 'Whether there were errors while computing flags',
     },

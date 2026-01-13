@@ -15,10 +15,6 @@ export interface MailchimpAddSegmentMemberResponse {
   success: boolean
   output: {
     member: MailchimpMember
-    metadata: {
-      operation: 'add_segment_member'
-      segmentId: string
-    }
     success: boolean
   }
 }
@@ -87,10 +83,6 @@ export const mailchimpAddSegmentMemberTool: ToolConfig<
       success: true,
       output: {
         member: data,
-        metadata: {
-          operation: 'add_segment_member' as const,
-          segmentId: '',
-        },
         success: true,
       },
     }
@@ -102,8 +94,7 @@ export const mailchimpAddSegmentMemberTool: ToolConfig<
       type: 'object',
       description: 'Added member data',
       properties: {
-        member: { type: 'object', description: 'Added member object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
+        member: { type: 'json', description: 'Added member object' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

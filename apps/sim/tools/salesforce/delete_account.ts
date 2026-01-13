@@ -109,9 +109,6 @@ export const salesforceDeleteAccountTool: ToolConfig<
       output: {
         id: params?.accountId || '',
         deleted: true,
-        metadata: {
-          operation: 'delete_account' as const,
-        },
       },
     }
   },
@@ -124,7 +121,6 @@ export const salesforceDeleteAccountTool: ToolConfig<
       properties: {
         id: { type: 'string', description: 'Deleted account ID' },
         deleted: { type: 'boolean', description: 'Whether account was deleted' },
-        metadata: { type: 'object', description: 'Operation metadata' },
       },
     },
   },

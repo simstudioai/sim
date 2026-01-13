@@ -152,3 +152,41 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
     },
   },
 }
+
+interface GmailSearchV2Response {
+  success: boolean
+  output: {
+    results: Array<Record<string, any>>
+  }
+}
+
+export const gmailSearchV2Tool: ToolConfig<GmailSearchParams, GmailSearchV2Response> = {
+  id: 'gmail_search_v2',
+  name: 'Gmail Search',
+  description: 'Search emails in Gmail. Returns API-aligned fields only.',
+  version: '2.0.0',
+  oauth: gmailSearchTool.oauth,
+  params: gmailSearchTool.params,
+  request: gmailSearchTool.request,
+  transformResponse: async (response: Response, params?: GmailSearchParams) => {
+    const legacy = await gmailSearchTool.transformResponse!(response, params)
+    if (!legacy.success) {
+      return {
+        success: false,
+        output: { results: [] },
+        error: legacy.error,
+      }
+    }
+
+    const metadata = (legacy.output.metadata || {}) as any
+    return {
+      success: true,
+      output: {
+        results: metadata.results || [],
+      },
+    }
+  },
+  outputs: {
+    results: { type: 'json', description: 'Array of search results' },
+  },
+}

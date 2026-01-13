@@ -108,19 +108,19 @@ export const listEventDefinitionsTool: ToolConfig<
 
     return {
       count: data.count,
-      next: data.next,
-      previous: data.previous,
+      next: data.next ?? null,
+      previous: data.previous ?? null,
       results: data.results.map((event: any) => ({
         id: event.id,
         name: event.name,
         description: event.description || '',
         tags: event.tags || [],
-        volume_30_day: event.volume_30_day,
-        query_usage_30_day: event.query_usage_30_day,
+        volume_30_day: event.volume_30_day ?? null,
+        query_usage_30_day: event.query_usage_30_day ?? null,
         created_at: event.created_at,
-        last_seen_at: event.last_seen_at,
+        last_seen_at: event.last_seen_at ?? null,
         updated_at: event.updated_at,
-        updated_by: event.updated_by,
+        updated_by: event.updated_by ?? null,
       })),
     }
   },
@@ -133,10 +133,12 @@ export const listEventDefinitionsTool: ToolConfig<
     next: {
       type: 'string',
       description: 'URL for the next page of results',
+      optional: true,
     },
     previous: {
       type: 'string',
       description: 'URL for the previous page of results',
+      optional: true,
     },
     results: {
       type: 'array',
@@ -151,18 +153,25 @@ export const listEventDefinitionsTool: ToolConfig<
           volume_30_day: {
             type: 'number',
             description: 'Number of events received in the last 30 days',
+            optional: true,
           },
           query_usage_30_day: {
             type: 'number',
             description: 'Number of times this event was queried in the last 30 days',
+            optional: true,
           },
           created_at: { type: 'string', description: 'ISO timestamp when the event was created' },
           last_seen_at: {
             type: 'string',
             description: 'ISO timestamp when the event was last seen',
+            optional: true,
           },
           updated_at: { type: 'string', description: 'ISO timestamp when the event was updated' },
-          updated_by: { type: 'object', description: 'User who last updated the event' },
+          updated_by: {
+            type: 'object',
+            description: 'User who last updated the event',
+            optional: true,
+          },
         },
       },
     },

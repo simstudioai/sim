@@ -1,42 +1,14 @@
 ---
 title: Gmail
-description: Send, read, search, and move Gmail messages or trigger workflows from Gmail events
+description: Gmail message ID
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="gmail"
-  color="#E0E0E0"
+  type="gmail_v2"
+  color="#F5F5F5"
 />
-
-{/* MANUAL-CONTENT-START:intro */}
-[Gmail](https://gmail.com) is Google's popular email service that provides a robust platform for sending, receiving, and managing email communications. With over 1.8 billion active users worldwide, Gmail offers a feature-rich experience with powerful search capabilities, organizational tools, and integration options.
-
-With Gmail, you can:
-
-- **Send and receive emails**: Communicate with contacts through a clean, intuitive interface
-- **Organize messages**: Use labels, folders, and filters to keep your inbox organized
-- **Search efficiently**: Find specific messages quickly with Google's powerful search technology
-- **Automate workflows**: Create filters and rules to automatically process incoming emails
-- **Access from anywhere**: Use Gmail across devices with synchronized content and settings
-- **Integrate with other services**: Connect with Google Calendar, Drive, and other productivity tools
-
-In Sim, the Gmail integration enables your agents to fully manage emails programmatically with comprehensive automation capabilities. This allows for powerful automation scenarios such as sending notifications, processing incoming messages, extracting information from emails, and managing communication workflows at scale. Your agents can:
-
-- **Compose and send**: Create personalized emails with attachments and send to recipients
-- **Read and search**: Find specific messages using Gmail's query syntax and extract content
-- **Organize intelligently**: Mark messages as read/unread, archive or unarchive emails, and manage labels
-- **Clean up inbox**: Delete messages, move emails between labels, and maintain inbox zero
-- **Trigger workflows**: Listen for new emails in real-time, enabling responsive workflows that react to incoming messages
-
-This integration bridges the gap between your AI workflows and email communications, enabling seamless interaction with one of the world's most widely used communication platforms. Whether you're automating customer support responses, processing receipts, managing subscriptions, or coordinating team communications, the Gmail integration provides all the tools you need for comprehensive email automation.
-{/* MANUAL-CONTENT-END */}
-
-
-## Usage Instructions
-
-Integrate Gmail into the workflow. Can send, read, search, and move emails. Can be used in trigger mode to trigger a workflow when a new email is received.
 
 
 
@@ -44,7 +16,7 @@ Integrate Gmail into the workflow. Can send, read, search, and move emails. Can 
 
 ### `gmail_send`
 
-Send emails using Gmail
+Send emails using Gmail. Returns API-aligned fields only.
 
 #### Input
 
@@ -64,12 +36,13 @@ Send emails using Gmail
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Success message |
-| `metadata` | object | Email metadata |
+| `id` | string | Gmail message ID |
+| `threadId` | string | Gmail thread ID |
+| `labelIds` | array | Email labels |
 
 ### `gmail_draft`
 
-Draft emails using Gmail
+Draft emails using Gmail. Returns API-aligned fields only.
 
 #### Input
 
@@ -89,12 +62,14 @@ Draft emails using Gmail
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Success message |
-| `metadata` | object | Draft metadata |
+| `draftId` | string | Draft ID |
+| `messageId` | string | Gmail message ID for the draft |
+| `threadId` | string | Gmail thread ID |
+| `labelIds` | array | Email labels |
 
 ### `gmail_read`
 
-Read emails from Gmail
+Read emails from Gmail. Returns API-aligned fields only.
 
 #### Input
 
@@ -110,13 +85,22 @@ Read emails from Gmail
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Text content of the email |
-| `metadata` | json | Metadata of the email |
-| `attachments` | file[] | Attachments of the email |
+| `id` | string | Gmail message ID |
+| `threadId` | string | Gmail thread ID |
+| `labelIds` | array | Email labels |
+| `from` | string | Sender email address |
+| `to` | string | Recipient email address |
+| `subject` | string | Email subject |
+| `date` | string | Email date |
+| `body` | string | Email body text \(best-effort plain text\) |
+| `hasAttachments` | boolean | Whether the email has attachments |
+| `attachmentCount` | number | Number of attachments |
+| `attachments` | file[] | Downloaded attachments \(if enabled\) |
+| `results` | json | Summary results when reading multiple messages |
 
 ### `gmail_search`
 
-Search emails in Gmail
+Search emails in Gmail. Returns API-aligned fields only.
 
 #### Input
 
@@ -129,12 +113,11 @@ Search emails in Gmail
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Search results summary |
-| `metadata` | object | Search metadata |
+| `results` | json | Array of search results |
 
 ### `gmail_move`
 
-Move emails between Gmail labels/folders
+Move emails between labels/folders in Gmail. Returns API-aligned fields only.
 
 #### Input
 
@@ -148,12 +131,13 @@ Move emails between Gmail labels/folders
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Success message |
-| `metadata` | object | Email metadata |
+| `id` | string | Gmail message ID |
+| `threadId` | string | Gmail thread ID |
+| `labelIds` | array | Email labels |
 
 ### `gmail_mark_read`
 
-Mark a Gmail message as read
+Mark a Gmail message as read. Returns API-aligned fields only.
 
 #### Input
 
@@ -165,12 +149,13 @@ Mark a Gmail message as read
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Success message |
-| `metadata` | object | Email metadata |
+| `id` | string | Gmail message ID |
+| `threadId` | string | Gmail thread ID |
+| `labelIds` | array | Updated email labels |
 
 ### `gmail_mark_unread`
 
-Mark a Gmail message as unread
+Mark a Gmail message as unread. Returns API-aligned fields only.
 
 #### Input
 
@@ -182,12 +167,13 @@ Mark a Gmail message as unread
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Success message |
-| `metadata` | object | Email metadata |
+| `id` | string | Gmail message ID |
+| `threadId` | string | Gmail thread ID |
+| `labelIds` | array | Updated email labels |
 
 ### `gmail_archive`
 
-Archive a Gmail message (remove from inbox)
+Archive a Gmail message (remove from inbox). Returns API-aligned fields only.
 
 #### Input
 
@@ -199,12 +185,13 @@ Archive a Gmail message (remove from inbox)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Success message |
-| `metadata` | object | Email metadata |
+| `id` | string | Gmail message ID |
+| `threadId` | string | Gmail thread ID |
+| `labelIds` | array | Updated email labels |
 
 ### `gmail_unarchive`
 
-Unarchive a Gmail message (move back to inbox)
+Unarchive a Gmail message (move back to inbox). Returns API-aligned fields only.
 
 #### Input
 
@@ -216,12 +203,13 @@ Unarchive a Gmail message (move back to inbox)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Success message |
-| `metadata` | object | Email metadata |
+| `id` | string | Gmail message ID |
+| `threadId` | string | Gmail thread ID |
+| `labelIds` | array | Updated email labels |
 
 ### `gmail_delete`
 
-Delete a Gmail message (move to trash)
+Delete a Gmail message (move to trash). Returns API-aligned fields only.
 
 #### Input
 
@@ -233,12 +221,13 @@ Delete a Gmail message (move to trash)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Success message |
-| `metadata` | object | Email metadata |
+| `id` | string | Gmail message ID |
+| `threadId` | string | Gmail thread ID |
+| `labelIds` | array | Updated email labels |
 
 ### `gmail_add_label`
 
-Add label(s) to a Gmail message
+Add label(s) to a Gmail message. Returns API-aligned fields only.
 
 #### Input
 
@@ -251,12 +240,13 @@ Add label(s) to a Gmail message
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Success message |
-| `metadata` | object | Email metadata |
+| `id` | string | Gmail message ID |
+| `threadId` | string | Gmail thread ID |
+| `labelIds` | array | Updated email labels |
 
 ### `gmail_remove_label`
 
-Remove label(s) from a Gmail message
+Remove label(s) from a Gmail message. Returns API-aligned fields only.
 
 #### Input
 
@@ -269,12 +259,8 @@ Remove label(s) from a Gmail message
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Success message |
-| `metadata` | object | Email metadata |
+| `id` | string | Gmail message ID |
+| `threadId` | string | Gmail thread ID |
+| `labelIds` | array | Updated email labels |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `gmail`

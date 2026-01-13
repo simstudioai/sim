@@ -53,7 +53,21 @@ export const getMessageTool: ToolConfig<
   outputs: {
     success: { type: 'boolean', description: 'Whether the retrieval was successful' },
     content: { type: 'string', description: 'The message content' },
-    metadata: { type: 'object', description: 'Message metadata including sender, timestamp, etc.' },
+    metadata: {
+      type: 'object',
+      description: 'Message metadata including sender, timestamp, etc.',
+      properties: {
+        messageId: { type: 'string', description: 'Message ID' },
+        content: { type: 'string', description: 'Message content' },
+        createdTime: { type: 'string', description: 'Message creation timestamp' },
+        url: { type: 'string', description: 'Web URL to the message' },
+        teamId: { type: 'string', description: 'Team ID' },
+        channelId: { type: 'string', description: 'Channel ID' },
+        chatId: { type: 'string', description: 'Chat ID' },
+        messages: { type: 'array', description: 'Array of message details' },
+        messageCount: { type: 'number', description: 'Number of messages' },
+      },
+    },
   },
 
   request: {

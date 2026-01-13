@@ -147,7 +147,6 @@ export const salesforceUpdateContactTool: ToolConfig<
       output: {
         id: params?.contactId || '',
         updated: true,
-        metadata: { operation: 'update_contact' as const },
       },
     }
   },
@@ -160,7 +159,6 @@ export const salesforceUpdateContactTool: ToolConfig<
       properties: {
         id: { type: 'string', description: 'Updated contact ID' },
         updated: { type: 'boolean', description: 'Whether contact was updated' },
-        metadata: { type: 'object', description: 'Operation metadata' },
       },
     },
   },

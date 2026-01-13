@@ -62,28 +62,25 @@ export const salesforceListObjectsTool: ToolConfig<
       success: true,
       output: {
         objects,
-        encoding: data.encoding,
-        maxBatchSize: data.maxBatchSize,
-        metadata: {
-          operation: 'list_objects',
-          totalReturned: objects.length,
-        },
+        encoding: data.encoding ?? null,
+        maxBatchSize: data.maxBatchSize ?? null,
+        totalReturned: objects.length,
         success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success status' },
+    success: { type: 'boolean', description: 'Operation success status' },
     output: {
       type: 'object',
       description: 'Objects list',
       properties: {
         objects: { type: 'array', description: 'Array of available Salesforce objects' },
-        encoding: { type: 'string', description: 'Encoding used' },
-        maxBatchSize: { type: 'number', description: 'Maximum batch size' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success status' },
+        encoding: { type: 'string', description: 'Encoding used', optional: true },
+        maxBatchSize: { type: 'number', description: 'Maximum batch size', optional: true },
+        totalReturned: { type: 'number', description: 'Number of objects returned' },
+        success: { type: 'boolean', description: 'Salesforce operation success' },
       },
     },
   },

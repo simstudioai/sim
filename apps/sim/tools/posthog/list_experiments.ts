@@ -93,8 +93,8 @@ export const listExperimentsTool: ToolConfig<ListExperimentsParams, ListExperime
     return {
       results: data.results,
       count: data.count,
-      next: data.next,
-      previous: data.previous,
+      next: data.next ?? null,
+      previous: data.previous ?? null,
     }
   },
 
@@ -113,8 +113,8 @@ export const listExperimentsTool: ToolConfig<ListExperimentsParams, ListExperime
           parameters: { type: 'object', description: 'Experiment parameters' },
           filters: { type: 'object', description: 'Experiment filters' },
           variants: { type: 'object', description: 'Experiment variants' },
-          start_date: { type: 'string', description: 'Start date' },
-          end_date: { type: 'string', description: 'End date' },
+          start_date: { type: 'string', description: 'Start date', optional: true },
+          end_date: { type: 'string', description: 'End date', optional: true },
           created_at: { type: 'string', description: 'Creation timestamp' },
           created_by: { type: 'object', description: 'Creator information' },
           archived: { type: 'boolean', description: 'Whether the experiment is archived' },

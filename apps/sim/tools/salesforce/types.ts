@@ -49,8 +49,7 @@ export interface SalesforceGetAccountsResponse extends ToolResponse {
   output: {
     accounts: SalesforceAccount[]
     paging?: SalesforcePaging
-    metadata: {
-      operation: 'get_accounts'
+    metadata?: {
       totalReturned: number
       hasMore: boolean
     }
@@ -80,9 +79,6 @@ export interface SalesforceCreateAccountResponse {
     id: string
     success: boolean
     created: boolean
-    metadata: {
-      operation: 'create_account'
-    }
   }
 }
 
@@ -108,9 +104,6 @@ export interface SalesforceUpdateAccountResponse {
   output: {
     id: string
     updated: boolean
-    metadata: {
-      operation: 'update_account'
-    }
   }
 }
 
@@ -123,9 +116,6 @@ export interface SalesforceDeleteAccountResponse {
   output: {
     id: string
     deleted: boolean
-    metadata: {
-      operation: 'delete_account'
-    }
   }
 }
 
@@ -142,12 +132,11 @@ export interface SalesforceGetContactsResponse {
     contacts?: any[]
     contact?: any
     paging?: SalesforcePaging
-    metadata: {
-      operation: 'get_contacts'
-      totalReturned?: number
-      hasMore?: boolean
-      singleContact?: boolean
+    metadata?: {
+      totalReturned: number
+      hasMore: boolean
     }
+    singleContact?: boolean
     success: boolean
   }
 }
@@ -174,7 +163,6 @@ export interface SalesforceCreateContactResponse {
     id: string
     success: boolean
     created: boolean
-    metadata: { operation: 'create_contact' }
   }
 }
 
@@ -200,7 +188,6 @@ export interface SalesforceUpdateContactResponse {
   output: {
     id: string
     updated: boolean
-    metadata: { operation: 'update_contact' }
   }
 }
 
@@ -213,7 +200,6 @@ export interface SalesforceDeleteContactResponse {
   output: {
     id: string
     deleted: boolean
-    metadata: { operation: 'delete_contact' }
   }
 }
 
@@ -230,12 +216,11 @@ export interface SalesforceGetLeadsResponse {
     lead?: any
     leads?: any[]
     paging?: SalesforcePaging
-    metadata: {
-      operation: 'get_leads'
-      totalReturned?: number
-      hasMore?: boolean
-      singleLead?: boolean
+    metadata?: {
+      totalReturned: number
+      hasMore: boolean
     }
+    singleLead?: boolean
     success: boolean
   }
 }
@@ -258,9 +243,6 @@ export interface SalesforceCreateLeadResponse {
     id: string
     success: boolean
     created: boolean
-    metadata: {
-      operation: 'create_lead'
-    }
   }
 }
 
@@ -282,9 +264,6 @@ export interface SalesforceUpdateLeadResponse {
   output: {
     id: string
     updated: boolean
-    metadata: {
-      operation: 'update_lead'
-    }
   }
 }
 
@@ -297,9 +276,6 @@ export interface SalesforceDeleteLeadResponse {
   output: {
     id: string
     deleted: boolean
-    metadata: {
-      operation: 'delete_lead'
-    }
   }
 }
 
@@ -316,10 +292,9 @@ export interface SalesforceGetOpportunitiesResponse {
     opportunity?: any
     opportunities?: any[]
     paging?: SalesforcePaging
-    metadata: {
-      operation: 'get_opportunities'
-      totalReturned?: number
-      hasMore?: boolean
+    metadata?: {
+      totalReturned: number
+      hasMore: boolean
     }
     success: boolean
   }
@@ -341,9 +316,6 @@ export interface SalesforceCreateOpportunityResponse {
     id: string
     success: boolean
     created: boolean
-    metadata: {
-      operation: 'create_opportunity'
-    }
   }
 }
 
@@ -363,9 +335,6 @@ export interface SalesforceUpdateOpportunityResponse {
   output: {
     id: string
     updated: boolean
-    metadata: {
-      operation: 'update_opportunity'
-    }
   }
 }
 
@@ -378,9 +347,6 @@ export interface SalesforceDeleteOpportunityResponse {
   output: {
     id: string
     deleted: boolean
-    metadata: {
-      operation: 'delete_opportunity'
-    }
   }
 }
 
@@ -397,10 +363,9 @@ export interface SalesforceGetCasesResponse {
     case?: any
     cases?: any[]
     paging?: SalesforcePaging
-    metadata: {
-      operation: 'get_cases'
-      totalReturned?: number
-      hasMore?: boolean
+    metadata?: {
+      totalReturned: number
+      hasMore: boolean
     }
     success: boolean
   }
@@ -422,9 +387,6 @@ export interface SalesforceCreateCaseResponse {
     id: string
     success: boolean
     created: boolean
-    metadata: {
-      operation: 'create_case'
-    }
   }
 }
 
@@ -441,9 +403,6 @@ export interface SalesforceUpdateCaseResponse {
   output: {
     id: string
     updated: boolean
-    metadata: {
-      operation: 'update_case'
-    }
   }
 }
 
@@ -456,9 +415,6 @@ export interface SalesforceDeleteCaseResponse {
   output: {
     id: string
     deleted: boolean
-    metadata: {
-      operation: 'delete_case'
-    }
   }
 }
 
@@ -475,10 +431,9 @@ export interface SalesforceGetTasksResponse {
     task?: any
     tasks?: any[]
     paging?: SalesforcePaging
-    metadata: {
-      operation: 'get_tasks'
-      totalReturned?: number
-      hasMore?: boolean
+    metadata?: {
+      totalReturned: number
+      hasMore: boolean
     }
     success: boolean
   }
@@ -500,9 +455,6 @@ export interface SalesforceCreateTaskResponse {
     id: string
     success: boolean
     created: boolean
-    metadata: {
-      operation: 'create_task'
-    }
   }
 }
 
@@ -520,9 +472,6 @@ export interface SalesforceUpdateTaskResponse {
   output: {
     id: string
     updated: boolean
-    metadata: {
-      operation: 'update_task'
-    }
   }
 }
 
@@ -535,9 +484,6 @@ export interface SalesforceDeleteTaskResponse {
   output: {
     id: string
     deleted: boolean
-    metadata: {
-      operation: 'delete_task'
-    }
   }
 }
 
@@ -550,10 +496,7 @@ export interface SalesforceListReportsResponse {
   success: boolean
   output: {
     reports: any[]
-    metadata: {
-      operation: 'list_reports'
-      totalReturned: number
-    }
+    totalReturned: number
     success: boolean
   }
 }
@@ -567,9 +510,6 @@ export interface SalesforceGetReportResponse {
   output: {
     report: any
     reportId: string
-    metadata: {
-      operation: 'get_report'
-    }
     success: boolean
   }
 }
@@ -591,11 +531,8 @@ export interface SalesforceRunReportResponse {
     groupingsAcross?: any
     hasDetailRows?: boolean
     allData?: boolean
-    metadata: {
-      operation: 'run_report'
-      reportName?: string
-      reportFormat?: string
-    }
+    reportName?: string
+    reportFormat?: string
     success: boolean
   }
 }
@@ -606,10 +543,7 @@ export interface SalesforceListReportTypesResponse {
   success: boolean
   output: {
     reportTypes: any[]
-    metadata: {
-      operation: 'list_report_types'
-      totalReturned: number
-    }
+    totalReturned: number
     success: boolean
   }
 }
@@ -622,10 +556,7 @@ export interface SalesforceListDashboardsResponse {
   success: boolean
   output: {
     dashboards: any[]
-    metadata: {
-      operation: 'list_dashboards'
-      totalReturned: number
-    }
+    totalReturned: number
     success: boolean
   }
 }
@@ -640,12 +571,9 @@ export interface SalesforceGetDashboardResponse {
     dashboard: any
     dashboardId: string
     components: any[]
-    metadata: {
-      operation: 'get_dashboard'
-      dashboardName?: string
-      folderId?: string
-      runningUser?: any
-    }
+    dashboardName?: string
+    folderId?: string
+    runningUser?: any
     success: boolean
   }
 }
@@ -661,11 +589,8 @@ export interface SalesforceRefreshDashboardResponse {
     dashboardId: string
     components: any[]
     status?: any
-    metadata: {
-      operation: 'refresh_dashboard'
-      dashboardName?: string
-      refreshDate?: string
-    }
+    dashboardName?: string
+    refreshDate?: string
     success: boolean
   }
 }
@@ -683,7 +608,6 @@ export interface SalesforceQueryResponse {
     nextRecordsUrl?: string
     query: string
     metadata: {
-      operation: 'query'
       totalReturned: number
       hasMore: boolean
     }
@@ -703,7 +627,6 @@ export interface SalesforceQueryMoreResponse {
     done: boolean
     nextRecordsUrl?: string
     metadata: {
-      operation: 'query_more'
       totalReturned: number
       hasMore: boolean
     }
@@ -729,10 +652,7 @@ export interface SalesforceDescribeObjectResponse {
     deletable?: boolean
     childRelationships?: any[]
     recordTypeInfos?: any[]
-    metadata: {
-      operation: 'describe_object'
-      fieldCount: number
-    }
+    fieldCount: number
     success: boolean
   }
 }
@@ -745,10 +665,7 @@ export interface SalesforceListObjectsResponse {
     objects: any[]
     encoding?: string
     maxBatchSize?: number
-    metadata: {
-      operation: 'list_objects'
-      totalReturned: number
-    }
+    totalReturned: number
     success: boolean
   }
 }

@@ -154,3 +154,45 @@ export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListRe
     },
   },
 }
+
+export const listPRCommentsV2Tool: ToolConfig<ListPRCommentsParams, any> = {
+  id: 'github_list_pr_comments_v2',
+  name: listPRCommentsTool.name,
+  description: listPRCommentsTool.description,
+  version: '2.0.0',
+  params: listPRCommentsTool.params,
+  request: listPRCommentsTool.request,
+
+  transformResponse: async (response: Response) => {
+    const comments = await response.json()
+    return {
+      success: true,
+      output: {
+        items: comments ?? [],
+        count: comments?.length ?? 0,
+      },
+    }
+  },
+
+  outputs: {
+    items: {
+      type: 'array',
+      description: 'Array of review comment objects',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'number', description: 'Comment ID' },
+          body: { type: 'string', description: 'Comment body' },
+          path: { type: 'string', description: 'File path' },
+          line: { type: 'number', description: 'Line number', optional: true },
+          user: { type: 'object', description: 'User who created the comment' },
+          html_url: { type: 'string', description: 'GitHub web URL' },
+          diff_hunk: { type: 'string', description: 'Diff context' },
+          created_at: { type: 'string', description: 'Creation timestamp' },
+          updated_at: { type: 'string', description: 'Last update timestamp' },
+        },
+      },
+    },
+    count: { type: 'number', description: 'Number of comments returned' },
+  },
+}

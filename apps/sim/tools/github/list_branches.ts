@@ -135,3 +135,39 @@ ${branchList}`
     },
   },
 }
+
+export const listBranchesV2Tool: ToolConfig<ListBranchesParams, any> = {
+  id: 'github_list_branches_v2',
+  name: listBranchesTool.name,
+  description: listBranchesTool.description,
+  version: '2.0.0',
+  params: listBranchesTool.params,
+  request: listBranchesTool.request,
+
+  transformResponse: async (response: Response) => {
+    const branches = await response.json()
+    return {
+      success: true,
+      output: {
+        items: branches ?? [],
+        count: branches?.length ?? 0,
+      },
+    }
+  },
+
+  outputs: {
+    items: {
+      type: 'array',
+      description: 'Array of branch objects',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Branch name' },
+          commit: { type: 'object', description: 'Commit info with sha and url' },
+          protected: { type: 'boolean', description: 'Whether branch is protected' },
+        },
+      },
+    },
+    count: { type: 'number', description: 'Number of branches returned' },
+  },
+}

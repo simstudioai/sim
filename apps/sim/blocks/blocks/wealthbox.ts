@@ -250,7 +250,7 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
     tasks: { type: 'json', description: 'Array of task objects from bulk read operations' },
     metadata: {
       type: 'json',
-      description: 'Operation metadata including item IDs, types, and operation details',
+      description: 'Operation metadata with itemId, noteId, contactId, taskId, itemType',
     },
     success: {
       type: 'boolean',

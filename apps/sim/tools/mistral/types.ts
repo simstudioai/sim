@@ -40,7 +40,7 @@ export interface MistralOcrUsageInfo {
   pagesProcessed: number
 
   /** Size of the document in bytes */
-  docSizeBytes: number
+  docSizeBytes: number | null
 }
 
 /**

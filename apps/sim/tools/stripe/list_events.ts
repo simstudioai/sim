@@ -75,6 +75,11 @@ export const stripeListEventsTool: ToolConfig<ListEventsParams, EventListRespons
     metadata: {
       type: 'json',
       description: 'List metadata including count and has_more',
+
+      properties: {
+        count: { type: 'number', description: 'Number of items returned' },
+        has_more: { type: 'boolean', description: 'Whether more items exist beyond this page' },
+      },
     },
   },
 }

@@ -97,6 +97,15 @@ export const stripeCreateInvoiceTool: ToolConfig<CreateInvoiceParams, InvoiceRes
     metadata: {
       type: 'json',
       description: 'Invoice metadata',
+      properties: {
+        id: { type: 'string', description: 'Stripe unique identifier' },
+        status: { type: 'string', description: 'Current state of the resource' },
+        amount_due: {
+          type: 'number',
+          description: 'Amount remaining to be paid in smallest currency unit',
+        },
+        currency: { type: 'string', description: 'Three-letter ISO currency code (lowercase)' },
+      },
     },
   },
 }

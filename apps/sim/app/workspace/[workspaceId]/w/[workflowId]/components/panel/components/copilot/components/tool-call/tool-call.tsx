@@ -1827,7 +1827,8 @@ function getStateVerb(state: string): string {
  * e.g., "google_calendar_list_events" -> "Google Calendar List Events"
  */
 function formatToolName(name: string): string {
-  return name
+  const baseName = name.replace(/_v\d+$/, '')
+  return baseName
     .split('_')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')

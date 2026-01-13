@@ -77,7 +77,7 @@ Capture multiple events at once in PostHog. Use this for bulk event ingestion to
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | string | Status message indicating whether the batch was captured successfully |
-| `eventsProcessed` | number | Number of events processed in the batch |
+| `events_processed` | number | Number of events processed in the batch |
 
 ### `posthog_list_persons`
 
@@ -600,9 +600,9 @@ Evaluate feature flags for a specific user or group. This is a public endpoint t
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `featureFlags` | object | Feature flag evaluations \(key-value pairs where values are boolean or string variants\) |
-| `featureFlagPayloads` | object | Additional payloads attached to feature flags |
-| `errorsWhileComputingFlags` | boolean | Whether there were errors while computing flags |
+| `feature_flags` | object | Feature flag evaluations \(key-value pairs where values are boolean or string variants\) |
+| `feature_flag_payloads` | object | Additional payloads attached to feature flags |
+| `errors_while_computing_flags` | boolean | Whether there were errors while computing flags |
 
 ### `posthog_list_experiments`
 
@@ -1086,8 +1086,3 @@ Get detailed information about a specific organization by ID. Returns comprehens
 | `organization` | object | Detailed organization information with settings and features |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `posthog`

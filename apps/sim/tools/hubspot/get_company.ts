@@ -93,10 +93,7 @@ export const hubspotGetCompanyTool: ToolConfig<HubSpotGetCompanyParams, HubSpotG
         success: true,
         output: {
           company: data,
-          metadata: {
-            operation: 'get_company' as const,
-            companyId: data.id,
-          },
+          companyId: data.id,
           success: true,
         },
       }
@@ -104,7 +101,7 @@ export const hubspotGetCompanyTool: ToolConfig<HubSpotGetCompanyParams, HubSpotG
 
     outputs: {
       company: { type: 'object', description: 'HubSpot company object with properties' },
-      metadata: { type: 'object', description: 'Operation metadata' },
+      companyId: { type: 'string', description: 'The retrieved company ID' },
       success: { type: 'boolean', description: 'Operation success status' },
     },
   }

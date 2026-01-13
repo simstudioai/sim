@@ -12,13 +12,6 @@ export interface MailchimpDeleteInterestCategoryParams {
 
 export interface MailchimpDeleteInterestCategoryResponse {
   success: boolean
-  output: {
-    metadata: {
-      operation: 'delete_interest_category'
-      interestCategoryId: string
-    }
-    success: boolean
-  }
 }
 
 export const mailchimpDeleteInterestCategoryTool: ToolConfig<
@@ -72,25 +65,13 @@ export const mailchimpDeleteInterestCategoryTool: ToolConfig<
 
     return {
       success: true,
-      output: {
-        metadata: {
-          operation: 'delete_interest_category' as const,
-          interestCategoryId: '',
-        },
-        success: true,
-      },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Deletion confirmation',
-      properties: {
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
+    success: {
+      type: 'boolean',
+      description: 'Whether the interest category was successfully deleted',
     },
   },
 }

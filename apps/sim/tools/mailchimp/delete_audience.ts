@@ -11,13 +11,6 @@ export interface MailchimpDeleteAudienceParams {
 
 export interface MailchimpDeleteAudienceResponse {
   success: boolean
-  output: {
-    metadata: {
-      operation: 'delete_audience'
-      listId: string
-    }
-    success: boolean
-  }
 }
 
 export const mailchimpDeleteAudienceTool: ToolConfig<
@@ -61,25 +54,10 @@ export const mailchimpDeleteAudienceTool: ToolConfig<
 
     return {
       success: true,
-      output: {
-        metadata: {
-          operation: 'delete_audience' as const,
-          listId: '',
-        },
-        success: true,
-      },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Deletion confirmation',
-      properties: {
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
-      },
-    },
+    success: { type: 'boolean', description: 'Whether the audience was successfully deleted' },
   },
 }

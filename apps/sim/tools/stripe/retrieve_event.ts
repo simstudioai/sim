@@ -54,6 +54,12 @@ export const stripeRetrieveEventTool: ToolConfig<RetrieveEventParams, EventRespo
     metadata: {
       type: 'json',
       description: 'Event metadata including ID, type, and created timestamp',
+
+      properties: {
+        id: { type: 'string', description: 'Stripe unique identifier' },
+        type: { type: 'string', description: 'Event type identifier' },
+        created: { type: 'number', description: 'Unix timestamp of creation' },
+      },
     },
   },
 }

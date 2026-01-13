@@ -71,6 +71,11 @@ export const stripeListInvoicesTool: ToolConfig<ListInvoicesParams, InvoiceListR
     metadata: {
       type: 'json',
       description: 'List metadata',
+
+      properties: {
+        count: { type: 'number', description: 'Number of items returned' },
+        has_more: { type: 'boolean', description: 'Whether more items exist beyond this page' },
+      },
     },
   },
 }

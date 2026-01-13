@@ -38,10 +38,6 @@ export const stripeDeleteProductTool: ToolConfig<DeleteProductParams, ProductDel
       output: {
         deleted: data.deleted,
         id: data.id,
-        metadata: {
-          id: data.id,
-          deleted: data.deleted,
-        },
       },
     }
   },
@@ -54,10 +50,6 @@ export const stripeDeleteProductTool: ToolConfig<DeleteProductParams, ProductDel
     id: {
       type: 'string',
       description: 'The ID of the deleted product',
-    },
-    metadata: {
-      type: 'json',
-      description: 'Deletion metadata',
     },
   },
 }

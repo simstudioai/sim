@@ -56,11 +56,9 @@ export const apolloAccountBulkCreateTool: ToolConfig<
       output: {
         created_accounts: data.accounts || data.created_accounts || [],
         failed_accounts: data.failed_accounts || [],
-        metadata: {
-          total_submitted: data.accounts?.length || 0,
-          created: data.created_accounts?.length || data.accounts?.length || 0,
-          failed: data.failed_accounts?.length || 0,
-        },
+        total_submitted: data.accounts?.length || 0,
+        created: data.created_accounts?.length || data.accounts?.length || 0,
+        failed: data.failed_accounts?.length || 0,
       },
     }
   },
@@ -74,9 +72,17 @@ export const apolloAccountBulkCreateTool: ToolConfig<
       type: 'json',
       description: 'Array of accounts that failed to create',
     },
-    metadata: {
-      type: 'json',
-      description: 'Bulk creation metadata including counts of created and failed accounts',
+    total_submitted: {
+      type: 'number',
+      description: 'Total number of accounts submitted',
+    },
+    created: {
+      type: 'number',
+      description: 'Number of accounts successfully created',
+    },
+    failed: {
+      type: 'number',
+      description: 'Number of accounts that failed to create',
     },
   },
 }

@@ -102,11 +102,11 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
           id: release.id,
           version: release.version,
           shortVersion: release.shortVersion,
-          ref: release.ref,
-          url: release.url,
-          dateReleased: release.dateReleased,
+          ref: release.ref ?? null,
+          url: release.url ?? null,
+          dateReleased: release.dateReleased ?? null,
           dateCreated: release.dateCreated,
-          dateStarted: release.dateStarted,
+          dateStarted: release.dateStarted ?? null,
           data: release.data || {},
           newGroups: release.newGroups || 0,
           owner: release.owner
@@ -146,8 +146,8 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
               slug: project.slug,
               platform: project.platform,
             })) || [],
-          firstEvent: release.firstEvent,
-          lastEvent: release.lastEvent,
+          firstEvent: release.firstEvent ?? null,
+          lastEvent: release.lastEvent ?? null,
           versionInfo: {
             buildHash: release.versionInfo?.buildHash || null,
             version: {
@@ -156,8 +156,10 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
             package: release.versionInfo?.package || null,
           },
         })),
-        nextCursor,
-        hasMore,
+        metadata: {
+          nextCursor,
+          hasMore,
+        },
       },
     }
   },
@@ -172,15 +174,29 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
           id: { type: 'string', description: 'Unique release ID' },
           version: { type: 'string', description: 'Release version identifier' },
           shortVersion: { type: 'string', description: 'Shortened version identifier' },
-          ref: { type: 'string', description: 'Git reference (commit SHA, tag, or branch)' },
-          url: { type: 'string', description: 'URL to the release (e.g., GitHub release page)' },
+          ref: {
+            type: 'string',
+            description: 'Git reference (commit SHA, tag, or branch)',
+            optional: true,
+          },
+          url: {
+            type: 'string',
+            description: 'URL to the release (e.g., GitHub release page)',
+            optional: true,
+          },
           dateReleased: {
             type: 'string',
             description: 'When the release was deployed (ISO timestamp)',
+            optional: true,
           },
           dateCreated: {
             type: 'string',
             description: 'When the release was created (ISO timestamp)',
+          },
+          dateStarted: {
+            type: 'string',
+            description: 'When the release started (ISO timestamp)',
+            optional: true,
           },
           newGroups: {
             type: 'number',
@@ -197,6 +213,37 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
           },
           commitCount: { type: 'number', description: 'Number of commits in this release' },
           deployCount: { type: 'number', description: 'Number of deploys for this release' },
+          lastCommit: {
+            type: 'object',
+            description: 'Last commit in the release',
+            properties: {
+              id: { type: 'string', description: 'Commit SHA' },
+              message: { type: 'string', description: 'Commit message' },
+              dateCreated: { type: 'string', description: 'Commit timestamp' },
+            },
+          },
+          lastDeploy: {
+            type: 'object',
+            description: 'Last deploy of the release',
+            properties: {
+              id: { type: 'string', description: 'Deploy ID' },
+              environment: { type: 'string', description: 'Deploy environment' },
+              dateStarted: { type: 'string', description: 'Deploy start timestamp' },
+              dateFinished: { type: 'string', description: 'Deploy finish timestamp' },
+            },
+          },
+          authors: {
+            type: 'array',
+            description: 'Authors of commits in the release',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'Author ID' },
+                name: { type: 'string', description: 'Author name' },
+                email: { type: 'string', description: 'Author email' },
+              },
+            },
+          },
           projects: {
             type: 'array',
             description: 'Projects associated with this release',
@@ -210,16 +257,39 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
               },
             },
           },
+          firstEvent: { type: 'string', description: 'First event timestamp', optional: true },
+          lastEvent: { type: 'string', description: 'Last event timestamp', optional: true },
+          versionInfo: {
+            type: 'object',
+            description: 'Version metadata',
+            properties: {
+              buildHash: { type: 'string', description: 'Build hash' },
+              version: {
+                type: 'object',
+                description: 'Version details',
+                properties: {
+                  raw: { type: 'string', description: 'Raw version string' },
+                },
+              },
+              package: { type: 'string', description: 'Package name' },
+            },
+          },
         },
       },
     },
-    nextCursor: {
-      type: 'string',
-      description: 'Cursor for the next page of results (if available)',
-    },
-    hasMore: {
-      type: 'boolean',
-      description: 'Whether there are more results available',
+    metadata: {
+      type: 'object',
+      description: 'Pagination metadata',
+      properties: {
+        nextCursor: {
+          type: 'string',
+          description: 'Cursor for the next page of results (if available)',
+        },
+        hasMore: {
+          type: 'boolean',
+          description: 'Whether there are more results available',
+        },
+      },
     },
   },
 }

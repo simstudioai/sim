@@ -184,3 +184,60 @@ ${data.workflow_runs
     },
   },
 }
+
+export const listWorkflowRunsV2Tool: ToolConfig<ListWorkflowRunsParams, any> = {
+  id: 'github_list_workflow_runs_v2',
+  name: listWorkflowRunsTool.name,
+  description: listWorkflowRunsTool.description,
+  version: '2.0.0',
+  params: listWorkflowRunsTool.params,
+  request: listWorkflowRunsTool.request,
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: true,
+      output: {
+        total_count: data.total_count,
+        items: (data.workflow_runs ?? []).map((run: Record<string, unknown>) => ({
+          ...run,
+          conclusion: run.conclusion ?? null,
+          triggering_actor: run.triggering_actor,
+          pull_requests: run.pull_requests ?? [],
+          referenced_workflows: run.referenced_workflows ?? [],
+          head_commit: run.head_commit,
+          run_started_at: run.run_started_at,
+        })),
+      },
+    }
+  },
+
+  outputs: {
+    total_count: { type: 'number', description: 'Total number of workflow runs' },
+    items: {
+      type: 'array',
+      description: 'Array of workflow run objects',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'number', description: 'Workflow run ID' },
+          name: { type: 'string', description: 'Workflow name' },
+          head_branch: { type: 'string', description: 'Branch name' },
+          head_sha: { type: 'string', description: 'Commit SHA' },
+          run_number: { type: 'number', description: 'Run number' },
+          event: { type: 'string', description: 'Trigger event' },
+          status: { type: 'string', description: 'Run status' },
+          conclusion: { type: 'string', description: 'Run conclusion', optional: true },
+          html_url: { type: 'string', description: 'GitHub web URL' },
+          created_at: { type: 'string', description: 'Creation timestamp' },
+          updated_at: { type: 'string', description: 'Last update timestamp' },
+          triggering_actor: { type: 'json', description: 'User who triggered the run' },
+          pull_requests: { type: 'array', description: 'Associated pull requests' },
+          referenced_workflows: { type: 'array', description: 'Referenced workflows' },
+          head_commit: { type: 'json', description: 'Head commit information' },
+          run_started_at: { type: 'string', description: 'Run start timestamp' },
+        },
+      },
+    },
+  },
+}

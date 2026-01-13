@@ -1031,6 +1031,7 @@ export function ToolInput({
   const toolBlocks = useMemo(() => {
     const allToolBlocks = getAllBlocks().filter(
       (block) =>
+        !block.hideFromToolbar &&
         (block.category === 'tools' ||
           block.type === 'api' ||
           block.type === 'webhook_request' ||

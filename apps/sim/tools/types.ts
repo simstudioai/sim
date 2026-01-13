@@ -61,7 +61,6 @@ export interface ToolConfig<P = any, R = any> {
     }
   >
 
-  // Output schema - what this tool produces
   outputs?: Record<
     string,
     {
@@ -69,8 +68,8 @@ export interface ToolConfig<P = any, R = any> {
       description?: string
       optional?: boolean
       fileConfig?: {
-        mimeType?: string // Expected MIME type for file outputs
-        extension?: string // Expected file extension
+        mimeType?: string
+        extension?: string
       }
       items?: {
         type: string
