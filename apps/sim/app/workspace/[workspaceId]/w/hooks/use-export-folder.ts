@@ -10,11 +10,64 @@ import type { Variable } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('useExportFolder')
 
+/**
+ * Sanitizes a string for use as a path segment in a ZIP file.
+ */
+function sanitizePathSegment(name: string): string {
+  return name.replace(/[^a-z0-9-_]/gi, '-')
+}
+
+/**
+ * Builds a folder path relative to a root folder.
+ * Returns an empty string if the folder is the root folder itself.
+ */
+function buildRelativeFolderPath(
+  folderId: string | null | undefined,
+  folders: Record<string, WorkflowFolder>,
+  rootFolderId: string
+): string {
+  if (!folderId || folderId === rootFolderId) return ''
+
+  const path: string[] = []
+  let currentId: string | null = folderId
+
+  while (currentId && currentId !== rootFolderId) {
+    const folder: WorkflowFolder | undefined = folders[currentId]
+    if (!folder) break
+    path.unshift(sanitizePathSegment(folder.name))
+    currentId = folder.parentId
+  }
+
+  return path.join('/')
+}
+
+/**
+ * Collects all subfolders recursively under a root folder.
+ */
+function collectSubfolders(
+  rootFolderId: string,
+  folders: Record<string, WorkflowFolder>
+): Array<{ id: string; name: string; parentId: string | null }> {
+  const subfolders: Array<{ id: string; name: string; parentId: string | null }> = []
+
+  function collect(parentId: string) {
+    for (const folder of Object.values(folders)) {
+      if (folder.parentId === parentId) {
+        subfolders.push({
+          id: folder.id,
+          name: folder.name,
+          parentId: folder.parentId === rootFolderId ? null : folder.parentId,
+        })
+        collect(folder.id)
+      }
+    }
+  }
+
+  collect(rootFolderId)
+  return subfolders
+}
+
 interface UseExportFolderProps {
-  /**
-   * Current workspace ID
-   */
-  workspaceId: string
   /**
    * The folder ID to export
    */
@@ -25,35 +78,40 @@ interface UseExportFolderProps {
   onSuccess?: () => void
 }
 
+interface CollectedWorkflow {
+  id: string
+  folderId: string | null
+}
+
 /**
- * Recursively collects all workflow IDs within a folder and its subfolders.
+ * Recursively collects all workflows within a folder and its subfolders.
  *
  * @param folderId - The folder ID to collect workflows from
  * @param workflows - All workflows in the workspace
  * @param folders - All folders in the workspace
- * @returns Array of workflow IDs
+ * @returns Array of workflow objects with id and folderId
  */
 function collectWorkflowsInFolder(
   folderId: string,
   workflows: Record<string, WorkflowMetadata>,
   folders: Record<string, WorkflowFolder>
-): string[] {
-  const workflowIds: string[] = []
+): CollectedWorkflow[] {
+  const collectedWorkflows: CollectedWorkflow[] = []
 
   for (const workflow of Object.values(workflows)) {
     if (workflow.folderId === folderId) {
-      workflowIds.push(workflow.id)
+      collectedWorkflows.push({ id: workflow.id, folderId: workflow.folderId ?? null })
     }
   }
 
   for (const folder of Object.values(folders)) {
     if (folder.parentId === folderId) {
-      const childWorkflowIds = collectWorkflowsInFolder(folder.id, workflows, folders)
-      workflowIds.push(...childWorkflowIds)
+      const childWorkflows = collectWorkflowsInFolder(folder.id, workflows, folders)
+      collectedWorkflows.push(...childWorkflows)
     }
   }
 
-  return workflowIds
+  return collectedWorkflows
 }
 
 /**
@@ -62,7 +120,7 @@ function collectWorkflowsInFolder(
  * @param props - Hook configuration
  * @returns Export folder handlers and state
  */
-export function useExportFolder({ workspaceId, folderId, onSuccess }: UseExportFolderProps) {
+export function useExportFolder({ folderId, onSuccess }: UseExportFolderProps) {
   const { workflows } = useWorkflowRegistry()
   const { folders } = useFolderStore()
   const [isExporting, setIsExporting] = useState(false)
@@ -95,7 +153,8 @@ export function useExportFolder({ workspaceId, folderId, onSuccess }: UseExportF
   }
 
   /**
-   * Export all workflows in the folder (including nested subfolders) to ZIP
+   * Export all workflows in the folder (including nested subfolders) to ZIP.
+   * Preserves the nested folder structure within the ZIP file.
    */
   const handleExportFolder = useCallback(async () => {
     if (isExporting) {
@@ -117,42 +176,50 @@ export function useExportFolder({ workspaceId, folderId, onSuccess }: UseExportF
         return
       }
 
-      const workflowIdsToExport = collectWorkflowsInFolder(folderId, workflows, folderStore.folders)
+      const workflowsToExport = collectWorkflowsInFolder(folderId, workflows, folderStore.folders)
 
-      if (workflowIdsToExport.length === 0) {
+      if (workflowsToExport.length === 0) {
         logger.warn('No workflows found in folder to export', { folderId, folderName: folder.name })
         return
       }
 
+      const subfolders = collectSubfolders(folderId, folderStore.folders)
+
       logger.info('Starting folder export', {
         folderId,
         folderName: folder.name,
-        workflowCount: workflowIdsToExport.length,
+        workflowCount: workflowsToExport.length,
+        subfolderCount: subfolders.length,
       })
 
-      const exportedWorkflows: Array<{ name: string; content: string }> = []
+      const exportedWorkflows: Array<{
+        name: string
+        content: string
+        folderId: string | null
+        folderPath: string
+      }> = []
 
-      for (const workflowId of workflowIdsToExport) {
+      for (const collectedWorkflow of workflowsToExport) {
         try {
-          const workflow = workflows[workflowId]
+          const workflow = workflows[collectedWorkflow.id]
           if (!workflow) {
-            logger.warn(`Workflow ${workflowId} not found in registry`)
+            logger.warn(`Workflow ${collectedWorkflow.id} not found in registry`)
             continue
           }
 
-          const workflowResponse = await fetch(`/api/workflows/${workflowId}`)
+          const workflowResponse = await fetch(`/api/workflows/${collectedWorkflow.id}`)
           if (!workflowResponse.ok) {
-            logger.error(`Failed to fetch workflow ${workflowId}`)
+            logger.error(`Failed to fetch workflow ${collectedWorkflow.id}`)
             continue
           }
 
           const { data: workflowData } = await workflowResponse.json()
           if (!workflowData?.state) {
-            logger.warn(`Workflow ${workflowId} has no state`)
+            logger.warn(`Workflow ${collectedWorkflow.id} has no state`)
             continue
           }
 
-          const variablesResponse = await fetch(`/api/workflows/${workflowId}/variables`)
+          const variablesResponse = await fetch(`/api/workflows/${collectedWorkflow.id}/variables`)
           let workflowVariables: Record<string, Variable> | undefined
           if (variablesResponse.ok) {
             const variablesData = await variablesResponse.json()
@@ -173,14 +240,24 @@ export function useExportFolder({ workspaceId, folderId, onSuccess }: UseExportF
           const exportState = sanitizeForExport(workflowState)
           const jsonString = JSON.stringify(exportState, null, 2)
 
+          const relativeFolderPath = buildRelativeFolderPath(
+            collectedWorkflow.folderId,
+            folderStore.folders,
+            folderId
+          )
+
           exportedWorkflows.push({
             name: workflow.name,
             content: jsonString,
+            folderId: collectedWorkflow.folderId,
+            folderPath: relativeFolderPath,
           })
 
-          logger.info(`Workflow ${workflowId} exported successfully`)
+          logger.info(`Workflow ${collectedWorkflow.id} exported successfully`, {
+            folderPath: relativeFolderPath || '(root)',
+          })
         } catch (error) {
-          logger.error(`Failed to export workflow ${workflowId}:`, error)
+          logger.error(`Failed to export workflow ${collectedWorkflow.id}:`, error)
         }
       }
 
@@ -193,22 +270,41 @@ export function useExportFolder({ workspaceId, folderId, onSuccess }: UseExportF
       }
 
       const zip = new JSZip()
+
+      const folderMetadata = {
+        folder: {
+          name: folder.name,
+          exportedAt: new Date().toISOString(),
+        },
+        folders: subfolders,
+      }
+      zip.file('_folder.json', JSON.stringify(folderMetadata, null, 2))
+
       const seenFilenames = new Set<string>()
 
       for (const exportedWorkflow of exportedWorkflows) {
-        const baseName = exportedWorkflow.name.replace(/[^a-z0-9]/gi, '-')
+        const baseName = sanitizePathSegment(exportedWorkflow.name)
         let filename = `${baseName}.json`
         let counter = 1
-        while (seenFilenames.has(filename.toLowerCase())) {
+
+        const fullPath = exportedWorkflow.folderPath
+          ? `${exportedWorkflow.folderPath}/${filename}`
+          : filename
+
+        let uniqueFullPath = fullPath
+        while (seenFilenames.has(uniqueFullPath.toLowerCase())) {
           filename = `${baseName}-${counter}.json`
+          uniqueFullPath = exportedWorkflow.folderPath
+            ? `${exportedWorkflow.folderPath}/${filename}`
+            : filename
           counter++
         }
-        seenFilenames.add(filename.toLowerCase())
-        zip.file(filename, exportedWorkflow.content)
+        seenFilenames.add(uniqueFullPath.toLowerCase())
+        zip.file(uniqueFullPath, exportedWorkflow.content)
       }
 
       const zipBlob = await zip.generateAsync({ type: 'blob' })
-      const zipFilename = `${folder.name.replace(/[^a-z0-9]/gi, '-')}-export.zip`
+      const zipFilename = `${sanitizePathSegment(folder.name)}-export.zip`
       downloadFile(zipBlob, zipFilename, 'application/zip')
 
       const { clearSelection } = useFolderStore.getState()
@@ -218,6 +314,7 @@ export function useExportFolder({ workspaceId, folderId, onSuccess }: UseExportF
         folderId,
         folderName: folder.name,
         workflowCount: exportedWorkflows.length,
+        subfolderCount: subfolders.length,
       })
 
       onSuccess?.()

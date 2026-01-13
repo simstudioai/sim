@@ -72,7 +72,6 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   })
 
   const { isExporting, hasWorkflows, handleExportFolder } = useExportFolder({
-    workspaceId,
     folderId: folder.id,
   })
 
