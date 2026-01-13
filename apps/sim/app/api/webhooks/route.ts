@@ -793,6 +793,58 @@ export async function POST(request: NextRequest) {
     }
     // --- End Grain specific logic ---
 
+    // --- Lemlist specific logic ---
+    if (savedWebhook && provider === 'lemlist') {
+      logger.info(
+        `[${requestId}] Lemlist provider detected. Creating Lemlist webhook subscription.`
+      )
+      try {
+        const lemlistResult = await createLemlistWebhookSubscription(
+          {
+            id: savedWebhook.id,
+            path: savedWebhook.path,
+            providerConfig: savedWebhook.providerConfig,
+          },
+          requestId
+        )
+
+        if (lemlistResult) {
+          // Update the webhook record with the external Lemlist hook ID
+          const updatedConfig = {
+            ...(savedWebhook.providerConfig as Record<string, any>),
+            externalId: lemlistResult.id,
+          }
+          await db
+            .update(webhook)
+            .set({
+              providerConfig: updatedConfig,
+              updatedAt: new Date(),
+            })
+            .where(eq(webhook.id, savedWebhook.id))
+
+          savedWebhook.providerConfig = updatedConfig
+          logger.info(`[${requestId}] Successfully created Lemlist webhook`, {
+            lemlistHookId: lemlistResult.id,
+            webhookId: savedWebhook.id,
+          })
+        }
+      } catch (err) {
+        logger.error(
+          `[${requestId}] Error creating Lemlist webhook subscription, rolling back webhook`,
+          err
+        )
+        await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
+        return NextResponse.json(
+          {
+            error: 'Failed to create webhook in Lemlist',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+    // --- End Lemlist specific logic ---
+
     if (!targetWebhookId && savedWebhook) {
       try {
         PlatformEvents.webhookCreated({
@@ -1308,6 +1360,119 @@ async function createGrainWebhookSubscription(
   } catch (error: any) {
     logger.error(
       `[${requestId}] Exception during Grain webhook creation for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+    throw error
+  }
+}
+
+// Helper function to create the webhook subscription in Lemlist
+async function createLemlistWebhookSubscription(
+  webhookData: any,
+  requestId: string
+): Promise<{ id: string } | undefined> {
+  try {
+    const { path, providerConfig } = webhookData
+    const { apiKey, triggerId, campaignId } = providerConfig || {}
+
+    if (!apiKey) {
+      logger.warn(`[${requestId}] Missing apiKey for Lemlist webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error(
+        'Lemlist API Key is required. Please provide your Lemlist API Key in the trigger configuration.'
+      )
+    }
+
+    // Map trigger IDs to Lemlist event types
+    const eventTypeMap: Record<string, string | undefined> = {
+      lemlist_email_replied: 'emailsReplied',
+      lemlist_linkedin_replied: 'linkedinReplied',
+      lemlist_interested: 'interested',
+      lemlist_not_interested: 'notInterested',
+      lemlist_email_opened: 'emailsOpened',
+      lemlist_email_clicked: 'emailsClicked',
+      lemlist_email_bounced: 'emailsBounced',
+      lemlist_email_sent: 'emailsSent',
+      lemlist_webhook: undefined, // Generic webhook - no type filter
+    }
+
+    const eventType = eventTypeMap[triggerId]
+
+    logger.info(`[${requestId}] Creating Lemlist webhook`, {
+      triggerId,
+      eventType,
+      hasCampaignId: !!campaignId,
+      webhookId: webhookData.id,
+    })
+
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+
+    const lemlistApiUrl = 'https://api.lemlist.com/api/hooks'
+
+    // Build request body
+    const requestBody: Record<string, any> = {
+      targetUrl: notificationUrl,
+    }
+
+    // Add event type if specified (omit for generic webhook to receive all events)
+    if (eventType) {
+      requestBody.type = eventType
+    }
+
+    // Add campaign filter if specified
+    if (campaignId) {
+      requestBody.campaignId = campaignId
+    }
+
+    // Lemlist uses Basic Auth with empty username and API key as password
+    const authString = Buffer.from(`:${apiKey}`).toString('base64')
+
+    const lemlistResponse = await fetch(lemlistApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${authString}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    const responseBody = await lemlistResponse.json()
+
+    if (!lemlistResponse.ok || responseBody.error) {
+      const errorMessage = responseBody.message || responseBody.error || 'Unknown Lemlist API error'
+      logger.error(
+        `[${requestId}] Failed to create webhook in Lemlist for webhook ${webhookData.id}. Status: ${lemlistResponse.status}`,
+        { message: errorMessage, response: responseBody }
+      )
+
+      let userFriendlyMessage = 'Failed to create webhook subscription in Lemlist'
+      if (lemlistResponse.status === 401) {
+        userFriendlyMessage = 'Invalid Lemlist API Key. Please verify your API Key is correct.'
+      } else if (lemlistResponse.status === 403) {
+        userFriendlyMessage =
+          'Access denied. Please ensure your Lemlist API Key has appropriate permissions.'
+      } else if (errorMessage && errorMessage !== 'Unknown Lemlist API error') {
+        userFriendlyMessage = `Lemlist error: ${errorMessage}`
+      }
+
+      throw new Error(userFriendlyMessage)
+    }
+
+    logger.info(
+      `[${requestId}] Successfully created webhook in Lemlist for webhook ${webhookData.id}.`,
+      {
+        lemlistWebhookId: responseBody._id,
+      }
+    )
+
+    return { id: responseBody._id }
+  } catch (error: any) {
+    logger.error(
+      `[${requestId}] Exception during Lemlist webhook creation for webhook ${webhookData.id}.`,
       {
         message: error.message,
         stack: error.stack,
