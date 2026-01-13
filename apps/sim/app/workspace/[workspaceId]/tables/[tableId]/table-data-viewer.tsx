@@ -6,6 +6,8 @@ import { useQuery } from '@tanstack/react-query'
 import {
   ChevronLeft,
   ChevronRight,
+  Columns,
+  Copy,
   Edit,
   Filter,
   HelpCircle,
@@ -20,6 +22,9 @@ import {
   Button,
   Checkbox,
   Input,
+  Modal,
+  ModalBody,
+  ModalContent,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -61,6 +66,14 @@ interface TableData {
   updatedAt: string
 }
 
+interface CellViewerData {
+  columnName: string
+  value: any
+  type: 'json' | 'text'
+}
+
+const STRING_TRUNCATE_LENGTH = 50
+
 export function TableDataViewer() {
   const params = useParams()
   const router = useRouter()
@@ -76,6 +89,9 @@ export function TableDataViewer() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowData | null>(null)
   const [deletingRows, setDeletingRows] = useState<string[]>([])
+  const [cellViewer, setCellViewer] = useState<CellViewerData | null>(null)
+  const [showSchemaModal, setShowSchemaModal] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   // Fetch table metadata
   const { data: tableData, isLoading: isLoadingTable } = useQuery({
@@ -171,6 +187,18 @@ export function TableDataViewer() {
     setDeletingRows(Array.from(selectedRows))
   }, [selectedRows])
 
+  const handleCopyCellValue = useCallback(async () => {
+    if (cellViewer) {
+      const text =
+        cellViewer.type === 'json'
+          ? JSON.stringify(cellViewer.value, null, 2)
+          : String(cellViewer.value)
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }, [cellViewer])
+
   const formatValue = (value: any, type: string): string => {
     if (value === null || value === undefined) return '—'
 
@@ -190,6 +218,66 @@ export function TableDataViewer() {
       default:
         return String(value)
     }
+  }
+
+  const handleCellClick = useCallback(
+    (e: React.MouseEvent, columnName: string, value: any, type: 'json' | 'text') => {
+      e.preventDefault()
+      e.stopPropagation()
+      setCellViewer({ columnName, value, type })
+    },
+    []
+  )
+
+  const renderCellValue = (value: any, column: { name: string; type: string }) => {
+    const isNull = value === null || value === undefined
+
+    if (isNull) {
+      return <span className='text-[var(--text-muted)] italic'>—</span>
+    }
+
+    if (column.type === 'json') {
+      const jsonStr = JSON.stringify(value)
+      return (
+        <button
+          type='button'
+          className='block max-w-[300px] cursor-pointer select-none truncate rounded-[4px] border border-[var(--border-1)] px-[6px] py-[2px] text-left font-mono text-[11px] text-[var(--brand-secondary)] transition-colors hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]'
+          onClick={(e) => handleCellClick(e, column.name, value, 'json')}
+          title='Click to view full JSON'
+        >
+          {jsonStr}
+        </button>
+      )
+    }
+
+    if (column.type === 'boolean') {
+      return (
+        <span className={value ? 'text-green-500' : 'text-[var(--text-tertiary)]'}>
+          {value ? 'true' : 'false'}
+        </span>
+      )
+    }
+
+    if (column.type === 'number') {
+      return <span className='font-mono text-[var(--brand-secondary)]'>{String(value)}</span>
+    }
+
+    // Handle long strings
+    const strValue = String(value)
+    if (strValue.length > STRING_TRUNCATE_LENGTH) {
+      return (
+        <button
+          type='button'
+          className='block max-w-[300px] cursor-pointer select-none truncate text-left text-[var(--text-primary)] underline decoration-[var(--border-1)] decoration-dotted underline-offset-2 transition-colors hover:decoration-[var(--text-muted)]'
+          onClick={(e) => handleCellClick(e, column.name, value, 'text')}
+          title='Click to view full text'
+        >
+          {strValue}
+        </button>
+      )
+    }
+
+    return <span className='text-[var(--text-primary)]'>{strValue}</span>
   }
 
   if (isLoadingTable) {
@@ -229,6 +317,15 @@ export function TableDataViewer() {
         </div>
 
         <div className='flex items-center gap-[8px]'>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button variant='ghost' size='sm' onClick={() => setShowSchemaModal(true)}>
+                <Columns className='h-[14px] w-[14px]' />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content>View Schema</Tooltip.Content>
+          </Tooltip.Root>
+
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button variant='ghost' size='sm' onClick={handleRefresh}>
@@ -471,22 +568,9 @@ export function TableDataViewer() {
                   </TableCell>
                   {columns.map((column) => (
                     <TableCell key={column.name}>
-                      <span
-                        className={cn(
-                          'block max-w-[300px] truncate text-[13px]',
-                          row.data[column.name] === null || row.data[column.name] === undefined
-                            ? 'text-[var(--text-muted)] italic'
-                            : column.type === 'boolean'
-                              ? row.data[column.name]
-                                ? 'text-green-500'
-                                : 'text-[var(--text-tertiary)]'
-                              : column.type === 'number'
-                                ? 'font-mono text-[var(--brand-secondary)]'
-                                : 'text-[var(--text-primary)]'
-                        )}
-                      >
-                        {formatValue(row.data[column.name], column.type)}
-                      </span>
+                      <div className='max-w-[300px] truncate text-[13px]'>
+                        {renderCellValue(row.data[column.name], column)}
+                      </div>
                     </TableCell>
                   ))}
                   <TableCell>
@@ -585,6 +669,125 @@ export function TableDataViewer() {
           }}
         />
       )}
+
+      {/* Schema Viewer Modal */}
+      <Modal open={showSchemaModal} onOpenChange={setShowSchemaModal}>
+        <ModalContent className='w-[500px] duration-100'>
+          <div className='flex items-center justify-between gap-[8px] px-[16px] py-[10px]'>
+            <div className='flex min-w-0 items-center gap-[8px]'>
+              <Columns className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+              <span className='font-medium text-[14px] text-[var(--text-primary)]'>
+                Table Schema
+              </span>
+              <Badge variant='gray' size='sm'>
+                {columns.length} columns
+              </Badge>
+            </div>
+            <Button variant='ghost' size='sm' onClick={() => setShowSchemaModal(false)}>
+              <X className='h-[14px] w-[14px]' />
+            </Button>
+          </div>
+          <ModalBody className='p-0'>
+            <div className='max-h-[400px] overflow-auto'>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className='w-[180px]'>Column</TableHead>
+                    <TableHead className='w-[100px]'>Type</TableHead>
+                    <TableHead>Constraints</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {columns.map((column) => (
+                    <TableRow key={column.name}>
+                      <TableCell className='font-mono text-[12px] text-[var(--text-primary)]'>
+                        {column.name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            column.type === 'string'
+                              ? 'green'
+                              : column.type === 'number'
+                                ? 'blue'
+                                : column.type === 'boolean'
+                                  ? 'purple'
+                                  : column.type === 'json'
+                                    ? 'orange'
+                                    : column.type === 'date'
+                                      ? 'teal'
+                                      : 'gray'
+                          }
+                          size='sm'
+                        >
+                          {column.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className='text-[12px]'>
+                        <div className='flex gap-[6px]'>
+                          {column.required && (
+                            <Badge variant='red' size='sm'>
+                              required
+                            </Badge>
+                          )}
+                          {column.unique && (
+                            <Badge variant='purple' size='sm'>
+                              unique
+                            </Badge>
+                          )}
+                          {!column.required && !column.unique && (
+                            <span className='text-[var(--text-muted)]'>—</span>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      {/* Cell Viewer Modal */}
+      <Modal open={!!cellViewer} onOpenChange={(open) => !open && setCellViewer(null)}>
+        <ModalContent className='w-[640px] duration-100'>
+          <div className='flex items-center justify-between gap-[8px] px-[16px] py-[10px]'>
+            <div className='flex min-w-0 items-center gap-[8px]'>
+              <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                {cellViewer?.columnName}
+              </span>
+              <Badge variant={cellViewer?.type === 'json' ? 'blue' : 'gray'} size='sm'>
+                {cellViewer?.type === 'json' ? 'JSON' : 'Text'}
+              </Badge>
+            </div>
+            <div className='flex shrink-0 items-center gap-[8px]'>
+              <Button
+                variant={copied ? 'tertiary' : 'default'}
+                size='sm'
+                onClick={handleCopyCellValue}
+              >
+                <Copy className='mr-[4px] h-[12px] w-[12px]' />
+                {copied ? 'Copied!' : 'Copy'}
+              </Button>
+              <Button variant='ghost' size='sm' onClick={() => setCellViewer(null)}>
+                <X className='h-[14px] w-[14px]' />
+              </Button>
+            </div>
+          </div>
+          <ModalBody className='p-0'>
+            {cellViewer?.type === 'json' ? (
+              <pre className='m-[16px] max-h-[450px] overflow-auto rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px] font-mono text-[12px] text-[var(--text-primary)] leading-[1.6]'>
+                {cellViewer ? JSON.stringify(cellViewer.value, null, 2) : ''}
+              </pre>
+            ) : (
+              <div className='m-[16px] max-h-[450px] overflow-auto whitespace-pre-wrap break-words rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px] text-[13px] text-[var(--text-primary)] leading-[1.7]'>
+                {cellViewer ? String(cellViewer.value) : ''}
+              </div>
+            )}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </div>
   )
 }

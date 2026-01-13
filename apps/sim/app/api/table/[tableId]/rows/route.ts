@@ -7,7 +7,13 @@ import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { QueryFilter, TableSchema } from '@/lib/table'
-import { TABLE_LIMITS, validateRowAgainstSchema, validateRowSize } from '@/lib/table'
+import {
+  getUniqueColumns,
+  TABLE_LIMITS,
+  validateRowAgainstSchema,
+  validateRowSize,
+  validateUniqueConstraints,
+} from '@/lib/table'
 import { buildFilterClause, buildSortClause } from '@/lib/table/query-builder'
 
 const logger = createLogger('TableRowsAPI')
@@ -161,6 +167,49 @@ async function handleBatchInsert(requestId: string, tableId: string, body: any, 
     )
   }
 
+  // Check unique constraints if any unique columns exist
+  const uniqueColumns = getUniqueColumns(table.schema as TableSchema)
+  if (uniqueColumns.length > 0) {
+    // Fetch existing rows to check for uniqueness
+    const existingRows = await db
+      .select({
+        id: userTableRows.id,
+        data: userTableRows.data,
+      })
+      .from(userTableRows)
+      .where(eq(userTableRows.tableId, tableId))
+
+    // Validate each row for unique constraints
+    for (let i = 0; i < validated.rows.length; i++) {
+      const rowData = validated.rows[i]
+
+      // Also check against other rows in the batch
+      const batchRows = validated.rows.slice(0, i).map((data, idx) => ({
+        id: `batch_${idx}`,
+        data,
+      }))
+
+      const uniqueValidation = validateUniqueConstraints(rowData, table.schema as TableSchema, [
+        ...existingRows,
+        ...batchRows,
+      ])
+
+      if (!uniqueValidation.valid) {
+        errors.push({ row: i, errors: uniqueValidation.errors })
+      }
+    }
+
+    if (errors.length > 0) {
+      return NextResponse.json(
+        {
+          error: 'Unique constraint violations in batch',
+          details: errors,
+        },
+        { status: 400 }
+      )
+    }
+  }
+
   // Insert all rows
   const now = new Date()
   const rowsToInsert = validated.rows.map((data) => ({
@@ -269,6 +318,32 @@ export async function POST(
         { error: 'Row data does not match schema', details: rowValidation.errors },
         { status: 400 }
       )
+    }
+
+    // Check unique constraints if any unique columns exist
+    const uniqueColumns = getUniqueColumns(table.schema as TableSchema)
+    if (uniqueColumns.length > 0) {
+      // Fetch existing rows to check for uniqueness
+      const existingRows = await db
+        .select({
+          id: userTableRows.id,
+          data: userTableRows.data,
+        })
+        .from(userTableRows)
+        .where(eq(userTableRows.tableId, tableId))
+
+      const uniqueValidation = validateUniqueConstraints(
+        validated.data,
+        table.schema as TableSchema,
+        existingRows
+      )
+
+      if (!uniqueValidation.valid) {
+        return NextResponse.json(
+          { error: 'Unique constraint violation', details: uniqueValidation.errors },
+          { status: 400 }
+        )
+      }
     }
 
     // Check row count limit
@@ -586,6 +661,41 @@ export async function PUT(
           },
           { status: 400 }
         )
+      }
+    }
+
+    // Check unique constraints if any unique columns exist
+    const uniqueColumns = getUniqueColumns(table.schema as TableSchema)
+    if (uniqueColumns.length > 0) {
+      // Fetch all rows (not just matching ones) to check for uniqueness
+      const allRows = await db
+        .select({
+          id: userTableRows.id,
+          data: userTableRows.data,
+        })
+        .from(userTableRows)
+        .where(eq(userTableRows.tableId, tableId))
+
+      // Validate each updated row for unique constraints
+      for (const row of matchingRows) {
+        const mergedData = { ...row.data, ...validated.data }
+        const uniqueValidation = validateUniqueConstraints(
+          mergedData,
+          table.schema as TableSchema,
+          allRows,
+          row.id // Exclude the current row being updated
+        )
+
+        if (!uniqueValidation.valid) {
+          return NextResponse.json(
+            {
+              error: 'Unique constraint violation',
+              details: uniqueValidation.errors,
+              affectedRowId: row.id,
+            },
+            { status: 400 }
+          )
+        }
       }
     }
 

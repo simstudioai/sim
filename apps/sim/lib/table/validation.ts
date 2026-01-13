@@ -205,3 +205,52 @@ export function validateRowAgainstSchema(
 export function getUniqueColumns(schema: TableSchema): ColumnDefinition[] {
   return schema.columns.filter((col) => col.unique === true)
 }
+
+/**
+ * Validates unique constraints for row data
+ * Checks if values for unique columns would violate uniqueness
+ */
+export function validateUniqueConstraints(
+  data: Record<string, any>,
+  schema: TableSchema,
+  existingRows: Array<{ id: string; data: Record<string, any> }>,
+  excludeRowId?: string
+): ValidationResult {
+  const errors: string[] = []
+  const uniqueColumns = getUniqueColumns(schema)
+
+  for (const column of uniqueColumns) {
+    const value = data[column.name]
+
+    // Skip null/undefined values for optional unique columns
+    if (value === null || value === undefined) {
+      continue
+    }
+
+    // Check if value exists in other rows
+    const duplicate = existingRows.find((row) => {
+      // Skip the row being updated
+      if (excludeRowId && row.id === excludeRowId) {
+        return false
+      }
+
+      // Check if value matches (case-insensitive for strings)
+      const existingValue = row.data[column.name]
+      if (typeof value === 'string' && typeof existingValue === 'string') {
+        return value.toLowerCase() === existingValue.toLowerCase()
+      }
+      return value === existingValue
+    })
+
+    if (duplicate) {
+      errors.push(
+        `Column "${column.name}" must be unique. Value "${value}" already exists in row ${duplicate.id}`
+      )
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  }
+}

@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Database, MoreVertical, Trash2 } from 'lucide-react'
+import { Columns, Database, MoreVertical, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
+  Badge,
   Button,
   Modal,
   ModalBody,
@@ -15,6 +16,12 @@ import {
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/emcn'
 import { useDeleteTable } from '@/hooks/queries/use-tables'
 import type { TableDefinition } from '@/tools/table/types'
@@ -29,6 +36,7 @@ interface TableCardProps {
 export function TableCard({ table, workspaceId }: TableCardProps) {
   const router = useRouter()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isSchemaModalOpen, setIsSchemaModalOpen] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   const deleteTable = useDeleteTable(workspaceId)
@@ -97,8 +105,19 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
                 onClick={(e) => {
                   e.stopPropagation()
                   setIsMenuOpen(false)
+                  setIsSchemaModalOpen(true)
+                }}
+              >
+                <Columns className='mr-[8px] h-[14px] w-[14px]' />
+                View Schema
+              </PopoverItem>
+              <PopoverItem
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsMenuOpen(false)
                   setIsDeleteDialogOpen(true)
                 }}
+                className='text-[var(--text-error)] hover:text-[var(--text-error)]'
               >
                 <Trash2 className='mr-[8px] h-[14px] w-[14px]' />
                 Delete
@@ -136,6 +155,79 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
               {deleteTable.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal open={isSchemaModalOpen} onOpenChange={setIsSchemaModalOpen}>
+        <ModalContent className='w-[500px] duration-100'>
+          <ModalHeader>
+            <div className='flex items-center gap-[8px]'>
+              <Columns className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+              <span>{table.name}</span>
+              <Badge variant='gray' size='sm'>
+                {columnCount} columns
+              </Badge>
+            </div>
+          </ModalHeader>
+          <ModalBody className='p-0'>
+            <div className='max-h-[400px] overflow-auto'>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className='w-[180px]'>Column</TableHead>
+                    <TableHead className='w-[100px]'>Type</TableHead>
+                    <TableHead>Constraints</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {table.schema.columns.map((column) => (
+                    <TableRow key={column.name}>
+                      <TableCell className='font-mono text-[12px] text-[var(--text-primary)]'>
+                        {column.name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            column.type === 'string'
+                              ? 'green'
+                              : column.type === 'number'
+                                ? 'blue'
+                                : column.type === 'boolean'
+                                  ? 'purple'
+                                  : column.type === 'json'
+                                    ? 'orange'
+                                    : column.type === 'date'
+                                      ? 'teal'
+                                      : 'gray'
+                          }
+                          size='sm'
+                        >
+                          {column.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className='text-[12px]'>
+                        <div className='flex gap-[6px]'>
+                          {column.required && (
+                            <Badge variant='red' size='sm'>
+                              required
+                            </Badge>
+                          )}
+                          {column.unique && (
+                            <Badge variant='purple' size='sm'>
+                              unique
+                            </Badge>
+                          )}
+                          {!column.required && !column.unique && (
+                            <span className='text-[var(--text-muted)]'>—</span>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </ModalBody>
         </ModalContent>
       </Modal>
     </>

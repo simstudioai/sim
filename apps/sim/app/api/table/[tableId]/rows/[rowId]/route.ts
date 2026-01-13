@@ -7,7 +7,12 @@ import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { TableSchema } from '@/lib/table'
-import { validateRowAgainstSchema, validateRowSize } from '@/lib/table'
+import {
+  getUniqueColumns,
+  validateRowAgainstSchema,
+  validateRowSize,
+  validateUniqueConstraints,
+} from '@/lib/table'
 
 const logger = createLogger('TableRowAPI')
 
@@ -208,6 +213,33 @@ export async function PATCH(
         { error: 'Row data does not match schema', details: rowValidation.errors },
         { status: 400 }
       )
+    }
+
+    // Check unique constraints if any unique columns exist
+    const uniqueColumns = getUniqueColumns(table.schema as TableSchema)
+    if (uniqueColumns.length > 0) {
+      // Fetch existing rows to check for uniqueness
+      const existingRows = await db
+        .select({
+          id: userTableRows.id,
+          data: userTableRows.data,
+        })
+        .from(userTableRows)
+        .where(eq(userTableRows.tableId, tableId))
+
+      const uniqueValidation = validateUniqueConstraints(
+        validated.data,
+        table.schema as TableSchema,
+        existingRows,
+        rowId // Exclude the current row being updated
+      )
+
+      if (!uniqueValidation.valid) {
+        return NextResponse.json(
+          { error: 'Unique constraint violation', details: uniqueValidation.errors },
+          { status: 400 }
+        )
+      }
     }
 
     // Update row

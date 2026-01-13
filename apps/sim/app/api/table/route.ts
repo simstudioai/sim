@@ -19,6 +19,7 @@ const ColumnSchema = z.object({
     .regex(/^[a-z_][a-z0-9_]*$/i, 'Invalid column name'),
   type: z.enum(['string', 'number', 'boolean', 'date', 'json']),
   required: z.boolean().optional().default(false),
+  unique: z.boolean().optional().default(false),
 })
 
 const CreateTableSchema = z.object({
