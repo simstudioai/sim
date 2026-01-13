@@ -451,7 +451,7 @@ export function A2aDeploy({
     }
 
     try {
-      if (!isDeployed && onDeployWorkflow) {
+      if ((!isDeployed || workflowNeedsRedeployment) && onDeployWorkflow) {
         await onDeployWorkflow()
       }
 
@@ -475,6 +475,7 @@ export function A2aDeploy({
   }, [
     existingAgent,
     isDeployed,
+    workflowNeedsRedeployment,
     onDeployWorkflow,
     name,
     description,
