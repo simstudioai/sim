@@ -87,6 +87,8 @@ export const {serviceName}{Action}Tool: ToolConfig<
     }),
     body: (params) => ({
       // Request body - only for POST/PUT/PATCH
+      // Trim ID fields to prevent copy-paste whitespace errors:
+      // userId: params.userId?.trim(),
     }),
   },
 

@@ -60,6 +60,8 @@ export const {ServiceName}Block: BlockConfig = {
 
 ## SubBlock Types Reference
 
+**Critical:** Every subblock `id` must be unique within the block. Duplicate IDs cause conflicts even with different conditions.
+
 ### Text Inputs
 ```typescript
 // Single-line input
