@@ -3403,9 +3403,6 @@ const WorkflowContent = React.memo(() => {
               onToggleVariables={handleContextToggleVariables}
               onToggleChat={handleContextToggleChat}
               onInvite={handleContextInvite}
-              onZoomIn={() => reactFlowInstance.zoomIn()}
-              onZoomOut={() => reactFlowInstance.zoomOut()}
-              onFitView={() => fitViewToBounds({ padding: 0.1, duration: 300 })}
               isVariablesOpen={isVariablesOpen}
               isChatOpen={isChatOpen}
               hasClipboard={hasClipboard()}
