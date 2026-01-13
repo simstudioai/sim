@@ -62,11 +62,17 @@ export interface NotionSearchParams {
 export interface NotionCreateDatabaseParams {
   parentId: string
   title: string
-  properties?: string
+  properties?: Record<string, any>
   accessToken: string
 }
 
 export interface NotionReadDatabaseParams {
   databaseId: string
+  accessToken: string
+}
+
+export interface NotionAddDatabaseRowParams {
+  databaseId: string
+  properties: Record<string, any>
   accessToken: string
 }

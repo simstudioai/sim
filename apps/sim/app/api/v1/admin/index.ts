@@ -17,6 +17,12 @@
  *   Workspaces:
  *   GET    /api/v1/admin/workspaces                         - List all workspaces
  *   GET    /api/v1/admin/workspaces/:id                     - Get workspace details
+ *   GET    /api/v1/admin/workspaces/:id/members             - List workspace members
+ *   POST   /api/v1/admin/workspaces/:id/members             - Add/update workspace member
+ *   DELETE /api/v1/admin/workspaces/:id/members?userId=X    - Remove workspace member
+ *   GET    /api/v1/admin/workspaces/:id/members/:mid        - Get workspace member details
+ *   PATCH  /api/v1/admin/workspaces/:id/members/:mid        - Update workspace member permissions
+ *   DELETE /api/v1/admin/workspaces/:id/members/:mid        - Remove workspace member by ID
  *   GET    /api/v1/admin/workspaces/:id/workflows           - List workspace workflows
  *   DELETE /api/v1/admin/workspaces/:id/workflows           - Delete all workspace workflows
  *   GET    /api/v1/admin/workspaces/:id/folders             - List workspace folders
@@ -52,10 +58,6 @@
  *   GET    /api/v1/admin/subscriptions                      - List all subscriptions
  *   GET    /api/v1/admin/subscriptions/:id                  - Get subscription details
  *   DELETE /api/v1/admin/subscriptions/:id                  - Cancel subscription (?atPeriodEnd=true for scheduled)
- *
- *   BYOK Keys:
- *   GET    /api/v1/admin/byok                               - List BYOK keys (?organizationId=X or ?workspaceId=X)
- *   DELETE /api/v1/admin/byok                               - Delete BYOK keys for org/workspace
  *
  *   Access Control (Permission Groups):
  *   GET    /api/v1/admin/access-control                     - List permission groups (?organizationId=X)
@@ -99,6 +101,7 @@ export type {
   AdminWorkflowDetail,
   AdminWorkspace,
   AdminWorkspaceDetail,
+  AdminWorkspaceMember,
   DbMember,
   DbOrganization,
   DbSubscription,

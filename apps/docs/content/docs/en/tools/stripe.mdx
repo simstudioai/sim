@@ -282,7 +282,6 @@ Permanently delete a customer
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the customer was deleted |
 | `id` | string | The ID of the deleted customer |
-| `metadata` | json | Deletion metadata |
 
 ### `stripe_list_customers`
 
@@ -541,7 +540,6 @@ Permanently delete a draft invoice
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the invoice was deleted |
 | `id` | string | The ID of the deleted invoice |
-| `metadata` | json | Deletion metadata |
 
 ### `stripe_finalize_invoice`
 
@@ -856,7 +854,6 @@ Permanently delete a product
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the product was deleted |
 | `id` | string | The ID of the deleted product |
-| `metadata` | json | Deletion metadata |
 
 ### `stripe_list_products`
 
@@ -1035,8 +1032,3 @@ List all Events
 | `metadata` | json | List metadata including count and has_more |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `stripe`

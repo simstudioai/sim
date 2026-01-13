@@ -204,7 +204,7 @@ export const updateTaskTool: ToolConfig<
     logger.info('Updated task:', task)
 
     // Extract and clean the new etag for subsequent operations
-    let newEtag = task['@odata.etag']
+    let newEtag = task['@odata.etag'] ?? null
     if (newEtag && typeof newEtag === 'string' && newEtag.includes('\\"')) {
       newEtag = newEtag.replace(/\\"/g, '"')
     }
@@ -235,7 +235,16 @@ export const updateTaskTool: ToolConfig<
     etag: {
       type: 'string',
       description: 'New ETag after update - use this for subsequent operations',
+      optional: true,
     },
-    metadata: { type: 'object', description: 'Metadata including taskId, planId, and taskUrl' },
+    metadata: {
+      type: 'object',
+      description: 'Metadata including taskId, planId, and taskUrl',
+      properties: {
+        taskId: { type: 'string', description: 'Updated task ID' },
+        planId: { type: 'string', description: 'Parent plan ID' },
+        taskUrl: { type: 'string', description: 'Microsoft Graph API URL for the task' },
+      },
+    },
   },
 }

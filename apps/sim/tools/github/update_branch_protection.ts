@@ -219,3 +219,51 @@ Enforce Admins: ${protection.enforce_admins?.enabled ? 'Yes' : 'No'}`
     },
   },
 }
+
+export const updateBranchProtectionV2Tool: ToolConfig = {
+  id: 'github_update_branch_protection_v2',
+  name: updateBranchProtectionTool.name,
+  description: updateBranchProtectionTool.description,
+  version: '2.0.0',
+  params: updateBranchProtectionTool.params,
+  request: updateBranchProtectionTool.request,
+  oauth: updateBranchProtectionTool.oauth,
+  transformResponse: async (response: Response) => {
+    const protection = await response.json()
+    return {
+      success: true,
+      output: {
+        url: protection.url,
+        required_status_checks: protection.required_status_checks ?? null,
+        enforce_admins: protection.enforce_admins,
+        required_pull_request_reviews: protection.required_pull_request_reviews ?? null,
+        restrictions: protection.restrictions ?? null,
+        required_linear_history: protection.required_linear_history ?? null,
+        allow_force_pushes: protection.allow_force_pushes ?? null,
+        allow_deletions: protection.allow_deletions ?? null,
+      },
+    }
+  },
+  outputs: {
+    url: { type: 'string', description: 'Protection URL' },
+    required_status_checks: {
+      type: 'json',
+      description: 'Status check requirements',
+      optional: true,
+    },
+    enforce_admins: { type: 'json', description: 'Admin enforcement settings' },
+    required_pull_request_reviews: {
+      type: 'json',
+      description: 'PR review requirements',
+      optional: true,
+    },
+    restrictions: { type: 'json', description: 'Push restrictions', optional: true },
+    required_linear_history: {
+      type: 'json',
+      description: 'Linear history requirement',
+      optional: true,
+    },
+    allow_force_pushes: { type: 'json', description: 'Force push settings', optional: true },
+    allow_deletions: { type: 'json', description: 'Deletion settings', optional: true },
+  },
+}

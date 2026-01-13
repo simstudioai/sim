@@ -109,8 +109,8 @@ export const listSurveysTool: ToolConfig<PostHogListSurveysParams, PostHogListSu
       output: {
         surveys: data.results || [],
         count: data.count || 0,
-        next: data.next,
-        previous: data.previous,
+        next: data.next ?? null,
+        previous: data.previous ?? null,
       },
     }
   },

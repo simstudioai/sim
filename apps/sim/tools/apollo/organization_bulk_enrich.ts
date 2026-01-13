@@ -53,19 +53,15 @@ export const apolloOrganizationBulkEnrichTool: ToolConfig<
       success: true,
       output: {
         organizations: data.matches || [],
-        metadata: {
-          total: data.matches?.length || 0,
-          enriched: data.matches?.filter((o: any) => o).length || 0,
-        },
+        total: data.matches?.length || 0,
+        enriched: data.matches?.filter((o: any) => o).length || 0,
       },
     }
   },
 
   outputs: {
     organizations: { type: 'json', description: 'Array of enriched organization data' },
-    metadata: {
-      type: 'json',
-      description: 'Bulk enrichment metadata including total and enriched counts',
-    },
+    total: { type: 'number', description: 'Total number of organizations processed' },
+    enriched: { type: 'number', description: 'Number of organizations successfully enriched' },
   },
 }

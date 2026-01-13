@@ -73,3 +73,28 @@ export interface Neo4jUpdateResponse extends Neo4jBaseResponse {}
 export interface Neo4jDeleteResponse extends Neo4jBaseResponse {}
 export interface Neo4jExecuteResponse extends Neo4jBaseResponse {}
 export interface Neo4jResponse extends Neo4jBaseResponse {}
+
+export interface Neo4jIntrospectParams extends Neo4jConnectionConfig {}
+
+export interface Neo4jNodeSchema {
+  label: string
+  properties: Array<{ name: string; types: string[] }>
+}
+
+export interface Neo4jRelationshipSchema {
+  type: string
+  properties: Array<{ name: string; types: string[] }>
+}
+
+export interface Neo4jIntrospectResponse extends ToolResponse {
+  output: {
+    message: string
+    labels: string[]
+    relationshipTypes: string[]
+    nodeSchemas: Neo4jNodeSchema[]
+    relationshipSchemas: Neo4jRelationshipSchema[]
+    constraints: Array<{ name: string; type: string; entityType: string; properties: string[] }>
+    indexes: Array<{ name: string; type: string; entityType: string; properties: string[] }>
+  }
+  error?: string
+}

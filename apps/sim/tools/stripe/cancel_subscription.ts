@@ -81,6 +81,12 @@ export const stripeCancelSubscriptionTool: ToolConfig<
     metadata: {
       type: 'json',
       description: 'Subscription metadata including ID, status, and customer',
+
+      properties: {
+        id: { type: 'string', description: 'Stripe unique identifier' },
+        status: { type: 'string', description: 'Current state of the resource' },
+        customer: { type: 'string', description: 'Associated customer ID' },
+      },
     },
   },
 }

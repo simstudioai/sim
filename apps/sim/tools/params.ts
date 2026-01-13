@@ -163,7 +163,7 @@ export function getToolParametersConfig(
           id: 'workflowId',
           type: 'string',
           required: true,
-          visibility: 'user-or-llm',
+          visibility: 'user-only',
           description: 'The ID of the workflow to execute',
           uiComponent: {
             type: 'workflow-selector',

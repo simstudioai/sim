@@ -1,0 +1,95 @@
+---
+title: Lemlist
+description: Manage outreach activities, leads, and send emails via Lemlist
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="lemlist"
+  color="#316BFF"
+/>
+
+## Usage Instructions
+
+Integrate Lemlist into your workflow. Retrieve campaign activities and replies, get lead information, and send emails through the Lemlist inbox.
+
+
+
+## Tools
+
+### `lemlist_get_activities`
+
+Retrieves campaign activities and steps performed, including email opens, clicks, replies, and other events.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Lemlist API key |
+| `type` | string | No | Filter by activity type \(e.g., emailOpened, emailClicked, emailReplied, paused\) |
+| `campaignId` | string | No | Filter by campaign ID |
+| `leadId` | string | No | Filter by lead ID |
+| `isFirst` | boolean | No | Filter for first activity only |
+| `limit` | number | No | Number of results per request \(max 100, default 100\) |
+| `offset` | number | No | Number of records to skip for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `activities` | array | List of activities |
+
+### `lemlist_get_lead`
+
+Retrieves lead information by email address or lead ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Lemlist API key |
+| `email` | string | No | Lead email address \(use either email or id\) |
+| `id` | string | No | Lead ID \(use either email or id\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `_id` | string | Lead ID |
+| `email` | string | Lead email address |
+| `firstName` | string | Lead first name |
+| `lastName` | string | Lead last name |
+| `companyName` | string | Company name |
+| `jobTitle` | string | Job title |
+| `companyDomain` | string | Company domain |
+| `isPaused` | boolean | Whether the lead is paused |
+| `campaignId` | string | Campaign ID the lead belongs to |
+| `contactId` | string | Contact ID |
+| `emailStatus` | string | Email deliverability status |
+
+### `lemlist_send_email`
+
+Sends an email to a contact through the Lemlist inbox.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Lemlist API key |
+| `sendUserId` | string | Yes | Identifier for the user sending the message |
+| `sendUserEmail` | string | Yes | Email address of the sender |
+| `sendUserMailboxId` | string | Yes | Mailbox identifier for the sender |
+| `contactId` | string | Yes | Recipient contact identifier |
+| `leadId` | string | Yes | Associated lead identifier |
+| `subject` | string | Yes | Email subject line |
+| `message` | string | Yes | Email message body in HTML format |
+| `cc` | json | No | Array of CC email addresses |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether the email was sent successfully |
+
+

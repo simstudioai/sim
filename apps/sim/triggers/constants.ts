@@ -26,20 +26,13 @@ export const TRIGGER_PERSISTED_SUBBLOCK_IDS: string[] = [
   'selectedTriggerId',
   'webhookId',
   'triggerPath',
-  'testUrl',
-  'testUrlExpiresAt',
 ]
 
 /**
  * Trigger-related subblock IDs that represent runtime metadata. They should remain
  * in the workflow state but must not be modified or cleared by diff operations.
  */
-export const TRIGGER_RUNTIME_SUBBLOCK_IDS: string[] = [
-  'webhookId',
-  'triggerPath',
-  'testUrl',
-  'testUrlExpiresAt',
-]
+export const TRIGGER_RUNTIME_SUBBLOCK_IDS: string[] = ['webhookId', 'triggerPath']
 
 /**
  * Maximum number of consecutive failures before a trigger (schedule/webhook) is auto-disabled.

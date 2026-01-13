@@ -69,10 +69,7 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
       success: true,
       output: {
         users,
-        metadata: {
-          operation: 'get_users' as const,
-          totalItems: users.length,
-        },
+        totalItems: users.length,
         success: true,
       },
     }
@@ -80,7 +77,7 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
 
   outputs: {
     users: { type: 'array', description: 'Array of HubSpot user objects' },
-    metadata: { type: 'object', description: 'Operation metadata' },
+    totalItems: { type: 'number', description: 'Total number of users returned' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

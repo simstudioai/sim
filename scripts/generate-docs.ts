@@ -75,37 +75,78 @@ async function generateIconMapping(): Promise<Record<string, string>> {
 
     for (const blockFile of blockFiles) {
       const fileContent = fs.readFileSync(blockFile, 'utf-8')
-      const blockConfig = extractBlockConfig(fileContent)
 
-      if (!blockConfig?.type || !blockConfig.iconName) {
-        continue
+      // For icon mapping, we need ALL blocks including hidden ones
+      // because V2 blocks inherit icons from legacy blocks via spread
+      // First, extract the primary icon from the file (usually the legacy block's icon)
+      const primaryIcon = extractIconName(fileContent)
+
+      // Find all block exports and their types
+      const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
+      let match
+
+      while ((match = exportRegex.exec(fileContent)) !== null) {
+        const blockName = match[1]
+        const startIndex = match.index + match[0].length - 1
+
+        // Extract the block content
+        let braceCount = 1
+        let endIndex = startIndex + 1
+
+        while (endIndex < fileContent.length && braceCount > 0) {
+          if (fileContent[endIndex] === '{') braceCount++
+          else if (fileContent[endIndex] === '}') braceCount--
+          endIndex++
+        }
+
+        if (braceCount === 0) {
+          const blockContent = fileContent.substring(startIndex, endIndex)
+
+          // Check hideFromToolbar - skip hidden blocks for docs but NOT for icon mapping
+          const hideFromToolbar = /hideFromToolbar\s*:\s*true/.test(blockContent)
+
+          // Get block type
+          const blockType =
+            extractStringPropertyFromContent(blockContent, 'type') || blockName.toLowerCase()
+
+          // Get icon - either from this block or inherited from primary
+          const iconName = extractIconNameFromContent(blockContent) || primaryIcon
+
+          if (!blockType || !iconName) {
+            continue
+          }
+
+          // Skip trigger/webhook/rss blocks
+          if (
+            blockType.includes('_trigger') ||
+            blockType.includes('_webhook') ||
+            blockType.includes('rss')
+          ) {
+            continue
+          }
+
+          // Get category for additional filtering
+          const category = extractStringPropertyFromContent(blockContent, 'category') || 'misc'
+
+          if (
+            (category === 'blocks' && blockType !== 'memory' && blockType !== 'knowledge') ||
+            blockType === 'evaluator' ||
+            blockType === 'number' ||
+            blockType === 'webhook' ||
+            blockType === 'schedule' ||
+            blockType === 'mcp' ||
+            blockType === 'generic_webhook' ||
+            blockType === 'rss'
+          ) {
+            continue
+          }
+
+          // Only add non-hidden blocks to icon mapping (docs won't be generated for hidden)
+          if (!hideFromToolbar) {
+            iconMapping[blockType] = iconName
+          }
+        }
       }
-
-      // Skip blocks that don't have documentation (same logic as generateBlockDoc)
-      if (
-        blockConfig.type.includes('_trigger') ||
-        blockConfig.type.includes('_webhook') ||
-        blockConfig.type.includes('rss')
-      ) {
-        continue
-      }
-
-      if (
-        (blockConfig.category === 'blocks' &&
-          blockConfig.type !== 'memory' &&
-          blockConfig.type !== 'knowledge') ||
-        blockConfig.type === 'evaluator' ||
-        blockConfig.type === 'number' ||
-        blockConfig.type === 'webhook' ||
-        blockConfig.type === 'schedule' ||
-        blockConfig.type === 'mcp' ||
-        blockConfig.type === 'generic_webhook' ||
-        blockConfig.type === 'rss'
-      ) {
-        continue
-      }
-
-      iconMapping[blockConfig.type] = blockConfig.iconName
     }
 
     console.log(`✓ Generated icon mapping for ${Object.keys(iconMapping).length} blocks`)
@@ -159,31 +200,72 @@ ${mappingEntries}
   }
 }
 
-function extractBlockConfig(fileContent: string): BlockConfig | null {
-  try {
-    const exportMatch = fileContent.match(/export\s+const\s+(\w+)Block\s*:/)
+/**
+ * Extract ALL block configs from a file, filtering out hidden blocks
+ */
+function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
+  const configs: BlockConfig[] = []
 
-    if (!exportMatch) {
-      console.warn('No block export found in file')
-      return null
+  // Find all block exports in the file
+  const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
+  let match
+
+  while ((match = exportRegex.exec(fileContent)) !== null) {
+    const blockName = match[1]
+    const startIndex = match.index + match[0].length - 1 // Position of opening brace
+
+    // Extract the block content by matching braces
+    let braceCount = 1
+    let endIndex = startIndex + 1
+
+    while (endIndex < fileContent.length && braceCount > 0) {
+      if (fileContent[endIndex] === '{') braceCount++
+      else if (fileContent[endIndex] === '}') braceCount--
+      endIndex++
     }
 
-    const blockName = exportMatch[1]
-    const blockType = findBlockType(fileContent, blockName)
+    if (braceCount === 0) {
+      const blockContent = fileContent.substring(startIndex, endIndex)
 
-    const name = extractStringProperty(fileContent, 'name') || `${blockName} Block`
-    const description = extractStringProperty(fileContent, 'description') || ''
-    const longDescription = extractStringProperty(fileContent, 'longDescription') || ''
-    const category = extractStringProperty(fileContent, 'category') || 'misc'
-    const bgColor = extractStringProperty(fileContent, 'bgColor') || '#F5F5F5'
-    const iconName = extractIconName(fileContent) || ''
+      // Check if this block has hideFromToolbar: true
+      const hideFromToolbar = /hideFromToolbar\s*:\s*true/.test(blockContent)
+      if (hideFromToolbar) {
+        console.log(`Skipping ${blockName}Block - hideFromToolbar is true`)
+        continue
+      }
 
-    const outputs = extractOutputs(fileContent)
+      const config = extractBlockConfigFromContent(blockContent, blockName)
+      if (config) {
+        configs.push(config)
+      }
+    }
+  }
 
-    const toolsAccess = extractToolsAccess(fileContent)
+  return configs
+}
+
+/**
+ * Extract block config from a specific block's content
+ */
+function extractBlockConfigFromContent(
+  blockContent: string,
+  blockName: string
+): BlockConfig | null {
+  try {
+    const blockType =
+      extractStringPropertyFromContent(blockContent, 'type') || blockName.toLowerCase()
+    const name = extractStringPropertyFromContent(blockContent, 'name') || `${blockName} Block`
+    const description = extractStringPropertyFromContent(blockContent, 'description') || ''
+    const longDescription = extractStringPropertyFromContent(blockContent, 'longDescription') || ''
+    const category = extractStringPropertyFromContent(blockContent, 'category') || 'misc'
+    const bgColor = extractStringPropertyFromContent(blockContent, 'bgColor') || '#F5F5F5'
+    const iconName = extractIconNameFromContent(blockContent) || ''
+
+    const outputs = extractOutputsFromContent(blockContent)
+    const toolsAccess = extractToolsAccessFromContent(blockContent)
 
     return {
-      type: blockType || blockName.toLowerCase(),
+      type: blockType,
       name,
       description,
       longDescription,
@@ -196,9 +278,134 @@ function extractBlockConfig(fileContent: string): BlockConfig | null {
       },
     }
   } catch (error) {
-    console.error('Error extracting block configuration:', error)
+    console.error(`Error extracting block configuration for ${blockName}:`, error)
     return null
   }
+}
+
+/**
+ * Strip version suffix (e.g., _v2, _v3) from a type for display purposes
+ * The internal type remains unchanged for icon mapping
+ */
+function stripVersionSuffix(type: string): string {
+  return type.replace(/_v\d+$/, '')
+}
+
+function extractStringPropertyFromContent(content: string, propName: string): string | null {
+  const singleQuoteMatch = content.match(new RegExp(`${propName}\\s*:\\s*'([^']*)'`, 'm'))
+  if (singleQuoteMatch) return singleQuoteMatch[1]
+
+  const doubleQuoteMatch = content.match(new RegExp(`${propName}\\s*:\\s*"([^"]*)"`, 'm'))
+  if (doubleQuoteMatch) return doubleQuoteMatch[1]
+
+  const templateMatch = content.match(new RegExp(`${propName}\\s*:\\s*\`([^\`]+)\``, 's'))
+  if (templateMatch) {
+    let templateContent = templateMatch[1]
+    templateContent = templateContent.replace(/\$\{[^}]+\}/g, '')
+    templateContent = templateContent.replace(/\s+/g, ' ').trim()
+    return templateContent
+  }
+
+  return null
+}
+
+function extractIconNameFromContent(content: string): string | null {
+  const iconMatch = content.match(/icon\s*:\s*(\w+Icon)/)
+  return iconMatch ? iconMatch[1] : null
+}
+
+function extractOutputsFromContent(content: string): Record<string, any> {
+  const outputsStart = content.search(/outputs\s*:\s*{/)
+  if (outputsStart === -1) return {}
+
+  const openBracePos = content.indexOf('{', outputsStart)
+  if (openBracePos === -1) return {}
+
+  let braceCount = 1
+  let pos = openBracePos + 1
+
+  while (pos < content.length && braceCount > 0) {
+    if (content[pos] === '{') braceCount++
+    else if (content[pos] === '}') braceCount--
+    pos++
+  }
+
+  if (braceCount === 0) {
+    const outputsContent = content.substring(openBracePos + 1, pos - 1).trim()
+    const outputs: Record<string, any> = {}
+
+    const fieldRegex = /(\w+)\s*:\s*{/g
+    let match
+    const fieldPositions: Array<{ name: string; start: number }> = []
+
+    while ((match = fieldRegex.exec(outputsContent)) !== null) {
+      fieldPositions.push({
+        name: match[1],
+        start: match.index + match[0].length - 1,
+      })
+    }
+
+    fieldPositions.forEach((field) => {
+      const startPos = field.start
+      let braceCount = 1
+      let endPos = startPos + 1
+
+      while (endPos < outputsContent.length && braceCount > 0) {
+        if (outputsContent[endPos] === '{') braceCount++
+        else if (outputsContent[endPos] === '}') braceCount--
+        endPos++
+      }
+
+      if (braceCount === 0) {
+        const fieldContent = outputsContent.substring(startPos + 1, endPos - 1).trim()
+
+        const typeMatch = fieldContent.match(/type\s*:\s*['"](.*?)['"]/)
+        const descriptionMatch = fieldContent.match(/description\s*:\s*['"](.*?)['"]/)
+
+        if (typeMatch) {
+          outputs[field.name] = {
+            type: typeMatch[1],
+            description: descriptionMatch
+              ? descriptionMatch[1]
+              : `${field.name} output from the block`,
+          }
+        }
+      }
+    })
+
+    if (Object.keys(outputs).length > 0) {
+      return outputs
+    }
+  }
+
+  return {}
+}
+
+function extractToolsAccessFromContent(content: string): string[] {
+  const accessMatch = content.match(/access\s*:\s*\[\s*([^\]]+)\s*\]/)
+  if (!accessMatch) return []
+
+  const accessContent = accessMatch[1]
+  const tools: string[] = []
+
+  const toolMatches = accessContent.match(/['"]([^'"]+)['"]/g)
+  if (toolMatches) {
+    toolMatches.forEach((toolText) => {
+      const match = toolText.match(/['"]([^'"]+)['"]/)
+      if (match) {
+        tools.push(match[1])
+      }
+    })
+  }
+
+  return tools
+}
+
+// Legacy function for backward compatibility (icon mapping, etc.)
+function extractBlockConfig(fileContent: string): BlockConfig | null {
+  const configs = extractAllBlockConfigs(fileContent)
+  // Return first non-hidden block for legacy code paths
+  return configs.length > 0 ? configs[0] : null
 }
 
 function findBlockType(content: string, blockName: string): string {
@@ -393,12 +600,43 @@ function extractToolInfo(
   outputs: Record<string, any>
 } | null {
   try {
+    // First, try to find the specific tool definition by its ID
+    // Look for: id: 'toolName' or id: "toolName"
+    const toolIdRegex = new RegExp(`id:\\s*['"]${toolName}['"]`)
+    const toolIdMatch = fileContent.match(toolIdRegex)
+
+    let toolContent = fileContent
+    if (toolIdMatch && toolIdMatch.index !== undefined) {
+      // Find the tool definition block that contains this ID
+      // Search backwards for 'export const' or start of object
+      const beforeId = fileContent.substring(0, toolIdMatch.index)
+      const exportMatch = beforeId.match(/export\s+const\s+\w+[^=]*=\s*\{[\s\S]*$/)
+
+      if (exportMatch && exportMatch.index !== undefined) {
+        const startIndex = exportMatch.index + exportMatch[0].length - 1
+        let braceCount = 1
+        let endIndex = startIndex + 1
+
+        while (endIndex < fileContent.length && braceCount > 0) {
+          if (fileContent[endIndex] === '{') braceCount++
+          else if (fileContent[endIndex] === '}') braceCount--
+          endIndex++
+        }
+
+        if (braceCount === 0) {
+          toolContent = fileContent.substring(startIndex, endIndex)
+        }
+      }
+    }
+
+    // Params are often inherited via spread, so search the full file for params
     const toolConfigRegex =
       /params\s*:\s*{([\s\S]*?)},?\s*(?:outputs|oauth|request|directExecution|postProcess|transformResponse)\s*:/
     const toolConfigMatch = fileContent.match(toolConfigRegex)
 
+    // Description should come from the specific tool block if found
     const descriptionRegex = /description\s*:\s*['"](.*?)['"].*/
-    const descriptionMatch = fileContent.match(descriptionRegex)
+    const descriptionMatch = toolContent.match(descriptionRegex)
     const description = descriptionMatch ? descriptionMatch[1] : 'No description available'
 
     const params: Array<{ name: string; type: string; required: boolean; description: string }> = []
@@ -468,7 +706,7 @@ function extractToolInfo(
     let outputs: Record<string, any> = {}
     const outputsFieldRegex =
       /outputs\s*:\s*{([\s\S]*?)}\s*,?\s*(?:(?:oauth|params|request|directExecution|postProcess|transformResponse)\s*:|$|\})/
-    const outputsFieldMatch = fileContent.match(outputsFieldRegex)
+    const outputsFieldMatch = toolContent.match(outputsFieldRegex)
 
     if (outputsFieldMatch) {
       const outputsContent = outputsFieldMatch[1]
@@ -794,11 +1032,23 @@ async function getToolInfo(toolName: string): Promise<{
       toolSuffix = parts.slice(1).join('_')
     }
 
+    // Strip version suffix from tool suffix (V2 tools are in the same file as V1)
+    const strippedToolSuffix = stripVersionSuffix(toolSuffix)
+
     const possibleLocations = []
 
-    possibleLocations.push(path.join(rootDir, `apps/sim/tools/${toolPrefix}/${toolSuffix}.ts`))
+    // Try stripped suffix first (e.g., launch_agent.ts for launch_agent_v2)
+    possibleLocations.push(
+      path.join(rootDir, `apps/sim/tools/${toolPrefix}/${strippedToolSuffix}.ts`)
+    )
 
-    const camelCaseSuffix = toolSuffix
+    // Also try original suffix in case the file actually has v2 in the name
+    if (strippedToolSuffix !== toolSuffix) {
+      possibleLocations.push(path.join(rootDir, `apps/sim/tools/${toolPrefix}/${toolSuffix}.ts`))
+    }
+
+    // Also try camelCase versions
+    const camelCaseSuffix = strippedToolSuffix
       .split('_')
       .map((part, i) => (i === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)))
       .join('')
@@ -899,60 +1149,76 @@ async function generateBlockDoc(blockPath: string) {
 
     const fileContent = fs.readFileSync(blockPath, 'utf-8')
 
-    const blockConfig = extractBlockConfig(fileContent)
+    // Extract ALL block configs from the file (already filters out hideFromToolbar: true)
+    const blockConfigs = extractAllBlockConfigs(fileContent)
 
-    if (!blockConfig || !blockConfig.type) {
-      console.warn(`Skipping ${blockFileName} - not a valid block config`)
+    if (blockConfigs.length === 0) {
+      console.warn(`Skipping ${blockFileName} - no valid block configs found`)
       return
     }
 
-    if (
-      blockConfig.type.includes('_trigger') ||
-      blockConfig.type.includes('_webhook') ||
-      blockConfig.type.includes('rss')
-    ) {
-      console.log(`Skipping ${blockConfig.type} - contains '_trigger'`)
-      return
+    // Process each block config
+    for (const blockConfig of blockConfigs) {
+      if (!blockConfig.type) {
+        continue
+      }
+
+      if (
+        blockConfig.type.includes('_trigger') ||
+        blockConfig.type.includes('_webhook') ||
+        blockConfig.type.includes('rss')
+      ) {
+        console.log(`Skipping ${blockConfig.type} - contains '_trigger'`)
+        continue
+      }
+
+      if (
+        (blockConfig.category === 'blocks' &&
+          blockConfig.type !== 'memory' &&
+          blockConfig.type !== 'knowledge') ||
+        blockConfig.type === 'evaluator' ||
+        blockConfig.type === 'number' ||
+        blockConfig.type === 'webhook' ||
+        blockConfig.type === 'schedule' ||
+        blockConfig.type === 'mcp' ||
+        blockConfig.type === 'generic_webhook' ||
+        blockConfig.type === 'rss'
+      ) {
+        continue
+      }
+
+      // Use stripped type for file name (removes _v2, _v3 suffixes for cleaner URLs)
+      const displayType = stripVersionSuffix(blockConfig.type)
+      const outputFilePath = path.join(DOCS_OUTPUT_PATH, `${displayType}.mdx`)
+
+      let existingContent: string | null = null
+      if (fs.existsSync(outputFilePath)) {
+        existingContent = fs.readFileSync(outputFilePath, 'utf-8')
+      }
+
+      const manualSections = existingContent ? extractManualContent(existingContent) : {}
+
+      const markdown = await generateMarkdownForBlock(blockConfig, displayType)
+
+      let finalContent = markdown
+      if (Object.keys(manualSections).length > 0) {
+        finalContent = mergeWithManualContent(markdown, existingContent, manualSections)
+      }
+
+      fs.writeFileSync(outputFilePath, finalContent)
+      const logType =
+        displayType !== blockConfig.type ? `${displayType} (from ${blockConfig.type})` : displayType
+      console.log(`✓ Generated docs for ${logType}`)
     }
-
-    if (
-      (blockConfig.category === 'blocks' &&
-        blockConfig.type !== 'memory' &&
-        blockConfig.type !== 'knowledge') ||
-      blockConfig.type === 'evaluator' ||
-      blockConfig.type === 'number' ||
-      blockConfig.type === 'webhook' ||
-      blockConfig.type === 'schedule' ||
-      blockConfig.type === 'mcp' ||
-      blockConfig.type === 'generic_webhook' ||
-      blockConfig.type === 'rss'
-    ) {
-      return
-    }
-
-    const outputFilePath = path.join(DOCS_OUTPUT_PATH, `${blockConfig.type}.mdx`)
-
-    let existingContent: string | null = null
-    if (fs.existsSync(outputFilePath)) {
-      existingContent = fs.readFileSync(outputFilePath, 'utf-8')
-    }
-
-    const manualSections = existingContent ? extractManualContent(existingContent) : {}
-
-    const markdown = await generateMarkdownForBlock(blockConfig)
-
-    let finalContent = markdown
-    if (Object.keys(manualSections).length > 0) {
-      finalContent = mergeWithManualContent(markdown, existingContent, manualSections)
-    }
-
-    fs.writeFileSync(outputFilePath, finalContent)
   } catch (error) {
     console.error(`Error processing ${blockPath}:`, error)
   }
 }
 
-async function generateMarkdownForBlock(blockConfig: BlockConfig): Promise<string> {
+async function generateMarkdownForBlock(
+  blockConfig: BlockConfig,
+  displayType?: string
+): Promise<string> {
   const {
     type,
     name,
@@ -1033,7 +1299,9 @@ async function generateMarkdownForBlock(blockConfig: BlockConfig): Promise<strin
     toolsSection = '## Tools\n\n'
 
     for (const tool of tools.access) {
-      toolsSection += `### \`${tool}\`\n\n`
+      // Strip version suffix from tool name for display
+      const displayToolName = stripVersionSuffix(tool)
+      toolsSection += `### \`${displayToolName}\`\n\n`
 
       console.log(`Getting info for tool: ${tool}`)
       const toolInfo = await getToolInfo(tool)
@@ -1134,12 +1402,88 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 ${usageInstructions}
 
 ${toolsSection}
-
-## Notes
-
-- Category: \`${category}\`
-- Type: \`${type}\`
 `
+}
+
+/**
+ * Extract all hidden block types (blocks with hideFromToolbar: true)
+ */
+async function getHiddenBlockTypes(): Promise<Set<string>> {
+  const hiddenTypes = new Set<string>()
+  const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
+
+  for (const blockFile of blockFiles) {
+    const fileContent = fs.readFileSync(blockFile, 'utf-8')
+
+    // Find all block exports
+    const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
+    let match
+
+    while ((match = exportRegex.exec(fileContent)) !== null) {
+      const startIndex = match.index + match[0].length - 1
+
+      // Extract the block content
+      let braceCount = 1
+      let endIndex = startIndex + 1
+
+      while (endIndex < fileContent.length && braceCount > 0) {
+        if (fileContent[endIndex] === '{') braceCount++
+        else if (fileContent[endIndex] === '}') braceCount--
+        endIndex++
+      }
+
+      if (braceCount === 0) {
+        const blockContent = fileContent.substring(startIndex, endIndex)
+
+        // Check if this block has hideFromToolbar: true
+        if (/hideFromToolbar\s*:\s*true/.test(blockContent)) {
+          const blockType = extractStringPropertyFromContent(blockContent, 'type')
+          if (blockType) {
+            hiddenTypes.add(blockType)
+          }
+        }
+      }
+    }
+  }
+
+  return hiddenTypes
+}
+
+/**
+ * Remove documentation files for hidden blocks
+ */
+function cleanupHiddenBlockDocs(hiddenTypes: Set<string>): void {
+  console.log('Cleaning up docs for hidden blocks...')
+
+  // Create a set of stripped hidden types (for matching doc files without version suffix)
+  const strippedHiddenTypes = new Set<string>()
+  for (const type of hiddenTypes) {
+    strippedHiddenTypes.add(stripVersionSuffix(type))
+  }
+
+  const existingDocs = fs
+    .readdirSync(DOCS_OUTPUT_PATH)
+    .filter((file: string) => file.endsWith('.mdx'))
+
+  let removedCount = 0
+
+  for (const docFile of existingDocs) {
+    const blockType = path.basename(docFile, '.mdx')
+
+    // Check both original type and stripped type (since doc files use stripped names)
+    if (hiddenTypes.has(blockType) || strippedHiddenTypes.has(blockType)) {
+      const docPath = path.join(DOCS_OUTPUT_PATH, docFile)
+      fs.unlinkSync(docPath)
+      console.log(`✓ Removed docs for hidden block: ${blockType}`)
+      removedCount++
+    }
+  }
+
+  if (removedCount > 0) {
+    console.log(`✓ Cleaned up ${removedCount} doc files for hidden blocks`)
+  } else {
+    console.log('✓ No hidden block docs to clean up')
+  }
 }
 
 async function generateAllBlockDocs() {
@@ -1150,6 +1494,13 @@ async function generateAllBlockDocs() {
     // Generate icon mapping from block definitions
     const iconMapping = await generateIconMapping()
     writeIconMapping(iconMapping)
+
+    // Get hidden block types before generating docs
+    const hiddenTypes = await getHiddenBlockTypes()
+    console.log(`Found ${hiddenTypes.size} hidden blocks: ${[...hiddenTypes].join(', ')}`)
+
+    // Clean up docs for hidden blocks
+    cleanupHiddenBlockDocs(hiddenTypes)
 
     const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
 

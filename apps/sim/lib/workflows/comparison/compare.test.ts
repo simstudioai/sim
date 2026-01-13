@@ -2340,62 +2340,6 @@ describe('hasWorkflowChanged', () => {
       expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
     })
 
-    it.concurrent('should not detect change when testUrl differs', () => {
-      const deployedState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1', {
-            type: 'starter',
-            subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
-              testUrl: { value: null },
-            },
-          }),
-        },
-      })
-
-      const currentState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1', {
-            type: 'starter',
-            subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
-              testUrl: { value: 'https://test.example.com/webhook' },
-            },
-          }),
-        },
-      })
-
-      expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
-    })
-
-    it.concurrent('should not detect change when testUrlExpiresAt differs', () => {
-      const deployedState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1', {
-            type: 'starter',
-            subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
-              testUrlExpiresAt: { value: null },
-            },
-          }),
-        },
-      })
-
-      const currentState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1', {
-            type: 'starter',
-            subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
-              testUrlExpiresAt: { value: '2025-12-31T23:59:59Z' },
-            },
-          }),
-        },
-      })
-
-      expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
-    })
-
     it.concurrent('should not detect change when all runtime metadata differs', () => {
       const deployedState = createWorkflowState({
         blocks: {
@@ -2405,8 +2349,6 @@ describe('hasWorkflowChanged', () => {
               triggerConfig: { value: { event: 'push' } },
               webhookId: { value: null },
               triggerPath: { value: '' },
-              testUrl: { value: null },
-              testUrlExpiresAt: { value: null },
             },
           }),
         },
@@ -2420,8 +2362,6 @@ describe('hasWorkflowChanged', () => {
               triggerConfig: { value: { event: 'push' } },
               webhookId: { value: 'wh_123456' },
               triggerPath: { value: '/api/webhooks/abc123' },
-              testUrl: { value: 'https://test.example.com/webhook' },
-              testUrlExpiresAt: { value: '2025-12-31T23:59:59Z' },
             },
           }),
         },

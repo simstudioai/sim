@@ -106,3 +106,46 @@ URL: ${issue.html_url}`
     },
   },
 }
+
+export const addAssigneesV2Tool: ToolConfig<AddAssigneesParams, any> = {
+  id: 'github_add_assignees_v2',
+  name: addAssigneesTool.name,
+  description: addAssigneesTool.description,
+  version: '2.0.0',
+  params: addAssigneesTool.params,
+  request: addAssigneesTool.request,
+
+  transformResponse: async (response: Response) => {
+    const issue = await response.json()
+    return {
+      success: true,
+      output: {
+        id: issue.id,
+        number: issue.number,
+        title: issue.title,
+        state: issue.state,
+        html_url: issue.html_url,
+        body: issue.body ?? null,
+        user: issue.user,
+        labels: issue.labels ?? [],
+        assignees: issue.assignees ?? [],
+        created_at: issue.created_at,
+        updated_at: issue.updated_at,
+      },
+    }
+  },
+
+  outputs: {
+    id: { type: 'number', description: 'Issue ID' },
+    number: { type: 'number', description: 'Issue number' },
+    title: { type: 'string', description: 'Issue title' },
+    state: { type: 'string', description: 'Issue state' },
+    html_url: { type: 'string', description: 'GitHub web URL' },
+    body: { type: 'string', description: 'Issue body', optional: true },
+    user: { type: 'json', description: 'Issue creator' },
+    labels: { type: 'array', description: 'Array of label objects' },
+    assignees: { type: 'array', description: 'Array of assignee objects' },
+    created_at: { type: 'string', description: 'Creation timestamp' },
+    updated_at: { type: 'string', description: 'Last update timestamp' },
+  },
+}

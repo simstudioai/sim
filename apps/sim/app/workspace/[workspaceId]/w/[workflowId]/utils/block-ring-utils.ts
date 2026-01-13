@@ -50,7 +50,7 @@ export function getBlockRingStyles(options: BlockRingOptions): {
       !isPending &&
       !isDeletedBlock &&
       diffStatus === 'new' &&
-      'ring-[var(--brand-tertiary)]',
+      'ring-[var(--brand-tertiary-2)]',
     !isActive &&
       !isPending &&
       !isDeletedBlock &&

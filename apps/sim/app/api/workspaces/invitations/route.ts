@@ -18,6 +18,10 @@ import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
+import {
+  InvitationsNotAllowedError,
+  validateInvitationsAllowed,
+} from '@/executor/utils/permission-check'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,6 +80,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    await validateInvitationsAllowed(session.user.id)
+
     const { workspaceId, email, role = 'member', permission = 'read' } = await req.json()
 
     if (!workspaceId || !email) {
@@ -213,6 +219,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, invitation: invitationData })
   } catch (error) {
+    if (error instanceof InvitationsNotAllowedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     logger.error('Error creating workspace invitation:', error)
     return NextResponse.json({ error: 'Failed to create invitation' }, { status: 500 })
   }

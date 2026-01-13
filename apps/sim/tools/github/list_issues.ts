@@ -167,3 +167,57 @@ ${transformedIssues
     },
   },
 }
+
+export const listIssuesV2Tool: ToolConfig<ListIssuesParams, any> = {
+  id: 'github_list_issues_v2',
+  name: listIssuesTool.name,
+  description: listIssuesTool.description,
+  version: '2.0.0',
+  params: listIssuesTool.params,
+  request: listIssuesTool.request,
+
+  transformResponse: async (response: Response) => {
+    const issues = await response.json()
+    const items = issues.map((issue: any) => ({
+      ...issue,
+      body: issue.body ?? null,
+      milestone: issue.milestone ?? null,
+      closed_at: issue.closed_at ?? null,
+      labels: issue.labels ?? [],
+      assignees: issue.assignees ?? [],
+    }))
+    return {
+      success: true,
+      output: {
+        items,
+        count: issues.length,
+      },
+    }
+  },
+
+  outputs: {
+    items: {
+      type: 'array',
+      description: 'Array of issue objects from GitHub API',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'number', description: 'Issue ID' },
+          number: { type: 'number', description: 'Issue number' },
+          title: { type: 'string', description: 'Issue title' },
+          state: { type: 'string', description: 'Issue state (open/closed)' },
+          html_url: { type: 'string', description: 'GitHub web URL' },
+          body: { type: 'string', description: 'Issue body', optional: true },
+          user: { type: 'object', description: 'User who created the issue' },
+          labels: { type: 'array', description: 'Array of label objects' },
+          assignees: { type: 'array', description: 'Array of assignee objects' },
+          milestone: { type: 'object', description: 'Milestone object', optional: true },
+          created_at: { type: 'string', description: 'Creation timestamp' },
+          updated_at: { type: 'string', description: 'Last update timestamp' },
+          closed_at: { type: 'string', description: 'Close timestamp', optional: true },
+        },
+      },
+    },
+    count: { type: 'number', description: 'Number of issues returned' },
+  },
+}

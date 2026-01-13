@@ -106,7 +106,28 @@ The model breakdown shows:
 
 ## Bring Your Own Key (BYOK)
 
-You can use your own API keys for hosted models (OpenAI, Anthropic, Google, Mistral) in **Settings → BYOK** to pay base prices. Keys are encrypted and apply workspace-wide.
+Use your own API keys for AI model providers instead of Sim Studio's hosted keys to pay base prices with no markup.
+
+### Supported Providers
+
+| Provider | Usage |
+|----------|-------|
+| OpenAI | Knowledge Base embeddings, Agent block |
+| Anthropic | Agent block |
+| Google | Agent block |
+| Mistral | Knowledge Base OCR |
+
+### Setup
+
+1. Navigate to **Settings** → **BYOK** in your workspace
+2. Click **Add Key** for your provider
+3. Enter your API key and save
+
+<Callout type="info">
+  BYOK keys are encrypted at rest. Only workspace admins can manage keys.
+</Callout>
+
+When configured, workflows use your key instead of Sim Studio's hosted keys. If removed, workflows automatically fall back to hosted keys with the multiplier.
 
 ## Cost Optimization Strategies
 

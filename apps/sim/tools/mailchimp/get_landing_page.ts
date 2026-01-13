@@ -14,11 +14,7 @@ export interface MailchimpGetLandingPageResponse {
   success: boolean
   output: {
     landingPage: MailchimpLandingPage
-    metadata: {
-      operation: 'get_landing_page'
-      pageId: string
-    }
-    success: boolean
+    page_id: string
   }
 }
 
@@ -67,24 +63,22 @@ export const mailchimpGetLandingPageTool: ToolConfig<
       success: true,
       output: {
         landingPage: data,
-        metadata: {
-          operation: 'get_landing_page' as const,
-          pageId: data.id,
-        },
-        success: true,
+        page_id: data.id,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
+    success: {
+      type: 'boolean',
+      description: 'Whether the landing page was successfully retrieved',
+    },
     output: {
       type: 'object',
-      description: 'Landing page data and metadata',
+      description: 'Landing page data',
       properties: {
-        landingPage: { type: 'object', description: 'Landing page object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        landingPage: { type: 'json', description: 'Landing page object' },
+        page_id: { type: 'string', description: 'The unique ID of the landing page' },
       },
     },
   },

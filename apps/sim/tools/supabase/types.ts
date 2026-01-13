@@ -274,3 +274,49 @@ export interface SupabaseStorageCreateSignedUrlResponse extends ToolResponse {
   }
   error?: string
 }
+
+/**
+ * Parameters for introspecting a Supabase database schema
+ */
+export interface SupabaseIntrospectParams {
+  apiKey: string
+  projectId: string
+  schema?: string
+}
+
+/**
+ * Column information for a database table
+ */
+export interface SupabaseColumnSchema {
+  name: string
+  type: string
+  nullable: boolean
+  default: string | null
+  isPrimaryKey: boolean
+  isForeignKey: boolean
+  references?: { table: string; column: string }
+}
+
+/**
+ * Table schema information including columns, keys, and indexes
+ */
+export interface SupabaseTableSchema {
+  name: string
+  schema: string
+  columns: SupabaseColumnSchema[]
+  primaryKey: string[]
+  foreignKeys: Array<{ column: string; referencesTable: string; referencesColumn: string }>
+  indexes: Array<{ name: string; columns: string[]; unique: boolean }>
+}
+
+/**
+ * Response from the introspect operation
+ */
+export interface SupabaseIntrospectResponse extends ToolResponse {
+  output: {
+    message: string
+    tables: SupabaseTableSchema[]
+    schemas: string[]
+  }
+  error?: string
+}

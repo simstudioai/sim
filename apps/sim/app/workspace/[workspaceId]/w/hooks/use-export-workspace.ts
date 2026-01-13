@@ -44,21 +44,18 @@ export function useExportWorkspace({ onSuccess }: UseExportWorkspaceProps = {}) 
       try {
         logger.info('Exporting workspace', { workspaceId })
 
-        // Fetch all workflows in workspace
         const workflowsResponse = await fetch(`/api/workflows?workspaceId=${workspaceId}`)
         if (!workflowsResponse.ok) {
           throw new Error('Failed to fetch workflows')
         }
         const { data: workflows } = await workflowsResponse.json()
 
-        // Fetch all folders in workspace
         const foldersResponse = await fetch(`/api/folders?workspaceId=${workspaceId}`)
         if (!foldersResponse.ok) {
           throw new Error('Failed to fetch folders')
         }
         const foldersData = await foldersResponse.json()
 
-        // Export each workflow
         const workflowsToExport: WorkflowExportData[] = []
 
         for (const workflow of workflows) {

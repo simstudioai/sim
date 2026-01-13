@@ -14,10 +14,6 @@ export interface MailchimpAddMemberTagsParams {
 export interface MailchimpAddMemberTagsResponse {
   success: boolean
   output: {
-    metadata: {
-      operation: 'add_member_tags'
-      subscriberHash: string
-    }
     success: boolean
   }
 }
@@ -90,10 +86,6 @@ export const mailchimpAddMemberTagsTool: ToolConfig<
     return {
       success: true,
       output: {
-        metadata: {
-          operation: 'add_member_tags' as const,
-          subscriberHash: '',
-        },
         success: true,
       },
     }
@@ -105,7 +97,6 @@ export const mailchimpAddMemberTagsTool: ToolConfig<
       type: 'object',
       description: 'Tag addition confirmation',
       properties: {
-        metadata: { type: 'object', description: 'Operation metadata' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

@@ -71,19 +71,16 @@ export const salesforceGetDashboardTool: ToolConfig<
         dashboard: data,
         dashboardId: params?.dashboardId || '',
         components: data.componentData || [],
-        metadata: {
-          operation: 'get_dashboard',
-          dashboardName: data.name,
-          folderId: data.folderId,
-          runningUser: data.runningUser,
-        },
+        dashboardName: data.name ?? null,
+        folderId: data.folderId ?? null,
+        runningUser: data.runningUser ?? null,
         success: true,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success status' },
+    success: { type: 'boolean', description: 'Operation success status' },
     output: {
       type: 'object',
       description: 'Dashboard data',
@@ -91,8 +88,14 @@ export const salesforceGetDashboardTool: ToolConfig<
         dashboard: { type: 'object', description: 'Dashboard details' },
         dashboardId: { type: 'string', description: 'Dashboard ID' },
         components: { type: 'array', description: 'Dashboard component data' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success status' },
+        dashboardName: { type: 'string', description: 'Dashboard name', optional: true },
+        folderId: {
+          type: 'string',
+          description: 'Folder ID containing the dashboard',
+          optional: true,
+        },
+        runningUser: { type: 'object', description: 'Running user information', optional: true },
+        success: { type: 'boolean', description: 'Salesforce operation success' },
       },
     },
   },

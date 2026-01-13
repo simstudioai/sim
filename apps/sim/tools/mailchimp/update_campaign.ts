@@ -15,10 +15,7 @@ export interface MailchimpUpdateCampaignResponse {
   success: boolean
   output: {
     campaign: MailchimpCampaign
-    metadata: {
-      operation: 'update_campaign'
-      campaignId: string
-    }
+    campaign_id: string
     success: boolean
   }
 }
@@ -101,10 +98,7 @@ export const mailchimpUpdateCampaignTool: ToolConfig<
       success: true,
       output: {
         campaign: data,
-        metadata: {
-          operation: 'update_campaign' as const,
-          campaignId: data.id,
-        },
+        campaign_id: data.id,
         success: true,
       },
     }
@@ -117,7 +111,7 @@ export const mailchimpUpdateCampaignTool: ToolConfig<
       description: 'Updated campaign data',
       properties: {
         campaign: { type: 'object', description: 'Updated campaign object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
+        campaign_id: { type: 'string', description: 'Campaign ID' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

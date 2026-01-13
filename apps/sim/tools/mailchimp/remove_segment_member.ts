@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpRemoveSegmentMember')
 
 export interface MailchimpRemoveSegmentMemberParams {
   apiKey: string
@@ -14,10 +11,6 @@ export interface MailchimpRemoveSegmentMemberParams {
 export interface MailchimpRemoveSegmentMemberResponse {
   success: boolean
   output: {
-    metadata: {
-      operation: 'remove_segment_member'
-      subscriberHash: string
-    }
     success: boolean
   }
 }
@@ -80,10 +73,6 @@ export const mailchimpRemoveSegmentMemberTool: ToolConfig<
     return {
       success: true,
       output: {
-        metadata: {
-          operation: 'remove_segment_member' as const,
-          subscriberHash: '',
-        },
         success: true,
       },
     }
@@ -95,7 +84,6 @@ export const mailchimpRemoveSegmentMemberTool: ToolConfig<
       type: 'object',
       description: 'Removal confirmation',
       properties: {
-        metadata: { type: 'object', description: 'Operation metadata' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

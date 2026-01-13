@@ -15,10 +15,7 @@ export interface ZendeskDeleteUserResponse {
   success: boolean
   output: {
     deleted: boolean
-    metadata: {
-      operation: 'delete_user'
-      userId: string
-    }
+    user_id: string
     success: boolean
   }
 }
@@ -81,10 +78,7 @@ export const zendeskDeleteUserTool: ToolConfig<ZendeskDeleteUserParams, ZendeskD
         success: true,
         output: {
           deleted: true,
-          metadata: {
-            operation: 'delete_user' as const,
-            userId: params?.userId || '',
-          },
+          user_id: params?.userId || '',
           success: true,
         },
       }
@@ -92,6 +86,6 @@ export const zendeskDeleteUserTool: ToolConfig<ZendeskDeleteUserParams, ZendeskD
 
     outputs: {
       deleted: { type: 'boolean', description: 'Deletion success' },
-      metadata: { type: 'object', description: 'Operation metadata' },
+      user_id: { type: 'string', description: 'The deleted user ID' },
     },
   }
