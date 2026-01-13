@@ -194,8 +194,8 @@ export function ThinkingBlock({
    * Auto-collapses when streaming ends OR when following content arrives
    */
   useEffect(() => {
-    // Collapse if streaming ended or if there's following content (like a tool call)
-    if (!isStreaming || hasFollowingContent) {
+    // Collapse if streaming ended, there's following content, or special tags arrived
+    if (!isStreaming || hasFollowingContent || hasSpecialTags) {
       setIsExpanded(false)
       userCollapsedRef.current = false
       setUserHasScrolledAway(false)
@@ -205,7 +205,7 @@ export function ThinkingBlock({
     if (!userCollapsedRef.current && content && content.trim().length > 0) {
       setIsExpanded(true)
     }
-  }, [isStreaming, content, hasFollowingContent])
+  }, [isStreaming, content, hasFollowingContent, hasSpecialTags])
 
   // Reset start time when streaming begins
   useEffect(() => {

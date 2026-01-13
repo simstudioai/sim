@@ -484,11 +484,11 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           className={`w-full max-w-full overflow-hidden [max-width:var(--panel-max-width)] ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
           style={{ '--panel-max-width': `${panelWidth - 16}px` } as React.CSSProperties}
         >
-          <div className='max-w-full space-y-1.5 px-[2px]'>
+          <div className='max-w-full space-y-1 px-[2px]'>
             {/* Content blocks in chronological order */}
             {memoizedContentBlocks}
 
-            {/* Always show streaming indicator at the end while streaming */}
+            {/* Streaming indicator always at bottom during streaming */}
             {isStreaming && <StreamingIndicator />}
 
             {message.errorType === 'usage_limit' && (
