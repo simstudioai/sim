@@ -145,7 +145,7 @@ Create a new database in Notion with custom properties
 | --------- | ---- | -------- | ----------- |
 | `parentId` | string | Yes | ID of the parent page where the database will be created |
 | `title` | string | Yes | Title for the new database |
-| `properties` | string | No | Database properties as JSON object \(optional, will create a default "Name" property if empty\) |
+| `properties` | json | No | Database properties as JSON object \(optional, will create a default "Name" property if empty\) |
 
 #### Output
 
@@ -156,5 +156,26 @@ Create a new database in Notion with custom properties
 | `url` | string | Database URL |
 | `created_time` | string | Creation timestamp |
 | `properties` | object | Database properties schema |
+
+### `notion_add_database_row`
+
+Add a new row to a Notion database with specified properties
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `databaseId` | string | Yes | ID of the database to add the row to |
+| `properties` | json | Yes | Row properties as JSON object matching the database schema \(e.g., \{"Name": \{"title": \[\{"text": \{"content": "Task 1"\}\}\]\}, "Status": \{"select": \{"name": "Done"\}\}\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Page/row ID |
+| `url` | string | Page/row URL |
+| `title` | string | Row title |
+| `created_time` | string | Creation timestamp |
+| `last_edited_time` | string | Last edit timestamp |
 
 

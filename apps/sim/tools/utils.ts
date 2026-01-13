@@ -9,6 +9,67 @@ import type { TableRow, ToolConfig, ToolResponse } from '@/tools/types'
 const logger = createLogger('ToolsUtils')
 
 /**
+ * Strips version suffix (_v2, _v3, etc.) from a tool ID or name
+ * @example stripVersionSuffix('notion_search_v2') => 'notion_search'
+ * @example stripVersionSuffix('github_create_pr_v3') => 'github_create_pr'
+ */
+export function stripVersionSuffix(name: string): string {
+  return name.replace(/_v\d+$/, '')
+}
+
+/**
+ * Filters a tools map to return only the latest version of each tool.
+ * If both `notion_search` and `notion_search_v2` exist, only `notion_search_v2` is returned.
+ * @param toolsMap Record of tool ID to ToolConfig
+ * @returns Filtered record containing only the latest version of each tool
+ */
+export function getLatestVersionTools(
+  toolsMap: Record<string, ToolConfig>
+): Record<string, ToolConfig> {
+  const latestTools: Record<string, ToolConfig> = {}
+  const baseNameToVersions: Record<string, { toolId: string; version: number }[]> = {}
+
+  for (const toolId of Object.keys(toolsMap)) {
+    const baseName = stripVersionSuffix(toolId)
+    const versionMatch = toolId.match(/_v(\d+)$/)
+    const version = versionMatch ? Number.parseInt(versionMatch[1], 10) : 1
+
+    if (!baseNameToVersions[baseName]) {
+      baseNameToVersions[baseName] = []
+    }
+    baseNameToVersions[baseName].push({ toolId, version })
+  }
+
+  for (const versions of Object.values(baseNameToVersions)) {
+    const latest = versions.reduce((prev, curr) => (curr.version > prev.version ? curr : prev))
+    latestTools[latest.toolId] = toolsMap[latest.toolId]
+  }
+
+  return latestTools
+}
+
+/**
+ * Resolves a tool name to its actual tool ID in the registry.
+ * Handles both stripped names (e.g., 'notion_search') and versioned names (e.g., 'notion_search_v2').
+ * @param toolName The tool name to resolve (may or may not have version suffix)
+ * @returns The actual tool ID in the registry, or the original name if not found
+ */
+export function resolveToolId(toolName: string): string {
+  if (tools[toolName]) {
+    return toolName
+  }
+
+  const latestTools = getLatestVersionTools(tools)
+  for (const toolId of Object.keys(latestTools)) {
+    if (stripVersionSuffix(toolId) === toolName) {
+      return toolId
+    }
+  }
+
+  return toolName
+}
+
+/**
  * Transforms a table from the store format to a key-value object
  * @param table Array of table rows from the store
  * @returns Record of key-value pairs

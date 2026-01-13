@@ -32,7 +32,7 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
       description: 'Title for the new database',
     },
     properties: {
-      type: 'string',
+      type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description:
@@ -55,25 +55,11 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
       }
     },
     body: (params: NotionCreateDatabaseParams) => {
-      let parsedProperties
-
-      // Handle properties - use provided JSON or default to Name property
-      if (params.properties?.trim()) {
-        try {
-          parsedProperties = JSON.parse(params.properties)
-        } catch (error) {
-          throw new Error(
-            `Invalid properties JSON: ${error instanceof Error ? error.message : String(error)}`
-          )
-        }
-      } else {
-        // Default properties with a Name column
-        parsedProperties = {
-          Name: {
-            title: {},
-          },
-        }
-      }
+      // Use provided properties or default to Name property
+      const properties =
+        params.properties && Object.keys(params.properties).length > 0
+          ? params.properties
+          : { Name: { title: {} } }
 
       const body = {
         parent: {
@@ -88,7 +74,7 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
             },
           },
         ],
-        properties: parsedProperties,
+        properties,
       }
 
       return body

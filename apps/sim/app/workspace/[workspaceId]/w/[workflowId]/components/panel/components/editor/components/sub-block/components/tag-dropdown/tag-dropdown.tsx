@@ -303,8 +303,8 @@ const generateOutputPathsWithTypes = (
           paths.push({ path: currentPath, type: 'array' })
           const subPaths = generateOutputPathsWithTypes(value.items.properties, currentPath)
           paths.push(...subPaths)
-        } else if (value.type === 'object' && value.properties) {
-          paths.push({ path: currentPath, type: 'object' })
+        } else if ((value.type === 'object' || value.type === 'json') && value.properties) {
+          paths.push({ path: currentPath, type: value.type })
           const subPaths = generateOutputPathsWithTypes(value.properties, currentPath)
           paths.push(...subPaths)
         } else {

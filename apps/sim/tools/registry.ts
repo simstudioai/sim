@@ -872,6 +872,7 @@ import {
   neo4jUpdateTool,
 } from '@/tools/neo4j'
 import {
+  notionAddDatabaseRowTool,
   notionCreateDatabaseTool,
   notionCreateDatabaseV2Tool,
   notionCreatePageTool,
@@ -1781,6 +1782,7 @@ export const tools: Record<string, ToolConfig> = {
   notion_search_v2: notionSearchV2Tool,
   notion_create_database_v2: notionCreateDatabaseV2Tool,
   notion_update_page_v2: notionUpdatePageV2Tool,
+  notion_add_database_row_v2: notionAddDatabaseRowTool,
   gmail_send: gmailSendTool,
   gmail_send_v2: gmailSendV2Tool,
   gmail_read: gmailReadTool,

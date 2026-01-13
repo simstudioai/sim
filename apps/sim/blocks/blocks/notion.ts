@@ -27,6 +27,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         { label: 'Read Database', id: 'notion_read_database' },
         { label: 'Create Page', id: 'notion_create_page' },
         { label: 'Create Database', id: 'notion_create_database' },
+        { label: 'Add Database Row', id: 'notion_add_database_row' },
         { label: 'Append Content', id: 'notion_write' },
         { label: 'Query Database', id: 'notion_query_database' },
         { label: 'Search Workspace', id: 'notion_search' },
@@ -146,11 +147,10 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     },
     {
       id: 'filter',
-      title: 'Filter (JSON)',
-      type: 'long-input',
+      title: 'Filter',
+      type: 'code',
       placeholder: 'Enter filter conditions as JSON (optional)',
       condition: { field: 'operation', value: 'notion_query_database' },
-      required: true,
       wandConfig: {
         enabled: true,
         prompt:
@@ -162,8 +162,8 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     },
     {
       id: 'sorts',
-      title: 'Sort Criteria (JSON)',
-      type: 'long-input',
+      title: 'Sort Criteria',
+      type: 'code',
       placeholder: 'Enter sort criteria as JSON array (optional)',
       condition: { field: 'operation', value: 'notion_query_database' },
       wandConfig: {
@@ -231,16 +231,41 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     },
     {
       id: 'properties',
-      title: 'Database Properties (JSON)',
-      type: 'long-input',
+      title: 'Database Properties',
+      type: 'code',
       placeholder: 'Enter database properties as JSON object',
       condition: { field: 'operation', value: 'notion_create_database' },
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate Notion database properties in JSON format based on the user\'s description. Properties define the schema of the database. Common types: "title" (required), "rich_text", "number", "select" (with options), "multi_select", "date", "checkbox", "url", "email", "phone_number". Example: {"Name": {"title": {}}, "Status": {"select": {"options": [{"name": "To Do"}, {"name": "Done"}]}}, "Priority": {"number": {}}}. Return ONLY valid JSON - no explanations.',
+          'Generate Notion database properties in JSON format based on the user\'s description. Only provide the json, no escaping required. Properties define the schema of the database. Common types: "title" (required), "rich_text", "number", "select" (with options), "multi_select", "date", "checkbox", "url", "email", "phone_number". Example: {"Name": {"title": {}}, "Status": {"select": {"options": [{"name": "To Do"}, {"name": "Done"}]}}, "Priority": {"number": {}}}. Return ONLY valid JSON - no explanations.',
         placeholder:
           'Describe the columns/properties you want (e.g., "name, status dropdown, due date, priority number")...',
+        generationType: 'json-object',
+      },
+    },
+    // Add Database Row Fields
+    {
+      id: 'databaseId',
+      title: 'Database ID',
+      type: 'short-input',
+      placeholder: 'Enter Notion database ID',
+      condition: { field: 'operation', value: 'notion_add_database_row' },
+      required: true,
+    },
+    {
+      id: 'properties',
+      title: 'Row Properties',
+      type: 'code',
+      placeholder: 'Enter row properties as JSON object',
+      condition: { field: 'operation', value: 'notion_add_database_row' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate Notion page/row properties in JSON format based on the user\'s description. Properties must match the database schema. Common formats: Title: {"Name": {"title": [{"text": {"content": "Value"}}]}}, Text: {"Description": {"rich_text": [{"text": {"content": "Value"}}]}}, Number: {"Price": {"number": 10}}, Select: {"Status": {"select": {"name": "Done"}}}, Multi-select: {"Tags": {"multi_select": [{"name": "Tag1"}, {"name": "Tag2"}]}}, Date: {"Due": {"date": {"start": "2024-01-01"}}}, Checkbox: {"Done": {"checkbox": true}}, URL: {"Link": {"url": "https://..."}}, Email: {"Contact": {"email": "test@example.com"}}. Return ONLY valid JSON - no explanations.',
+        placeholder:
+          'Describe the row data (e.g., "name is Task 1, status is Done, priority is High")...',
         generationType: 'json-object',
       },
     },
@@ -279,18 +304,24 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       params: (params) => {
         const { credential, operation, properties, filter, sorts, ...rest } = params
 
-        // Parse properties from JSON string for create operations
+        // Parse properties from JSON string for create/add operations
         let parsedProperties
         if (
-          (operation === 'notion_create_page' || operation === 'notion_create_database') &&
+          (operation === 'notion_create_page' ||
+            operation === 'notion_create_database' ||
+            operation === 'notion_add_database_row') &&
           properties
         ) {
-          try {
-            parsedProperties = JSON.parse(properties)
-          } catch (error) {
-            throw new Error(
-              `Invalid JSON for properties: ${error instanceof Error ? error.message : String(error)}`
-            )
+          if (typeof properties === 'string') {
+            try {
+              parsedProperties = JSON.parse(properties)
+            } catch (error) {
+              throw new Error(
+                `Invalid JSON for properties: ${error instanceof Error ? error.message : String(error)}`
+              )
+            }
+          } else {
+            parsedProperties = properties
           }
         }
 
@@ -384,6 +415,7 @@ export const NotionV2Block: BlockConfig<any> = {
       'notion_query_database_v2',
       'notion_search_v2',
       'notion_create_database_v2',
+      'notion_add_database_row_v2',
     ],
     config: {
       tool: createVersionedToolSelector({
@@ -418,6 +450,7 @@ export const NotionV2Block: BlockConfig<any> = {
         value: [
           'notion_create_page',
           'notion_create_database',
+          'notion_add_database_row',
           'notion_read_database',
           'notion_update_page',
         ],

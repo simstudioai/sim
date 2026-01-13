@@ -243,6 +243,11 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
       finalSystemPrompt += currentTimeContext
     }
 
+    if (generationType === 'json-object') {
+      finalSystemPrompt +=
+        '\n\nIMPORTANT: Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks (no ```json or ```). Do NOT include any explanation or text before or after the JSON. The response must start with { and end with }.'
+    }
+
     const messages: ChatMessage[] = [{ role: 'system', content: finalSystemPrompt }]
 
     messages.push(...history.filter((msg) => msg.role !== 'system'))

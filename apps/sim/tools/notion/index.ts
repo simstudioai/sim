@@ -1,3 +1,4 @@
+import { notionAddDatabaseRowTool } from '@/tools/notion/add_database_row'
 import {
   notionCreateDatabaseTool,
   notionCreateDatabaseV2Tool,
@@ -29,4 +30,5 @@ export {
   notionQueryDatabaseV2Tool,
   notionSearchV2Tool,
   notionCreateDatabaseV2Tool,
+  notionAddDatabaseRowTool,
 }
