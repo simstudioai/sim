@@ -410,8 +410,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
         // Arrow navigation in slash menu
         if (showSlashMenu) {
-          const TOP_LEVEL_COMMANDS = ['plan', 'debug', 'fast', 'superagent', 'research', 'deploy', 'search']
-          const WEB_COMMANDS = ['crawl', 'read', 'scrape']
+          const TOP_LEVEL_COMMANDS = ['plan', 'debug', 'fast', 'superagent', 'deploy']
+          const WEB_COMMANDS = ['search', 'research', 'crawl', 'read', 'scrape']
           const ALL_COMMANDS = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
 
           const caretPos = mentionMenu.getCaretPos()
@@ -460,7 +460,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           if (e.key === 'ArrowRight') {
             e.preventDefault()
             if (!showAggregatedView && !mentionMenu.openSubmenuFor) {
-              // Check if Web folder is selected
+              // Check if Web folder is selected (it's after all top-level commands)
               if (mentionMenu.mentionActiveIndex === TOP_LEVEL_COMMANDS.length) {
                 mentionMenu.setOpenSubmenuFor('Web')
                 mentionMenu.setSubmenuActiveIndex(0)
