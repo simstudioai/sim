@@ -204,7 +204,8 @@ export function A2aDeploy({
   const [skillTags, setSkillTags] = useState<string[]>([])
   const [language, setLanguage] = useState<CodeLanguage>('curl')
   const [useStreamingExample, setUseStreamingExample] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [urlCopied, setUrlCopied] = useState(false)
+  const [codeCopied, setCodeCopied] = useState(false)
 
   useEffect(() => {
     if (existingAgent) {
@@ -451,7 +452,7 @@ export function A2aDeploy({
     }
 
     try {
-      if (!isDeployed && onDeployWorkflow) {
+      if ((!isDeployed || workflowNeedsRedeployment) && onDeployWorkflow) {
         await onDeployWorkflow()
       }
 
@@ -475,6 +476,7 @@ export function A2aDeploy({
   }, [
     existingAgent,
     isDeployed,
+    workflowNeedsRedeployment,
     onDeployWorkflow,
     name,
     description,
@@ -643,8 +645,8 @@ console.log(data);`
 
   const handleCopyCommand = useCallback(() => {
     navigator.clipboard.writeText(getCurlCommand())
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setCodeCopied(true)
+    setTimeout(() => setCodeCopied(false), 2000)
   }, [getCurlCommand])
 
   if (isLoading) {
@@ -702,12 +704,12 @@ console.log(data);`
                     type='button'
                     onClick={() => {
                       navigator.clipboard.writeText(endpoint)
-                      setCopied(true)
-                      setTimeout(() => setCopied(false), 2000)
+                      setUrlCopied(true)
+                      setTimeout(() => setUrlCopied(false), 2000)
                     }}
                     className='-translate-y-1/2 absolute top-1/2 right-2'
                   >
-                    {copied ? (
+                    {urlCopied ? (
                       <Check className='h-3 w-3 text-[var(--brand-tertiary-2)]' />
                     ) : (
                       <Clipboard className='h-3 w-3 text-[var(--text-tertiary)]' />
@@ -715,7 +717,7 @@ console.log(data);`
                   </button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  <span>{copied ? 'Copied' : 'Copy'}</span>
+                  <span>{urlCopied ? 'Copied' : 'Copy'}</span>
                 </Tooltip.Content>
               </Tooltip.Root>
             </div>
@@ -871,11 +873,15 @@ console.log(data);`
                       aria-label='Copy command'
                       className='!p-1.5 -my-1.5'
                     >
-                      {copied ? <Check className='h-3 w-3' /> : <Clipboard className='h-3 w-3' />}
+                      {codeCopied ? (
+                        <Check className='h-3 w-3' />
+                      ) : (
+                        <Clipboard className='h-3 w-3' />
+                      )}
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
-                    <span>{copied ? 'Copied' : 'Copy'}</span>
+                    <span>{codeCopied ? 'Copied' : 'Copy'}</span>
                   </Tooltip.Content>
                 </Tooltip.Root>
               </div>

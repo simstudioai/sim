@@ -78,12 +78,16 @@ export interface A2AFile {
 export function extractFileContent(message: Message): A2AFile[] {
   return message.parts
     .filter((part): part is FilePart => part.kind === 'file')
-    .map((part) => ({
-      name: part.file.name,
-      mimeType: part.file.mimeType,
-      ...('uri' in part.file ? { uri: part.file.uri } : {}),
-      ...('bytes' in part.file ? { bytes: part.file.bytes } : {}),
-    }))
+    .map((part) => {
+      const file = part.file as unknown as Record<string, unknown>
+      const uri = (file.url as string) || (file.uri as string)
+      return {
+        name: file.name as string | undefined,
+        mimeType: file.mimeType as string | undefined,
+        ...(uri ? { uri } : {}),
+        ...(file.bytes ? { bytes: file.bytes as string } : {}),
+      }
+    })
 }
 
 export interface ExecutionFileInput {

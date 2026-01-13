@@ -384,7 +384,7 @@ async function handleMessageSend(
         headers,
         body: JSON.stringify({
           ...workflowInput,
-          triggerType: 'api',
+          triggerType: 'a2a',
           ...(useInternalAuth && { workflowId: agent.workflowId }),
         }),
         signal: AbortSignal.timeout(A2A_DEFAULT_TIMEOUT),
@@ -613,7 +613,7 @@ async function handleMessageStream(
           headers,
           body: JSON.stringify({
             ...workflowInput,
-            triggerType: 'api',
+            triggerType: 'a2a',
             stream: true,
             ...(useInternalAuth && { workflowId: agent.workflowId }),
           }),

@@ -38,6 +38,7 @@ export function getTriggerOptions(): TriggerOption[] {
     { value: 'form', label: 'Form', color: '#06b6d4' },
     { value: 'webhook', label: 'Webhook', color: '#ea580c' },
     { value: 'mcp', label: 'MCP', color: '#dc2626' },
+    { value: 'a2a', label: 'A2A', color: '#14b8a6' },
   ]
 
   for (const trigger of triggers) {
