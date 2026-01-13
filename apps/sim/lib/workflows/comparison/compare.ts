@@ -24,7 +24,9 @@ export function hasWorkflowChanged(
   deployedState: WorkflowState | null
 ): boolean {
   // If no deployed state exists, then the workflow has changed
-  if (!deployedState) return true
+  if (!deployedState) {
+    return true
+  }
 
   // 1. Compare edges (connections between blocks)
   const currentEdges = currentState.edges || []
