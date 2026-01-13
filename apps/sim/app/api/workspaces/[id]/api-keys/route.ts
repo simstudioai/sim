@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { apiKey, workspace } from '@sim/db/schema'
+import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
@@ -9,7 +9,7 @@ import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceApiKeysAPI')
 
@@ -34,8 +34,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const userId = session.user.id
 
-    const ws = await db.select().from(workspace).where(eq(workspace.id, workspaceId)).limit(1)
-    if (!ws.length) {
+    const ws = await getWorkspaceById(workspaceId)
+    if (!ws) {
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 

@@ -14,7 +14,6 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
-import { getEnv } from '@/lib/core/config/env'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
@@ -392,7 +391,7 @@ export function FormDeploy({
     )
   }
 
-  const fullUrl = `${getEnv('NEXT_PUBLIC_APP_URL')}/form/${identifier}`
+  const fullUrl = `${getBaseUrl()}/form/${identifier}`
   const displayUrl = fullUrl.replace(/^https?:\/\//, '')
 
   return (

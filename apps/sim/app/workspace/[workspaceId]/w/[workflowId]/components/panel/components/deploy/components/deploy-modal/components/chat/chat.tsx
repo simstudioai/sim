@@ -23,7 +23,7 @@ import { Alert, AlertDescription, Skeleton } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { generatePassword } from '@/lib/core/security/encryption'
 import { cn } from '@/lib/core/utils/cn'
-import { getEmailDomain } from '@/lib/core/utils/urls'
+import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 import {
@@ -493,7 +493,7 @@ function IdentifierInput({
     onChange(lowercaseValue)
   }
 
-  const fullUrl = `${getEnv('NEXT_PUBLIC_APP_URL')}/chat/${value}`
+  const fullUrl = `${getBaseUrl()}/chat/${value}`
   const displayUrl = fullUrl.replace(/^https?:\/\//, '')
 
   return (

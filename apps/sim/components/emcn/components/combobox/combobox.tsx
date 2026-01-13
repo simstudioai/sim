@@ -59,6 +59,8 @@ export type ComboboxOption = {
 export type ComboboxOptionGroup = {
   /** Optional section header label */
   section?: string
+  /** Optional custom section header element (overrides section label) */
+  sectionElement?: ReactNode
   /** Options in this group */
   items: ComboboxOption[]
 }
@@ -625,11 +627,13 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                   <div className='space-y-[2px]'>
                     {filteredGroups.map((group, groupIndex) => (
                       <div key={group.section || `group-${groupIndex}`}>
-                        {group.section && (
-                          <div className='px-[6px] py-[4px] font-base text-[11px] text-[var(--text-tertiary)] first:pt-[4px]'>
-                            {group.section}
-                          </div>
-                        )}
+                        {group.sectionElement
+                          ? group.sectionElement
+                          : group.section && (
+                              <div className='px-[6px] py-[4px] font-base text-[11px] text-[var(--text-tertiary)] first:pt-[4px]'>
+                                {group.section}
+                              </div>
+                            )}
                         {group.items.map((option) => {
                           const isSelected = multiSelect
                             ? multiSelectValues?.includes(option.value)

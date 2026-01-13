@@ -174,7 +174,15 @@ export type TimeRange =
 
 export type LogLevel = 'error' | 'info' | 'running' | 'pending' | 'all' | (string & {})
 /** Core trigger types for workflow execution */
-export const CORE_TRIGGER_TYPES = ['manual', 'api', 'schedule', 'chat', 'webhook', 'mcp'] as const
+export const CORE_TRIGGER_TYPES = [
+  'manual',
+  'api',
+  'schedule',
+  'chat',
+  'webhook',
+  'mcp',
+  'a2a',
+] as const
 
 export type CoreTriggerType = (typeof CORE_TRIGGER_TYPES)[number]
 

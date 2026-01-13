@@ -1,16 +1,13 @@
 import { db } from '@sim/db'
-import { permissions, userStats, workflow as workflowTable, workspace } from '@sim/db/schema'
+import { permissions, userStats, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import type { InferSelectModel } from 'drizzle-orm'
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import type { PermissionType } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceWithOwner, type PermissionType } from '@/lib/workspaces/permissions/utils'
 import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('WorkflowUtils')
-
-type WorkflowSelection = InferSelectModel<typeof workflowTable>
 
 export async function getWorkflowById(id: string) {
   const rows = await db.select().from(workflowTable).where(eq(workflowTable.id, id)).limit(1)
@@ -44,11 +41,7 @@ export async function getWorkflowAccessContext(
   let workspacePermission: PermissionType | null = null
 
   if (workflow.workspaceId) {
-    const [workspaceRow] = await db
-      .select({ ownerId: workspace.ownerId })
-      .from(workspace)
-      .where(eq(workspace.id, workflow.workspaceId))
-      .limit(1)
+    const workspaceRow = await getWorkspaceWithOwner(workflow.workspaceId)
 
     workspaceOwnerId = workspaceRow?.ownerId ?? null
 
@@ -147,7 +140,6 @@ export const workflowHasResponseBlock = (executionResult: ExecutionResult): bool
   return responseBlock !== undefined
 }
 
-// Create a HTTP response from response block
 export const createHttpResponseFromBlock = (executionResult: ExecutionResult): NextResponse => {
   const { data = {}, status = 200, headers = {} } = executionResult.output
 
