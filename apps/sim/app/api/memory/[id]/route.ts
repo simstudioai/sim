@@ -1,11 +1,12 @@
 import { db } from '@sim/db'
-import { memory, permissions, workspace } from '@sim/db/schema'
+import { memory } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MemoryByIdAPI')
 
@@ -29,46 +30,6 @@ const memoryPutBodySchema = z.object({
   workspaceId: z.string().uuid('Invalid workspace ID format'),
 })
 
-async function checkWorkspaceAccess(
-  workspaceId: string,
-  userId: string
-): Promise<{ hasAccess: boolean; canWrite: boolean }> {
-  const [workspaceRow] = await db
-    .select({ ownerId: workspace.ownerId })
-    .from(workspace)
-    .where(eq(workspace.id, workspaceId))
-    .limit(1)
-
-  if (!workspaceRow) {
-    return { hasAccess: false, canWrite: false }
-  }
-
-  if (workspaceRow.ownerId === userId) {
-    return { hasAccess: true, canWrite: true }
-  }
-
-  const [permissionRow] = await db
-    .select({ permissionType: permissions.permissionType })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workspaceId)
-      )
-    )
-    .limit(1)
-
-  if (!permissionRow) {
-    return { hasAccess: false, canWrite: false }
-  }
-
-  return {
-    hasAccess: true,
-    canWrite: permissionRow.permissionType === 'write' || permissionRow.permissionType === 'admin',
-  }
-}
-
 async function validateMemoryAccess(
   request: NextRequest,
   workspaceId: string,
@@ -86,8 +47,8 @@ async function validateMemoryAccess(
     }
   }
 
-  const { hasAccess, canWrite } = await checkWorkspaceAccess(workspaceId, authResult.userId)
-  if (!hasAccess) {
+  const access = await checkWorkspaceAccess(workspaceId, authResult.userId)
+  if (!access.exists || !access.hasAccess) {
     return {
       error: NextResponse.json(
         { success: false, error: { message: 'Workspace not found' } },
@@ -96,7 +57,7 @@ async function validateMemoryAccess(
     }
   }
 
-  if (action === 'write' && !canWrite) {
+  if (action === 'write' && !access.canWrite) {
     return {
       error: NextResponse.json(
         { success: false, error: { message: 'Write access denied' } },

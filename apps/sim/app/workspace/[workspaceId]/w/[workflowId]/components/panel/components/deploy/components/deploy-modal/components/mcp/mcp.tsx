@@ -513,25 +513,31 @@ export function McpDeploy({
             {inputFormat.map((field) => (
               <div
                 key={field.name}
-                className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
+                className='overflow-hidden rounded-[4px] border border-[var(--border-1)]'
               >
-                <div className='flex items-center justify-between'>
-                  <p className='font-medium text-[13px] text-[var(--text-primary)]'>{field.name}</p>
-                  <Badge variant='outline' className='text-[10px]'>
-                    {field.type}
-                  </Badge>
+                <div className='flex items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'>
+                  <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+                    <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
+                      {field.name}
+                    </span>
+                    <Badge size='sm'>{field.type}</Badge>
+                  </div>
                 </div>
-                <Input
-                  value={parameterDescriptions[field.name] || ''}
-                  onChange={(e) =>
-                    setParameterDescriptions((prev) => ({
-                      ...prev,
-                      [field.name]: e.target.value,
-                    }))
-                  }
-                  placeholder='Description'
-                  className='mt-[6px] h-[28px] text-[12px]'
-                />
+                <div className='border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
+                  <div className='flex flex-col gap-[6px]'>
+                    <Label className='text-[13px]'>Description</Label>
+                    <Input
+                      value={parameterDescriptions[field.name] || ''}
+                      onChange={(e) =>
+                        setParameterDescriptions((prev) => ({
+                          ...prev,
+                          [field.name]: e.target.value,
+                        }))
+                      }
+                      placeholder={`Enter description for ${field.name}`}
+                    />
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -551,7 +557,6 @@ export function McpDeploy({
           searchable
           searchPlaceholder='Search servers...'
           disabled={!toolName.trim() || isPending}
-          isLoading={isPending}
           overlayContent={
             <span className='truncate text-[var(--text-primary)]'>{selectedServersLabel}</span>
           }

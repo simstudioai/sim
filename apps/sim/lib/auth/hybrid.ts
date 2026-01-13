@@ -113,7 +113,7 @@ export async function checkHybridAuth(
       }
     }
 
-    // 3. Try API key auth
+    // 3. Try API key auth (X-API-Key header only)
     const apiKeyHeader = request.headers.get('x-api-key')
     if (apiKeyHeader) {
       const result = await authenticateApiKeyFromHeader(apiKeyHeader)

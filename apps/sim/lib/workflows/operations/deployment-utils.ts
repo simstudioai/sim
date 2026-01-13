@@ -6,6 +6,47 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('DeploymentUtils')
 
+export interface InputField {
+  name: string
+  type: string
+}
+
+/**
+ * Gets the input format from the Start block
+ * Returns an array of field definitions with name and type
+ */
+export function getStartBlockInputFormat(): InputField[] {
+  try {
+    const candidates = resolveStartCandidates(useWorkflowStore.getState().blocks, {
+      execution: 'api',
+    })
+
+    const targetCandidate =
+      candidates.find((candidate) => candidate.path === StartBlockPath.UNIFIED) ||
+      candidates.find((candidate) => candidate.path === StartBlockPath.SPLIT_API) ||
+      candidates.find((candidate) => candidate.path === StartBlockPath.SPLIT_INPUT) ||
+      candidates.find((candidate) => candidate.path === StartBlockPath.LEGACY_STARTER)
+
+    const targetBlock = targetCandidate?.block
+
+    if (targetBlock) {
+      const inputFormat = useSubBlockStore.getState().getValue(targetBlock.id, 'inputFormat')
+      if (inputFormat && Array.isArray(inputFormat)) {
+        return inputFormat
+          .map((field: { name?: string; type?: string }) => ({
+            name: field.name || '',
+            type: field.type || 'string',
+          }))
+          .filter((field) => field.name)
+      }
+    }
+  } catch (error) {
+    logger.warn('Error getting start block input format:', error)
+  }
+
+  return []
+}
+
 /**
  * Gets the input format example for a workflow's API deployment
  * Returns the -d flag with example data if inputs exist, empty string otherwise
@@ -72,13 +113,11 @@ export function getInputFormatExample(
         })
       }
 
-      // Add streaming parameters if enabled and outputs are selected
       if (includeStreaming && selectedStreamingOutputs.length > 0) {
         exampleData.stream = true
 
         const convertedOutputs = selectedStreamingOutputs
           .map((outputId) => {
-            // If it starts with a UUID, convert to blockName.attribute format
             if (startsWithUuid(outputId)) {
               const underscoreIndex = outputId.indexOf('_')
               if (underscoreIndex === -1) return null
@@ -86,25 +125,20 @@ export function getInputFormatExample(
               const blockId = outputId.substring(0, underscoreIndex)
               const attribute = outputId.substring(underscoreIndex + 1)
 
-              // Find the block by ID and get its name
               const block = blocks.find((b) => b.id === blockId)
               if (block?.name) {
                 return `${normalizeName(block.name)}.${attribute}`
               }
-              // Block not found (deleted), return null to filter out
               return null
             }
 
-            // Already in blockName.attribute format, verify the block exists
             const parts = outputId.split('.')
             if (parts.length >= 2) {
               const blockName = parts[0]
-              // Check if a block with this name exists
               const block = blocks.find(
                 (b) => b.name && normalizeName(b.name) === normalizeName(blockName)
               )
               if (!block) {
-                // Block not found (deleted), return null to filter out
                 return null
               }
             }
