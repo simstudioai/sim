@@ -133,7 +133,8 @@ export function ThinkingBlock({
     return () => container.removeEventListener('scroll', handleScroll)
   }, [isExpanded, userHasScrolledAway])
 
-  // Smart auto-scroll: only scroll if user hasn't scrolled away
+  // Smart auto-scroll: always scroll to bottom while streaming unless user scrolled away
+  // This matches the main chat behavior in useScrollManagement
   useEffect(() => {
     if (!isStreaming || !isExpanded || userHasScrolledAway) return
 
@@ -141,20 +142,16 @@ export function ThinkingBlock({
       const container = scrollContainerRef.current
       if (!container) return
 
-      const { scrollTop, scrollHeight, clientHeight } = container
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-      const isNearBottom = distanceFromBottom <= 50
-
-      if (isNearBottom) {
-        programmaticScrollRef.current = true
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: 'smooth',
-        })
-        window.setTimeout(() => {
-          programmaticScrollRef.current = false
-        }, 150)
-      }
+      // Always scroll to bottom during streaming (like main chat does)
+      // User can break out by scrolling up, which sets userHasScrolledAway
+      programmaticScrollRef.current = true
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth',
+      })
+      window.setTimeout(() => {
+        programmaticScrollRef.current = false
+      }, 150)
     }, SCROLL_INTERVAL)
 
     return () => window.clearInterval(intervalId)
