@@ -262,12 +262,13 @@ while (true) {
   ${endpoint}`
 
           case 'python':
-            return `import requests
+            return `import os
+import requests
 
 response = requests.post(
     "${endpoint}",
     headers={
-        "X-API-Key": process.env.SIM_API_KEY,
+        "X-API-Key": os.environ.get("SIM_API_KEY"),
         "Content-Type": "application/json",
         "X-Execution-Mode": "async"
     },
@@ -316,11 +317,12 @@ console.log(job); // Contains job_id for status checking`
   ${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION`
 
           case 'python':
-            return `import requests
+            return `import os
+import requests
 
 response = requests.get(
     "${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION",
-    headers={"X-API-Key": SIM_API_KEY}
+    headers={"X-API-Key": os.environ.get("SIM_API_KEY")}
 )
 
 status = response.json()
@@ -330,7 +332,7 @@ print(status)`
             return `const response = await fetch(
   "${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION",
   {
-    headers: { "X-API-Key": SIM_API_KEY }
+    headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
 );
 
@@ -341,7 +343,7 @@ console.log(status);`
             return `const response = await fetch(
   "${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION",
   {
-    headers: { "X-API-Key": SIM_API_KEY }
+    headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
 );
 
@@ -359,11 +361,12 @@ console.log(status);`
   ${baseUrl}/api/users/me/usage-limits`
 
           case 'python':
-            return `import requests
+            return `import os
+import requests
 
 response = requests.get(
     "${baseUrl}/api/users/me/usage-limits",
-    headers={"X-API-Key": SIM_API_KEY}
+    headers={"X-API-Key": os.environ.get("SIM_API_KEY")}
 )
 
 limits = response.json()
@@ -373,7 +376,7 @@ print(limits)`
             return `const response = await fetch(
   "${baseUrl}/api/users/me/usage-limits",
   {
-    headers: { "X-API-Key": SIM_API_KEY }
+    headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
 );
 
@@ -384,7 +387,7 @@ console.log(limits);`
             return `const response = await fetch(
   "${baseUrl}/api/users/me/usage-limits",
   {
-    headers: { "X-API-Key": SIM_API_KEY }
+    headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
 );
 
