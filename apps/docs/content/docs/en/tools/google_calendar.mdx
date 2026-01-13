@@ -14,12 +14,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## Tools
 
-### `google_calendar_create_v2`
+### `google_calendar_create`
+
+Create a new event in Google Calendar. Returns API-aligned fields only.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Calendar ID \(defaults to primary\) |
+| `summary` | string | Yes | Event title/summary |
+| `description` | string | No | Event description |
+| `location` | string | No | Event location |
+| `startDateTime` | string | Yes | Start date and time. MUST include timezone offset \(e.g., 2025-06-03T10:00:00-08:00\) OR provide timeZone parameter |
+| `endDateTime` | string | Yes | End date and time. MUST include timezone offset \(e.g., 2025-06-03T11:00:00-08:00\) OR provide timeZone parameter |
+| `timeZone` | string | No | Time zone \(e.g., America/Los_Angeles\). Required if datetime does not include offset. Defaults to America/Los_Angeles if not provided. |
+| `attendees` | array | No | Array of attendee email addresses |
+| `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
 
 #### Output
 
@@ -36,17 +47,39 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `attendees` | json | Event attendees |
 | `creator` | json | Event creator |
 | `organizer` | json | Event organizer |
-| `events` | json | List of events \(list operation\) |
-| `nextPageToken` | string | Next page token |
-| `nextSyncToken` | string | Next sync token |
-| `timeZone` | string | Calendar time zone |
 
-### `google_calendar_list_v2`
+### `google_calendar_list`
+
+List events from Google Calendar. Returns API-aligned fields only.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Calendar ID \(defaults to primary\) |
+| `timeMin` | string | No | Lower bound for events \(RFC3339 timestamp, e.g., 2025-06-03T00:00:00Z\) |
+| `timeMax` | string | No | Upper bound for events \(RFC3339 timestamp, e.g., 2025-06-04T00:00:00Z\) |
+| `orderBy` | string | No | Order of events returned \(startTime or updated\) |
+| `showDeleted` | boolean | No | Include deleted events |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextPageToken` | string | Next page token |
+| `timeZone` | string | Calendar time zone |
+| `events` | json | List of events |
+
+### `google_calendar_get`
+
+Get a specific event from Google Calendar. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Calendar ID \(defaults to primary\) |
+| `eventId` | string | Yes | Event ID to retrieve |
 
 #### Output
 
@@ -63,17 +96,19 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `attendees` | json | Event attendees |
 | `creator` | json | Event creator |
 | `organizer` | json | Event organizer |
-| `events` | json | List of events \(list operation\) |
-| `nextPageToken` | string | Next page token |
-| `nextSyncToken` | string | Next sync token |
-| `timeZone` | string | Calendar time zone |
 
-### `google_calendar_get_v2`
+### `google_calendar_quick_add`
+
+Create events from natural language text. Returns API-aligned fields only.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Calendar ID \(defaults to primary\) |
+| `text` | string | Yes | Natural language text describing the event \(e.g., "Meeting with John tomorrow at 3pm"\) |
+| `attendees` | array | No | Array of attendee email addresses \(comma-separated string also accepted\) |
+| `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
 
 #### Output
 
@@ -90,17 +125,20 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `attendees` | json | Event attendees |
 | `creator` | json | Event creator |
 | `organizer` | json | Event organizer |
-| `events` | json | List of events \(list operation\) |
-| `nextPageToken` | string | Next page token |
-| `nextSyncToken` | string | Next sync token |
-| `timeZone` | string | Calendar time zone |
 
-### `google_calendar_quick_add_v2`
+### `google_calendar_invite`
+
+Invite attendees to an existing Google Calendar event. Returns API-aligned fields only.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Calendar ID \(defaults to primary\) |
+| `eventId` | string | Yes | Event ID to invite attendees to |
+| `attendees` | array | Yes | Array of attendee email addresses to invite |
+| `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
+| `replaceExisting` | boolean | No | Whether to replace existing attendees or add to them \(defaults to false\) |
 
 #### Output
 
@@ -117,41 +155,5 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `attendees` | json | Event attendees |
 | `creator` | json | Event creator |
 | `organizer` | json | Event organizer |
-| `events` | json | List of events \(list operation\) |
-| `nextPageToken` | string | Next page token |
-| `nextSyncToken` | string | Next sync token |
-| `timeZone` | string | Calendar time zone |
-
-### `google_calendar_invite_v2`
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `id` | string | Event ID |
-| `htmlLink` | string | Event link |
-| `status` | string | Event status |
-| `summary` | string | Event title |
-| `description` | string | Event description |
-| `location` | string | Event location |
-| `start` | json | Event start |
-| `end` | json | Event end |
-| `attendees` | json | Event attendees |
-| `creator` | json | Event creator |
-| `organizer` | json | Event organizer |
-| `events` | json | List of events \(list operation\) |
-| `nextPageToken` | string | Next page token |
-| `nextSyncToken` | string | Next sync token |
-| `timeZone` | string | Calendar time zone |
 
 
-
-## Notes
-
-- Category: `misc`
-- Type: `google_calendar_v2`

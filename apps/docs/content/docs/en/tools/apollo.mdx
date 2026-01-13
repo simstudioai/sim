@@ -240,9 +240,7 @@ Search your team
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contacts` | json | Array of contacts matching the search criteria |
-| `page` | number | Current page number |
-| `per_page` | number | Results per page |
-| `total_entries` | number | Total matching entries |
+| `pagination` | json | Pagination information |
 
 ### `apollo_contact_bulk_create`
 
@@ -350,9 +348,7 @@ Search your team
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accounts` | json | Array of accounts matching the search criteria |
-| `page` | number | Current page number |
-| `per_page` | number | Results per page |
-| `total_entries` | number | Total matching entries |
+| `pagination` | json | Pagination information |
 
 ### `apollo_account_bulk_create`
 
@@ -575,9 +571,7 @@ Search for tasks in Apollo
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tasks` | json | Array of tasks matching the search criteria |
-| `page` | number | Current page number |
-| `per_page` | number | Results per page |
-| `total_entries` | number | Total matching entries |
+| `pagination` | json | Pagination information |
 
 ### `apollo_email_accounts`
 
@@ -597,8 +591,3 @@ Get list of team
 | `total` | number | Total count of email accounts |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `apollo`

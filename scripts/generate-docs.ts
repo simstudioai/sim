@@ -283,6 +283,14 @@ function extractBlockConfigFromContent(
   }
 }
 
+/**
+ * Strip version suffix (e.g., _v2, _v3) from a type for display purposes
+ * The internal type remains unchanged for icon mapping
+ */
+function stripVersionSuffix(type: string): string {
+  return type.replace(/_v\d+$/, '')
+}
+
 function extractStringPropertyFromContent(content: string, propName: string): string | null {
   const singleQuoteMatch = content.match(new RegExp(`${propName}\\s*:\\s*'([^']*)'`, 'm'))
   if (singleQuoteMatch) return singleQuoteMatch[1]
@@ -592,12 +600,43 @@ function extractToolInfo(
   outputs: Record<string, any>
 } | null {
   try {
+    // First, try to find the specific tool definition by its ID
+    // Look for: id: 'toolName' or id: "toolName"
+    const toolIdRegex = new RegExp(`id:\\s*['"]${toolName}['"]`)
+    const toolIdMatch = fileContent.match(toolIdRegex)
+
+    let toolContent = fileContent
+    if (toolIdMatch && toolIdMatch.index !== undefined) {
+      // Find the tool definition block that contains this ID
+      // Search backwards for 'export const' or start of object
+      const beforeId = fileContent.substring(0, toolIdMatch.index)
+      const exportMatch = beforeId.match(/export\s+const\s+\w+[^=]*=\s*\{[\s\S]*$/)
+
+      if (exportMatch && exportMatch.index !== undefined) {
+        const startIndex = exportMatch.index + exportMatch[0].length - 1
+        let braceCount = 1
+        let endIndex = startIndex + 1
+
+        while (endIndex < fileContent.length && braceCount > 0) {
+          if (fileContent[endIndex] === '{') braceCount++
+          else if (fileContent[endIndex] === '}') braceCount--
+          endIndex++
+        }
+
+        if (braceCount === 0) {
+          toolContent = fileContent.substring(startIndex, endIndex)
+        }
+      }
+    }
+
+    // Params are often inherited via spread, so search the full file for params
     const toolConfigRegex =
       /params\s*:\s*{([\s\S]*?)},?\s*(?:outputs|oauth|request|directExecution|postProcess|transformResponse)\s*:/
     const toolConfigMatch = fileContent.match(toolConfigRegex)
 
+    // Description should come from the specific tool block if found
     const descriptionRegex = /description\s*:\s*['"](.*?)['"].*/
-    const descriptionMatch = fileContent.match(descriptionRegex)
+    const descriptionMatch = toolContent.match(descriptionRegex)
     const description = descriptionMatch ? descriptionMatch[1] : 'No description available'
 
     const params: Array<{ name: string; type: string; required: boolean; description: string }> = []
@@ -667,7 +706,7 @@ function extractToolInfo(
     let outputs: Record<string, any> = {}
     const outputsFieldRegex =
       /outputs\s*:\s*{([\s\S]*?)}\s*,?\s*(?:(?:oauth|params|request|directExecution|postProcess|transformResponse)\s*:|$|\})/
-    const outputsFieldMatch = fileContent.match(outputsFieldRegex)
+    const outputsFieldMatch = toolContent.match(outputsFieldRegex)
 
     if (outputsFieldMatch) {
       const outputsContent = outputsFieldMatch[1]
@@ -993,11 +1032,23 @@ async function getToolInfo(toolName: string): Promise<{
       toolSuffix = parts.slice(1).join('_')
     }
 
+    // Strip version suffix from tool suffix (V2 tools are in the same file as V1)
+    const strippedToolSuffix = stripVersionSuffix(toolSuffix)
+
     const possibleLocations = []
 
-    possibleLocations.push(path.join(rootDir, `apps/sim/tools/${toolPrefix}/${toolSuffix}.ts`))
+    // Try stripped suffix first (e.g., launch_agent.ts for launch_agent_v2)
+    possibleLocations.push(
+      path.join(rootDir, `apps/sim/tools/${toolPrefix}/${strippedToolSuffix}.ts`)
+    )
 
-    const camelCaseSuffix = toolSuffix
+    // Also try original suffix in case the file actually has v2 in the name
+    if (strippedToolSuffix !== toolSuffix) {
+      possibleLocations.push(path.join(rootDir, `apps/sim/tools/${toolPrefix}/${toolSuffix}.ts`))
+    }
+
+    // Also try camelCase versions
+    const camelCaseSuffix = strippedToolSuffix
       .split('_')
       .map((part, i) => (i === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)))
       .join('')
@@ -1136,7 +1187,9 @@ async function generateBlockDoc(blockPath: string) {
         continue
       }
 
-      const outputFilePath = path.join(DOCS_OUTPUT_PATH, `${blockConfig.type}.mdx`)
+      // Use stripped type for file name (removes _v2, _v3 suffixes for cleaner URLs)
+      const displayType = stripVersionSuffix(blockConfig.type)
+      const outputFilePath = path.join(DOCS_OUTPUT_PATH, `${displayType}.mdx`)
 
       let existingContent: string | null = null
       if (fs.existsSync(outputFilePath)) {
@@ -1145,7 +1198,7 @@ async function generateBlockDoc(blockPath: string) {
 
       const manualSections = existingContent ? extractManualContent(existingContent) : {}
 
-      const markdown = await generateMarkdownForBlock(blockConfig)
+      const markdown = await generateMarkdownForBlock(blockConfig, displayType)
 
       let finalContent = markdown
       if (Object.keys(manualSections).length > 0) {
@@ -1153,14 +1206,19 @@ async function generateBlockDoc(blockPath: string) {
       }
 
       fs.writeFileSync(outputFilePath, finalContent)
-      console.log(`✓ Generated docs for ${blockConfig.type}`)
+      const logType =
+        displayType !== blockConfig.type ? `${displayType} (from ${blockConfig.type})` : displayType
+      console.log(`✓ Generated docs for ${logType}`)
     }
   } catch (error) {
     console.error(`Error processing ${blockPath}:`, error)
   }
 }
 
-async function generateMarkdownForBlock(blockConfig: BlockConfig): Promise<string> {
+async function generateMarkdownForBlock(
+  blockConfig: BlockConfig,
+  displayType?: string
+): Promise<string> {
   const {
     type,
     name,
@@ -1241,7 +1299,9 @@ async function generateMarkdownForBlock(blockConfig: BlockConfig): Promise<strin
     toolsSection = '## Tools\n\n'
 
     for (const tool of tools.access) {
-      toolsSection += `### \`${tool}\`\n\n`
+      // Strip version suffix from tool name for display
+      const displayToolName = stripVersionSuffix(tool)
+      toolsSection += `### \`${displayToolName}\`\n\n`
 
       console.log(`Getting info for tool: ${tool}`)
       const toolInfo = await getToolInfo(tool)
@@ -1342,11 +1402,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 ${usageInstructions}
 
 ${toolsSection}
-
-## Notes
-
-- Category: \`${category}\`
-- Type: \`${type}\`
 `
 }
 
@@ -1400,6 +1455,12 @@ async function getHiddenBlockTypes(): Promise<Set<string>> {
 function cleanupHiddenBlockDocs(hiddenTypes: Set<string>): void {
   console.log('Cleaning up docs for hidden blocks...')
 
+  // Create a set of stripped hidden types (for matching doc files without version suffix)
+  const strippedHiddenTypes = new Set<string>()
+  for (const type of hiddenTypes) {
+    strippedHiddenTypes.add(stripVersionSuffix(type))
+  }
+
   const existingDocs = fs
     .readdirSync(DOCS_OUTPUT_PATH)
     .filter((file: string) => file.endsWith('.mdx'))
@@ -1409,7 +1470,8 @@ function cleanupHiddenBlockDocs(hiddenTypes: Set<string>): void {
   for (const docFile of existingDocs) {
     const blockType = path.basename(docFile, '.mdx')
 
-    if (hiddenTypes.has(blockType)) {
+    // Check both original type and stripped type (since doc files use stripped names)
+    if (hiddenTypes.has(blockType) || strippedHiddenTypes.has(blockType)) {
       const docPath = path.join(DOCS_OUTPUT_PATH, docFile)
       fs.unlinkSync(docPath)
       console.log(`✓ Removed docs for hidden block: ${blockType}`)
