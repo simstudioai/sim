@@ -63,7 +63,7 @@ export function generateAgentCard(agent: AgentData, workflow: WorkflowData): App
         id: 'execute',
         name: `Execute ${workflow.name}`,
         description: workflow.description || `Execute the ${workflow.name} workflow`,
-        tags: ['workflow', 'automation'],
+        tags: [],
       },
     ],
     defaultInputModes: [...A2A_DEFAULT_INPUT_MODES],
@@ -80,7 +80,7 @@ export function generateSkillsFromWorkflow(
     id: 'execute',
     name: `Execute ${workflowName}`,
     description: workflowDescription || `Execute the ${workflowName} workflow`,
-    tags: tags?.length ? tags : ['workflow', 'automation'],
+    tags: tags || [],
   }
 
   return [skill]

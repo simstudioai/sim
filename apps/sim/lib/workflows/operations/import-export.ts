@@ -36,8 +36,123 @@ export interface WorkspaceExportStructure {
   folders: FolderExportData[]
 }
 
-function sanitizePathSegment(name: string): string {
+/**
+ * Sanitizes a string for use as a path segment in a ZIP file.
+ */
+export function sanitizePathSegment(name: string): string {
   return name.replace(/[^a-z0-9-_]/gi, '-')
+}
+
+/**
+ * Downloads a file to the user's device.
+ */
+export function downloadFile(
+  content: Blob | string,
+  filename: string,
+  mimeType = 'application/json'
+): void {
+  try {
+    const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    logger.error('Failed to download file:', error)
+  }
+}
+
+/**
+ * Fetches a workflow's state and variables for export.
+ * Returns null if the workflow cannot be fetched.
+ */
+export async function fetchWorkflowForExport(
+  workflowId: string,
+  workflowMeta: { name: string; description?: string; color?: string; folderId?: string | null }
+): Promise<WorkflowExportData | null> {
+  try {
+    const workflowResponse = await fetch(`/api/workflows/${workflowId}`)
+    if (!workflowResponse.ok) {
+      logger.error(`Failed to fetch workflow ${workflowId}`)
+      return null
+    }
+
+    const { data: workflowData } = await workflowResponse.json()
+    if (!workflowData?.state) {
+      logger.warn(`Workflow ${workflowId} has no state`)
+      return null
+    }
+
+    const variablesResponse = await fetch(`/api/workflows/${workflowId}/variables`)
+    let workflowVariables: Record<string, Variable> | undefined
+    if (variablesResponse.ok) {
+      const variablesData = await variablesResponse.json()
+      workflowVariables = variablesData?.data
+    }
+
+    return {
+      workflow: {
+        id: workflowId,
+        name: workflowMeta.name,
+        description: workflowMeta.description,
+        color: workflowMeta.color,
+        folderId: workflowMeta.folderId,
+      },
+      state: workflowData.state,
+      variables: workflowVariables,
+    }
+  } catch (error) {
+    logger.error(`Failed to fetch workflow ${workflowId} for export:`, error)
+    return null
+  }
+}
+
+/**
+ * Exports a single workflow to a JSON string.
+ */
+export function exportWorkflowToJson(workflowData: WorkflowExportData): string {
+  const workflowState = {
+    ...workflowData.state,
+    metadata: {
+      name: workflowData.workflow.name,
+      description: workflowData.workflow.description,
+      color: workflowData.workflow.color,
+      exportedAt: new Date().toISOString(),
+    },
+    variables: workflowData.variables,
+  }
+
+  const exportState = sanitizeForExport(workflowState)
+  return JSON.stringify(exportState, null, 2)
+}
+
+/**
+ * Exports multiple workflows to a ZIP file.
+ * Workflows are placed at the root level (no folder structure).
+ */
+export async function exportWorkflowsToZip(workflows: WorkflowExportData[]): Promise<Blob> {
+  const zip = new JSZip()
+  const seenFilenames = new Set<string>()
+
+  for (const workflow of workflows) {
+    const jsonContent = exportWorkflowToJson(workflow)
+    const baseName = sanitizePathSegment(workflow.workflow.name)
+    let filename = `${baseName}.json`
+    let counter = 1
+
+    while (seenFilenames.has(filename.toLowerCase())) {
+      filename = `${baseName}-${counter}.json`
+      counter++
+    }
+    seenFilenames.add(filename.toLowerCase())
+    zip.file(filename, jsonContent)
+  }
+
+  return await zip.generateAsync({ type: 'blob' })
 }
 
 function buildFolderPath(
@@ -75,6 +190,61 @@ export async function exportWorkspaceToZip(
   }
 
   zip.file('_workspace.json', JSON.stringify(metadata, null, 2))
+
+  for (const workflow of workflows) {
+    try {
+      const workflowState = {
+        ...workflow.state,
+        metadata: {
+          name: workflow.workflow.name,
+          description: workflow.workflow.description,
+          color: workflow.workflow.color,
+          exportedAt: new Date().toISOString(),
+        },
+        variables: workflow.variables,
+      }
+
+      const exportState = sanitizeForExport(workflowState)
+      const sanitizedName = sanitizePathSegment(workflow.workflow.name)
+      const filename = `${sanitizedName}-${workflow.workflow.id}.json`
+
+      const folderPath = buildFolderPath(workflow.workflow.folderId, foldersMap)
+      const fullPath = folderPath ? `${folderPath}/${filename}` : filename
+
+      zip.file(fullPath, JSON.stringify(exportState, null, 2))
+    } catch (error) {
+      logger.error(`Failed to export workflow ${workflow.workflow.id}:`, error)
+    }
+  }
+
+  return await zip.generateAsync({ type: 'blob' })
+}
+
+/**
+ * Export a folder and its contents to a ZIP file.
+ * Preserves nested folder structure with paths relative to the exported folder.
+ *
+ * @param folderName - Name of the folder being exported
+ * @param workflows - Workflows to export (should be filtered to only those in the folder subtree)
+ * @param folders - Subfolders within the exported folder (parentId should be null for direct children)
+ */
+export async function exportFolderToZip(
+  folderName: string,
+  workflows: WorkflowExportData[],
+  folders: FolderExportData[]
+): Promise<Blob> {
+  const zip = new JSZip()
+  const foldersMap = new Map(folders.map((f) => [f.id, f]))
+
+  const metadata = {
+    folder: {
+      name: folderName,
+      exportedAt: new Date().toISOString(),
+    },
+    folders: folders.map((f) => ({ id: f.id, name: f.name, parentId: f.parentId })),
+  }
+
+  zip.file('_folder.json', JSON.stringify(metadata, null, 2))
 
   for (const workflow of workflows) {
     try {
