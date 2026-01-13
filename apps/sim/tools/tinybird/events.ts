@@ -11,6 +11,7 @@ export const eventsTool: ToolConfig<TinybirdEventsParams, TinybirdEventsResponse
   description:
     'Send events to a Tinybird Data Source using the Events API. Supports JSON and NDJSON formats with optional gzip compression.',
   version: '1.0.0',
+  errorExtractor: 'nested-error-object',
 
   params: {
     base_url: {
@@ -99,13 +100,6 @@ export const eventsTool: ToolConfig<TinybirdEventsParams, TinybirdEventsResponse
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      const errorMessage =
-        data.error?.message || data.error || `Failed to send events (HTTP ${response.status})`
-      logger.error('Failed to send events to Tinybird', { status: response.status, error: data })
-      throw new Error(errorMessage)
-    }
 
     logger.info('Successfully sent events to Tinybird', {
       successful: data.successful_rows,

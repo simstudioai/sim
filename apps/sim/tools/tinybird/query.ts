@@ -18,6 +18,7 @@ export const queryTool: ToolConfig<TinybirdQueryParams, TinybirdQueryResponse> =
   name: 'Tinybird Query',
   description: 'Execute SQL queries against Tinybird Pipes and Data Sources using the Query API.',
   version: '1.0.0',
+  errorExtractor: 'nested-error-object',
 
   params: {
     base_url: {
@@ -70,23 +71,6 @@ export const queryTool: ToolConfig<TinybirdQueryParams, TinybirdQueryResponse> =
   transformResponse: async (response: Response) => {
     const responseText = await response.text()
     const contentType = response.headers.get('content-type') || ''
-
-    if (!response.ok) {
-      // Try to parse error as JSON first
-      let errorMessage = `Failed to execute query (HTTP ${response.status})`
-      try {
-        const errorData = JSON.parse(responseText)
-        errorMessage = errorData.error?.message || errorData.error || errorMessage
-      } catch {
-        // If not JSON, use raw text (truncated if too long)
-        errorMessage = responseText ? responseText.substring(0, 500) : errorMessage
-      }
-      logger.error('Failed to execute Tinybird query', {
-        status: response.status,
-        error: errorMessage,
-      })
-      throw new Error(errorMessage)
-    }
 
     // Check if response is JSON based on content-type or try parsing
     const isJson = contentType.includes('application/json') || contentType.includes('text/json')
