@@ -85,6 +85,7 @@ export type ChatContext =
   | { kind: 'knowledge'; knowledgeId?: string; label: string }
   | { kind: 'templates'; templateId?: string; label: string }
   | { kind: 'docs'; label: string }
+  | { kind: 'slash_command'; command: string; label: string }
 
 import type { CopilotChat as ApiCopilotChat } from '@/lib/copilot/api'
 

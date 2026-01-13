@@ -21,6 +21,7 @@ import {
   MentionMenu,
   ModelSelector,
   ModeSelector,
+  SlashMenu,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components'
 import { NEAR_TOP_THRESHOLD } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
 import {
@@ -123,6 +124,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const [isNearTop, setIsNearTop] = useState(false)
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null)
     const [inputContainerRef, setInputContainerRef] = useState<HTMLDivElement | null>(null)
+    const [showSlashMenu, setShowSlashMenu] = useState(false)
 
     // Controlled vs uncontrolled message state
     const message = controlledValue !== undefined ? controlledValue : internalMessage
@@ -370,18 +372,68 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }, [onAbort, isLoading])
 
+    const handleSlashCommandSelect = useCallback(
+      (command: string) => {
+        // Capitalize the command for display
+        const capitalizedCommand = command.charAt(0).toUpperCase() + command.slice(1)
+
+        // Replace the active slash query with the capitalized command
+        mentionMenu.replaceActiveSlashWith(capitalizedCommand)
+
+        // Add as a context so it gets highlighted
+        contextManagement.addContext({
+          kind: 'slash_command',
+          command,
+          label: capitalizedCommand,
+        })
+
+        setShowSlashMenu(false)
+        mentionMenu.textareaRef.current?.focus()
+      },
+      [mentionMenu, contextManagement]
+    )
+
     const handleKeyDown = useCallback(
       (e: KeyboardEvent<HTMLTextAreaElement>) => {
         // Escape key handling
-        if (e.key === 'Escape' && mentionMenu.showMentionMenu) {
+        if (e.key === 'Escape' && (mentionMenu.showMentionMenu || showSlashMenu)) {
           e.preventDefault()
           if (mentionMenu.openSubmenuFor) {
             mentionMenu.setOpenSubmenuFor(null)
             mentionMenu.setSubmenuQueryStart(null)
           } else {
             mentionMenu.closeMentionMenu()
+            setShowSlashMenu(false)
           }
           return
+        }
+
+        // Arrow navigation in slash menu
+        if (showSlashMenu) {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault()
+            const SLASH_COMMANDS = ['plan', 'debug', 'fast', 'superagent', 'research', 'deploy']
+            const caretPos = mentionMenu.getCaretPos()
+            const activeSlash = mentionMenu.getActiveSlashQueryAtPosition(caretPos, message)
+            const query = activeSlash?.query.trim().toLowerCase() || ''
+            const filtered = query
+              ? SLASH_COMMANDS.filter((cmd) => cmd.includes(query))
+              : SLASH_COMMANDS
+            const last = Math.max(0, filtered.length - 1)
+            mentionMenu.setSubmenuActiveIndex((prev) => {
+              if (filtered.length === 0) return 0
+              const next =
+                e.key === 'ArrowDown' ? (prev >= last ? 0 : prev + 1) : prev <= 0 ? last : prev - 1
+              requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(next))
+              return next
+            })
+            return
+          }
+          // Prevent ArrowLeft/Right from moving cursor when slash menu is open
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault()
+            return
+          }
         }
 
         // Arrow navigation in mention menu
@@ -392,6 +444,21 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         // Enter key handling
         if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
           e.preventDefault()
+          if (showSlashMenu) {
+            // Handle slash menu selection
+            const SLASH_COMMANDS = ['plan', 'debug', 'fast', 'superagent', 'research', 'deploy']
+            const caretPos = mentionMenu.getCaretPos()
+            const activeSlash = mentionMenu.getActiveSlashQueryAtPosition(caretPos, message)
+            const query = activeSlash?.query.trim().toLowerCase() || ''
+            const filtered = query
+              ? SLASH_COMMANDS.filter((cmd) => cmd.includes(query))
+              : SLASH_COMMANDS
+            if (filtered.length > 0) {
+              const selectedCommand = filtered[mentionMenu.submenuActiveIndex] || filtered[0]
+              handleSlashCommandSelect(selectedCommand)
+            }
+            return
+          }
           if (!mentionMenu.showMentionMenu) {
             handleSubmit()
           } else {
@@ -469,7 +536,15 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           }
         }
       },
-      [mentionMenu, mentionKeyboard, handleSubmit, message.length, mentionTokensWithContext]
+      [
+        mentionMenu,
+        mentionKeyboard,
+        handleSubmit,
+        handleSlashCommandSelect,
+        message,
+        mentionTokensWithContext,
+        showSlashMenu,
+      ]
     )
 
     const handleInputChange = useCallback(
@@ -481,9 +556,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         if (disableMentions) return
 
         const caret = e.target.selectionStart ?? newValue.length
-        const active = mentionMenu.getActiveMentionQueryAtPosition(caret, newValue)
 
-        if (active) {
+        // Check for @ mention trigger
+        const activeMention = mentionMenu.getActiveMentionQueryAtPosition(caret, newValue)
+        // Check for / slash command trigger
+        const activeSlash = mentionMenu.getActiveSlashQueryAtPosition(caret, newValue)
+
+        if (activeMention) {
+          setShowSlashMenu(false)
           mentionMenu.setShowMentionMenu(true)
           mentionMenu.setInAggregated(false)
           if (mentionMenu.openSubmenuFor) {
@@ -492,10 +572,17 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             mentionMenu.setMentionActiveIndex(0)
             mentionMenu.setSubmenuActiveIndex(0)
           }
+        } else if (activeSlash) {
+          mentionMenu.setShowMentionMenu(false)
+          mentionMenu.setOpenSubmenuFor(null)
+          mentionMenu.setSubmenuQueryStart(null)
+          setShowSlashMenu(true)
+          mentionMenu.setSubmenuActiveIndex(0)
         } else {
           mentionMenu.setShowMentionMenu(false)
           mentionMenu.setOpenSubmenuFor(null)
           mentionMenu.setSubmenuQueryStart(null)
+          setShowSlashMenu(false)
         }
       },
       [setMessage, mentionMenu, disableMentions]
@@ -539,6 +626,32 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       mentionMenu.setShowMentionMenu(true)
       mentionMenu.setOpenSubmenuFor(null)
       mentionMenu.setMentionActiveIndex(0)
+      mentionMenu.setSubmenuActiveIndex(0)
+    }, [disabled, isLoading, mentionMenu, message, setMessage])
+
+    const handleOpenSlashMenu = useCallback(() => {
+      if (disabled || isLoading) return
+      const textarea = mentionMenu.textareaRef.current
+      if (!textarea) return
+      textarea.focus()
+      const pos = textarea.selectionStart ?? message.length
+      const needsSpaceBefore = pos > 0 && !/\s/.test(message.charAt(pos - 1))
+
+      const insertText = needsSpaceBefore ? ' /' : '/'
+      const start = textarea.selectionStart ?? message.length
+      const end = textarea.selectionEnd ?? message.length
+      const before = message.slice(0, start)
+      const after = message.slice(end)
+      const next = `${before}${insertText}${after}`
+      setMessage(next)
+
+      setTimeout(() => {
+        const newPos = before.length + insertText.length
+        textarea.setSelectionRange(newPos, newPos)
+        textarea.focus()
+      }, 0)
+
+      setShowSlashMenu(true)
       mentionMenu.setSubmenuActiveIndex(0)
     }, [disabled, isLoading, mentionMenu, message, setMessage])
 
@@ -643,6 +756,18 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     <AtSign className='h-3 w-3' strokeWidth={1.75} />
                   </Badge>
 
+                  <Badge
+                    variant='outline'
+                    onClick={handleOpenSlashMenu}
+                    title='Insert /'
+                    className={cn(
+                      'cursor-pointer rounded-[6px] p-[4.5px]',
+                      (disabled || isLoading) && 'cursor-not-allowed'
+                    )}
+                  >
+                    <span className='flex h-3 w-3 items-center justify-center text-[11px] font-medium leading-none'>/</span>
+                  </Badge>
+
                   {/* Selected Context Pills */}
                   <ContextPills
                     contexts={contextManagement.selectedContexts}
@@ -714,6 +839,18 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   mentionData={mentionData}
                   message={message}
                   insertHandlers={insertHandlers}
+                />,
+                document.body
+              )}
+
+            {/* Slash Menu Portal */}
+            {!disableMentions &&
+              showSlashMenu &&
+              createPortal(
+                <SlashMenu
+                  mentionMenu={mentionMenu}
+                  message={message}
+                  onSelectCommand={handleSlashCommandSelect}
                 />,
                 document.body
               )}

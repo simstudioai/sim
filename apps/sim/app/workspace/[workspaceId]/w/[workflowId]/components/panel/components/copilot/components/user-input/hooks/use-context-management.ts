@@ -63,6 +63,9 @@ export function useContextManagement({ message }: UseContextManagementProps) {
           if (c.kind === 'docs') {
             return true // Only one docs context allowed
           }
+          if (c.kind === 'slash_command' && 'command' in context && 'command' in c) {
+            return c.command === (context as any).command
+          }
         }
 
         return false
@@ -103,6 +106,8 @@ export function useContextManagement({ message }: UseContextManagementProps) {
             return (c as any).executionId !== (contextToRemove as any).executionId
           case 'docs':
             return false // Remove docs (only one docs context)
+          case 'slash_command':
+            return (c as any).command !== (contextToRemove as any).command
           default:
             return c.label !== contextToRemove.label
         }
@@ -118,7 +123,7 @@ export function useContextManagement({ message }: UseContextManagementProps) {
   }, [])
 
   /**
-   * Synchronizes selected contexts with inline @label tokens in the message.
+   * Synchronizes selected contexts with inline @label or /label tokens in the message.
    * Removes contexts whose labels are no longer present in the message.
    */
   useEffect(() => {
@@ -130,17 +135,14 @@ export function useContextManagement({ message }: UseContextManagementProps) {
     setSelectedContexts((prev) => {
       if (prev.length === 0) return prev
 
-      const presentLabels = new Set<string>()
-      const labels = prev.map((c) => c.label).filter(Boolean)
-
-      for (const label of labels) {
-        const token = ` @${label} `
-        if (message.includes(token)) {
-          presentLabels.add(label)
-        }
-      }
-
-      const filtered = prev.filter((c) => !!c.label && presentLabels.has(c.label))
+      const filtered = prev.filter((c) => {
+        if (!c.label) return false
+        // Check for slash command tokens or mention tokens based on kind
+        const isSlashCommand = c.kind === 'slash_command'
+        const prefix = isSlashCommand ? '/' : '@'
+        const token = ` ${prefix}${c.label} `
+        return message.includes(token)
+      })
       return filtered.length === prev.length ? prev : filtered
     })
   }, [message])

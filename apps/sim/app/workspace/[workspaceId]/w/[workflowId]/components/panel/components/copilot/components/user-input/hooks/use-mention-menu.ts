@@ -114,6 +114,62 @@ export function useMentionMenu({
   )
 
   /**
+   * Finds active slash command query at the given position
+   *
+   * @param pos - Position in the text to check
+   * @param textOverride - Optional text override (for checking during input)
+   * @returns Active slash query object or null if no active slash command
+   */
+  const getActiveSlashQueryAtPosition = useCallback(
+    (pos: number, textOverride?: string) => {
+      const text = textOverride ?? message
+      const before = text.slice(0, pos)
+      const slashIndex = before.lastIndexOf('/')
+      if (slashIndex === -1) return null
+
+      // Ensure '/' starts a token (start or whitespace before)
+      if (slashIndex > 0 && !/\s/.test(before.charAt(slashIndex - 1))) return null
+
+      // Check if this '/' is part of a completed slash token ( /command )
+      if (selectedContexts.length > 0) {
+        const labels = selectedContexts.map((c) => c.label).filter(Boolean) as string[]
+        for (const label of labels) {
+          // Space-wrapped token: " /label "
+          const token = ` /${label} `
+          let fromIndex = 0
+          while (fromIndex <= text.length) {
+            const idx = text.indexOf(token, fromIndex)
+            if (idx === -1) break
+
+            const tokenStart = idx
+            const tokenEnd = idx + token.length
+            const slashPositionInToken = idx + 1 // position of / in " /label "
+
+            if (slashIndex === slashPositionInToken) {
+              return null
+            }
+
+            if (pos > tokenStart && pos < tokenEnd) {
+              return null
+            }
+
+            fromIndex = tokenEnd
+          }
+        }
+      }
+
+      const segment = before.slice(slashIndex + 1)
+      // Close the popup if user types space immediately after /
+      if (segment.length > 0 && /^\s/.test(segment)) {
+        return null
+      }
+
+      return { query: segment, start: slashIndex, end: pos }
+    },
+    [message, selectedContexts]
+  )
+
+  /**
    * Gets the submenu query text
    *
    * @returns Text typed after entering a submenu
@@ -218,6 +274,40 @@ export function useMentionMenu({
   )
 
   /**
+   * Replaces active slash command with a label
+   *
+   * @param label - Label to replace the slash command with
+   * @returns True if replacement was successful, false if no active slash command found
+   */
+  const replaceActiveSlashWith = useCallback(
+    (label: string) => {
+      const textarea = textareaRef.current
+      if (!textarea) return false
+      const pos = textarea.selectionStart ?? message.length
+      const active = getActiveSlashQueryAtPosition(pos)
+      if (!active) return false
+
+      const before = message.slice(0, active.start)
+      const after = message.slice(active.end)
+
+      // Always include leading space, avoid duplicate if one exists
+      const needsLeadingSpace = !before.endsWith(' ')
+      const insertion = `${needsLeadingSpace ? ' ' : ''}/${label} `
+
+      const next = `${before}${insertion}${after}`
+      onMessageChange(next)
+
+      setTimeout(() => {
+        const cursorPos = before.length + insertion.length
+        textarea.setSelectionRange(cursorPos, cursorPos)
+        textarea.focus()
+      }, 0)
+      return true
+    },
+    [message, getActiveSlashQueryAtPosition, onMessageChange]
+  )
+
+  /**
    * Scrolls active item into view in the menu
    *
    * @param index - Index of the item to scroll into view
@@ -304,10 +394,12 @@ export function useMentionMenu({
     // Operations
     getCaretPos,
     getActiveMentionQueryAtPosition,
+    getActiveSlashQueryAtPosition,
     getSubmenuQuery,
     resetActiveMentionQuery,
     insertAtCursor,
     replaceActiveMentionWith,
+    replaceActiveSlashWith,
     scrollActiveItemIntoView,
     closeMentionMenu,
   }
