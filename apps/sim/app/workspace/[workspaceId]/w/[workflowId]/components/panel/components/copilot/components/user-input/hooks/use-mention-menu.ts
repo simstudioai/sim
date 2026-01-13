@@ -70,11 +70,25 @@ export function useMentionMenu({
       // Ensure '@' starts a token (start or whitespace before)
       if (atIndex > 0 && !/\s/.test(before.charAt(atIndex - 1))) return null
 
-      // Check if this '@' is part of a completed mention token ( @label )
+      // Check if this '@' is part of a completed mention token
       if (selectedContexts.length > 0) {
-        const labels = selectedContexts.map((c) => c.label).filter(Boolean) as string[]
-        for (const label of labels) {
-          // Space-wrapped token: " @label "
+        // Only check non-slash_command contexts for mentions
+        const mentionLabels = selectedContexts
+          .filter((c) => c.kind !== 'slash_command')
+          .map((c) => c.label)
+          .filter(Boolean) as string[]
+
+        for (const label of mentionLabels) {
+          // Check for token at start of text: "@label "
+          if (atIndex === 0) {
+            const startToken = `@${label} `
+            if (text.startsWith(startToken)) {
+              // This @ is part of a completed token
+              return null
+            }
+          }
+
+          // Check for space-wrapped token: " @label "
           const token = ` @${label} `
           let fromIndex = 0
           while (fromIndex <= text.length) {
@@ -88,7 +102,6 @@ export function useMentionMenu({
             // Check if the @ we found is the @ of this completed token
             if (atIndex === atPositionInToken) {
               // The @ we found is part of a completed mention
-              // Don't show menu - user is typing after the completed mention
               return null
             }
 
