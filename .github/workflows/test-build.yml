@@ -38,6 +38,28 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Validate feature flags
+        run: |
+          FILE="apps/sim/lib/core/config/feature-flags.ts"
+          echo "Checking for hardcoded boolean feature flags in $FILE..."
+
+          # Find any "export const isXxx = true" or "export const isXxx = false" patterns
+          # This catches accidental local testing values being committed
+          if grep -E "export const is[A-Za-z]+\s*=\s*(true|false)\s*;?\s*$" "$FILE"; then
+            echo ""
+            echo "❌ ERROR: Feature flags must not be hardcoded to boolean literals!"
+            echo "Feature flags should derive their values from environment variables."
+            echo ""
+            echo "Example of what NOT to do:"
+            echo "  export const isHosted = true"
+            echo ""
+            echo "Example of correct implementation:"
+            echo "  export const isHosted = getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.sim.ai'"
+            exit 1
+          fi
+
+          echo "✅ All feature flags are properly configured"
+
       - name: Lint code
         run: bun run lint:check
 
