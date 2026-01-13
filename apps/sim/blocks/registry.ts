@@ -7,6 +7,7 @@ import { ApifyBlock } from '@/blocks/blocks/apify'
 import { ApolloBlock } from '@/blocks/blocks/apollo'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
+import { BrightDataBlock } from '@/blocks/blocks/brightdata'
 // import { BoxBlock } from '@/blocks/blocks/box' // TODO: Box OAuth integration
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { CalendlyBlock } from '@/blocks/blocks/calendly'
@@ -158,6 +159,7 @@ export const registry: Record<string, BlockConfig> = {
   arxiv: ArxivBlock,
   asana: AsanaBlock,
   // box: BoxBlock, // TODO: Box OAuth integration
+  brightdata: BrightDataBlock,
   browser_use: BrowserUseBlock,
   calendly: CalendlyBlock,
   chat_trigger: ChatTriggerBlock,

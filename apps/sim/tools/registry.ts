@@ -51,6 +51,11 @@ import {
   asanaSearchTasksTool,
   asanaUpdateTaskTool,
 } from '@/tools/asana'
+import {
+  datasetAmazonProductTool,
+  scrapeMarkdownTool,
+  searchEngineTool,
+} from '@/tools/brightdata'
 import { browserUseRunTaskTool } from '@/tools/browser_use'
 import {
   calendlyCancelEventTool,
@@ -1532,6 +1537,9 @@ export const tools: Record<string, ToolConfig> = {
   asana_get_projects: asanaGetProjectsTool,
   asana_search_tasks: asanaSearchTasksTool,
   asana_add_comment: asanaAddCommentTool,
+  brightdata_scrape_markdown: scrapeMarkdownTool,
+  brightdata_search_engine: searchEngineTool,
+  brightdata_dataset_amazon_product: datasetAmazonProductTool,
   browser_use_run_task: browserUseRunTaskTool,
   openai_embeddings: openAIEmbeddingsTool,
   http_request: httpRequestTool,
