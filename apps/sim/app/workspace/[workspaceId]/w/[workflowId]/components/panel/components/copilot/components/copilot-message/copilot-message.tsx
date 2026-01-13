@@ -187,6 +187,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     )
 
     // Memoize content blocks to avoid re-rendering unchanged blocks
+    // No entrance animations to prevent layout shift
     const memoizedContentBlocks = useMemo(() => {
       if (!message.contentBlocks || message.contentBlocks.length === 0) {
         return null
@@ -205,14 +206,10 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
           // Use smooth streaming for the last text block if we're streaming
           const shouldUseSmoothing = isStreaming && isLastTextBlock
+          const blockKey = `text-${index}-${block.timestamp || index}`
 
           return (
-            <div
-              key={`text-${index}-${block.timestamp || index}`}
-              className={`w-full max-w-full overflow-hidden transition-opacity duration-200 ease-in-out ${
-                cleanBlockContent.length > 0 ? 'opacity-100' : 'opacity-70'
-              } ${shouldUseSmoothing ? 'translate-y-0 transition-transform duration-100 ease-out' : ''}`}
-            >
+            <div key={blockKey} className='w-full max-w-full overflow-hidden'>
               {shouldUseSmoothing ? (
                 <SmoothStreamingText content={cleanBlockContent} isStreaming={isStreaming} />
               ) : (
@@ -224,8 +221,10 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         if (block.type === 'thinking') {
           // Check if there are any blocks after this one (tool calls, text, etc.)
           const hasFollowingContent = index < message.contentBlocks!.length - 1
+          const blockKey = `thinking-${index}-${block.timestamp || index}`
+
           return (
-            <div key={`thinking-${index}-${block.timestamp || index}`} className='w-full'>
+            <div key={blockKey} className='w-full'>
               <ThinkingBlock
                 content={block.content}
                 isStreaming={isStreaming}
@@ -235,11 +234,10 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           )
         }
         if (block.type === 'tool_call') {
+          const blockKey = `tool-${block.toolCall.id}`
+
           return (
-            <div
-              key={`tool-${block.toolCall.id}`}
-              className='opacity-100 transition-opacity duration-300 ease-in-out'
-            >
+            <div key={blockKey}>
               <ToolCall toolCallId={block.toolCall.id} toolCall={block.toolCall} />
             </div>
           )
@@ -465,18 +463,30 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       )
     }
 
+    // Check if there's any visible content in the blocks
+    const hasVisibleContent = useMemo(() => {
+      if (!message.contentBlocks || message.contentBlocks.length === 0) return false
+      return message.contentBlocks.some((block) => {
+        if (block.type === 'text') {
+          const parsed = parseSpecialTags(block.content)
+          return parsed.cleanContent.trim().length > 0
+        }
+        return block.type === 'thinking' || block.type === 'tool_call'
+      })
+    }, [message.contentBlocks])
+
     if (isAssistant) {
       return (
         <div
-          className={`w-full max-w-full overflow-hidden transition-opacity duration-200 [max-width:var(--panel-max-width)] ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+          className={`w-full max-w-full overflow-hidden [max-width:var(--panel-max-width)] ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
           style={{ '--panel-max-width': `${panelWidth - 16}px` } as React.CSSProperties}
         >
-          <div className='max-w-full space-y-1.5 px-[2px] transition-all duration-200 ease-in-out'>
+          <div className='max-w-full space-y-1.5 px-[2px]'>
             {/* Content blocks in chronological order */}
             {memoizedContentBlocks}
 
-            {/* Always show streaming indicator at the end while streaming */}
-            {isStreaming && <StreamingIndicator />}
+            {/* Only show streaming indicator when no content has arrived yet */}
+            {isStreaming && !hasVisibleContent && <StreamingIndicator />}
 
             {message.errorType === 'usage_limit' && (
               <div className='flex gap-1.5'>

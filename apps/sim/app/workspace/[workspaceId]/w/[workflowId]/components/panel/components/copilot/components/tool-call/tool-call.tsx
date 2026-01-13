@@ -221,7 +221,7 @@ function PlanSteps({
               </span>
               <div className='min-w-0 flex-1 text-[12px] text-[var(--text-secondary)] leading-[18px] [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[11px] [&_p]:m-0 [&_p]:text-[12px] [&_p]:leading-[18px]'>
                 {streaming && isLastStep ? (
-                  <SmoothStreamingText content={title} isStreaming={true} />
+                  <SmoothStreamingText content={title} isStreaming={true} showIndicator={false} />
                 ) : (
                   <CopilotMarkdownRenderer content={title} />
                 )}
@@ -363,7 +363,7 @@ export function OptionsSelector({
               )}
             >
               {streaming ? (
-                <SmoothStreamingText content={option.title} isStreaming={true} />
+                <SmoothStreamingText content={option.title} isStreaming={true} showIndicator={false} />
               ) : (
                 <CopilotMarkdownRenderer content={option.title} />
               )}
