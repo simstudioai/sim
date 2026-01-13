@@ -39,49 +39,42 @@ export function useScrollManagement(
   const [userHasScrolledDuringStream, setUserHasScrolledDuringStream] = useState(false)
   const programmaticScrollInProgressRef = useRef(false)
   const lastScrollTopRef = useRef(0)
-  const lastScrollHeightRef = useRef(0)
-  const rafIdRef = useRef<number | null>(null)
   const scrollBehavior: 'auto' | 'smooth' = options?.behavior ?? 'smooth'
   const stickinessThreshold = options?.stickinessThreshold ?? 100
 
+  /**
+   * Scrolls the container to the bottom with smooth animation
+   */
   const getScrollContainer = useCallback((): HTMLElement | null => {
+    // Prefer the element with the ref (our scrollable div)
     if (scrollAreaRef.current) return scrollAreaRef.current
     return null
   }, [])
 
-  /**
-   * Scrolls the container to the bottom
-   * Uses 'auto' for streaming to prevent jitter, 'smooth' for user actions
-   */
-  const scrollToBottom = useCallback(
-    (forceInstant = false) => {
-      const scrollContainer = getScrollContainer()
-      if (!scrollContainer) return
+  const scrollToBottom = useCallback(() => {
+    const scrollContainer = getScrollContainer()
+    if (!scrollContainer) return
 
-      programmaticScrollInProgressRef.current = true
-      scrollContainer.scrollTo({
-        top: scrollContainer.scrollHeight,
-        behavior: forceInstant ? 'auto' : scrollBehavior,
-      })
-      // Reset flag after scroll completes
-      window.setTimeout(
-        () => {
-          programmaticScrollInProgressRef.current = false
-        },
-        forceInstant ? 16 : 200
-      )
-    },
-    [getScrollContainer, scrollBehavior]
-  )
+    programmaticScrollInProgressRef.current = true
+    scrollContainer.scrollTo({
+      top: scrollContainer.scrollHeight,
+      behavior: scrollBehavior,
+    })
+    // Best-effort reset; not all browsers fire scrollend reliably
+    window.setTimeout(() => {
+      programmaticScrollInProgressRef.current = false
+    }, 200)
+  }, [getScrollContainer, scrollBehavior])
 
   /**
-   * Handles scroll events to track user position
+   * Handles scroll events to track user position and show/hide scroll button
    */
   const handleScroll = useCallback(() => {
     const scrollContainer = getScrollContainer()
     if (!scrollContainer) return
 
     if (programmaticScrollInProgressRef.current) {
+      // Ignore scrolls we initiated
       return
     }
 
@@ -93,18 +86,21 @@ export function useScrollManagement(
 
     if (isSendingMessage) {
       const delta = scrollTop - lastScrollTopRef.current
-      const movedUp = delta < -2
+      const movedUp = delta < -2 // small hysteresis to avoid noise
+      const movedDown = delta > 2
 
       if (movedUp) {
+        // Any upward movement breaks away from sticky during streaming
         setUserHasScrolledDuringStream(true)
       }
 
-      // Re-stick if user scrolls back to bottom
-      if (userHasScrolledDuringStream && nearBottom && delta > 2) {
+      // If the user has broken away and scrolls back down to the bottom, re-stick
+      if (userHasScrolledDuringStream && movedDown && nearBottom) {
         setUserHasScrolledDuringStream(false)
       }
     }
 
+    // Track last scrollTop for direction detection
     lastScrollTopRef.current = scrollTop
   }, [getScrollContainer, isSendingMessage, userHasScrolledDuringStream, stickinessThreshold])
 
@@ -113,80 +109,95 @@ export function useScrollManagement(
     const scrollContainer = getScrollContainer()
     if (!scrollContainer) return
 
-    scrollContainer.addEventListener('scroll', handleScroll, { passive: true })
+    const handleUserScroll = () => {
+      handleScroll()
+    }
+
+    scrollContainer.addEventListener('scroll', handleUserScroll, { passive: true })
+
+    if ('onscrollend' in scrollContainer) {
+      scrollContainer.addEventListener('scrollend', handleScroll, { passive: true })
+    }
+
+    // Initialize state
+    window.setTimeout(handleScroll, 100)
+    // Initialize last scroll position
     lastScrollTopRef.current = scrollContainer.scrollTop
-    lastScrollHeightRef.current = scrollContainer.scrollHeight
 
     return () => {
-      scrollContainer.removeEventListener('scroll', handleScroll)
+      scrollContainer.removeEventListener('scroll', handleUserScroll)
+      if ('onscrollend' in scrollContainer) {
+        scrollContainer.removeEventListener('scrollend', handleScroll)
+      }
     }
   }, [getScrollContainer, handleScroll])
 
-  // Scroll on new user message
+  // Smart auto-scroll: only scroll if user hasn't intentionally scrolled up during streaming
   useEffect(() => {
     if (messages.length === 0) return
 
     const lastMessage = messages[messages.length - 1]
-    if (lastMessage?.role === 'user') {
-      setUserHasScrolledDuringStream(false)
+    const isNewUserMessage = lastMessage?.role === 'user'
+
+    const shouldAutoScroll =
+      isNewUserMessage ||
+      (isSendingMessage && !userHasScrolledDuringStream) ||
+      (!isSendingMessage && isNearBottom)
+
+    if (shouldAutoScroll) {
       scrollToBottom()
     }
-  }, [messages, scrollToBottom])
+  }, [messages, isNearBottom, isSendingMessage, userHasScrolledDuringStream, scrollToBottom])
+
+  // Reset user scroll state when streaming starts or when user sends a message
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1]
+    if (lastMessage?.role === 'user') {
+      setUserHasScrolledDuringStream(false)
+      programmaticScrollInProgressRef.current = false
+      const scrollContainer = getScrollContainer()
+      if (scrollContainer) {
+        lastScrollTopRef.current = scrollContainer.scrollTop
+      }
+    }
+  }, [messages, getScrollContainer])
 
   // Reset user scroll state when streaming completes
   const prevIsSendingRef = useRef(false)
   useEffect(() => {
     if (prevIsSendingRef.current && !isSendingMessage) {
       setUserHasScrolledDuringStream(false)
-      // Final scroll to ensure we're at bottom
-      if (isNearBottom) {
-        scrollToBottom()
-      }
     }
     prevIsSendingRef.current = isSendingMessage
-  }, [isSendingMessage, isNearBottom, scrollToBottom])
+  }, [isSendingMessage])
 
-  // While streaming, use RAF to check for content changes and scroll
-  // This is more efficient than setInterval and syncs with browser rendering
+  // While streaming and not broken away, keep pinned to bottom
   useEffect(() => {
-    if (!isSendingMessage || userHasScrolledDuringStream) {
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current)
-        rafIdRef.current = null
-      }
-      return
-    }
+    if (!isSendingMessage || userHasScrolledDuringStream) return
 
-    const checkAndScroll = () => {
+    const intervalId = window.setInterval(() => {
       const scrollContainer = getScrollContainer()
-      if (!scrollContainer) {
-        rafIdRef.current = requestAnimationFrame(checkAndScroll)
-        return
+      if (!scrollContainer) return
+
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+      const nearBottom = distanceFromBottom <= stickinessThreshold
+      if (nearBottom) {
+        scrollToBottom()
       }
+    }, 100)
 
-      const { scrollHeight } = scrollContainer
-      // Only scroll if content height actually changed
-      if (scrollHeight !== lastScrollHeightRef.current) {
-        lastScrollHeightRef.current = scrollHeight
-        // Use instant scroll during streaming to prevent jitter
-        scrollToBottom(true)
-      }
-
-      rafIdRef.current = requestAnimationFrame(checkAndScroll)
-    }
-
-    rafIdRef.current = requestAnimationFrame(checkAndScroll)
-
-    return () => {
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current)
-        rafIdRef.current = null
-      }
-    }
-  }, [isSendingMessage, userHasScrolledDuringStream, getScrollContainer, scrollToBottom])
+    return () => window.clearInterval(intervalId)
+  }, [
+    isSendingMessage,
+    userHasScrolledDuringStream,
+    getScrollContainer,
+    scrollToBottom,
+    stickinessThreshold,
+  ])
 
   return {
     scrollAreaRef,
-    scrollToBottom: () => scrollToBottom(false),
+    scrollToBottom,
   }
 }

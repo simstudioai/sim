@@ -221,7 +221,7 @@ function PlanSteps({
               </span>
               <div className='min-w-0 flex-1 text-[12px] text-[var(--text-secondary)] leading-[18px] [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[11px] [&_p]:m-0 [&_p]:text-[12px] [&_p]:leading-[18px]'>
                 {streaming && isLastStep ? (
-                  <SmoothStreamingText content={title} isStreaming={true} showIndicator={false} />
+                  <SmoothStreamingText content={title} isStreaming={true} />
                 ) : (
                   <CopilotMarkdownRenderer content={title} />
                 )}
@@ -363,7 +363,7 @@ export function OptionsSelector({
               )}
             >
               {streaming ? (
-                <SmoothStreamingText content={option.title} isStreaming={true} showIndicator={false} />
+                <SmoothStreamingText content={option.title} isStreaming={true} />
               ) : (
                 <CopilotMarkdownRenderer content={option.title} />
               )}
@@ -1066,7 +1066,7 @@ function SubAgentContent({
       <div
         ref={scrollContainerRef}
         className={clsx(
-          'overflow-y-auto transition-all duration-300 ease-in-out',
+          'overflow-y-auto transition-all duration-150 ease-out',
           isExpanded ? 'mt-1.5 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
@@ -1326,7 +1326,7 @@ function SubagentContentRenderer({
 
       <div
         className={clsx(
-          'overflow-hidden transition-all duration-300 ease-in-out',
+          'overflow-hidden transition-all duration-150 ease-out',
           isExpanded ? 'mt-1.5 max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >

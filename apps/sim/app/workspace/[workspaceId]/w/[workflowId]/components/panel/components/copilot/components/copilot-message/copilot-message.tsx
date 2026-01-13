@@ -209,7 +209,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           const blockKey = `text-${index}-${block.timestamp || index}`
 
           return (
-            <div key={blockKey} className='w-full max-w-full overflow-hidden'>
+            <div key={blockKey} className='w-full max-w-full'>
               {shouldUseSmoothing ? (
                 <SmoothStreamingText content={cleanBlockContent} isStreaming={isStreaming} />
               ) : (
@@ -485,8 +485,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             {/* Content blocks in chronological order */}
             {memoizedContentBlocks}
 
-            {/* Only show streaming indicator when no content has arrived yet */}
-            {isStreaming && !hasVisibleContent && <StreamingIndicator />}
+            {/* Always show streaming indicator at the end while streaming */}
+            {isStreaming && <StreamingIndicator />}
 
             {message.errorType === 'usage_limit' && (
               <div className='flex gap-1.5'>

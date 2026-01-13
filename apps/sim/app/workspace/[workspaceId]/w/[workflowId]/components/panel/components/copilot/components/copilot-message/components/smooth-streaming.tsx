@@ -45,22 +45,6 @@ export const StreamingIndicator = memo(() => (
 StreamingIndicator.displayName = 'StreamingIndicator'
 
 /**
- * InlineStreamingDots shows small animated dots inline with text
- * Used at the end of streaming content to indicate more is coming
- */
-const InlineStreamingDots = memo(() => (
-  <span className='ml-1 inline-flex items-center align-middle'>
-    <span className='inline-flex space-x-0.5'>
-      <span className='inline-block h-1 w-1 animate-bounce rounded-full bg-muted-foreground [animation-delay:0ms] [animation-duration:1.2s]' />
-      <span className='inline-block h-1 w-1 animate-bounce rounded-full bg-muted-foreground [animation-delay:150ms] [animation-duration:1.2s]' />
-      <span className='inline-block h-1 w-1 animate-bounce rounded-full bg-muted-foreground [animation-delay:300ms] [animation-duration:1.2s]' />
-    </span>
-  </span>
-))
-
-InlineStreamingDots.displayName = 'InlineStreamingDots'
-
-/**
  * Props for the SmoothStreamingText component
  */
 interface SmoothStreamingTextProps {
@@ -68,8 +52,6 @@ interface SmoothStreamingTextProps {
   content: string
   /** Whether the content is actively streaming */
   isStreaming: boolean
-  /** Whether to show inline streaming dots at the end of content. Defaults to true. */
-  showIndicator?: boolean
 }
 
 /**
@@ -110,7 +92,7 @@ function calculateAdaptiveDelay(displayedLength: number, totalLength: number): n
  * @returns Streaming text with smooth animation
  */
 export const SmoothStreamingText = memo(
-  ({ content, isStreaming, showIndicator = true }: SmoothStreamingTextProps) => {
+  ({ content, isStreaming }: SmoothStreamingTextProps) => {
     const [displayedContent, setDisplayedContent] = useState('')
     const contentRef = useRef(content)
     const rafRef = useRef<number | null>(null)
@@ -178,23 +160,15 @@ export const SmoothStreamingText = memo(
       }
     }, [content, isStreaming])
 
-    // Show inline dots when streaming and we have some content displayed (if enabled)
-    const showInlineDots = showIndicator && isStreaming && displayedContent.length > 0
-
     return (
-      <div className='relative min-h-[1.25rem] max-w-full overflow-hidden'>
+      <div className='min-h-[1.25rem] max-w-full'>
         <CopilotMarkdownRenderer content={displayedContent} />
-        {showInlineDots && <InlineStreamingDots />}
       </div>
     )
   },
   (prevProps, nextProps) => {
     // Prevent re-renders during streaming unless content actually changed
-    return (
-      prevProps.content === nextProps.content &&
-      prevProps.isStreaming === nextProps.isStreaming &&
-      prevProps.showIndicator === nextProps.showIndicator
-    )
+    return prevProps.content === nextProps.content && prevProps.isStreaming === nextProps.isStreaming
   }
 )
 
