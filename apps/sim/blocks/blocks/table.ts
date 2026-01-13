@@ -20,6 +20,7 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
       options: [
         { label: 'Query Rows', id: 'queryRows' },
         { label: 'Insert Row', id: 'insertRow' },
+        { label: 'Upsert Row', id: 'upsertRow' },
         { label: 'Batch Insert Rows', id: 'batchInsertRows' },
         { label: 'Update Rows by Filter', id: 'updateRowsByFilter' },
         { label: 'Delete Rows by Filter', id: 'deleteRowsByFilter' },
@@ -94,13 +95,16 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
       required: true,
     },
 
-    // Insert/Update Row data (single row)
+    // Insert/Update/Upsert Row data (single row)
     {
       id: 'rowData',
       title: 'Row Data (JSON)',
       type: 'code',
       placeholder: '{"column_name": "value"}',
-      condition: { field: 'operation', value: ['insertRow', 'updateRow', 'updateRowsByFilter'] },
+      condition: {
+        field: 'operation',
+        value: ['insertRow', 'upsertRow', 'updateRow', 'updateRowsByFilter'],
+      },
       required: true,
       wandConfig: {
         enabled: true,
@@ -353,6 +357,7 @@ Return ONLY the sort JSON:`,
     access: [
       'table_insert_row',
       'table_batch_insert_rows',
+      'table_upsert_row',
       'table_update_row',
       'table_update_rows_by_filter',
       'table_delete_row',
@@ -365,6 +370,7 @@ Return ONLY the sort JSON:`,
         const toolMap: Record<string, string> = {
           insertRow: 'table_insert_row',
           batchInsertRows: 'table_batch_insert_rows',
+          upsertRow: 'table_upsert_row',
           updateRow: 'table_update_row',
           updateRowsByFilter: 'table_update_rows_by_filter',
           deleteRow: 'table_delete_row',
@@ -395,6 +401,15 @@ Return ONLY the sort JSON:`,
 
         // Insert Row
         if (operation === 'insertRow') {
+          const data = parseJSON(rest.rowData, 'Row Data')
+          return {
+            tableId: rest.tableId,
+            data,
+          }
+        }
+
+        // Upsert Row
+        if (operation === 'upsertRow') {
           const data = parseJSON(rest.rowData, 'Row Data')
           return {
             tableId: rest.tableId,
@@ -497,7 +512,12 @@ Return ONLY the sort JSON:`,
     row: {
       type: 'json',
       description: 'Single row data',
-      condition: { field: 'operation', value: ['getRow', 'insertRow', 'updateRow'] },
+      condition: { field: 'operation', value: ['getRow', 'insertRow', 'upsertRow', 'updateRow'] },
+    },
+    operation: {
+      type: 'string',
+      description: 'Operation performed (insert or update)',
+      condition: { field: 'operation', value: 'upsertRow' },
     },
     rows: {
       type: 'array',

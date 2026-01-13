@@ -1381,6 +1381,7 @@ import {
   tableQueryRowsTool,
   tableUpdateRowsByFilterTool,
   tableUpdateRowTool,
+  tableUpsertRowTool,
 } from '@/tools/table'
 import { tavilyCrawlTool, tavilyExtractTool, tavilyMapTool, tavilySearchTool } from '@/tools/tavily'
 import {
@@ -2718,6 +2719,7 @@ export const tools: Record<string, ToolConfig> = {
   table_list: tableListTool,
   table_insert_row: tableInsertRowTool,
   table_batch_insert_rows: tableBatchInsertRowsTool,
+  table_upsert_row: tableUpsertRowTool,
   table_update_row: tableUpdateRowTool,
   table_update_rows_by_filter: tableUpdateRowsByFilterTool,
   table_delete_row: tableDeleteRowTool,

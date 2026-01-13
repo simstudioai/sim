@@ -25,6 +25,7 @@ interface ColumnDefinition {
   name: string
   type: 'string' | 'number' | 'boolean' | 'date' | 'json'
   required: boolean
+  unique: boolean
 }
 
 interface CreateTableModalProps {
@@ -47,14 +48,14 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
   const [tableName, setTableName] = useState('')
   const [description, setDescription] = useState('')
   const [columns, setColumns] = useState<ColumnDefinition[]>([
-    { name: '', type: 'string', required: false },
+    { name: '', type: 'string', required: false, unique: false },
   ])
   const [error, setError] = useState<string | null>(null)
 
   const createTable = useCreateTable(workspaceId)
 
   const handleAddColumn = () => {
-    setColumns([...columns, { name: '', type: 'string', required: false }])
+    setColumns([...columns, { name: '', type: 'string', required: false, unique: false }])
   }
 
   const handleRemoveColumn = (index: number) => {
@@ -109,7 +110,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
       // Reset form
       setTableName('')
       setDescription('')
-      setColumns([{ name: '', type: 'string', required: false }])
+      setColumns([{ name: '', type: 'string', required: false, unique: false }])
       setError(null)
       onClose()
     } catch (err) {
@@ -122,26 +123,33 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
     // Reset form on close
     setTableName('')
     setDescription('')
-    setColumns([{ name: '', type: 'string', required: false }])
+    setColumns([{ name: '', type: 'string', required: false, unique: false }])
     setError(null)
     onClose()
   }
 
   return (
     <Modal open={isOpen} onOpenChange={handleClose}>
-      <ModalContent className='w-[600px]'>
-        <ModalHeader>Create New Table</ModalHeader>
+      <ModalContent className='w-[700px]'>
+        <ModalHeader>
+          <div className='flex flex-col gap-[4px]'>
+            <h2 className='text-[16px] font-semibold'>Create New Table</h2>
+            <p className='text-[13px] font-normal text-[var(--text-tertiary)]'>
+              Define your table schema with columns and constraints
+            </p>
+          </div>
+        </ModalHeader>
         <ModalBody className='max-h-[70vh] overflow-y-auto'>
-          <form onSubmit={handleSubmit} className='flex flex-col gap-[16px]'>
+          <form onSubmit={handleSubmit} className='flex flex-col gap-[20px]'>
             {error && (
-              <div className='rounded-[6px] border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-[12px] py-[10px] text-[12px] text-[var(--status-error-text)]'>
+              <div className='rounded-[8px] border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-[14px] py-[12px] text-[13px] text-[var(--status-error-text)]'>
                 {error}
               </div>
             )}
 
             {/* Table Name */}
-            <div className='flex flex-col gap-[6px]'>
-              <Label htmlFor='tableName' className='text-[12px] font-medium'>
+            <div className='flex flex-col gap-[8px]'>
+              <Label htmlFor='tableName' className='text-[13px] font-medium'>
                 Table Name*
               </Label>
               <Input
@@ -149,17 +157,17 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
                 value={tableName}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTableName(e.target.value)}
                 placeholder='customers, orders, products'
-                className='h-[36px]'
+                className='h-[38px]'
                 required
               />
-              <p className='text-[11px] text-[var(--text-muted)]'>
+              <p className='text-[12px] text-[var(--text-tertiary)]'>
                 Use lowercase with underscores (e.g., customer_orders)
               </p>
             </div>
 
             {/* Description */}
-            <div className='flex flex-col gap-[6px]'>
-              <Label htmlFor='description' className='text-[12px] font-medium'>
+            <div className='flex flex-col gap-[8px]'>
+              <Label htmlFor='description' className='text-[13px] font-medium'>
                 Description
               </Label>
               <Textarea
@@ -175,33 +183,34 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
             </div>
 
             {/* Columns */}
-            <div className='flex flex-col gap-[12px]'>
+            <div className='flex flex-col gap-[14px]'>
               <div className='flex items-center justify-between'>
-                <Label className='text-[12px] font-medium'>Columns*</Label>
+                <Label className='text-[13px] font-medium'>Columns*</Label>
                 <Button
                   type='button'
                   size='sm'
                   variant='default'
                   onClick={handleAddColumn}
-                  className='h-[28px] rounded-[6px] px-[10px] text-[12px]'
+                  className='h-[30px] rounded-[6px] px-[12px] text-[12px]'
                 >
-                  <Plus className='mr-[4px] h-[12px] w-[12px]' />
+                  <Plus className='mr-[4px] h-[14px] w-[14px]' />
                   Add Column
                 </Button>
               </div>
 
               {/* Column Headers */}
-              <div className='flex items-center gap-[8px] text-[11px] font-medium text-[var(--text-muted)]'>
-                <div className='flex-1'>Name</div>
-                <div className='w-[120px]'>Type</div>
+              <div className='flex items-center gap-[10px] rounded-[6px] bg-[var(--bg-secondary)] px-[12px] py-[8px] text-[11px] font-semibold text-[var(--text-tertiary)]'>
+                <div className='flex-1'>Column Name</div>
+                <div className='w-[110px]'>Type</div>
                 <div className='w-[70px] text-center'>Required</div>
-                <div className='w-[32px]' />
+                <div className='w-[70px] text-center'>Unique</div>
+                <div className='w-[36px]' />
               </div>
 
               {/* Column Rows */}
-              <div className='flex flex-col gap-[8px]'>
+              <div className='flex flex-col gap-[10px]'>
                 {columns.map((column, index) => (
-                  <div key={index} className='flex items-center gap-[8px]'>
+                  <div key={index} className='flex items-center gap-[10px]'>
                     {/* Column Name */}
                     <div className='flex-1'>
                       <Input
@@ -215,7 +224,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
                     </div>
 
                     {/* Column Type */}
-                    <div className='w-[120px]'>
+                    <div className='w-[110px]'>
                       <Combobox
                         options={COLUMN_TYPES}
                         value={column.type}
@@ -226,7 +235,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
                         placeholder='Type'
                         editable={false}
                         filterOptions={false}
-                        size='sm'
+                        className='h-[36px]'
                       />
                     </div>
 
@@ -240,27 +249,48 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
                       />
                     </div>
 
+                    {/* Unique Checkbox */}
+                    <div className='flex w-[70px] items-center justify-center'>
+                      <Checkbox
+                        checked={column.unique}
+                        onCheckedChange={(checked) =>
+                          handleColumnChange(index, 'unique', checked === true)
+                        }
+                      />
+                    </div>
+
                     {/* Delete Button */}
-                    <div className='w-[32px]'>
+                    <div className='w-[36px]'>
                       <Button
                         type='button'
                         size='sm'
                         variant='ghost'
                         onClick={() => handleRemoveColumn(index)}
                         disabled={columns.length === 1}
-                        className='h-[32px] w-[32px] p-0 text-[var(--text-muted)] hover:text-[var(--text-error)]'
+                        className='h-[36px] w-[36px] p-0 text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-error)] hover:text-[var(--text-error)]'
                       >
-                        <Trash2 className='h-[14px] w-[14px]' />
+                        <Trash2 className='h-[15px] w-[15px]' />
                       </Button>
                     </div>
                   </div>
                 ))}
               </div>
+
+              <p className='text-[12px] text-[var(--text-tertiary)]'>
+                Mark columns as <span className='font-medium'>unique</span> to prevent duplicate
+                values (e.g., id, email)
+              </p>
             </div>
           </form>
         </ModalBody>
-        <ModalFooter>
-          <Button type='button' variant='default' onClick={handleClose}>
+        <ModalFooter className='gap-[10px]'>
+          <Button
+            type='button'
+            variant='default'
+            onClick={handleClose}
+            className='min-w-[90px]'
+            disabled={createTable.isPending}
+          >
             Cancel
           </Button>
           <Button
@@ -268,6 +298,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
             variant='tertiary'
             onClick={handleSubmit}
             disabled={createTable.isPending}
+            className='min-w-[120px]'
           >
             {createTable.isPending ? 'Creating...' : 'Create Table'}
           </Button>

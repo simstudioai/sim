@@ -5,6 +5,7 @@ export interface ColumnDefinition {
   name: string
   type: ColumnType
   required?: boolean
+  unique?: boolean
 }
 
 export interface TableSchema {
@@ -196,4 +197,11 @@ export function validateRowAgainstSchema(
     valid: errors.length === 0,
     errors,
   }
+}
+
+/**
+ * Gets unique column definitions from schema
+ */
+export function getUniqueColumns(schema: TableSchema): ColumnDefinition[] {
+  return schema.columns.filter((col) => col.unique === true)
 }
