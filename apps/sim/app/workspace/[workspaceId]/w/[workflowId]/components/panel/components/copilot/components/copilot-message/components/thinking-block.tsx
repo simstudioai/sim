@@ -3,6 +3,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronUp } from 'lucide-react'
+import CopilotMarkdownRenderer from './markdown-renderer'
 
 /**
  * Max height for thinking content before internal scrolling kicks in
@@ -133,10 +134,10 @@ const SmoothThinkingText = memo(
     return (
       <div
         ref={textRef}
-        className='whitespace-pre-wrap font-season text-[12px] text-[var(--text-muted)] leading-[1.4]'
+        className='[&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-[1.4] [&_p]:!m-0 [&_p]:!mb-1 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h1]:!m-0 [&_h1]:!mb-1 [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h2]:!m-0 [&_h2]:!mb-1 [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_h3]:!m-0 [&_h3]:!mb-1 [&_code]:!text-[11px] [&_ul]:!pl-5 [&_ul]:!my-1 [&_ol]:!pl-6 [&_ol]:!my-1 [&_li]:!my-0.5 [&_li]:!py-0 font-season text-[12px] text-[var(--text-muted)]'
         style={gradientStyle}
       >
-        {displayedContent}
+        <CopilotMarkdownRenderer content={displayedContent} />
       </div>
     )
   },
@@ -402,9 +403,9 @@ export function ThinkingBlock({
           isExpanded ? 'mt-1.5 max-h-[150px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
-        {/* Completed thinking text - dimmed */}
-        <div className='whitespace-pre-wrap font-season text-[12px] text-[var(--text-muted)] leading-[1.4]'>
-          {content}
+        {/* Completed thinking text - dimmed with markdown */}
+        <div className='[&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-[1.4] [&_p]:!m-0 [&_p]:!mb-1 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h1]:!m-0 [&_h1]:!mb-1 [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h2]:!m-0 [&_h2]:!mb-1 [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_h3]:!m-0 [&_h3]:!mb-1 [&_code]:!text-[11px] [&_ul]:!pl-5 [&_ul]:!my-1 [&_ol]:!pl-6 [&_ol]:!my-1 [&_li]:!my-0.5 [&_li]:!py-0 font-season text-[12px] text-[var(--text-muted)]'>
+          <CopilotMarkdownRenderer content={content} />
         </div>
       </div>
     </div>

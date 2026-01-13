@@ -1863,7 +1863,7 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
 
     updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
 
-    // Execute client tools (same logic as main tool_call handler)
+    // Execute client tools in parallel (non-blocking) - same pattern as main tool_call handler
     try {
       const def = getTool(name)
       if (def) {
@@ -1872,29 +1872,29 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
             ? !!def.hasInterrupt(args || {})
             : !!def.hasInterrupt
         if (!hasInterrupt) {
-          // Auto-execute tools without interrupts
+          // Auto-execute tools without interrupts - non-blocking
           const ctx = createExecutionContext({ toolCallId: id, toolName: name })
-          try {
-            await def.execute(ctx, args || {})
-          } catch (execErr: any) {
-            logger.error('[SubAgent] Tool execution failed', { id, name, error: execErr?.message })
-          }
+          Promise.resolve()
+            .then(() => def.execute(ctx, args || {}))
+            .catch((execErr: any) => {
+              logger.error('[SubAgent] Tool execution failed', { id, name, error: execErr?.message })
+            })
         }
       } else {
-        // Fallback to class-based tools
+        // Fallback to class-based tools - non-blocking
         const instance = getClientTool(id)
         if (instance) {
           const hasInterruptDisplays = !!instance.getInterruptDisplays?.()
           if (!hasInterruptDisplays) {
-            try {
-              await instance.execute(args || {})
-            } catch (execErr: any) {
-              logger.error('[SubAgent] Class tool execution failed', {
-                id,
-                name,
-                error: execErr?.message,
+            Promise.resolve()
+              .then(() => instance.execute(args || {}))
+              .catch((execErr: any) => {
+                logger.error('[SubAgent] Class tool execution failed', {
+                  id,
+                  name,
+                  error: execErr?.message,
+                })
               })
-            }
           }
         }
       }

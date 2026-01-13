@@ -221,6 +221,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         if (block.type === 'thinking') {
           // Check if there are any blocks after this one (tool calls, text, etc.)
           const hasFollowingContent = index < message.contentBlocks!.length - 1
+          // Check if special tags (options, plan) are present - should also close thinking
+          const hasSpecialTags = !!(parsedTags?.options || parsedTags?.plan)
           const blockKey = `thinking-${index}-${block.timestamp || index}`
 
           return (
@@ -229,6 +231,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 content={block.content}
                 isStreaming={isStreaming}
                 hasFollowingContent={hasFollowingContent}
+                hasSpecialTags={hasSpecialTags}
               />
             </div>
           )
@@ -244,7 +247,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         }
         return null
       })
-    }, [message.contentBlocks, isStreaming])
+    }, [message.contentBlocks, isStreaming, parsedTags])
 
     if (isUser) {
       return (
