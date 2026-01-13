@@ -1,4 +1,4 @@
-import type { Artifact, Message, PushNotificationConfig, Task, TaskState } from '@a2a-js/sdk'
+import type { Artifact, Message, PushNotificationConfig, TaskState } from '@a2a-js/sdk'
 import { db } from '@sim/db'
 import { a2aAgent, a2aPushNotificationConfig, a2aTask, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -7,9 +7,13 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { A2A_DEFAULT_TIMEOUT } from '@/lib/a2a/constants'
 import { notifyTaskStateChange } from '@/lib/a2a/push-notifications'
-import { createAgentMessage, extractWorkflowInput, isTerminalState } from '@/lib/a2a/utils'
+import {
+  createAgentMessage,
+  extractWorkflowInput,
+  isTerminalState,
+  parseWorkflowSSEChunk,
+} from '@/lib/a2a/utils'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { generateInternalToken } from '@/lib/auth/internal'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
@@ -18,9 +22,11 @@ import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import {
   A2A_ERROR_CODES,
   A2A_METHODS,
+  buildExecuteRequest,
+  buildTaskResponse,
   createError,
   createResponse,
-  createTaskStatus,
+  extractAgentContent,
   formatTaskResponse,
   generateTaskId,
   isJSONRPCRequest,
@@ -41,7 +47,7 @@ interface RouteParams {
 /**
  * GET - Returns the Agent Card (discovery document)
  */
-export async function GET(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<RouteParams> }) {
   const { agentId } = await params
 
   const redis = getRedisClient()
@@ -346,21 +352,18 @@ async function handleMessageSend(
       })
     }
 
-    const executeUrl = `${getBaseUrl()}/api/workflows/${agent.workflowId}/execute`
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    let useInternalAuth = false
-    if (apiKey) {
-      headers['X-API-Key'] = apiKey
-    } else {
-      const internalToken = await generateInternalToken()
-      headers.Authorization = `Bearer ${internalToken}`
-      useInternalAuth = true
-    }
+    const {
+      url: executeUrl,
+      headers,
+      useInternalAuth,
+    } = await buildExecuteRequest({
+      workflowId: agent.workflowId,
+      apiKey,
+    })
 
     logger.info(`Executing workflow ${agent.workflowId} for A2A task ${taskId}`)
 
     try {
-      // Extract workflow input from A2A message parts
       const workflowInput = extractWorkflowInput(message)
       if (!workflowInput) {
         return NextResponse.json(
@@ -388,12 +391,7 @@ async function handleMessageSend(
 
       const finalState: TaskState = response.ok ? 'completed' : 'failed'
 
-      const agentContent =
-        executeResult.output?.content ||
-        (typeof executeResult.output === 'object'
-          ? JSON.stringify(executeResult.output)
-          : String(executeResult.output || executeResult.error || 'Task completed'))
-
+      const agentContent = extractAgentContent(executeResult)
       const agentMessage = createAgentMessage(agentContent)
       agentMessage.taskId = taskId
       if (contextId) agentMessage.contextId = contextId
@@ -419,14 +417,13 @@ async function handleMessageSend(
         })
       }
 
-      const task: Task = {
-        kind: 'task',
-        id: taskId,
+      const task = buildTaskResponse({
+        taskId,
         contextId,
-        status: createTaskStatus(finalState),
+        state: finalState,
         history,
         artifacts,
-      }
+      })
 
       return NextResponse.json(createResponse(id, task))
     } catch (error) {
@@ -460,7 +457,7 @@ async function handleMessageSend(
  * Handle message/stream - Stream a message response (v0.3)
  */
 async function handleMessageStream(
-  request: NextRequest,
+  _request: NextRequest,
   id: string | number,
   agent: {
     id: string
@@ -570,21 +567,16 @@ async function handleMessageStream(
       })
 
       try {
-        const executeUrl = `${getBaseUrl()}/api/workflows/${agent.workflowId}/execute`
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          'X-Stream-Response': 'true',
-        }
-        let useInternalAuth = false
-        if (apiKey) {
-          headers['X-API-Key'] = apiKey
-        } else {
-          const internalToken = await generateInternalToken()
-          headers.Authorization = `Bearer ${internalToken}`
-          useInternalAuth = true
-        }
+        const {
+          url: executeUrl,
+          headers,
+          useInternalAuth,
+        } = await buildExecuteRequest({
+          workflowId: agent.workflowId,
+          apiKey,
+          stream: true,
+        })
 
-        // Extract workflow input from A2A message parts
         const workflowInput = extractWorkflowInput(message)
         if (!workflowInput) {
           sendEvent('error', {
@@ -626,26 +618,35 @@ async function handleMessageStream(
         if (response.body && isStreamingResponse) {
           const reader = response.body.getReader()
           const decoder = new TextDecoder()
-          let fullContent = ''
+          let accumulatedContent = ''
+          let finalContent: string | undefined
 
           while (true) {
             const { done, value } = await reader.read()
             if (done) break
 
-            const chunk = decoder.decode(value, { stream: true })
-            fullContent += chunk
+            const rawChunk = decoder.decode(value, { stream: true })
+            const parsed = parseWorkflowSSEChunk(rawChunk)
 
-            sendEvent('message', {
-              kind: 'message',
-              taskId,
-              contextId,
-              role: 'agent',
-              parts: [{ kind: 'text', text: chunk }],
-              final: false,
-            })
+            if (parsed.content) {
+              accumulatedContent += parsed.content
+              sendEvent('message', {
+                kind: 'message',
+                taskId,
+                contextId,
+                role: 'agent',
+                parts: [{ kind: 'text', text: parsed.content }],
+                final: false,
+              })
+            }
+
+            if (parsed.finalContent) {
+              finalContent = parsed.finalContent
+            }
           }
 
-          const agentMessage = createAgentMessage(fullContent || 'Task completed')
+          const messageContent = finalContent || accumulatedContent || 'Task completed'
+          const agentMessage = createAgentMessage(messageContent)
           agentMessage.taskId = taskId
           if (contextId) agentMessage.contextId = contextId
           history.push(agentMessage)
@@ -674,11 +675,7 @@ async function handleMessageStream(
         } else {
           const result = await response.json()
 
-          const content =
-            result.output?.content ||
-            (typeof result.output === 'object'
-              ? JSON.stringify(result.output)
-              : String(result.output || 'Task completed'))
+          const content = extractAgentContent(result)
 
           sendEvent('message', {
             kind: 'message',
@@ -779,14 +776,13 @@ async function handleTaskGet(id: string | number, params: TaskIdParams): Promise
     })
   }
 
-  const taskResponse: Task = {
-    kind: 'task',
-    id: task.id,
+  const taskResponse = buildTaskResponse({
+    taskId: task.id,
     contextId: task.sessionId || task.id,
-    status: createTaskStatus(task.status as TaskState),
+    state: task.status as TaskState,
     history: task.messages as Message[],
     artifacts: (task.artifacts as Artifact[]) || [],
-  }
+  })
 
   const result = formatTaskResponse(taskResponse, historyLength)
 
@@ -851,14 +847,13 @@ async function handleTaskCancel(id: string | number, params: TaskIdParams): Prom
     })
   })
 
-  const canceledTask: Task = {
-    kind: 'task',
-    id: task.id,
+  const canceledTask = buildTaskResponse({
+    taskId: task.id,
     contextId: task.sessionId || task.id,
-    status: createTaskStatus('canceled'),
+    state: 'canceled',
     history: task.messages as Message[],
     artifacts: (task.artifacts as Artifact[]) || [],
-  }
+  })
 
   return NextResponse.json(createResponse(id, canceledTask))
 }
@@ -887,14 +882,13 @@ async function handleTaskResubscribe(
   }
 
   if (isTerminalState(task.status as TaskState)) {
-    const completedTask: Task = {
-      kind: 'task',
-      id: task.id,
+    const completedTask = buildTaskResponse({
+      taskId: task.id,
       contextId: task.sessionId || task.id,
-      status: createTaskStatus(task.status as TaskState),
+      state: task.status as TaskState,
       history: task.messages as Message[],
       artifacts: (task.artifacts as Artifact[]) || [],
-    }
+    })
     return NextResponse.json(createResponse(id, completedTask))
   }
 

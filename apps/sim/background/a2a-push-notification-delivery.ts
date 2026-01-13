@@ -1,10 +1,3 @@
-/**
- * A2A Push Notification Delivery Task
- *
- * trigger.dev task for durable push notification delivery with retries.
- * Only used when trigger.dev is configured.
- */
-
 import type { TaskState } from '@a2a-js/sdk'
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'

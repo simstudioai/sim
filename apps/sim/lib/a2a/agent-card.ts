@@ -1,9 +1,3 @@
-/**
- * A2A Agent Card Generation
- *
- * Generates Agent Cards from workflow metadata and configuration.
- */
-
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   A2A_DEFAULT_CAPABILITIES,
@@ -14,9 +8,6 @@ import {
 import type { AgentCapabilities, AgentSkill } from './types'
 import { buildA2AEndpointUrl, sanitizeAgentName } from './utils'
 
-/**
- * App-specific Agent Card type (extends SDK types with app-specific fields)
- */
 export interface AppAgentCard {
   name: string
   description: string
@@ -48,9 +39,6 @@ interface AgentData {
   skills?: AgentSkill[]
 }
 
-/**
- * Generate an Agent Card from agent and workflow data
- */
 export function generateAgentCard(agent: AgentData, workflow: WorkflowData): AppAgentCard {
   const baseUrl = getBaseUrl()
   const description =
@@ -83,9 +71,6 @@ export function generateAgentCard(agent: AgentData, workflow: WorkflowData): App
   }
 }
 
-/**
- * Generate skills from workflow input format
- */
 export function generateSkillsFromWorkflow(
   workflowName: string,
   workflowDescription: string | undefined | null,
@@ -101,16 +86,10 @@ export function generateSkillsFromWorkflow(
   return [skill]
 }
 
-/**
- * Generate a default agent name from workflow name
- */
 export function generateDefaultAgentName(workflowName: string): string {
   return sanitizeAgentName(workflowName)
 }
 
-/**
- * Validate agent card structure
- */
 export function validateAgentCard(card: unknown): card is AppAgentCard {
   if (!card || typeof card !== 'object') return false
 
@@ -127,9 +106,6 @@ export function validateAgentCard(card: unknown): card is AppAgentCard {
   return true
 }
 
-/**
- * Merge agent card with updates (partial update support)
- */
 export function mergeAgentCard(
   existing: AppAgentCard,
   updates: Partial<AppAgentCard>
@@ -145,9 +121,6 @@ export function mergeAgentCard(
   }
 }
 
-/**
- * Create agent card URL paths
- */
 export function getAgentCardPaths(agentId: string) {
   const baseUrl = getBaseUrl()
   return {

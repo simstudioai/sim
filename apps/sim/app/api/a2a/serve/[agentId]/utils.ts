@@ -1,11 +1,7 @@
-/**
- * A2A Serve Endpoint Utilities
- *
- * Shared utilities for JSON-RPC request/response handling in A2A v0.3.
- */
-
-import type { Message, PushNotificationConfig, Task, TaskState } from '@a2a-js/sdk'
+import type { Artifact, Message, PushNotificationConfig, Task, TaskState } from '@a2a-js/sdk'
 import { v4 as uuidv4 } from 'uuid'
+import { generateInternalToken } from '@/lib/auth/internal'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 
 /** A2A v0.3 JSON-RPC method names */
 export const A2A_METHODS = {
@@ -69,16 +65,10 @@ export interface PushNotificationSetParams {
   pushNotificationConfig: PushNotificationConfig
 }
 
-/**
- * Create a JSON-RPC success response
- */
 export function createResponse(id: string | number | null, result: unknown): JSONRPCResponse {
   return { jsonrpc: '2.0', id, result }
 }
 
-/**
- * Create a JSON-RPC error response
- */
 export function createError(
   id: string | number | null,
   code: number,
@@ -88,32 +78,20 @@ export function createError(
   return { jsonrpc: '2.0', id, error: { code, message, data } }
 }
 
-/**
- * Type guard for JSON-RPC request validation
- */
 export function isJSONRPCRequest(obj: unknown): obj is JSONRPCRequest {
   if (!obj || typeof obj !== 'object') return false
   const r = obj as Record<string, unknown>
   return r.jsonrpc === '2.0' && typeof r.method === 'string' && r.id !== undefined
 }
 
-/**
- * Generate a unique task ID
- */
 export function generateTaskId(): string {
   return uuidv4()
 }
 
-/**
- * Create a task status object with current timestamp
- */
 export function createTaskStatus(state: TaskState): { state: TaskState; timestamp: string } {
   return { state, timestamp: new Date().toISOString() }
 }
 
-/**
- * Format task response with optional history truncation
- */
 export function formatTaskResponse(task: Task, historyLength?: number): Task {
   if (historyLength !== undefined && task.history) {
     return {
@@ -122,4 +100,67 @@ export function formatTaskResponse(task: Task, historyLength?: number): Task {
     }
   }
   return task
+}
+
+export interface ExecuteRequestConfig {
+  workflowId: string
+  apiKey?: string | null
+  stream?: boolean
+}
+
+export interface ExecuteRequestResult {
+  url: string
+  headers: Record<string, string>
+  useInternalAuth: boolean
+}
+
+export async function buildExecuteRequest(
+  config: ExecuteRequestConfig
+): Promise<ExecuteRequestResult> {
+  const url = `${getBaseUrl()}/api/workflows/${config.workflowId}/execute`
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  let useInternalAuth = false
+
+  if (config.apiKey) {
+    headers['X-API-Key'] = config.apiKey
+  } else {
+    const internalToken = await generateInternalToken()
+    headers.Authorization = `Bearer ${internalToken}`
+    useInternalAuth = true
+  }
+
+  if (config.stream) {
+    headers['X-Stream-Response'] = 'true'
+  }
+
+  return { url, headers, useInternalAuth }
+}
+
+export function extractAgentContent(executeResult: {
+  output?: { content?: string; [key: string]: unknown }
+  error?: string
+}): string {
+  return (
+    executeResult.output?.content ||
+    (typeof executeResult.output === 'object'
+      ? JSON.stringify(executeResult.output)
+      : String(executeResult.output || executeResult.error || 'Task completed'))
+  )
+}
+
+export function buildTaskResponse(params: {
+  taskId: string
+  contextId: string
+  state: TaskState
+  history: Message[]
+  artifacts?: Artifact[]
+}): Task {
+  return {
+    kind: 'task',
+    id: params.taskId,
+    contextId: params.contextId,
+    status: createTaskStatus(params.state),
+    history: params.history,
+    artifacts: params.artifacts || [],
+  }
 }

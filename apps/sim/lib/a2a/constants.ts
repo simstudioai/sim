@@ -1,7 +1,3 @@
-/**
- * A2A Protocol Constants (v0.3)
- */
-
 export { AGENT_CARD_PATH } from '@a2a-js/sdk'
 export const A2A_PROTOCOL_VERSION = '0.3.0'
 

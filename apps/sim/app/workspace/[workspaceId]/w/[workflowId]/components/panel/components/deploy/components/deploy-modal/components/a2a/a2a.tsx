@@ -79,7 +79,7 @@ interface A2aDeployProps {
   workflowName: string
   workflowDescription?: string | null
   isDeployed: boolean
-  workflowDeployedAt?: Date
+  workflowNeedsRedeployment?: boolean
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
   onAgentExistsChange?: (exists: boolean) => void
@@ -95,7 +95,7 @@ export function A2aDeploy({
   workflowName,
   workflowDescription,
   isDeployed,
-  workflowDeployedAt,
+  workflowNeedsRedeployment,
   onSubmittingChange,
   onCanSaveChange,
   onAgentExistsChange,
@@ -277,11 +277,12 @@ export function A2aDeploy({
     workflowName,
   ])
 
-  // Detect workflow changes (workflow was redeployed after agent was last updated)
+  // Detect if workflow has pending changes not yet deployed
+  // This aligns with the General tab's "needs redeployment" detection
   const hasWorkflowChanges = useMemo(() => {
-    if (!existingAgent || !existingAgent.updatedAt || !workflowDeployedAt) return false
-    return new Date(workflowDeployedAt) > new Date(existingAgent.updatedAt)
-  }, [existingAgent, existingAgent?.updatedAt, workflowDeployedAt])
+    if (!existingAgent) return false
+    return !!workflowNeedsRedeployment
+  }, [existingAgent, workflowNeedsRedeployment])
 
   const needsRepublish = existingAgent && (hasFormChanges || hasWorkflowChanges)
 

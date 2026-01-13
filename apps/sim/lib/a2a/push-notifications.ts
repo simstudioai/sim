@@ -1,10 +1,3 @@
-/**
- * A2A Push Notifications
- *
- * Handles push notification delivery for A2A task state changes.
- * Uses trigger.dev for durable delivery when available, falls back to inline delivery.
- */
-
 import type { Artifact, Message, TaskState } from '@a2a-js/sdk'
 import { db } from '@sim/db'
 import { a2aPushNotificationConfig, a2aTask } from '@sim/db/schema'
@@ -19,7 +12,6 @@ const logger = createLogger('A2APushNotifications')
  * Works without any external dependencies (DB-only).
  */
 export async function deliverPushNotification(taskId: string, state: TaskState): Promise<boolean> {
-  // Get push notification config
   const [config] = await db
     .select()
     .from(a2aPushNotificationConfig)
@@ -27,11 +19,9 @@ export async function deliverPushNotification(taskId: string, state: TaskState):
     .limit(1)
 
   if (!config || !config.isActive) {
-    // No config = nothing to deliver (success)
     return true
   }
 
-  // Get task data
   const [task] = await db.select().from(a2aTask).where(eq(a2aTask.id, taskId)).limit(1)
 
   if (!task) {
@@ -89,7 +79,6 @@ export async function deliverPushNotification(taskId: string, state: TaskState):
  * Uses trigger.dev for durable delivery when available, falls back to inline delivery.
  */
 export async function notifyTaskStateChange(taskId: string, state: TaskState): Promise<void> {
-  // First check if there's even a push notification config for this task
   const [config] = await db
     .select({ id: a2aPushNotificationConfig.id })
     .from(a2aPushNotificationConfig)
@@ -97,20 +86,17 @@ export async function notifyTaskStateChange(taskId: string, state: TaskState): P
     .limit(1)
 
   if (!config) {
-    // No push notification configured, skip
     return
   }
 
   if (isTriggerDevEnabled) {
     try {
-      // Dynamic import to avoid loading trigger.dev when not configured
       const { a2aPushNotificationTask } = await import(
         '@/background/a2a-push-notification-delivery'
       )
       await a2aPushNotificationTask.trigger({ taskId, state })
       logger.info('Push notification queued to trigger.dev', { taskId, state })
     } catch (error) {
-      // If trigger.dev fails, fall back to inline delivery
       logger.warn('Failed to queue push notification, falling back to inline delivery', {
         taskId,
         error,
@@ -118,7 +104,6 @@ export async function notifyTaskStateChange(taskId: string, state: TaskState): P
       await deliverPushNotification(taskId, state)
     }
   } else {
-    // Inline delivery (best-effort, no retries)
     await deliverPushNotification(taskId, state)
   }
 }

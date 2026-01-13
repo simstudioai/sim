@@ -1,22 +1,10 @@
-/**
- * A2A Protocol Utilities (v0.3)
- *
- * App-specific utilities. SDK handles protocol-level operations.
- */
-
 import type { DataPart, FilePart, Message, Part, Task, TaskState, TextPart } from '@a2a-js/sdk'
 import { A2A_TERMINAL_STATES } from './constants'
 
-/**
- * Check if a task is in a terminal state
- */
 export function isTerminalState(state: TaskState): boolean {
   return (A2A_TERMINAL_STATES as readonly string[]).includes(state)
 }
 
-/**
- * Extract text content from a message
- */
 export function extractTextContent(message: Message): string {
   return message.parts
     .filter((part): part is TextPart => part.kind === 'text')
@@ -24,18 +12,11 @@ export function extractTextContent(message: Message): string {
     .join('\n')
 }
 
-/**
- * Extract structured data from DataParts in a message
- * Later parts override earlier ones if keys conflict
- */
 export function extractDataContent(message: Message): Record<string, unknown> {
   const dataParts = message.parts.filter((part): part is DataPart => part.kind === 'data')
   return dataParts.reduce((acc, part) => ({ ...acc, ...part.data }), {})
 }
 
-/**
- * A2A file extracted from FilePart
- */
 export interface A2AFile {
   name?: string
   mimeType?: string
@@ -43,9 +24,6 @@ export interface A2AFile {
   bytes?: string
 }
 
-/**
- * Extract files from FileParts in a message
- */
 export function extractFileContent(message: Message): A2AFile[] {
   return message.parts
     .filter((part): part is FilePart => part.kind === 'file')
@@ -57,9 +35,6 @@ export function extractFileContent(message: Message): A2AFile[] {
     }))
 }
 
-/**
- * File format expected by workflow execute endpoint for processing
- */
 export interface ExecutionFileInput {
   type: 'file' | 'url'
   data: string
@@ -85,7 +60,6 @@ export function convertFilesToExecutionFormat(files: A2AFile[]): ExecutionFileIn
           mime: file.mimeType,
         }
       }
-      // FileWithBytes - create data URL format (bytes guaranteed by filter)
       const dataUrl = `data:${file.mimeType || 'application/octet-stream'};base64,${file.bytes}`
       return {
         type: 'file' as const,
@@ -96,19 +70,12 @@ export function convertFilesToExecutionFormat(files: A2AFile[]): ExecutionFileIn
     })
 }
 
-/**
- * Workflow input format extracted from A2A message parts
- */
 export interface WorkflowInput {
   input: string
   data?: Record<string, unknown>
   files?: ExecutionFileInput[]
 }
 
-/**
- * Extract workflow input from an A2A message
- * Returns null if message has no content (empty parts)
- */
 export function extractWorkflowInput(message: Message): WorkflowInput | null {
   const messageText = extractTextContent(message)
   const dataContent = extractDataContent(message)
@@ -116,7 +83,6 @@ export function extractWorkflowInput(message: Message): WorkflowInput | null {
   const files = convertFilesToExecutionFormat(fileContent)
   const hasData = Object.keys(dataContent).length > 0
 
-  // Return null if no content
   if (!messageText && !hasData && files.length === 0) {
     return null
   }
@@ -128,16 +94,10 @@ export function extractWorkflowInput(message: Message): WorkflowInput | null {
   }
 }
 
-/**
- * Create a text part (SDK format)
- */
 export function createTextPart(text: string): Part {
   return { kind: 'text', text }
 }
 
-/**
- * Create a user message (SDK format)
- */
 export function createUserMessage(text: string): Message {
   return {
     kind: 'message',
@@ -147,9 +107,6 @@ export function createUserMessage(text: string): Message {
   }
 }
 
-/**
- * Create an agent message (SDK format)
- */
 export function createAgentMessage(text: string): Message {
   return {
     kind: 'message',
@@ -159,16 +116,10 @@ export function createAgentMessage(text: string): Message {
   }
 }
 
-/**
- * Create an A2A tool ID from agent ID and skill ID
- */
 export function createA2AToolId(agentId: string, skillId: string): string {
   return `a2a:${agentId}:${skillId}`
 }
 
-/**
- * Parse an A2A tool ID into components
- */
 export function parseA2AToolId(toolId: string): { agentId: string; skillId: string } | null {
   const parts = toolId.split(':')
   if (parts.length !== 3 || parts[0] !== 'a2a') {
@@ -177,9 +128,6 @@ export function parseA2AToolId(toolId: string): { agentId: string; skillId: stri
   return { agentId: parts[1], skillId: parts[2] }
 }
 
-/**
- * Sanitize agent name for use as identifier
- */
 export function sanitizeAgentName(name: string): string {
   return name
     .toLowerCase()
@@ -188,33 +136,77 @@ export function sanitizeAgentName(name: string): string {
     .substring(0, 64)
 }
 
-/**
- * Build A2A endpoint URL
- */
 export function buildA2AEndpointUrl(baseUrl: string, agentId: string): string {
   const base = baseUrl.replace(/\/$/, '')
   return `${base}/api/a2a/serve/${agentId}`
 }
 
-/**
- * Build Agent Card URL
- */
 export function buildAgentCardUrl(baseUrl: string, agentId: string): string {
   const base = baseUrl.replace(/\/$/, '')
   return `${base}/api/a2a/agents/${agentId}`
 }
 
-/**
- * Get last agent message from task history
- */
 export function getLastAgentMessage(task: Task): Message | undefined {
   return task.history?.filter((m) => m.role === 'agent').pop()
 }
 
-/**
- * Get last agent message text from task
- */
 export function getLastAgentMessageText(task: Task): string {
   const message = getLastAgentMessage(task)
   return message ? extractTextContent(message) : ''
+}
+
+export interface ParsedSSEChunk {
+  /** Incremental content from chunk events */
+  content: string
+  /** Final content if this chunk contains the final event */
+  finalContent?: string
+  /** Whether this chunk indicates the stream is done */
+  isDone: boolean
+}
+
+/**
+ * Parse workflow SSE chunk and extract clean content
+ *
+ * Workflow execute endpoint returns SSE in this format:
+ * - data: {"event":"chunk","data":{"content":"partial text"}}
+ * - data: {"event":"final","data":{"success":true,"output":{"content":"full text"}}}
+ * - data: "[DONE]"
+ *
+ * This function extracts the actual text content for A2A streaming
+ */
+export function parseWorkflowSSEChunk(chunk: string): ParsedSSEChunk {
+  const result: ParsedSSEChunk = {
+    content: '',
+    isDone: false,
+  }
+
+  const lines = chunk.split('\n')
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+
+    if (!trimmed.startsWith('data:')) continue
+
+    const dataContent = trimmed.slice(5).trim()
+
+    if (dataContent === '"[DONE]"' || dataContent === '[DONE]') {
+      result.isDone = true
+      continue
+    }
+
+    try {
+      const parsed = JSON.parse(dataContent)
+
+      if (parsed.event === 'chunk' && parsed.data?.content) {
+        result.content += parsed.data.content
+      } else if (parsed.event === 'final' && parsed.data?.output?.content) {
+        result.finalContent = parsed.data.output.content
+        result.isDone = true
+      }
+    } catch {
+      // Not valid JSON, skip
+    }
+  }
+
+  return result
 }

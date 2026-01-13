@@ -747,9 +747,7 @@ export function DeployModal({
                     workflowName={workflowMetadata?.name || 'Workflow'}
                     workflowDescription={workflowMetadata?.description}
                     isDeployed={isDeployed}
-                    workflowDeployedAt={
-                      deploymentInfo?.deployedAt ? new Date(deploymentInfo.deployedAt) : undefined
-                    }
+                    workflowNeedsRedeployment={needsRedeployment}
                     onSubmittingChange={setA2aSubmitting}
                     onCanSaveChange={setA2aCanSave}
                     onAgentExistsChange={setHasA2aAgent}
