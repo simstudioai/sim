@@ -97,7 +97,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       })
     )
 
-    return NextResponse.json({ keys: formattedKeys, byokEnabled: true })
+    return NextResponse.json({ keys: formattedKeys })
   } catch (error: unknown) {
     logger.error(`[${requestId}] BYOK keys GET error`, error)
     return NextResponse.json(
