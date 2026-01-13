@@ -2436,9 +2436,10 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // If already sending a message, queue this one instead
       if (isSendingMessage) {
-        get().addToQueue(message, { fileAttachments, contexts })
+        get().addToQueue(message, { fileAttachments, contexts, messageId })
         logger.info('[Copilot] Message queued (already sending)', {
           queueLength: get().messageQueue.length + 1,
+          originalMessageId: messageId,
         })
         return
       }
@@ -3164,8 +3165,12 @@ export const useCopilotStore = create<CopilotStore>()(
         // Process next message in queue if any
         const nextInQueue = get().messageQueue[0]
         if (nextInQueue) {
+          // Use originalMessageId if available (from edit/resend), otherwise use queue entry id
+          const messageIdToUse = nextInQueue.originalMessageId || nextInQueue.id
           logger.info('[Queue] Processing next queued message', {
             id: nextInQueue.id,
+            originalMessageId: nextInQueue.originalMessageId,
+            messageIdToUse,
             queueLength: get().messageQueue.length,
           })
           // Remove from queue and send
@@ -3176,7 +3181,7 @@ export const useCopilotStore = create<CopilotStore>()(
               stream: true,
               fileAttachments: nextInQueue.fileAttachments,
               contexts: nextInQueue.contexts,
-              messageId: nextInQueue.id,
+              messageId: messageIdToUse,
             })
           }, 100)
         }
@@ -3618,10 +3623,12 @@ export const useCopilotStore = create<CopilotStore>()(
         fileAttachments: options?.fileAttachments,
         contexts: options?.contexts,
         queuedAt: Date.now(),
+        originalMessageId: options?.messageId,
       }
       set({ messageQueue: [...get().messageQueue, queuedMessage] })
       logger.info('[Queue] Message added to queue', {
         id: queuedMessage.id,
+        originalMessageId: options?.messageId,
         queueLength: get().messageQueue.length,
       })
     },
@@ -3662,12 +3669,15 @@ export const useCopilotStore = create<CopilotStore>()(
         await new Promise((resolve) => setTimeout(resolve, 50))
       }
 
+      // Use originalMessageId if available (from edit/resend), otherwise use queue entry id
+      const messageIdToUse = message.originalMessageId || message.id
+
       // Send the message
       await get().sendMessage(message.content, {
         stream: true,
         fileAttachments: message.fileAttachments,
         contexts: message.contexts,
-        messageId: message.id,
+        messageId: messageIdToUse,
       })
     },
 
