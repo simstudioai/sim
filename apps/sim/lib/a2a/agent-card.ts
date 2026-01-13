@@ -42,7 +42,7 @@ interface AgentData {
 export function generateAgentCard(agent: AgentData, workflow: WorkflowData): AppAgentCard {
   const baseUrl = getBaseUrl()
   const description =
-    agent.description || workflow.description || `${agent.name} - A2A Agent powered by Sim Studio`
+    agent.description || workflow.description || `${agent.name} - A2A Agent powered by Sim`
 
   return {
     name: agent.name,
@@ -51,7 +51,7 @@ export function generateAgentCard(agent: AgentData, workflow: WorkflowData): App
     protocolVersion: A2A_PROTOCOL_VERSION,
     documentationUrl: `${baseUrl}/docs/a2a`,
     provider: {
-      organization: 'Sim Studio',
+      organization: 'Sim',
       url: baseUrl,
     },
     capabilities: {
