@@ -311,9 +311,13 @@ export function TableDataViewer() {
           <span className='font-medium text-[13px] text-[var(--text-primary)]'>
             {tableData.name}
           </span>
-          <Badge variant='gray-secondary' size='sm'>
-            {totalCount} {totalCount === 1 ? 'row' : 'rows'}
-          </Badge>
+          {isLoadingRows ? (
+            <Skeleton className='h-[18px] w-[60px] rounded-full' />
+          ) : (
+            <Badge variant='gray-secondary' size='sm'>
+              {totalCount} {totalCount === 1 ? 'row' : 'rows'}
+            </Badge>
+          )}
         </div>
 
         <div className='flex items-center gap-[8px]'>
@@ -519,18 +523,40 @@ export function TableDataViewer() {
           </TableHeader>
           <TableBody>
             {isLoadingRows ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
+              Array.from({ length: 25 }).map((_, rowIndex) => (
+                <TableRow key={rowIndex}>
                   <TableCell>
                     <Skeleton className='h-[14px] w-[14px]' />
                   </TableCell>
-                  {columns.map((col) => (
-                    <TableCell key={col.name}>
-                      <Skeleton className='h-[16px] w-[80px]' />
-                    </TableCell>
-                  ))}
+                  {columns.map((col, colIndex) => {
+                    // Vary skeleton width based on column type and add some randomness
+                    const baseWidth =
+                      col.type === 'json'
+                        ? 200
+                        : col.type === 'string'
+                          ? 160
+                          : col.type === 'number'
+                            ? 80
+                            : col.type === 'boolean'
+                              ? 50
+                              : col.type === 'date'
+                                ? 100
+                                : 120
+                    // Add some variation per row
+                    const variation = ((rowIndex + colIndex) % 3) * 20
+                    const width = baseWidth + variation
+
+                    return (
+                      <TableCell key={col.name}>
+                        <Skeleton className='h-[16px]' style={{ width: `${width}px` }} />
+                      </TableCell>
+                    )
+                  })}
                   <TableCell>
-                    <Skeleton className='h-[16px] w-[48px]' />
+                    <div className='flex gap-[4px]'>
+                      <Skeleton className='h-[24px] w-[24px]' />
+                      <Skeleton className='h-[24px] w-[24px]' />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
