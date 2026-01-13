@@ -43,6 +43,9 @@ import { ResearchClientTool } from '@/lib/copilot/tools/client/other/research'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
 import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
 import { SearchLibraryDocsClientTool } from '@/lib/copilot/tools/client/other/search-library-docs'
+import { CrawlWebsiteClientTool } from '@/lib/copilot/tools/client/other/crawl-website'
+import { GetPageContentsClientTool } from '@/lib/copilot/tools/client/other/get-page-contents'
+import { ScrapePageClientTool } from '@/lib/copilot/tools/client/other/scrape-page'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
 import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
 import { SleepClientTool } from '@/lib/copilot/tools/client/other/sleep'
@@ -120,6 +123,9 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   search_library_docs: (id) => new SearchLibraryDocsClientTool(id),
   search_patterns: (id) => new SearchPatternsClientTool(id),
   search_errors: (id) => new SearchErrorsClientTool(id),
+  scrape_page: (id) => new ScrapePageClientTool(id),
+  get_page_contents: (id) => new GetPageContentsClientTool(id),
+  crawl_website: (id) => new CrawlWebsiteClientTool(id),
   remember_debug: (id) => new RememberDebugClientTool(id),
   set_environment_variables: (id) => new SetEnvironmentVariablesClientTool(id),
   get_credentials: (id) => new GetCredentialsClientTool(id),
@@ -179,6 +185,9 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   search_library_docs: (SearchLibraryDocsClientTool as any)?.metadata,
   search_patterns: (SearchPatternsClientTool as any)?.metadata,
   search_errors: (SearchErrorsClientTool as any)?.metadata,
+  scrape_page: (ScrapePageClientTool as any)?.metadata,
+  get_page_contents: (GetPageContentsClientTool as any)?.metadata,
+  crawl_website: (CrawlWebsiteClientTool as any)?.metadata,
   remember_debug: (RememberDebugClientTool as any)?.metadata,
   set_environment_variables: (SetEnvironmentVariablesClientTool as any)?.metadata,
   get_credentials: (GetCredentialsClientTool as any)?.metadata,
@@ -2515,6 +2524,13 @@ export const useCopilotStore = create<CopilotStore>()(
         // Call copilot API
         const apiMode: 'ask' | 'agent' | 'plan' =
           mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
+
+        // Extract slash commands from contexts (lowercase) and filter them out from contexts
+        const commands = contexts
+          ?.filter((c) => c.kind === 'slash_command' && 'command' in c)
+          .map((c) => (c as any).command.toLowerCase()) as string[] | undefined
+        const filteredContexts = contexts?.filter((c) => c.kind !== 'slash_command')
+
         const result = await sendStreamingMessage({
           message: messageToSend,
           userMessageId: userMessage.id,
@@ -2526,7 +2542,8 @@ export const useCopilotStore = create<CopilotStore>()(
           createNewChat: !currentChat,
           stream,
           fileAttachments,
-          contexts,
+          contexts: filteredContexts,
+          commands: commands?.length ? commands : undefined,
           abortSignal: abortController.signal,
         })
 

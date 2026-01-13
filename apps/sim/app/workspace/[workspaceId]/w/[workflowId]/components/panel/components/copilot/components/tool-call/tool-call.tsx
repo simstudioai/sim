@@ -2595,16 +2595,23 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     }
   }
 
+  // For edit_workflow, hide text display when we have operations (WorkflowEditSummary replaces it)
+  const isEditWorkflow = toolCall.name === 'edit_workflow'
+  const hasOperations = Array.isArray(params.operations) && params.operations.length > 0
+  const hideTextForEditWorkflow = isEditWorkflow && hasOperations
+
   return (
     <div className='w-full'>
-      <div className={isToolNameClickable ? 'cursor-pointer' : ''} onClick={handleToolNameClick}>
-        <ShimmerOverlayText
-          text={displayName}
-          active={isLoadingState}
-          isSpecial={isSpecial}
-          className='font-[470] font-season text-[var(--text-secondary)] text-sm dark:text-[var(--text-muted)]'
-        />
-      </div>
+      {!hideTextForEditWorkflow && (
+        <div className={isToolNameClickable ? 'cursor-pointer' : ''} onClick={handleToolNameClick}>
+          <ShimmerOverlayText
+            text={displayName}
+            active={isLoadingState}
+            isSpecial={isSpecial}
+            className='font-[470] font-season text-[var(--text-secondary)] text-sm dark:text-[var(--text-muted)]'
+          />
+        </div>
+      )}
       {isExpandableTool && expanded && <div className='mt-1.5'>{renderPendingDetails()}</div>}
       {showRemoveAutoAllow && isAutoAllowed && (
         <div className='mt-1.5'>

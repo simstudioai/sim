@@ -346,14 +346,18 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                     const contexts: any[] = Array.isArray((message as any).contexts)
                       ? ((message as any).contexts as any[])
                       : []
-                    const labels = contexts
-                      .filter((c) => c?.kind !== 'current_workflow')
-                      .map((c) => c?.label)
-                      .filter(Boolean) as string[]
-                    if (!labels.length) return text
+
+                    // Build tokens with their prefixes (@ for mentions, / for commands)
+                    const tokens = contexts
+                      .filter((c) => c?.kind !== 'current_workflow' && c?.label)
+                      .map((c) => {
+                        const prefix = c?.kind === 'slash_command' ? '/' : '@'
+                        return `${prefix}${c.label}`
+                      })
+                    if (!tokens.length) return text
 
                     const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                    const pattern = new RegExp(`@(${labels.map(escapeRegex).join('|')})`, 'g')
+                    const pattern = new RegExp(`(${tokens.map(escapeRegex).join('|')})`, 'g')
 
                     const nodes: React.ReactNode[] = []
                     let lastIndex = 0

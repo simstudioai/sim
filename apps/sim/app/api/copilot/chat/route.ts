@@ -96,6 +96,7 @@ const ChatMessageSchema = z.object({
       })
     )
     .optional(),
+  commands: z.array(z.string()).optional(),
 })
 
 /**
@@ -131,6 +132,7 @@ export async function POST(req: NextRequest) {
       provider,
       conversationId,
       contexts,
+      commands,
     } = ChatMessageSchema.parse(body)
     // Ensure we have a consistent user message ID for this request
     const userMessageIdToUse = userMessageId || crypto.randomUUID()
@@ -458,6 +460,7 @@ export async function POST(req: NextRequest) {
       ...(integrationTools.length > 0 && { tools: integrationTools }),
       ...(baseTools.length > 0 && { baseTools }),
       ...(credentials && { credentials }),
+      ...(commands && commands.length > 0 && { commands }),
     }
 
     try {
