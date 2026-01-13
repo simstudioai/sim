@@ -15,7 +15,7 @@ import {
   ModalTabsList,
   ModalTabsTrigger,
 } from '@/components/emcn'
-import { getEnv } from '@/lib/core/config/env'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -209,7 +209,7 @@ export function DeployModal({
         }
 
         const data = await response.json()
-        const endpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
+        const endpoint = `${getBaseUrl()}/api/workflows/${workflowId}/execute`
         const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
         const placeholderKey = workflowWorkspaceId ? 'YOUR_WORKSPACE_API_KEY' : 'YOUR_API_KEY'
 
@@ -270,7 +270,7 @@ export function DeployModal({
       const deploymentInfoResponse = await fetch(`/api/workflows/${workflowId}/deploy`)
       if (deploymentInfoResponse.ok) {
         const deploymentData = await deploymentInfoResponse.json()
-        const apiEndpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
+        const apiEndpoint = `${getBaseUrl()}/api/workflows/${workflowId}/execute`
         const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
         const placeholderKey = getApiHeaderPlaceholder()
 
@@ -409,7 +409,7 @@ export function DeployModal({
         const deploymentInfoResponse = await fetch(`/api/workflows/${workflowId}/deploy`)
         if (deploymentInfoResponse.ok) {
           const deploymentData = await deploymentInfoResponse.json()
-          const apiEndpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
+          const apiEndpoint = `${getBaseUrl()}/api/workflows/${workflowId}/execute`
           const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
           const placeholderKey = getApiHeaderPlaceholder()
 
@@ -526,7 +526,7 @@ export function DeployModal({
     const deploymentInfoResponse = await fetch(`/api/workflows/${workflowId}/deploy`)
     if (deploymentInfoResponse.ok) {
       const deploymentData = await deploymentInfoResponse.json()
-      const apiEndpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
+      const apiEndpoint = `${getBaseUrl()}/api/workflows/${workflowId}/execute`
       const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
 
       const placeholderKey = getApiHeaderPlaceholder()
