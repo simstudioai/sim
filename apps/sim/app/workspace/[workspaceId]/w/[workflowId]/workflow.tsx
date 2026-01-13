@@ -2326,9 +2326,8 @@ const WorkflowContent = React.memo(() => {
   /**
    * Handles connection drag end. Detects if the edge was dropped over a block
    * and automatically creates a connection to that block's target handle.
-   *
-   * Uses connectionCompletedRef to check if onConnect already handled this connection
-   * (ReactFlow pattern for distinguishing handle-to-handle vs handle-to-body drops).
+   * Only creates a connection if ReactFlow didn't already handle it (e.g., when
+   * dropping on the block body instead of a handle).
    */
   const onConnectEnd = useCallback(
     (event: MouseEvent | TouchEvent) => {
