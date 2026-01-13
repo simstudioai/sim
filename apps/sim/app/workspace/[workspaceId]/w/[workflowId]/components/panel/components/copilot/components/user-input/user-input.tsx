@@ -410,28 +410,71 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
         // Arrow navigation in slash menu
         if (showSlashMenu) {
+          const TOP_LEVEL_COMMANDS = ['plan', 'debug', 'fast', 'superagent', 'research', 'deploy', 'search']
+          const WEB_COMMANDS = ['crawl', 'read', 'scrape']
+          const ALL_COMMANDS = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
+
+          const caretPos = mentionMenu.getCaretPos()
+          const activeSlash = mentionMenu.getActiveSlashQueryAtPosition(caretPos, message)
+          const query = activeSlash?.query.trim().toLowerCase() || ''
+          const showAggregatedView = query.length > 0
+
           if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault()
-            const SLASH_COMMANDS = ['plan', 'debug', 'fast', 'superagent', 'research', 'deploy']
-            const caretPos = mentionMenu.getCaretPos()
-            const activeSlash = mentionMenu.getActiveSlashQueryAtPosition(caretPos, message)
-            const query = activeSlash?.query.trim().toLowerCase() || ''
-            const filtered = query
-              ? SLASH_COMMANDS.filter((cmd) => cmd.includes(query))
-              : SLASH_COMMANDS
-            const last = Math.max(0, filtered.length - 1)
-            mentionMenu.setSubmenuActiveIndex((prev) => {
-              if (filtered.length === 0) return 0
-              const next =
-                e.key === 'ArrowDown' ? (prev >= last ? 0 : prev + 1) : prev <= 0 ? last : prev - 1
-              requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(next))
-              return next
-            })
+
+            if (mentionMenu.openSubmenuFor === 'Web') {
+              // Navigate in Web submenu
+              const last = WEB_COMMANDS.length - 1
+              mentionMenu.setSubmenuActiveIndex((prev) => {
+                const next =
+                  e.key === 'ArrowDown' ? (prev >= last ? 0 : prev + 1) : prev <= 0 ? last : prev - 1
+                requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(next))
+                return next
+              })
+            } else if (showAggregatedView) {
+              // Navigate in filtered view
+              const filtered = ALL_COMMANDS.filter((cmd) => cmd.includes(query))
+              const last = Math.max(0, filtered.length - 1)
+              mentionMenu.setSubmenuActiveIndex((prev) => {
+                if (filtered.length === 0) return 0
+                const next =
+                  e.key === 'ArrowDown' ? (prev >= last ? 0 : prev + 1) : prev <= 0 ? last : prev - 1
+                requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(next))
+                return next
+              })
+            } else {
+              // Navigate in folder view (top-level + Web folder)
+              const totalItems = TOP_LEVEL_COMMANDS.length + 1 // +1 for Web folder
+              const last = totalItems - 1
+              mentionMenu.setMentionActiveIndex((prev) => {
+                const next =
+                  e.key === 'ArrowDown' ? (prev >= last ? 0 : prev + 1) : prev <= 0 ? last : prev - 1
+                requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(next))
+                return next
+              })
+            }
             return
           }
-          // Prevent ArrowLeft/Right from moving cursor when slash menu is open
-          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+
+          // Arrow right to enter Web submenu
+          if (e.key === 'ArrowRight') {
             e.preventDefault()
+            if (!showAggregatedView && !mentionMenu.openSubmenuFor) {
+              // Check if Web folder is selected
+              if (mentionMenu.mentionActiveIndex === TOP_LEVEL_COMMANDS.length) {
+                mentionMenu.setOpenSubmenuFor('Web')
+                mentionMenu.setSubmenuActiveIndex(0)
+              }
+            }
+            return
+          }
+
+          // Arrow left to exit submenu
+          if (e.key === 'ArrowLeft') {
+            e.preventDefault()
+            if (mentionMenu.openSubmenuFor) {
+              mentionMenu.setOpenSubmenuFor(null)
+            }
             return
           }
         }
@@ -445,17 +488,37 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
           e.preventDefault()
           if (showSlashMenu) {
-            // Handle slash menu selection
-            const SLASH_COMMANDS = ['plan', 'debug', 'fast', 'superagent', 'research', 'deploy']
+            const TOP_LEVEL_COMMANDS = ['plan', 'debug', 'fast', 'superagent', 'deploy']
+            const WEB_COMMANDS = ['search', 'research', 'crawl', 'read', 'scrape']
+            const ALL_COMMANDS = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
+
             const caretPos = mentionMenu.getCaretPos()
             const activeSlash = mentionMenu.getActiveSlashQueryAtPosition(caretPos, message)
             const query = activeSlash?.query.trim().toLowerCase() || ''
-            const filtered = query
-              ? SLASH_COMMANDS.filter((cmd) => cmd.includes(query))
-              : SLASH_COMMANDS
-            if (filtered.length > 0) {
-              const selectedCommand = filtered[mentionMenu.submenuActiveIndex] || filtered[0]
+            const showAggregatedView = query.length > 0
+
+            if (mentionMenu.openSubmenuFor === 'Web') {
+              // Select from Web submenu
+              const selectedCommand = WEB_COMMANDS[mentionMenu.submenuActiveIndex] || WEB_COMMANDS[0]
               handleSlashCommandSelect(selectedCommand)
+            } else if (showAggregatedView) {
+              // Select from filtered view
+              const filtered = ALL_COMMANDS.filter((cmd) => cmd.includes(query))
+              if (filtered.length > 0) {
+                const selectedCommand = filtered[mentionMenu.submenuActiveIndex] || filtered[0]
+                handleSlashCommandSelect(selectedCommand)
+              }
+            } else {
+              // Folder navigation view
+              const selectedIndex = mentionMenu.mentionActiveIndex
+              if (selectedIndex < TOP_LEVEL_COMMANDS.length) {
+                // Top-level command selected
+                handleSlashCommandSelect(TOP_LEVEL_COMMANDS[selectedIndex])
+              } else if (selectedIndex === TOP_LEVEL_COMMANDS.length) {
+                // Web folder selected - open it
+                mentionMenu.setOpenSubmenuFor('Web')
+                mentionMenu.setSubmenuActiveIndex(0)
+              }
             }
             return
           }

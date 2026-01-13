@@ -4,23 +4,40 @@ import { useMemo } from 'react'
 import {
   Popover,
   PopoverAnchor,
+  PopoverBackButton,
   PopoverContent,
+  PopoverFolder,
   PopoverItem,
   PopoverScrollArea,
 } from '@/components/emcn'
 import type { useMentionMenu } from '../../hooks/use-mention-menu'
 
 /**
- * Slash command options
+ * Top-level slash command options
  */
-const SLASH_COMMANDS = [
+const TOP_LEVEL_COMMANDS = [
   { id: 'plan', label: 'plan' },
   { id: 'debug', label: 'debug' },
   { id: 'fast', label: 'fast' },
   { id: 'superagent', label: 'superagent' },
-  { id: 'research', label: 'research' },
   { id: 'deploy', label: 'deploy' },
 ] as const
+
+/**
+ * Web submenu commands
+ */
+const WEB_COMMANDS = [
+  { id: 'search', label: 'search' },
+  { id: 'research', label: 'research' },
+  { id: 'crawl', label: 'crawl' },
+  { id: 'read', label: 'read' },
+  { id: 'scrape', label: 'scrape' },
+] as const
+
+/**
+ * All command labels for filtering
+ */
+const ALL_COMMANDS = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
 
 interface SlashMenuProps {
   mentionMenu: ReturnType<typeof useMentionMenu>
@@ -36,8 +53,16 @@ interface SlashMenuProps {
  * @returns Rendered slash menu
  */
 export function SlashMenu({ mentionMenu, message, onSelectCommand }: SlashMenuProps) {
-  const { mentionMenuRef, menuListRef, getActiveSlashQueryAtPosition, getCaretPos, submenuActiveIndex } =
-    mentionMenu
+  const {
+    mentionMenuRef,
+    menuListRef,
+    getActiveSlashQueryAtPosition,
+    getCaretPos,
+    submenuActiveIndex,
+    mentionActiveIndex,
+    openSubmenuFor,
+    setOpenSubmenuFor,
+  } = mentionMenu
 
   /**
    * Get the current query string after /
@@ -49,12 +74,15 @@ export function SlashMenu({ mentionMenu, message, onSelectCommand }: SlashMenuPr
   }, [message, getCaretPos, getActiveSlashQueryAtPosition])
 
   /**
-   * Filter commands based on query
+   * Filter commands based on query (search across all commands when there's a query)
    */
   const filteredCommands = useMemo(() => {
-    if (!currentQuery) return SLASH_COMMANDS
-    return SLASH_COMMANDS.filter((cmd) => cmd.label.toLowerCase().includes(currentQuery))
+    if (!currentQuery) return null // Show folder view when no query
+    return ALL_COMMANDS.filter((cmd) => cmd.label.toLowerCase().includes(currentQuery))
   }, [currentQuery])
+
+  // Show aggregated view when there's a query
+  const showAggregatedView = currentQuery.length > 0
 
   // Compute caret viewport position via mirror technique for precise anchoring
   const textareaEl = mentionMenu.textareaRef.current
@@ -112,6 +140,9 @@ export function SlashMenu({ mentionMenu, message, onSelectCommand }: SlashMenuPr
   const spaceBelow = window.innerHeight - caretViewport.top - margin
   const side: 'top' | 'bottom' = spaceBelow >= spaceAbove ? 'bottom' : 'top'
 
+  // Check if we're in folder navigation mode (no query, not in submenu)
+  const isInFolderNavigationMode = !openSubmenuFor && !showAggregatedView
+
   return (
     <Popover
       open={true}
@@ -144,26 +175,73 @@ export function SlashMenu({ mentionMenu, message, onSelectCommand }: SlashMenuPr
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
+        <PopoverBackButton />
         <PopoverScrollArea ref={menuListRef} className='space-y-[2px]'>
-          {filteredCommands.length === 0 ? (
-            <div className='px-[8px] py-[8px] text-[12px] text-[var(--text-muted)]'>
-              No commands found
-            </div>
+          {openSubmenuFor === 'Web' ? (
+            // Web submenu view
+            <>
+              {WEB_COMMANDS.map((cmd, index) => (
+                <PopoverItem
+                  key={cmd.id}
+                  onClick={() => onSelectCommand(cmd.label)}
+                  data-idx={index}
+                  active={index === submenuActiveIndex}
+                >
+                  <span className='truncate capitalize'>{cmd.label}</span>
+                </PopoverItem>
+              ))}
+            </>
+          ) : showAggregatedView ? (
+            // Aggregated filtered view
+            <>
+              {filteredCommands && filteredCommands.length === 0 ? (
+                <div className='px-[8px] py-[8px] text-[12px] text-[var(--text-muted)]'>
+                  No commands found
+                </div>
+              ) : (
+                filteredCommands?.map((cmd, index) => (
+                  <PopoverItem
+                    key={cmd.id}
+                    onClick={() => onSelectCommand(cmd.label)}
+                    data-idx={index}
+                    active={index === submenuActiveIndex}
+                  >
+                    <span className='truncate capitalize'>{cmd.label}</span>
+                  </PopoverItem>
+                ))
+              )}
+            </>
           ) : (
-            filteredCommands.map((cmd, index) => (
-              <PopoverItem
-                key={cmd.id}
-                onClick={() => onSelectCommand(cmd.label)}
-                data-idx={index}
-                active={index === submenuActiveIndex}
+            // Folder navigation view
+            <>
+              {TOP_LEVEL_COMMANDS.map((cmd, index) => (
+                <PopoverItem
+                  key={cmd.id}
+                  onClick={() => onSelectCommand(cmd.label)}
+                  data-idx={index}
+                  active={isInFolderNavigationMode && index === mentionActiveIndex}
+                >
+                  <span className='truncate capitalize'>{cmd.label}</span>
+                </PopoverItem>
+              ))}
+
+              <PopoverFolder
+                id='web'
+                title='Web'
+                onOpen={() => setOpenSubmenuFor('Web')}
+                active={isInFolderNavigationMode && mentionActiveIndex === TOP_LEVEL_COMMANDS.length}
+                data-idx={TOP_LEVEL_COMMANDS.length}
               >
-                <span className='truncate capitalize'>{cmd.label}</span>
-              </PopoverItem>
-            ))
+                {WEB_COMMANDS.map((cmd) => (
+                  <PopoverItem key={cmd.id} onClick={() => onSelectCommand(cmd.label)}>
+                    <span className='truncate capitalize'>{cmd.label}</span>
+                  </PopoverItem>
+                ))}
+              </PopoverFolder>
+            </>
           )}
         </PopoverScrollArea>
       </PopoverContent>
     </Popover>
   )
 }
-
