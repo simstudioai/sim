@@ -125,12 +125,13 @@ export function ApiDeploy({
   ${endpoint}`
 
       case 'python':
-        return `import requests
+        return `import os
+import requests
 
 response = requests.post(
     "${endpoint}",
     headers={
-        "X-API-Key": SIM_API_KEY,
+        "X-API-Key": os.environ.get("SIM_API_KEY"),
         "Content-Type": "application/json"
     },
     json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')}
@@ -142,7 +143,7 @@ print(response.json())`
         return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": SIM_API_KEY,
+    "X-API-Key": process.env.SIM_API_KEY,
     "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
@@ -155,7 +156,7 @@ console.log(data);`
         return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": SIM_API_KEY,
+    "X-API-Key": process.env.SIM_API_KEY,
     "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
@@ -183,12 +184,13 @@ console.log(data);`
   ${endpoint}`
 
       case 'python':
-        return `import requests
+        return `import os
+import requests
 
 response = requests.post(
     "${endpoint}",
     headers={
-        "X-API-Key": SIM_API_KEY,
+        "X-API-Key": os.environ.get("SIM_API_KEY"),
         "Content-Type": "application/json"
     },
     json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')},
@@ -203,7 +205,7 @@ for line in response.iter_lines():
         return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": SIM_API_KEY,
+    "X-API-Key": process.env.SIM_API_KEY,
     "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
@@ -222,7 +224,7 @@ while (true) {
         return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": SIM_API_KEY,
+    "X-API-Key": process.env.SIM_API_KEY,
     "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
@@ -265,7 +267,7 @@ while (true) {
 response = requests.post(
     "${endpoint}",
     headers={
-        "X-API-Key": SIM_API_KEY,
+        "X-API-Key": process.env.SIM_API_KEY,
         "Content-Type": "application/json",
         "X-Execution-Mode": "async"
     },
@@ -279,7 +281,7 @@ print(job)  # Contains job_id for status checking`
             return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": SIM_API_KEY,
+    "X-API-Key": process.env.SIM_API_KEY,
     "Content-Type": "application/json",
     "X-Execution-Mode": "async"
   },
@@ -293,7 +295,7 @@ console.log(job); // Contains job_id for status checking`
             return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": SIM_API_KEY,
+    "X-API-Key": process.env.SIM_API_KEY,
     "Content-Type": "application/json",
     "X-Execution-Mode": "async"
   },

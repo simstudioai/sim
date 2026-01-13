@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { A2A_DEFAULT_TIMEOUT } from '@/lib/a2a/constants'
+import { A2A_DEFAULT_TIMEOUT, A2A_MAX_HISTORY_LENGTH } from '@/lib/a2a/constants'
 import { notifyTaskStateChange } from '@/lib/a2a/push-notifications'
 import {
   createAgentMessage,
@@ -332,6 +332,11 @@ async function handleMessageSend(
 
     history.push(message)
 
+    // Truncate history to prevent unbounded JSONB growth
+    if (history.length > A2A_MAX_HISTORY_LENGTH) {
+      history.splice(0, history.length - A2A_MAX_HISTORY_LENGTH)
+    }
+
     if (existingTask) {
       await db
         .update(a2aTask)
@@ -536,6 +541,11 @@ async function handleMessageStream(
   }
 
   history.push(message)
+
+  // Truncate history to prevent unbounded JSONB growth
+  if (history.length > A2A_MAX_HISTORY_LENGTH) {
+    history.splice(0, history.length - A2A_MAX_HISTORY_LENGTH)
+  }
 
   if (existingTask) {
     await db

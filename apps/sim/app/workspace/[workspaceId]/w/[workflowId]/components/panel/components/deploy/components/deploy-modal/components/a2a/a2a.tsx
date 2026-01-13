@@ -617,12 +617,13 @@ export function A2aDeploy({
 
       case 'python':
         return requiresAuth
-          ? `import requests
+          ? `import os
+import requests
 
 response = requests.post(
     "${endpoint}",
     headers={
-        "X-API-Key": SIM_API_KEY,
+        "X-API-Key": os.environ.get("SIM_API_KEY"),
         "Content-Type": "application/json"
     },
     json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')}
@@ -644,7 +645,7 @@ print(response.json())`
           ? `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": SIM_API_KEY,
+    "X-API-Key": process.env.SIM_API_KEY,
     "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
@@ -666,7 +667,7 @@ console.log(data);`
           ? `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": SIM_API_KEY,
+    "X-API-Key": process.env.SIM_API_KEY,
     "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
