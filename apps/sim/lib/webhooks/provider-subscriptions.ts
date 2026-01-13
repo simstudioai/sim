@@ -9,6 +9,7 @@ const airtableLogger = createLogger('AirtableWebhook')
 const typeformLogger = createLogger('TypeformWebhook')
 const calendlyLogger = createLogger('CalendlyWebhook')
 const grainLogger = createLogger('GrainWebhook')
+const lemlistLogger = createLogger('LemlistWebhook')
 
 function getProviderConfig(webhook: any): Record<string, any> {
   return (webhook.providerConfig as Record<string, any>) || {}
@@ -712,8 +713,57 @@ export async function deleteGrainWebhook(webhook: any, requestId: string): Promi
 }
 
 /**
+ * Delete a Lemlist webhook
+ * Don't fail webhook deletion if cleanup fails
+ */
+export async function deleteLemlistWebhook(webhook: any, requestId: string): Promise<void> {
+  try {
+    const config = getProviderConfig(webhook)
+    const apiKey = config.apiKey as string | undefined
+    const externalId = config.externalId as string | undefined
+
+    if (!apiKey) {
+      lemlistLogger.warn(
+        `[${requestId}] Missing apiKey for Lemlist webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    if (!externalId) {
+      lemlistLogger.warn(
+        `[${requestId}] Missing externalId for Lemlist webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    // Lemlist uses Basic Auth with empty username and API key as password
+    const authString = Buffer.from(`:${apiKey}`).toString('base64')
+    const lemlistApiUrl = `https://api.lemlist.com/api/hooks/${externalId}`
+
+    const lemlistResponse = await fetch(lemlistApiUrl, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Basic ${authString}`,
+      },
+    })
+
+    if (!lemlistResponse.ok && lemlistResponse.status !== 404) {
+      const responseBody = await lemlistResponse.json().catch(() => ({}))
+      lemlistLogger.warn(
+        `[${requestId}] Failed to delete Lemlist webhook (non-fatal): ${lemlistResponse.status}`,
+        { response: responseBody }
+      )
+    } else {
+      lemlistLogger.info(`[${requestId}] Successfully deleted Lemlist webhook ${externalId}`)
+    }
+  } catch (error) {
+    lemlistLogger.warn(`[${requestId}] Error deleting Lemlist webhook (non-fatal)`, error)
+  }
+}
+
+/**
  * Clean up external webhook subscriptions for a webhook
- * Handles Airtable, Teams, Telegram, Typeform, Calendly, and Grain cleanup
+ * Handles Airtable, Teams, Telegram, Typeform, Calendly, Grain, and Lemlist cleanup
  * Don't fail deletion if cleanup fails
  */
 export async function cleanupExternalWebhook(
@@ -733,5 +783,7 @@ export async function cleanupExternalWebhook(
     await deleteCalendlyWebhook(webhook, requestId)
   } else if (webhook.provider === 'grain') {
     await deleteGrainWebhook(webhook, requestId)
+  } else if (webhook.provider === 'lemlist') {
+    await deleteLemlistWebhook(webhook, requestId)
   }
 }

@@ -643,6 +643,7 @@ import {
   knowledgeSearchTool,
   knowledgeUploadChunkTool,
 } from '@/tools/knowledge'
+import { lemlistGetActivitiesTool, lemlistGetLeadTool, lemlistSendEmailTool } from '@/tools/lemlist'
 import {
   linearAddLabelToIssueTool,
   linearAddLabelToProjectTool,
@@ -2416,6 +2417,9 @@ export const tools: Record<string, ToolConfig> = {
   linear_update_project_status: linearUpdateProjectStatusTool,
   linear_delete_project_status: linearDeleteProjectStatusTool,
   linear_list_project_statuses: linearListProjectStatusesTool,
+  lemlist_get_activities: lemlistGetActivitiesTool,
+  lemlist_get_lead: lemlistGetLeadTool,
+  lemlist_send_email: lemlistSendEmailTool,
   shopify_create_product: shopifyCreateProductTool,
   shopify_get_product: shopifyGetProductTool,
   shopify_list_products: shopifyListProductsTool,
