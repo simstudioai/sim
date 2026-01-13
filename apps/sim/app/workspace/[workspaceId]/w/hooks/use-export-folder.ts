@@ -138,7 +138,6 @@ export function useExportFolder({ folderId, onSuccess }: UseExportFolderProps) {
           continue
         }
 
-        // Remap folderId: if workflow is in root folder, set to null; otherwise keep original
         const remappedFolderId =
           collectedWorkflow.folderId === folderId ? null : collectedWorkflow.folderId
 

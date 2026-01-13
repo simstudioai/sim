@@ -201,7 +201,7 @@ export function A2aDeploy({
   const [description, setDescription] = useState('')
   const [authScheme, setAuthScheme] = useState<AuthScheme>('apiKey')
   const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(false)
-  const [skillTags, setSkillTags] = useState<string[]>(['workflow', 'automation'])
+  const [skillTags, setSkillTags] = useState<string[]>([])
   const [language, setLanguage] = useState<CodeLanguage>('curl')
   const [useStreamingExample, setUseStreamingExample] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -220,7 +220,7 @@ export function A2aDeploy({
       }
       const skills = existingAgent.skills as Array<{ tags?: string[] }> | undefined
       const savedTags = skills?.[0]?.tags
-      setSkillTags(savedTags?.length ? savedTags : ['workflow', 'automation'])
+      setSkillTags(savedTags?.length ? savedTags : [])
     } else {
       setName(workflowName)
       setDescription(
@@ -228,7 +228,7 @@ export function A2aDeploy({
       )
       setAuthScheme('apiKey')
       setPushNotificationsEnabled(false)
-      setSkillTags(['workflow', 'automation'])
+      setSkillTags([])
     }
   }, [existingAgent, workflowName, workflowDescription])
 
@@ -247,7 +247,7 @@ export function A2aDeploy({
     const savedDesc = existingAgent.description || ''
     const normalizedSavedDesc = isDefaultDescription(savedDesc, workflowName) ? '' : savedDesc
     const skills = existingAgent.skills as Array<{ tags?: string[] }> | undefined
-    const savedTags = skills?.[0]?.tags || ['workflow', 'automation']
+    const savedTags = skills?.[0]?.tags || []
     const tagsChanged =
       skillTags.length !== savedTags.length || skillTags.some((t, i) => t !== savedTags[i])
     return (
