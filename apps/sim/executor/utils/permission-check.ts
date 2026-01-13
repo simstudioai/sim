@@ -42,6 +42,13 @@ export class CustomToolsNotAllowedError extends Error {
   }
 }
 
+export class InvitationsNotAllowedError extends Error {
+  constructor() {
+    super('Invitations are not allowed based on your permission group settings')
+    this.name = 'InvitationsNotAllowedError'
+  }
+}
+
 export async function getUserPermissionConfig(
   userId: string
 ): Promise<PermissionGroupConfig | null> {
@@ -182,5 +189,32 @@ export async function validateCustomToolsAllowed(
   if (config.disableCustomTools) {
     logger.warn('Custom tools blocked by permission group', { userId })
     throw new CustomToolsNotAllowedError()
+  }
+}
+
+/**
+ * Validates if the user is allowed to send invitations.
+ * Also checks the global feature flag.
+ */
+export async function validateInvitationsAllowed(userId: string | undefined): Promise<void> {
+  const { isInvitationsDisabled } = await import('@/lib/core/config/feature-flags')
+  if (isInvitationsDisabled) {
+    logger.warn('Invitations blocked by feature flag')
+    throw new InvitationsNotAllowedError()
+  }
+
+  if (!userId) {
+    return
+  }
+
+  const config = await getUserPermissionConfig(userId)
+
+  if (!config) {
+    return
+  }
+
+  if (config.disableInvitations) {
+    logger.warn('Invitations blocked by permission group', { userId })
+    throw new InvitationsNotAllowedError()
   }
 }

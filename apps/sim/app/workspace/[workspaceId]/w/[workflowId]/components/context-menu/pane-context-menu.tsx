@@ -34,6 +34,7 @@ export function PaneContextMenu({
   disableAdmin = false,
   canUndo = false,
   canRedo = false,
+  isInvitationsDisabled = false,
 }: PaneContextMenuProps) {
   return (
     <Popover
@@ -142,17 +143,21 @@ export function PaneContextMenu({
           {isChatOpen ? 'Close Chat' : 'Open Chat'}
         </PopoverItem>
 
-        {/* Admin action */}
-        <PopoverDivider />
-        <PopoverItem
-          disabled={disableAdmin}
-          onClick={() => {
-            onInvite()
-            onClose()
-          }}
-        >
-          Invite to Workspace
-        </PopoverItem>
+        {/* Admin action - hidden when invitations are disabled */}
+        {!isInvitationsDisabled && (
+          <>
+            <PopoverDivider />
+            <PopoverItem
+              disabled={disableAdmin}
+              onClick={() => {
+                onInvite()
+                onClose()
+              }}
+            >
+              Invite to Workspace
+            </PopoverItem>
+          </>
+        )}
       </PopoverContent>
     </Popover>
   )

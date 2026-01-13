@@ -33,11 +33,13 @@ import {
 } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useAdminWorkspaces } from '@/hooks/queries/workspace'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('TeamManagement')
 
 export function TeamManagement() {
   const { data: session } = useSession()
+  const { isInvitationsDisabled } = usePermissionConfig()
 
   const { data: organizationsData } = useOrganizations()
   const activeOrganization = organizationsData?.activeOrganization
@@ -385,8 +387,8 @@ export function TeamManagement() {
         </div>
       )}
 
-      {/* Action: Invite New Members */}
-      {adminOrOwner && (
+      {/* Action: Invite New Members - hidden when invitations are disabled */}
+      {adminOrOwner && !isInvitationsDisabled && (
         <div>
           <MemberInvitationCard
             inviteEmail={inviteEmail}

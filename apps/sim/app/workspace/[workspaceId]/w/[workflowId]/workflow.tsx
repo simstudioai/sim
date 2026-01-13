@@ -64,6 +64,7 @@ import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useChatStore } from '@/stores/chat/store'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
@@ -281,6 +282,9 @@ const WorkflowContent = React.memo(() => {
   // Panel open states for context menu
   const isVariablesOpen = useVariablesStore((state) => state.isOpen)
   const isChatOpen = useChatStore((state) => state.isChatOpen)
+
+  // Permission config for invitation control
+  const { isInvitationsDisabled } = usePermissionConfig()
   const snapGrid: [number, number] = useMemo(
     () => [snapToGridSize, snapToGridSize],
     [snapToGridSize]
@@ -3426,6 +3430,7 @@ const WorkflowContent = React.memo(() => {
               disableAdmin={!effectivePermissions.canAdmin}
               canUndo={canUndo}
               canRedo={canRedo}
+              isInvitationsDisabled={isInvitationsDisabled}
             />
           </>
         )}

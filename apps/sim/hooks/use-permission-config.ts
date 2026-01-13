@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -14,6 +15,7 @@ export interface PermissionConfigResult {
   filterProviders: (providerIds: string[]) => string[]
   isBlockAllowed: (blockType: string) => boolean
   isProviderAllowed: (providerId: string) => boolean
+  isInvitationsDisabled: boolean
 }
 
 export function usePermissionConfig(): PermissionConfigResult {
@@ -59,6 +61,11 @@ export function usePermissionConfig(): PermissionConfigResult {
     }
   }, [config.allowedModelProviders])
 
+  const isInvitationsDisabled = useMemo(() => {
+    const featureFlagDisabled = isTruthy(getEnv('NEXT_PUBLIC_DISABLE_INVITATIONS'))
+    return featureFlagDisabled || config.disableInvitations
+  }, [config.disableInvitations])
+
   return {
     config,
     isLoading,
@@ -67,5 +74,6 @@ export function usePermissionConfig(): PermissionConfigResult {
     filterProviders,
     isBlockAllowed,
     isProviderAllowed,
+    isInvitationsDisabled,
   }
 }
