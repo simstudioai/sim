@@ -144,9 +144,10 @@ export function useCreateA2AAgent() {
 
   return useMutation({
     mutationFn: createA2AAgent,
-    onSuccess: (data) => {
+    onSuccess: () => {
+      // Invalidate all a2a-agent queries (list, detail, byWorkflow, etc.)
       queryClient.invalidateQueries({
-        queryKey: a2aAgentKeys.list(data.workspaceId),
+        queryKey: a2aAgentKeys.all,
       })
     },
   })
@@ -193,12 +194,10 @@ export function useUpdateA2AAgent() {
 
   return useMutation({
     mutationFn: updateA2AAgent,
-    onSuccess: (data) => {
+    onSuccess: () => {
+      // Invalidate all a2a-agent queries (list, detail, byWorkflow, etc.)
       queryClient.invalidateQueries({
-        queryKey: a2aAgentKeys.detail(data.id),
-      })
-      queryClient.invalidateQueries({
-        queryKey: a2aAgentKeys.list(data.workspaceId),
+        queryKey: a2aAgentKeys.all,
       })
     },
   })
@@ -225,9 +224,10 @@ export function useDeleteA2AAgent() {
 
   return useMutation({
     mutationFn: deleteA2AAgent,
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
+      // Invalidate all a2a-agent queries (list, detail, byWorkflow, etc.)
       queryClient.invalidateQueries({
-        queryKey: a2aAgentKeys.list(variables.workspaceId),
+        queryKey: a2aAgentKeys.all,
       })
     },
   })
@@ -269,12 +269,10 @@ export function usePublishA2AAgent() {
 
   return useMutation({
     mutationFn: publishA2AAgent,
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
+      // Invalidate all a2a-agent queries (list, detail, byWorkflow, etc.)
       queryClient.invalidateQueries({
-        queryKey: a2aAgentKeys.detail(variables.agentId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: a2aAgentKeys.list(variables.workspaceId),
+        queryKey: a2aAgentKeys.all,
       })
     },
   })

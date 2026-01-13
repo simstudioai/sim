@@ -331,7 +331,7 @@ export function OutputSelect({
       disabled={disabled || workflowOutputs.length === 0}
       align={align}
       maxHeight={maxHeight}
-      dropdownWidth={220}
+      dropdownWidth={180}
     />
   )
 }

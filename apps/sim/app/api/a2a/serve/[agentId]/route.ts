@@ -60,7 +60,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<R
         return NextResponse.json(JSON.parse(cached), {
           headers: {
             'Content-Type': 'application/json',
-            'Cache-Control': 'public, max-age=3600',
+            'Cache-Control': 'private, max-age=60',
             'X-Cache': 'HIT',
           },
         })
@@ -134,7 +134,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<R
 
     if (redis) {
       try {
-        await redis.set(cacheKey, JSON.stringify(agentCard), 'EX', 3600)
+        await redis.set(cacheKey, JSON.stringify(agentCard), 'EX', 60)
       } catch (err) {
         logger.warn('Redis cache write failed', { agentId, error: err })
       }
@@ -143,7 +143,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<R
     return NextResponse.json(agentCard, {
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=3600',
+        'Cache-Control': 'private, max-age=60',
         'X-Cache': 'MISS',
       },
     })
@@ -224,7 +224,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
     }
 
     const { id, method, params: rpcParams } = body
-    // Only accept API keys from X-API-Key header to maintain proper auth boundaries
     const apiKey = request.headers.get('X-API-Key')
 
     logger.info(`A2A request: ${method} for agent ${agentId}`)
@@ -294,8 +293,6 @@ async function handleMessageSend(
   const contextId = message.contextId || uuidv4()
 
   // Distributed lock to prevent concurrent task processing
-  // Note: When Redis is unavailable, acquireLock returns true (degraded mode).
-  // In production, ensure Redis is available for proper distributed locking.
   const lockKey = `a2a:task:${taskId}:lock`
   const lockValue = uuidv4()
   const acquired = await acquireLock(lockKey, lockValue, 60)
@@ -332,7 +329,6 @@ async function handleMessageSend(
 
     history.push(message)
 
-    // Truncate history to prevent unbounded JSONB growth
     if (history.length > A2A_MAX_HISTORY_LENGTH) {
       history.splice(0, history.length - A2A_MAX_HISTORY_LENGTH)
     }
@@ -492,10 +488,6 @@ async function handleMessageStream(
   const taskId = message.taskId || generateTaskId()
 
   // Distributed lock to prevent concurrent task processing
-  // Note: When Redis is unavailable, acquireLock returns true (degraded mode).
-  // Lock timeout: 5 minutes for streaming to handle long-running workflows.
-  // If a streaming request fails without releasing the lock, subsequent requests
-  // will be blocked until timeout. The lock is released in finally block below.
   const lockKey = `a2a:task:${taskId}:lock`
   const lockValue = uuidv4()
   const acquired = await acquireLock(lockKey, lockValue, 300)
@@ -542,7 +534,6 @@ async function handleMessageStream(
 
   history.push(message)
 
-  // Truncate history to prevent unbounded JSONB growth
   if (history.length > A2A_MAX_HISTORY_LENGTH) {
     history.splice(0, history.length - A2A_MAX_HISTORY_LENGTH)
   }
@@ -575,7 +566,14 @@ async function handleMessageStream(
     async start(controller) {
       const sendEvent = (event: string, data: unknown) => {
         try {
-          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
+          const jsonRpcResponse = {
+            jsonrpc: '2.0' as const,
+            id,
+            result: data,
+          }
+          controller.enqueue(
+            encoder.encode(`event: ${event}\ndata: ${JSON.stringify(jsonRpcResponse)}\n\n`)
+          )
         } catch (error) {
           logger.error('Error sending SSE event:', error)
         }
@@ -667,7 +665,6 @@ async function handleMessageStream(
             }
           }
 
-          // Use finalContent if available and non-empty, otherwise fall back to accumulated content
           const messageContent =
             (finalContent !== undefined && finalContent.length > 0
               ? finalContent
@@ -691,12 +688,13 @@ async function handleMessageStream(
             logger.error('Failed to trigger push notification', { taskId, error: err })
           })
 
-          sendEvent('status', {
-            kind: 'status',
-            taskId,
+          sendEvent('task', {
+            kind: 'task',
+            id: taskId,
             contextId,
             status: { state: 'completed', timestamp: new Date().toISOString() },
-            final: true,
+            history,
+            artifacts: [],
           })
         } else {
           const result = await response.json()
@@ -735,12 +733,13 @@ async function handleMessageStream(
             logger.error('Failed to trigger push notification', { taskId, error: err })
           })
 
-          sendEvent('status', {
-            kind: 'status',
-            taskId,
+          sendEvent('task', {
+            kind: 'task',
+            id: taskId,
             contextId,
             status: { state: 'completed', timestamp: new Date().toISOString() },
-            final: true,
+            history,
+            artifacts,
           })
         }
       } catch (error) {
@@ -914,6 +913,8 @@ async function handleTaskResubscribe(
     })
   }
 
+  const encoder = new TextEncoder()
+
   if (isTerminalState(task.status as TaskState)) {
     const completedTask = buildTaskResponse({
       taskId: task.id,
@@ -922,14 +923,19 @@ async function handleTaskResubscribe(
       history: task.messages as Message[],
       artifacts: (task.artifacts as Artifact[]) || [],
     })
-    return NextResponse.json(createResponse(id, completedTask))
+    const jsonRpcResponse = { jsonrpc: '2.0' as const, id, result: completedTask }
+    const sseData = `event: task\ndata: ${JSON.stringify(jsonRpcResponse)}\n\n`
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(sseData))
+        controller.close()
+      },
+    })
+    return new NextResponse(stream, { headers: SSE_HEADERS })
   }
-
-  const encoder = new TextEncoder()
   let isCancelled = false
   let pollTimeoutId: ReturnType<typeof setTimeout> | null = null
 
-  // Listen for client disconnection via request signal
   const abortSignal = request.signal
   abortSignal.addEventListener('abort', () => {
     isCancelled = true
@@ -944,7 +950,10 @@ async function handleTaskResubscribe(
       const sendEvent = (event: string, data: unknown): boolean => {
         if (isCancelled || abortSignal.aborted) return false
         try {
-          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
+          const jsonRpcResponse = { jsonrpc: '2.0' as const, id, result: data }
+          controller.enqueue(
+            encoder.encode(`event: ${event}\ndata: ${JSON.stringify(jsonRpcResponse)}\n\n`)
+          )
           return true
         } catch (error) {
           logger.error('Error sending SSE event:', error)
@@ -973,8 +982,8 @@ async function handleTaskResubscribe(
         return
       }
 
-      const pollInterval = 3000 // 3 seconds (reduced from 1s to lower DB load)
-      const maxPolls = 100 // 5 minutes max (100 * 3s = 300s)
+      const pollInterval = 3000 // 3 seconds
+      const maxPolls = 100 // 5 minutes max
 
       let polls = 0
       const poll = async () => {

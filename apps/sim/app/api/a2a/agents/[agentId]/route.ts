@@ -1,10 +1,3 @@
-/**
- * A2A Agent Card Endpoint
- *
- * Returns the Agent Card (discovery document) for an A2A agent.
- * Also supports CRUD operations for managing agents.
- */
-
 import { db } from '@sim/db'
 import { a2aAgent, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -13,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { generateAgentCard, generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
 import type { AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { getRedisClient } from '@/lib/core/config/redis'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('A2AAgentCardAPI')
@@ -226,6 +220,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
         })
         .where(eq(a2aAgent.id, agentId))
 
+      const redis = getRedisClient()
+      if (redis) {
+        try {
+          await redis.del(`a2a:agent:${agentId}:card`)
+        } catch (err) {
+          logger.warn('Failed to invalidate agent card cache', { agentId, error: err })
+        }
+      }
+
       logger.info(`Published A2A agent: ${agentId}`)
       return NextResponse.json({ success: true, isPublished: true })
     }
@@ -238,6 +241,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
           updatedAt: new Date(),
         })
         .where(eq(a2aAgent.id, agentId))
+
+      const redis = getRedisClient()
+      if (redis) {
+        try {
+          await redis.del(`a2a:agent:${agentId}:card`)
+        } catch (err) {
+          logger.warn('Failed to invalidate agent card cache', { agentId, error: err })
+        }
+      }
 
       logger.info(`Unpublished A2A agent: ${agentId}`)
       return NextResponse.json({ success: true, isPublished: false })

@@ -1,11 +1,3 @@
-/**
- * A2A Block (v0.3)
- *
- * Enables interaction with external A2A-compatible agents.
- * Supports sending messages, querying tasks, cancelling tasks, discovering agents,
- * resubscribing to streams, and managing push notification webhooks.
- */
-
 import { A2AIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
@@ -78,17 +70,16 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        { label: 'Send Message', id: 'send_message' },
-        { label: 'Send Message (Streaming)', id: 'send_message_stream' },
-        { label: 'Get Task', id: 'get_task' },
-        { label: 'Cancel Task', id: 'cancel_task' },
-        { label: 'Get Agent Card', id: 'get_agent_card' },
-        { label: 'Resubscribe', id: 'resubscribe' },
-        { label: 'Set Push Notification', id: 'set_push_notification' },
-        { label: 'Get Push Notification', id: 'get_push_notification' },
-        { label: 'Delete Push Notification', id: 'delete_push_notification' },
+        { label: 'Send Message', id: 'a2a_send_message' },
+        { label: 'Get Task', id: 'a2a_get_task' },
+        { label: 'Cancel Task', id: 'a2a_cancel_task' },
+        { label: 'Get Agent Card', id: 'a2a_get_agent_card' },
+        { label: 'Resubscribe', id: 'a2a_resubscribe' },
+        { label: 'Set Push Notification', id: 'a2a_set_push_notification' },
+        { label: 'Get Push Notification', id: 'a2a_get_push_notification' },
+        { label: 'Delete Push Notification', id: 'a2a_delete_push_notification' },
       ],
-      defaultValue: 'send_message',
+      defaultValue: 'a2a_send_message',
     },
     {
       id: 'agentUrl',
@@ -104,8 +95,8 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
       type: 'long-input',
       placeholder: 'Enter your message to the agent...',
       description: 'The message to send to the agent',
-      condition: { field: 'operation', value: ['send_message', 'send_message_stream'] },
-      required: { field: 'operation', value: ['send_message', 'send_message_stream'] },
+      condition: { field: 'operation', value: 'a2a_send_message' },
+      required: true,
     },
     {
       id: 'taskId',
@@ -116,25 +107,24 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
       condition: {
         field: 'operation',
         value: [
-          'send_message',
-          'send_message_stream',
-          'get_task',
-          'cancel_task',
-          'resubscribe',
-          'set_push_notification',
-          'get_push_notification',
-          'delete_push_notification',
+          'a2a_send_message',
+          'a2a_get_task',
+          'a2a_cancel_task',
+          'a2a_resubscribe',
+          'a2a_set_push_notification',
+          'a2a_get_push_notification',
+          'a2a_delete_push_notification',
         ],
       },
       required: {
         field: 'operation',
         value: [
-          'get_task',
-          'cancel_task',
-          'resubscribe',
-          'set_push_notification',
-          'get_push_notification',
-          'delete_push_notification',
+          'a2a_get_task',
+          'a2a_cancel_task',
+          'a2a_resubscribe',
+          'a2a_set_push_notification',
+          'a2a_get_push_notification',
+          'a2a_delete_push_notification',
         ],
       },
     },
@@ -144,7 +134,7 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
       type: 'short-input',
       placeholder: 'Optional - for multi-turn conversations',
       description: 'Context ID for conversation continuity across tasks',
-      condition: { field: 'operation', value: ['send_message', 'send_message_stream'] },
+      condition: { field: 'operation', value: 'a2a_send_message' },
     },
     {
       id: 'historyLength',
@@ -152,7 +142,7 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
       type: 'short-input',
       placeholder: 'Number of messages to include',
       description: 'Number of history messages to include in the response',
-      condition: { field: 'operation', value: 'get_task' },
+      condition: { field: 'operation', value: 'a2a_get_task' },
     },
     {
       id: 'webhookUrl',
@@ -160,8 +150,8 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
       type: 'short-input',
       placeholder: 'https://your-app.com/webhook',
       description: 'HTTPS webhook URL to receive task update notifications',
-      condition: { field: 'operation', value: 'set_push_notification' },
-      required: { field: 'operation', value: 'set_push_notification' },
+      condition: { field: 'operation', value: 'a2a_set_push_notification' },
+      required: { field: 'operation', value: 'a2a_set_push_notification' },
     },
     {
       id: 'token',
@@ -170,7 +160,7 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
       password: true,
       placeholder: 'Optional token for webhook validation',
       description: 'Token that will be included in webhook requests for validation',
-      condition: { field: 'operation', value: 'set_push_notification' },
+      condition: { field: 'operation', value: 'a2a_set_push_notification' },
     },
     {
       id: 'apiKey',
@@ -185,7 +175,6 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
   tools: {
     access: [
       'a2a_send_message',
-      'a2a_send_message_stream',
       'a2a_get_task',
       'a2a_cancel_task',
       'a2a_get_agent_card',
@@ -195,29 +184,7 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
       'a2a_delete_push_notification',
     ],
     config: {
-      tool: (params: Record<string, unknown>) => {
-        const operation = params.operation as string
-        switch (operation) {
-          case 'send_message_stream':
-            return 'a2a_send_message_stream'
-          case 'get_task':
-            return 'a2a_get_task'
-          case 'cancel_task':
-            return 'a2a_cancel_task'
-          case 'get_agent_card':
-            return 'a2a_get_agent_card'
-          case 'resubscribe':
-            return 'a2a_resubscribe'
-          case 'set_push_notification':
-            return 'a2a_set_push_notification'
-          case 'get_push_notification':
-            return 'a2a_get_push_notification'
-          case 'delete_push_notification':
-            return 'a2a_delete_push_notification'
-          default:
-            return 'a2a_send_message'
-        }
-      },
+      tool: (params) => params.operation as string,
     },
   },
   inputs: {

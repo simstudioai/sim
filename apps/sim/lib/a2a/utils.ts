@@ -35,6 +35,10 @@ class ApiKeyInterceptor implements CallInterceptor {
 
 /**
  * Create an A2A client from an agent URL with optional API key authentication
+ *
+ * The agent URL should be the full endpoint URL (e.g., /api/a2a/serve/{agentId}).
+ * We pass an empty path to createFromUrl so it uses the URL directly for agent card
+ * discovery (GET on the URL) instead of appending .well-known/agent-card.json.
  */
 export async function createA2AClient(agentUrl: string, apiKey?: string): Promise<Client> {
   const factoryOptions = apiKey
@@ -45,7 +49,7 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
       })
     : ClientFactoryOptions.default
   const factory = new ClientFactory(factoryOptions)
-  return factory.createFromUrl(agentUrl)
+  return factory.createFromUrl(agentUrl, '')
 }
 
 export function isTerminalState(state: TaskState): boolean {

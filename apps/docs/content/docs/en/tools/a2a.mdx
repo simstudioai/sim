@@ -57,31 +57,6 @@ Send a message to an external A2A-compatible agent.
 | `artifacts` | array | Structured output artifacts |
 | `history` | array | Full message history |
 
-### `a2a_send_message_stream`
-
-Send a message to an external A2A-compatible agent with real-time streaming.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `agentUrl` | string | Yes | The A2A agent endpoint URL |
-| `message` | string | Yes | Message to send to the agent |
-| `taskId` | string | No | Task ID for continuing an existing task |
-| `contextId` | string | No | Context ID for conversation continuity |
-| `apiKey` | string | No | API key for authentication |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `content` | string | The text response from the agent |
-| `taskId` | string | Task ID for follow-up interactions |
-| `contextId` | string | Context ID for conversation continuity |
-| `state` | string | Task state |
-| `artifacts` | array | Structured output artifacts |
-| `history` | array | Full message history |
-
 ### `a2a_get_task`
 
 Query the status of an existing A2A task.

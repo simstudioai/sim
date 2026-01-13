@@ -102,6 +102,7 @@ export function DeployModal({
   const [hasA2aAgent, setHasA2aAgent] = useState(false)
   const [isA2aPublished, setIsA2aPublished] = useState(false)
   const [a2aNeedsRepublish, setA2aNeedsRepublish] = useState(false)
+  const [showA2aDeleteConfirm, setShowA2aDeleteConfirm] = useState(false)
   const [hasExistingTemplate, setHasExistingTemplate] = useState(false)
   const [templateStatus, setTemplateStatus] = useState<{
     status: 'pending' | 'approved' | 'rejected' | null
@@ -616,6 +617,13 @@ export function DeployModal({
     updateRepublishTrigger?.click()
   }, [])
 
+  const handleA2aDelete = useCallback(() => {
+    const form = document.getElementById('a2a-deploy-form')
+    const deleteTrigger = form?.querySelector('[data-a2a-delete-trigger]') as HTMLButtonElement
+    deleteTrigger?.click()
+    setShowA2aDeleteConfirm(false)
+  }, [])
+
   const handleTemplateDelete = useCallback(() => {
     const form = document.getElementById('template-deploy-form')
     const deleteTrigger = form?.querySelector('[data-template-delete-trigger]') as HTMLButtonElement
@@ -967,16 +975,26 @@ export function DeployModal({
                   </>
                 )}
 
-                {/* Agent exists but unpublished: Show Publish only */}
+                {/* Agent exists but unpublished: Show Delete and Publish */}
                 {hasA2aAgent && !isA2aPublished && (
-                  <Button
-                    type='button'
-                    variant='tertiary'
-                    onClick={handleA2aPublish}
-                    disabled={a2aSubmitting || !a2aCanSave}
-                  >
-                    {a2aSubmitting ? 'Publishing...' : 'Publish'}
-                  </Button>
+                  <>
+                    <Button
+                      type='button'
+                      variant='default'
+                      onClick={() => setShowA2aDeleteConfirm(true)}
+                      disabled={a2aSubmitting}
+                    >
+                      Delete
+                    </Button>
+                    <Button
+                      type='button'
+                      variant='tertiary'
+                      onClick={handleA2aPublish}
+                      disabled={a2aSubmitting || !a2aCanSave}
+                    >
+                      {a2aSubmitting ? 'Publishing...' : 'Publish'}
+                    </Button>
+                  </>
                 )}
               </div>
             </ModalFooter>
@@ -1005,6 +1023,32 @@ export function DeployModal({
             </Button>
             <Button variant='destructive' onClick={handleUndeploy} disabled={isUndeploying}>
               {isUndeploying ? 'Undeploying...' : 'Undeploy'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal open={showA2aDeleteConfirm} onOpenChange={setShowA2aDeleteConfirm}>
+        <ModalContent size='sm'>
+          <ModalHeader>Delete A2A Agent</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
+              Are you sure you want to delete this agent?{' '}
+              <span className='text-[var(--text-error)]'>
+                This will permanently remove the agent configuration.
+              </span>
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant='default'
+              onClick={() => setShowA2aDeleteConfirm(false)}
+              disabled={a2aSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button variant='destructive' onClick={handleA2aDelete} disabled={a2aSubmitting}>
+              {a2aSubmitting ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>
         </ModalContent>
