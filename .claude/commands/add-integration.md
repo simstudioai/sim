@@ -206,7 +206,10 @@ export const {Service}Block: BlockConfig = {
 }
 ```
 
-**Critical:** `canonicalParamId` must NOT match any other subblock's `id`, must be unique per block, and should only be used to link basic/advanced alternatives for the same parameter.
+**Critical:**
+- `canonicalParamId` must NOT match any other subblock's `id`, must be unique per block, and should only be used to link basic/advanced alternatives for the same parameter.
+- `mode` only controls UI visibility, NOT serialization. Without `canonicalParamId`, both basic and advanced field values would be sent.
+- Every subblock `id` must be unique within the block. Duplicate IDs cause conflicts even with different conditions.
 
 ## Step 4: Add Icon
 
