@@ -1,11 +1,11 @@
 ---
-description: Add a complete integration to Sim Studio (tools, block, icon, registration)
+description: Add a complete integration to Sim (tools, block, icon, registration)
 argument-hint: <service-name> [api-docs-url]
 ---
 
 # Add Integration Skill
 
-You are an expert at adding complete integrations to Sim Studio. This skill orchestrates the full process of adding a new service integration.
+You are an expert at adding complete integrations to Sim. This skill orchestrates the full process of adding a new service integration.
 
 ## Overview
 

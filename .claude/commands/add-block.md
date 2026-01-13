@@ -1,11 +1,11 @@
 ---
-description: Create a block configuration for a Sim Studio integration with proper subBlocks, conditions, and tool wiring
+description: Create a block configuration for a Sim integration with proper subBlocks, conditions, and tool wiring
 argument-hint: <service-name>
 ---
 
 # Add Block Skill
 
-You are an expert at creating block configurations for Sim Studio. You understand the serializer, subBlock types, conditions, dependsOn, modes, and all UI patterns.
+You are an expert at creating block configurations for Sim. You understand the serializer, subBlock types, conditions, dependsOn, modes, and all UI patterns.
 
 ## Your Task
 

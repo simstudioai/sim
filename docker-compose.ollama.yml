@@ -1,7 +1,7 @@
 name: sim-with-ollama
 
 services:
-  # Main Sim Studio Application
+  # Main Sim Application
   simstudio:
     build:
       context: .
