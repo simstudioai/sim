@@ -104,6 +104,12 @@ export const isOrganizationsEnabled =
 export const isE2bEnabled = isTruthy(env.E2B_ENABLED)
 
 /**
+ * Are invitations disabled globally
+ * When true, workspace invitations are disabled for all users
+ */
+export const isInvitationsDisabled = isTruthy(env.DISABLE_INVITATIONS)
+
+/**
  * Get cost multiplier based on environment
  */
 export function getCostMultiplier(): number {

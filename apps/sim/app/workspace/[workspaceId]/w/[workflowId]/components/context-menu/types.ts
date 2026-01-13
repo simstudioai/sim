@@ -94,4 +94,6 @@ export interface PaneContextMenuProps {
   canUndo?: boolean
   /** Whether redo is available */
   canRedo?: boolean
+  /** Whether invitations are disabled (feature flag or permission group) */
+  isInvitationsDisabled?: boolean
 }

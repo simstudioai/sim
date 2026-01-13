@@ -11,6 +11,7 @@ export interface PermissionGroupConfig {
   disableMcpTools: boolean
   disableCustomTools: boolean
   hideTemplates: boolean
+  disableInvitations: boolean
 }
 
 export const DEFAULT_PERMISSION_GROUP_CONFIG: PermissionGroupConfig = {
@@ -25,6 +26,7 @@ export const DEFAULT_PERMISSION_GROUP_CONFIG: PermissionGroupConfig = {
   disableMcpTools: false,
   disableCustomTools: false,
   hideTemplates: false,
+  disableInvitations: false,
 }
 
 export function parsePermissionGroupConfig(config: unknown): PermissionGroupConfig {
@@ -47,5 +49,6 @@ export function parsePermissionGroupConfig(config: unknown): PermissionGroupConf
     disableMcpTools: typeof c.disableMcpTools === 'boolean' ? c.disableMcpTools : false,
     disableCustomTools: typeof c.disableCustomTools === 'boolean' ? c.disableCustomTools : false,
     hideTemplates: typeof c.hideTemplates === 'boolean' ? c.hideTemplates : false,
+    disableInvitations: typeof c.disableInvitations === 'boolean' ? c.disableInvitations : false,
   }
 }

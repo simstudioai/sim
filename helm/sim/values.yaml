@@ -147,6 +147,10 @@ app:
     BLACKLISTED_PROVIDERS: ""                            # Comma-separated provider IDs to hide from UI (e.g., "openai,anthropic,google")
     BLACKLISTED_MODELS: ""                               # Comma-separated model names/prefixes to hide (e.g., "gpt-4,claude-*")
 
+    # Invitation Control
+    DISABLE_INVITATIONS: ""                              # Set to "true" to disable workspace invitations globally
+    NEXT_PUBLIC_DISABLE_INVITATIONS: ""                  # Set to "true" to hide invitation UI elements
+
     # SSO Configuration (Enterprise Single Sign-On)
     # Set to "true" AFTER running the SSO registration script
     SSO_ENABLED: ""                                       # Enable SSO authentication ("true" to enable)
