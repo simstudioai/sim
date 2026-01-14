@@ -178,22 +178,24 @@ export default function Invite() {
 
   useEffect(() => {
     const errorReason = searchParams.get('error')
+    const isNew = searchParams.get('new') === 'true'
+    setIsNewUser(isNew)
+
+    const tokenFromQuery = searchParams.get('token')
+    if (tokenFromQuery) {
+      setToken(tokenFromQuery)
+      sessionStorage.setItem('inviteToken', tokenFromQuery)
+    } else {
+      const storedToken = sessionStorage.getItem('inviteToken')
+      if (storedToken && storedToken !== inviteId) {
+        setToken(storedToken)
+      }
+    }
 
     if (errorReason) {
       setError(getInviteError(errorReason))
       setIsLoading(false)
       return
-    }
-
-    const isNew = searchParams.get('new') === 'true'
-    setIsNewUser(isNew)
-
-    const tokenFromQuery = searchParams.get('token')
-    const effectiveToken = tokenFromQuery || inviteId
-
-    if (effectiveToken) {
-      setToken(effectiveToken)
-      sessionStorage.setItem('inviteToken', effectiveToken)
     }
   }, [searchParams, inviteId])
 
@@ -203,7 +205,6 @@ export default function Invite() {
     async function fetchInvitationDetails() {
       setIsLoading(true)
       try {
-        // Fetch invitation details using the invitation ID from the URL path
         const workspaceInviteResponse = await fetch(`/api/workspaces/invitations/${inviteId}`, {
           method: 'GET',
         })
@@ -220,7 +221,6 @@ export default function Invite() {
           return
         }
 
-        // Handle workspace invitation errors with specific status codes
         if (!workspaceInviteResponse.ok && workspaceInviteResponse.status !== 404) {
           const errorCode = parseApiError(null, workspaceInviteResponse.status)
           const errorData = await workspaceInviteResponse.json().catch(() => ({}))
@@ -229,7 +229,6 @@ export default function Invite() {
             error: errorData,
           })
 
-          // Refine error code based on response body if available
           if (errorData.error) {
             const refinedCode = parseApiError(errorData.error, workspaceInviteResponse.status)
             setError(getInviteError(refinedCode))
@@ -254,13 +253,11 @@ export default function Invite() {
           if (data) {
             setInvitationType('organization')
 
-            // Check if user is already in an organization BEFORE showing the invitation
             const activeOrgResponse = await client.organization
               .getFullOrganization()
               .catch(() => ({ data: null }))
 
             if (activeOrgResponse?.data) {
-              // User is already in an organization
               setCurrentOrgName(activeOrgResponse.data.name)
               setError(getInviteError('already-in-organization'))
               setIsLoading(false)
@@ -289,7 +286,6 @@ export default function Invite() {
             throw { code: 'invalid-invitation' }
           }
         } catch (orgErr: any) {
-          // If this is our structured error, use it directly
           if (orgErr.code) {
             throw orgErr
           }
@@ -316,7 +312,6 @@ export default function Invite() {
       window.location.href = `/api/workspaces/invitations/${encodeURIComponent(inviteId)}?token=${encodeURIComponent(token || '')}`
     } else {
       try {
-        // Get the organizationId from invitation details
         const orgId = invitationDetails?.data?.organizationId
 
         if (!orgId) {
@@ -325,7 +320,6 @@ export default function Invite() {
           return
         }
 
-        // Use our custom API endpoint that handles Pro usage snapshot
         const response = await fetch(`/api/organizations/${orgId}/invitations/${inviteId}`, {
           method: 'PUT',
           headers: {
@@ -347,7 +341,6 @@ export default function Invite() {
           return
         }
 
-        // Set the organization as active
         await client.organization.setActive({
           organizationId: orgId,
         })
@@ -360,7 +353,6 @@ export default function Invite() {
       } catch (err: any) {
         logger.error('Error accepting invitation:', err)
 
-        // Reset accepted state on error
         setAccepted(false)
 
         const errorCode = parseApiError(err)
@@ -371,7 +363,9 @@ export default function Invite() {
   }
 
   const getCallbackUrl = () => {
-    return `/invite/${inviteId}${token && token !== inviteId ? `?token=${token}` : ''}`
+    const effectiveToken =
+      token || sessionStorage.getItem('inviteToken') || searchParams.get('token')
+    return `/invite/${inviteId}${effectiveToken && effectiveToken !== inviteId ? `?token=${effectiveToken}` : ''}`
   }
 
   if (!session?.user && !isPending) {
@@ -435,7 +429,6 @@ export default function Invite() {
   if (error) {
     const callbackUrl = encodeURIComponent(getCallbackUrl())
 
-    // Special handling for already in organization
     if (error.code === 'already-in-organization') {
       return (
         <InviteLayout>
@@ -463,7 +456,6 @@ export default function Invite() {
       )
     }
 
-    // Handle email mismatch - user needs to sign in with a different account
     if (error.code === 'email-mismatch') {
       return (
         <InviteLayout>
@@ -490,7 +482,6 @@ export default function Invite() {
       )
     }
 
-    // Handle auth-related errors - prompt user to sign in
     if (error.requiresAuth) {
       return (
         <InviteLayout>
@@ -518,7 +509,6 @@ export default function Invite() {
       )
     }
 
-    // Handle retryable errors
     const actions: Array<{
       label: string
       onClick: () => void
@@ -550,7 +540,6 @@ export default function Invite() {
     )
   }
 
-  // Show success only if accepted AND no error
   if (accepted && !error) {
     return (
       <InviteLayout>
