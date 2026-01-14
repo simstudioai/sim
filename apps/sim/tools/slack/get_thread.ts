@@ -1,11 +1,11 @@
-import type { SlackGetMessageParams, SlackGetMessageResponse } from '@/tools/slack/types'
+import type { SlackGetThreadParams, SlackGetThreadResponse } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const slackGetMessageTool: ToolConfig<SlackGetMessageParams, SlackGetMessageResponse> = {
-  id: 'slack_get_message',
-  name: 'Slack Get Message',
+export const slackGetThreadTool: ToolConfig<SlackGetThreadParams, SlackGetThreadResponse> = {
+  id: 'slack_get_thread',
+  name: 'Slack Get Thread',
   description:
-    'Retrieve a specific message by its timestamp. Useful for getting a thread parent message.',
+    'Retrieve an entire thread including the parent message and all replies. Useful for getting full conversation context.',
   version: '1.0.0',
 
   oauth: {
@@ -38,25 +38,32 @@ export const slackGetMessageTool: ToolConfig<SlackGetMessageParams, SlackGetMess
       visibility: 'user-only',
       description: 'Slack channel ID (e.g., C1234567890)',
     },
-    timestamp: {
+    threadTs: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Message timestamp to retrieve (e.g., 1405894322.002768)',
+      description: 'Thread timestamp (thread_ts) to retrieve (e.g., 1405894322.002768)',
+    },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum number of messages to return (default: 100, max: 200)',
     },
   },
 
   request: {
-    url: (params: SlackGetMessageParams) => {
-      const url = new URL('https://slack.com/api/conversations.history')
+    url: (params: SlackGetThreadParams) => {
+      const url = new URL('https://slack.com/api/conversations.replies')
       url.searchParams.append('channel', params.channel?.trim() ?? '')
-      url.searchParams.append('oldest', params.timestamp?.trim() ?? '')
-      url.searchParams.append('limit', '1')
+      url.searchParams.append('ts', params.threadTs?.trim() ?? '')
       url.searchParams.append('inclusive', 'true')
+      const limit = params.limit ? Math.min(Number(params.limit), 200) : 100
+      url.searchParams.append('limit', String(limit))
       return url.toString()
     },
     method: 'GET',
-    headers: (params: SlackGetMessageParams) => ({
+    headers: (params: SlackGetThreadParams) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.accessToken || params.botToken}`,
     }),
@@ -77,16 +84,18 @@ export const slackGetMessageTool: ToolConfig<SlackGetMessageParams, SlackGetMess
       if (data.error === 'channel_not_found') {
         throw new Error('Channel not found. Please check the channel ID.')
       }
-      throw new Error(data.error || 'Failed to get message from Slack')
+      if (data.error === 'thread_not_found') {
+        throw new Error('Thread not found. Please check the thread timestamp.')
+      }
+      throw new Error(data.error || 'Failed to get thread from Slack')
     }
 
-    const messages = data.messages || []
-    if (messages.length === 0) {
-      throw new Error('Message not found')
+    const rawMessages = data.messages || []
+    if (rawMessages.length === 0) {
+      throw new Error('Thread not found')
     }
 
-    const msg = messages[0]
-    const message = {
+    const messages = rawMessages.map((msg: any) => ({
       type: msg.type ?? 'message',
       ts: msg.ts,
       text: msg.text ?? '',
@@ -120,20 +129,29 @@ export const slackGetMessageTool: ToolConfig<SlackGetMessageParams, SlackGetMess
       blocks: msg.blocks ?? [],
       edited: msg.edited ?? null,
       permalink: msg.permalink ?? null,
-    }
+    }))
+
+    // First message is always the parent
+    const parentMessage = messages[0]
+    // Remaining messages are replies
+    const replies = messages.slice(1)
 
     return {
       success: true,
       output: {
-        message,
+        parentMessage,
+        replies,
+        messages,
+        replyCount: replies.length,
+        hasMore: data.has_more ?? false,
       },
     }
   },
 
   outputs: {
-    message: {
+    parentMessage: {
       type: 'object',
-      description: 'The retrieved message object',
+      description: 'The thread parent message',
       properties: {
         type: { type: 'string', description: 'Message type' },
         ts: { type: 'string', description: 'Message timestamp' },
@@ -141,21 +159,12 @@ export const slackGetMessageTool: ToolConfig<SlackGetMessageParams, SlackGetMess
         user: { type: 'string', description: 'User ID who sent the message' },
         bot_id: { type: 'string', description: 'Bot ID if sent by a bot', optional: true },
         username: { type: 'string', description: 'Display username', optional: true },
-        channel: { type: 'string', description: 'Channel ID', optional: true },
-        team: { type: 'string', description: 'Team ID', optional: true },
-        thread_ts: { type: 'string', description: 'Thread parent timestamp', optional: true },
-        parent_user_id: { type: 'string', description: 'User ID of thread parent', optional: true },
-        reply_count: { type: 'number', description: 'Number of thread replies', optional: true },
-        reply_users_count: {
-          type: 'number',
-          description: 'Number of users who replied',
-          optional: true,
-        },
-        latest_reply: { type: 'string', description: 'Timestamp of latest reply', optional: true },
-        subtype: { type: 'string', description: 'Message subtype', optional: true },
+        reply_count: { type: 'number', description: 'Total number of thread replies' },
+        reply_users_count: { type: 'number', description: 'Number of users who replied' },
+        latest_reply: { type: 'string', description: 'Timestamp of latest reply' },
         reactions: {
           type: 'array',
-          description: 'Array of reactions on this message',
+          description: 'Array of reactions on the parent message',
           items: {
             type: 'object',
             properties: {
@@ -169,16 +178,9 @@ export const slackGetMessageTool: ToolConfig<SlackGetMessageParams, SlackGetMess
             },
           },
         },
-        is_starred: { type: 'boolean', description: 'Whether message is starred', optional: true },
-        pinned_to: {
-          type: 'array',
-          description: 'Channel IDs where message is pinned',
-          items: { type: 'string' },
-          optional: true,
-        },
         files: {
           type: 'array',
-          description: 'Files attached to message',
+          description: 'Files attached to the parent message',
           items: {
             type: 'object',
             properties: {
@@ -186,28 +188,37 @@ export const slackGetMessageTool: ToolConfig<SlackGetMessageParams, SlackGetMess
               name: { type: 'string', description: 'File name' },
               mimetype: { type: 'string', description: 'MIME type' },
               size: { type: 'number', description: 'File size in bytes' },
-              url_private: { type: 'string', description: 'Private download URL' },
-              permalink: { type: 'string', description: 'Permanent link to file' },
             },
           },
         },
-        attachments: {
-          type: 'array',
-          description: 'Legacy attachments',
-          items: { type: 'object' },
-        },
-        blocks: { type: 'array', description: 'Block Kit blocks', items: { type: 'object' } },
-        edited: {
-          type: 'object',
-          description: 'Edit information if message was edited',
-          properties: {
-            user: { type: 'string', description: 'User ID who edited' },
-            ts: { type: 'string', description: 'Edit timestamp' },
-          },
-          optional: true,
-        },
-        permalink: { type: 'string', description: 'Permanent link to message', optional: true },
       },
+    },
+    replies: {
+      type: 'array',
+      description: 'Array of reply messages in the thread (excluding the parent)',
+      items: {
+        type: 'object',
+        properties: {
+          ts: { type: 'string', description: 'Message timestamp' },
+          text: { type: 'string', description: 'Message text content' },
+          user: { type: 'string', description: 'User ID who sent the reply' },
+          reactions: { type: 'array', description: 'Reactions on the reply' },
+          files: { type: 'array', description: 'Files attached to the reply' },
+        },
+      },
+    },
+    messages: {
+      type: 'array',
+      description: 'All messages in the thread (parent + replies) in chronological order',
+      items: { type: 'object' },
+    },
+    replyCount: {
+      type: 'number',
+      description: 'Number of replies returned in this response',
+    },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether there are more messages in the thread (pagination needed)',
     },
   },
 }

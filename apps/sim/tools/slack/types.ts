@@ -76,6 +76,12 @@ export interface SlackGetMessageParams extends SlackBaseParams {
   timestamp: string
 }
 
+export interface SlackGetThreadParams extends SlackBaseParams {
+  channel: string
+  threadTs: string
+  limit?: number
+}
+
 export interface SlackMessageResponse extends ToolResponse {
   output: {
     // Legacy properties for backward compatibility
@@ -316,6 +322,16 @@ export interface SlackGetMessageResponse extends ToolResponse {
   }
 }
 
+export interface SlackGetThreadResponse extends ToolResponse {
+  output: {
+    parentMessage: SlackMessage
+    replies: SlackMessage[]
+    messages: SlackMessage[]
+    replyCount: number
+    hasMore: boolean
+  }
+}
+
 export type SlackResponse =
   | SlackCanvasResponse
   | SlackMessageReaderResponse
@@ -329,3 +345,4 @@ export type SlackResponse =
   | SlackListUsersResponse
   | SlackGetUserResponse
   | SlackGetMessageResponse
+  | SlackGetThreadResponse
