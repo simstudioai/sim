@@ -26,26 +26,14 @@ function formatTimestamp(iso: string): string {
   }
 }
 
-/**
- * Common text styling for loading and empty states
- */
 const STATE_TEXT_CLASSES = 'px-[8px] py-[8px] text-[12px] text-[var(--text-muted)]'
 
-/**
- * Loading state component for mention folders
- */
 const LoadingState = () => <div className={STATE_TEXT_CLASSES}>Loading...</div>
 
-/**
- * Empty state component for mention folders
- */
 const EmptyState = ({ message }: { message: string }) => (
   <div className={STATE_TEXT_CLASSES}>{message}</div>
 )
 
-/**
- * Aggregated item type for filtered results
- */
 interface AggregatedItem {
   id: string
   label: string
@@ -78,14 +66,6 @@ interface MentionMenuProps {
   }
 }
 
-/**
- * MentionMenu component for mention menu dropdown.
- * Handles rendering of mention options, submenus, and aggregated search results.
- * Manages keyboard navigation and selection of mentions.
- *
- * @param props - Component props
- * @returns Rendered mention menu
- */
 export function MentionMenu({
   mentionMenu,
   mentionData,
@@ -100,6 +80,7 @@ export function MentionMenu({
     submenuActiveIndex,
     mentionActiveIndex,
     openSubmenuFor,
+    setOpenSubmenuFor,
   } = mentionMenu
 
   const {
@@ -308,72 +289,55 @@ export function MentionMenu({
     'Docs', // 7
   ] as const
 
-  // Get active folder based on navigation when not in submenu and no query
   const isInFolderNavigationMode = !openSubmenuFor && !showAggregatedView
 
-  // Compute caret viewport position via mirror technique for precise anchoring
   const textareaEl = mentionMenu.textareaRef.current
   if (!textareaEl) return null
 
-  const getCaretViewport = (textarea: HTMLTextAreaElement, caretPosition: number, text: string) => {
-    const textareaRect = textarea.getBoundingClientRect()
-    const style = window.getComputedStyle(textarea)
+  const caretPos = getCaretPos()
+  const textareaRect = textareaEl.getBoundingClientRect()
+  const style = window.getComputedStyle(textareaEl)
 
-    const mirrorDiv = document.createElement('div')
-    mirrorDiv.style.position = 'absolute'
-    mirrorDiv.style.visibility = 'hidden'
-    mirrorDiv.style.whiteSpace = 'pre-wrap'
-    mirrorDiv.style.wordWrap = 'break-word'
-    mirrorDiv.style.font = style.font
-    mirrorDiv.style.padding = style.padding
-    mirrorDiv.style.border = style.border
-    mirrorDiv.style.width = style.width
-    mirrorDiv.style.lineHeight = style.lineHeight
-    mirrorDiv.style.boxSizing = style.boxSizing
-    mirrorDiv.style.letterSpacing = style.letterSpacing
-    mirrorDiv.style.textTransform = style.textTransform
-    mirrorDiv.style.textIndent = style.textIndent
-    mirrorDiv.style.textAlign = style.textAlign
+  const mirrorDiv = document.createElement('div')
+  mirrorDiv.style.position = 'absolute'
+  mirrorDiv.style.visibility = 'hidden'
+  mirrorDiv.style.whiteSpace = 'pre-wrap'
+  mirrorDiv.style.wordWrap = 'break-word'
+  mirrorDiv.style.font = style.font
+  mirrorDiv.style.padding = style.padding
+  mirrorDiv.style.border = style.border
+  mirrorDiv.style.width = style.width
+  mirrorDiv.style.lineHeight = style.lineHeight
+  mirrorDiv.style.boxSizing = style.boxSizing
+  mirrorDiv.style.letterSpacing = style.letterSpacing
+  mirrorDiv.style.textTransform = style.textTransform
+  mirrorDiv.style.textIndent = style.textIndent
+  mirrorDiv.style.textAlign = style.textAlign
+  mirrorDiv.textContent = message.substring(0, caretPos)
 
-    mirrorDiv.textContent = text.substring(0, caretPosition)
+  const caretMarker = document.createElement('span')
+  caretMarker.style.display = 'inline-block'
+  caretMarker.style.width = '0px'
+  caretMarker.style.padding = '0'
+  caretMarker.style.border = '0'
+  mirrorDiv.appendChild(caretMarker)
 
-    const caretMarker = document.createElement('span')
-    caretMarker.style.display = 'inline-block'
-    caretMarker.style.width = '0px'
-    caretMarker.style.padding = '0'
-    caretMarker.style.border = '0'
-    mirrorDiv.appendChild(caretMarker)
+  document.body.appendChild(mirrorDiv)
+  const markerRect = caretMarker.getBoundingClientRect()
+  const mirrorRect = mirrorDiv.getBoundingClientRect()
+  document.body.removeChild(mirrorDiv)
 
-    document.body.appendChild(mirrorDiv)
-    const markerRect = caretMarker.getBoundingClientRect()
-    const mirrorRect = mirrorDiv.getBoundingClientRect()
-    document.body.removeChild(mirrorDiv)
-
-    const leftOffset = markerRect.left - mirrorRect.left - textarea.scrollLeft
-    const topOffset = markerRect.top - mirrorRect.top - textarea.scrollTop
-
-    return {
-      left: textareaRect.left + leftOffset,
-      top: textareaRect.top + topOffset,
-    }
+  const caretViewport = {
+    left: textareaRect.left + (markerRect.left - mirrorRect.left) - textareaEl.scrollLeft,
+    top: textareaRect.top + (markerRect.top - mirrorRect.top) - textareaEl.scrollTop,
   }
 
-  const caretPos = getCaretPos()
-  const caretViewport = getCaretViewport(textareaEl, caretPos, message)
-
-  // Decide preferred side based on available space
   const margin = 8
-  const spaceAbove = caretViewport.top - margin
   const spaceBelow = window.innerHeight - caretViewport.top - margin
-  const side: 'top' | 'bottom' = spaceBelow >= spaceAbove ? 'bottom' : 'top'
+  const side: 'top' | 'bottom' = spaceBelow >= caretViewport.top - margin ? 'bottom' : 'top'
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={() => {
-        /* controlled by mentionMenu */
-      }}
-    >
+    <Popover open={open} onOpenChange={() => {}}>
       <PopoverAnchor asChild>
         <div
           style={{
@@ -399,7 +363,7 @@ export function MentionMenu({
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        <PopoverBackButton />
+        <PopoverBackButton onClick={() => setOpenSubmenuFor(null)} />
         <PopoverScrollArea ref={menuListRef} className='space-y-[2px]'>
           {openSubmenuFor ? (
             // Submenu view - showing contents of a specific folder
