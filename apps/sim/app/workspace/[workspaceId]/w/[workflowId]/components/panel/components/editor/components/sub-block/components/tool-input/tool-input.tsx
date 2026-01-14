@@ -1036,6 +1036,7 @@ export function ToolInput({
           block.type === 'api' ||
           block.type === 'webhook_request' ||
           block.type === 'workflow' ||
+          block.type === 'workflow_input' ||
           block.type === 'knowledge' ||
           block.type === 'function') &&
         block.type !== 'evaluator' &&
@@ -1761,7 +1762,7 @@ export function ToolInput({
           iconElement: createToolIcon('#6366F1', WorkflowIcon),
           onSelect: () => {
             const newTool: StoredTool = {
-              type: 'workflow',
+              type: 'workflow_input',
               title: 'Workflow',
               toolId: 'workflow_executor',
               params: {
@@ -2200,7 +2201,7 @@ export function ToolInput({
           const isMcpTool = tool.type === 'mcp'
           const isWorkflowTool = tool.type === 'workflow'
           const toolBlock =
-            !isCustomTool && !isMcpTool && !isWorkflowTool
+            !isCustomTool && !isMcpTool
               ? toolBlocks.find((block) => block.type === tool.type)
               : null
 
@@ -2374,9 +2375,10 @@ export function ToolInput({
                         </Tooltip.Root>
                       )
                     })()}
-                  {tool.type === 'workflow' && tool.params?.workflowId && (
-                    <WorkflowToolDeployBadge workflowId={tool.params.workflowId} />
-                  )}
+                  {(tool.type === 'workflow' || tool.type === 'workflow_input') &&
+                    tool.params?.workflowId && (
+                      <WorkflowToolDeployBadge workflowId={tool.params.workflowId} />
+                    )}
                 </div>
                 <div className='flex flex-shrink-0 items-center gap-[8px]'>
                   {supportsToolControl && !(isMcpTool && isMcpToolUnavailable(tool)) && (
