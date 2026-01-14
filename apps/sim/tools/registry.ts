@@ -5,7 +5,6 @@ import {
   a2aGetPushNotificationTool,
   a2aGetTaskTool,
   a2aResubscribeTool,
-  a2aSendMessageStreamTool,
   a2aSendMessageTool,
   a2aSetPushNotificationTool,
 } from '@/tools/a2a'
@@ -1541,7 +1540,6 @@ export const tools: Record<string, ToolConfig> = {
   a2a_get_task: a2aGetTaskTool,
   a2a_resubscribe: a2aResubscribeTool,
   a2a_send_message: a2aSendMessageTool,
-  a2a_send_message_stream: a2aSendMessageStreamTool,
   a2a_set_push_notification: a2aSetPushNotificationTool,
   arxiv_search: arxivSearchTool,
   arxiv_get_paper: arxivGetPaperTool,
