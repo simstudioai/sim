@@ -121,10 +121,6 @@ export const githubIssueCommentTrigger: TriggerConfig = {
       type: 'string',
       description: 'GitHub event type from X-GitHub-Event header (e.g., issue_comment)',
     },
-    branch: {
-      type: 'string',
-      description: 'Branch name derived from ref (empty for non-branch events)',
-    },
     action: {
       type: 'string',
       description: 'Action performed (created, edited, deleted)',
