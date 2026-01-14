@@ -99,6 +99,7 @@ export interface SendMessageRequest {
     workflowId?: string
     executionId?: string
   }>
+  commands?: string[]
 }
 
 /**

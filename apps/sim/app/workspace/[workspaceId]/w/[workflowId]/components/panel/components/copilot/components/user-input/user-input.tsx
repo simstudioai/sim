@@ -21,6 +21,7 @@ import {
   MentionMenu,
   ModelSelector,
   ModeSelector,
+  SlashMenu,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components'
 import { NEAR_TOP_THRESHOLD } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
 import {
@@ -67,6 +68,8 @@ interface UserInputProps {
   hideModeSelector?: boolean
   /** Disable @mention functionality */
   disableMentions?: boolean
+  /** Initial contexts for editing a message with existing context mentions */
+  initialContexts?: ChatContext[]
 }
 
 interface UserInputRef {
@@ -103,6 +106,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       onModelChangeOverride,
       hideModeSelector = false,
       disableMentions = false,
+      initialContexts,
     },
     ref
   ) => {
@@ -123,6 +127,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const [isNearTop, setIsNearTop] = useState(false)
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null)
     const [inputContainerRef, setInputContainerRef] = useState<HTMLDivElement | null>(null)
+    const [showSlashMenu, setShowSlashMenu] = useState(false)
 
     // Controlled vs uncontrolled message state
     const message = controlledValue !== undefined ? controlledValue : internalMessage
@@ -140,7 +145,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     // Custom hooks - order matters for ref sharing
     // Context management (manages selectedContexts state)
-    const contextManagement = useContextManagement({ message })
+    const contextManagement = useContextManagement({ message, initialContexts })
 
     // Mention menu
     const mentionMenu = useMentionMenu({
@@ -370,18 +375,129 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }, [onAbort, isLoading])
 
+    const handleSlashCommandSelect = useCallback(
+      (command: string) => {
+        // Capitalize the command for display
+        const capitalizedCommand = command.charAt(0).toUpperCase() + command.slice(1)
+
+        // Replace the active slash query with the capitalized command
+        mentionMenu.replaceActiveSlashWith(capitalizedCommand)
+
+        // Add as a context so it gets highlighted
+        contextManagement.addContext({
+          kind: 'slash_command',
+          command,
+          label: capitalizedCommand,
+        })
+
+        setShowSlashMenu(false)
+        mentionMenu.textareaRef.current?.focus()
+      },
+      [mentionMenu, contextManagement]
+    )
+
     const handleKeyDown = useCallback(
       (e: KeyboardEvent<HTMLTextAreaElement>) => {
         // Escape key handling
-        if (e.key === 'Escape' && mentionMenu.showMentionMenu) {
+        if (e.key === 'Escape' && (mentionMenu.showMentionMenu || showSlashMenu)) {
           e.preventDefault()
           if (mentionMenu.openSubmenuFor) {
             mentionMenu.setOpenSubmenuFor(null)
             mentionMenu.setSubmenuQueryStart(null)
           } else {
             mentionMenu.closeMentionMenu()
+            setShowSlashMenu(false)
           }
           return
+        }
+
+        // Arrow navigation in slash menu
+        if (showSlashMenu) {
+          const TOP_LEVEL_COMMANDS = ['fast', 'plan', 'debug', 'research', 'deploy', 'superagent']
+          const WEB_COMMANDS = ['search', 'read', 'scrape', 'crawl']
+          const ALL_COMMANDS = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
+
+          const caretPos = mentionMenu.getCaretPos()
+          const activeSlash = mentionMenu.getActiveSlashQueryAtPosition(caretPos, message)
+          const query = activeSlash?.query.trim().toLowerCase() || ''
+          const showAggregatedView = query.length > 0
+
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault()
+
+            if (mentionMenu.openSubmenuFor === 'Web') {
+              // Navigate in Web submenu
+              const last = WEB_COMMANDS.length - 1
+              mentionMenu.setSubmenuActiveIndex((prev) => {
+                const next =
+                  e.key === 'ArrowDown'
+                    ? prev >= last
+                      ? 0
+                      : prev + 1
+                    : prev <= 0
+                      ? last
+                      : prev - 1
+                requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(next))
+                return next
+              })
+            } else if (showAggregatedView) {
+              // Navigate in filtered view
+              const filtered = ALL_COMMANDS.filter((cmd) => cmd.includes(query))
+              const last = Math.max(0, filtered.length - 1)
+              mentionMenu.setSubmenuActiveIndex((prev) => {
+                if (filtered.length === 0) return 0
+                const next =
+                  e.key === 'ArrowDown'
+                    ? prev >= last
+                      ? 0
+                      : prev + 1
+                    : prev <= 0
+                      ? last
+                      : prev - 1
+                requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(next))
+                return next
+              })
+            } else {
+              // Navigate in folder view (top-level + Web folder)
+              const totalItems = TOP_LEVEL_COMMANDS.length + 1 // +1 for Web folder
+              const last = totalItems - 1
+              mentionMenu.setMentionActiveIndex((prev) => {
+                const next =
+                  e.key === 'ArrowDown'
+                    ? prev >= last
+                      ? 0
+                      : prev + 1
+                    : prev <= 0
+                      ? last
+                      : prev - 1
+                requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(next))
+                return next
+              })
+            }
+            return
+          }
+
+          // Arrow right to enter Web submenu
+          if (e.key === 'ArrowRight') {
+            e.preventDefault()
+            if (!showAggregatedView && !mentionMenu.openSubmenuFor) {
+              // Check if Web folder is selected (it's after all top-level commands)
+              if (mentionMenu.mentionActiveIndex === TOP_LEVEL_COMMANDS.length) {
+                mentionMenu.setOpenSubmenuFor('Web')
+                mentionMenu.setSubmenuActiveIndex(0)
+              }
+            }
+            return
+          }
+
+          // Arrow left to exit submenu
+          if (e.key === 'ArrowLeft') {
+            e.preventDefault()
+            if (mentionMenu.openSubmenuFor) {
+              mentionMenu.setOpenSubmenuFor(null)
+            }
+            return
+          }
         }
 
         // Arrow navigation in mention menu
@@ -392,6 +508,42 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         // Enter key handling
         if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
           e.preventDefault()
+          if (showSlashMenu) {
+            const TOP_LEVEL_COMMANDS = ['fast', 'plan', 'debug', 'research', 'deploy', 'superagent']
+            const WEB_COMMANDS = ['search', 'read', 'scrape', 'crawl']
+            const ALL_COMMANDS = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
+
+            const caretPos = mentionMenu.getCaretPos()
+            const activeSlash = mentionMenu.getActiveSlashQueryAtPosition(caretPos, message)
+            const query = activeSlash?.query.trim().toLowerCase() || ''
+            const showAggregatedView = query.length > 0
+
+            if (mentionMenu.openSubmenuFor === 'Web') {
+              // Select from Web submenu
+              const selectedCommand =
+                WEB_COMMANDS[mentionMenu.submenuActiveIndex] || WEB_COMMANDS[0]
+              handleSlashCommandSelect(selectedCommand)
+            } else if (showAggregatedView) {
+              // Select from filtered view
+              const filtered = ALL_COMMANDS.filter((cmd) => cmd.includes(query))
+              if (filtered.length > 0) {
+                const selectedCommand = filtered[mentionMenu.submenuActiveIndex] || filtered[0]
+                handleSlashCommandSelect(selectedCommand)
+              }
+            } else {
+              // Folder navigation view
+              const selectedIndex = mentionMenu.mentionActiveIndex
+              if (selectedIndex < TOP_LEVEL_COMMANDS.length) {
+                // Top-level command selected
+                handleSlashCommandSelect(TOP_LEVEL_COMMANDS[selectedIndex])
+              } else if (selectedIndex === TOP_LEVEL_COMMANDS.length) {
+                // Web folder selected - open it
+                mentionMenu.setOpenSubmenuFor('Web')
+                mentionMenu.setSubmenuActiveIndex(0)
+              }
+            }
+            return
+          }
           if (!mentionMenu.showMentionMenu) {
             handleSubmit()
           } else {
@@ -469,7 +621,15 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           }
         }
       },
-      [mentionMenu, mentionKeyboard, handleSubmit, message.length, mentionTokensWithContext]
+      [
+        mentionMenu,
+        mentionKeyboard,
+        handleSubmit,
+        handleSlashCommandSelect,
+        message,
+        mentionTokensWithContext,
+        showSlashMenu,
+      ]
     )
 
     const handleInputChange = useCallback(
@@ -481,9 +641,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         if (disableMentions) return
 
         const caret = e.target.selectionStart ?? newValue.length
-        const active = mentionMenu.getActiveMentionQueryAtPosition(caret, newValue)
 
-        if (active) {
+        // Check for @ mention trigger
+        const activeMention = mentionMenu.getActiveMentionQueryAtPosition(caret, newValue)
+        // Check for / slash command trigger
+        const activeSlash = mentionMenu.getActiveSlashQueryAtPosition(caret, newValue)
+
+        if (activeMention) {
+          setShowSlashMenu(false)
           mentionMenu.setShowMentionMenu(true)
           mentionMenu.setInAggregated(false)
           if (mentionMenu.openSubmenuFor) {
@@ -492,10 +657,17 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             mentionMenu.setMentionActiveIndex(0)
             mentionMenu.setSubmenuActiveIndex(0)
           }
+        } else if (activeSlash) {
+          mentionMenu.setShowMentionMenu(false)
+          mentionMenu.setOpenSubmenuFor(null)
+          mentionMenu.setSubmenuQueryStart(null)
+          setShowSlashMenu(true)
+          mentionMenu.setSubmenuActiveIndex(0)
         } else {
           mentionMenu.setShowMentionMenu(false)
           mentionMenu.setOpenSubmenuFor(null)
           mentionMenu.setSubmenuQueryStart(null)
+          setShowSlashMenu(false)
         }
       },
       [setMessage, mentionMenu, disableMentions]
@@ -539,6 +711,32 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       mentionMenu.setShowMentionMenu(true)
       mentionMenu.setOpenSubmenuFor(null)
       mentionMenu.setMentionActiveIndex(0)
+      mentionMenu.setSubmenuActiveIndex(0)
+    }, [disabled, isLoading, mentionMenu, message, setMessage])
+
+    const handleOpenSlashMenu = useCallback(() => {
+      if (disabled || isLoading) return
+      const textarea = mentionMenu.textareaRef.current
+      if (!textarea) return
+      textarea.focus()
+      const pos = textarea.selectionStart ?? message.length
+      const needsSpaceBefore = pos > 0 && !/\s/.test(message.charAt(pos - 1))
+
+      const insertText = needsSpaceBefore ? ' /' : '/'
+      const start = textarea.selectionStart ?? message.length
+      const end = textarea.selectionEnd ?? message.length
+      const before = message.slice(0, start)
+      const after = message.slice(end)
+      const next = `${before}${insertText}${after}`
+      setMessage(next)
+
+      setTimeout(() => {
+        const newPos = before.length + insertText.length
+        textarea.setSelectionRange(newPos, newPos)
+        textarea.focus()
+      }, 0)
+
+      setShowSlashMenu(true)
       mentionMenu.setSubmenuActiveIndex(0)
     }, [disabled, isLoading, mentionMenu, message, setMessage])
 
@@ -643,6 +841,20 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     <AtSign className='h-3 w-3' strokeWidth={1.75} />
                   </Badge>
 
+                  <Badge
+                    variant='outline'
+                    onClick={handleOpenSlashMenu}
+                    title='Insert /'
+                    className={cn(
+                      'cursor-pointer rounded-[6px] p-[4.5px]',
+                      (disabled || isLoading) && 'cursor-not-allowed'
+                    )}
+                  >
+                    <span className='flex h-3 w-3 items-center justify-center font-medium text-[11px] leading-none'>
+                      /
+                    </span>
+                  </Badge>
+
                   {/* Selected Context Pills */}
                   <ContextPills
                     contexts={contextManagement.selectedContexts}
@@ -714,6 +926,18 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   mentionData={mentionData}
                   message={message}
                   insertHandlers={insertHandlers}
+                />,
+                document.body
+              )}
+
+            {/* Slash Menu Portal */}
+            {!disableMentions &&
+              showSlashMenu &&
+              createPortal(
+                <SlashMenu
+                  mentionMenu={mentionMenu}
+                  message={message}
+                  onSelectCommand={handleSlashCommandSelect}
                 />,
                 document.body
               )}
