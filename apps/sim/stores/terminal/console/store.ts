@@ -15,7 +15,7 @@ const logger = createLogger('TerminalConsoleStore')
  * Maximum number of console entries to keep per workflow.
  * Keeps the stored data size reasonable and improves performance.
  */
-const MAX_ENTRIES_PER_WORKFLOW = 500
+const MAX_ENTRIES_PER_WORKFLOW = 1000
 
 const updateBlockOutput = (
   existingOutput: NormalizedBlockOutput | undefined,
@@ -96,13 +96,57 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
             }
 
             const newEntries = [newEntry, ...state.entries]
-            const workflowCounts = new Map<string, number>()
-            const trimmedEntries = newEntries.filter((entry) => {
-              const count = workflowCounts.get(entry.workflowId) || 0
-              if (count >= MAX_ENTRIES_PER_WORKFLOW) return false
-              workflowCounts.set(entry.workflowId, count + 1)
-              return true
+
+            const executionsToRemove = new Set<string>()
+
+            const workflowGroups = new Map<string, ConsoleEntry[]>()
+            for (const e of newEntries) {
+              const group = workflowGroups.get(e.workflowId) || []
+              group.push(e)
+              workflowGroups.set(e.workflowId, group)
+            }
+
+            for (const [workflowId, entries] of workflowGroups) {
+              if (entries.length <= MAX_ENTRIES_PER_WORKFLOW) continue
+
+              const execOrder: string[] = []
+              const seen = new Set<string>()
+              for (const e of entries) {
+                const execId = e.executionId ?? e.id
+                if (!seen.has(execId)) {
+                  execOrder.push(execId)
+                  seen.add(execId)
+                }
+              }
+
+              const counts = new Map<string, number>()
+              for (const e of entries) {
+                const execId = e.executionId ?? e.id
+                counts.set(execId, (counts.get(execId) || 0) + 1)
+              }
+
+              let total = 0
+              const toKeep = new Set<string>()
+              for (const execId of execOrder) {
+                const c = counts.get(execId) || 0
+                if (total + c <= MAX_ENTRIES_PER_WORKFLOW) {
+                  toKeep.add(execId)
+                  total += c
+                }
+              }
+
+              for (const execId of execOrder) {
+                if (!toKeep.has(execId)) {
+                  executionsToRemove.add(`${workflowId}:${execId}`)
+                }
+              }
+            }
+
+            const trimmedEntries = newEntries.filter((e) => {
+              const key = `${e.workflowId}:${e.executionId ?? e.id}`
+              return !executionsToRemove.has(key)
             })
+
             return { entries: trimmedEntries }
           })
 
