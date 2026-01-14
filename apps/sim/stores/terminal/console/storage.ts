@@ -38,7 +38,9 @@ async function migrateFromLocalStorage(): Promise<void> {
 }
 
 if (typeof window !== 'undefined') {
-  migrationPromise = migrateFromLocalStorage()
+  migrationPromise = migrateFromLocalStorage().finally(() => {
+    migrationPromise = null
+  })
 }
 
 export const indexedDBStorage: StateStorage = {

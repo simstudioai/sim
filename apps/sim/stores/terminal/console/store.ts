@@ -323,10 +323,11 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 )
 
 if (typeof window !== 'undefined') {
-  if (useTerminalConsoleStore.persist.hasHydrated()) {
-    useTerminalConsoleStore.setState({ _hasHydrated: true })
-  }
   useTerminalConsoleStore.persist.onFinishHydration(() => {
     useTerminalConsoleStore.setState({ _hasHydrated: true })
   })
+
+  if (useTerminalConsoleStore.persist.hasHydrated()) {
+    useTerminalConsoleStore.setState({ _hasHydrated: true })
+  }
 }
