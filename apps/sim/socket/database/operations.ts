@@ -7,6 +7,7 @@ import postgres from 'postgres'
 import { env } from '@/lib/core/config/env'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { mergeSubBlockValues } from '@/lib/workflows/subblocks'
 import {
   BLOCK_OPERATIONS,
   BLOCKS_OPERATIONS,
@@ -72,33 +73,6 @@ enum SubflowType {
 
 function isSubflowBlockType(blockType: string): blockType is SubflowType {
   return Object.values(SubflowType).includes(blockType as SubflowType)
-}
-
-function mergeSubBlockValues(
-  subBlocks: Record<string, unknown> | undefined,
-  values: Record<string, unknown> | undefined
-): Record<string, unknown> {
-  const merged = { ...(subBlocks || {}) } as Record<string, any>
-
-  if (!values) return merged
-
-  Object.entries(values).forEach(([subBlockId, value]) => {
-    if (merged[subBlockId] && typeof merged[subBlockId] === 'object') {
-      merged[subBlockId] = {
-        ...(merged[subBlockId] as Record<string, unknown>),
-        value,
-      }
-      return
-    }
-
-    merged[subBlockId] = {
-      id: subBlockId,
-      type: 'short-input',
-      value,
-    }
-  })
-
-  return merged
 }
 
 export async function updateSubflowNodeList(dbOrTx: any, workflowId: string, parentId: string) {

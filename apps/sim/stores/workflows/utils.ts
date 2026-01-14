@@ -1,20 +1,7 @@
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
-
-export function filterNewEdges(edgesToAdd: Edge[], currentEdges: Edge[]): Edge[] {
-  return edgesToAdd.filter((edge) => {
-    if (edge.source === edge.target) return false
-    return !currentEdges.some(
-      (e) =>
-        e.source === edge.source &&
-        e.sourceHandle === edge.sourceHandle &&
-        e.target === edge.target &&
-        e.targetHandle === edge.targetHandle
-    )
-  })
-}
-
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { mergeSubBlockValues } from '@/lib/workflows/subblocks'
 import { getBlock } from '@/blocks'
 import { normalizeName } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -31,6 +18,19 @@ import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 const WEBHOOK_SUBBLOCK_FIELDS = ['webhookId', 'triggerPath']
 
 export { normalizeName }
+
+export function filterNewEdges(edgesToAdd: Edge[], currentEdges: Edge[]): Edge[] {
+  return edgesToAdd.filter((edge) => {
+    if (edge.source === edge.target) return false
+    return !currentEdges.some(
+      (e) =>
+        e.source === edge.source &&
+        e.sourceHandle === edge.sourceHandle &&
+        e.target === edge.target &&
+        e.targetHandle === edge.targetHandle
+    )
+  })
+}
 
 export interface RegeneratedState {
   blocks: Record<string, BlockState>
@@ -201,27 +201,20 @@ export function prepareDuplicateBlockState(options: PrepareDuplicateBlockStateOp
     Object.entries(subBlockValues).filter(([key]) => !WEBHOOK_SUBBLOCK_FIELDS.includes(key))
   )
 
-  const mergedSubBlocks: Record<string, SubBlockState> = sourceBlock.subBlocks
+  const baseSubBlocks: Record<string, SubBlockState> = sourceBlock.subBlocks
     ? JSON.parse(JSON.stringify(sourceBlock.subBlocks))
     : {}
 
   WEBHOOK_SUBBLOCK_FIELDS.forEach((field) => {
-    if (field in mergedSubBlocks) {
-      delete mergedSubBlocks[field]
+    if (field in baseSubBlocks) {
+      delete baseSubBlocks[field]
     }
   })
 
-  Object.entries(filteredSubBlockValues).forEach(([subblockId, value]) => {
-    if (mergedSubBlocks[subblockId]) {
-      mergedSubBlocks[subblockId].value = value as SubBlockState['value']
-    } else {
-      mergedSubBlocks[subblockId] = {
-        id: subblockId,
-        type: 'short-input',
-        value: value as SubBlockState['value'],
-      }
-    }
-  })
+  const mergedSubBlocks = mergeSubBlockValues(baseSubBlocks, filteredSubBlockValues) as Record<
+    string,
+    SubBlockState
+  >
 
   const block: BlockState = {
     id: newId,
