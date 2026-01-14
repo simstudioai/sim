@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Button, Combobox, type ComboboxOption } from '@/components/emcn'
 import {
-  generateSortId,
+  generateId,
   jsonStringToSortConditions,
   SORT_DIRECTIONS,
   type SortCondition,
@@ -30,7 +30,7 @@ interface SortFormatProps {
  * Creates a new sort condition with default values
  */
 const createDefaultCondition = (columns: ComboboxOption[]): SortCondition => ({
-  id: generateSortId(),
+  id: generateId(),
   column: columns[0]?.value || '',
   direction: 'asc',
 })

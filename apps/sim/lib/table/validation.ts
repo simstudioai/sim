@@ -7,49 +7,24 @@
 import type { ColumnType } from './constants'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from './constants'
 
-/**
- * Definition of a table column.
- */
 export interface ColumnDefinition {
-  /** Column name */
   name: string
-  /** Column data type */
   type: ColumnType
-  /** Whether the column is required */
   required?: boolean
-  /** Whether the column values must be unique */
   unique?: boolean
 }
 
-/**
- * Table schema definition.
- */
 export interface TableSchema {
-  /** Array of column definitions */
   columns: ColumnDefinition[]
 }
 
-/**
- * Result of a validation operation.
- */
 interface ValidationResult {
-  /** Whether validation passed */
   valid: boolean
-  /** Array of error messages */
   errors: string[]
 }
 
-/**
- * Represents a row's data values.
- */
 type RowData = Record<string, unknown>
 
-/**
- * Validates a table name against naming rules.
- *
- * @param name - The table name to validate
- * @returns Validation result with errors if invalid
- */
 export function validateTableName(name: string): ValidationResult {
   const errors: string[] = []
 
@@ -76,12 +51,6 @@ export function validateTableName(name: string): ValidationResult {
   }
 }
 
-/**
- * Validates a column definition.
- *
- * @param column - The column definition to validate
- * @returns Validation result with errors if invalid
- */
 export function validateColumnDefinition(column: ColumnDefinition): ValidationResult {
   const errors: string[] = []
 
@@ -114,12 +83,6 @@ export function validateColumnDefinition(column: ColumnDefinition): ValidationRe
   }
 }
 
-/**
- * Validates a table schema.
- *
- * @param schema - The schema to validate
- * @returns Validation result with errors if invalid
- */
 export function validateTableSchema(schema: TableSchema): ValidationResult {
   const errors: string[] = []
 
@@ -141,13 +104,11 @@ export function validateTableSchema(schema: TableSchema): ValidationResult {
     errors.push(`Schema exceeds maximum columns (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE})`)
   }
 
-  // Validate each column
   for (const column of schema.columns) {
     const columnResult = validateColumnDefinition(column)
     errors.push(...columnResult.errors)
   }
 
-  // Check for duplicate column names
   const columnNames = schema.columns.map((c) => c.name.toLowerCase())
   const uniqueNames = new Set(columnNames)
   if (uniqueNames.size !== columnNames.length) {
@@ -160,12 +121,6 @@ export function validateTableSchema(schema: TableSchema): ValidationResult {
   }
 }
 
-/**
- * Validates that row data size is within limits.
- *
- * @param data - The row data to validate
- * @returns Validation result with errors if size exceeds limit
- */
 export function validateRowSize(data: RowData): ValidationResult {
   const size = JSON.stringify(data).length
   if (size > TABLE_LIMITS.MAX_ROW_SIZE_BYTES) {
@@ -177,29 +132,19 @@ export function validateRowSize(data: RowData): ValidationResult {
   return { valid: true, errors: [] }
 }
 
-/**
- * Validates row data against a table schema.
- *
- * @param data - The row data to validate
- * @param schema - The schema to validate against
- * @returns Validation result with errors if validation fails
- */
 export function validateRowAgainstSchema(data: RowData, schema: TableSchema): ValidationResult {
   const errors: string[] = []
 
   for (const column of schema.columns) {
     const value = data[column.name]
 
-    // Check required fields
     if (column.required && (value === undefined || value === null)) {
       errors.push(`Missing required field: ${column.name}`)
       continue
     }
 
-    // Skip type validation if value is null/undefined for optional fields
     if (value === null || value === undefined) continue
 
-    // Type validation
     switch (column.type) {
       case 'string':
         if (typeof value !== 'string') {
@@ -242,38 +187,15 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
   }
 }
 
-/**
- * Gets all columns marked as unique from a schema.
- *
- * @param schema - The schema to extract unique columns from
- * @returns Array of unique column definitions
- */
 export function getUniqueColumns(schema: TableSchema): ColumnDefinition[] {
   return schema.columns.filter((col) => col.unique === true)
 }
 
-/**
- * Represents an existing row for uniqueness checking.
- */
 interface ExistingRow {
-  /** Row ID */
   id: string
-  /** Row data values */
   data: RowData
 }
 
-/**
- * Validates unique constraints for row data.
- *
- * Checks if values for unique columns would violate uniqueness constraints
- * when compared against existing rows.
- *
- * @param data - The row data to validate
- * @param schema - The schema containing unique column definitions
- * @param existingRows - Array of existing rows to check against
- * @param excludeRowId - Optional row ID to exclude from uniqueness check (for updates)
- * @returns Validation result with errors if uniqueness constraints are violated
- */
 export function validateUniqueConstraints(
   data: RowData,
   schema: TableSchema,
@@ -286,19 +208,15 @@ export function validateUniqueConstraints(
   for (const column of uniqueColumns) {
     const value = data[column.name]
 
-    // Skip null/undefined values for optional unique columns
     if (value === null || value === undefined) {
       continue
     }
 
-    // Check if value exists in other rows
     const duplicate = existingRows.find((row) => {
-      // Skip the row being updated
       if (excludeRowId && row.id === excludeRowId) {
         return false
       }
 
-      // Check if value matches (case-insensitive for strings)
       const existingValue = row.data[column.name]
       if (typeof value === 'string' && typeof existingValue === 'string') {
         return value.toLowerCase() === existingValue.toLowerCase()

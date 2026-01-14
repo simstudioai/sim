@@ -1,19 +1,11 @@
 /**
  * Shared utilities for filter builder UI components.
  *
- * Used by both the table data viewer and the block editor filter-format component.
- *
  * @module lib/table/filter-builder-utils
  */
 
-/**
- * JSON-serializable value types.
- */
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
-/**
- * Available comparison operators for filter conditions.
- */
 export const COMPARISON_OPERATORS = [
   { value: 'eq', label: 'equals' },
   { value: 'ne', label: 'not equals' },
@@ -25,44 +17,34 @@ export const COMPARISON_OPERATORS = [
   { value: 'in', label: 'in array' },
 ] as const
 
-/**
- * Logical operators for combining filter conditions.
- */
 export const LOGICAL_OPERATORS = [
   { value: 'and', label: 'and' },
   { value: 'or', label: 'or' },
 ] as const
 
-/**
- * Represents a single filter condition in builder format.
- */
 export interface FilterCondition {
-  /** Unique identifier for the condition */
   id: string
-  /** Logical operator to combine with previous condition */
   logicalOperator: 'and' | 'or'
-  /** Column name to filter on */
   column: string
-  /** Comparison operator */
   operator: string
-  /** Filter value as string */
   value: string
 }
 
 /**
- * Generates a unique ID for filter conditions.
+ * Generates a unique ID for filter or sort conditions.
+ * Used as React keys for list items in the builder UI.
  *
  * @returns Random alphanumeric string
  */
-export function generateFilterId(): string {
+export function generateId(): string {
   return Math.random().toString(36).substring(2, 9)
 }
 
 /**
- * Parses a value string into its appropriate type.
+ * Parses a string value into its appropriate type based on the operator.
  *
- * @param value - The string value to parse
- * @param operator - The operator being used (affects parsing for 'in')
+ * @param value - String value to parse
+ * @param operator - Operator being used (affects parsing for 'in')
  * @returns Parsed value (string, number, boolean, null, or array)
  */
 function parseValue(value: string, operator: string): JsonValue {
@@ -137,7 +119,6 @@ export function filterToConditions(filter: Record<string, JsonValue> | null): Fi
 
   const conditions: FilterCondition[] = []
 
-  // Handle $or at the top level
   if (filter.$or && Array.isArray(filter.$or)) {
     filter.$or.forEach((orGroup, groupIndex) => {
       if (typeof orGroup !== 'object' || orGroup === null || Array.isArray(orGroup)) {
@@ -159,7 +140,6 @@ export function filterToConditions(filter: Record<string, JsonValue> | null): Fi
     return conditions
   }
 
-  // Handle simple filter (all AND conditions)
   return parseFilterGroup(filter)
 }
 
@@ -176,11 +156,10 @@ function parseFilterGroup(group: Record<string, JsonValue>): FilterCondition[] {
     if (column === '$or' || column === '$and') continue
 
     if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      // Operator-based condition
       for (const [op, opValue] of Object.entries(value)) {
         if (op.startsWith('$')) {
           conditions.push({
-            id: generateFilterId(),
+            id: generateId(),
             logicalOperator: 'and',
             column,
             operator: op.substring(1),
@@ -189,9 +168,8 @@ function parseFilterGroup(group: Record<string, JsonValue>): FilterCondition[] {
         }
       }
     } else {
-      // Direct equality
       conditions.push({
-        id: generateFilterId(),
+        id: generateId(),
         logicalOperator: 'and',
         column,
         operator: 'eq',
@@ -245,33 +223,15 @@ export function jsonStringToConditions(jsonString: string): FilterCondition[] {
   }
 }
 
-/**
- * Sort direction options.
- */
 export const SORT_DIRECTIONS = [
   { value: 'asc', label: 'ascending' },
   { value: 'desc', label: 'descending' },
 ] as const
 
-/**
- * Represents a single sort condition in builder format.
- */
 export interface SortCondition {
-  /** Unique identifier for the sort condition */
   id: string
-  /** Column name to sort by */
   column: string
-  /** Sort direction */
   direction: 'asc' | 'desc'
-}
-
-/**
- * Generates a unique ID for sort conditions.
- *
- * @returns Random alphanumeric string
- */
-export function generateSortId(): string {
-  return Math.random().toString(36).substring(2, 9)
 }
 
 /**
@@ -303,7 +263,7 @@ export function sortToConditions(sort: Record<string, string> | null): SortCondi
   if (!sort) return []
 
   return Object.entries(sort).map(([column, direction]) => ({
-    id: generateSortId(),
+    id: generateId(),
     column,
     direction: direction === 'desc' ? 'desc' : 'asc',
   }))

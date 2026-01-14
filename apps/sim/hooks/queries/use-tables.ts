@@ -113,6 +113,7 @@ export function useCreateTable(workspaceId: string) {
       return res.json()
     },
     onSuccess: () => {
+      // Invalidate the tables list query to refresh the UI
       queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
     },
   })
@@ -146,6 +147,7 @@ export function useDeleteTable(workspaceId: string) {
       return res.json()
     },
     onSuccess: () => {
+      // Invalidate the tables list query to refresh the UI
       queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
     },
   })

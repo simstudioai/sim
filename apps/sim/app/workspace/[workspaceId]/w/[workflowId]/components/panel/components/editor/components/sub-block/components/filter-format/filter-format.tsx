@@ -8,7 +8,7 @@ import {
   COMPARISON_OPERATORS,
   conditionsToJsonString,
   type FilterCondition,
-  generateFilterId,
+  generateId,
   jsonStringToConditions,
   LOGICAL_OPERATORS,
 } from '@/lib/table/filter-builder-utils'
@@ -35,7 +35,7 @@ interface FilterFormatProps {
  * Creates a new filter condition with default values
  */
 const createDefaultCondition = (columns: ComboboxOption[]): FilterCondition => ({
-  id: generateFilterId(),
+  id: generateId(),
   logicalOperator: 'and',
   column: columns[0]?.value || '',
   operator: 'eq',
