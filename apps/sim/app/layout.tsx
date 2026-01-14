@@ -36,14 +36,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {isReactGrabEnabled && (
           <Script
-            src='//unpkg.com/react-grab/dist/index.global.js'
+            src='https://unpkg.com/react-grab/dist/index.global.js'
             crossOrigin='anonymous'
             strategy='beforeInteractive'
           />
         )}
         {isReactGrabEnabled && (
           <Script
-            src='//unpkg.com/@react-grab/cursor/dist/client.global.js'
+            src='https://unpkg.com/@react-grab/cursor/dist/client.global.js'
             strategy='lazyOnload'
           />
         )}
