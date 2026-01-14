@@ -320,12 +320,14 @@ export function Terminal() {
   } = useTerminalStore()
   const isExpanded = useTerminalStore((state) => state.terminalHeight > NEAR_MIN_THRESHOLD)
   const { activeWorkflowId } = useWorkflowRegistry()
+  const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
   const workflowEntriesSelector = useCallback(
     (state: { entries: ConsoleEntry[] }) =>
       state.entries.filter((entry) => entry.workflowId === activeWorkflowId),
     [activeWorkflowId]
   )
-  const entries = useTerminalConsoleStore(useShallow(workflowEntriesSelector))
+  const entriesFromStore = useTerminalConsoleStore(useShallow(workflowEntriesSelector))
+  const entries = hasConsoleHydrated ? entriesFromStore : []
   const clearWorkflowConsole = useTerminalConsoleStore((state) => state.clearWorkflowConsole)
   const exportConsoleCSV = useTerminalConsoleStore((state) => state.exportConsoleCSV)
   const [selectedEntry, setSelectedEntry] = useState<ConsoleEntry | null>(null)
