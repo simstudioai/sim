@@ -3,6 +3,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { AGENT, isCustomTool } from '@/executor/constants'
 import { useCustomToolsStore } from '@/stores/custom-tools'
 import { useEnvironmentStore } from '@/stores/settings/environment'
+import { extractErrorMessage } from '@/tools/error-extractors'
 import { tools } from '@/tools/registry'
 import type { TableRow, ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -162,14 +163,22 @@ export async function executeRequest(
     const externalResponse = await fetch(url, { method, headers, body })
 
     if (!externalResponse.ok) {
-      let errorContent
+      let errorData: any
       try {
-        errorContent = await externalResponse.json()
+        errorData = await externalResponse.json()
       } catch (_e) {
-        errorContent = { message: externalResponse.statusText }
+        try {
+          errorData = await externalResponse.text()
+        } catch (_e2) {
+          errorData = null
+        }
       }
 
-      const error = errorContent.message || `${toolId} API error: ${externalResponse.statusText}`
+      const error = extractErrorMessage({
+        status: externalResponse.status,
+        statusText: externalResponse.statusText,
+        data: errorData,
+      })
       logger.error(`${toolId} error:`, { error })
       throw new Error(error)
     }
