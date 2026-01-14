@@ -10,6 +10,7 @@ import { getWorkflowById } from '@/lib/workflows/utils'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
+import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('TriggerWorkflowExecution')
 
@@ -17,7 +18,7 @@ export type WorkflowExecutionPayload = {
   workflowId: string
   userId: string
   input?: any
-  triggerType?: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | 'mcp'
+  triggerType?: CoreTriggerType
   metadata?: Record<string, any>
 }
 

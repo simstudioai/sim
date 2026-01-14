@@ -888,7 +888,7 @@ export function Chat() {
             selectedOutputs={selectedOutputs}
             onOutputSelect={handleOutputSelection}
             disabled={!activeWorkflowId}
-            placeholder='Select outputs'
+            placeholder='Outputs'
             align='end'
             maxHeight={180}
           />

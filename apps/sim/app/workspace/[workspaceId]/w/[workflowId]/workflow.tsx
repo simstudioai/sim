@@ -2319,6 +2319,8 @@ const WorkflowContent = React.memo(() => {
   /**
    * Handles connection drag end. Detects if the edge was dropped over a block
    * and automatically creates a connection to that block's target handle.
+   * Only creates a connection if ReactFlow didn't already handle it (e.g., when
+   * dropping on the block body instead of a handle).
    */
   const onConnectEnd = useCallback(
     (event: MouseEvent | TouchEvent) => {
@@ -2340,14 +2342,25 @@ const WorkflowContent = React.memo(() => {
       // Find node under cursor
       const targetNode = findNodeAtPosition(flowPosition)
 
-      // Create connection if valid target found
+      // Create connection if valid target found AND edge doesn't already exist
+      // ReactFlow's onConnect fires first when dropping on a handle, so we check
+      // if that connection already exists to avoid creating duplicates.
+      // IMPORTANT: We must read directly from the store (not React state) because
+      // the store update from ReactFlow's onConnect may not have triggered a
+      // React re-render yet when this callback runs (typically 1-2ms later).
       if (targetNode && targetNode.id !== source.nodeId) {
-        onConnect({
-          source: source.nodeId,
-          sourceHandle: source.handleId,
-          target: targetNode.id,
-          targetHandle: 'target',
-        })
+        const currentEdges = useWorkflowStore.getState().edges
+        const edgeAlreadyExists = currentEdges.some(
+          (e) => e.source === source.nodeId && e.target === targetNode.id
+        )
+        if (!edgeAlreadyExists) {
+          onConnect({
+            source: source.nodeId,
+            sourceHandle: source.handleId,
+            target: targetNode.id,
+            targetHandle: 'target',
+          })
+        }
       }
 
       connectionSourceRef.current = null

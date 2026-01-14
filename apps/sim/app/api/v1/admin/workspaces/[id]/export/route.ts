@@ -1,7 +1,7 @@
 /**
  * GET /api/v1/admin/workspaces/[id]/export
  *
- * Export an entire workspace as a ZIP file or JSON.
+ * Export an entire workspace as a ZIP file or JSON (raw, unsanitized for admin backup/restore).
  *
  * Query Parameters:
  *   - format: 'zip' (default) or 'json'
@@ -16,7 +16,7 @@ import { workflow, workflowFolder, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { exportWorkspaceToZip } from '@/lib/workflows/operations/import-export'
+import { exportWorkspaceToZip, sanitizePathSegment } from '@/lib/workflows/operations/import-export'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -146,7 +146,7 @@ export const GET = withAdminAuthParams<RouteParams>(async (request, context) => 
     const zipBlob = await exportWorkspaceToZip(workspaceData.name, zipWorkflows, folderExports)
     const arrayBuffer = await zipBlob.arrayBuffer()
 
-    const sanitizedName = workspaceData.name.replace(/[^a-z0-9-_]/gi, '-')
+    const sanitizedName = sanitizePathSegment(workspaceData.name)
     const filename = `${sanitizedName}-${new Date().toISOString().split('T')[0]}.zip`
 
     return new NextResponse(arrayBuffer, {

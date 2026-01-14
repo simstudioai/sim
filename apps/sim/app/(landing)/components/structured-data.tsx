@@ -6,7 +6,7 @@ export default function StructuredData() {
         '@type': 'Organization',
         '@id': 'https://sim.ai/#organization',
         name: 'Sim',
-        alternateName: 'Sim Studio',
+        alternateName: 'Sim',
         description:
           'Open-source AI agent workflow builder used by developers at trail-blazing startups to Fortune 500 companies',
         url: 'https://sim.ai',
