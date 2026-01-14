@@ -45,13 +45,7 @@ export function RowContextMenu({ contextMenu, onClose, onEdit, onDelete }: RowCo
           height: '1px',
         }}
       />
-      <PopoverContent
-        align='start'
-        side='bottom'
-        sideOffset={4}
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onInteractOutside={(e) => e.preventDefault()}
-      >
+      <PopoverContent align='start' side='bottom' sideOffset={4}>
         <PopoverItem onClick={onEdit}>
           <Edit className='mr-[8px] h-[12px] w-[12px]' />
           Edit row

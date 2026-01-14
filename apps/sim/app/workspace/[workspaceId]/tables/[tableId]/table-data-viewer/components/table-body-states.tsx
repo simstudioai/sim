@@ -1,10 +1,11 @@
 /**
- * Loading skeleton for table rows.
+ * Table body placeholder states (loading and empty).
  *
- * @module tables/[tableId]/table-data-viewer/components/loading-rows
+ * @module tables/[tableId]/table-data-viewer/components/table-body-states
  */
 
-import { TableCell, TableRow } from '@/components/emcn'
+import { Plus } from 'lucide-react'
+import { Button, TableCell, TableRow } from '@/components/emcn'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ColumnDefinition } from '@/lib/table'
 
@@ -14,9 +15,6 @@ interface LoadingRowsProps {
 
 /**
  * Renders skeleton rows while table data is loading.
- *
- * @param props - Component props
- * @returns Loading skeleton rows
  */
 export function LoadingRows({ columns }: LoadingRowsProps) {
   return (
@@ -48,14 +46,37 @@ export function LoadingRows({ columns }: LoadingRowsProps) {
               </TableCell>
             )
           })}
-          <TableCell>
-            <div className='flex gap-[4px]'>
-              <Skeleton className='h-[24px] w-[24px]' />
-              <Skeleton className='h-[24px] w-[24px]' />
-            </div>
-          </TableCell>
         </TableRow>
       ))}
     </>
+  )
+}
+
+interface EmptyRowsProps {
+  columnCount: number
+  hasFilter: boolean
+  onAddRow: () => void
+}
+
+/**
+ * Renders an empty state when no rows are present.
+ */
+export function EmptyRows({ columnCount, hasFilter, onAddRow }: EmptyRowsProps) {
+  return (
+    <TableRow>
+      <TableCell colSpan={columnCount + 1} className='h-[160px] text-center'>
+        <div className='flex flex-col items-center gap-[12px]'>
+          <span className='text-[13px] text-[var(--text-tertiary)]'>
+            {hasFilter ? 'No rows match your filter' : 'No data'}
+          </span>
+          {!hasFilter && (
+            <Button variant='default' size='sm' onClick={onAddRow}>
+              <Plus className='mr-[4px] h-[12px] w-[12px]' />
+              Add first row
+            </Button>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
   )
 }

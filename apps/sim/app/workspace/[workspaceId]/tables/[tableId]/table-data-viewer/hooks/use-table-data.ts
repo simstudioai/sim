@@ -38,7 +38,6 @@ export function useTableData({
   queryOptions,
   currentPage,
 }: UseTableDataParams): UseTableDataReturn {
-  // Fetch table metadata
   const { data: tableData, isLoading: isLoadingTable } = useQuery({
     queryKey: ['table', tableId],
     queryFn: async () => {
@@ -50,7 +49,6 @@ export function useTableData({
     },
   })
 
-  // Fetch table rows with filter and sort
   const {
     data: rowsData,
     isLoading: isLoadingRows,
@@ -69,7 +67,6 @@ export function useTableData({
       }
 
       if (queryOptions.sort) {
-        // Convert from {column, direction} to {column: direction} format expected by API
         const sortParam = { [queryOptions.sort.column]: queryOptions.sort.direction }
         searchParams.set('sort', JSON.stringify(sortParam))
       }

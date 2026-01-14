@@ -7,11 +7,9 @@
  */
 
 import { useCallback, useState } from 'react'
-import { Edit, Trash2 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Badge,
-  Button,
   Checkbox,
   Table,
   TableBody,
@@ -19,7 +17,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Tooltip,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -65,24 +62,20 @@ export function TableDataViewer() {
   const workspaceId = params.workspaceId as string
   const tableId = params.tableId as string
 
-  // Query state
   const [queryOptions, setQueryOptions] = useState<QueryOptions>({
     filter: null,
     sort: null,
   })
   const [currentPage, setCurrentPage] = useState(0)
 
-  // Modal state
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowData | null>(null)
   const [deletingRows, setDeletingRows] = useState<string[]>([])
   const [showSchemaModal, setShowSchemaModal] = useState(false)
 
-  // Cell viewer state
   const [cellViewer, setCellViewer] = useState<CellViewerData | null>(null)
   const [copied, setCopied] = useState(false)
 
-  // Fetch table data
   const { tableData, isLoadingTable, rows, totalCount, totalPages, isLoadingRows, refetchRows } =
     useTableData({
       workspaceId,
@@ -91,13 +84,35 @@ export function TableDataViewer() {
       currentPage,
     })
 
-  // Row selection
   const { selectedRows, handleSelectAll, handleSelectRow, clearSelection } = useRowSelection(rows)
 
-  // Context menu
   const { contextMenu, handleRowContextMenu, closeContextMenu } = useContextMenu()
 
   const columns = tableData?.schema?.columns || []
+  const selectedCount = selectedRows.size
+  const hasSelection = selectedCount > 0
+  const isAllSelected = rows.length > 0 && selectedCount === rows.length
+
+  /**
+   * Navigates back to the tables list.
+   */
+  const handleNavigateBack = useCallback(() => {
+    router.push(`/workspace/${workspaceId}/tables`)
+  }, [router, workspaceId])
+
+  /**
+   * Opens the schema viewer modal.
+   */
+  const handleShowSchema = useCallback(() => {
+    setShowSchemaModal(true)
+  }, [])
+
+  /**
+   * Opens the add row modal.
+   */
+  const handleAddRow = useCallback(() => {
+    setShowAddModal(true)
+  }, [])
 
   /**
    * Applies new query options and resets pagination.
@@ -181,50 +196,40 @@ export function TableDataViewer() {
 
   return (
     <div className='flex h-full flex-col'>
-      {/* Header */}
       <TableHeaderBar
         tableName={tableData.name}
         totalCount={totalCount}
         isLoading={isLoadingRows}
-        onNavigateBack={() => router.push(`/workspace/${workspaceId}/tables`)}
-        onShowSchema={() => setShowSchemaModal(true)}
+        onNavigateBack={handleNavigateBack}
+        onShowSchema={handleShowSchema}
         onRefresh={refetchRows}
       />
 
-      {/* Filter Bar */}
       <div className='flex shrink-0 flex-col gap-[8px] border-[var(--border)] border-b px-[16px] py-[10px]'>
         <FilterBuilder
           columns={columns}
           onApply={handleApplyQueryOptions}
-          onAddRow={() => setShowAddModal(true)}
+          onAddRow={handleAddRow}
         />
-        {selectedRows.size > 0 && (
-          <span className='text-[11px] text-[var(--text-tertiary)]'>
-            {selectedRows.size} selected
-          </span>
+        {hasSelection && (
+          <span className='text-[11px] text-[var(--text-tertiary)]'>{selectedCount} selected</span>
         )}
       </div>
 
-      {/* Action Bar */}
-      {selectedRows.size > 0 && (
+      {hasSelection && (
         <TableActionBar
-          selectedCount={selectedRows.size}
+          selectedCount={selectedCount}
           onDelete={handleDeleteSelected}
           onClearSelection={clearSelection}
         />
       )}
 
-      {/* Table */}
       <div className='flex-1 overflow-auto'>
         <Table>
           <TableHeader className='sticky top-0 z-10 bg-[var(--surface-3)]'>
             <TableRow>
               <TableHead className='w-[40px]'>
-                <Checkbox
-                  size='sm'
-                  checked={selectedRows.size === rows.length && rows.length > 0}
-                  onCheckedChange={handleSelectAll}
-                />
+                <Checkbox size='sm' checked={isAllSelected} onCheckedChange={handleSelectAll} />
               </TableHead>
               {columns.map((column) => (
                 <TableHead key={column.name}>
@@ -239,7 +244,6 @@ export function TableDataViewer() {
                   </div>
                 </TableHead>
               ))}
-              <TableHead className='w-[80px]'>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -249,7 +253,7 @@ export function TableDataViewer() {
               <EmptyRows
                 columnCount={columns.length}
                 hasFilter={!!queryOptions.filter}
-                onAddRow={() => setShowAddModal(true)}
+                onAddRow={handleAddRow}
               />
             ) : (
               rows.map((row) => (
@@ -279,31 +283,6 @@ export function TableDataViewer() {
                       </div>
                     </TableCell>
                   ))}
-                  <TableCell>
-                    <div className='flex items-center gap-[2px] opacity-0 transition-opacity group-hover:opacity-100'>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button variant='ghost' size='sm' onClick={() => setEditingRow(row)}>
-                            <Edit className='h-[12px] w-[12px]' />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>Edit</Tooltip.Content>
-                      </Tooltip.Root>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            onClick={() => setDeletingRows([row.id])}
-                            className='text-[var(--text-tertiary)] hover:text-[var(--text-error)]'
-                          >
-                            <Trash2 className='h-[12px] w-[12px]' />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>Delete</Tooltip.Content>
-                      </Tooltip.Root>
-                    </div>
-                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -311,7 +290,6 @@ export function TableDataViewer() {
         </Table>
       </div>
 
-      {/* Pagination */}
       <Pagination
         currentPage={currentPage}
         totalPages={totalPages}
@@ -320,7 +298,6 @@ export function TableDataViewer() {
         onNextPage={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
       />
 
-      {/* Modals */}
       <AddRowModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
@@ -358,14 +335,12 @@ export function TableDataViewer() {
         />
       )}
 
-      {/* Schema Viewer Modal */}
       <SchemaViewerModal
         isOpen={showSchemaModal}
         onClose={() => setShowSchemaModal(false)}
         columns={columns}
       />
 
-      {/* Cell Viewer Modal */}
       <CellViewerModal
         cellViewer={cellViewer}
         onClose={() => setCellViewer(null)}
@@ -373,7 +348,6 @@ export function TableDataViewer() {
         copied={copied}
       />
 
-      {/* Row Context Menu */}
       <RowContextMenu
         contextMenu={contextMenu}
         onClose={closeContextMenu}

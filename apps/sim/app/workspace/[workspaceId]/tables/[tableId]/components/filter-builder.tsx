@@ -69,7 +69,7 @@ type FilterValue = string | number | boolean | null | FilterValue[] | { [key: st
  * Query options for the table API.
  */
 export interface QueryOptions {
-  /** Filter criteria or null for no filter */
+  /** Filter criteria or null for no filter, keys are column names, values are filter values */
   filter: Record<string, FilterValue> | null
   /** Sort configuration or null for default sort */
   sort: SortConfig | null
@@ -82,7 +82,7 @@ interface Column {
   /** Column name */
   name: string
   /** Column data type */
-  type: string
+  type: 'string' | 'number' | 'boolean' | 'json' | 'date'
 }
 
 /**
@@ -134,21 +134,44 @@ function parseArrayValue(value: string): FilterValue[] {
 }
 
 /**
- * Converts filter conditions to MongoDB-style filter object.
+ * Converts builder filter conditions to a MongoDB-style filter object.
  *
- * @param conditions - Array of filter conditions
- * @returns Filter object for API or null if no conditions
+ * Iterates through an array of filter conditions, combining them into a filter expression object
+ * that is compatible with MongoDB's query format. Supports both "AND" and "OR" logical groupings:
+ *
+ * - "AND" conditions are grouped together in objects.
+ * - "OR" conditions start new groups; groups are merged under a single `$or` array.
+ *
+ * @param conditions - The list of filter conditions specified by the user.
+ * @returns A filter object to send to the API, or null if there are no conditions.
+ *
+ * @example
+ * [
+ *   { logicalOperator: 'and', column: 'age', operator: 'gt', value: '18' },
+ *   { logicalOperator: 'or', column: 'role', operator: 'eq', value: 'admin' }
+ * ]
+ * // =>
+ * {
+ *   $or: [
+ *     { age: { $gt: 18 } },
+ *     { role: 'admin' }
+ *   ]
+ * }
  */
 function conditionsToFilter(conditions: FilterCondition[]): Record<string, FilterValue> | null {
+  // Return null if there are no filter conditions.
   if (conditions.length === 0) return null
 
+  // Groups for $or logic; each group is an AND-combined object.
   const orGroups: Record<string, FilterValue>[] = []
+  // Current group of AND'ed conditions.
   let currentAndGroup: Record<string, FilterValue> = {}
 
   conditions.forEach((condition, index) => {
     const { column, operator, value } = condition
     const operatorKey = `$${operator}`
 
+    // Parse value as per operator: 'in' receives an array, others get a primitive value.
     let parsedValue: FilterValue = value
     if (operator === 'in') {
       parsedValue = parseArrayValue(value)
@@ -156,23 +179,31 @@ function conditionsToFilter(conditions: FilterCondition[]): Record<string, Filte
       parsedValue = parseValue(value)
     }
 
+    // For 'eq', value is direct (shorthand), otherwise use a key for the operator.
     const conditionObj: FilterValue =
       operator === 'eq' ? parsedValue : { [operatorKey]: parsedValue }
 
+    // Group logic:
+    // - First condition or 'and': add to the current AND group.
+    // - 'or': finalize current AND group and start a new one.
     if (index === 0 || condition.logicalOperator === 'and') {
       currentAndGroup[column] = conditionObj
     } else if (condition.logicalOperator === 'or') {
       if (Object.keys(currentAndGroup).length > 0) {
+        // Finalize and push the previous AND group to $or groups.
         orGroups.push({ ...currentAndGroup })
       }
+      // Start a new AND group for subsequent conditions.
       currentAndGroup = { [column]: conditionObj }
     }
   })
 
+  // Push the last AND group, if any, to the orGroups list.
   if (Object.keys(currentAndGroup).length > 0) {
     orGroups.push(currentAndGroup)
   }
 
+  // If multiple groups exist, return as a $or query; otherwise, return the single group.
   if (orGroups.length > 1) {
     return { $or: orGroups }
   }

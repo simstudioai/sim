@@ -89,7 +89,6 @@ export function CellRenderer({ value, column, onCellClick }: CellRendererProps) 
     }
   }
 
-  // Handle long strings
   const strValue = String(value)
   if (strValue.length > STRING_TRUNCATE_LENGTH) {
     return (
