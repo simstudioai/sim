@@ -1853,6 +1853,14 @@ export function LinearIcon(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
+export function LangsmithIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'>
+      <circle cx='12' cy='12' r='10' />
+    </svg>
+  )
+}
+
 export function LemlistIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 181' fill='none'>

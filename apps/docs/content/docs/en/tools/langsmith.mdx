@@ -1,0 +1,59 @@
+---
+title: LangSmith
+description: Forward workflow runs to LangSmith for observability
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="langsmith"
+  color="#1B5DFF"
+/>
+
+## Usage Instructions
+
+Send run data to LangSmith to trace executions, attach metadata, and monitor workflow performance.
+
+
+
+## Tools
+
+### `langsmith_create_run`
+
+Forward a single run to LangSmith for ingestion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LangSmith API key |
+| `runId` | string | Yes | Unique run identifier |
+| `name` | string | Yes | Run name |
+| `runType` | string | Yes | Run type \(tool, chain, llm, retriever, embedding, prompt, parser\) |
+| `startTime` | string | Yes | Run start time in ISO-8601 format |
+| `endTime` | string | No | Run end time in ISO-8601 format |
+
+#### Output
+
+This tool does not produce any outputs.
+
+### `langsmith_create_runs_batch`
+
+Forward multiple runs to LangSmith in a single batch.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LangSmith API key |
+| `post` | json | No | Array of new runs to ingest |
+| `patch` | json | No | Array of runs to update/patch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Whether the batch was accepted for ingestion |
+| `runIds` | array | Run identifiers provided in the request |
+
+
