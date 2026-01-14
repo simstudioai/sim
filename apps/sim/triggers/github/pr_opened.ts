@@ -120,10 +120,6 @@ export const githubPROpenedTrigger: TriggerConfig = {
       type: 'string',
       description: 'GitHub event type from X-GitHub-Event header (e.g., pull_request)',
     },
-    branch: {
-      type: 'string',
-      description: 'Branch name derived from ref (empty for non-branch events)',
-    },
     action: {
       type: 'string',
       description: 'Action performed (opened, closed, synchronize, reopened, edited, etc.)',
