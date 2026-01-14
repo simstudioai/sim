@@ -7,6 +7,7 @@ import postgres from 'postgres'
 import { env } from '@/lib/core/config/env'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { mergeSubBlockValues } from '@/lib/workflows/subblocks'
 import {
   BLOCK_OPERATIONS,
   BLOCKS_OPERATIONS,
@@ -455,7 +456,7 @@ async function handleBlocksOperationTx(
     }
 
     case BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS: {
-      const { blocks, edges, loops, parallels } = payload
+      const { blocks, edges, loops, parallels, subBlockValues } = payload
 
       logger.info(`Batch adding blocks to workflow ${workflowId}`, {
         blockCount: blocks?.length || 0,
@@ -465,22 +466,30 @@ async function handleBlocksOperationTx(
       })
 
       if (blocks && blocks.length > 0) {
-        const blockValues = blocks.map((block: Record<string, unknown>) => ({
-          id: block.id as string,
-          workflowId,
-          type: block.type as string,
-          name: block.name as string,
-          positionX: (block.position as { x: number; y: number }).x,
-          positionY: (block.position as { x: number; y: number }).y,
-          data: (block.data as Record<string, unknown>) || {},
-          subBlocks: (block.subBlocks as Record<string, unknown>) || {},
-          outputs: (block.outputs as Record<string, unknown>) || {},
-          enabled: (block.enabled as boolean) ?? true,
-          horizontalHandles: (block.horizontalHandles as boolean) ?? true,
-          advancedMode: (block.advancedMode as boolean) ?? false,
-          triggerMode: (block.triggerMode as boolean) ?? false,
-          height: (block.height as number) || 0,
-        }))
+        const blockValues = blocks.map((block: Record<string, unknown>) => {
+          const blockId = block.id as string
+          const mergedSubBlocks = mergeSubBlockValues(
+            block.subBlocks as Record<string, unknown>,
+            subBlockValues?.[blockId]
+          )
+
+          return {
+            id: blockId,
+            workflowId,
+            type: block.type as string,
+            name: block.name as string,
+            positionX: (block.position as { x: number; y: number }).x,
+            positionY: (block.position as { x: number; y: number }).y,
+            data: (block.data as Record<string, unknown>) || {},
+            subBlocks: mergedSubBlocks,
+            outputs: (block.outputs as Record<string, unknown>) || {},
+            enabled: (block.enabled as boolean) ?? true,
+            horizontalHandles: (block.horizontalHandles as boolean) ?? true,
+            advancedMode: (block.advancedMode as boolean) ?? false,
+            triggerMode: (block.triggerMode as boolean) ?? false,
+            height: (block.height as number) || 0,
+          }
+        })
 
         await tx.insert(workflowBlocks).values(blockValues)
 
