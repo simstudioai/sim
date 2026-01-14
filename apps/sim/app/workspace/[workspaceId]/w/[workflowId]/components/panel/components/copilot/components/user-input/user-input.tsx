@@ -44,6 +44,10 @@ const TOP_LEVEL_COMMANDS = ['fast', 'research', 'superagent'] as const
 const WEB_COMMANDS = ['search', 'read', 'scrape', 'crawl'] as const
 const ALL_COMMANDS = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
 
+const COMMAND_DISPLAY_LABELS: Record<string, string> = {
+  superagent: 'Actions',
+}
+
 /**
  * Calculates the next index for circular navigation (wraps around at bounds)
  */
@@ -368,12 +372,13 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const handleSlashCommandSelect = useCallback(
       (command: string) => {
-        const capitalizedCommand = command.charAt(0).toUpperCase() + command.slice(1)
-        mentionMenu.replaceActiveSlashWith(capitalizedCommand)
+        const displayLabel =
+          COMMAND_DISPLAY_LABELS[command] || command.charAt(0).toUpperCase() + command.slice(1)
+        mentionMenu.replaceActiveSlashWith(displayLabel)
         contextManagement.addContext({
           kind: 'slash_command',
           command,
-          label: capitalizedCommand,
+          label: displayLabel,
         })
 
         setShowSlashMenu(false)
