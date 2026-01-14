@@ -36,6 +36,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { formatTimeWithSeconds } from '@/lib/core/utils/formatting'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
@@ -81,18 +82,6 @@ const COLUMN_WIDTHS = {
   TIMESTAMP: 'w-[120px]',
   OUTPUT_PANEL: 'w-[400px]',
 } as const
-
-/**
- * Color palette for run IDs - matching code syntax highlighting colors
- */
-const RUN_ID_COLORS = [
-  { text: '#4ADE80' }, // Green
-  { text: '#F472B6' }, // Pink
-  { text: '#60C5FF' }, // Blue
-  { text: '#FF8533' }, // Orange
-  { text: '#C084FC' }, // Purple
-  { text: '#FCD34D' }, // Yellow
-] as const
 
 /**
  * Shared styling constants
@@ -184,22 +173,6 @@ const ToggleButton = ({
 )
 
 /**
- * Formats timestamp to H:MM:SS AM/PM TZ format
- */
-const formatTimestamp = (timestamp: string): string => {
-  const date = new Date(timestamp)
-  const fullString = date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-    timeZoneName: 'short',
-  })
-  // Format: "5:54:55 PM PST" - return as is
-  return fullString
-}
-
-/**
  * Truncates execution ID for display as run ID
  */
 const formatRunId = (executionId?: string): string => {
@@ -208,16 +181,25 @@ const formatRunId = (executionId?: string): string => {
 }
 
 /**
- * Gets color for a run ID based on its index in the execution ID order map
+ * Run ID colors
  */
-const getRunIdColor = (
-  executionId: string | undefined,
-  executionIdOrderMap: Map<string, number>
-) => {
+const RUN_ID_COLORS = [
+  '#4ADE80', // Green
+  '#F472B6', // Pink
+  '#60C5FF', // Blue
+  '#FF8533', // Orange
+  '#C084FC', // Purple
+  '#EAB308', // Yellow
+  '#2DD4BF', // Teal
+  '#FB7185', // Rose
+] as const
+
+/**
+ * Gets color for a run ID from the precomputed color map.
+ */
+const getRunIdColor = (executionId: string | undefined, colorMap: Map<string, string>) => {
   if (!executionId) return null
-  const colorIndex = executionIdOrderMap.get(executionId)
-  if (colorIndex === undefined) return null
-  return RUN_ID_COLORS[colorIndex % RUN_ID_COLORS.length]
+  return colorMap.get(executionId) ?? null
 }
 
 /**
@@ -464,25 +446,52 @@ export function Terminal() {
   }, [allWorkflowEntries])
 
   /**
-   * Create stable execution ID to color index mapping based on order of first appearance.
-   * Once an execution ID is assigned a color index, it keeps that index.
-   * Uses all workflow entries to maintain consistent colors regardless of active filters.
+   * Track color offset - increments when old executions are trimmed
+   * so remaining executions keep their colors.
    */
-  const executionIdOrderMap = useMemo(() => {
-    const orderMap = new Map<string, number>()
-    let colorIndex = 0
+  const colorStateRef = useRef<{ executionIds: string[]; offset: number }>({
+    executionIds: [],
+    offset: 0,
+  })
 
-    // Process entries in reverse order (oldest first) since entries array is newest-first
-    // Use allWorkflowEntries to ensure colors remain consistent when filters change
+  /**
+   * Compute colors for each execution ID using sequential assignment.
+   * Colors cycle through RUN_ID_COLORS based on position + offset.
+   * When old executions are trimmed, offset increments to preserve colors.
+   */
+  const executionColorMap = useMemo(() => {
+    const currentIds: string[] = []
+    const seen = new Set<string>()
     for (let i = allWorkflowEntries.length - 1; i >= 0; i--) {
-      const entry = allWorkflowEntries[i]
-      if (entry.executionId && !orderMap.has(entry.executionId)) {
-        orderMap.set(entry.executionId, colorIndex)
-        colorIndex++
+      const execId = allWorkflowEntries[i].executionId
+      if (execId && !seen.has(execId)) {
+        currentIds.push(execId)
+        seen.add(execId)
       }
     }
 
-    return orderMap
+    const { executionIds: prevIds, offset: prevOffset } = colorStateRef.current
+    let newOffset = prevOffset
+
+    if (prevIds.length > 0 && currentIds.length > 0) {
+      const currentOldest = currentIds[0]
+      if (prevIds[0] !== currentOldest) {
+        const trimmedCount = prevIds.indexOf(currentOldest)
+        if (trimmedCount > 0) {
+          newOffset = (prevOffset + trimmedCount) % RUN_ID_COLORS.length
+        }
+      }
+    }
+
+    const colorMap = new Map<string, string>()
+    for (let i = 0; i < currentIds.length; i++) {
+      const colorIndex = (newOffset + i) % RUN_ID_COLORS.length
+      colorMap.set(currentIds[i], RUN_ID_COLORS[colorIndex])
+    }
+
+    colorStateRef.current = { executionIds: currentIds, offset: newOffset }
+
+    return colorMap
   }, [allWorkflowEntries])
 
   /**
@@ -1128,7 +1137,7 @@ export function Terminal() {
                       <PopoverScrollArea style={{ maxHeight: '140px' }}>
                         {uniqueRunIds.map((runId, index) => {
                           const isSelected = filters.runIds.has(runId)
-                          const runIdColor = getRunIdColor(runId, executionIdOrderMap)
+                          const runIdColor = getRunIdColor(runId, executionColorMap)
 
                           return (
                             <PopoverItem
@@ -1139,7 +1148,7 @@ export function Terminal() {
                             >
                               <span
                                 className='flex-1 font-mono text-[12px]'
-                                style={{ color: runIdColor?.text || '#D2D2D2' }}
+                                style={{ color: runIdColor || '#D2D2D2' }}
                               >
                                 {formatRunId(runId)}
                               </span>
@@ -1335,7 +1344,7 @@ export function Terminal() {
                   const statusInfo = getStatusInfo(entry.success, entry.error)
                   const isSelected = selectedEntry?.id === entry.id
                   const BlockIcon = getBlockIcon(entry.blockType)
-                  const runIdColor = getRunIdColor(entry.executionId, executionIdOrderMap)
+                  const runIdColor = getRunIdColor(entry.executionId, executionColorMap)
 
                   return (
                     <div
@@ -1385,7 +1394,7 @@ export function Terminal() {
                           COLUMN_BASE_CLASS,
                           'truncate font-medium font-mono text-[12px]'
                         )}
-                        style={{ color: runIdColor?.text || '#D2D2D2' }}
+                        style={{ color: runIdColor || '#D2D2D2' }}
                       >
                         {formatRunId(entry.executionId)}
                       </span>
@@ -1411,7 +1420,7 @@ export function Terminal() {
                           ROW_TEXT_CLASS
                         )}
                       >
-                        {formatTimestamp(entry.timestamp)}
+                        {formatTimeWithSeconds(new Date(entry.timestamp))}
                       </span>
                     </div>
                   )
