@@ -134,7 +134,8 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
           // Convert wait from string to boolean
           // Convert wait from string to boolean
           if (params.wait !== undefined) {
-            const waitValue = typeof params.wait === 'string' ? params.wait.toLowerCase() : params.wait
+            const waitValue =
+              typeof params.wait === 'string' ? params.wait.toLowerCase() : params.wait
             result.wait = waitValue === 'true' || waitValue === true
           }
         } else if (operation === 'tinybird_query') {
