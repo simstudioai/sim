@@ -103,6 +103,22 @@ export function formatTime(date: Date): string {
 }
 
 /**
+ * Format a time with seconds and timezone
+ * @param date - The date to format
+ * @param includeTimezone - Whether to include the timezone abbreviation
+ * @returns A formatted time string in the format "h:mm:ss AM/PM TZ"
+ */
+export function formatTimeWithSeconds(date: Date, includeTimezone = true): string {
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+    timeZoneName: includeTimezone ? 'short' : undefined,
+  })
+}
+
+/**
  * Format an ISO timestamp into a compact format for UI display
  * @param iso - ISO timestamp string
  * @returns A formatted string in "MM-DD HH:mm" format
