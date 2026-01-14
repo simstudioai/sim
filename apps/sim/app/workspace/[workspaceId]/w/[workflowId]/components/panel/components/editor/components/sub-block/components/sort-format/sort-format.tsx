@@ -124,10 +124,7 @@ export function SortFormat({
       ) : (
         <>
           {conditions.map((condition, index) => (
-            <div
-              key={condition.id}
-              className='flex items-center gap-[6px] rounded-[4px] border border-[var(--border-1)] p-[8px]'
-            >
+            <div key={condition.id} className='flex items-center gap-[6px]'>
               {/* Remove Button */}
               <Button
                 variant='ghost'

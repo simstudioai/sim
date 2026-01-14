@@ -272,10 +272,10 @@ Return ONLY the filter JSON:`,
       },
     },
 
-    // Filter mode selector for queryRows
+    // Builder mode selector for queryRows (controls both filter and sort)
     {
-      id: 'filterMode',
-      title: 'Filter Mode',
+      id: 'builderMode',
+      title: 'Input Mode',
       type: 'dropdown',
       options: [
         { label: 'Builder', id: 'builder' },
@@ -293,7 +293,19 @@ Return ONLY the filter JSON:`,
       condition: {
         field: 'operation',
         value: 'queryRows',
-        and: { field: 'filterMode', value: 'builder' },
+        and: { field: 'builderMode', value: 'builder' },
+      },
+    },
+
+    // Sort builder (visual)
+    {
+      id: 'sortBuilder',
+      title: 'Sort Order',
+      type: 'sort-format',
+      condition: {
+        field: 'operation',
+        value: 'queryRows',
+        and: { field: 'builderMode', value: 'builder' },
       },
     },
 
@@ -306,7 +318,7 @@ Return ONLY the filter JSON:`,
       condition: {
         field: 'operation',
         value: 'queryRows',
-        and: { field: 'filterMode', value: 'json' },
+        and: { field: 'builderMode', value: 'json' },
       },
       wandConfig: {
         enabled: true,
@@ -355,30 +367,6 @@ Return ONLY the filter JSON:`,
         generationType: 'json-object',
       },
     },
-    // Sort mode selector for queryRows
-    {
-      id: 'sortMode',
-      title: 'Sort Mode',
-      type: 'dropdown',
-      options: [
-        { label: 'Builder', id: 'builder' },
-        { label: 'Editor', id: 'json' },
-      ],
-      value: () => 'builder',
-      condition: { field: 'operation', value: 'queryRows' },
-    },
-
-    // Sort builder (visual)
-    {
-      id: 'sortBuilder',
-      title: 'Sort Order',
-      type: 'sort-format',
-      condition: {
-        field: 'operation',
-        value: 'queryRows',
-        and: { field: 'sortMode', value: 'builder' },
-      },
-    },
 
     // Sort (JSON editor)
     {
@@ -389,7 +377,7 @@ Return ONLY the filter JSON:`,
       condition: {
         field: 'operation',
         value: 'queryRows',
-        and: { field: 'sortMode', value: 'json' },
+        and: { field: 'builderMode', value: 'json' },
       },
       wandConfig: {
         enabled: true,
@@ -584,7 +572,7 @@ Return ONLY the sort JSON:`,
         // Query Rows
         if (operation === 'queryRows') {
           let filter: any
-          if (rest.filterMode === 'builder' && rest.filterBuilder) {
+          if (rest.builderMode === 'builder' && rest.filterBuilder) {
             // Convert builder conditions to filter object
             filter = conditionsToFilter(rest.filterBuilder as any) || undefined
           } else if (rest.filter) {
@@ -592,7 +580,7 @@ Return ONLY the sort JSON:`,
           }
 
           let sort: any
-          if (rest.sortMode === 'builder' && rest.sortBuilder) {
+          if (rest.builderMode === 'builder' && rest.sortBuilder) {
             // Convert sort builder conditions to sort object
             sort = sortConditionsToSort(rest.sortBuilder as any) || undefined
           } else if (rest.sort) {
@@ -629,10 +617,12 @@ Return ONLY the sort JSON:`,
     },
     filterCriteria: { type: 'json', description: 'Filter criteria for bulk operations (JSON)' },
     bulkLimit: { type: 'number', description: 'Safety limit for bulk operations' },
-    filterMode: { type: 'string', description: 'Filter input mode (builder or json)' },
+    builderMode: {
+      type: 'string',
+      description: 'Input mode for filter and sort (builder or json)',
+    },
     filterBuilder: { type: 'json', description: 'Visual filter builder conditions' },
     filter: { type: 'json', description: 'Query filter conditions (JSON)' },
-    sortMode: { type: 'string', description: 'Sort input mode (builder or json)' },
     sortBuilder: { type: 'json', description: 'Visual sort builder conditions' },
     sort: { type: 'json', description: 'Sort order (JSON)' },
     limit: { type: 'number', description: 'Query result limit' },
