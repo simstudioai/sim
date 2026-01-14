@@ -107,7 +107,7 @@ export const ActionBar = memo(
     return (
       <div
         className={cn(
-          '-top-[46px] absolute right-0',
+          '-top-[46px] absolute right-0 z-[100]',
           'flex flex-row items-center',
           'opacity-0 transition-opacity duration-200 group-hover:opacity-100',
           'gap-[5px] rounded-[10px] bg-[var(--surface-4)] p-[5px]'

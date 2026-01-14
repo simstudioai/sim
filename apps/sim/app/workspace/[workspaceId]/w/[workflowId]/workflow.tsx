@@ -363,6 +363,14 @@ const WorkflowContent = React.memo(() => {
     new Map()
   )
 
+  /**
+   * Stores original positions and parentIds for nodes temporarily parented during group drag.
+   * Key: node ID, Value: { originalPosition, originalParentId }
+   */
+  const groupDragTempParentsRef = useRef<
+    Map<string, { originalPosition: { x: number; y: number }; originalParentId?: string }>
+  >(new Map())
+
   /** Stores node IDs to select on next derivedNodes sync (for paste/duplicate operations). */
   const pendingSelectionRef = useRef<Set<string> | null>(null)
 
@@ -789,9 +797,20 @@ const WorkflowContent = React.memo(() => {
   const handleContextGroupBlocks = useCallback(() => {
     const blockIds = contextMenuBlocks.map((block) => block.id)
     if (blockIds.length >= 2) {
+      // Validate that all blocks share the same parent (or all have no parent)
+      // Blocks inside a subflow cannot be grouped with blocks outside that subflow
+      const parentIds = contextMenuBlocks.map((block) => block.parentId || null)
+      const uniqueParentIds = new Set(parentIds)
+      if (uniqueParentIds.size > 1) {
+        addNotification({
+          level: 'error',
+          message: 'Cannot group blocks from different subflows',
+        })
+        return
+      }
       collaborativeGroupBlocks(blockIds)
     }
-  }, [contextMenuBlocks, collaborativeGroupBlocks])
+  }, [contextMenuBlocks, collaborativeGroupBlocks, addNotification])
 
   const handleContextUngroupBlocks = useCallback(() => {
     // Find the first block with a groupId
@@ -2437,50 +2456,6 @@ const WorkflowContent = React.memo(() => {
       // Note: We don't emit position updates during drag to avoid flooding socket events.
       // The final position is sent in onNodeDragStop for collaborative updates.
 
-      // Move all group members together if the dragged node is in a group
-      const draggedBlockGroupId = blocks[node.id]?.data?.groupId
-      if (draggedBlockGroupId) {
-        const groups = getGroups()
-        const group = groups[draggedBlockGroupId]
-        if (group && group.blockIds.length > 1) {
-          // Get the starting position of the dragged node
-          const startPos = multiNodeDragStartRef.current.get(node.id)
-          if (startPos) {
-            // Calculate delta from start position
-            const deltaX = node.position.x - startPos.x
-            const deltaY = node.position.y - startPos.y
-
-            // Update positions of all nodes in the group (including dragged node to preserve React Flow's position)
-            setNodes((nodes) =>
-              nodes.map((n) => {
-                // For the dragged node, use the position from React Flow's node parameter
-                if (n.id === node.id) {
-                  return {
-                    ...n,
-                    position: node.position,
-                  }
-                }
-
-                // Only update nodes in the same group
-                if (group.blockIds.includes(n.id)) {
-                  const memberStartPos = multiNodeDragStartRef.current.get(n.id)
-                  if (memberStartPos) {
-                    return {
-                      ...n,
-                      position: {
-                        x: memberStartPos.x + deltaX,
-                        y: memberStartPos.y + deltaY,
-                      },
-                    }
-                  }
-                }
-                return n
-              })
-            )
-          }
-        }
-      }
-
       // Get the current parent ID of the node being dragged
       const currentParentId = blocks[node.id]?.data?.parentId || null
 
@@ -2613,13 +2588,11 @@ const WorkflowContent = React.memo(() => {
     },
     [
       getNodes,
-      setNodes,
       potentialParentId,
       blocks,
       getNodeAbsolutePosition,
       getNodeDepth,
       updateContainerDimensionsDuringDrag,
-      getGroups,
     ]
   )
 
@@ -2699,8 +2672,63 @@ const WorkflowContent = React.memo(() => {
           })
         }
       })
+
+      // Set up temporary parent-child relationships for group members
+      // This leverages React Flow's built-in parent-child drag behavior
+      // BUT: Only do this if NOT all group members are already selected
+      // If all are selected, React Flow's native multiselect drag will handle it
+      groupDragTempParentsRef.current.clear()
+      if (draggedBlockGroupId && groups[draggedBlockGroupId]) {
+        const group = groups[draggedBlockGroupId]
+        if (group.blockIds.length > 1) {
+          // Check if all group members are already selected
+          const allGroupMembersSelected = group.blockIds.every((blockId) =>
+            updatedNodes.find((n) => n.id === blockId && n.selected)
+          )
+
+          // Only use temporary parent approach if NOT all members are selected
+          // (i.e., when click-and-dragging on an unselected grouped block)
+          if (!allGroupMembersSelected) {
+            // Get the dragged node's absolute position for calculating relative positions
+            const draggedNodeAbsPos = getNodeAbsolutePosition(node.id)
+
+            setNodes((nodes) =>
+              nodes.map((n) => {
+                // Skip the dragged node - it becomes the temporary parent
+                if (n.id === node.id) return n
+
+                // Only process nodes in the same group
+                if (group.blockIds.includes(n.id)) {
+                  // Store original position and parentId for restoration later
+                  groupDragTempParentsRef.current.set(n.id, {
+                    originalPosition: { ...n.position },
+                    originalParentId: n.parentId,
+                  })
+
+                  // Get this node's absolute position
+                  const nodeAbsPos = getNodeAbsolutePosition(n.id)
+
+                  // Calculate position relative to the dragged node
+                  const relativePosition = {
+                    x: nodeAbsPos.x - draggedNodeAbsPos.x,
+                    y: nodeAbsPos.y - draggedNodeAbsPos.y,
+                  }
+
+                  return {
+                    ...n,
+                    parentId: node.id, // Temporarily make this a child of the dragged node
+                    position: relativePosition,
+                    extent: undefined, // Remove extent constraint during drag
+                  }
+                }
+                return n
+              })
+            )
+          }
+        }
+      }
     },
-    [blocks, setDragStartPosition, getNodes, setNodes, getGroups, potentialParentId, setPotentialParentId]
+    [blocks, setDragStartPosition, getNodes, setNodes, getGroups, potentialParentId, setPotentialParentId, getNodeAbsolutePosition]
   )
 
   /** Handles node drag stop to establish parent-child relationships. */
@@ -2708,12 +2736,55 @@ const WorkflowContent = React.memo(() => {
     (_event: React.MouseEvent, node: any) => {
       clearDragHighlights()
 
+      // Compute absolute positions for group members before restoring parentIds
+      // We need to do this first because getNodes() will return stale data after setNodes
+      const computedGroupPositions = new Map<string, { x: number; y: number }>()
+      const draggedBlockGroupId = blocks[node.id]?.data?.groupId
+
+      if (groupDragTempParentsRef.current.size > 0) {
+        const draggedNodeAbsPos = getNodeAbsolutePosition(node.id)
+        const currentNodes = getNodes()
+
+        // Compute absolute positions for all temporarily parented nodes
+        for (const [nodeId, _tempData] of groupDragTempParentsRef.current) {
+          const nodeData = currentNodes.find((n) => n.id === nodeId)
+          if (nodeData) {
+            // The node's current position is relative to the dragged node
+            computedGroupPositions.set(nodeId, {
+              x: draggedNodeAbsPos.x + nodeData.position.x,
+              y: draggedNodeAbsPos.y + nodeData.position.y,
+            })
+          }
+        }
+
+        // Also store the dragged node's absolute position
+        computedGroupPositions.set(node.id, draggedNodeAbsPos)
+
+        // Restore temporary parent-child relationships
+        setNodes((nodes) =>
+          nodes.map((n) => {
+            const tempData = groupDragTempParentsRef.current.get(n.id)
+            if (tempData) {
+              const absolutePosition = computedGroupPositions.get(n.id) || n.position
+
+              return {
+                ...n,
+                parentId: tempData.originalParentId,
+                position: absolutePosition,
+                extent: tempData.originalParentId ? ('parent' as const) : undefined,
+              }
+            }
+            return n
+          })
+        )
+        groupDragTempParentsRef.current.clear()
+      }
+
       // Get all selected nodes to update their positions too
       const allNodes = getNodes()
       let selectedNodes = allNodes.filter((n) => n.selected)
 
       // If the dragged node is in a group, include all group members
-      const draggedBlockGroupId = blocks[node.id]?.data?.groupId
       if (draggedBlockGroupId) {
         const groups = getGroups()
         const group = groups[draggedBlockGroupId]
@@ -2736,7 +2807,22 @@ const WorkflowContent = React.memo(() => {
 
       // If multiple nodes are selected (or in a group), update all their positions
       if (selectedNodes.length > 1) {
-        const positionUpdates = computeClampedPositionUpdates(selectedNodes, blocks, allNodes)
+        // Use pre-computed positions for group members, otherwise use computeClampedPositionUpdates
+        let positionUpdates: Array<{ id: string; position: { x: number; y: number } }>
+
+        if (computedGroupPositions.size > 0) {
+          // For group drags, use the pre-computed absolute positions
+          positionUpdates = selectedNodes.map((n) => {
+            const precomputedPos = computedGroupPositions.get(n.id)
+            if (precomputedPos) {
+              return { id: n.id, position: precomputedPos }
+            }
+            // For non-group members, use current position
+            return { id: n.id, position: n.position }
+          })
+        } else {
+          positionUpdates = computeClampedPositionUpdates(selectedNodes, blocks, allNodes)
+        }
         collaborativeBatchUpdatePositions(positionUpdates, {
           previousPositions: multiNodeDragStartRef.current,
         })
@@ -3020,6 +3106,7 @@ const WorkflowContent = React.memo(() => {
     },
     [
       getNodes,
+      setNodes,
       dragStartParentId,
       potentialParentId,
       updateNodeParent,
@@ -3038,6 +3125,7 @@ const WorkflowContent = React.memo(() => {
       activeWorkflowId,
       collaborativeBatchUpdatePositions,
       collaborativeBatchUpdateParent,
+      getGroups,
     ]
   )
 

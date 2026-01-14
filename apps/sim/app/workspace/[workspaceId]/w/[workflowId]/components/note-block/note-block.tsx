@@ -268,8 +268,14 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
     dependencies: [isEmpty],
   })
 
+  const isGroupedSelection = data.isGroupedSelection ?? false
+
   return (
-    <div className='group relative' onMouseDown={handleGroupMouseDown}>
+    <div
+      className='group relative'
+      data-grouped-selection={isGroupedSelection ? 'true' : undefined}
+      onMouseDown={handleGroupMouseDown}
+    >
       <div
         className={cn(
           'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)]'
