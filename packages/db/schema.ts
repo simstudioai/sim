@@ -2120,7 +2120,11 @@ export const userTableDefinitions = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     description: text('description'),
-    schema: jsonb('schema').notNull(), // {columns: [{name, type, required}]}
+    /**
+     * @remarks
+     * Stores the table schema definition. Example: { columns: [{ name: string, type: string, required: boolean }] }
+     */
+    schema: jsonb('schema').notNull(),
     maxRows: integer('max_rows').notNull().default(10000),
     rowCount: integer('row_count').notNull().default(0),
     createdBy: text('created_by')

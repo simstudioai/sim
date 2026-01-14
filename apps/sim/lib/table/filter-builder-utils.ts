@@ -1,10 +1,18 @@
 /**
  * Shared utilities for filter builder UI components.
+ *
  * Used by both the table data viewer and the block editor filter-format component.
+ *
+ * @module lib/table/filter-builder-utils
  */
 
 /**
- * Available comparison operators for filter conditions
+ * JSON-serializable value types.
+ */
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
+
+/**
+ * Available comparison operators for filter conditions.
  */
 export const COMPARISON_OPERATORS = [
   { value: 'eq', label: 'equals' },
@@ -18,7 +26,7 @@ export const COMPARISON_OPERATORS = [
 ] as const
 
 /**
- * Logical operators for combining conditions
+ * Logical operators for combining filter conditions.
  */
 export const LOGICAL_OPERATORS = [
   { value: 'and', label: 'and' },
@@ -26,27 +34,38 @@ export const LOGICAL_OPERATORS = [
 ] as const
 
 /**
- * Represents a single filter condition in builder format
+ * Represents a single filter condition in builder format.
  */
 export interface FilterCondition {
+  /** Unique identifier for the condition */
   id: string
+  /** Logical operator to combine with previous condition */
   logicalOperator: 'and' | 'or'
+  /** Column name to filter on */
   column: string
+  /** Comparison operator */
   operator: string
+  /** Filter value as string */
   value: string
 }
 
 /**
- * Generates a unique ID for filter conditions
+ * Generates a unique ID for filter conditions.
+ *
+ * @returns Random alphanumeric string
  */
 export function generateFilterId(): string {
   return Math.random().toString(36).substring(2, 9)
 }
 
 /**
- * Parses a value string into its appropriate type
+ * Parses a value string into its appropriate type.
+ *
+ * @param value - The string value to parse
+ * @param operator - The operator being used (affects parsing for 'in')
+ * @returns Parsed value (string, number, boolean, null, or array)
  */
-function parseValue(value: string, operator: string): any {
+function parseValue(value: string, operator: string): JsonValue {
   if (value === 'true') return true
   if (value === 'false') return false
   if (value === 'null') return null
@@ -67,13 +86,18 @@ function parseValue(value: string, operator: string): any {
 }
 
 /**
- * Converts builder filter conditions to MongoDB-style filter object
+ * Converts builder filter conditions to MongoDB-style filter object.
+ *
+ * @param conditions - Array of filter conditions from the builder UI
+ * @returns Filter object or null if no conditions
  */
-export function conditionsToFilter(conditions: FilterCondition[]): Record<string, any> | null {
+export function conditionsToFilter(
+  conditions: FilterCondition[]
+): Record<string, JsonValue> | null {
   if (conditions.length === 0) return null
 
-  const orGroups: Record<string, any>[] = []
-  let currentAndGroup: Record<string, any> = {}
+  const orGroups: Record<string, JsonValue>[] = []
+  let currentAndGroup: Record<string, JsonValue> = {}
 
   conditions.forEach((condition, index) => {
     const { column, operator, value } = condition
@@ -103,9 +127,12 @@ export function conditionsToFilter(conditions: FilterCondition[]): Record<string
 }
 
 /**
- * Converts MongoDB-style filter object to builder conditions
+ * Converts MongoDB-style filter object to builder conditions.
+ *
+ * @param filter - Filter object to convert
+ * @returns Array of filter conditions for the builder UI
  */
-export function filterToConditions(filter: Record<string, any> | null): FilterCondition[] {
+export function filterToConditions(filter: Record<string, JsonValue> | null): FilterCondition[] {
   if (!filter) return []
 
   const conditions: FilterCondition[] = []
@@ -113,7 +140,10 @@ export function filterToConditions(filter: Record<string, any> | null): FilterCo
   // Handle $or at the top level
   if (filter.$or && Array.isArray(filter.$or)) {
     filter.$or.forEach((orGroup, groupIndex) => {
-      const groupConditions = parseFilterGroup(orGroup)
+      if (typeof orGroup !== 'object' || orGroup === null || Array.isArray(orGroup)) {
+        return
+      }
+      const groupConditions = parseFilterGroup(orGroup as Record<string, JsonValue>)
       groupConditions.forEach((cond, condIndex) => {
         conditions.push({
           ...cond,
@@ -134,9 +164,12 @@ export function filterToConditions(filter: Record<string, any> | null): FilterCo
 }
 
 /**
- * Parses a single filter group (AND conditions)
+ * Parses a single filter group containing AND conditions.
+ *
+ * @param group - Filter group object
+ * @returns Array of filter conditions
  */
-function parseFilterGroup(group: Record<string, any>): FilterCondition[] {
+function parseFilterGroup(group: Record<string, JsonValue>): FilterCondition[] {
   const conditions: FilterCondition[] = []
 
   for (const [column, value] of Object.entries(group)) {
@@ -171,9 +204,12 @@ function parseFilterGroup(group: Record<string, any>): FilterCondition[] {
 }
 
 /**
- * Formats a value for display in the builder UI
+ * Formats a value for display in the builder UI.
+ *
+ * @param value - Value to format
+ * @returns String representation for the builder
  */
-function formatValueForBuilder(value: any): string {
+function formatValueForBuilder(value: JsonValue): string {
   if (value === null) return 'null'
   if (typeof value === 'boolean') return String(value)
   if (Array.isArray(value)) return value.map(formatValueForBuilder).join(', ')
@@ -181,7 +217,10 @@ function formatValueForBuilder(value: any): string {
 }
 
 /**
- * Converts builder conditions to JSON string
+ * Converts builder conditions to JSON string.
+ *
+ * @param conditions - Array of filter conditions
+ * @returns JSON string representation
  */
 export function conditionsToJsonString(conditions: FilterCondition[]): string {
   const filter = conditionsToFilter(conditions)
@@ -190,7 +229,10 @@ export function conditionsToJsonString(conditions: FilterCondition[]): string {
 }
 
 /**
- * Converts JSON string to builder conditions
+ * Converts JSON string to builder conditions.
+ *
+ * @param jsonString - JSON string to parse
+ * @returns Array of filter conditions or empty array if invalid
  */
 export function jsonStringToConditions(jsonString: string): FilterCondition[] {
   if (!jsonString || !jsonString.trim()) return []
@@ -204,7 +246,7 @@ export function jsonStringToConditions(jsonString: string): FilterCondition[] {
 }
 
 /**
- * Sort direction options
+ * Sort direction options.
  */
 export const SORT_DIRECTIONS = [
   { value: 'asc', label: 'ascending' },
@@ -212,23 +254,31 @@ export const SORT_DIRECTIONS = [
 ] as const
 
 /**
- * Represents a single sort condition in builder format
+ * Represents a single sort condition in builder format.
  */
 export interface SortCondition {
+  /** Unique identifier for the sort condition */
   id: string
+  /** Column name to sort by */
   column: string
+  /** Sort direction */
   direction: 'asc' | 'desc'
 }
 
 /**
- * Generates a unique ID for sort conditions
+ * Generates a unique ID for sort conditions.
+ *
+ * @returns Random alphanumeric string
  */
 export function generateSortId(): string {
   return Math.random().toString(36).substring(2, 9)
 }
 
 /**
- * Converts builder sort conditions to sort object
+ * Converts builder sort conditions to sort object.
+ *
+ * @param conditions - Array of sort conditions from the builder UI
+ * @returns Sort object or null if no conditions
  */
 export function sortConditionsToSort(conditions: SortCondition[]): Record<string, string> | null {
   if (conditions.length === 0) return null
@@ -244,7 +294,10 @@ export function sortConditionsToSort(conditions: SortCondition[]): Record<string
 }
 
 /**
- * Converts sort object to builder conditions
+ * Converts sort object to builder conditions.
+ *
+ * @param sort - Sort object to convert
+ * @returns Array of sort conditions for the builder UI
  */
 export function sortToConditions(sort: Record<string, string> | null): SortCondition[] {
   if (!sort) return []
@@ -257,7 +310,10 @@ export function sortToConditions(sort: Record<string, string> | null): SortCondi
 }
 
 /**
- * Converts builder sort conditions to JSON string
+ * Converts builder sort conditions to JSON string.
+ *
+ * @param conditions - Array of sort conditions
+ * @returns JSON string representation
  */
 export function sortConditionsToJsonString(conditions: SortCondition[]): string {
   const sort = sortConditionsToSort(conditions)
@@ -266,7 +322,10 @@ export function sortConditionsToJsonString(conditions: SortCondition[]): string 
 }
 
 /**
- * Converts JSON string to sort builder conditions
+ * Converts JSON string to sort builder conditions.
+ *
+ * @param jsonString - JSON string to parse
+ * @returns Array of sort conditions or empty array if invalid
  */
 export function jsonStringToSortConditions(jsonString: string): SortCondition[] {
   if (!jsonString || !jsonString.trim()) return []

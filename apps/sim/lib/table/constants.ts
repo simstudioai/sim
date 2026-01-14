@@ -1,5 +1,11 @@
 /**
- * Limits and constants for user-defined tables
+ * Limits and constants for user-defined tables.
+ *
+ * @module lib/table/constants
+ */
+
+/**
+ * Table and column limits for user-defined tables.
  */
 export const TABLE_LIMITS = {
   MAX_TABLES_PER_WORKSPACE: 100,
@@ -15,14 +21,18 @@ export const TABLE_LIMITS = {
 } as const
 
 /**
- * Valid column types for table schema
+ * Valid column types for table schema.
  */
 export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as const
 
+/**
+ * Type representing a valid column type.
+ */
 export type ColumnType = (typeof COLUMN_TYPES)[number]
 
 /**
- * Regex pattern for valid table and column names
- * Must start with letter or underscore, followed by alphanumeric or underscore
+ * Regex pattern for valid table and column names.
+ *
+ * Must start with letter or underscore, followed by alphanumeric or underscore.
  */
 export const NAME_PATTERN = /^[a-z_][a-z0-9_]*$/i

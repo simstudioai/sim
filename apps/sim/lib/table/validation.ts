@@ -1,24 +1,54 @@
+/**
+ * Validation utilities for table schemas and row data.
+ *
+ * @module lib/table/validation
+ */
+
 import type { ColumnType } from './constants'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from './constants'
 
+/**
+ * Definition of a table column.
+ */
 export interface ColumnDefinition {
+  /** Column name */
   name: string
+  /** Column data type */
   type: ColumnType
+  /** Whether the column is required */
   required?: boolean
+  /** Whether the column values must be unique */
   unique?: boolean
 }
 
+/**
+ * Table schema definition.
+ */
 export interface TableSchema {
+  /** Array of column definitions */
   columns: ColumnDefinition[]
 }
 
+/**
+ * Result of a validation operation.
+ */
 interface ValidationResult {
+  /** Whether validation passed */
   valid: boolean
+  /** Array of error messages */
   errors: string[]
 }
 
 /**
- * Validates table name against naming rules
+ * Represents a row's data values.
+ */
+type RowData = Record<string, unknown>
+
+/**
+ * Validates a table name against naming rules.
+ *
+ * @param name - The table name to validate
+ * @returns Validation result with errors if invalid
  */
 export function validateTableName(name: string): ValidationResult {
   const errors: string[] = []
@@ -47,7 +77,10 @@ export function validateTableName(name: string): ValidationResult {
 }
 
 /**
- * Validates column definition
+ * Validates a column definition.
+ *
+ * @param column - The column definition to validate
+ * @returns Validation result with errors if invalid
  */
 export function validateColumnDefinition(column: ColumnDefinition): ValidationResult {
   const errors: string[] = []
@@ -82,7 +115,10 @@ export function validateColumnDefinition(column: ColumnDefinition): ValidationRe
 }
 
 /**
- * Validates table schema
+ * Validates a table schema.
+ *
+ * @param schema - The schema to validate
+ * @returns Validation result with errors if invalid
  */
 export function validateTableSchema(schema: TableSchema): ValidationResult {
   const errors: string[] = []
@@ -125,9 +161,12 @@ export function validateTableSchema(schema: TableSchema): ValidationResult {
 }
 
 /**
- * Validates row size
+ * Validates that row data size is within limits.
+ *
+ * @param data - The row data to validate
+ * @returns Validation result with errors if size exceeds limit
  */
-export function validateRowSize(data: Record<string, any>): ValidationResult {
+export function validateRowSize(data: RowData): ValidationResult {
   const size = JSON.stringify(data).length
   if (size > TABLE_LIMITS.MAX_ROW_SIZE_BYTES) {
     return {
@@ -139,12 +178,13 @@ export function validateRowSize(data: Record<string, any>): ValidationResult {
 }
 
 /**
- * Validates row data against schema
+ * Validates row data against a table schema.
+ *
+ * @param data - The row data to validate
+ * @param schema - The schema to validate against
+ * @returns Validation result with errors if validation fails
  */
-export function validateRowAgainstSchema(
-  data: Record<string, any>,
-  schema: TableSchema
-): ValidationResult {
+export function validateRowAgainstSchema(data: RowData, schema: TableSchema): ValidationResult {
   const errors: string[] = []
 
   for (const column of schema.columns) {
@@ -179,7 +219,10 @@ export function validateRowAgainstSchema(
         }
         break
       case 'date':
-        if (!(value instanceof Date) && Number.isNaN(Date.parse(value))) {
+        if (
+          !(value instanceof Date) &&
+          (typeof value !== 'string' || Number.isNaN(Date.parse(value)))
+        ) {
           errors.push(`${column.name} must be valid date`)
         }
         break
@@ -200,20 +243,41 @@ export function validateRowAgainstSchema(
 }
 
 /**
- * Gets unique column definitions from schema
+ * Gets all columns marked as unique from a schema.
+ *
+ * @param schema - The schema to extract unique columns from
+ * @returns Array of unique column definitions
  */
 export function getUniqueColumns(schema: TableSchema): ColumnDefinition[] {
   return schema.columns.filter((col) => col.unique === true)
 }
 
 /**
- * Validates unique constraints for row data
- * Checks if values for unique columns would violate uniqueness
+ * Represents an existing row for uniqueness checking.
+ */
+interface ExistingRow {
+  /** Row ID */
+  id: string
+  /** Row data values */
+  data: RowData
+}
+
+/**
+ * Validates unique constraints for row data.
+ *
+ * Checks if values for unique columns would violate uniqueness constraints
+ * when compared against existing rows.
+ *
+ * @param data - The row data to validate
+ * @param schema - The schema containing unique column definitions
+ * @param existingRows - Array of existing rows to check against
+ * @param excludeRowId - Optional row ID to exclude from uniqueness check (for updates)
+ * @returns Validation result with errors if uniqueness constraints are violated
  */
 export function validateUniqueConstraints(
-  data: Record<string, any>,
+  data: RowData,
   schema: TableSchema,
-  existingRows: Array<{ id: string; data: Record<string, any> }>,
+  existingRows: ExistingRow[],
   excludeRowId?: string
 ): ValidationResult {
   const errors: string[] = []
