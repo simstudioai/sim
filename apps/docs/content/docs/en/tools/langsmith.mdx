@@ -35,7 +35,11 @@ Forward a single run to LangSmith for ingestion.
 
 #### Output
 
-This tool does not produce any outputs.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Whether the run was accepted for ingestion |
+| `runId` | string | Run identifier provided in the request |
+| `message` | string | Response message from LangSmith |
 
 ### `langsmith_create_runs_batch`
 
