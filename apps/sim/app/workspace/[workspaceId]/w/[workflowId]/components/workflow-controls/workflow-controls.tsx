@@ -31,14 +31,14 @@ import { useTerminalStore } from '@/stores/terminal'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
-const logger = createLogger('ActionBar')
+const logger = createLogger('WorkflowControls')
 
-export function ActionBar() {
+export function WorkflowControls() {
   const reactFlowInstance = useReactFlow()
   const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
   const { mode, setMode } = useCanvasModeStore()
   const { undo, redo } = useCollaborativeWorkflow()
-  const showActionBar = useGeneralStore((s) => s.showActionBar)
+  const showWorkflowControls = useGeneralStore((s) => s.showActionBar)
   const updateSetting = useUpdateGeneralSetting()
   const isTerminalResizing = useTerminalStore((state) => state.isResizing)
 
@@ -75,13 +75,13 @@ export function ActionBar() {
     try {
       await updateSetting.mutateAsync({ key: 'showActionBar', value: false })
     } catch (error) {
-      logger.error('Failed to hide action bar', error)
+      logger.error('Failed to hide workflow controls', error)
     } finally {
       setContextMenu(null)
     }
   }
 
-  if (!showActionBar) {
+  if (!showWorkflowControls) {
     return null
   }
 
