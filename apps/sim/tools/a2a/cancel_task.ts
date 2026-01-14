@@ -30,11 +30,14 @@ export const a2aCancelTaskTool: ToolConfig<A2ACancelTaskParams, A2ACancelTaskRes
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: A2ACancelTaskParams) => ({
-      agentUrl: params.agentUrl,
-      taskId: params.taskId,
-      apiKey: params.apiKey,
-    }),
+    body: (params: A2ACancelTaskParams) => {
+      const body: Record<string, string> = {
+        agentUrl: params.agentUrl,
+        taskId: params.taskId,
+      }
+      if (params.apiKey) body.apiKey = params.apiKey
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {

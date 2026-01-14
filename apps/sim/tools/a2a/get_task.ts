@@ -34,12 +34,15 @@ export const a2aGetTaskTool: ToolConfig<A2AGetTaskParams, A2AGetTaskResponse> = 
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: A2AGetTaskParams) => ({
-      agentUrl: params.agentUrl,
-      taskId: params.taskId,
-      apiKey: params.apiKey,
-      historyLength: params.historyLength,
-    }),
+    body: (params: A2AGetTaskParams) => {
+      const body: Record<string, string | number> = {
+        agentUrl: params.agentUrl,
+        taskId: params.taskId,
+      }
+      if (params.apiKey) body.apiKey = params.apiKey
+      if (params.historyLength) body.historyLength = params.historyLength
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {
