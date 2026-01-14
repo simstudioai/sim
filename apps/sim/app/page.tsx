@@ -11,9 +11,9 @@ export const metadata: Metadata = {
     'Open-source AI agent workflow builder used by 60,000+ developers. Build and deploy agentic workflows with a visual drag-and-drop canvas. Connect 100+ apps and ship SOC2 & HIPAA-ready AI automations from startups to Fortune 500.',
   keywords:
     'AI agent workflow builder, agentic workflows, open source AI, visual workflow builder, AI automation, LLM workflows, AI agents, workflow automation, no-code AI, SOC2 compliant, HIPAA compliant, enterprise AI',
-  authors: [{ name: 'Sim Studio' }],
-  creator: 'Sim Studio',
-  publisher: 'Sim Studio',
+  authors: [{ name: 'Sim' }],
+  creator: 'Sim',
+  publisher: 'Sim',
   formatDetection: {
     email: false,
     address: false,

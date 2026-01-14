@@ -80,7 +80,7 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
 
   const { handleDuplicateWorkflow: duplicateWorkflow } = useDuplicateWorkflow({ workspaceId })
 
-  const { handleExportWorkflow: exportWorkflow } = useExportWorkflow({ workspaceId })
+  const { handleExportWorkflow: exportWorkflow } = useExportWorkflow()
   const handleDuplicateWorkflow = useCallback(() => {
     const workflowIds = capturedSelectionRef.current?.workflowIds || []
     if (workflowIds.length === 0) return

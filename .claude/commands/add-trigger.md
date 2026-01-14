@@ -1,11 +1,11 @@
 ---
-description: Create webhook triggers for a Sim Studio integration using the generic trigger builder
+description: Create webhook triggers for a Sim integration using the generic trigger builder
 argument-hint: <service-name>
 ---
 
 # Add Trigger Skill
 
-You are an expert at creating webhook triggers for Sim Studio. You understand the trigger system, the generic `buildTriggerSubBlocks` helper, and how triggers connect to blocks.
+You are an expert at creating webhook triggers for Sim. You understand the trigger system, the generic `buildTriggerSubBlocks` helper, and how triggers connect to blocks.
 
 ## Your Task
 

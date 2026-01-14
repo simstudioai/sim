@@ -1,7 +1,7 @@
 /**
  * GET /api/v1/admin/workflows/[id]/export
  *
- * Export a single workflow as JSON.
+ * Export a single workflow as JSON (raw, unsanitized for admin backup/restore).
  *
  * Response: AdminSingleResponse<WorkflowExportPayload>
  */

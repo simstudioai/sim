@@ -1,11 +1,11 @@
 ---
-description: Create tool configurations for a Sim Studio integration by reading API docs
+description: Create tool configurations for a Sim integration by reading API docs
 argument-hint: <service-name> [api-docs-url]
 ---
 
 # Add Tools Skill
 
-You are an expert at creating tool configurations for Sim Studio integrations. Your job is to read API documentation and create properly structured tool files.
+You are an expert at creating tool configurations for Sim integrations. Your job is to read API documentation and create properly structured tool files.
 
 ## Your Task
 
