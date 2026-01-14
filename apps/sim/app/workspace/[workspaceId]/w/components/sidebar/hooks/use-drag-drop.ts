@@ -165,15 +165,20 @@ export function useDragDrop() {
         .filter((item) => item.type === 'workflow')
         .map((item) => ({ id: item.id, sortOrder: item.sortOrder, folderId: destinationFolderId }))
 
-      await Promise.all([
-        folderUpdates.length > 0 &&
-          reorderFoldersMutation.mutateAsync({ workspaceId: workspaceId!, updates: folderUpdates }),
-        workflowUpdates.length > 0 &&
-          reorderWorkflowsMutation.mutateAsync({
-            workspaceId: workspaceId!,
-            updates: workflowUpdates,
-          }),
-      ])
+      await Promise.all(
+        [
+          folderUpdates.length > 0 &&
+            reorderFoldersMutation.mutateAsync({
+              workspaceId: workspaceId!,
+              updates: folderUpdates,
+            }),
+          workflowUpdates.length > 0 &&
+            reorderWorkflowsMutation.mutateAsync({
+              workspaceId: workspaceId!,
+              updates: workflowUpdates,
+            }),
+        ].filter(Boolean)
+      )
     },
     [workspaceId, reorderFoldersMutation, reorderWorkflowsMutation]
   )
@@ -209,7 +214,6 @@ export function useDragDrop() {
       setDropIndicator((prev) => {
         let next: DropIndicator | null = indicator
 
-        // Normalize 'after' to 'before' of next sibling
         if (indicator && indicator.position === 'after' && indicator.targetId !== 'root') {
           const siblings = getSiblingItems(indicator.folderId)
           const currentIdx = siblings.findIndex((s) => s.id === indicator.targetId)
@@ -223,7 +227,6 @@ export function useDragDrop() {
           }
         }
 
-        // Skip update if indicator hasn't changed
         if (
           prev?.targetId === next?.targetId &&
           prev?.position === next?.position &&

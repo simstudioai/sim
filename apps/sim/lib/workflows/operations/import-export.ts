@@ -301,6 +301,15 @@ export interface WorkspaceImportMetadata {
   }>
 }
 
+function extractSortOrder(content: string): number | undefined {
+  try {
+    const parsed = JSON.parse(content)
+    return parsed.state?.metadata?.sortOrder ?? parsed.metadata?.sortOrder
+  } catch {
+    return undefined
+  }
+}
+
 export async function extractWorkflowsFromZip(
   zipFile: File
 ): Promise<{ workflows: ImportedWorkflow[]; metadata?: WorkspaceImportMetadata }> {
@@ -333,19 +342,11 @@ export async function extractWorkflowsFromZip(
       const pathParts = path.split('/').filter((p) => p.length > 0)
       const filename = pathParts.pop() || path
 
-      let sortOrder: number | undefined
-      try {
-        const parsed = JSON.parse(content)
-        sortOrder = parsed.state?.metadata?.sortOrder ?? parsed.metadata?.sortOrder
-      } catch {
-        // ignore parse errors for sortOrder extraction
-      }
-
       workflows.push({
         content,
         name: filename,
         folderPath: pathParts,
-        sortOrder,
+        sortOrder: extractSortOrder(content),
       })
     } catch (error) {
       logger.error(`Failed to extract ${path}:`, error)
@@ -364,19 +365,11 @@ export async function extractWorkflowsFromFiles(files: File[]): Promise<Imported
     try {
       const content = await file.text()
 
-      let sortOrder: number | undefined
-      try {
-        const parsed = JSON.parse(content)
-        sortOrder = parsed.state?.metadata?.sortOrder ?? parsed.metadata?.sortOrder
-      } catch {
-        // ignore parse errors for sortOrder extraction
-      }
-
       workflows.push({
         content,
         name: file.name,
         folderPath: [],
-        sortOrder,
+        sortOrder: extractSortOrder(content),
       })
     } catch (error) {
       logger.error(`Failed to read ${file.name}:`, error)
