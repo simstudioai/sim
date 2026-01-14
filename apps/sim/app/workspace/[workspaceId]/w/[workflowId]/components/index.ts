@@ -1,4 +1,6 @@
 export { ActionBar } from './action-bar'
+export { BlockMenu } from './block-menu'
+export { CanvasMenu } from './canvas-menu'
 export { CommandList } from './command-list/command-list'
 export { Cursors } from './cursors/cursors'
 export { DiffControls } from './diff-controls/diff-controls'

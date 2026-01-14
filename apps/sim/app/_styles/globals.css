@@ -677,6 +677,20 @@ input[type="search"]::-ms-clear {
 }
 
 /**
+ * Notification toast enter animation
+ */
+@keyframes notification-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(var(--stack-offset, 0px));
+  }
+}
+
+/**
  * @depricated
  * Legacy globals (light/dark) kept for backward-compat with old classes.
  * Do not modify; remove after migration.

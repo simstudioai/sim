@@ -17,8 +17,6 @@ import {
   Redo,
   Tooltip,
   Undo,
-  ZoomIn,
-  ZoomOut,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
@@ -33,7 +31,6 @@ const logger = createLogger('ActionBar')
 
 export function ActionBar() {
   const reactFlowInstance = useReactFlow()
-  const { zoomIn, zoomOut } = reactFlowInstance
   const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
   const { mode, setMode } = useCanvasModeStore()
   const { undo, redo } = useCollaborativeWorkflow()
@@ -156,32 +153,6 @@ export function ActionBar() {
         </Tooltip.Root>
 
         <div className='mx-[4px] h-[20px] w-[1px] bg-[var(--border)]' />
-
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              variant='ghost'
-              className='h-[28px] w-[28px] rounded-[6px] p-0 hover:bg-[var(--surface-5)]'
-              onClick={() => zoomOut()}
-            >
-              <ZoomOut className='h-[16px] w-[16px]' />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='top'>Zoom out</Tooltip.Content>
-        </Tooltip.Root>
-
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              variant='ghost'
-              className='h-[28px] w-[28px] rounded-[6px] p-0 hover:bg-[var(--surface-5)]'
-              onClick={() => zoomIn()}
-            >
-              <ZoomIn className='h-[16px] w-[16px]' />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='top'>Zoom in</Tooltip.Content>
-        </Tooltip.Root>
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>

@@ -24,7 +24,6 @@ import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/b
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
-  ActionBar,
   CommandList,
   DiffControls,
   Notifications,
@@ -32,10 +31,9 @@ import {
   SubflowNodeComponent,
   Terminal,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
-import {
-  BlockContextMenu,
-  PaneContextMenu,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/context-menu'
+import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
+import { BlockMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/block-menu'
+import { CanvasMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/canvas-menu'
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
@@ -3366,7 +3364,7 @@ const WorkflowContent = React.memo(() => {
             </Suspense>
 
             {/* Context Menus */}
-            <BlockContextMenu
+            <BlockMenu
               isOpen={isBlockMenuOpen}
               position={contextMenuPosition}
               menuRef={contextMenuRef}
@@ -3388,7 +3386,7 @@ const WorkflowContent = React.memo(() => {
               disableEdit={!effectivePermissions.canEdit}
             />
 
-            <PaneContextMenu
+            <CanvasMenu
               isOpen={isPaneMenuOpen}
               position={contextMenuPosition}
               menuRef={contextMenuRef}
