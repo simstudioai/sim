@@ -2290,7 +2290,7 @@ describe('hasWorkflowChanged', () => {
           block1: createBlock('block1', {
             type: 'starter',
             subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
+              model: { value: 'gpt-4' },
               webhookId: { value: null },
             },
           }),
@@ -2302,7 +2302,7 @@ describe('hasWorkflowChanged', () => {
           block1: createBlock('block1', {
             type: 'starter',
             subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
+              model: { value: 'gpt-4' },
               webhookId: { value: 'wh_123456' },
             },
           }),
@@ -2318,7 +2318,7 @@ describe('hasWorkflowChanged', () => {
           block1: createBlock('block1', {
             type: 'starter',
             subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
+              model: { value: 'gpt-4' },
               triggerPath: { value: '' },
             },
           }),
@@ -2330,7 +2330,7 @@ describe('hasWorkflowChanged', () => {
           block1: createBlock('block1', {
             type: 'starter',
             subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
+              model: { value: 'gpt-4' },
               triggerPath: { value: '/api/webhooks/abc123' },
             },
           }),
@@ -2346,7 +2346,7 @@ describe('hasWorkflowChanged', () => {
           block1: createBlock('block1', {
             type: 'starter',
             subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
+              model: { value: 'gpt-4' },
               webhookId: { value: null },
               triggerPath: { value: '' },
             },
@@ -2359,7 +2359,7 @@ describe('hasWorkflowChanged', () => {
           block1: createBlock('block1', {
             type: 'starter',
             subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
+              model: { value: 'gpt-4' },
               webhookId: { value: 'wh_123456' },
               triggerPath: { value: '/api/webhooks/abc123' },
             },
@@ -2477,7 +2477,7 @@ describe('hasWorkflowChanged', () => {
             block1: createBlock('block1', {
               type: 'starter',
               subBlocks: {
-                triggerConfig: { value: { event: 'push' } },
+                model: { value: 'gpt-4' },
                 webhookId: { value: 'wh_old123' },
                 triggerPath: { value: '/api/webhooks/old' },
               },
@@ -2490,7 +2490,7 @@ describe('hasWorkflowChanged', () => {
             block1: createBlock('block1', {
               type: 'starter',
               subBlocks: {
-                triggerConfig: { value: { event: 'push' } },
+                model: { value: 'gpt-4' },
               },
             }),
           },
