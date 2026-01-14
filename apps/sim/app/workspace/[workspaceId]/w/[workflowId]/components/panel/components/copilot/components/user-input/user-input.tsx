@@ -380,6 +380,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           if (mentionFolderNav?.isInFolder) {
             mentionFolderNav.closeFolder()
             mentionMenu.setSubmenuQueryStart(null)
+          } else if (slashFolderNav?.isInFolder) {
+            slashFolderNav.closeFolder()
           } else {
             mentionMenu.closeMentionMenu()
             setShowSlashMenu(false)
