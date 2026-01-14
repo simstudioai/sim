@@ -18,12 +18,21 @@ import { cn } from '@/lib/core/utils/cn'
 import {
   AttachedFilesDisplay,
   ContextPills,
+  type MentionFolderNav,
   MentionMenu,
   ModelSelector,
   ModeSelector,
+  type SlashFolderNav,
   SlashMenu,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components'
-import { NEAR_TOP_THRESHOLD } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
+import {
+  ALL_COMMAND_IDS,
+  getCommandDisplayLabel,
+  getNextIndex,
+  NEAR_TOP_THRESHOLD,
+  TOP_LEVEL_COMMANDS,
+  WEB_COMMANDS,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
 import {
   useContextManagement,
   useFileAttachments,
@@ -39,24 +48,6 @@ import type { ChatContext } from '@/stores/panel'
 import { useCopilotStore } from '@/stores/panel'
 
 const logger = createLogger('CopilotUserInput')
-
-const TOP_LEVEL_COMMANDS = ['fast', 'research', 'superagent'] as const
-const WEB_COMMANDS = ['search', 'read', 'scrape', 'crawl'] as const
-const ALL_COMMANDS = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
-
-const COMMAND_DISPLAY_LABELS: Record<string, string> = {
-  superagent: 'Actions',
-}
-
-/**
- * Calculates the next index for circular navigation (wraps around at bounds)
- */
-function getNextIndex(current: number, direction: 'up' | 'down', maxIndex: number): number {
-  if (direction === 'down') {
-    return current >= maxIndex ? 0 : current + 1
-  }
-  return current <= 0 ? maxIndex : current - 1
-}
 
 interface UserInputProps {
   onSubmit: (
@@ -144,6 +135,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null)
     const [inputContainerRef, setInputContainerRef] = useState<HTMLDivElement | null>(null)
     const [showSlashMenu, setShowSlashMenu] = useState(false)
+    const [slashFolderNav, setSlashFolderNav] = useState<SlashFolderNav | null>(null)
+    const [mentionFolderNav, setMentionFolderNav] = useState<MentionFolderNav | null>(null)
 
     const message = controlledValue !== undefined ? controlledValue : internalMessage
     const setMessage =
@@ -198,12 +191,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       workflowId: workflowId || null,
       selectedContexts: contextManagement.selectedContexts,
       onContextAdd: contextManagement.addContext,
+      mentionFolderNav,
     })
 
     const mentionKeyboard = useMentionKeyboard({
       mentionMenu,
       mentionData,
       insertHandlers,
+      mentionFolderNav,
     })
 
     useImperativeHandle(
@@ -221,13 +216,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }),
       [mentionMenu.textareaRef]
     )
-
-    useEffect(() => {
-      if (workflowId) {
-        void mentionData.ensureWorkflowsLoaded()
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [workflowId])
 
     useEffect(() => {
       const checkPosition = () => {
@@ -264,7 +252,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }, [mentionMenu.showMentionMenu, containerRef])
 
     useEffect(() => {
-      if (!mentionMenu.showMentionMenu || mentionMenu.openSubmenuFor) {
+      if (!mentionMenu.showMentionMenu || mentionFolderNav?.isInFolder) {
         return
       }
 
@@ -275,8 +263,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
       if (q && q.length > 0) {
         void mentionData.ensurePastChatsLoaded()
-        void mentionData.ensureWorkflowsLoaded()
-        void mentionData.ensureWorkflowBlocksLoaded()
+        // workflows and workflow-blocks auto-load from stores
         void mentionData.ensureKnowledgeLoaded()
         void mentionData.ensureBlocksLoaded()
         void mentionData.ensureTemplatesLoaded()
@@ -286,15 +273,15 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(0))
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mentionMenu.showMentionMenu, mentionMenu.openSubmenuFor, message])
+    }, [mentionMenu.showMentionMenu, mentionFolderNav?.isInFolder, message])
 
     useEffect(() => {
-      if (mentionMenu.openSubmenuFor) {
+      if (mentionFolderNav?.isInFolder) {
         mentionMenu.setSubmenuActiveIndex(0)
         requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(0))
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mentionMenu.openSubmenuFor])
+    }, [mentionFolderNav?.isInFolder])
 
     const handleSubmit = useCallback(
       async (overrideMessage?: string, options: { preserveInput?: boolean } = {}) => {
@@ -372,8 +359,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const handleSlashCommandSelect = useCallback(
       (command: string) => {
-        const displayLabel =
-          COMMAND_DISPLAY_LABELS[command] || command.charAt(0).toUpperCase() + command.slice(1)
+        const displayLabel = getCommandDisplayLabel(command)
         mentionMenu.replaceActiveSlashWith(displayLabel)
         contextManagement.addContext({
           kind: 'slash_command',
@@ -391,8 +377,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       (e: KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === 'Escape' && (mentionMenu.showMentionMenu || showSlashMenu)) {
           e.preventDefault()
-          if (mentionMenu.openSubmenuFor) {
-            mentionMenu.setOpenSubmenuFor(null)
+          if (mentionFolderNav?.isInFolder) {
+            mentionFolderNav.closeFolder()
             mentionMenu.setSubmenuQueryStart(null)
           } else {
             mentionMenu.closeMentionMenu()
@@ -407,18 +393,19 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           const query = activeSlash?.query.trim().toLowerCase() || ''
           const showAggregatedView = query.length > 0
           const direction = e.key === 'ArrowDown' ? 'down' : 'up'
+          const isInFolder = slashFolderNav?.isInFolder ?? false
 
           if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault()
 
-            if (mentionMenu.openSubmenuFor === 'Web') {
+            if (isInFolder) {
               mentionMenu.setSubmenuActiveIndex((prev) => {
                 const next = getNextIndex(prev, direction, WEB_COMMANDS.length - 1)
                 requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(next))
                 return next
               })
             } else if (showAggregatedView) {
-              const filtered = ALL_COMMANDS.filter((cmd) => cmd.includes(query))
+              const filtered = ALL_COMMAND_IDS.filter((cmd) => cmd.includes(query))
               mentionMenu.setSubmenuActiveIndex((prev) => {
                 if (filtered.length === 0) return 0
                 const next = getNextIndex(prev, direction, filtered.length - 1)
@@ -437,10 +424,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
           if (e.key === 'ArrowRight') {
             e.preventDefault()
-            if (!showAggregatedView && !mentionMenu.openSubmenuFor) {
+            if (!showAggregatedView && !isInFolder) {
               if (mentionMenu.mentionActiveIndex === TOP_LEVEL_COMMANDS.length) {
-                mentionMenu.setOpenSubmenuFor('Web')
-                mentionMenu.setSubmenuActiveIndex(0)
+                slashFolderNav?.openWebFolder()
               }
             }
             return
@@ -448,8 +434,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
           if (e.key === 'ArrowLeft') {
             e.preventDefault()
-            if (mentionMenu.openSubmenuFor) {
-              mentionMenu.setOpenSubmenuFor(null)
+            if (isInFolder) {
+              slashFolderNav?.closeFolder()
             }
             return
           }
@@ -466,13 +452,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             const activeSlash = mentionMenu.getActiveSlashQueryAtPosition(caretPos, message)
             const query = activeSlash?.query.trim().toLowerCase() || ''
             const showAggregatedView = query.length > 0
+            const isInFolder = slashFolderNav?.isInFolder ?? false
 
-            if (mentionMenu.openSubmenuFor === 'Web') {
+            if (isInFolder) {
               const selectedCommand =
-                WEB_COMMANDS[mentionMenu.submenuActiveIndex] || WEB_COMMANDS[0]
+                WEB_COMMANDS[mentionMenu.submenuActiveIndex]?.id || WEB_COMMANDS[0].id
               handleSlashCommandSelect(selectedCommand)
             } else if (showAggregatedView) {
-              const filtered = ALL_COMMANDS.filter((cmd) => cmd.includes(query))
+              const filtered = ALL_COMMAND_IDS.filter((cmd) => cmd.includes(query))
               if (filtered.length > 0) {
                 const selectedCommand = filtered[mentionMenu.submenuActiveIndex] || filtered[0]
                 handleSlashCommandSelect(selectedCommand)
@@ -480,10 +467,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             } else {
               const selectedIndex = mentionMenu.mentionActiveIndex
               if (selectedIndex < TOP_LEVEL_COMMANDS.length) {
-                handleSlashCommandSelect(TOP_LEVEL_COMMANDS[selectedIndex])
+                handleSlashCommandSelect(TOP_LEVEL_COMMANDS[selectedIndex].id)
               } else if (selectedIndex === TOP_LEVEL_COMMANDS.length) {
-                mentionMenu.setOpenSubmenuFor('Web')
-                mentionMenu.setSubmenuActiveIndex(0)
+                slashFolderNav?.openWebFolder()
               }
             }
             return
@@ -568,6 +554,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         message,
         mentionTokensWithContext,
         showSlashMenu,
+        slashFolderNav,
+        mentionFolderNav,
       ]
     )
 
@@ -586,7 +574,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           setShowSlashMenu(false)
           mentionMenu.setShowMentionMenu(true)
           mentionMenu.setInAggregated(false)
-          if (mentionMenu.openSubmenuFor) {
+          if (mentionFolderNav?.isInFolder) {
             mentionMenu.setSubmenuActiveIndex(0)
           } else {
             mentionMenu.setMentionActiveIndex(0)
@@ -605,7 +593,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           setShowSlashMenu(false)
         }
       },
-      [setMessage, mentionMenu, disableMentions]
+      [setMessage, mentionMenu, disableMentions, mentionFolderNav]
     )
 
     const handleSelectAdjust = useCallback(() => {
@@ -838,6 +826,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   mentionData={mentionData}
                   message={message}
                   insertHandlers={insertHandlers}
+                  onFolderNavChange={setMentionFolderNav}
                 />,
                 document.body
               )}
@@ -850,6 +839,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   mentionMenu={mentionMenu}
                   message={message}
                   onSelectCommand={handleSlashCommandSelect}
+                  onFolderNavChange={setSlashFolderNav}
                 />,
                 document.body
               )}

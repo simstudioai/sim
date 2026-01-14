@@ -8,7 +8,6 @@ import { Button, Code, getCodeEditorProps, highlight, languages } from '@/compon
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
-// Initialize all tool UI configs
 import '@/lib/copilot/tools/client/init-tool-configs'
 import {
   getSubagentLabels as getSubagentLabelsFromConfig,

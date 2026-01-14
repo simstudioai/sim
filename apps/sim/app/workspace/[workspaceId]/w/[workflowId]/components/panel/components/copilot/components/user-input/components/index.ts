@@ -1,6 +1,6 @@
 export { AttachedFilesDisplay } from './attached-files-display/attached-files-display'
 export { ContextPills } from './context-pills/context-pills'
-export { MentionMenu } from './mention-menu/mention-menu'
+export { type MentionFolderNav, MentionMenu } from './mention-menu/mention-menu'
 export { ModeSelector } from './mode-selector/mode-selector'
 export { ModelSelector } from './model-selector/model-selector'
-export { SlashMenu } from './slash-menu/slash-menu'
+export { type SlashFolderNav, SlashMenu } from './slash-menu/slash-menu'
