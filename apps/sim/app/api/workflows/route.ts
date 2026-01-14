@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull, max } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -17,6 +17,7 @@ const CreateWorkflowSchema = z.object({
   color: z.string().optional().default('#3972F6'),
   workspaceId: z.string().optional(),
   folderId: z.string().nullable().optional(),
+  sortOrder: z.number().int().optional(),
 })
 
 // GET /api/workflows - Get workflows for user (optionally filtered by workspaceId)
@@ -89,7 +90,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { name, description, color, workspaceId, folderId } = CreateWorkflowSchema.parse(body)
+    const {
+      name,
+      description,
+      color,
+      workspaceId,
+      folderId,
+      sortOrder: providedSortOrder,
+    } = CreateWorkflowSchema.parse(body)
 
     if (workspaceId) {
       const workspacePermission = await getUserEntityPermissions(
@@ -127,11 +135,28 @@ export async function POST(req: NextRequest) {
         // Silently fail
       })
 
+    let sortOrder: number
+    if (providedSortOrder !== undefined) {
+      sortOrder = providedSortOrder
+    } else {
+      const folderCondition = folderId ? eq(workflow.folderId, folderId) : isNull(workflow.folderId)
+      const [maxResult] = await db
+        .select({ maxOrder: max(workflow.sortOrder) })
+        .from(workflow)
+        .where(
+          workspaceId
+            ? and(eq(workflow.workspaceId, workspaceId), folderCondition)
+            : and(eq(workflow.userId, session.user.id), folderCondition)
+        )
+      sortOrder = (maxResult?.maxOrder ?? -1) + 1
+    }
+
     await db.insert(workflow).values({
       id: workflowId,
       userId: session.user.id,
       workspaceId: workspaceId || null,
       folderId: folderId || null,
+      sortOrder,
       name,
       description,
       color,
@@ -152,6 +177,7 @@ export async function POST(req: NextRequest) {
       color,
       workspaceId,
       folderId,
+      sortOrder,
       createdAt: now,
       updatedAt: now,
     })

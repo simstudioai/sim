@@ -64,6 +64,7 @@ export function useExportWorkspace({ onSuccess }: UseExportWorkspaceProps = {}) 
             id: folder.id,
             name: folder.name,
             parentId: folder.parentId,
+            sortOrder: folder.sortOrder,
           })
         )
 

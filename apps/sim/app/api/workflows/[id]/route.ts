@@ -20,6 +20,7 @@ const UpdateWorkflowSchema = z.object({
   description: z.string().optional(),
   color: z.string().optional(),
   folderId: z.string().nullable().optional(),
+  sortOrder: z.number().int().min(0).optional(),
 })
 
 /**
@@ -438,12 +439,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Build update object
-    const updateData: any = { updatedAt: new Date() }
+    const updateData: Record<string, unknown> = { updatedAt: new Date() }
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.description !== undefined) updateData.description = updates.description
     if (updates.color !== undefined) updateData.color = updates.color
     if (updates.folderId !== undefined) updateData.folderId = updates.folderId
+    if (updates.sortOrder !== undefined) updateData.sortOrder = updates.sortOrder
 
     // Update the workflow
     const [updatedWorkflow] = await db
