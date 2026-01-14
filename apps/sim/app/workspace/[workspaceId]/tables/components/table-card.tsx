@@ -256,9 +256,9 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
                       </TableCell>
                       <TableCell className='text-[12px]'>
                         <div className='flex gap-[6px]'>
-                          {column.optional && (
-                            <Badge variant='gray' size='sm'>
-                              optional
+                          {column.required && (
+                            <Badge variant='red' size='sm'>
+                              required
                             </Badge>
                           )}
                           {column.unique && (
@@ -266,7 +266,7 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
                               unique
                             </Badge>
                           )}
-                          {!column.optional && !column.unique && (
+                          {!column.required && !column.unique && (
                             <span className='text-[var(--text-muted)]'>—</span>
                           )}
                         </div>

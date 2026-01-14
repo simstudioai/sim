@@ -142,7 +142,7 @@ export function EditRowModal({ isOpen, onClose, table, row, onSuccess }: EditRow
               <div key={column.name} className='flex flex-col gap-[8px]'>
                 <Label htmlFor={column.name} className='font-medium text-[13px]'>
                   {column.name}
-                  {!column.optional && <span className='text-[var(--text-error)]'> *</span>}
+                  {column.required && <span className='text-[var(--text-error)]'> *</span>}
                   {column.unique && (
                     <span className='ml-[6px] font-normal text-[11px] text-[var(--text-tertiary)]'>
                       (unique)
@@ -176,7 +176,7 @@ export function EditRowModal({ isOpen, onClose, table, row, onSuccess }: EditRow
                     placeholder='{"key": "value"}'
                     rows={4}
                     className='font-mono text-[12px]'
-                    required={!column.optional}
+                    required={column.required}
                   />
                 ) : (
                   <Input
@@ -190,13 +190,13 @@ export function EditRowModal({ isOpen, onClose, table, row, onSuccess }: EditRow
                     }
                     placeholder={`Enter ${column.name}`}
                     className='h-[38px]'
-                    required={!column.optional}
+                    required={column.required}
                   />
                 )}
 
                 <div className='text-[12px] text-[var(--text-tertiary)]'>
                   Type: {column.type}
-                  {column.optional && ' (optional)'}
+                  {!column.required && ' (optional)'}
                 </div>
               </div>
             ))}

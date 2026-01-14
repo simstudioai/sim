@@ -135,7 +135,7 @@ export async function GET(
 
 /**
  * DELETE /api/table/[tableId]?workspaceId=xxx
- * Delete a table (soft delete)
+ * Delete a table (hard delete)
  */
 export async function DELETE(
   request: NextRequest,
@@ -165,18 +165,16 @@ export async function DELETE(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Soft delete table
+    // Delete all rows first
+    await db.delete(userTableRows).where(eq(userTableRows.tableId, tableId))
+
+    // Hard delete table
     const [deletedTable] = await db
-      .update(userTableDefinitions)
-      .set({
-        deletedAt: new Date(),
-        updatedAt: new Date(),
-      })
+      .delete(userTableDefinitions)
       .where(
         and(
           eq(userTableDefinitions.id, tableId),
-          eq(userTableDefinitions.workspaceId, validated.workspaceId),
-          isNull(userTableDefinitions.deletedAt)
+          eq(userTableDefinitions.workspaceId, validated.workspaceId)
         )
       )
       .returning()
@@ -184,9 +182,6 @@ export async function DELETE(
     if (!deletedTable) {
       return NextResponse.json({ error: 'Table not found' }, { status: 404 })
     }
-
-    // Delete all rows
-    await db.delete(userTableRows).where(eq(userTableRows.tableId, tableId))
 
     logger.info(`[${requestId}] Deleted table ${tableId}`)
 

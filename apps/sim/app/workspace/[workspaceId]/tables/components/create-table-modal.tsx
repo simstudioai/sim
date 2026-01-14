@@ -24,7 +24,7 @@ const logger = createLogger('CreateTableModal')
 interface ColumnDefinition {
   name: string
   type: 'string' | 'number' | 'boolean' | 'date' | 'json'
-  optional: boolean
+  required: boolean
   unique: boolean
 }
 
@@ -48,14 +48,14 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
   const [tableName, setTableName] = useState('')
   const [description, setDescription] = useState('')
   const [columns, setColumns] = useState<ColumnDefinition[]>([
-    { name: '', type: 'string', optional: false, unique: false },
+    { name: '', type: 'string', required: true, unique: false },
   ])
   const [error, setError] = useState<string | null>(null)
 
   const createTable = useCreateTable(workspaceId)
 
   const handleAddColumn = () => {
-    setColumns([...columns, { name: '', type: 'string', optional: false, unique: false }])
+    setColumns([...columns, { name: '', type: 'string', required: true, unique: false }])
   }
 
   const handleRemoveColumn = (index: number) => {
@@ -110,7 +110,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
       // Reset form
       setTableName('')
       setDescription('')
-      setColumns([{ name: '', type: 'string', optional: false, unique: false }])
+      setColumns([{ name: '', type: 'string', required: true, unique: false }])
       setError(null)
       onClose()
     } catch (err) {
@@ -123,7 +123,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
     // Reset form on close
     setTableName('')
     setDescription('')
-    setColumns([{ name: '', type: 'string', optional: false, unique: false }])
+    setColumns([{ name: '', type: 'string', required: true, unique: false }])
     setError(null)
     onClose()
   }
@@ -202,7 +202,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
               <div className='flex items-center gap-[10px] rounded-[6px] bg-[var(--bg-secondary)] px-[12px] py-[8px] text-[11px] font-semibold text-[var(--text-tertiary)]'>
                 <div className='flex-1'>Column Name</div>
                 <div className='w-[110px]'>Type</div>
-                <div className='w-[70px] text-center'>Optional</div>
+                <div className='w-[70px] text-center'>Required</div>
                 <div className='w-[70px] text-center'>Unique</div>
                 <div className='w-[36px]' />
               </div>
@@ -239,12 +239,12 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
                       />
                     </div>
 
-                    {/* Optional Checkbox */}
+                    {/* Required Checkbox */}
                     <div className='flex w-[70px] items-center justify-center'>
                       <Checkbox
-                        checked={column.optional}
+                        checked={column.required}
                         onCheckedChange={(checked) =>
-                          handleColumnChange(index, 'optional', checked === true)
+                          handleColumnChange(index, 'required', checked === true)
                         }
                       />
                     </div>
@@ -277,9 +277,8 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
               </div>
 
               <p className='text-[12px] text-[var(--text-tertiary)]'>
-                Columns are <span className='font-medium'>required</span> by default. Check{' '}
-                <span className='font-medium'>optional</span> for nullable fields, or{' '}
-                <span className='font-medium'>unique</span> to prevent duplicates.
+                Mark columns as <span className='font-medium'>unique</span> to prevent duplicate
+                values (e.g., id, email)
               </p>
             </div>
           </form>

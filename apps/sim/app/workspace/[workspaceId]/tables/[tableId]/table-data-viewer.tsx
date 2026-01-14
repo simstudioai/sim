@@ -435,7 +435,7 @@ export function TableDataViewer() {
                     <Badge variant='outline' size='sm'>
                       {column.type}
                     </Badge>
-                    {!column.optional && (
+                    {column.required && (
                       <span className='text-[10px] text-[var(--text-error)]'>*</span>
                     )}
                   </div>
@@ -675,9 +675,9 @@ export function TableDataViewer() {
                       </TableCell>
                       <TableCell className='text-[12px]'>
                         <div className='flex gap-[6px]'>
-                          {column.optional && (
-                            <Badge variant='gray' size='sm'>
-                              optional
+                          {column.required && (
+                            <Badge variant='red' size='sm'>
+                              required
                             </Badge>
                           )}
                           {column.unique && (
@@ -685,7 +685,7 @@ export function TableDataViewer() {
                               unique
                             </Badge>
                           )}
-                          {!column.optional && !column.unique && (
+                          {!column.required && !column.unique && (
                             <span className='text-[var(--text-muted)]'>—</span>
                           )}
                         </div>

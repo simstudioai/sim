@@ -22,7 +22,7 @@ export type ColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
 export interface ColumnDefinition {
   name: string
   type: ColumnType
-  optional?: boolean
+  required?: boolean
   unique?: boolean
 }
 

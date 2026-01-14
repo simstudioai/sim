@@ -61,8 +61,7 @@ export function AddRowModal({ isOpen, onClose, table, onSuccess }: AddRowModalPr
       const cleanData: Record<string, any> = {}
       columns.forEach((col) => {
         const value = rowData[col.name]
-        const isRequired = !col.optional
-        if (isRequired || (value !== '' && value !== null && value !== undefined)) {
+        if (col.required || (value !== '' && value !== null && value !== undefined)) {
           if (col.type === 'number') {
             cleanData[col.name] = value === '' ? null : Number(value)
           } else if (col.type === 'json') {
@@ -132,7 +131,7 @@ export function AddRowModal({ isOpen, onClose, table, onSuccess }: AddRowModalPr
               <div key={column.name} className='flex flex-col gap-[8px]'>
                 <Label htmlFor={column.name} className='font-medium text-[13px]'>
                   {column.name}
-                  {!column.optional && <span className='text-[var(--text-error)]'> *</span>}
+                  {column.required && <span className='text-[var(--text-error)]'> *</span>}
                   {column.unique && (
                     <span className='ml-[6px] font-normal text-[11px] text-[var(--text-tertiary)]'>
                       (unique)
@@ -166,7 +165,7 @@ export function AddRowModal({ isOpen, onClose, table, onSuccess }: AddRowModalPr
                     placeholder='{"key": "value"}'
                     rows={4}
                     className='font-mono text-[12px]'
-                    required={!column.optional}
+                    required={column.required}
                   />
                 ) : (
                   <Input
@@ -180,13 +179,13 @@ export function AddRowModal({ isOpen, onClose, table, onSuccess }: AddRowModalPr
                     }
                     placeholder={`Enter ${column.name}`}
                     className='h-[38px]'
-                    required={!column.optional}
+                    required={column.required}
                   />
                 )}
 
                 <div className='text-[12px] text-[var(--text-tertiary)]'>
                   Type: {column.type}
-                  {column.optional && ' (optional)'}
+                  {!column.required && ' (optional)'}
                 </div>
               </div>
             ))}
