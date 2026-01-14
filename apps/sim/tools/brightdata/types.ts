@@ -6,11 +6,9 @@ export interface BrightDataAuthParams {
   browserZone?: string
 }
 
-
 export interface ScrapeMarkdownParams extends BrightDataAuthParams {
   url: string
 }
-
 
 export interface ScrapeMarkdownResponse extends ToolResponse {
   output: {
@@ -20,12 +18,10 @@ export interface ScrapeMarkdownResponse extends ToolResponse {
   }
 }
 
-
 export interface SearchEngineParams extends BrightDataAuthParams {
   query: string
   maxResults?: number
 }
-
 
 export interface SearchEngineResponse extends ToolResponse {
   output: {
@@ -37,13 +33,11 @@ export interface SearchEngineResponse extends ToolResponse {
   }
 }
 
-
 export interface BrowserNavigateParams extends BrightDataAuthParams {
   url: string
   sessionKey?: string
   country?: string
 }
-
 
 export interface BrowserNavigateResponse extends ToolResponse {
   output: {
@@ -54,11 +48,9 @@ export interface BrowserNavigateResponse extends ToolResponse {
   }
 }
 
-
 export interface BrowserSnapshotParams extends BrightDataAuthParams {
   sessionKey?: string
 }
-
 
 export interface BrowserSnapshotResponse extends ToolResponse {
   output: {
@@ -68,11 +60,9 @@ export interface BrowserSnapshotResponse extends ToolResponse {
   }
 }
 
-
 export interface BrowserScreenshotParams extends BrightDataAuthParams {
   sessionKey?: string
 }
-
 
 export interface BrowserScreenshotResponse extends ToolResponse {
   output: {
@@ -81,7 +71,6 @@ export interface BrowserScreenshotResponse extends ToolResponse {
   }
 }
 
-
 export interface DatasetParams extends BrightDataAuthParams {
   datasetId: string
   url?: string
@@ -89,14 +78,12 @@ export interface DatasetParams extends BrightDataAuthParams {
   [key: string]: unknown
 }
 
-
 export interface DatasetResponse extends ToolResponse {
   output: {
     data: unknown
     snapshot_at?: string
   }
 }
-
 
 export type BrightDataResponse =
   | ScrapeMarkdownResponse

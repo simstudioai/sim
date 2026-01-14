@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetGoogleShoppingTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_google_shopping',
   name: 'Bright Data Google Shopping Dataset',
-  description: "Quickly read structured Google shopping data.\nRequires a valid Google shopping product URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured Google shopping data.\nRequires a valid Google shopping product URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

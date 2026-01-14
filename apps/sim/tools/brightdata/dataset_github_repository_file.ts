@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetGithubRepositoryFileTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_github_repository_file',
   name: 'Bright Data Github Repository File Dataset',
-  description: "Quickly read structured github repository data.\nRequires a valid github repository file URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured github repository data.\nRequires a valid github repository file URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

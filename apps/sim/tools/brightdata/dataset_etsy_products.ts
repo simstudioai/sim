@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetEtsyProductsTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_etsy_products',
   name: 'Bright Data Etsy Products Dataset',
-  description: "Quickly read structured etsy product data.\nRequires a valid etsy product URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured etsy product data.\nRequires a valid etsy product URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

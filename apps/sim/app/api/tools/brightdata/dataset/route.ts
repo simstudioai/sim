@@ -19,8 +19,8 @@ export async function POST(request: Request) {
     }
 
     const params: Record<string, unknown> = { ...body }
-    delete params.datasetId
-    delete params.apiToken
+    params.datasetId = undefined
+    params.apiToken = undefined
 
     logger.info(`[${requestId}] Triggering dataset`, { datasetId })
 
@@ -66,7 +66,9 @@ export async function POST(request: Request) {
     }
 
     const snapshotId =
-      typeof triggerPayload === 'object' && triggerPayload !== null && 'snapshot_id' in triggerPayload
+      typeof triggerPayload === 'object' &&
+      triggerPayload !== null &&
+      'snapshot_id' in triggerPayload
         ? String((triggerPayload as { snapshot_id?: unknown }).snapshot_id ?? '')
         : ''
 
@@ -129,7 +131,9 @@ export async function POST(request: Request) {
       }
 
       const status =
-        typeof snapshotPayload === 'object' && snapshotPayload !== null && 'status' in snapshotPayload
+        typeof snapshotPayload === 'object' &&
+        snapshotPayload !== null &&
+        'status' in snapshotPayload
           ? String((snapshotPayload as { status?: unknown }).status ?? '')
           : ''
 
@@ -155,10 +159,7 @@ export async function POST(request: Request) {
     }
 
     logger.error(`[${requestId}] Dataset snapshot timed out`, { datasetId, snapshotId })
-    return NextResponse.json(
-      { error: 'Timeout waiting for dataset snapshot' },
-      { status: 504 }
-    )
+    return NextResponse.json({ error: 'Timeout waiting for dataset snapshot' }, { status: 504 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Dataset fetch failed'
     logger.error(`[${requestId}] Dataset fetch failed`, { error: message })

@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetReuterNewsTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_reuter_news',
   name: 'Bright Data Reuter News Dataset',
-  description: "Quickly read structured reuter news data.\nRequires a valid reuter news report URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured reuter news data.\nRequires a valid reuter news report URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

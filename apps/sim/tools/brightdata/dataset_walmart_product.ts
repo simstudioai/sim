@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetWalmartProductTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_walmart_product',
   name: 'Bright Data Walmart Product Dataset',
-  description: "Quickly read structured walmart product data.\nRequires a valid product URL with /ip/ in it.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured walmart product data.\nRequires a valid product URL with /ip/ in it.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

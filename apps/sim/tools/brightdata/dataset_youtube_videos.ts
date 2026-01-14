@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetYoutubeVideosTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_youtube_videos',
   name: 'Bright Data Youtube Videos Dataset',
-  description: "Quickly read structured YouTube videos data.\nRequires a valid YouTube video URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured YouTube videos data.\nRequires a valid YouTube video URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

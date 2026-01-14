@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetZaraProductsTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_zara_products',
   name: 'Bright Data Zara Products Dataset',
-  description: "Quickly read structured zara product data.\nRequires a valid zara product URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured zara product data.\nRequires a valid zara product URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

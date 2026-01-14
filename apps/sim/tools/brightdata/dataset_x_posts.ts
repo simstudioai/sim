@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetXPostsTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_x_posts',
   name: 'Bright Data X Posts Dataset',
-  description: "Quickly read structured X post data.\nRequires a valid X post URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured X post data.\nRequires a valid X post URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

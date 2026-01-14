@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetHomedepotProductsTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_homedepot_products',
   name: 'Bright Data Homedepot Products Dataset',
-  description: "Quickly read structured homedepot product data.\nRequires a valid homedepot product URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured homedepot product data.\nRequires a valid homedepot product URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

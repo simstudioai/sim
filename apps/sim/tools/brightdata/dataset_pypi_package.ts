@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetPypiPackageTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_pypi_package',
   name: 'Bright Data Pypi Package Dataset',
-  description: "Quickly read structured PyPI package data.\nRequires a valid PyPI package name (e.g., langchain-brightdata).\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured PyPI package data.\nRequires a valid PyPI package name (e.g., langchain-brightdata).\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

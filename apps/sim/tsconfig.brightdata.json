@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "blocks/blocks/brightdata.ts",
+    "tools/brightdata/**/*.ts",
+    "app/api/tools/brightdata/**/*.ts",
+    "tools/registry.ts",
+    "blocks/registry.ts"
+  ]
+}

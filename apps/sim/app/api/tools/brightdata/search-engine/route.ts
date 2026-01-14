@@ -56,9 +56,16 @@ export async function POST(request: Request) {
           ? String((payload as { error?: unknown }).error)
           : response.statusText
 
-      logger.error(`[${requestId}] Search failed`, { query, status: response.status, error: errorMessage })
+      logger.error(`[${requestId}] Search failed`, {
+        query,
+        status: response.status,
+        error: errorMessage,
+      })
 
-      return NextResponse.json({ error: errorMessage || 'Search failed' }, { status: response.status })
+      return NextResponse.json(
+        { error: errorMessage || 'Search failed' },
+        { status: response.status }
+      )
     }
 
     let normalizedResults: Array<{ title: string; url: string; snippet: string }> = []

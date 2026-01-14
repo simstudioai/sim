@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetYahooFinanceBusinessTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_yahoo_finance_business',
   name: 'Bright Data Yahoo Finance Business Dataset',
-  description: "Quickly read structured yahoo finance business data.\nRequires a valid yahoo finance business URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured yahoo finance business data.\nRequires a valid yahoo finance business URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

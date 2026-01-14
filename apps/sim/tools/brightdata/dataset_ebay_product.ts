@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetEbayProductTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_ebay_product',
   name: 'Bright Data Ebay Product Dataset',
-  description: "Quickly read structured ebay product data.\nRequires a valid ebay product URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured ebay product data.\nRequires a valid ebay product URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

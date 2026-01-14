@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetGoogleMapsReviewsTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_google_maps_reviews',
   name: 'Bright Data Google Maps Reviews Dataset',
-  description: "Quickly read structured Google maps reviews data.\nRequires a valid Google maps URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured Google maps reviews data.\nRequires a valid Google maps URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

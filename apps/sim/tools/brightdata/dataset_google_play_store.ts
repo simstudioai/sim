@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetGooglePlayStoreTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_google_play_store',
   name: 'Bright Data Google Play Store Dataset',
-  description: "Quickly read structured Google play store data.\nRequires a valid Google play store app URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured Google play store data.\nRequires a valid Google play store app URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

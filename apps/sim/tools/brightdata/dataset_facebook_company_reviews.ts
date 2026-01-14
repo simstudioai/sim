@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetFacebookCompanyReviewsTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_facebook_company_reviews',
   name: 'Bright Data Facebook Company Reviews Dataset',
-  description: "Quickly read structured Facebook company reviews data.\nRequires a valid Facebook company URL and number of reviews.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured Facebook company reviews data.\nRequires a valid Facebook company URL and number of reviews.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetBestbuyProductsTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_bestbuy_products',
   name: 'Bright Data Bestbuy Products Dataset',
-  description: "Quickly read structured bestbuy product data.\nRequires a valid bestbuy product URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured bestbuy product data.\nRequires a valid bestbuy product URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

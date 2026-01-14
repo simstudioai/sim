@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetFacebookMarketplaceListingsTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_facebook_marketplace_listings',
   name: 'Bright Data Facebook Marketplace Listings Dataset',
-  description: "Quickly read structured Facebook marketplace listing data.\nRequires a valid Facebook marketplace listing URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured Facebook marketplace listing data.\nRequires a valid Facebook marketplace listing URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetAppleAppStoreTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_apple_app_store',
   name: 'Bright Data Apple App Store Dataset',
-  description: "Quickly read structured apple app store data.\nRequires a valid apple app store app URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured apple app store data.\nRequires a valid apple app store app URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

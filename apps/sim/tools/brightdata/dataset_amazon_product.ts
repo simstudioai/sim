@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_amazon_product',
   name: 'Bright Data Amazon Product Dataset',
-  description: "Quickly read structured amazon product data.\nRequires a valid product URL with /dp/ in it.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured amazon product data.\nRequires a valid product URL with /dp/ in it.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

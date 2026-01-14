@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetYoutubeCommentsTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_youtube_comments',
   name: 'Bright Data Youtube Comments Dataset',
-  description: "Quickly read structured youtube comments data.\nRequires a valid youtube video URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured youtube comments data.\nRequires a valid youtube video URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

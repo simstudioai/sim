@@ -48,9 +48,16 @@ export async function POST(request: Request) {
           ? String((payload as { error?: unknown }).error)
           : response.statusText
 
-      logger.error(`[${requestId}] Scraping failed`, { url, status: response.status, error: errorMessage })
+      logger.error(`[${requestId}] Scraping failed`, {
+        url,
+        status: response.status,
+        error: errorMessage,
+      })
 
-      return NextResponse.json({ error: errorMessage || 'Scraping failed' }, { status: response.status })
+      return NextResponse.json(
+        { error: errorMessage || 'Scraping failed' },
+        { status: response.status }
+      )
     }
 
     const markdown =

@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetInstagramReelsTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_instagram_reels',
   name: 'Bright Data Instagram Reels Dataset',
-  description: "Quickly read structured Instagram reel data.\nRequires a valid Instagram URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured Instagram reel data.\nRequires a valid Instagram URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

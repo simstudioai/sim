@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetFacebookPostsTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_facebook_posts',
   name: 'Bright Data Facebook Posts Dataset',
-  description: "Quickly read structured Facebook post data.\nRequires a valid Facebook post URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured Facebook post data.\nRequires a valid Facebook post URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

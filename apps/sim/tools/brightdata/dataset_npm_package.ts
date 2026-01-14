@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetNpmPackageTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_npm_package',
   name: 'Bright Data Npm Package Dataset',
-  description: "Quickly read structured npm package data.\nRequires a valid npm package name (e.g., @brightdata/sdk).\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured npm package data.\nRequires a valid npm package name (e.g., @brightdata/sdk).\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

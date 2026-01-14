@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetZoominfoCompanyProfileTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_zoominfo_company_profile',
   name: 'Bright Data Zoominfo Company Profile Dataset',
-  description: "Quickly read structured ZoomInfo company profile data.\nRequires a valid ZoomInfo company URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured ZoomInfo company profile data.\nRequires a valid ZoomInfo company URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

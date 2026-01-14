@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetInstagramCommentsTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_instagram_comments',
   name: 'Bright Data Instagram Comments Dataset',
-  description: "Quickly read structured Instagram comments data.\nRequires a valid Instagram URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured Instagram comments data.\nRequires a valid Instagram URL.\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {

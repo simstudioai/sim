@@ -7,7 +7,8 @@ import type { ToolConfig } from '@/tools/types'
 export const datasetLinkedinPostsTool: ToolConfig<DatasetParams, DatasetResponse> = {
   id: 'brightdata_dataset_linkedin_posts',
   name: 'Bright Data Linkedin Posts Dataset',
-  description: "Quickly read structured linkedin posts data\nThis can be a cache lookup, so it can be more reliable than scraping",
+  description:
+    'Quickly read structured linkedin posts data\nThis can be a cache lookup, so it can be more reliable than scraping',
   version: '1.0.0',
 
   params: {
