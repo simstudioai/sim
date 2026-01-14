@@ -7,6 +7,7 @@ import {
   extractWorkflowsFromFiles,
   extractWorkflowsFromZip,
   parseWorkflowJson,
+  sanitizePathSegment,
 } from '@/lib/workflows/operations/import-export'
 import { folderKeys, useCreateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow, workflowKeys } from '@/hooks/queries/workflows'
@@ -140,7 +141,6 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
             workspaceId,
           })
           const folderMap = new Map<string, string>()
-          const sanitizeName = (name: string) => name.replace(/[^a-z0-9-_]/gi, '-')
 
           if (metadata?.folders && metadata.folders.length > 0) {
             type ExportedFolder = {
@@ -159,7 +159,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
               let currentId: string | null = folderId
               while (currentId && foldersById.has(currentId)) {
                 const folder: ExportedFolder = foldersById.get(currentId)!
-                pathParts.unshift(sanitizeName(folder.name))
+                pathParts.unshift(sanitizePathSegment(folder.name))
                 currentId = folder.parentId
               }
               return pathParts.join('/')
