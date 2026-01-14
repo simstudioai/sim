@@ -82,6 +82,7 @@ export type SubBlockType =
   | 'workflow-input-mapper' // Dynamic workflow input mapper based on selected workflow
   | 'text' // Read-only text display
   | 'router-input' // Router route definitions with descriptions
+  | 'table-selector' // Table selector with link to view table
 
 /**
  * Selector types that require display name hydration

@@ -105,7 +105,8 @@ export function TableDataViewer() {
       const res = await fetch(`/api/table/${tableId}?workspaceId=${workspaceId}`)
       if (!res.ok) throw new Error('Failed to fetch table')
       const json = await res.json()
-      return json.table as TableData
+      const data = json.data || json
+      return data.table as TableData
     },
   })
 
@@ -135,7 +136,8 @@ export function TableDataViewer() {
 
       const res = await fetch(`/api/table/${tableId}/rows?${params}`)
       if (!res.ok) throw new Error('Failed to fetch rows')
-      return res.json()
+      const json = await res.json()
+      return json.data || json
     },
     enabled: !!tableData,
   })

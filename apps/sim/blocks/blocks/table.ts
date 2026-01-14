@@ -3,60 +3,6 @@ import { conditionsToFilter, sortConditionsToSort } from '@/lib/table/filter-bui
 import type { BlockConfig } from '@/blocks/types'
 import type { TableQueryResponse } from '@/tools/table/types'
 
-/**
- * Fetches available tables for the dropdown selector.
- * Defined outside BlockConfig to maintain stable reference and prevent infinite re-renders.
- */
-const fetchTableOptions = async () => {
-  const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
-  const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
-  if (!workspaceId) {
-    return []
-  }
-
-  try {
-    const response = await fetch(`/api/table?workspaceId=${workspaceId}`)
-    if (!response.ok) {
-      return []
-    }
-
-    const data = await response.json()
-    return (data.data?.tables || []).map((table: any) => ({
-      label: table.name,
-      id: table.id,
-    }))
-  } catch (error) {
-    return []
-  }
-}
-
-/**
- * Fetches a specific table option by ID.
- * Defined outside BlockConfig to maintain stable reference and prevent infinite re-renders.
- */
-const fetchTableOptionById = async (_blockId: string, _subBlockId: string, tableId: string) => {
-  const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
-  const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
-  if (!workspaceId) {
-    return null
-  }
-
-  try {
-    const response = await fetch(`/api/table?workspaceId=${workspaceId}`)
-    if (!response.ok) {
-      return null
-    }
-
-    const data = await response.json()
-    const table = (data.data?.tables || []).find((t: any) => t.id === tableId)
-    return table ? { label: table.name, id: table.id } : null
-  } catch (error) {
-    return null
-  }
-}
-
 export const TableBlock: BlockConfig<TableQueryResponse> = {
   type: 'table',
   name: 'Table',
@@ -91,12 +37,9 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
     {
       id: 'tableId',
       title: 'Table',
-      type: 'dropdown',
+      type: 'table-selector',
       placeholder: 'Select a table',
       required: true,
-      options: [],
-      fetchOptions: fetchTableOptions,
-      fetchOptionById: fetchTableOptionById,
     },
 
     // Row ID for get/update/delete

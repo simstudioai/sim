@@ -119,7 +119,8 @@ export function FilterFormat({
         const response = await fetch(`/api/table/${tableIdValue}?workspaceId=${workspaceId}`)
         if (!response.ok) return
 
-        const data = await response.json()
+        const result = await response.json()
+        const data = result.data || result
         const cols = data.table?.schema?.columns || []
         setDynamicColumns(
           cols.map((col: { name: string }) => ({ value: col.name, label: col.name }))

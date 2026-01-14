@@ -110,7 +110,8 @@ export function SortFormat({
         const response = await fetch(`/api/table/${tableIdValue}?workspaceId=${workspaceId}`)
         if (!response.ok) return
 
-        const data = await response.json()
+        const result = await response.json()
+        const data = result.data || result
         const cols = data.table?.schema?.columns || []
         // Add built-in columns for sorting
         const builtInCols = [
