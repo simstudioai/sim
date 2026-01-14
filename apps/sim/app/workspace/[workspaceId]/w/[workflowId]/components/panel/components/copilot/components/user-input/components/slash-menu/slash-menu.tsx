@@ -192,6 +192,7 @@ export function SlashMenu({
         style={{ width: '180px' }}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
+        onMouseDown={(e) => e.preventDefault()}
       >
         <PopoverBackButton />
         <SlashMenuContent

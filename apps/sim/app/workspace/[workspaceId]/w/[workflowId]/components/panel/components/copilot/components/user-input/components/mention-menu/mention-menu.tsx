@@ -94,21 +94,19 @@ function MentionMenuContent({
   const isInFolderNavigationMode = !isInFolder && !showAggregatedView
 
   useEffect(() => {
+    setSubmenuActiveIndex(0)
+  }, [isInFolder, setSubmenuActiveIndex])
+
+  useEffect(() => {
     if (onFolderNavChange) {
       onFolderNavChange({
         isInFolder,
         currentFolder,
-        openFolder: (id: string, title: string) => {
-          openFolder(id, title)
-          setSubmenuActiveIndex(0)
-        },
-        closeFolder: () => {
-          closeFolder()
-          setSubmenuActiveIndex(0)
-        },
+        openFolder,
+        closeFolder,
       })
     }
-  }, [onFolderNavChange, isInFolder, currentFolder, openFolder, closeFolder, setSubmenuActiveIndex])
+  }, [onFolderNavChange, isInFolder, currentFolder, openFolder, closeFolder])
 
   const insertHandlerMap = useMemo(
     (): InsertHandlerMap => ({
@@ -179,7 +177,6 @@ function MentionMenuContent({
       })
     }
 
-    // Add docs if it matches the query
     if ('docs'.includes(q)) {
       items.push({
         id: 'docs',
@@ -320,6 +317,7 @@ export function MentionMenu({
         style={{ width: '224px' }}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
+        onMouseDown={(e) => e.preventDefault()}
       >
         <PopoverBackButton />
         <MentionMenuContent

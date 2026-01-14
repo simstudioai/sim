@@ -21,8 +21,6 @@ export type MentionCategory = MentionFolderId | 'docs'
  * Configuration interface for folder types
  */
 export interface FolderConfig<TItem = any> {
-  /** Unique folder identifier */
-  id: MentionFolderId
   /** Display title in menu */
   title: string
   /** Data source key in useMentionData return */
@@ -52,7 +50,6 @@ export interface FolderConfig<TItem = any> {
  */
 export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
   chats: {
-    id: 'chats',
     title: 'Chats',
     dataKey: 'pastChats',
     loadingKey: 'isLoadingPastChats',
@@ -70,7 +67,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
     useInsertFallback: false,
   },
   workflows: {
-    id: 'workflows',
     title: 'All workflows',
     dataKey: 'workflows',
     loadingKey: 'isLoadingWorkflows',
@@ -88,7 +84,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
     useInsertFallback: true,
   },
   knowledge: {
-    id: 'knowledge',
     title: 'Knowledge Bases',
     dataKey: 'knowledgeBases',
     loadingKey: 'isLoadingKnowledge',
@@ -106,7 +101,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
     useInsertFallback: false,
   },
   blocks: {
-    id: 'blocks',
     title: 'Blocks',
     dataKey: 'blocksList',
     loadingKey: 'isLoadingBlocks',
@@ -124,7 +118,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
     useInsertFallback: false,
   },
   'workflow-blocks': {
-    id: 'workflow-blocks',
     title: 'Workflow Blocks',
     dataKey: 'workflowBlocks',
     loadingKey: 'isLoadingWorkflowBlocks',
@@ -143,7 +136,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
     useInsertFallback: true,
   },
   templates: {
-    id: 'templates',
     title: 'Templates',
     dataKey: 'templatesList',
     loadingKey: 'isLoadingTemplates',
@@ -161,7 +153,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
     useInsertFallback: false,
   },
   logs: {
-    id: 'logs',
     title: 'Logs',
     dataKey: 'logsList',
     loadingKey: 'isLoadingLogs',
