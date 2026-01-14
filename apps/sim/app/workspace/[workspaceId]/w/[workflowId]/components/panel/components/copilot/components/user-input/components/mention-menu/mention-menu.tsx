@@ -299,11 +299,27 @@ export function MentionMenu({
   const style = window.getComputedStyle(textareaEl)
 
   const mirrorDiv = document.createElement('div')
-  mirrorDiv.style.cssText = `position:absolute;visibility:hidden;white-space:pre-wrap;word-wrap:break-word;font:${style.font};padding:${style.padding};border:${style.border};width:${style.width};line-height:${style.lineHeight};box-sizing:${style.boxSizing};letter-spacing:${style.letterSpacing};text-transform:${style.textTransform};text-indent:${style.textIndent};text-align:${style.textAlign}`
+  mirrorDiv.style.position = 'absolute'
+  mirrorDiv.style.visibility = 'hidden'
+  mirrorDiv.style.whiteSpace = 'pre-wrap'
+  mirrorDiv.style.wordWrap = 'break-word'
+  mirrorDiv.style.font = style.font
+  mirrorDiv.style.padding = style.padding
+  mirrorDiv.style.border = style.border
+  mirrorDiv.style.width = style.width
+  mirrorDiv.style.lineHeight = style.lineHeight
+  mirrorDiv.style.boxSizing = style.boxSizing
+  mirrorDiv.style.letterSpacing = style.letterSpacing
+  mirrorDiv.style.textTransform = style.textTransform
+  mirrorDiv.style.textIndent = style.textIndent
+  mirrorDiv.style.textAlign = style.textAlign
   mirrorDiv.textContent = message.substring(0, caretPos)
 
   const caretMarker = document.createElement('span')
-  caretMarker.style.cssText = 'display:inline-block;width:0;padding:0;border:0'
+  caretMarker.style.display = 'inline-block'
+  caretMarker.style.width = '0px'
+  caretMarker.style.padding = '0'
+  caretMarker.style.border = '0'
   mirrorDiv.appendChild(caretMarker)
 
   document.body.appendChild(mirrorDiv)
