@@ -30,10 +30,10 @@ function DropIndicatorLine({ show, level = 0 }: { show: boolean; level?: number 
   if (!show) return null
   return (
     <div
-      className='pointer-events-none absolute left-0 right-0 z-20 flex items-center'
+      className='pointer-events-none absolute right-0 left-0 z-20 flex items-center'
       style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
     >
-      <div className='h-[2px] flex-1 rounded-full bg-gray-400/60' />
+      <div className='h-[2px] flex-1 rounded-full bg-[#33b4ff]/70' />
     </div>
   )
 }
@@ -228,7 +228,7 @@ export function WorkflowList({
           <div
             className={clsx(
               'pointer-events-none absolute inset-0 z-10 rounded-[4px] transition-opacity duration-75',
-              showInside && isDragging ? 'bg-gray-400/20 opacity-100' : 'opacity-0'
+              showInside && isDragging ? 'bg-[#33b4ff1a] opacity-100' : 'opacity-0'
             )}
           />
           <div
@@ -324,7 +324,7 @@ export function WorkflowList({
         <div
           className={clsx(
             'pointer-events-none absolute inset-0 z-10 rounded-[4px] transition-opacity duration-75',
-            showRootInside && isDragging ? 'bg-gray-400/20 opacity-100' : 'opacity-0'
+            showRootInside && isDragging ? 'bg-[#33b4ff1a] opacity-100' : 'opacity-0'
           )}
         />
         <div className='space-y-[2px]'>

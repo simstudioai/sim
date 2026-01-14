@@ -423,7 +423,6 @@ export function useDragDrop() {
             const position = calculateDropPosition(e, e.currentTarget)
             setNormalizedDropIndicator({ targetId: folderId, position, folderId: parentFolderId })
           } else {
-            // Cross-container: highlight this folder (drop into it)
             setNormalizedDropIndicator({
               targetId: folderId,
               position: 'inside',
@@ -432,12 +431,18 @@ export function useDragDrop() {
             setHoverFolderId(folderId)
           }
         } else {
-          setNormalizedDropIndicator({
-            targetId: folderId,
-            position: 'inside',
-            folderId: parentFolderId,
-          })
-          setHoverFolderId(folderId)
+          const isSameParent = draggedSourceFolderRef.current === parentFolderId
+          if (isSameParent) {
+            const position = calculateDropPosition(e, e.currentTarget)
+            setNormalizedDropIndicator({ targetId: folderId, position, folderId: parentFolderId })
+          } else {
+            setNormalizedDropIndicator({
+              targetId: folderId,
+              position: 'inside',
+              folderId: parentFolderId,
+            })
+            setHoverFolderId(folderId)
+          }
         }
       },
       onDragLeave: (e: React.DragEvent<HTMLElement>) => {

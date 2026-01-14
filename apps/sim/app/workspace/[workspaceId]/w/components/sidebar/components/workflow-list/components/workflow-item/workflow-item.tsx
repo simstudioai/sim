@@ -24,6 +24,10 @@ import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
+const EMPTY_DRAG_IMAGE = new Image(1, 1)
+EMPTY_DRAG_IMAGE.src =
+  'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
+
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
   active: boolean
@@ -225,6 +229,10 @@ export function WorkflowItem({
       if (isEditingRef.current) {
         e.preventDefault()
         return
+      }
+
+      if (EMPTY_DRAG_IMAGE.complete) {
+        e.dataTransfer.setDragImage(EMPTY_DRAG_IMAGE, 0, 0)
       }
 
       const currentSelection = useFolderStore.getState().selectedWorkflows

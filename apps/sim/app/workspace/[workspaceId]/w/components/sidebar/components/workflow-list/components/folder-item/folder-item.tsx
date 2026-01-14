@@ -29,6 +29,10 @@ import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
 
 const logger = createLogger('FolderItem')
 
+const EMPTY_DRAG_IMAGE = new Image(1, 1)
+EMPTY_DRAG_IMAGE.src =
+  'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
+
 interface FolderItemProps {
   folder: FolderTreeNode
   level: number
@@ -148,6 +152,10 @@ export function FolderItem({
       if (isEditing) {
         e.preventDefault()
         return
+      }
+
+      if (EMPTY_DRAG_IMAGE.complete) {
+        e.dataTransfer.setDragImage(EMPTY_DRAG_IMAGE, 0, 0)
       }
 
       e.dataTransfer.setData('folder-id', folder.id)
