@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo } from 'react'
+import { memo, useCallback, useEffect, useMemo } from 'react'
 import clsx from 'clsx'
 import { useParams, usePathname } from 'next/navigation'
 import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/folder-item/folder-item'
@@ -26,7 +26,13 @@ interface WorkflowListProps {
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
 }
 
-function DropIndicatorLine({ show, level = 0 }: { show: boolean; level?: number }) {
+const DropIndicatorLine = memo(function DropIndicatorLine({
+  show,
+  level = 0,
+}: {
+  show: boolean
+  level?: number
+}) {
   if (!show) return null
   return (
     <div
@@ -36,7 +42,7 @@ function DropIndicatorLine({ show, level = 0 }: { show: boolean; level?: number 
       <div className='h-[2px] flex-1 rounded-full bg-[#33b4ff]/70' />
     </div>
   )
-}
+})
 
 export function WorkflowList({
   regularWorkflows,

@@ -506,11 +506,10 @@ export function useDragDrop() {
     (folderId: string) => ({
       onDragOver: (e: React.DragEvent<HTMLElement>) => {
         e.preventDefault()
-        e.stopPropagation() // Prevent bubbling to root when in gaps between items
+        e.stopPropagation()
         lastDragYRef.current = e.clientY
         setIsDragging(true)
-        // Only set folder highlight if dragging from a different folder
-        if (draggedSourceFolderRef.current !== folderId) {
+        if (e.target === e.currentTarget && draggedSourceFolderRef.current !== folderId) {
           setNormalizedDropIndicator({ targetId: folderId, position: 'inside', folderId: null })
         }
       },
@@ -523,7 +522,9 @@ export function useDragDrop() {
     () => ({
       onDragOver: (e: React.DragEvent<HTMLElement>) => {
         initDragOver(e, false)
-        setNormalizedDropIndicator({ targetId: 'root', position: 'inside', folderId: null })
+        if (e.target === e.currentTarget) {
+          setNormalizedDropIndicator({ targetId: 'root', position: 'inside', folderId: null })
+        }
       },
       onDragLeave: (e: React.DragEvent<HTMLElement>) => {
         if (isLeavingElement(e)) setNormalizedDropIndicator(null)
