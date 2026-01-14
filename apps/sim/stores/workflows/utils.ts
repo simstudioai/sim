@@ -1,5 +1,19 @@
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
+
+export function filterNewEdges(edgesToAdd: Edge[], currentEdges: Edge[]): Edge[] {
+  return edgesToAdd.filter((edge) => {
+    if (edge.source === edge.target) return false
+    return !currentEdges.some(
+      (e) =>
+        e.source === edge.source &&
+        e.sourceHandle === edge.sourceHandle &&
+        e.target === edge.target &&
+        e.targetHandle === edge.targetHandle
+    )
+  })
+}
+
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { getBlock } from '@/blocks'
 import { normalizeName } from '@/executor/constants'
