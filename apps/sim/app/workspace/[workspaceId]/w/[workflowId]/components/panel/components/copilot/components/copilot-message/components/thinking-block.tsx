@@ -47,9 +47,7 @@ interface SmoothThinkingTextProps {
 const SmoothThinkingText = memo(
   ({ content, isStreaming }: SmoothThinkingTextProps) => {
     // Initialize with full content when not streaming to avoid flash on page load
-    const [displayedContent, setDisplayedContent] = useState(() =>
-      isStreaming ? '' : content
-    )
+    const [displayedContent, setDisplayedContent] = useState(() => (isStreaming ? '' : content))
     const [showGradient, setShowGradient] = useState(false)
     const contentRef = useRef(content)
     const textRef = useRef<HTMLDivElement>(null)

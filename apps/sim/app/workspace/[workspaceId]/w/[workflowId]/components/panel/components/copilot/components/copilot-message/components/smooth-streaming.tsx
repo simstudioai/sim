@@ -44,9 +44,7 @@ interface SmoothStreamingTextProps {
 export const SmoothStreamingText = memo(
   ({ content, isStreaming }: SmoothStreamingTextProps) => {
     // Initialize with full content when not streaming to avoid flash on page load
-    const [displayedContent, setDisplayedContent] = useState(() =>
-      isStreaming ? '' : content
-    )
+    const [displayedContent, setDisplayedContent] = useState(() => (isStreaming ? '' : content))
     const contentRef = useRef(content)
     const timeoutRef = useRef<NodeJS.Timeout | null>(null)
     // Initialize index based on streaming state
