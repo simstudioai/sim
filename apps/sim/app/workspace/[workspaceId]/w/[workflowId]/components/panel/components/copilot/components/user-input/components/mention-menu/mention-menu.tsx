@@ -353,10 +353,7 @@ export function MentionMenu({
   const side: 'top' | 'bottom' = spaceBelow >= caretViewport.top - margin ? 'bottom' : 'top'
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={() => {}}
-    >
+    <Popover open={open} onOpenChange={() => {}}>
       <FolderSyncEffect setOpenSubmenuFor={setOpenSubmenuFor} />
       <PopoverAnchor asChild>
         <div

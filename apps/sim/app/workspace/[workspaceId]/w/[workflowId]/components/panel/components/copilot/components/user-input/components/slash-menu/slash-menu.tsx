@@ -112,10 +112,7 @@ export function SlashMenu({ mentionMenu, message, onSelectCommand }: SlashMenuPr
   const side: 'top' | 'bottom' = spaceBelow >= caretViewport.top - margin ? 'bottom' : 'top'
 
   return (
-    <Popover
-      open={true}
-      onOpenChange={() => {}}
-    >
+    <Popover open={true} onOpenChange={() => {}}>
       <FolderSyncEffect setOpenSubmenuFor={setOpenSubmenuFor} />
       <PopoverAnchor asChild>
         <div
