@@ -1345,34 +1345,25 @@ export const useWorkflowStore = create<WorkflowStore>()(
         const currentGroups = get().groups || {}
         const currentBlocks = get().blocks
 
-        // Remove blocks from any existing groups they might be in
+        // Create the new group with all selected block IDs
         const updatedGroups = { ...currentGroups }
-        for (const gId of Object.keys(updatedGroups)) {
-          updatedGroups[gId] = {
-            ...updatedGroups[gId],
-            blockIds: updatedGroups[gId].blockIds.filter((bid) => !blockIds.includes(bid)),
-          }
-          // Remove empty groups
-          if (updatedGroups[gId].blockIds.length === 0) {
-            delete updatedGroups[gId]
-          }
-        }
-
-        // Create the new group
         updatedGroups[newGroupId] = {
           id: newGroupId,
           blockIds: [...blockIds],
         }
 
-        // Update blocks with the new groupId
+        // Update blocks: set groupId and push to groupStack
         const newBlocks = { ...currentBlocks }
         for (const blockId of blockIds) {
           if (newBlocks[blockId]) {
+            const currentData = newBlocks[blockId].data || {}
+            const currentStack = Array.isArray(currentData.groupStack) ? currentData.groupStack : []
             newBlocks[blockId] = {
               ...newBlocks[blockId],
               data: {
-                ...newBlocks[blockId].data,
+                ...currentData,
                 groupId: newGroupId,
+                groupStack: [...currentStack, newGroupId],
               },
             }
           }
@@ -1384,7 +1375,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
         })
 
         get().updateLastSaved()
-        logger.info('Created block group', { groupId: newGroupId, blockCount: blockIds.length })
+        logger.info('Created block group', {
+          groupId: newGroupId,
+          blockCount: blockIds.length,
+        })
         return newGroupId
       },
 
@@ -1399,34 +1393,42 @@ export const useWorkflowStore = create<WorkflowStore>()(
         }
 
         const blockIds = [...group.blockIds]
-        const parentGroupId = group.parentGroupId
 
-        // Remove the group
+        // Remove the group from the groups record
         const updatedGroups = { ...currentGroups }
         delete updatedGroups[groupId]
 
-        // Update blocks - remove groupId or assign to parent group
+        // Update blocks: pop from groupStack and set groupId to the previous level
         const newBlocks = { ...currentBlocks }
         for (const blockId of blockIds) {
           if (newBlocks[blockId]) {
-            const newData = { ...newBlocks[blockId].data }
-            if (parentGroupId) {
-              newData.groupId = parentGroupId
-            } else {
-              delete newData.groupId
+            const currentData = { ...newBlocks[blockId].data }
+            const currentStack = Array.isArray(currentData.groupStack)
+              ? [...currentData.groupStack]
+              : []
+
+            // Pop the current groupId from the stack
+            if (currentStack.length > 0 && currentStack[currentStack.length - 1] === groupId) {
+              currentStack.pop()
             }
+
+            // The new groupId is the top of the remaining stack, or undefined if empty
+            const newGroupId =
+              currentStack.length > 0 ? currentStack[currentStack.length - 1] : undefined
+
+            if (newGroupId) {
+              currentData.groupId = newGroupId
+              currentData.groupStack = currentStack
+            } else {
+              // Remove groupId and groupStack if stack is empty
+              delete currentData.groupId
+              delete currentData.groupStack
+            }
+
             newBlocks[blockId] = {
               ...newBlocks[blockId],
-              data: newData,
+              data: currentData,
             }
-          }
-        }
-
-        // If there's a parent group, add the blocks to it
-        if (parentGroupId && updatedGroups[parentGroupId]) {
-          updatedGroups[parentGroupId] = {
-            ...updatedGroups[parentGroupId],
-            blockIds: [...updatedGroups[parentGroupId].blockIds, ...blockIds],
           }
         }
 
@@ -1436,31 +1438,20 @@ export const useWorkflowStore = create<WorkflowStore>()(
         })
 
         get().updateLastSaved()
-        logger.info('Ungrouped blocks', { groupId, blockCount: blockIds.length })
+        logger.info('Ungrouped blocks', {
+          groupId,
+          blockCount: blockIds.length,
+        })
         return blockIds
       },
 
-      getGroupBlockIds: (groupId: string, recursive = false) => {
+      getGroupBlockIds: (groupId: string) => {
         const groups = get().groups || {}
         const group = groups[groupId]
 
         if (!group) return []
 
-        if (!recursive) {
-          return [...group.blockIds]
-        }
-
-        // Recursively get all block IDs, including from nested groups
-        const allBlockIds: string[] = [...group.blockIds]
-
-        // Find child groups (groups whose parentGroupId is this group)
-        for (const g of Object.values(groups)) {
-          if (g.parentGroupId === groupId) {
-            allBlockIds.push(...get().getGroupBlockIds(g.id, true))
-          }
-        }
-
-        return allBlockIds
+        return [...group.blockIds]
       },
 
       getGroups: () => {

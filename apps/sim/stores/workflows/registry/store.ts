@@ -298,11 +298,26 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           let workflowState: any
 
           if (workflowData?.state) {
+            const blocks = workflowData.state.blocks || {}
+
+            // Reconstruct groups from blocks' groupId data
+            const reconstructedGroups: Record<string, { id: string; blockIds: string[] }> = {}
+            Object.entries(blocks).forEach(([blockId, block]: [string, any]) => {
+              const groupId = block?.data?.groupId
+              if (groupId) {
+                if (!reconstructedGroups[groupId]) {
+                  reconstructedGroups[groupId] = { id: groupId, blockIds: [] }
+                }
+                reconstructedGroups[groupId].blockIds.push(blockId)
+              }
+            })
+
             workflowState = {
-              blocks: workflowData.state.blocks || {},
+              blocks,
               edges: workflowData.state.edges || [],
               loops: workflowData.state.loops || {},
               parallels: workflowData.state.parallels || {},
+              groups: reconstructedGroups,
               lastSaved: Date.now(),
               deploymentStatuses: {},
             }
@@ -312,6 +327,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               edges: [],
               loops: {},
               parallels: {},
+              groups: {},
               deploymentStatuses: {},
               lastSaved: Date.now(),
             }

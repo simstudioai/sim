@@ -794,11 +794,14 @@ const WorkflowContent = React.memo(() => {
   }, [contextMenuBlocks, collaborativeGroupBlocks])
 
   const handleContextUngroupBlocks = useCallback(() => {
-    // Find the first block with a groupId and ungroup that entire group
+    // Find the first block with a groupId
     const groupedBlock = contextMenuBlocks.find((block) => block.groupId)
-    if (groupedBlock?.groupId) {
-      collaborativeUngroupBlocks(groupedBlock.groupId)
-    }
+    if (!groupedBlock?.groupId) return
+
+    // The block's groupId is the group we want to ungroup
+    // This is the direct group the block belongs to, which is the "top level" from the user's perspective
+    // (the most recently created group that contains this block)
+    collaborativeUngroupBlocks(groupedBlock.groupId)
   }, [contextMenuBlocks, collaborativeUngroupBlocks])
 
   const handleContextRemoveFromSubflow = useCallback(() => {

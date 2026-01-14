@@ -66,6 +66,8 @@ export interface BlockData {
 
   // Block group membership
   groupId?: string
+  /** Stack of group IDs for hierarchical grouping (oldest to newest) */
+  groupStack?: string[]
 }
 
 export interface BlockLayoutState {
@@ -159,8 +161,6 @@ export interface BlockGroup {
   name?: string
   /** Block IDs that are direct members of this group */
   blockIds: string[]
-  /** Parent group ID if this group is nested inside another group */
-  parentGroupId?: string
 }
 
 export interface DragStartPosition {

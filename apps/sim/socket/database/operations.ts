@@ -819,6 +819,7 @@ async function handleBlocksOperationTx(
 
       logger.info(`Grouping ${blockIds.length} blocks into group ${groupId} in workflow ${workflowId}`)
 
+      // Update blocks: set groupId and push to groupStack
       for (const blockId of blockIds) {
         const [currentBlock] = await tx
           .select({ data: workflowBlocks.data })
@@ -831,8 +832,13 @@ async function handleBlocksOperationTx(
           continue
         }
 
-        const currentData = currentBlock?.data || {}
-        const updatedData = { ...currentData, groupId }
+        const currentData = (currentBlock?.data || {}) as Record<string, any>
+        const currentStack = Array.isArray(currentData.groupStack) ? currentData.groupStack : []
+        const updatedData = {
+          ...currentData,
+          groupId,
+          groupStack: [...currentStack, groupId],
+        }
 
         await tx
           .update(workflowBlocks)
@@ -848,7 +854,7 @@ async function handleBlocksOperationTx(
     }
 
     case BLOCKS_OPERATIONS.UNGROUP_BLOCKS: {
-      const { groupId, blockIds, parentGroupId } = payload
+      const { groupId, blockIds } = payload
       if (!groupId || !Array.isArray(blockIds)) {
         logger.debug('Invalid payload for ungroup blocks operation')
         return
@@ -856,6 +862,7 @@ async function handleBlocksOperationTx(
 
       logger.info(`Ungrouping ${blockIds.length} blocks from group ${groupId} in workflow ${workflowId}`)
 
+      // Update blocks: pop from groupStack and set groupId to the previous level
       for (const blockId of blockIds) {
         const [currentBlock] = await tx
           .select({ data: workflowBlocks.data })
@@ -868,15 +875,23 @@ async function handleBlocksOperationTx(
           continue
         }
 
-        const currentData = currentBlock?.data || {}
-        let updatedData: Record<string, any>
+        const currentData = (currentBlock?.data || {}) as Record<string, any>
+        const currentStack = Array.isArray(currentData.groupStack) ? [...currentData.groupStack] : []
 
-        if (parentGroupId) {
-          // Move to parent group
-          updatedData = { ...currentData, groupId: parentGroupId }
+        // Pop the current groupId from the stack
+        if (currentStack.length > 0 && currentStack[currentStack.length - 1] === groupId) {
+          currentStack.pop()
+        }
+
+        // The new groupId is the top of the remaining stack, or undefined if empty
+        const newGroupId = currentStack.length > 0 ? currentStack[currentStack.length - 1] : undefined
+
+        let updatedData: Record<string, any>
+        if (newGroupId) {
+          updatedData = { ...currentData, groupId: newGroupId, groupStack: currentStack }
         } else {
-          // Remove from group entirely
-          const { groupId: _removed, ...restData } = currentData
+          // Remove groupId and groupStack if stack is empty
+          const { groupId: _removed, groupStack: _removedStack, ...restData } = currentData
           updatedData = restData
         }
 
