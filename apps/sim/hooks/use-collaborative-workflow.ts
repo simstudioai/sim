@@ -22,7 +22,7 @@ import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { mergeSubblockState, normalizeName } from '@/stores/workflows/utils'
+import { filterNewEdges, mergeSubblockState, normalizeName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState, Loop, Parallel, Position } from '@/stores/workflows/workflow/types'
 
@@ -242,7 +242,10 @@ export function useCollaborativeWorkflow() {
             case EDGES_OPERATIONS.BATCH_ADD_EDGES: {
               const { edges } = payload
               if (Array.isArray(edges) && edges.length > 0) {
-                workflowStore.batchAddEdges(edges)
+                const newEdges = filterNewEdges(edges, workflowStore.edges)
+                if (newEdges.length > 0) {
+                  workflowStore.batchAddEdges(newEdges)
+                }
               }
               break
             }
@@ -976,6 +979,9 @@ export function useCollaborativeWorkflow() {
 
       if (edges.length === 0) return false
 
+      const newEdges = filterNewEdges(edges, workflowStore.edges)
+      if (newEdges.length === 0) return false
+
       const operationId = crypto.randomUUID()
 
       addToQueue({
@@ -983,16 +989,16 @@ export function useCollaborativeWorkflow() {
         operation: {
           operation: EDGES_OPERATIONS.BATCH_ADD_EDGES,
           target: OPERATION_TARGETS.EDGES,
-          payload: { edges },
+          payload: { edges: newEdges },
         },
         workflowId: activeWorkflowId || '',
         userId: session?.user?.id || 'unknown',
       })
 
-      workflowStore.batchAddEdges(edges)
+      workflowStore.batchAddEdges(newEdges)
 
       if (!options?.skipUndoRedo) {
-        edges.forEach((edge) => undoRedo.recordAddEdge(edge.id))
+        newEdges.forEach((edge) => undoRedo.recordAddEdge(edge.id))
       }
 
       return true

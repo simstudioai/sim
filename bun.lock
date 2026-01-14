@@ -53,6 +53,7 @@
       "name": "sim",
       "version": "0.1.0",
       "dependencies": {
+        "@a2a-js/sdk": "0.3.7",
         "@anthropic-ai/sdk": "^0.39.0",
         "@aws-sdk/client-bedrock-runtime": "3.940.0",
         "@aws-sdk/client-dynamodb": "3.940.0",
@@ -133,6 +134,7 @@
         "groq-sdk": "^0.15.0",
         "html-to-image": "1.11.13",
         "html-to-text": "^9.0.5",
+        "idb-keyval": "6.2.2",
         "imapflow": "1.2.4",
         "input-otp": "^1.4.2",
         "ioredis": "^5.6.0",
@@ -318,6 +320,8 @@
     "react-dom": "19.2.1",
   },
   "packages": {
+    "@a2a-js/sdk": ["@a2a-js/sdk@0.3.7", "", { "dependencies": { "uuid": "^11.1.0" }, "peerDependencies": { "express": "^4.21.2 || ^5.1.0" }, "optionalPeers": ["express"] }, "sha512-1WBghkOjgiKt4rPNje8jlB9VateVQXqyjlc887bY/H8yM82Hlf0+5JW8zB98BPExKAplI5XqtXVH980J6vqi+w=="],
+
     "@adobe/css-tools": ["@adobe/css-tools@4.4.4", "", {}, "sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg=="],
 
     "@ai-sdk/anthropic": ["@ai-sdk/anthropic@2.0.56", "", { "dependencies": { "@ai-sdk/provider": "2.0.0", "@ai-sdk/provider-utils": "3.0.19" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-XHJKu0Yvfu9SPzRfsAFESa+9T7f2YJY6TxykKMfRsAwpeWAiX/Gbx5J5uM15AzYC3Rw8tVP3oH+j7jEivENirQ=="],
@@ -2307,6 +2311,8 @@
     "husky": ["husky@9.1.7", "", { "bin": { "husky": "bin.js" } }, "sha512-5gs5ytaNjBrh5Ow3zrvdUUY+0VxIuWVL4i9irt6friV+BqdCfmV11CQTWMiBYWHbXhco+J1kHfTOUkePhCDvMA=="],
 
     "iconv-lite": ["iconv-lite@0.6.3", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw=="],
+
+    "idb-keyval": ["idb-keyval@6.2.2", "", {}, "sha512-yjD9nARJ/jb1g+CvD0tlhUHOrJ9Sy0P8T9MF3YaLlHnSRpwPfpTX0XIvpmw3gAJUmEu3FiICLBDPXVwyEvrleg=="],
 
     "ieee754": ["ieee754@1.2.1", "", {}, "sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA=="],
 

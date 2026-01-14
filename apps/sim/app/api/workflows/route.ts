@@ -1,12 +1,12 @@
 import { db } from '@sim/db'
-import { workflow, workspace } from '@sim/db/schema'
+import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, max } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowAPI')
@@ -37,13 +37,9 @@ export async function GET(request: Request) {
     const userId = session.user.id
 
     if (workspaceId) {
-      const workspaceExists = await db
-        .select({ id: workspace.id })
-        .from(workspace)
-        .where(eq(workspace.id, workspaceId))
-        .then((rows) => rows.length > 0)
+      const wsExists = await workspaceExists(workspaceId)
 
-      if (!workspaceExists) {
+      if (!wsExists) {
         logger.warn(
           `[${requestId}] Attempt to fetch workflows for non-existent workspace: ${workspaceId}`
         )

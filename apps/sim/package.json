@@ -23,6 +23,7 @@
     "generate-docs": "bun run ../../scripts/generate-docs.ts"
   },
   "dependencies": {
+    "@a2a-js/sdk": "0.3.7",
     "@anthropic-ai/sdk": "^0.39.0",
     "@aws-sdk/client-bedrock-runtime": "3.940.0",
     "@aws-sdk/client-dynamodb": "3.940.0",
@@ -103,6 +104,7 @@
     "groq-sdk": "^0.15.0",
     "html-to-image": "1.11.13",
     "html-to-text": "^9.0.5",
+    "idb-keyval": "6.2.2",
     "imapflow": "1.2.4",
     "input-otp": "^1.4.2",
     "ioredis": "^5.6.0",

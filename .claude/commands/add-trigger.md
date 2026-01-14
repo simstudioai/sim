@@ -1,11 +1,11 @@
 ---
-description: Create webhook triggers for a Sim Studio integration using the generic trigger builder
+description: Create webhook triggers for a Sim integration using the generic trigger builder
 argument-hint: <service-name>
 ---
 
 # Add Trigger Skill
 
-You are an expert at creating webhook triggers for Sim Studio. You understand the trigger system, the generic `buildTriggerSubBlocks` helper, and how triggers connect to blocks.
+You are an expert at creating webhook triggers for Sim. You understand the trigger system, the generic `buildTriggerSubBlocks` helper, and how triggers connect to blocks.
 
 ## Your Task
 
@@ -552,6 +552,53 @@ All fields automatically have:
 - `mode: 'trigger'` - Only shown in trigger mode
 - `condition: { field: 'selectedTriggerId', value: triggerId }` - Only shown when this trigger is selected
 
+## Trigger Outputs & Webhook Input Formatting
+
+### Important: Two Sources of Truth
+
+There are two related but separate concerns:
+
+1. **Trigger `outputs`** - Schema/contract defining what fields SHOULD be available. Used by UI for tag dropdown.
+2. **`formatWebhookInput`** - Implementation that transforms raw webhook payload into actual data. Located in `apps/sim/lib/webhooks/utils.server.ts`.
+
+**These MUST be aligned.** The fields returned by `formatWebhookInput` should match what's defined in trigger `outputs`. If they differ:
+- Tag dropdown shows fields that don't exist (broken variable resolution)
+- Or actual data has fields not shown in dropdown (users can't discover them)
+
+### When to Add a formatWebhookInput Handler
+
+- **Simple providers**: If the raw webhook payload structure already matches your outputs, you don't need a handler. The generic fallback returns `body` directly.
+- **Complex providers**: If you need to transform, flatten, extract nested data, compute fields, or handle conditional logic, add a handler.
+
+### Adding a Handler
+
+In `apps/sim/lib/webhooks/utils.server.ts`, add a handler block:
+
+```typescript
+if (foundWebhook.provider === '{service}') {
+  // Transform raw webhook body to match trigger outputs
+  return {
+    eventType: body.type,
+    resourceId: body.data?.id || '',
+    timestamp: body.created_at,
+    resource: body.data,
+  }
+}
+```
+
+**Key rules:**
+- Return fields that match your trigger `outputs` definition exactly
+- No wrapper objects like `webhook: { data: ... }` or `{service}: { ... }`
+- No duplication (don't spread body AND add individual fields)
+- Use `null` for missing optional data, not empty objects with empty strings
+
+### Verify Alignment
+
+Run the alignment checker:
+```bash
+bunx scripts/check-trigger-alignment.ts {service}
+```
+
 ## Trigger Outputs
 
 Trigger outputs use the same schema as block outputs (NOT tool outputs).
@@ -648,6 +695,11 @@ export const {service}WebhookTrigger: TriggerConfig = {
 - [ ] Added `create{Service}WebhookSubscription` helper function
 - [ ] Added `delete{Service}Webhook` function to `provider-subscriptions.ts`
 - [ ] Added provider to `cleanupExternalWebhook` function
+
+### Webhook Input Formatting
+- [ ] Added handler in `apps/sim/lib/webhooks/utils.server.ts` (if custom formatting needed)
+- [ ] Handler returns fields matching trigger `outputs` exactly
+- [ ] Run `bunx scripts/check-trigger-alignment.ts {service}` to verify alignment
 
 ### Testing
 - [ ] Run `bun run type-check` to verify no TypeScript errors

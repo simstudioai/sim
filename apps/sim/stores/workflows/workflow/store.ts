@@ -9,7 +9,12 @@ import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { getUniqueBlockName, mergeSubblockState, normalizeName } from '@/stores/workflows/utils'
+import {
+  filterNewEdges,
+  getUniqueBlockName,
+  mergeSubblockState,
+  normalizeName,
+} from '@/stores/workflows/utils'
 import type {
   Position,
   SubBlockState,
@@ -496,25 +501,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
       batchAddEdges: (edges: Edge[]) => {
         const currentEdges = get().edges
+        const filtered = filterNewEdges(edges, currentEdges)
         const newEdges = [...currentEdges]
-        const existingEdgeIds = new Set(currentEdges.map((e) => e.id))
-        // Track existing connections to prevent duplicates (same source->target)
-        const existingConnections = new Set(currentEdges.map((e) => `${e.source}->${e.target}`))
 
-        for (const edge of edges) {
-          // Skip if edge ID already exists
-          if (existingEdgeIds.has(edge.id)) continue
-
-          // Skip self-referencing edges
-          if (edge.source === edge.target) continue
-
-          // Skip if connection already exists (same source and target)
-          const connectionKey = `${edge.source}->${edge.target}`
-          if (existingConnections.has(connectionKey)) continue
-
-          // Skip if would create a cycle
+        for (const edge of filtered) {
           if (wouldCreateCycle([...newEdges], edge.source, edge.target)) continue
-
           newEdges.push({
             id: edge.id || crypto.randomUUID(),
             source: edge.source,
@@ -524,8 +515,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
             type: edge.type || 'default',
             data: edge.data || {},
           })
-          existingEdgeIds.add(edge.id)
-          existingConnections.add(connectionKey)
         }
 
         const blocks = get().blocks

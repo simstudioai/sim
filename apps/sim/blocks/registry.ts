@@ -1,3 +1,4 @@
+import { A2ABlock } from '@/blocks/blocks/a2a'
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { AhrefsBlock } from '@/blocks/blocks/ahrefs'
 import { AirtableBlock } from '@/blocks/blocks/airtable'
@@ -120,6 +121,7 @@ import { SupabaseBlock } from '@/blocks/blocks/supabase'
 import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
+import { TinybirdBlock } from '@/blocks/blocks/tinybird'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { TrelloBlock } from '@/blocks/blocks/trello'
 import { TtsBlock } from '@/blocks/blocks/tts'
@@ -148,6 +150,7 @@ import { SQSBlock } from './blocks/sqs'
 
 // Registry of all available blocks, alphabetically sorted
 export const registry: Record<string, BlockConfig> = {
+  a2a: A2ABlock,
   agent: AgentBlock,
   ahrefs: AhrefsBlock,
   airtable: AirtableBlock,
@@ -279,6 +282,7 @@ export const registry: Record<string, BlockConfig> = {
   tavily: TavilyBlock,
   telegram: TelegramBlock,
   thinking: ThinkingBlock,
+  tinybird: TinybirdBlock,
   translate: TranslateBlock,
   trello: TrelloBlock,
   twilio_sms: TwilioSMSBlock,
@@ -308,6 +312,26 @@ export const getBlock = (type: string): BlockConfig | undefined => {
     return registry[type]
   }
   const normalized = type.replace(/-/g, '_')
+  return registry[normalized]
+}
+
+export const getLatestBlock = (baseType: string): BlockConfig | undefined => {
+  const normalized = baseType.replace(/-/g, '_')
+
+  const versionedKeys = Object.keys(registry).filter((key) => {
+    const match = key.match(new RegExp(`^${normalized}_v(\\d+)$`))
+    return match !== null
+  })
+
+  if (versionedKeys.length > 0) {
+    const sorted = versionedKeys.sort((a, b) => {
+      const versionA = Number.parseInt(a.match(/_v(\d+)$/)?.[1] || '0', 10)
+      const versionB = Number.parseInt(b.match(/_v(\d+)$/)?.[1] || '0', 10)
+      return versionB - versionA
+    })
+    return registry[sorted[0]]
+  }
+
   return registry[normalized]
 }
 

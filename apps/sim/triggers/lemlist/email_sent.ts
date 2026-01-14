@@ -1,7 +1,7 @@
 import { LemlistIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
 import {
-  buildActivityOutputs,
+  buildEmailSentOutputs,
   buildLemlistExtraFields,
   lemlistSetupInstructions,
   lemlistTriggerOptions,
@@ -27,7 +27,7 @@ export const lemlistEmailSentTrigger: TriggerConfig = {
     extraFields: buildLemlistExtraFields('lemlist_email_sent'),
   }),
 
-  outputs: buildActivityOutputs(),
+  outputs: buildEmailSentOutputs(),
 
   webhook: {
     method: 'POST',

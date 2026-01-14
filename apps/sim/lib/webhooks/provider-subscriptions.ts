@@ -82,7 +82,6 @@ export async function createTeamsSubscription(
     }
   }
 
-  // Always use NEXT_PUBLIC_APP_URL to ensure Microsoft Graph can reach the public endpoint
   const notificationUrl = getNotificationUrl(webhook)
   const resource = `/chats/${chatId}/messages`
 

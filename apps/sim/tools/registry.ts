@@ -1,4 +1,14 @@
 import {
+  a2aCancelTaskTool,
+  a2aDeletePushNotificationTool,
+  a2aGetAgentCardTool,
+  a2aGetPushNotificationTool,
+  a2aGetTaskTool,
+  a2aResubscribeTool,
+  a2aSendMessageTool,
+  a2aSetPushNotificationTool,
+} from '@/tools/a2a'
+import {
   ahrefsBacklinksStatsTool,
   ahrefsBacklinksTool,
   ahrefsBrokenBacklinksTool,
@@ -1169,6 +1179,8 @@ import {
   slackCanvasTool,
   slackDeleteMessageTool,
   slackDownloadTool,
+  slackGetMessageTool,
+  slackGetThreadTool,
   slackGetUserTool,
   slackListChannelsTool,
   slackListMembersTool,
@@ -1369,6 +1381,7 @@ import {
   telegramSendVideoTool,
 } from '@/tools/telegram'
 import { thinkingTool } from '@/tools/thinking'
+import { tinybirdEventsTool, tinybirdQueryTool } from '@/tools/tinybird'
 import {
   trelloAddCommentTool,
   trelloCreateCardTool,
@@ -1523,6 +1536,14 @@ import { sqsSendTool } from './sqs'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
+  a2a_cancel_task: a2aCancelTaskTool,
+  a2a_delete_push_notification: a2aDeletePushNotificationTool,
+  a2a_get_agent_card: a2aGetAgentCardTool,
+  a2a_get_push_notification: a2aGetPushNotificationTool,
+  a2a_get_task: a2aGetTaskTool,
+  a2a_resubscribe: a2aResubscribeTool,
+  a2a_send_message: a2aSendMessageTool,
+  a2a_set_push_notification: a2aSetPushNotificationTool,
   arxiv_search: arxivSearchTool,
   arxiv_get_paper: arxivGetPaperTool,
   arxiv_get_author_papers: arxivGetAuthorPapersTool,
@@ -1711,6 +1732,8 @@ export const tools: Record<string, ToolConfig> = {
   slack_list_members: slackListMembersTool,
   slack_list_users: slackListUsersTool,
   slack_get_user: slackGetUserTool,
+  slack_get_message: slackGetMessageTool,
+  slack_get_thread: slackGetThreadTool,
   slack_canvas: slackCanvasTool,
   slack_download: slackDownloadTool,
   slack_update_message: slackUpdateMessageTool,
@@ -2215,6 +2238,8 @@ export const tools: Record<string, ToolConfig> = {
   apollo_email_accounts: apolloEmailAccountsTool,
   mistral_parser: mistralParserTool,
   thinking_tool: thinkingTool,
+  tinybird_events: tinybirdEventsTool,
+  tinybird_query: tinybirdQueryTool,
   stagehand_extract: stagehandExtractTool,
   stagehand_agent: stagehandAgentTool,
   mem0_add_memories: mem0AddMemoriesTool,

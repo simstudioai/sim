@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronUp } from 'lucide-react'
 import CopilotMarkdownRenderer from './markdown-renderer'
@@ -8,17 +8,150 @@ import CopilotMarkdownRenderer from './markdown-renderer'
 /**
  * Max height for thinking content before internal scrolling kicks in
  */
-const THINKING_MAX_HEIGHT = 200
+const THINKING_MAX_HEIGHT = 150
+
+/**
+ * Height threshold before gradient fade kicks in
+ */
+const GRADIENT_THRESHOLD = 100
 
 /**
  * Interval for auto-scroll during streaming (ms)
  */
-const SCROLL_INTERVAL = 100
+const SCROLL_INTERVAL = 50
 
 /**
  * Timer update interval in milliseconds
  */
 const TIMER_UPDATE_INTERVAL = 100
+
+/**
+ * Thinking text streaming - much faster than main text
+ * Essentially instant with minimal delay
+ */
+const THINKING_DELAY = 0.5
+const THINKING_CHARS_PER_FRAME = 3
+
+/**
+ * Props for the SmoothThinkingText component
+ */
+interface SmoothThinkingTextProps {
+  content: string
+  isStreaming: boolean
+}
+
+/**
+ * SmoothThinkingText renders thinking content with fast streaming animation
+ * Uses gradient fade at top when content is tall enough
+ */
+const SmoothThinkingText = memo(
+  ({ content, isStreaming }: SmoothThinkingTextProps) => {
+    const [displayedContent, setDisplayedContent] = useState('')
+    const [showGradient, setShowGradient] = useState(false)
+    const contentRef = useRef(content)
+    const textRef = useRef<HTMLDivElement>(null)
+    const rafRef = useRef<number | null>(null)
+    const indexRef = useRef(0)
+    const lastFrameTimeRef = useRef<number>(0)
+    const isAnimatingRef = useRef(false)
+
+    useEffect(() => {
+      contentRef.current = content
+
+      if (content.length === 0) {
+        setDisplayedContent('')
+        indexRef.current = 0
+        return
+      }
+
+      if (isStreaming) {
+        if (indexRef.current < content.length && !isAnimatingRef.current) {
+          isAnimatingRef.current = true
+          lastFrameTimeRef.current = performance.now()
+
+          const animateText = (timestamp: number) => {
+            const currentContent = contentRef.current
+            const currentIndex = indexRef.current
+            const elapsed = timestamp - lastFrameTimeRef.current
+
+            if (elapsed >= THINKING_DELAY) {
+              if (currentIndex < currentContent.length) {
+                // Reveal multiple characters per frame for faster streaming
+                const newIndex = Math.min(
+                  currentIndex + THINKING_CHARS_PER_FRAME,
+                  currentContent.length
+                )
+                const newDisplayed = currentContent.slice(0, newIndex)
+                setDisplayedContent(newDisplayed)
+                indexRef.current = newIndex
+                lastFrameTimeRef.current = timestamp
+              }
+            }
+
+            if (indexRef.current < currentContent.length) {
+              rafRef.current = requestAnimationFrame(animateText)
+            } else {
+              isAnimatingRef.current = false
+            }
+          }
+
+          rafRef.current = requestAnimationFrame(animateText)
+        }
+      } else {
+        // Streaming ended - show full content immediately
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current)
+        }
+        setDisplayedContent(content)
+        indexRef.current = content.length
+        isAnimatingRef.current = false
+      }
+
+      return () => {
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current)
+        }
+        isAnimatingRef.current = false
+      }
+    }, [content, isStreaming])
+
+    // Check if content height exceeds threshold for gradient
+    useEffect(() => {
+      if (textRef.current && isStreaming) {
+        const height = textRef.current.scrollHeight
+        setShowGradient(height > GRADIENT_THRESHOLD)
+      } else {
+        setShowGradient(false)
+      }
+    }, [displayedContent, isStreaming])
+
+    // Apply vertical gradient fade at the top only when content is tall enough
+    const gradientStyle =
+      isStreaming && showGradient
+        ? {
+            maskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 100%)',
+            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 100%)',
+          }
+        : undefined
+
+    return (
+      <div
+        ref={textRef}
+        className='[&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-[1.4] [&_p]:!m-0 [&_p]:!mb-1 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h1]:!m-0 [&_h1]:!mb-1 [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h2]:!m-0 [&_h2]:!mb-1 [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_h3]:!m-0 [&_h3]:!mb-1 [&_code]:!text-[11px] [&_ul]:!pl-5 [&_ul]:!my-1 [&_ol]:!pl-6 [&_ol]:!my-1 [&_li]:!my-0.5 [&_li]:!py-0 font-season text-[12px] text-[var(--text-muted)]'
+        style={gradientStyle}
+      >
+        <CopilotMarkdownRenderer content={displayedContent} />
+      </div>
+    )
+  },
+  (prevProps, nextProps) => {
+    return (
+      prevProps.content === nextProps.content && prevProps.isStreaming === nextProps.isStreaming
+    )
+  }
+)
+
+SmoothThinkingText.displayName = 'SmoothThinkingText'
 
 /**
  * Props for the ThinkingBlock component
@@ -66,8 +199,8 @@ export function ThinkingBlock({
    * Auto-collapses when streaming ends OR when following content arrives
    */
   useEffect(() => {
-    // Collapse if streaming ended or if there's following content (like a tool call)
-    if (!isStreaming || hasFollowingContent) {
+    // Collapse if streaming ended, there's following content, or special tags arrived
+    if (!isStreaming || hasFollowingContent || hasSpecialTags) {
       setIsExpanded(false)
       userCollapsedRef.current = false
       setUserHasScrolledAway(false)
@@ -77,7 +210,7 @@ export function ThinkingBlock({
     if (!userCollapsedRef.current && content && content.trim().length > 0) {
       setIsExpanded(true)
     }
-  }, [isStreaming, content, hasFollowingContent])
+  }, [isStreaming, content, hasFollowingContent, hasSpecialTags])
 
   // Reset start time when streaming begins
   useEffect(() => {
@@ -113,14 +246,14 @@ export function ThinkingBlock({
       const isNearBottom = distanceFromBottom <= 20
 
       const delta = scrollTop - lastScrollTopRef.current
-      const movedUp = delta < -2
+      const movedUp = delta < -1
 
       if (movedUp && !isNearBottom) {
         setUserHasScrolledAway(true)
       }
 
-      // Re-stick if user scrolls back to bottom
-      if (userHasScrolledAway && isNearBottom) {
+      // Re-stick if user scrolls back to bottom with intent
+      if (userHasScrolledAway && isNearBottom && delta > 10) {
         setUserHasScrolledAway(false)
       }
 
@@ -133,7 +266,7 @@ export function ThinkingBlock({
     return () => container.removeEventListener('scroll', handleScroll)
   }, [isExpanded, userHasScrolledAway])
 
-  // Smart auto-scroll: only scroll if user hasn't scrolled away
+  // Smart auto-scroll: always scroll to bottom while streaming unless user scrolled away
   useEffect(() => {
     if (!isStreaming || !isExpanded || userHasScrolledAway) return
 
@@ -141,20 +274,14 @@ export function ThinkingBlock({
       const container = scrollContainerRef.current
       if (!container) return
 
-      const { scrollTop, scrollHeight, clientHeight } = container
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-      const isNearBottom = distanceFromBottom <= 50
-
-      if (isNearBottom) {
-        programmaticScrollRef.current = true
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: 'smooth',
-        })
-        window.setTimeout(() => {
-          programmaticScrollRef.current = false
-        }, 150)
-      }
+      programmaticScrollRef.current = true
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'auto',
+      })
+      window.setTimeout(() => {
+        programmaticScrollRef.current = false
+      }, 16)
     }, SCROLL_INTERVAL)
 
     return () => window.clearInterval(intervalId)
@@ -241,15 +368,11 @@ export function ThinkingBlock({
         <div
           ref={scrollContainerRef}
           className={clsx(
-            'overflow-y-auto transition-all duration-300 ease-in-out',
-            isExpanded ? 'mt-1.5 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
+            'overflow-y-auto transition-all duration-150 ease-out',
+            isExpanded ? 'mt-1.5 max-h-[150px] opacity-100' : 'max-h-0 opacity-0'
           )}
         >
-          {/* Render markdown during streaming with thinking text styling */}
-          <div className='[&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-[1.3] [&_p]:!m-0 [&_p]:!mb-1 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h1]:!m-0 [&_h1]:!mb-1 [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h2]:!m-0 [&_h2]:!mb-1 [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_h3]:!m-0 [&_h3]:!mb-1 [&_code]:!text-[11px] [&_ul]:!pl-5 [&_ul]:!my-1 [&_ol]:!pl-6 [&_ol]:!my-1 [&_li]:!my-0.5 [&_li]:!py-0 [&_br]:!leading-[0.5] [&_table]:!my-2 [&_th]:!px-2 [&_th]:!py-1 [&_th]:!text-[11px] [&_td]:!px-2 [&_td]:!py-1 [&_td]:!text-[11px] whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-muted)]'>
-            <CopilotMarkdownRenderer content={content} />
-            <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[var(--text-muted)]' />
-          </div>
+          <SmoothThinkingText content={content} isStreaming={isStreaming && !hasFollowingContent} />
         </div>
       </div>
     )
@@ -281,12 +404,12 @@ export function ThinkingBlock({
       <div
         ref={scrollContainerRef}
         className={clsx(
-          'overflow-y-auto transition-all duration-300 ease-in-out',
-          isExpanded ? 'mt-1.5 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
+          'overflow-y-auto transition-all duration-150 ease-out',
+          isExpanded ? 'mt-1.5 max-h-[150px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
-        {/* Use markdown renderer for completed content */}
-        <div className='[&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-[1.3] [&_p]:!m-0 [&_p]:!mb-1 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h1]:!m-0 [&_h1]:!mb-1 [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h2]:!m-0 [&_h2]:!mb-1 [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_h3]:!m-0 [&_h3]:!mb-1 [&_code]:!text-[11px] [&_ul]:!pl-5 [&_ul]:!my-1 [&_ol]:!pl-6 [&_ol]:!my-1 [&_li]:!my-0.5 [&_li]:!py-0 [&_br]:!leading-[0.5] [&_table]:!my-2 [&_th]:!px-2 [&_th]:!py-1 [&_th]:!text-[11px] [&_td]:!px-2 [&_td]:!py-1 [&_td]:!text-[11px] whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-muted)]'>
+        {/* Completed thinking text - dimmed with markdown */}
+        <div className='[&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-[1.4] [&_p]:!m-0 [&_p]:!mb-1 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h1]:!m-0 [&_h1]:!mb-1 [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h2]:!m-0 [&_h2]:!mb-1 [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_h3]:!m-0 [&_h3]:!mb-1 [&_code]:!text-[11px] [&_ul]:!pl-5 [&_ul]:!my-1 [&_ol]:!pl-6 [&_ol]:!my-1 [&_li]:!my-0.5 [&_li]:!py-0 font-season text-[12px] text-[var(--text-muted)]'>
           <CopilotMarkdownRenderer content={content} />
         </div>
       </div>

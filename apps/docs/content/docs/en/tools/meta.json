@@ -1,6 +1,7 @@
 {
   "pages": [
     "index",
+    "a2a",
     "ahrefs",
     "airtable",
     "apify",
@@ -102,6 +103,8 @@
     "supabase",
     "tavily",
     "telegram",
+    "thinking",
+    "tinybird",
     "translate",
     "trello",
     "tts",

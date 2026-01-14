@@ -80,7 +80,6 @@ export function FolderItem({
   })
 
   const { isExporting, hasWorkflows, handleExportFolder } = useExportFolder({
-    workspaceId,
     folderId: folder.id,
   })
 
