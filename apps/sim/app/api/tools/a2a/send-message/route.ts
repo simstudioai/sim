@@ -113,6 +113,8 @@ export async function POST(request: NextRequest) {
             if (match) {
               mimeType = mimeType || match[1]
               bytes = match[2]
+            } else {
+              bytes = file.data
             }
           }
 
