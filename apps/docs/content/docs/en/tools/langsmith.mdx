@@ -7,7 +7,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="langsmith"
-  color="#1B5DFF"
+  color="#181C1E"
 />
 
 ## Usage Instructions
@@ -27,11 +27,11 @@ Forward a single run to LangSmith for ingestion.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | LangSmith API key |
-| `runId` | string | Yes | Unique run identifier |
+| `id` | string | No | Unique run identifier |
 | `name` | string | Yes | Run name |
-| `runType` | string | Yes | Run type \(tool, chain, llm, retriever, embedding, prompt, parser\) |
-| `startTime` | string | Yes | Run start time in ISO-8601 format |
-| `endTime` | string | No | Run end time in ISO-8601 format |
+| `run_type` | string | Yes | Run type \(tool, chain, llm, retriever, embedding, prompt, parser\) |
+| `start_time` | string | No | Run start time in ISO-8601 format |
+| `end_time` | string | No | Run end time in ISO-8601 format |
 
 #### Output
 
