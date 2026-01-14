@@ -33,7 +33,7 @@ function DropIndicatorLine({ show, level = 0 }: { show: boolean; level?: number 
       className='pointer-events-none absolute left-0 right-0 z-20 flex items-center'
       style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
     >
-      <div className='h-[2px] flex-1 rounded-full bg-[#0096FF]' />
+      <div className='h-[2px] flex-1 rounded-full bg-gray-400/60' />
     </div>
   )
 }
@@ -163,7 +163,7 @@ export function WorkflowList({
               active={isWorkflowActive(workflow.id)}
               level={level}
               onWorkflowClick={handleWorkflowClick}
-              onDragStart={() => handleDragStart('workflow')}
+              onDragStart={() => handleDragStart('workflow', folderId)}
               onDragEnd={handleDragEnd}
             />
           </div>
@@ -224,18 +224,21 @@ export function WorkflowList({
       return (
         <div key={folder.id} className='relative'>
           <DropIndicatorLine show={showBefore} level={level} />
+          {/* Drop target highlight overlay - covers entire folder section */}
           <div
             className={clsx(
-              'rounded-[4px] transition-colors duration-75',
-              showInside && isDragging && 'bg-[#0096FF]/10'
+              'pointer-events-none absolute inset-0 z-10 rounded-[4px] transition-opacity duration-75',
+              showInside && isDragging ? 'bg-gray-400/20 opacity-100' : 'opacity-0'
             )}
+          />
+          <div
             style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
             {...createFolderDragHandlers(folder.id, parentFolderId)}
           >
             <FolderItem
               folder={folder}
               level={level}
-              onDragStart={() => handleDragStart('folder')}
+              onDragStart={() => handleDragStart('folder', parentFolderId)}
               onDragEnd={handleDragEnd}
             />
           </div>
@@ -314,13 +317,16 @@ export function WorkflowList({
   return (
     <div className='flex min-h-full flex-col pb-[8px]' onClick={handleContainerClick}>
       <div
-        className={clsx(
-          'relative flex-1 rounded-[4px] transition-colors duration-75',
-          !hasRootItems && 'min-h-[26px]',
-          showRootInside && isDragging && 'bg-[#0096FF]/10'
-        )}
+        className={clsx('relative flex-1 rounded-[4px]', !hasRootItems && 'min-h-[26px]')}
         {...rootDropZoneHandlers}
       >
+        {/* Root drop target highlight overlay */}
+        <div
+          className={clsx(
+            'pointer-events-none absolute inset-0 z-10 rounded-[4px] transition-opacity duration-75',
+            showRootInside && isDragging ? 'bg-gray-400/20 opacity-100' : 'opacity-0'
+          )}
+        />
         <div className='space-y-[2px]'>
           {rootItems.map((item) =>
             item.type === 'folder'

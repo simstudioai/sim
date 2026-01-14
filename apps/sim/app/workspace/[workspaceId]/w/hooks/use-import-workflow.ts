@@ -140,9 +140,9 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
             workspaceId,
           })
           const folderMap = new Map<string, string>()
+          const sanitizeName = (name: string) => name.replace(/[^a-z0-9-_]/gi, '-')
 
-          const exportedFoldersByPath = new Map<string, { sortOrder?: number }>()
-          if (metadata?.folders) {
+          if (metadata?.folders && metadata.folders.length > 0) {
             type ExportedFolder = {
               id: string
               name: string
@@ -152,7 +152,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
             const foldersById = new Map<string, ExportedFolder>(
               metadata.folders.map((f) => [f.id, f])
             )
-            const sanitizeName = (name: string) => name.replace(/[^a-z0-9-_]/gi, '-')
+            const oldIdToNewId = new Map<string, string>()
 
             const buildPath = (folderId: string): string => {
               const pathParts: string[] = []
@@ -165,9 +165,29 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
               return pathParts.join('/')
             }
 
-            for (const f of metadata.folders) {
-              const path = buildPath(f.id)
-              exportedFoldersByPath.set(path, { sortOrder: f.sortOrder })
+            const createFolderRecursive = async (folder: ExportedFolder): Promise<string> => {
+              if (oldIdToNewId.has(folder.id)) {
+                return oldIdToNewId.get(folder.id)!
+              }
+
+              let parentId = importFolder.id
+              if (folder.parentId && foldersById.has(folder.parentId)) {
+                parentId = await createFolderRecursive(foldersById.get(folder.parentId)!)
+              }
+
+              const newFolder = await createFolderMutation.mutateAsync({
+                name: folder.name,
+                workspaceId,
+                parentId,
+                sortOrder: folder.sortOrder,
+              })
+              oldIdToNewId.set(folder.id, newFolder.id)
+              folderMap.set(buildPath(folder.id), newFolder.id)
+              return newFolder.id
+            }
+
+            for (const folder of metadata.folders) {
+              await createFolderRecursive(folder)
             }
           }
 
@@ -178,20 +198,19 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
               if (workflow.folderPath.length > 0) {
                 const folderPathKey = workflow.folderPath.join('/')
 
-                if (!folderMap.has(folderPathKey)) {
+                if (folderMap.has(folderPathKey)) {
+                  targetFolderId = folderMap.get(folderPathKey)!
+                } else {
                   let parentId = importFolder.id
-
                   for (let i = 0; i < workflow.folderPath.length; i++) {
                     const pathSegment = workflow.folderPath.slice(0, i + 1).join('/')
                     const folderNameForSegment = workflow.folderPath[i]
 
                     if (!folderMap.has(pathSegment)) {
-                      const exportedFolder = exportedFoldersByPath.get(pathSegment)
                       const subFolder = await createFolderMutation.mutateAsync({
                         name: folderNameForSegment,
                         workspaceId,
                         parentId,
-                        sortOrder: exportedFolder?.sortOrder,
                       })
                       folderMap.set(pathSegment, subFolder.id)
                       parentId = subFolder.id
@@ -199,9 +218,8 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
                       parentId = folderMap.get(pathSegment)!
                     }
                   }
+                  targetFolderId = folderMap.get(folderPathKey)!
                 }
-
-                targetFolderId = folderMap.get(folderPathKey)!
               }
 
               const workflowId = await importSingleWorkflow(

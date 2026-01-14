@@ -13,6 +13,7 @@ const logger = createLogger('Workspaces')
 
 const createWorkspaceSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
+  skipDefaultWorkflow: z.boolean().optional().default(false),
 })
 
 // Get all workspaces for the current user
@@ -63,9 +64,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { name } = createWorkspaceSchema.parse(await req.json())
+    const { name, skipDefaultWorkflow } = createWorkspaceSchema.parse(await req.json())
 
-    const newWorkspace = await createWorkspace(session.user.id, name)
+    const newWorkspace = await createWorkspace(session.user.id, name, skipDefaultWorkflow)
 
     return NextResponse.json({ workspace: newWorkspace })
   } catch (error) {
@@ -80,7 +81,7 @@ async function createDefaultWorkspace(userId: string, userName?: string | null) 
   return createWorkspace(userId, workspaceName)
 }
 
-async function createWorkspace(userId: string, name: string) {
+async function createWorkspace(userId: string, name: string, skipDefaultWorkflow = false) {
   const workspaceId = crypto.randomUUID()
   const workflowId = crypto.randomUUID()
   const now = new Date()
@@ -97,7 +98,6 @@ async function createWorkspace(userId: string, name: string) {
         updatedAt: now,
       })
 
-      // Create admin permissions for the workspace owner
       await tx.insert(permissions).values({
         id: crypto.randomUUID(),
         entityType: 'workspace' as const,
@@ -108,37 +108,41 @@ async function createWorkspace(userId: string, name: string) {
         updatedAt: now,
       })
 
-      // Create initial workflow for the workspace (empty canvas)
-      // Create the workflow
-      await tx.insert(workflow).values({
-        id: workflowId,
-        userId,
-        workspaceId,
-        folderId: null,
-        name: 'default-agent',
-        description: 'Your first workflow - start building here!',
-        color: '#3972F6',
-        lastSynced: now,
-        createdAt: now,
-        updatedAt: now,
-        isDeployed: false,
-        runCount: 0,
-        variables: {},
-      })
+      if (!skipDefaultWorkflow) {
+        await tx.insert(workflow).values({
+          id: workflowId,
+          userId,
+          workspaceId,
+          folderId: null,
+          name: 'default-agent',
+          description: 'Your first workflow - start building here!',
+          color: '#3972F6',
+          lastSynced: now,
+          createdAt: now,
+          updatedAt: now,
+          isDeployed: false,
+          runCount: 0,
+          variables: {},
+        })
+      }
 
       logger.info(
-        `Created workspace ${workspaceId} with initial workflow ${workflowId} for user ${userId}`
+        skipDefaultWorkflow
+          ? `Created workspace ${workspaceId} for user ${userId}`
+          : `Created workspace ${workspaceId} with initial workflow ${workflowId} for user ${userId}`
       )
     })
 
-    const { workflowState } = buildDefaultWorkflowArtifacts()
-    const seedResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
+    if (!skipDefaultWorkflow) {
+      const { workflowState } = buildDefaultWorkflowArtifacts()
+      const seedResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
 
-    if (!seedResult.success) {
-      throw new Error(seedResult.error || 'Failed to seed default workflow state')
+      if (!seedResult.success) {
+        throw new Error(seedResult.error || 'Failed to seed default workflow state')
+      }
     }
   } catch (error) {
-    logger.error(`Failed to create workspace ${workspaceId} with initial workflow:`, error)
+    logger.error(`Failed to create workspace ${workspaceId}:`, error)
     throw error
   }
 
