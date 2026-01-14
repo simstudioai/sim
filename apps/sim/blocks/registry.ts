@@ -121,6 +121,7 @@ import { SupabaseBlock } from '@/blocks/blocks/supabase'
 import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
+import { TinybirdBlock } from '@/blocks/blocks/tinybird'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { TrelloBlock } from '@/blocks/blocks/trello'
 import { TtsBlock } from '@/blocks/blocks/tts'
@@ -281,6 +282,7 @@ export const registry: Record<string, BlockConfig> = {
   tavily: TavilyBlock,
   telegram: TelegramBlock,
   thinking: ThinkingBlock,
+  tinybird: TinybirdBlock,
   translate: TranslateBlock,
   trello: TrelloBlock,
   twilio_sms: TwilioSMSBlock,

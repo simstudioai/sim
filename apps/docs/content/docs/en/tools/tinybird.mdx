@@ -1,0 +1,70 @@
+---
+title: Tinybird
+description: Send events and query data with Tinybird
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="tinybird"
+  color="#2EF598"
+/>
+
+## Usage Instructions
+
+Interact with Tinybird using the Events API to stream JSON or NDJSON events, or use the Query API to execute SQL queries against Pipes and Data Sources.
+
+
+
+## Tools
+
+### `tinybird_events`
+
+Send events to a Tinybird Data Source using the Events API. Supports JSON and NDJSON formats with optional gzip compression.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `base_url` | string | Yes | Tinybird API base URL \(e.g., https://api.tinybird.co or https://api.us-east.tinybird.co\) |
+| `datasource` | string | Yes | Name of the Tinybird Data Source to send events to |
+| `data` | string | Yes | Data to send as NDJSON \(newline-delimited JSON\) or JSON string. Each event should be a valid JSON object. |
+| `wait` | boolean | No | Wait for database acknowledgment before responding. Enables safer retries but introduces latency. Defaults to false. |
+| `format` | string | No | Format of the events data: "ndjson" \(default\) or "json" |
+| `compression` | string | No | Compression format: "none" \(default\) or "gzip" |
+| `token` | string | Yes | Tinybird API Token with DATASOURCE:APPEND or DATASOURCE:CREATE scope |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `successful_rows` | number | Number of rows successfully ingested |
+| `quarantined_rows` | number | Number of rows quarantined \(failed validation\) |
+
+### `tinybird_query`
+
+Execute SQL queries against Tinybird Pipes and Data Sources using the Query API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `base_url` | string | Yes | Tinybird API base URL \(e.g., https://api.tinybird.co\) |
+| `query` | string | Yes | SQL query to execute. Specify your desired output format \(e.g., FORMAT JSON, FORMAT CSV, FORMAT TSV\). JSON format provides structured data, while other formats return raw text. |
+| `pipeline` | string | No | Optional pipe name. When provided, enables SELECT * FROM _ syntax |
+| `token` | string | Yes | Tinybird API Token with PIPE:READ scope |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Query result data. For FORMAT JSON: array of objects. For other formats \(CSV, TSV, etc.\): raw text string. |
+| `rows` | number | Number of rows returned \(only available with FORMAT JSON\) |
+| `statistics` | json | Query execution statistics - elapsed time, rows read, bytes read \(only available with FORMAT JSON\) |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `tinybird`
