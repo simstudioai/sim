@@ -1162,10 +1162,10 @@ function SubAgentThinkingContent({
 
 /**
  * Subagents that should collapse when done streaming.
- * Default behavior is to NOT collapse (stay expanded like edit).
- * Only these specific subagents collapse into "Planned for Xs >" style headers.
+ * Default behavior is to NOT collapse (stay expanded like edit, superagent, info, etc.).
+ * Only plan, debug, and research collapse into summary headers.
  */
-const COLLAPSIBLE_SUBAGENTS = new Set(['plan', 'debug', 'research', 'info', 'superagent'])
+const COLLAPSIBLE_SUBAGENTS = new Set(['plan', 'debug', 'research'])
 
 /**
  * SubagentContentRenderer handles the rendering of subagent content.
