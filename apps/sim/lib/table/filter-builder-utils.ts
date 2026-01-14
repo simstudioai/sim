@@ -50,7 +50,7 @@ function parseValue(value: string, operator: string): any {
   if (value === 'true') return true
   if (value === 'false') return false
   if (value === 'null') return null
-  if (!isNaN(Number(value)) && value !== '') return Number(value)
+  if (!Number.isNaN(Number(value)) && value !== '') return Number(value)
 
   if (operator === 'in') {
     return value.split(',').map((v) => {
@@ -58,7 +58,7 @@ function parseValue(value: string, operator: string): any {
       if (trimmed === 'true') return true
       if (trimmed === 'false') return false
       if (trimmed === 'null') return null
-      if (!isNaN(Number(trimmed)) && trimmed !== '') return Number(trimmed)
+      if (!Number.isNaN(Number(trimmed)) && trimmed !== '') return Number(trimmed)
       return trimmed
     })
   }

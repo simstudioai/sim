@@ -302,7 +302,7 @@ export function TableDataViewer() {
         return (
           <button
             type='button'
-            className='cursor-pointer select-none text-left text-[12px] text-[var(--text-secondary)] underline decoration-[var(--border-1)] decoration-dotted underline-offset-2 transition-colors hover:decoration-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            className='cursor-pointer select-none text-left text-[12px] text-[var(--text-secondary)] underline decoration-[var(--border-1)] decoration-dotted underline-offset-2 transition-colors hover:text-[var(--text-primary)] hover:decoration-[var(--text-muted)]'
             onClick={(e) => handleCellClick(e, column.name, value, 'date')}
             title='Click to view ISO format'
           >
@@ -746,7 +746,7 @@ export function TableDataViewer() {
             ) : cellViewer?.type === 'date' ? (
               <div className='m-[16px] space-y-[12px]'>
                 <div className='rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px]'>
-                  <div className='mb-[6px] text-[11px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]'>
+                  <div className='mb-[6px] font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
                     Formatted
                   </div>
                   <div className='text-[14px] text-[var(--text-primary)]'>
@@ -765,7 +765,7 @@ export function TableDataViewer() {
                   </div>
                 </div>
                 <div className='rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px]'>
-                  <div className='mb-[6px] text-[11px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]'>
+                  <div className='mb-[6px] font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
                     ISO Format
                   </div>
                   <div className='font-mono text-[13px] text-[var(--text-secondary)]'>

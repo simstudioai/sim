@@ -133,8 +133,8 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
       <ModalContent className='w-[700px]'>
         <ModalHeader>
           <div className='flex flex-col gap-[4px]'>
-            <h2 className='text-[16px] font-semibold'>Create New Table</h2>
-            <p className='text-[13px] font-normal text-[var(--text-tertiary)]'>
+            <h2 className='font-semibold text-[16px]'>Create New Table</h2>
+            <p className='font-normal text-[13px] text-[var(--text-tertiary)]'>
               Define your table schema with columns and constraints
             </p>
           </div>
@@ -149,7 +149,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
 
             {/* Table Name */}
             <div className='flex flex-col gap-[8px]'>
-              <Label htmlFor='tableName' className='text-[13px] font-medium'>
+              <Label htmlFor='tableName' className='font-medium text-[13px]'>
                 Table Name*
               </Label>
               <Input
@@ -167,7 +167,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
 
             {/* Description */}
             <div className='flex flex-col gap-[8px]'>
-              <Label htmlFor='description' className='text-[13px] font-medium'>
+              <Label htmlFor='description' className='font-medium text-[13px]'>
                 Description
               </Label>
               <Textarea
@@ -185,7 +185,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
             {/* Columns */}
             <div className='flex flex-col gap-[14px]'>
               <div className='flex items-center justify-between'>
-                <Label className='text-[13px] font-medium'>Columns*</Label>
+                <Label className='font-medium text-[13px]'>Columns*</Label>
                 <Button
                   type='button'
                   size='sm'
@@ -199,7 +199,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
               </div>
 
               {/* Column Headers */}
-              <div className='flex items-center gap-[10px] rounded-[6px] bg-[var(--bg-secondary)] px-[12px] py-[8px] text-[11px] font-semibold text-[var(--text-tertiary)]'>
+              <div className='flex items-center gap-[10px] rounded-[6px] bg-[var(--bg-secondary)] px-[12px] py-[8px] font-semibold text-[11px] text-[var(--text-tertiary)]'>
                 <div className='flex-1'>Column Name</div>
                 <div className='w-[110px]'>Type</div>
                 <div className='w-[70px] text-center'>Required</div>

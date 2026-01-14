@@ -96,14 +96,14 @@ function conditionsToFilter(conditions: FilterCondition[]): Record<string, any> 
     if (value === 'true') parsedValue = true
     else if (value === 'false') parsedValue = false
     else if (value === 'null') parsedValue = null
-    else if (!isNaN(Number(value)) && value !== '') parsedValue = Number(value)
+    else if (!Number.isNaN(Number(value)) && value !== '') parsedValue = Number(value)
     else if (operator === 'in') {
       parsedValue = value.split(',').map((v) => {
         const trimmed = v.trim()
         if (trimmed === 'true') return true
         if (trimmed === 'false') return false
         if (trimmed === 'null') return null
-        if (!isNaN(Number(trimmed)) && trimmed !== '') return Number(trimmed)
+        if (!Number.isNaN(Number(trimmed)) && trimmed !== '') return Number(trimmed)
         return trimmed
       })
     }

@@ -115,7 +115,7 @@ export function SortFormat({
   return (
     <div className='flex flex-col gap-[8px]'>
       {conditions.length === 0 ? (
-        <div className='flex items-center justify-center rounded-[4px] border border-dashed border-[var(--border-1)] py-[16px]'>
+        <div className='flex items-center justify-center rounded-[4px] border border-[var(--border-1)] border-dashed py-[16px]'>
           <Button variant='ghost' size='sm' onClick={addCondition} disabled={isReadOnly}>
             <Plus className='mr-[4px] h-[12px] w-[12px]' />
             Add sort condition
