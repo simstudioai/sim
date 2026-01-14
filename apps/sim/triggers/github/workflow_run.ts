@@ -117,6 +117,14 @@ export const githubWorkflowRunTrigger: TriggerConfig = {
   ],
 
   outputs: {
+    event_type: {
+      type: 'string',
+      description: 'GitHub event type from X-GitHub-Event header (e.g., workflow_run)',
+    },
+    branch: {
+      type: 'string',
+      description: 'Branch name derived from ref (empty for non-branch events)',
+    },
     action: {
       type: 'string',
       description: 'Action performed (requested, in_progress, completed)',

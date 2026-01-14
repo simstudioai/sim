@@ -136,6 +136,8 @@ export const typeformWebhookTrigger: TriggerConfig = {
         'Array of respondent answers (only includes answered questions). Each answer contains type, value, and field reference.',
     },
     definition: {
+      description:
+        'Form definition (only included when "Include Form Definition" is enabled in trigger settings)',
       id: {
         type: 'string',
         description: 'Form ID',

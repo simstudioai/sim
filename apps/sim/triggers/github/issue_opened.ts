@@ -137,6 +137,15 @@ export const githubIssueOpenedTrigger: TriggerConfig = {
   ],
 
   outputs: {
+    event_type: {
+      type: 'string',
+      description:
+        'GitHub event type from X-GitHub-Event header (e.g., issues, pull_request, push)',
+    },
+    branch: {
+      type: 'string',
+      description: 'Branch name derived from ref (empty for non-branch events)',
+    },
     action: {
       type: 'string',
       description: 'Action performed (opened, closed, reopened, edited, etc.)',

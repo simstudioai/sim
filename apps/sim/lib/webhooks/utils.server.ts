@@ -423,10 +423,12 @@ async function formatTeamsGraphNotification(
       hasCredential: !!credentialId,
     })
     return {
-      from: null,
-      message: { raw: notification },
-      activity: body,
-      conversation: { id: chatId },
+      message_id: resolvedMessageId,
+      chat_id: resolvedChatId,
+      from_name: '',
+      text: '',
+      created_at: '',
+      attachments: [],
     }
   }
 
@@ -435,31 +437,12 @@ async function formatTeamsGraphNotification(
   const createdAt = message.createdDateTime || ''
 
   return {
-    from: {
-      id: from.id || '',
-      name: from.displayName || '',
-      aadObjectId: from.aadObjectId || '',
-    },
-    message: {
-      raw: {
-        attachments: rawAttachments,
-        channelData: {},
-        conversation: { id: chatId },
-        text: messageText,
-        messageType: 'message',
-        channelId: '',
-        timestamp: createdAt,
-      },
-    },
-    activity: body,
-    conversation: {
-      id: chatId,
-      name: '',
-      isGroup: false,
-      tenantId: '',
-      aadObjectId: '',
-      conversationType: '',
-    },
+    message_id: resolvedMessageId,
+    chat_id: resolvedChatId,
+    from_name: from.displayName || '',
+    text: messageText,
+    created_at: createdAt,
+    attachments: rawAttachments,
   }
 }
 
@@ -602,6 +585,7 @@ export async function formatWebhookInput(
         sender: rawMessage.from
           ? {
               id: rawMessage.from.id,
+              username: rawMessage.from.username,
               firstName: rawMessage.from.first_name,
               lastName: rawMessage.from.last_name,
               languageCode: rawMessage.from.language_code,
@@ -818,7 +802,7 @@ export async function formatWebhookInput(
   if (foundWebhook.provider === 'webflow') {
     return {
       siteId: body?.siteId || '',
-      workspaceId: body?.workspaceId || '',
+      formId: body?.formId || '',
       name: body?.name || '',
       id: body?.id || '',
       submittedAt: body?.submittedAt || '',
@@ -977,16 +961,6 @@ export async function formatWebhookInput(
     }
   }
 
-  if (foundWebhook.provider === 'lemlist') {
-    // Lemlist webhook - expose raw payload as `data` for user to destructure
-    // Common fields include: _id, type, createdAt, leadId, campaignId, leadEmail,
-    // leadFirstName, leadLastName, sequenceStep, messageId, text, etc.
-    return {
-      data: body,
-    }
-  }
-
-  // Generic format for other providers - pass through the body directly
   return body
 }
 

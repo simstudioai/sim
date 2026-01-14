@@ -116,6 +116,14 @@ export const githubReleasePublishedTrigger: TriggerConfig = {
   ],
 
   outputs: {
+    event_type: {
+      type: 'string',
+      description: 'GitHub event type from X-GitHub-Event header (e.g., release)',
+    },
+    branch: {
+      type: 'string',
+      description: 'Branch name derived from ref (empty for non-branch events)',
+    },
     action: {
       type: 'string',
       description:

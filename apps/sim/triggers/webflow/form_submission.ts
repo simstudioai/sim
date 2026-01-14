@@ -76,9 +76,9 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       type: 'string',
       description: 'The site ID where the form was submitted',
     },
-    workspaceId: {
+    formId: {
       type: 'string',
-      description: 'The workspace ID where the event occurred',
+      description: 'The form ID',
     },
     name: {
       type: 'string',

@@ -96,23 +96,3 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
     },
   } as Record<string, TriggerOutput>
 }
-
-/**
- * Build output schema for generic webhook events
- */
-export function buildGenericOutputs(): Record<string, TriggerOutput> {
-  return {
-    payload: {
-      type: 'object',
-      description: 'Raw webhook payload',
-    },
-    headers: {
-      type: 'object',
-      description: 'Request headers',
-    },
-    timestamp: {
-      type: 'string',
-      description: 'ISO8601 received timestamp',
-    },
-  } as Record<string, TriggerOutput>
-}

@@ -66,25 +66,254 @@ export function buildLemlistExtraFields(triggerId: string) {
 }
 
 /**
- * Lemlist webhook outputs - exposes raw payload as `data` object
- * Users can access any field via data.fieldName (e.g., data.type, data.leadEmail)
- *
- * Common fields in Lemlist webhooks include:
- * - _id, type, createdAt, teamId, leadId, campaignId
- * - leadEmail, leadFirstName, leadLastName, leadCompanyName, leadPhone, leadPicture
- * - name (campaign name), sequenceId, sequenceStep, totalSequenceStep
- * - sendUserId, sendUserEmail, sendUserName, sendUserMailboxId
- * - messageId, emailId, emailTemplateId, isFirst, relatedSentAt
- * - text, message (for replies)
- *
- * See Lemlist API docs for complete field reference:
- * https://help.lemlist.com/en/articles/9423940-api-get-activities-list-of-activities-type
+ * Core fields present in ALL Lemlist webhook payloads
+ * See: https://help.lemlist.com/en/articles/9423940-use-the-api-to-list-activity-types
+ */
+const coreOutputs = {
+  _id: {
+    type: 'string',
+    description: 'Unique activity identifier',
+  },
+  type: {
+    type: 'string',
+    description: 'Activity type (e.g., emailsSent, emailsReplied)',
+  },
+  createdAt: {
+    type: 'string',
+    description: 'Activity creation timestamp (ISO 8601)',
+  },
+  teamId: {
+    type: 'string',
+    description: 'Lemlist team identifier',
+  },
+  leadId: {
+    type: 'string',
+    description: 'Lead identifier',
+  },
+  campaignId: {
+    type: 'string',
+    description: 'Campaign identifier',
+  },
+  campaignName: {
+    type: 'string',
+    description: 'Campaign name',
+  },
+} as const
+
+/**
+ * Lead fields present in webhook payloads
+ */
+const leadOutputs = {
+  email: {
+    type: 'string',
+    description: 'Lead email address',
+  },
+  firstName: {
+    type: 'string',
+    description: 'Lead first name',
+  },
+  lastName: {
+    type: 'string',
+    description: 'Lead last name',
+  },
+  companyName: {
+    type: 'string',
+    description: 'Lead company name',
+  },
+  linkedinUrl: {
+    type: 'string',
+    description: 'Lead LinkedIn profile URL',
+  },
+} as const
+
+/**
+ * Sequence/campaign tracking fields for email activities
+ */
+const sequenceOutputs = {
+  sequenceId: {
+    type: 'string',
+    description: 'Sequence identifier',
+  },
+  sequenceStep: {
+    type: 'number',
+    description: 'Current step in the sequence (0-indexed)',
+  },
+  totalSequenceStep: {
+    type: 'number',
+    description: 'Total number of steps in the sequence',
+  },
+  isFirst: {
+    type: 'boolean',
+    description: 'Whether this is the first activity of this type for this step',
+  },
+} as const
+
+/**
+ * Sender information fields
+ */
+const senderOutputs = {
+  sendUserId: {
+    type: 'string',
+    description: 'Sender user identifier',
+  },
+  sendUserEmail: {
+    type: 'string',
+    description: 'Sender email address',
+  },
+  sendUserName: {
+    type: 'string',
+    description: 'Sender display name',
+  },
+} as const
+
+/**
+ * Email content fields
+ */
+const emailContentOutputs = {
+  subject: {
+    type: 'string',
+    description: 'Email subject line',
+  },
+  text: {
+    type: 'string',
+    description: 'Email body content (HTML)',
+  },
+  messageId: {
+    type: 'string',
+    description: 'Email message ID (RFC 2822 format)',
+  },
+  emailId: {
+    type: 'string',
+    description: 'Lemlist email identifier',
+  },
+} as const
+
+/**
+ * Build outputs for email sent events
+ */
+export function buildEmailSentOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...coreOutputs,
+    ...leadOutputs,
+    ...sequenceOutputs,
+    ...senderOutputs,
+    ...emailContentOutputs,
+  } as Record<string, TriggerOutput>
+}
+
+/**
+ * Build outputs for email replied events
+ */
+export function buildEmailRepliedOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...coreOutputs,
+    ...leadOutputs,
+    ...sequenceOutputs,
+    ...senderOutputs,
+    ...emailContentOutputs,
+  } as Record<string, TriggerOutput>
+}
+
+/**
+ * Build outputs for email opened events
+ */
+export function buildEmailOpenedOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...coreOutputs,
+    ...leadOutputs,
+    ...sequenceOutputs,
+    ...senderOutputs,
+    messageId: {
+      type: 'string',
+      description: 'Email message ID that was opened',
+    },
+  } as Record<string, TriggerOutput>
+}
+
+/**
+ * Build outputs for email clicked events
+ */
+export function buildEmailClickedOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...coreOutputs,
+    ...leadOutputs,
+    ...sequenceOutputs,
+    ...senderOutputs,
+    messageId: {
+      type: 'string',
+      description: 'Email message ID containing the clicked link',
+    },
+    clickedUrl: {
+      type: 'string',
+      description: 'URL that was clicked',
+    },
+  } as Record<string, TriggerOutput>
+}
+
+/**
+ * Build outputs for email bounced events
+ */
+export function buildEmailBouncedOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...coreOutputs,
+    ...leadOutputs,
+    ...sequenceOutputs,
+    ...senderOutputs,
+    messageId: {
+      type: 'string',
+      description: 'Email message ID that bounced',
+    },
+    errorMessage: {
+      type: 'string',
+      description: 'Bounce error message',
+    },
+  } as Record<string, TriggerOutput>
+}
+
+/**
+ * Build outputs for LinkedIn replied events
+ */
+export function buildLinkedInRepliedOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...coreOutputs,
+    ...leadOutputs,
+    ...sequenceOutputs,
+    text: {
+      type: 'string',
+      description: 'LinkedIn message content',
+    },
+  } as Record<string, TriggerOutput>
+}
+
+/**
+ * Build outputs for interested/not interested events
+ */
+export function buildInterestOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...coreOutputs,
+    ...leadOutputs,
+    ...sequenceOutputs,
+  } as Record<string, TriggerOutput>
+}
+
+/**
+ * Build outputs for generic webhook (all events)
+ * Includes all possible fields across event types
  */
 export function buildLemlistOutputs(): Record<string, TriggerOutput> {
   return {
-    data: {
-      type: 'json',
-      description: 'Raw webhook payload from Lemlist (access fields via data.fieldName)',
+    ...coreOutputs,
+    ...leadOutputs,
+    ...sequenceOutputs,
+    ...senderOutputs,
+    ...emailContentOutputs,
+    clickedUrl: {
+      type: 'string',
+      description: 'URL that was clicked (for emailsClicked events)',
     },
-  }
+    errorMessage: {
+      type: 'string',
+      description: 'Error message (for bounce/failed events)',
+    },
+  } as Record<string, TriggerOutput>
 }
