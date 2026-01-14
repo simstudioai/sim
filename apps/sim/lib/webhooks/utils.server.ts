@@ -177,18 +177,10 @@ async function formatTeamsGraphNotification(
       keys: Object.keys(body || {}),
     })
     return {
-      input: 'Teams notification received',
-      webhook: {
-        data: {
-          provider: 'microsoft-teams',
-          path: foundWebhook?.path || '',
-          providerConfig: foundWebhook?.providerConfig || {},
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
+      from: null,
+      message: { raw: body },
+      activity: body,
+      conversation: null,
     }
   }
   const resolvedChatId = chatId as string
@@ -431,31 +423,10 @@ async function formatTeamsGraphNotification(
       hasCredential: !!credentialId,
     })
     return {
-      input: '',
-      message_id: messageId,
-      chat_id: chatId,
-      from_name: 'Unknown',
-      text: '',
-      created_at: notification.resourceData?.createdDateTime || '',
-      change_type: changeType,
-      subscription_id: subscriptionId,
-      attachments: [],
-      microsoftteams: {
-        message: { id: messageId, text: '', timestamp: '', chatId, raw: null },
-        from: { id: '', name: 'Unknown', aadObjectId: '' },
-        notification: { changeType, subscriptionId, resource },
-      },
-      webhook: {
-        data: {
-          provider: 'microsoft-teams',
-          path: foundWebhook?.path || '',
-          providerConfig: foundWebhook?.providerConfig || {},
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
+      from: null,
+      message: { raw: notification },
+      activity: body,
+      conversation: { id: chatId },
     }
   }
 
@@ -464,45 +435,31 @@ async function formatTeamsGraphNotification(
   const createdAt = message.createdDateTime || ''
 
   return {
-    input: messageText,
-    message_id: messageId,
-    chat_id: chatId,
-    from_name: from.displayName || 'Unknown',
-    text: messageText,
-    created_at: createdAt,
-    change_type: changeType,
-    subscription_id: subscriptionId,
-    attachments: rawAttachments,
-    microsoftteams: {
-      message: {
-        id: messageId,
+    from: {
+      id: from.id || '',
+      name: from.displayName || '',
+      aadObjectId: from.aadObjectId || '',
+    },
+    message: {
+      raw: {
+        attachments: rawAttachments,
+        channelData: {},
+        conversation: { id: chatId },
         text: messageText,
+        messageType: 'message',
+        channelId: '',
         timestamp: createdAt,
-        chatId,
-        raw: message,
-      },
-      from: {
-        id: from.id,
-        name: from.displayName,
-        aadObjectId: from.aadObjectId,
-      },
-      notification: {
-        changeType,
-        subscriptionId,
-        resource,
       },
     },
-    webhook: {
-      data: {
-        provider: 'microsoft-teams',
-        path: foundWebhook?.path || '',
-        providerConfig: foundWebhook?.providerConfig || {},
-        payload: body,
-        headers: Object.fromEntries(request.headers.entries()),
-        method: request.method,
-      },
+    activity: body,
+    conversation: {
+      id: chatId,
+      name: '',
+      isGroup: false,
+      tenantId: '',
+      aadObjectId: '',
+      conversationType: '',
     },
-    workflowId: foundWorkflow.id,
   }
 }
 
@@ -587,166 +544,72 @@ export async function formatWebhookInput(
 
     if (messages.length > 0) {
       const message = messages[0]
-      const phoneNumberId = data.metadata?.phone_number_id
-      const from = message.from
-      const messageId = message.id
-      const timestamp = message.timestamp
-      const text = message.text?.body
-
       return {
-        whatsapp: {
-          data: {
-            messageId,
-            from,
-            phoneNumberId,
-            text,
-            timestamp,
-            raw: message,
-          },
-        },
-        webhook: {
-          data: {
-            provider: 'whatsapp',
-            path: foundWebhook.path,
-            providerConfig: foundWebhook.providerConfig,
-            payload: body,
-            headers: Object.fromEntries(request.headers.entries()),
-            method: request.method,
-          },
-        },
-        workflowId: foundWorkflow.id,
+        messageId: message.id,
+        from: message.from,
+        phoneNumberId: data.metadata?.phone_number_id,
+        text: message.text?.body,
+        timestamp: message.timestamp,
+        raw: JSON.stringify(message),
       }
     }
     return null
   }
 
   if (foundWebhook.provider === 'telegram') {
-    const message =
+    const rawMessage =
       body?.message || body?.edited_message || body?.channel_post || body?.edited_channel_post
 
-    if (message) {
-      let input = ''
+    const updateType = body.message
+      ? 'message'
+      : body.edited_message
+        ? 'edited_message'
+        : body.channel_post
+          ? 'channel_post'
+          : body.edited_channel_post
+            ? 'edited_channel_post'
+            : 'unknown'
 
-      if (message.text) {
-        input = message.text
-      } else if (message.caption) {
-        input = message.caption
-      } else if (message.photo) {
-        input = 'Photo message'
-      } else if (message.document) {
-        input = `Document: ${message.document.file_name || 'file'}`
-      } else if (message.audio) {
-        input = `Audio: ${message.audio.title || 'audio file'}`
-      } else if (message.video) {
-        input = 'Video message'
-      } else if (message.voice) {
-        input = 'Voice message'
-      } else if (message.sticker) {
-        input = `Sticker: ${message.sticker.emoji || '🎭'}`
-      } else if (message.location) {
-        input = 'Location shared'
-      } else if (message.contact) {
-        input = `Contact: ${message.contact.first_name || 'contact'}`
-      } else if (message.poll) {
-        input = `Poll: ${message.poll.question}`
-      } else {
-        input = 'Message received'
-      }
-
-      const messageObj = {
-        id: message.message_id,
-        text: message.text,
-        caption: message.caption,
-        date: message.date,
-        messageType: message.photo
-          ? 'photo'
-          : message.document
-            ? 'document'
-            : message.audio
-              ? 'audio'
-              : message.video
-                ? 'video'
-                : message.voice
-                  ? 'voice'
-                  : message.sticker
-                    ? 'sticker'
-                    : message.location
-                      ? 'location'
-                      : message.contact
-                        ? 'contact'
-                        : message.poll
-                          ? 'poll'
-                          : 'text',
-        raw: message,
-      }
-
-      const senderObj = message.from
-        ? {
-            id: message.from.id,
-            firstName: message.from.first_name,
-            lastName: message.from.last_name,
-            username: message.from.username,
-            languageCode: message.from.language_code,
-            isBot: message.from.is_bot,
-          }
-        : null
-
-      const chatObj = message.chat
-        ? {
-            id: message.chat.id,
-            type: message.chat.type,
-            title: message.chat.title,
-            username: message.chat.username,
-            firstName: message.chat.first_name,
-            lastName: message.chat.last_name,
-          }
-        : null
+    if (rawMessage) {
+      const messageType = rawMessage.photo
+        ? 'photo'
+        : rawMessage.document
+          ? 'document'
+          : rawMessage.audio
+            ? 'audio'
+            : rawMessage.video
+              ? 'video'
+              : rawMessage.voice
+                ? 'voice'
+                : rawMessage.sticker
+                  ? 'sticker'
+                  : rawMessage.location
+                    ? 'location'
+                    : rawMessage.contact
+                      ? 'contact'
+                      : rawMessage.poll
+                        ? 'poll'
+                        : 'text'
 
       return {
-        input,
-
-        // Top-level properties for backward compatibility with <blockName.message> syntax
-        message: messageObj,
-        sender: senderObj,
-        chat: chatObj,
+        message: {
+          id: rawMessage.message_id,
+          text: rawMessage.text,
+          date: rawMessage.date,
+          messageType,
+          raw: rawMessage,
+        },
+        sender: rawMessage.from
+          ? {
+              id: rawMessage.from.id,
+              firstName: rawMessage.from.first_name,
+              lastName: rawMessage.from.last_name,
+              languageCode: rawMessage.from.language_code,
+              isBot: rawMessage.from.is_bot,
+            }
+          : null,
         updateId: body.update_id,
-        updateType: body.message
-          ? 'message'
-          : body.edited_message
-            ? 'edited_message'
-            : body.channel_post
-              ? 'channel_post'
-              : body.edited_channel_post
-                ? 'edited_channel_post'
-                : 'unknown',
-
-        // Keep the nested structure for the new telegram.message.text syntax
-        telegram: {
-          message: messageObj,
-          sender: senderObj,
-          chat: chatObj,
-          updateId: body.update_id,
-          updateType: body.message
-            ? 'message'
-            : body.edited_message
-              ? 'edited_message'
-              : body.channel_post
-                ? 'channel_post'
-                : body.edited_channel_post
-                  ? 'edited_channel_post'
-                  : 'unknown',
-        },
-        webhook: {
-          data: {
-            provider: 'telegram',
-            path: foundWebhook.path,
-            providerConfig: foundWebhook.providerConfig,
-            payload: body,
-            headers: Object.fromEntries(request.headers.entries()),
-            method: request.method,
-          },
-        },
-        workflowId: foundWorkflow.id,
+        updateType,
       }
     }
 
@@ -756,23 +619,8 @@ export async function formatWebhookInput(
     })
 
     return {
-      input: 'Telegram update received',
-      telegram: {
-        updateId: body.update_id,
-        updateType: 'unknown',
-        raw: body,
-      },
-      webhook: {
-        data: {
-          provider: 'telegram',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
+      updateId: body.update_id,
+      updateType,
     }
   }
 
@@ -810,40 +658,15 @@ export async function formatWebhookInput(
       callerZip: body.CallerZip,
       callerCountry: body.CallerCountry,
       callToken: body.CallToken,
-
-      webhook: {
-        data: {
-          provider: 'twilio_voice',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
+      raw: JSON.stringify(body),
     }
   }
 
   if (foundWebhook.provider === 'gmail') {
     if (body && typeof body === 'object' && 'email' in body) {
-      const email = body.email as Record<string, any>
-      const timestamp = body.timestamp
       return {
-        ...email,
-        email,
-        ...(timestamp !== undefined && { timestamp }),
-        webhook: {
-          data: {
-            provider: 'gmail',
-            path: foundWebhook.path,
-            providerConfig: foundWebhook.providerConfig,
-            payload: body,
-            headers: Object.fromEntries(request.headers.entries()),
-            method: request.method,
-          },
-        },
-        workflowId: foundWorkflow.id,
+        email: body.email,
+        timestamp: body.timestamp,
       }
     }
     return body
@@ -851,23 +674,9 @@ export async function formatWebhookInput(
 
   if (foundWebhook.provider === 'outlook') {
     if (body && typeof body === 'object' && 'email' in body) {
-      const email = body.email as Record<string, any>
-      const timestamp = body.timestamp
       return {
-        ...email,
-        email,
-        ...(timestamp !== undefined && { timestamp }),
-        webhook: {
-          data: {
-            provider: 'outlook',
-            path: foundWebhook.path,
-            providerConfig: foundWebhook.providerConfig,
-            payload: body,
-            headers: Object.fromEntries(request.headers.entries()),
-            method: request.method,
-          },
-        },
-        workflowId: foundWorkflow.id,
+        email: body.email,
+        timestamp: body.timestamp,
       }
     }
     return body
@@ -875,26 +684,10 @@ export async function formatWebhookInput(
 
   if (foundWebhook.provider === 'rss') {
     if (body && typeof body === 'object' && 'item' in body) {
-      const item = body.item as Record<string, any>
-      const feed = body.feed as Record<string, any>
-
       return {
-        title: item?.title,
-        link: item?.link,
-        pubDate: item?.pubDate,
-        item,
-        feed,
-        webhook: {
-          data: {
-            provider: 'rss',
-            path: foundWebhook.path,
-            providerConfig: foundWebhook.providerConfig,
-            payload: body,
-            headers: Object.fromEntries(request.headers.entries()),
-            method: request.method,
-          },
-        },
-        workflowId: foundWorkflow.id,
+        item: body.item,
+        feed: body.feed,
+        timestamp: body.timestamp,
       }
     }
     return body
@@ -902,32 +695,9 @@ export async function formatWebhookInput(
 
   if (foundWebhook.provider === 'imap') {
     if (body && typeof body === 'object' && 'email' in body) {
-      const email = body.email as Record<string, any>
       return {
-        messageId: email?.messageId,
-        subject: email?.subject,
-        from: email?.from,
-        to: email?.to,
-        cc: email?.cc,
-        date: email?.date,
-        bodyText: email?.bodyText,
-        bodyHtml: email?.bodyHtml,
-        mailbox: email?.mailbox,
-        hasAttachments: email?.hasAttachments,
-        attachments: email?.attachments,
-        email,
+        email: body.email,
         timestamp: body.timestamp,
-        webhook: {
-          data: {
-            provider: 'imap',
-            path: foundWebhook.path,
-            providerConfig: foundWebhook.providerConfig,
-            payload: body,
-            headers: Object.fromEntries(request.headers.entries()),
-            method: request.method,
-          },
-        },
-        workflowId: foundWorkflow.id,
       }
     }
     return body
@@ -952,7 +722,6 @@ export async function formatWebhookInput(
       payload: body,
       provider: 'hubspot',
       providerConfig: foundWebhook.providerConfig,
-      workflowId: foundWorkflow.id,
     }
   }
 
@@ -997,24 +766,10 @@ export async function formatWebhookInput(
     const activityObj = body || {}
 
     return {
-      input: messageText,
-
       from: fromObj,
       message: messageObj,
       activity: activityObj,
       conversation: conversationObj,
-
-      webhook: {
-        data: {
-          provider: 'microsoft-teams',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
     }
   }
 
@@ -1022,46 +777,19 @@ export async function formatWebhookInput(
     const event = body?.event
 
     if (event && body?.type === 'event_callback') {
-      let input = ''
-
-      if (event.text) {
-        input = event.text
-      } else if (event.type === 'app_mention') {
-        input = 'App mention received'
-      } else {
-        input = 'Slack event received'
-      }
-
-      const eventObj = {
-        event_type: event.type || '',
-        channel: event.channel || '',
-        channel_name: '',
-        user: event.user || '',
-        user_name: '',
-        text: event.text || '',
-        timestamp: event.ts || event.event_ts || '',
-        team_id: body.team_id || event.team || '',
-        event_id: body.event_id || '',
-      }
-
       return {
-        input,
-
-        event: eventObj,
-        slack: {
-          event: eventObj,
+        event: {
+          event_type: event.type || '',
+          channel: event.channel || '',
+          channel_name: '',
+          user: event.user || '',
+          user_name: '',
+          text: event.text || '',
+          timestamp: event.ts || event.event_ts || '',
+          thread_ts: event.thread_ts || '',
+          team_id: body.team_id || event.team || '',
+          event_id: body.event_id || '',
         },
-        webhook: {
-          data: {
-            provider: 'slack',
-            path: foundWebhook.path,
-            providerConfig: foundWebhook.providerConfig,
-            payload: body,
-            headers: Object.fromEntries(request.headers.entries()),
-            method: request.method,
-          },
-        },
-        workflowId: foundWorkflow.id,
       }
     }
 
@@ -1072,80 +800,31 @@ export async function formatWebhookInput(
     })
 
     return {
-      input: 'Slack webhook received',
-      slack: {
-        event: {
-          event_type: body?.event?.type || body?.type || 'unknown',
-          channel: body?.event?.channel || '',
-          user: body?.event?.user || '',
-          text: body?.event?.text || '',
-          timestamp: body?.event?.ts || '',
-          team_id: body?.team_id || '',
-          event_id: body?.event_id || '',
-        },
+      event: {
+        event_type: body?.event?.type || body?.type || 'unknown',
+        channel: body?.event?.channel || '',
+        channel_name: '',
+        user: body?.event?.user || '',
+        user_name: '',
+        text: body?.event?.text || '',
+        timestamp: body?.event?.ts || '',
+        thread_ts: body?.event?.thread_ts || '',
+        team_id: body?.team_id || '',
+        event_id: body?.event_id || '',
       },
-      webhook: {
-        data: {
-          provider: 'slack',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
     }
   }
 
   if (foundWebhook.provider === 'webflow') {
-    const triggerType = body?.triggerType || 'unknown'
-    const siteId = body?.siteId || ''
-    const workspaceId = body?.workspaceId || ''
-    const collectionId = body?.collectionId || ''
-    const payload = body?.payload || {}
-    const formId = body?.formId || ''
-    const formName = body?.name || ''
-    const formSubmissionId = body?.id || ''
-    const submittedAt = body?.submittedAt || ''
-    const formData = body?.data || {}
-    const schema = body?.schema || {}
-
     return {
-      siteId,
-      workspaceId,
-      collectionId,
-      payload,
-      triggerType,
-
-      formId,
-      name: formName,
-      id: formSubmissionId,
-      submittedAt,
-      data: formData,
-      schema,
+      siteId: body?.siteId || '',
+      workspaceId: body?.workspaceId || '',
+      name: body?.name || '',
+      id: body?.id || '',
+      submittedAt: body?.submittedAt || '',
+      data: body?.data || {},
+      schema: body?.schema || {},
       formElementId: body?.formElementId || '',
-
-      webflow: {
-        siteId,
-        workspaceId,
-        collectionId,
-        payload,
-        triggerType,
-        raw: body,
-      },
-
-      webhook: {
-        data: {
-          provider: 'webflow',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
     }
   }
 
@@ -1156,7 +835,6 @@ export async function formatWebhookInput(
   if (foundWebhook.provider === 'google_forms') {
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
 
-    // Normalize answers: if value is an array with single element, collapse to scalar; keep multi-select arrays
     const normalizeAnswers = (src: unknown): Record<string, unknown> => {
       if (!src || typeof src !== 'object') return {}
       const out: Record<string, unknown> = {}
@@ -1176,205 +854,47 @@ export async function formatWebhookInput(
     const formId = body?.formId || providerConfig.formId || ''
     const includeRaw = providerConfig.includeRawPayload !== false
 
-    const normalizedAnswers = normalizeAnswers(body?.answers)
-
-    const summaryCount = Object.keys(normalizedAnswers).length
-    const input = `Google Form response${responseId ? ` ${responseId}` : ''} (${summaryCount} answers)`
-
     return {
-      input,
       responseId,
       createTime,
       lastSubmittedTime,
       formId,
-      answers: normalizedAnswers,
+      answers: normalizeAnswers(body?.answers),
       ...(includeRaw ? { raw: body?.raw ?? body } : {}),
-      google_forms: {
-        responseId,
-        createTime,
-        lastSubmittedTime,
-        formId,
-        answers: normalizedAnswers,
-        ...(includeRaw ? { raw: body?.raw ?? body } : {}),
-      },
-      webhook: {
-        data: {
-          provider: 'google_forms',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: includeRaw ? body : undefined,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
     }
   }
 
   if (foundWebhook.provider === 'github') {
-    // GitHub webhook input formatting logic
     const eventType = request.headers.get('x-github-event') || 'unknown'
-    const delivery = request.headers.get('x-github-delivery') || ''
-
-    // Extract common GitHub properties
-    const repository = body?.repository || {}
-    const sender = body?.sender || {}
-    const action = body?.action || ''
-
-    // Build GitHub-specific variables based on the trigger config outputs
-    const githubData = {
-      // Event metadata
-      event_type: eventType,
-      action: action,
-      delivery_id: delivery,
-
-      // Repository information (avoid 'repository' to prevent conflict with the object)
-      repository_full_name: repository.full_name || '',
-      repository_name: repository.name || '',
-      repository_owner: repository.owner?.login || '',
-      repository_id: repository.id || '',
-      repository_url: repository.html_url || '',
-
-      // Sender information (avoid 'sender' to prevent conflict with the object)
-      sender_login: sender.login || '',
-      sender_id: sender.id || '',
-      sender_type: sender.type || '',
-      sender_url: sender.html_url || '',
-
-      // Event-specific data
-      ...(body?.ref && {
-        ref: body.ref,
-        branch: body.ref?.replace('refs/heads/', '') || '',
-      }),
-      ...(body?.before && { before: body.before }),
-      ...(body?.after && { after: body.after }),
-      ...(body?.commits && {
-        commits: JSON.stringify(body.commits),
-        commit_count: body.commits.length || 0,
-      }),
-      ...(body?.head_commit && {
-        commit_message: body.head_commit.message || '',
-        commit_author: body.head_commit.author?.name || '',
-        commit_sha: body.head_commit.id || '',
-        commit_url: body.head_commit.url || '',
-      }),
-      ...(body?.pull_request && {
-        pull_request: JSON.stringify(body.pull_request),
-        pr_number: body.pull_request.number || '',
-        pr_title: body.pull_request.title || '',
-        pr_state: body.pull_request.state || '',
-        pr_url: body.pull_request.html_url || '',
-      }),
-      ...(body?.issue && {
-        issue: JSON.stringify(body.issue),
-        issue_number: body.issue.number || '',
-        issue_title: body.issue.title || '',
-        issue_state: body.issue.state || '',
-        issue_url: body.issue.html_url || '',
-      }),
-      ...(body?.comment && {
-        comment: JSON.stringify(body.comment),
-        comment_body: body.comment.body || '',
-        comment_url: body.comment.html_url || '',
-      }),
-    }
-
-    // Set input based on event type for workflow processing
-    let input = ''
-    switch (eventType) {
-      case 'push':
-        input = `Push to ${githubData.branch || githubData.ref}: ${githubData.commit_message || 'No commit message'}`
-        break
-      case 'pull_request':
-        input = `${action} pull request: ${githubData.pr_title || 'No title'}`
-        break
-      case 'issues':
-        input = `${action} issue: ${githubData.issue_title || 'No title'}`
-        break
-      case 'issue_comment':
-      case 'pull_request_review_comment':
-        input = `Comment ${action}: ${githubData.comment_body?.slice(0, 100) || 'No comment body'}${(githubData.comment_body?.length || 0) > 100 ? '...' : ''}`
-        break
-      default:
-        input = `GitHub ${eventType} event${action ? ` (${action})` : ''}`
-    }
+    const branch = body?.ref?.replace('refs/heads/', '') || ''
 
     return {
       ...body,
-      webhook: {
-        data: {
-          provider: 'github',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
+      event_type: eventType,
+      action: body?.action || '',
+      branch,
     }
   }
 
   if (foundWebhook.provider === 'typeform') {
-    const eventId = body?.event_id || ''
-    const eventType = body?.event_type || 'form_response'
     const formResponse = body?.form_response || {}
-    const formId = formResponse.form_id || ''
-    const token = formResponse.token || ''
-    const submittedAt = formResponse.submitted_at || ''
-    const landedAt = formResponse.landed_at || ''
-    const calculated = formResponse.calculated || {}
-    const variables = formResponse.variables || []
-    const hidden = formResponse.hidden || {}
-    const answers = formResponse.answers || []
-    const definition = formResponse.definition || {}
-    const ending = formResponse.ending || {}
-
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
     const includeDefinition = providerConfig.includeDefinition === true
 
     return {
-      event_id: eventId,
-      event_type: eventType,
-      form_id: formId,
-      token,
-      submitted_at: submittedAt,
-      landed_at: landedAt,
-      calculated,
-      variables,
-      hidden,
-      answers,
-      ...(includeDefinition ? { definition } : {}),
-      ending,
-
-      typeform: {
-        event_id: eventId,
-        event_type: eventType,
-        form_id: formId,
-        token,
-        submitted_at: submittedAt,
-        landed_at: landedAt,
-        calculated,
-        variables,
-        hidden,
-        answers,
-        ...(includeDefinition ? { definition } : {}),
-        ending,
-      },
-
+      event_id: body?.event_id || '',
+      event_type: body?.event_type || 'form_response',
+      form_id: formResponse.form_id || '',
+      token: formResponse.token || '',
+      submitted_at: formResponse.submitted_at || '',
+      landed_at: formResponse.landed_at || '',
+      calculated: formResponse.calculated || {},
+      variables: formResponse.variables || [],
+      hidden: formResponse.hidden || {},
+      answers: formResponse.answers || [],
+      ...(includeDefinition ? { definition: formResponse.definition || {} } : {}),
+      ending: formResponse.ending || {},
       raw: body,
-
-      webhook: {
-        data: {
-          provider: 'typeform',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
     }
   }
 
@@ -1389,17 +909,6 @@ export async function formatWebhookInput(
       actor: body.actor || null,
       data: body.data || null,
       updatedFrom: body.updatedFrom || null,
-      webhook: {
-        data: {
-          provider: 'linear',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
     }
   }
 
@@ -1411,46 +920,17 @@ export async function formatWebhookInput(
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
     const triggerId = providerConfig.triggerId as string | undefined
 
-    let extractedData
     if (triggerId === 'jira_issue_commented') {
-      extractedData = extractCommentData(body)
-    } else if (triggerId === 'jira_worklog_created') {
-      extractedData = extractWorklogData(body)
-    } else {
-      extractedData = extractIssueData(body)
+      return extractCommentData(body)
     }
-
-    return {
-      ...extractedData,
-      webhook: {
-        data: {
-          provider: 'jira',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
+    if (triggerId === 'jira_worklog_created') {
+      return extractWorklogData(body)
     }
+    return extractIssueData(body)
   }
 
   if (foundWebhook.provider === 'stripe') {
-    return {
-      ...body,
-      webhook: {
-        data: {
-          provider: 'stripe',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
-    }
+    return body
   }
 
   if (foundWebhook.provider === 'calendly') {
@@ -1459,17 +939,6 @@ export async function formatWebhookInput(
       created_at: body.created_at,
       created_by: body.created_by,
       payload: body.payload,
-      webhook: {
-        data: {
-          provider: 'calendly',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
     }
   }
 
@@ -1489,17 +958,6 @@ export async function formatWebhookInput(
       transcript: body.transcript || [],
       insights: body.insights || {},
       meeting: body,
-      webhook: {
-        data: {
-          provider: 'circleback',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
     }
   }
 
@@ -1508,57 +966,28 @@ export async function formatWebhookInput(
       type: body.type,
       user_id: body.user_id,
       data: body.data || {},
-
-      webhook: {
-        data: {
-          provider: 'grain',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
     }
   }
 
   if (foundWebhook.provider === 'fireflies') {
-    // Fireflies webhook payload uses camelCase:
-    // { meetingId, eventType, clientReferenceId }
     return {
       meetingId: body.meetingId || '',
       eventType: body.eventType || 'Transcription completed',
       clientReferenceId: body.clientReferenceId || '',
-
-      webhook: {
-        data: {
-          provider: 'fireflies',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
-      workflowId: foundWorkflow.id,
     }
   }
 
-  // Generic format for other providers
-  return {
-    webhook: {
-      data: {
-        path: foundWebhook.path,
-        provider: foundWebhook.provider,
-        providerConfig: foundWebhook.providerConfig,
-        payload: body,
-        headers: Object.fromEntries(request.headers.entries()),
-        method: request.method,
-      },
-    },
-    workflowId: foundWorkflow.id,
+  if (foundWebhook.provider === 'lemlist') {
+    // Lemlist webhook - expose raw payload as `data` for user to destructure
+    // Common fields include: _id, type, createdAt, leadId, campaignId, leadEmail,
+    // leadFirstName, leadLastName, sequenceStep, messageId, text, etc.
+    return {
+      data: body,
+    }
   }
+
+  // Generic format for other providers - pass through the body directly
+  return body
 }
 
 /**

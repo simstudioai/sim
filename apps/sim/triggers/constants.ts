@@ -31,8 +31,14 @@ export const TRIGGER_PERSISTED_SUBBLOCK_IDS: string[] = [
 /**
  * Trigger-related subblock IDs that represent runtime metadata. They should remain
  * in the workflow state but must not be modified or cleared by diff operations.
+ *
+ * Note: 'triggerConfig' is included because it's an aggregate of individual trigger
+ * field subblocks. Those individual fields are compared separately, so comparing
+ * triggerConfig would be redundant. Additionally, the client populates triggerConfig
+ * with default values from the trigger definition on load, which aren't present in
+ * the deployed state, causing false positive change detection.
  */
-export const TRIGGER_RUNTIME_SUBBLOCK_IDS: string[] = ['webhookId', 'triggerPath']
+export const TRIGGER_RUNTIME_SUBBLOCK_IDS: string[] = ['webhookId', 'triggerPath', 'triggerConfig']
 
 /**
  * Maximum number of consecutive failures before a trigger (schedule/webhook) is auto-disabled.

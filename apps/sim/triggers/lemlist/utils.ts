@@ -66,203 +66,25 @@ export function buildLemlistExtraFields(triggerId: string) {
 }
 
 /**
- * Base activity outputs shared across all Lemlist triggers
+ * Lemlist webhook outputs - exposes raw payload as `data` object
+ * Users can access any field via data.fieldName (e.g., data.type, data.leadEmail)
+ *
+ * Common fields in Lemlist webhooks include:
+ * - _id, type, createdAt, teamId, leadId, campaignId
+ * - leadEmail, leadFirstName, leadLastName, leadCompanyName, leadPhone, leadPicture
+ * - name (campaign name), sequenceId, sequenceStep, totalSequenceStep
+ * - sendUserId, sendUserEmail, sendUserName, sendUserMailboxId
+ * - messageId, emailId, emailTemplateId, isFirst, relatedSentAt
+ * - text, message (for replies)
+ *
+ * See Lemlist API docs for complete field reference:
+ * https://help.lemlist.com/en/articles/9423940-api-get-activities-list-of-activities-type
  */
-function buildBaseActivityOutputs(): Record<string, TriggerOutput> {
+export function buildLemlistOutputs(): Record<string, TriggerOutput> {
   return {
-    type: {
-      type: 'string',
-      description: 'Activity type (emailsReplied, linkedinReplied, interested, emailsOpened, etc.)',
-    },
-    _id: {
-      type: 'string',
-      description: 'Unique activity identifier',
-    },
-    leadId: {
-      type: 'string',
-      description: 'Associated lead ID',
-    },
-    campaignId: {
-      type: 'string',
-      description: 'Campaign ID',
-    },
-    campaignName: {
-      type: 'string',
-      description: 'Campaign name',
-    },
-    sequenceId: {
-      type: 'string',
-      description: 'Sequence ID within the campaign',
-    },
-    stepId: {
-      type: 'string',
-      description: 'Step ID that triggered this activity',
-    },
-    createdAt: {
-      type: 'string',
-      description: 'When the activity occurred (ISO 8601)',
-    },
-  }
-}
-
-/**
- * Lead outputs - information about the lead
- */
-function buildLeadOutputs(): Record<string, TriggerOutput> {
-  return {
-    lead: {
-      _id: {
-        type: 'string',
-        description: 'Lead unique identifier',
-      },
-      email: {
-        type: 'string',
-        description: 'Lead email address',
-      },
-      firstName: {
-        type: 'string',
-        description: 'Lead first name',
-      },
-      lastName: {
-        type: 'string',
-        description: 'Lead last name',
-      },
-      companyName: {
-        type: 'string',
-        description: 'Lead company name',
-      },
-      phone: {
-        type: 'string',
-        description: 'Lead phone number',
-      },
-      linkedinUrl: {
-        type: 'string',
-        description: 'Lead LinkedIn profile URL',
-      },
-      picture: {
-        type: 'string',
-        description: 'Lead profile picture URL',
-      },
-      icebreaker: {
-        type: 'string',
-        description: 'Personalized icebreaker text',
-      },
-      timezone: {
-        type: 'string',
-        description: 'Lead timezone (e.g., America/New_York)',
-      },
-      isUnsubscribed: {
-        type: 'boolean',
-        description: 'Whether the lead is unsubscribed',
-      },
-    },
-  }
-}
-
-/**
- * Standard activity outputs (activity + lead data)
- */
-export function buildActivityOutputs(): Record<string, TriggerOutput> {
-  return {
-    ...buildBaseActivityOutputs(),
-    ...buildLeadOutputs(),
-    webhook: {
+    data: {
       type: 'json',
-      description: 'Full webhook payload with all activity-specific data',
-    },
-  }
-}
-
-/**
- * Email-specific outputs (includes message content for replies)
- */
-export function buildEmailReplyOutputs(): Record<string, TriggerOutput> {
-  return {
-    ...buildBaseActivityOutputs(),
-    ...buildLeadOutputs(),
-    messageId: {
-      type: 'string',
-      description: 'Email message ID',
-    },
-    subject: {
-      type: 'string',
-      description: 'Email subject line',
-    },
-    text: {
-      type: 'string',
-      description: 'Email reply text content',
-    },
-    html: {
-      type: 'string',
-      description: 'Email reply HTML content',
-    },
-    sentAt: {
-      type: 'string',
-      description: 'When the reply was sent',
-    },
-    webhook: {
-      type: 'json',
-      description: 'Full webhook payload with all email data',
-    },
-  }
-}
-
-/**
- * LinkedIn-specific outputs (includes message content)
- */
-export function buildLinkedInReplyOutputs(): Record<string, TriggerOutput> {
-  return {
-    ...buildBaseActivityOutputs(),
-    ...buildLeadOutputs(),
-    messageId: {
-      type: 'string',
-      description: 'LinkedIn message ID',
-    },
-    text: {
-      type: 'string',
-      description: 'LinkedIn message text content',
-    },
-    sentAt: {
-      type: 'string',
-      description: 'When the message was sent',
-    },
-    webhook: {
-      type: 'json',
-      description: 'Full webhook payload with all LinkedIn data',
-    },
-  }
-}
-
-/**
- * All outputs for generic webhook (activity + lead + all possible fields)
- */
-export function buildAllOutputs(): Record<string, TriggerOutput> {
-  return {
-    ...buildBaseActivityOutputs(),
-    ...buildLeadOutputs(),
-    messageId: {
-      type: 'string',
-      description: 'Message ID (for email/LinkedIn events)',
-    },
-    subject: {
-      type: 'string',
-      description: 'Email subject (for email events)',
-    },
-    text: {
-      type: 'string',
-      description: 'Message text content',
-    },
-    html: {
-      type: 'string',
-      description: 'Message HTML content (for email events)',
-    },
-    sentAt: {
-      type: 'string',
-      description: 'When the message was sent',
-    },
-    webhook: {
-      type: 'json',
-      description: 'Full webhook payload with all data',
+      description: 'Raw webhook payload from Lemlist (access fields via data.fieldName)',
     },
   }
 }
