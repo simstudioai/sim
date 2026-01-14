@@ -4,7 +4,7 @@ import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from './constants'
 export interface ColumnDefinition {
   name: string
   type: ColumnType
-  required?: boolean
+  optional?: boolean
   unique?: boolean
 }
 
@@ -150,8 +150,8 @@ export function validateRowAgainstSchema(
   for (const column of schema.columns) {
     const value = data[column.name]
 
-    // Check required fields
-    if (column.required && (value === undefined || value === null)) {
+    // Check required fields (columns are required by default unless marked optional)
+    if (!column.optional && (value === undefined || value === null)) {
       errors.push(`Missing required field: ${column.name}`)
       continue
     }

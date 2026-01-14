@@ -1,4 +1,5 @@
 import { TableIcon } from '@/components/icons'
+import { conditionsToFilter, sortConditionsToSort } from '@/lib/table/filter-builder-utils'
 import type { BlockConfig } from '@/blocks/types'
 import type { TableQueryResponse } from '@/tools/table/types'
 
@@ -171,7 +172,39 @@ Return ONLY the rows array:`,
       },
     },
 
-    // Filter for update/delete/query operations
+    // Filter mode selector for bulk operations
+    {
+      id: 'bulkFilterMode',
+      title: 'Filter Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'Builder', id: 'builder' },
+        { label: 'Editor', id: 'json' },
+      ],
+      value: () => 'builder',
+      condition: {
+        field: 'operation',
+        value: ['updateRowsByFilter', 'deleteRowsByFilter'],
+      },
+    },
+
+    // Filter builder for bulk operations (visual)
+    {
+      id: 'bulkFilterBuilder',
+      title: 'Filter Conditions',
+      type: 'filter-format',
+      required: {
+        field: 'operation',
+        value: ['updateRowsByFilter', 'deleteRowsByFilter'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['updateRowsByFilter', 'deleteRowsByFilter'],
+        and: { field: 'bulkFilterMode', value: 'builder' },
+      },
+    },
+
+    // Filter for update/delete operations (JSON editor)
     {
       id: 'filterCriteria',
       title: 'Filter Criteria',
@@ -180,8 +213,13 @@ Return ONLY the rows array:`,
       condition: {
         field: 'operation',
         value: ['updateRowsByFilter', 'deleteRowsByFilter'],
+        and: { field: 'bulkFilterMode', value: 'json' },
       },
-      required: true,
+      required: {
+        field: 'operation',
+        value: ['updateRowsByFilter', 'deleteRowsByFilter'],
+        and: { field: 'bulkFilterMode', value: 'json' },
+      },
       wandConfig: {
         enabled: true,
         maintainHistory: true,
@@ -234,13 +272,42 @@ Return ONLY the filter JSON:`,
       },
     },
 
-    // Query filters
+    // Filter mode selector for queryRows
+    {
+      id: 'filterMode',
+      title: 'Filter Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'Builder', id: 'builder' },
+        { label: 'Editor', id: 'json' },
+      ],
+      value: () => 'builder',
+      condition: { field: 'operation', value: 'queryRows' },
+    },
+
+    // Filter builder (visual)
+    {
+      id: 'filterBuilder',
+      title: 'Filter Conditions',
+      type: 'filter-format',
+      condition: {
+        field: 'operation',
+        value: 'queryRows',
+        and: { field: 'filterMode', value: 'builder' },
+      },
+    },
+
+    // Query filters (JSON editor)
     {
       id: 'filter',
       title: 'Filter',
       type: 'code',
       placeholder: '{"column_name": {"$eq": "value"}}',
-      condition: { field: 'operation', value: 'queryRows' },
+      condition: {
+        field: 'operation',
+        value: 'queryRows',
+        and: { field: 'filterMode', value: 'json' },
+      },
       wandConfig: {
         enabled: true,
         maintainHistory: true,
@@ -288,12 +355,42 @@ Return ONLY the filter JSON:`,
         generationType: 'json-object',
       },
     },
+    // Sort mode selector for queryRows
+    {
+      id: 'sortMode',
+      title: 'Sort Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'Builder', id: 'builder' },
+        { label: 'Editor', id: 'json' },
+      ],
+      value: () => 'builder',
+      condition: { field: 'operation', value: 'queryRows' },
+    },
+
+    // Sort builder (visual)
+    {
+      id: 'sortBuilder',
+      title: 'Sort Order',
+      type: 'sort-format',
+      condition: {
+        field: 'operation',
+        value: 'queryRows',
+        and: { field: 'sortMode', value: 'builder' },
+      },
+    },
+
+    // Sort (JSON editor)
     {
       id: 'sort',
       title: 'Sort',
       type: 'code',
       placeholder: '{"column_name": "desc"}',
-      condition: { field: 'operation', value: 'queryRows' },
+      condition: {
+        field: 'operation',
+        value: 'queryRows',
+        and: { field: 'sortMode', value: 'json' },
+      },
       wandConfig: {
         enabled: true,
         maintainHistory: true,
@@ -438,7 +535,12 @@ Return ONLY the sort JSON:`,
 
         // Update Rows by Filter
         if (operation === 'updateRowsByFilter') {
-          const filter = parseJSON(rest.filterCriteria, 'Filter Criteria')
+          let filter: any
+          if (rest.bulkFilterMode === 'builder' && rest.bulkFilterBuilder) {
+            filter = conditionsToFilter(rest.bulkFilterBuilder as any) || undefined
+          } else if (rest.filterCriteria) {
+            filter = parseJSON(rest.filterCriteria, 'Filter Criteria')
+          }
           const data = parseJSON(rest.rowData, 'Row Data')
           return {
             tableId: rest.tableId,
@@ -458,7 +560,12 @@ Return ONLY the sort JSON:`,
 
         // Delete Rows by Filter
         if (operation === 'deleteRowsByFilter') {
-          const filter = parseJSON(rest.filterCriteria, 'Filter Criteria')
+          let filter: any
+          if (rest.bulkFilterMode === 'builder' && rest.bulkFilterBuilder) {
+            filter = conditionsToFilter(rest.bulkFilterBuilder as any) || undefined
+          } else if (rest.filterCriteria) {
+            filter = parseJSON(rest.filterCriteria, 'Filter Criteria')
+          }
           return {
             tableId: rest.tableId,
             filter,
@@ -476,8 +583,21 @@ Return ONLY the sort JSON:`,
 
         // Query Rows
         if (operation === 'queryRows') {
-          const filter = rest.filter ? parseJSON(rest.filter, 'Filter') : undefined
-          const sort = rest.sort ? parseJSON(rest.sort, 'Sort') : undefined
+          let filter: any
+          if (rest.filterMode === 'builder' && rest.filterBuilder) {
+            // Convert builder conditions to filter object
+            filter = conditionsToFilter(rest.filterBuilder as any) || undefined
+          } else if (rest.filter) {
+            filter = parseJSON(rest.filter, 'Filter')
+          }
+
+          let sort: any
+          if (rest.sortMode === 'builder' && rest.sortBuilder) {
+            // Convert sort builder conditions to sort object
+            sort = sortConditionsToSort(rest.sortBuilder as any) || undefined
+          } else if (rest.sort) {
+            sort = parseJSON(rest.sort, 'Sort')
+          }
 
           return {
             tableId: rest.tableId,
@@ -499,10 +619,22 @@ Return ONLY the sort JSON:`,
     rowData: { type: 'json', description: 'Row data for insert/update' },
     batchRows: { type: 'array', description: 'Array of row data for batch insert' },
     rowId: { type: 'string', description: 'Row identifier for ID-based operations' },
-    filterCriteria: { type: 'json', description: 'Filter criteria for bulk operations' },
+    bulkFilterMode: {
+      type: 'string',
+      description: 'Filter input mode for bulk operations (builder or json)',
+    },
+    bulkFilterBuilder: {
+      type: 'json',
+      description: 'Visual filter builder conditions for bulk operations',
+    },
+    filterCriteria: { type: 'json', description: 'Filter criteria for bulk operations (JSON)' },
     bulkLimit: { type: 'number', description: 'Safety limit for bulk operations' },
-    filter: { type: 'json', description: 'Query filter conditions' },
-    sort: { type: 'json', description: 'Sort order' },
+    filterMode: { type: 'string', description: 'Filter input mode (builder or json)' },
+    filterBuilder: { type: 'json', description: 'Visual filter builder conditions' },
+    filter: { type: 'json', description: 'Query filter conditions (JSON)' },
+    sortMode: { type: 'string', description: 'Sort input mode (builder or json)' },
+    sortBuilder: { type: 'json', description: 'Visual sort builder conditions' },
+    sort: { type: 'json', description: 'Sort order (JSON)' },
     limit: { type: 'number', description: 'Query result limit' },
     offset: { type: 'number', description: 'Query result offset' },
   },

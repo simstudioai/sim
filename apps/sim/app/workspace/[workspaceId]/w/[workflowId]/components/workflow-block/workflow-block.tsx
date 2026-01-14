@@ -185,6 +185,52 @@ const isDocumentTagArray = (value: unknown): value is DocumentTagItem[] => {
 }
 
 /**
+ * Type guard for filter condition array (used in table block filter builder)
+ */
+interface FilterConditionItem {
+  id: string
+  logicalOperator: 'and' | 'or'
+  column: string
+  operator: string
+  value: string
+}
+
+const isFilterConditionArray = (value: unknown): value is FilterConditionItem[] => {
+  if (!Array.isArray(value) || value.length === 0) return false
+  const firstItem = value[0]
+  return (
+    typeof firstItem === 'object' &&
+    firstItem !== null &&
+    'column' in firstItem &&
+    'operator' in firstItem &&
+    'logicalOperator' in firstItem &&
+    typeof firstItem.column === 'string'
+  )
+}
+
+/**
+ * Type guard for sort condition array (used in table block sort builder)
+ */
+interface SortConditionItem {
+  id: string
+  column: string
+  direction: 'asc' | 'desc'
+}
+
+const isSortConditionArray = (value: unknown): value is SortConditionItem[] => {
+  if (!Array.isArray(value) || value.length === 0) return false
+  const firstItem = value[0]
+  return (
+    typeof firstItem === 'object' &&
+    firstItem !== null &&
+    'column' in firstItem &&
+    'direction' in firstItem &&
+    typeof firstItem.column === 'string' &&
+    (firstItem.direction === 'asc' || firstItem.direction === 'desc')
+  )
+}
+
+/**
  * Attempts to parse a JSON string, returns the parsed value or the original value if parsing fails
  */
 const tryParseJson = (value: unknown): unknown => {
@@ -246,6 +292,45 @@ export const getDisplayValue = (value: unknown): string => {
     if (validTags.length === 1) return validTags[0].tagName
     if (validTags.length === 2) return `${validTags[0].tagName}, ${validTags[1].tagName}`
     return `${validTags[0].tagName}, ${validTags[1].tagName} +${validTags.length - 2}`
+  }
+
+  if (isFilterConditionArray(parsedValue)) {
+    const validConditions = parsedValue.filter(
+      (c) => typeof c.column === 'string' && c.column.trim() !== ''
+    )
+    if (validConditions.length === 0) return '-'
+    const formatCondition = (c: FilterConditionItem) => {
+      const opLabels: Record<string, string> = {
+        eq: '=',
+        ne: '≠',
+        gt: '>',
+        gte: '≥',
+        lt: '<',
+        lte: '≤',
+        contains: '~',
+        in: 'in',
+      }
+      const op = opLabels[c.operator] || c.operator
+      return `${c.column} ${op} ${c.value || '?'}`
+    }
+    if (validConditions.length === 1) return formatCondition(validConditions[0])
+    if (validConditions.length === 2) {
+      return `${formatCondition(validConditions[0])}, ${formatCondition(validConditions[1])}`
+    }
+    return `${formatCondition(validConditions[0])}, ${formatCondition(validConditions[1])} +${validConditions.length - 2}`
+  }
+
+  if (isSortConditionArray(parsedValue)) {
+    const validConditions = parsedValue.filter(
+      (c) => typeof c.column === 'string' && c.column.trim() !== ''
+    )
+    if (validConditions.length === 0) return '-'
+    const formatSort = (c: SortConditionItem) => `${c.column} ${c.direction === 'desc' ? '↓' : '↑'}`
+    if (validConditions.length === 1) return formatSort(validConditions[0])
+    if (validConditions.length === 2) {
+      return `${formatSort(validConditions[0])}, ${formatSort(validConditions[1])}`
+    }
+    return `${formatSort(validConditions[0])}, ${formatSort(validConditions[1])} +${validConditions.length - 2}`
   }
 
   if (isTableRowArray(parsedValue)) {

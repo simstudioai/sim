@@ -3,6 +3,7 @@ import { AlertTriangle, Wand2 } from 'lucide-react'
 import { Label, Tooltip } from '@/components/emcn/components'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
+import type { FilterCondition, SortCondition } from '@/lib/table/filter-builder-utils'
 import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
 import {
   CheckboxList,
@@ -16,6 +17,7 @@ import {
   EvalInput,
   FileSelectorInput,
   FileUpload,
+  FilterFormat,
   FolderSelectorInput,
   GroupedCheckboxList,
   InputFormat,
@@ -33,6 +35,7 @@ import {
   ShortInput,
   SlackSelectorInput,
   SliderInput,
+  SortFormat,
   Switch,
   Table,
   Text,
@@ -793,6 +796,28 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue}
             config={config}
+            disabled={isDisabled}
+          />
+        )
+
+      case 'filter-format':
+        return (
+          <FilterFormat
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue as FilterCondition[] | null | undefined}
+            disabled={isDisabled}
+          />
+        )
+
+      case 'sort-format':
+        return (
+          <SortFormat
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue as SortCondition[] | null | undefined}
             disabled={isDisabled}
           />
         )

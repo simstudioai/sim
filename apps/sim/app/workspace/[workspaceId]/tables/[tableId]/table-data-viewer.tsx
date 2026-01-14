@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQuery } from '@tanstack/react-query'
-import { Columns, Copy, Edit, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { Copy, Edit, Info, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Badge,
@@ -12,6 +12,11 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverDivider,
+  PopoverItem,
   Table,
   TableBody,
   TableCell,
@@ -54,10 +59,16 @@ interface TableData {
 interface CellViewerData {
   columnName: string
   value: any
-  type: 'json' | 'text'
+  type: 'json' | 'text' | 'date'
 }
 
 const STRING_TRUNCATE_LENGTH = 50
+
+interface ContextMenuState {
+  isOpen: boolean
+  position: { x: number; y: number }
+  row: TableRowData | null
+}
 
 export function TableDataViewer() {
   const params = useParams()
@@ -78,6 +89,14 @@ export function TableDataViewer() {
   const [cellViewer, setCellViewer] = useState<CellViewerData | null>(null)
   const [showSchemaModal, setShowSchemaModal] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
+    isOpen: false,
+    position: { x: 0, y: 0 },
+    row: null,
+  })
+  const contextMenuRef = useRef<HTMLDivElement>(null)
 
   // Fetch table metadata
   const { data: tableData, isLoading: isLoadingTable } = useQuery({
@@ -159,12 +178,46 @@ export function TableDataViewer() {
     setDeletingRows(Array.from(selectedRows))
   }, [selectedRows])
 
+  // Context menu handlers
+  const handleRowContextMenu = useCallback((e: React.MouseEvent, row: TableRowData) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({
+      isOpen: true,
+      position: { x: e.clientX, y: e.clientY },
+      row,
+    })
+  }, [])
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu((prev) => ({ ...prev, isOpen: false }))
+  }, [])
+
+  const handleContextMenuEdit = useCallback(() => {
+    if (contextMenu.row) {
+      setEditingRow(contextMenu.row)
+    }
+    closeContextMenu()
+  }, [contextMenu.row, closeContextMenu])
+
+  const handleContextMenuDelete = useCallback(() => {
+    if (contextMenu.row) {
+      setDeletingRows([contextMenu.row.id])
+    }
+    closeContextMenu()
+  }, [contextMenu.row, closeContextMenu])
+
   const handleCopyCellValue = useCallback(async () => {
     if (cellViewer) {
-      const text =
-        cellViewer.type === 'json'
-          ? JSON.stringify(cellViewer.value, null, 2)
-          : String(cellViewer.value)
+      let text: string
+      if (cellViewer.type === 'json') {
+        text = JSON.stringify(cellViewer.value, null, 2)
+      } else if (cellViewer.type === 'date') {
+        // Copy ISO format for dates (parseable)
+        text = String(cellViewer.value)
+      } else {
+        text = String(cellViewer.value)
+      }
       await navigator.clipboard.writeText(text)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
@@ -193,7 +246,7 @@ export function TableDataViewer() {
   }
 
   const handleCellClick = useCallback(
-    (e: React.MouseEvent, columnName: string, value: any, type: 'json' | 'text') => {
+    (e: React.MouseEvent, columnName: string, value: any, type: 'json' | 'text' | 'date') => {
       e.preventDefault()
       e.stopPropagation()
       setCellViewer({ columnName, value, type })
@@ -213,7 +266,7 @@ export function TableDataViewer() {
       return (
         <button
           type='button'
-          className='block max-w-[300px] cursor-pointer select-none truncate rounded-[4px] border border-[var(--border-1)] px-[6px] py-[2px] text-left font-mono text-[11px] text-[var(--brand-secondary)] transition-colors hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]'
+          className='block max-w-[300px] cursor-pointer select-none truncate rounded-[4px] border border-[var(--border-1)] px-[6px] py-[2px] text-left font-mono text-[11px] text-[var(--text-secondary)] transition-colors hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]'
           onClick={(e) => handleCellClick(e, column.name, value, 'json')}
           title='Click to view full JSON'
         >
@@ -231,7 +284,34 @@ export function TableDataViewer() {
     }
 
     if (column.type === 'number') {
-      return <span className='font-mono text-[var(--brand-secondary)]'>{String(value)}</span>
+      return (
+        <span className='font-mono text-[12px] text-[var(--text-secondary)]'>{String(value)}</span>
+      )
+    }
+
+    if (column.type === 'date') {
+      try {
+        const date = new Date(value)
+        const formatted = date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+        return (
+          <button
+            type='button'
+            className='cursor-pointer select-none text-left text-[12px] text-[var(--text-secondary)] underline decoration-[var(--border-1)] decoration-dotted underline-offset-2 transition-colors hover:decoration-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            onClick={(e) => handleCellClick(e, column.name, value, 'date')}
+            title='Click to view ISO format'
+          >
+            {formatted}
+          </button>
+        )
+      } catch {
+        return <span className='text-[var(--text-primary)]'>{String(value)}</span>
+      }
     }
 
     // Handle long strings
@@ -296,7 +376,7 @@ export function TableDataViewer() {
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button variant='ghost' size='sm' onClick={() => setShowSchemaModal(true)}>
-                <Columns className='h-[14px] w-[14px]' />
+                <Info className='h-[14px] w-[14px]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>View Schema</Tooltip.Content>
@@ -355,7 +435,7 @@ export function TableDataViewer() {
                     <Badge variant='outline' size='sm'>
                       {column.type}
                     </Badge>
-                    {column.required && (
+                    {!column.optional && (
                       <span className='text-[10px] text-[var(--text-error)]'>*</span>
                     )}
                   </div>
@@ -427,6 +507,7 @@ export function TableDataViewer() {
                     'group hover:bg-[var(--surface-4)]',
                     selectedRows.has(row.id) && 'bg-[var(--surface-5)]'
                   )}
+                  onContextMenu={(e) => handleRowContextMenu(e, row)}
                 >
                   <TableCell>
                     <Checkbox
@@ -544,7 +625,7 @@ export function TableDataViewer() {
         <ModalContent className='w-[500px] duration-100'>
           <div className='flex items-center justify-between gap-[8px] px-[16px] py-[10px]'>
             <div className='flex min-w-0 items-center gap-[8px]'>
-              <Columns className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+              <Info className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
               <span className='font-medium text-[14px] text-[var(--text-primary)]'>
                 Table Schema
               </span>
@@ -594,9 +675,9 @@ export function TableDataViewer() {
                       </TableCell>
                       <TableCell className='text-[12px]'>
                         <div className='flex gap-[6px]'>
-                          {column.required && (
-                            <Badge variant='red' size='sm'>
-                              required
+                          {column.optional && (
+                            <Badge variant='gray' size='sm'>
+                              optional
                             </Badge>
                           )}
                           {column.unique && (
@@ -604,7 +685,7 @@ export function TableDataViewer() {
                               unique
                             </Badge>
                           )}
-                          {!column.required && !column.unique && (
+                          {!column.optional && !column.unique && (
                             <span className='text-[var(--text-muted)]'>—</span>
                           )}
                         </div>
@@ -626,8 +707,21 @@ export function TableDataViewer() {
               <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
                 {cellViewer?.columnName}
               </span>
-              <Badge variant={cellViewer?.type === 'json' ? 'blue' : 'gray'} size='sm'>
-                {cellViewer?.type === 'json' ? 'JSON' : 'Text'}
+              <Badge
+                variant={
+                  cellViewer?.type === 'json'
+                    ? 'blue'
+                    : cellViewer?.type === 'date'
+                      ? 'purple'
+                      : 'gray'
+                }
+                size='sm'
+              >
+                {cellViewer?.type === 'json'
+                  ? 'JSON'
+                  : cellViewer?.type === 'date'
+                    ? 'Date'
+                    : 'Text'}
               </Badge>
             </div>
             <div className='flex shrink-0 items-center gap-[8px]'>
@@ -649,6 +743,36 @@ export function TableDataViewer() {
               <pre className='m-[16px] max-h-[450px] overflow-auto rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px] font-mono text-[12px] text-[var(--text-primary)] leading-[1.6]'>
                 {cellViewer ? JSON.stringify(cellViewer.value, null, 2) : ''}
               </pre>
+            ) : cellViewer?.type === 'date' ? (
+              <div className='m-[16px] space-y-[12px]'>
+                <div className='rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px]'>
+                  <div className='mb-[6px] text-[11px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]'>
+                    Formatted
+                  </div>
+                  <div className='text-[14px] text-[var(--text-primary)]'>
+                    {cellViewer
+                      ? new Date(cellViewer.value).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          timeZoneName: 'short',
+                        })
+                      : ''}
+                  </div>
+                </div>
+                <div className='rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px]'>
+                  <div className='mb-[6px] text-[11px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]'>
+                    ISO Format
+                  </div>
+                  <div className='font-mono text-[13px] text-[var(--text-secondary)]'>
+                    {cellViewer ? String(cellViewer.value) : ''}
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className='m-[16px] max-h-[450px] overflow-auto whitespace-pre-wrap break-words rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px] text-[13px] text-[var(--text-primary)] leading-[1.7]'>
                 {cellViewer ? String(cellViewer.value) : ''}
@@ -657,6 +781,43 @@ export function TableDataViewer() {
           </ModalBody>
         </ModalContent>
       </Modal>
+
+      {/* Row Context Menu */}
+      <Popover
+        open={contextMenu.isOpen}
+        onOpenChange={(open) => !open && closeContextMenu()}
+        variant='secondary'
+        size='sm'
+        colorScheme='inverted'
+      >
+        <PopoverAnchor
+          style={{
+            position: 'fixed',
+            left: `${contextMenu.position.x}px`,
+            top: `${contextMenu.position.y}px`,
+            width: '1px',
+            height: '1px',
+          }}
+        />
+        <PopoverContent
+          ref={contextMenuRef}
+          align='start'
+          side='bottom'
+          sideOffset={4}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
+          <PopoverItem onClick={handleContextMenuEdit}>
+            <Edit className='mr-[8px] h-[12px] w-[12px]' />
+            Edit row
+          </PopoverItem>
+          <PopoverDivider />
+          <PopoverItem onClick={handleContextMenuDelete} className='text-[var(--text-error)]'>
+            <Trash2 className='mr-[8px] h-[12px] w-[12px]' />
+            Delete row
+          </PopoverItem>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }

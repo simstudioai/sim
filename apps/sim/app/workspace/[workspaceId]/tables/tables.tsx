@@ -87,23 +87,34 @@ export function Tables() {
             {/* Content */}
             <div className='mt-[24px] grid grid-cols-1 gap-[20px] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
               {isLoading ? (
-                // Loading skeleton
+                // Loading skeleton matching the new card style
                 Array.from({ length: 8 }).map((_, i) => (
                   <div
                     key={i}
-                    className='animate-pulse rounded-[8px] border border-[var(--border-muted)] bg-[var(--surface-1)] p-[16px]'
+                    className='flex h-full flex-col gap-[12px] rounded-[4px] bg-[var(--surface-3)] px-[8px] py-[6px] dark:bg-[var(--surface-4)]'
                   >
-                    <div className='flex items-start gap-[12px]'>
-                      <div className='h-[40px] w-[40px] rounded-[8px] bg-[var(--surface-4)]' />
-                      <div className='flex-1 space-y-[8px]'>
-                        <div className='h-[16px] w-3/4 rounded bg-[var(--surface-4)]' />
-                        <div className='h-[12px] w-1/2 rounded bg-[var(--surface-4)]' />
+                    <div className='flex items-center justify-between gap-[8px]'>
+                      <div className='h-[17px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+                      <div className='h-[22px] w-[90px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+                    </div>
+                    <div className='flex flex-1 flex-col gap-[8px]'>
+                      <div className='flex items-center justify-between'>
+                        <div className='flex items-center gap-[12px]'>
+                          <div className='h-[15px] w-[50px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+                          <div className='h-[15px] w-[50px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+                        </div>
+                        <div className='h-[15px] w-[60px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+                      </div>
+                      <div className='h-0 w-full border-[var(--divider)] border-t' />
+                      <div className='flex h-[36px] flex-col gap-[6px]'>
+                        <div className='h-[15px] w-full animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+                        <div className='h-[15px] w-[75%] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
                       </div>
                     </div>
                   </div>
                 ))
               ) : error ? (
-                <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
+                <div className='col-span-full flex h-64 items-center justify-center rounded-[4px] bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>
                   <div className='text-center'>
                     <p className='font-medium text-[var(--text-secondary)] text-sm'>
                       Error loading tables
@@ -114,7 +125,7 @@ export function Tables() {
                   </div>
                 </div>
               ) : filteredTables.length === 0 ? (
-                <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
+                <div className='col-span-full flex h-64 items-center justify-center rounded-[4px] bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>
                   <div className='text-center'>
                     <p className='font-medium text-[var(--text-secondary)] text-sm'>
                       {searchQuery ? 'No tables found' : 'No tables yet'}

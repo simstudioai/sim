@@ -71,6 +71,8 @@ export type SubBlockType =
   | 'mcp-dynamic-args' // MCP dynamic arguments based on tool schema
   | 'input-format' // Input structure format
   | 'response-format' // Response structure format
+  | 'filter-format' // Filter conditions builder
+  | 'sort-format' // Sort conditions builder
   | 'trigger-save' // Trigger save button with validation
   | 'file-upload' // File uploader
   | 'input-mapping' // Map parent variables to child workflow input schema

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Columns, Database, MoreVertical, Trash2 } from 'lucide-react'
+import { Columns, Info, Rows3, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
   Badge,
@@ -22,6 +22,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Tooltip,
 } from '@/components/emcn'
 import { useDeleteTable } from '@/hooks/queries/use-tables'
 import type { TableDefinition } from '@/tools/table/types'
@@ -31,6 +32,37 @@ const logger = createLogger('TableCard')
 interface TableCardProps {
   table: TableDefinition
   workspaceId: string
+}
+
+/**
+ * Formats a date string to relative time (e.g., "2h ago", "3d ago")
+ */
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (diffInSeconds < 60) return 'just now'
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`
+  if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)}w ago`
+  if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)}mo ago`
+  return `${Math.floor(diffInSeconds / 31536000)}y ago`
+}
+
+/**
+ * Formats a date string to absolute format for tooltip display
+ */
+function formatAbsoluteDate(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 export function TableCard({ table, workspaceId }: TableCardProps) {
@@ -55,75 +87,92 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
   return (
     <>
       <div
+        role='button'
+        tabIndex={0}
         data-table-card
-        className='group relative cursor-pointer rounded-[8px] border border-[var(--border-muted)] bg-[var(--surface-1)] p-[16px] transition-colors hover:border-[var(--border-color)]'
+        className='h-full cursor-pointer'
         onClick={() => router.push(`/workspace/${workspaceId}/tables/${table.id}`)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            router.push(`/workspace/${workspaceId}/tables/${table.id}`)
+          }
+        }}
       >
-        <div className='flex items-start justify-between gap-[8px]'>
-          <div className='flex min-w-0 flex-1 items-start gap-[12px]'>
-            <div className='mt-[2px] flex-shrink-0'>
-              <div className='flex h-[40px] w-[40px] items-center justify-center rounded-[8px] border border-[#3B82F6] bg-[#EFF6FF] dark:border-[#1E40AF] dark:bg-[#1E3A5F]'>
-                <Database className='h-[20px] w-[20px] text-[#3B82F6] dark:text-[#60A5FA]' />
-              </div>
-            </div>
-
-            <div className='min-w-0 flex-1'>
-              <h3 className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
-                {table.name}
-              </h3>
-
-              {table.description && (
-                <p className='mt-[4px] line-clamp-2 text-[12px] text-[var(--text-tertiary)]'>
-                  {table.description}
-                </p>
-              )}
-
-              <div className='mt-[12px] flex items-center gap-[16px] text-[11px] text-[var(--text-subtle)]'>
-                <span>{columnCount} columns</span>
-                <span>{table.rowCount} rows</span>
-              </div>
-
-              <div className='mt-[8px] text-[11px] text-[var(--text-muted)]'>
-                Updated {new Date(table.updatedAt).toLocaleDateString()}
-              </div>
-            </div>
+        <div className='group flex h-full flex-col gap-[12px] rounded-[4px] bg-[var(--surface-3)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover:bg-[var(--surface-5)]'>
+          <div className='flex items-center justify-between gap-[8px]'>
+            <h3 className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
+              {table.name}
+            </h3>
+            <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='h-[20px] w-[20px] p-0 text-[var(--text-tertiary)]'
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <svg className='h-[14px] w-[14px]' viewBox='0 0 16 16' fill='currentColor'>
+                    <circle cx='8' cy='3' r='1.5' />
+                    <circle cx='8' cy='8' r='1.5' />
+                    <circle cx='8' cy='13' r='1.5' />
+                  </svg>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align='end' className='w-[160px]'>
+                <PopoverItem
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsMenuOpen(false)
+                    setIsSchemaModalOpen(true)
+                  }}
+                >
+                  <Info className='mr-[8px] h-[14px] w-[14px]' />
+                  View Schema
+                </PopoverItem>
+                <PopoverItem
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsMenuOpen(false)
+                    setIsDeleteDialogOpen(true)
+                  }}
+                  className='text-[var(--text-error)] hover:text-[var(--text-error)]'
+                >
+                  <Trash2 className='mr-[8px] h-[14px] w-[14px]' />
+                  Delete
+                </PopoverItem>
+              </PopoverContent>
+            </Popover>
           </div>
 
-          <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant='ghost'
-                size='sm'
-                className='h-[24px] w-[24px] p-0 opacity-0 group-hover:opacity-100'
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreVertical className='h-[14px] w-[14px]' />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align='end' className='w-[160px]'>
-              <PopoverItem
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setIsMenuOpen(false)
-                  setIsSchemaModalOpen(true)
-                }}
-              >
-                <Columns className='mr-[8px] h-[14px] w-[14px]' />
-                View Schema
-              </PopoverItem>
-              <PopoverItem
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setIsMenuOpen(false)
-                  setIsDeleteDialogOpen(true)
-                }}
-                className='text-[var(--text-error)] hover:text-[var(--text-error)]'
-              >
-                <Trash2 className='mr-[8px] h-[14px] w-[14px]' />
-                Delete
-              </PopoverItem>
-            </PopoverContent>
-          </Popover>
+          <div className='flex flex-1 flex-col gap-[8px]'>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-[12px] text-[12px] text-[var(--text-tertiary)]'>
+                <span className='flex items-center gap-[4px]'>
+                  <Columns className='h-[12px] w-[12px]' />
+                  {columnCount} {columnCount === 1 ? 'col' : 'cols'}
+                </span>
+                <span className='flex items-center gap-[4px]'>
+                  <Rows3 className='h-[12px] w-[12px]' />
+                  {table.rowCount} {table.rowCount === 1 ? 'row' : 'rows'}
+                </span>
+              </div>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <span className='text-[12px] text-[var(--text-tertiary)]'>
+                    {formatRelativeTime(table.updatedAt)}
+                  </span>
+                </Tooltip.Trigger>
+                <Tooltip.Content>{formatAbsoluteDate(table.updatedAt)}</Tooltip.Content>
+              </Tooltip.Root>
+            </div>
+
+            <div className='h-0 w-full border-[var(--divider)] border-t' />
+
+            <p className='line-clamp-2 h-[36px] text-[12px] text-[var(--text-tertiary)] leading-[18px]'>
+              {table.description || 'No description'}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -162,7 +211,7 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
         <ModalContent className='w-[500px] duration-100'>
           <ModalHeader>
             <div className='flex items-center gap-[8px]'>
-              <Columns className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+              <Info className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
               <span>{table.name}</span>
               <Badge variant='gray' size='sm'>
                 {columnCount} columns
@@ -207,9 +256,9 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
                       </TableCell>
                       <TableCell className='text-[12px]'>
                         <div className='flex gap-[6px]'>
-                          {column.required && (
-                            <Badge variant='red' size='sm'>
-                              required
+                          {column.optional && (
+                            <Badge variant='gray' size='sm'>
+                              optional
                             </Badge>
                           )}
                           {column.unique && (
@@ -217,7 +266,7 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
                               unique
                             </Badge>
                           )}
-                          {!column.required && !column.unique && (
+                          {!column.optional && !column.unique && (
                             <span className='text-[var(--text-muted)]'>—</span>
                           )}
                         </div>
