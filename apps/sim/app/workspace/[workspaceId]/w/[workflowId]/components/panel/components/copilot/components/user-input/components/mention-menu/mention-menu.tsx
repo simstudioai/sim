@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import {
   Popover,
   PopoverAnchor,
@@ -9,7 +9,6 @@ import {
   PopoverFolder,
   PopoverItem,
   PopoverScrollArea,
-  usePopoverContext,
 } from '@/components/emcn'
 import type { useMentionData } from '../../hooks/use-mention-data'
 import type { useMentionMenu } from '../../hooks/use-mention-menu'
@@ -34,37 +33,6 @@ const LoadingState = () => <div className={STATE_TEXT_CLASSES}>Loading...</div>
 const EmptyState = ({ message }: { message: string }) => (
   <div className={STATE_TEXT_CLASSES}>{message}</div>
 )
-
-const FOLDER_ID_TO_NAME: Record<string, string> = {
-  chats: 'Chats',
-  workflows: 'Workflows',
-  knowledge: 'Knowledge',
-  blocks: 'Blocks',
-  'workflow-blocks': 'Workflow Blocks',
-  templates: 'Templates',
-  logs: 'Logs',
-}
-
-function FolderSyncEffect({
-  setOpenSubmenuFor,
-}: {
-  setOpenSubmenuFor: (folder: string | null) => void
-}) {
-  const { currentFolder } = usePopoverContext()
-
-  useEffect(() => {
-    if (currentFolder === null) {
-      setOpenSubmenuFor(null)
-    } else {
-      const folderName = FOLDER_ID_TO_NAME[currentFolder]
-      if (folderName) {
-        setOpenSubmenuFor(folderName)
-      }
-    }
-  }, [currentFolder, setOpenSubmenuFor])
-
-  return null
-}
 
 interface AggregatedItem {
   id: string
@@ -354,7 +322,6 @@ export function MentionMenu({
 
   return (
     <Popover open={open} onOpenChange={() => {}}>
-      <FolderSyncEffect setOpenSubmenuFor={setOpenSubmenuFor} />
       <PopoverAnchor asChild>
         <div
           style={{
@@ -380,7 +347,7 @@ export function MentionMenu({
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        <PopoverBackButton />
+        <PopoverBackButton onClick={() => setOpenSubmenuFor(null)} />
         <PopoverScrollArea ref={menuListRef} className='space-y-[2px]'>
           {openSubmenuFor ? (
             // Submenu view - showing contents of a specific folder

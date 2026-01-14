@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import {
   Popover,
   PopoverAnchor,
@@ -9,7 +9,6 @@ import {
   PopoverFolder,
   PopoverItem,
   PopoverScrollArea,
-  usePopoverContext,
 } from '@/components/emcn'
 import type { useMentionMenu } from '../../hooks/use-mention-menu'
 
@@ -27,24 +26,6 @@ const WEB_COMMANDS = [
 ] as const
 
 const ALL_COMMANDS = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
-
-function FolderSyncEffect({
-  setOpenSubmenuFor,
-}: {
-  setOpenSubmenuFor: (folder: string | null) => void
-}) {
-  const { currentFolder } = usePopoverContext()
-
-  useEffect(() => {
-    if (currentFolder === null) {
-      setOpenSubmenuFor(null)
-    } else if (currentFolder === 'web') {
-      setOpenSubmenuFor('Web')
-    }
-  }, [currentFolder, setOpenSubmenuFor])
-
-  return null
-}
 
 interface SlashMenuProps {
   mentionMenu: ReturnType<typeof useMentionMenu>
@@ -113,7 +94,6 @@ export function SlashMenu({ mentionMenu, message, onSelectCommand }: SlashMenuPr
 
   return (
     <Popover open={true} onOpenChange={() => {}}>
-      <FolderSyncEffect setOpenSubmenuFor={setOpenSubmenuFor} />
       <PopoverAnchor asChild>
         <div
           style={{
@@ -139,7 +119,7 @@ export function SlashMenu({ mentionMenu, message, onSelectCommand }: SlashMenuPr
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        <PopoverBackButton />
+        <PopoverBackButton onClick={() => setOpenSubmenuFor(null)} />
         <PopoverScrollArea ref={menuListRef} className='space-y-[2px]'>
           {openSubmenuFor === 'Web' ? (
             <>
