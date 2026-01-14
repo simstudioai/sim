@@ -22,7 +22,7 @@ import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { mergeSubblockState, normalizeName } from '@/stores/workflows/utils'
+import { filterNewEdges, mergeSubblockState, normalizeName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState, Loop, Parallel, Position } from '@/stores/workflows/workflow/types'
 
@@ -242,17 +242,7 @@ export function useCollaborativeWorkflow() {
             case EDGES_OPERATIONS.BATCH_ADD_EDGES: {
               const { edges } = payload
               if (Array.isArray(edges) && edges.length > 0) {
-                const currentEdges = workflowStore.edges
-                const newEdges = edges.filter((edge: Edge) => {
-                  if (edge.source === edge.target) return false
-                  return !currentEdges.some(
-                    (e) =>
-                      e.source === edge.source &&
-                      e.sourceHandle === edge.sourceHandle &&
-                      e.target === edge.target &&
-                      e.targetHandle === edge.targetHandle
-                  )
-                })
+                const newEdges = filterNewEdges(edges, workflowStore.edges)
                 if (newEdges.length > 0) {
                   workflowStore.batchAddEdges(newEdges)
                 }
@@ -989,22 +979,8 @@ export function useCollaborativeWorkflow() {
 
       if (edges.length === 0) return false
 
-      const currentEdges = workflowStore.edges
-      const newEdges = edges.filter((edge) => {
-        if (edge.source === edge.target) return false
-        return !currentEdges.some(
-          (e) =>
-            e.source === edge.source &&
-            e.sourceHandle === edge.sourceHandle &&
-            e.target === edge.target &&
-            e.targetHandle === edge.targetHandle
-        )
-      })
-
-      if (newEdges.length === 0) {
-        logger.debug('Skipping batch add edges - all edges already exist')
-        return false
-      }
+      const newEdges = filterNewEdges(edges, workflowStore.edges)
+      if (newEdges.length === 0) return false
 
       const operationId = crypto.randomUUID()
 

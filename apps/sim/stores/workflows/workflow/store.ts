@@ -9,7 +9,12 @@ import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { getUniqueBlockName, mergeSubblockState, normalizeName } from '@/stores/workflows/utils'
+import {
+  filterNewEdges,
+  getUniqueBlockName,
+  mergeSubblockState,
+  normalizeName,
+} from '@/stores/workflows/utils'
 import type {
   Position,
   SubBlockState,
@@ -496,19 +501,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
       batchAddEdges: (edges: Edge[]) => {
         const currentEdges = get().edges
+        const filtered = filterNewEdges(edges, currentEdges)
         const newEdges = [...currentEdges]
 
-        for (const edge of edges) {
-          const connectionExists = newEdges.some(
-            (e) =>
-              e.source === edge.source &&
-              e.sourceHandle === edge.sourceHandle &&
-              e.target === edge.target &&
-              e.targetHandle === edge.targetHandle
-          )
-          if (connectionExists) continue
+        for (const edge of filtered) {
           if (wouldCreateCycle([...newEdges], edge.source, edge.target)) continue
-
           newEdges.push({
             id: edge.id || crypto.randomUUID(),
             source: edge.source,
