@@ -506,6 +506,16 @@ export const useWorkflowStore = create<WorkflowStore>()(
           // Skip self-referencing edges
           if (edge.source === edge.target) continue
 
+          // Skip if identical connection already exists (same ports)
+          const connectionExists = newEdges.some(
+            (e) =>
+              e.source === edge.source &&
+              e.sourceHandle === edge.sourceHandle &&
+              e.target === edge.target &&
+              e.targetHandle === edge.targetHandle
+          )
+          if (connectionExists) continue
+
           // Skip if would create a cycle
           if (wouldCreateCycle([...newEdges], edge.source, edge.target)) continue
 
