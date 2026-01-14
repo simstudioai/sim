@@ -146,6 +146,22 @@ export const langsmithCreateRunTool: ToolConfig<
       )
     },
   },
+  outputs: {
+    accepted: {
+      type: 'boolean',
+      description: 'Whether the run was accepted for ingestion',
+    },
+    runId: {
+      type: 'string',
+      description: 'Run identifier provided in the request',
+      optional: true,
+    },
+    message: {
+      type: 'string',
+      description: 'Response message from LangSmith',
+      optional: true,
+    },
+  },
   transformResponse: async (response, params) => {
     const runId = params ? normalizeLangsmithRunPayload(params).runId : null
     const data = (await response.json()) as Record<string, unknown>
@@ -168,21 +184,5 @@ export const langsmithCreateRunTool: ToolConfig<
         message: directMessage ?? nestedMessage ?? null,
       },
     }
-  },
-  outputs: {
-    accepted: {
-      type: 'boolean',
-      description: 'Whether the run was accepted for ingestion',
-    },
-    runId: {
-      type: 'string',
-      description: 'Run identifier provided in the request',
-      optional: true,
-    },
-    message: {
-      type: 'string',
-      description: 'Response message from LangSmith',
-      optional: true,
-    },
   },
 }
