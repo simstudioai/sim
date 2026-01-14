@@ -49,22 +49,6 @@ export const tableUpsertRowTool: ToolConfig<TableRowInsertParams, TableUpsertRes
   transformResponse: async (response): Promise<TableUpsertResponse> => {
     const data = await response.json()
 
-    if (!response.ok) {
-      let errorMessage = data.error || 'Failed to upsert row'
-
-      // Include details array if present
-      if (data.details) {
-        if (Array.isArray(data.details) && data.details.length > 0) {
-          const detailsStr = data.details.join('; ')
-          errorMessage = `${errorMessage}: ${detailsStr}`
-        } else if (typeof data.details === 'string') {
-          errorMessage = `${errorMessage}: ${data.details}`
-        }
-      }
-
-      throw new Error(errorMessage)
-    }
-
     return {
       success: true,
       output: {

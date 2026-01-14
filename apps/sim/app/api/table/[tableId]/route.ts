@@ -64,7 +64,14 @@ export async function GET(
         id: table.id,
         name: table.name,
         description: table.description,
-        schema: table.schema,
+        schema: {
+          columns: (table.schema as any).columns.map((col: any) => ({
+            name: col.name,
+            type: col.type,
+            required: col.required ?? false,
+            unique: col.unique ?? false,
+          })),
+        },
         rowCount: table.rowCount,
         maxRows: table.maxRows,
         createdAt: table.createdAt.toISOString(),

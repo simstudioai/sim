@@ -28,6 +28,7 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
         { label: 'Update Row by ID', id: 'updateRow' },
         { label: 'Delete Row by ID', id: 'deleteRow' },
         { label: 'Get Row by ID', id: 'getRow' },
+        { label: 'Get Schema', id: 'getSchema' },
       ],
       value: () => 'queryRows',
     },
@@ -449,6 +450,7 @@ Return ONLY the sort JSON:`,
       'table_delete_rows_by_filter',
       'table_query_rows',
       'table_get_row',
+      'table_get_schema',
     ],
     config: {
       tool: (params) => {
@@ -462,6 +464,7 @@ Return ONLY the sort JSON:`,
           deleteRowsByFilter: 'table_delete_rows_by_filter',
           queryRows: 'table_query_rows',
           getRow: 'table_get_row',
+          getSchema: 'table_get_schema',
         }
         return toolMap[params.operation] || 'table_query_rows'
       },
@@ -583,6 +586,13 @@ Return ONLY the sort JSON:`,
           }
         }
 
+        // Get Schema
+        if (operation === 'getSchema') {
+          return {
+            tableId: rest.tableId,
+          }
+        }
+
         // Query Rows
         if (operation === 'queryRows') {
           let filter: any
@@ -694,6 +704,16 @@ Return ONLY the sort JSON:`,
       type: 'array',
       description: 'IDs of deleted rows',
       condition: { field: 'operation', value: 'deleteRowsByFilter' },
+    },
+    name: {
+      type: 'string',
+      description: 'Table name',
+      condition: { field: 'operation', value: 'getSchema' },
+    },
+    columns: {
+      type: 'array',
+      description: 'Column definitions',
+      condition: { field: 'operation', value: 'getSchema' },
     },
     message: { type: 'string', description: 'Operation status message' },
   },

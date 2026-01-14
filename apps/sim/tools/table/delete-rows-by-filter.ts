@@ -55,10 +55,6 @@ export const tableDeleteRowsByFilterTool: ToolConfig<
   transformResponse: async (response): Promise<TableBulkOperationResponse> => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to delete rows')
-    }
-
     return {
       success: true,
       output: {

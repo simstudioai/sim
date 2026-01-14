@@ -40,10 +40,6 @@ export const tableGetRowTool: ToolConfig<TableRowGetParams, TableRowResponse> = 
   transformResponse: async (response): Promise<TableRowResponse> => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to get row')
-    }
-
     return {
       success: true,
       output: {

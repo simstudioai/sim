@@ -26,10 +26,6 @@ export const tableListTool: ToolConfig<TableListParams, TableListResponse> = {
   transformResponse: async (response): Promise<TableListResponse> => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to list tables')
-    }
-
     return {
       success: true,
       output: {

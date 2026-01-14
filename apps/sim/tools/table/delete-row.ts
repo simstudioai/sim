@@ -43,10 +43,6 @@ export const tableDeleteRowTool: ToolConfig<TableRowDeleteParams, TableDeleteRes
   transformResponse: async (response): Promise<TableDeleteResponse> => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to delete row')
-    }
-
     return {
       success: true,
       output: {

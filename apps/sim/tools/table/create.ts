@@ -52,10 +52,6 @@ export const tableCreateTool: ToolConfig<TableCreateParams, TableCreateResponse>
   transformResponse: async (response): Promise<TableCreateResponse> => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to create table')
-    }
-
     return {
       success: true,
       output: {

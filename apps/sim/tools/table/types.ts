@@ -185,3 +185,16 @@ export interface TableBulkOperationResponse extends ToolResponse {
     message: string
   }
 }
+
+export interface TableGetSchemaParams extends ToolParamsWithContext {
+  tableId: string
+  workspaceId?: string
+}
+
+export interface TableGetSchemaResponse extends ToolResponse {
+  output: {
+    name: string
+    columns: ColumnDefinition[]
+    message: string
+  }
+}

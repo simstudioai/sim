@@ -47,33 +47,6 @@ export const tableBatchInsertRowsTool: ToolConfig<
   transformResponse: async (response): Promise<TableBatchInsertResponse> => {
     const data = await response.json()
 
-    if (!response.ok) {
-      let errorMessage = data.error || 'Failed to batch insert rows'
-
-      // Include details if present
-      if (data.details) {
-        if (Array.isArray(data.details) && data.details.length > 0) {
-          // Check if details is array of error objects with row numbers
-          if (typeof data.details[0] === 'object' && 'row' in data.details[0]) {
-            const errorSummary = data.details
-              .map((detail: { row: number; errors: string[] }) => {
-                const rowErrors = detail.errors.join(', ')
-                return `Row ${detail.row}: ${rowErrors}`
-              })
-              .join('; ')
-            errorMessage = `${errorMessage}: ${errorSummary}`
-          } else {
-            // Simple array of strings
-            errorMessage = `${errorMessage}: ${data.details.join('; ')}`
-          }
-        } else if (typeof data.details === 'string') {
-          errorMessage = `${errorMessage}: ${data.details}`
-        }
-      }
-
-      throw new Error(errorMessage)
-    }
-
     return {
       success: true,
       output: {

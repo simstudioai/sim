@@ -76,10 +76,6 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
   transformResponse: async (response): Promise<TableQueryResponse> => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to query rows')
-    }
-
     return {
       success: true,
       output: {

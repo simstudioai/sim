@@ -172,6 +172,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Normalize schema to ensure all fields have explicit defaults
+    const normalizedSchema = {
+      columns: params.schema.columns.map((col) => ({
+        name: col.name,
+        type: col.type,
+        required: col.required ?? false,
+        unique: col.unique ?? false,
+      })),
+    }
+
     // Create table
     const tableId = `tbl_${crypto.randomUUID().replace(/-/g, '')}`
     const now = new Date()
@@ -183,7 +193,7 @@ export async function POST(request: NextRequest) {
         workspaceId: params.workspaceId,
         name: params.name,
         description: params.description,
-        schema: params.schema,
+        schema: normalizedSchema,
         maxRows: TABLE_LIMITS.MAX_ROWS_PER_TABLE,
         rowCount: 0,
         createdBy: authResult.userId,
@@ -279,6 +289,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       tables: tables.map((t) => ({
         ...t,
+        schema: {
+          columns: (t.schema as any).columns.map((col: any) => ({
+            name: col.name,
+            type: col.type,
+            required: col.required ?? false,
+            unique: col.unique ?? false,
+          })),
+        },
         createdAt: t.createdAt.toISOString(),
         updatedAt: t.updatedAt.toISOString(),
       })),
