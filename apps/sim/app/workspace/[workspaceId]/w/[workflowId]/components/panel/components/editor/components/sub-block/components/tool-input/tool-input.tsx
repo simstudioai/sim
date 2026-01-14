@@ -2195,11 +2195,12 @@ export function ToolInput({
       {/* Selected Tools List */}
       {selectedTools.length > 0 &&
         selectedTools.map((tool, toolIndex) => {
-          // Handle custom tools and MCP tools differently
+          // Handle custom tools, MCP tools, and workflow tools differently
           const isCustomTool = tool.type === 'custom-tool'
           const isMcpTool = tool.type === 'mcp'
+          const isWorkflowTool = tool.type === 'workflow'
           const toolBlock =
-            !isCustomTool && !isMcpTool
+            !isCustomTool && !isMcpTool && !isWorkflowTool
               ? toolBlocks.find((block) => block.type === tool.type)
               : null
 
@@ -2323,13 +2324,17 @@ export function ToolInput({
                         ? '#3B82F6'
                         : isMcpTool
                           ? mcpTool?.bgColor || '#6366F1'
-                          : toolBlock?.bgColor,
+                          : isWorkflowTool
+                            ? '#6366F1'
+                            : toolBlock?.bgColor,
                     }}
                   >
                     {isCustomTool ? (
                       <WrenchIcon className='h-[10px] w-[10px] text-white' />
                     ) : isMcpTool ? (
                       <IconComponent icon={McpIcon} className='h-[10px] w-[10px] text-white' />
+                    ) : isWorkflowTool ? (
+                      <IconComponent icon={WorkflowIcon} className='h-[10px] w-[10px] text-white' />
                     ) : (
                       <IconComponent
                         icon={toolBlock?.icon}

@@ -8,7 +8,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "bunx @react-grab/cursor@latest && next dev --port 3000",
     "dev:webpack": "next dev --webpack",
     "dev:sockets": "bun run socket/index.ts",
     "dev:full": "bunx concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"bun run dev\" \"bun run dev:sockets\"",
