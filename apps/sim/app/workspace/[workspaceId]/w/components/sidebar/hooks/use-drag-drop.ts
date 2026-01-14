@@ -158,7 +158,12 @@ export function useDragDrop() {
         const remaining = siblingItems.filter(
           (item) => !(item.type === 'workflow' && movingSet.has(item.id))
         )
-        const moving = workflowIds.map((id) => ({ type: 'workflow' as const, id, sortOrder: 0 }))
+        const moving = workflowIds
+          .map((id) => {
+            const w = currentWorkflows[id]
+            return { type: 'workflow' as const, id, sortOrder: w?.sortOrder ?? 0 }
+          })
+          .sort((a, b) => a.sortOrder - b.sortOrder)
 
         let insertAt: number
         if (indicator.position === 'inside') {

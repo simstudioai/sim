@@ -17,6 +17,7 @@ const CreateWorkflowSchema = z.object({
   color: z.string().optional().default('#3972F6'),
   workspaceId: z.string().optional(),
   folderId: z.string().nullable().optional(),
+  sortOrder: z.number().int().optional(),
 })
 
 // GET /api/workflows - Get workflows for user (optionally filtered by workspaceId)
@@ -93,7 +94,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { name, description, color, workspaceId, folderId } = CreateWorkflowSchema.parse(body)
+    const {
+      name,
+      description,
+      color,
+      workspaceId,
+      folderId,
+      sortOrder: providedSortOrder,
+    } = CreateWorkflowSchema.parse(body)
 
     if (workspaceId) {
       const workspacePermission = await getUserEntityPermissions(
@@ -131,16 +139,21 @@ export async function POST(req: NextRequest) {
         // Silently fail
       })
 
-    const folderCondition = folderId ? eq(workflow.folderId, folderId) : isNull(workflow.folderId)
-    const [maxResult] = await db
-      .select({ maxOrder: max(workflow.sortOrder) })
-      .from(workflow)
-      .where(
-        workspaceId
-          ? and(eq(workflow.workspaceId, workspaceId), folderCondition)
-          : and(eq(workflow.userId, session.user.id), folderCondition)
-      )
-    const sortOrder = (maxResult?.maxOrder ?? -1) + 1
+    let sortOrder: number
+    if (providedSortOrder !== undefined) {
+      sortOrder = providedSortOrder
+    } else {
+      const folderCondition = folderId ? eq(workflow.folderId, folderId) : isNull(workflow.folderId)
+      const [maxResult] = await db
+        .select({ maxOrder: max(workflow.sortOrder) })
+        .from(workflow)
+        .where(
+          workspaceId
+            ? and(eq(workflow.workspaceId, workspaceId), folderCondition)
+            : and(eq(workflow.userId, session.user.id), folderCondition)
+        )
+      sortOrder = (maxResult?.maxOrder ?? -1) + 1
+    }
 
     await db.insert(workflow).values({
       id: workflowId,

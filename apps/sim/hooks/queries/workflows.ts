@@ -92,6 +92,7 @@ interface CreateWorkflowVariables {
   description?: string
   color?: string
   folderId?: string | null
+  sortOrder?: number
 }
 
 interface CreateWorkflowResult {
@@ -184,12 +185,17 @@ export function useCreateWorkflow() {
     queryClient,
     'CreateWorkflow',
     (variables, tempId) => {
-      const currentWorkflows = useWorkflowRegistry.getState().workflows
-      const targetFolderId = variables.folderId || null
-      const workflowsInFolder = Object.values(currentWorkflows).filter(
-        (w) => w.folderId === targetFolderId
-      )
-      const maxSortOrder = workflowsInFolder.reduce((max, w) => Math.max(max, w.sortOrder ?? 0), -1)
+      let sortOrder: number
+      if (variables.sortOrder !== undefined) {
+        sortOrder = variables.sortOrder
+      } else {
+        const currentWorkflows = useWorkflowRegistry.getState().workflows
+        const targetFolderId = variables.folderId || null
+        const workflowsInFolder = Object.values(currentWorkflows).filter(
+          (w) => w.folderId === targetFolderId
+        )
+        sortOrder = workflowsInFolder.reduce((max, w) => Math.max(max, w.sortOrder ?? 0), -1) + 1
+      }
 
       return {
         id: tempId,
@@ -199,15 +205,15 @@ export function useCreateWorkflow() {
         description: variables.description || 'New workflow',
         color: variables.color || getNextWorkflowColor(),
         workspaceId: variables.workspaceId,
-        folderId: targetFolderId,
-        sortOrder: maxSortOrder + 1,
+        folderId: variables.folderId || null,
+        sortOrder,
       }
     }
   )
 
   return useMutation({
     mutationFn: async (variables: CreateWorkflowVariables): Promise<CreateWorkflowResult> => {
-      const { workspaceId, name, description, color, folderId } = variables
+      const { workspaceId, name, description, color, folderId, sortOrder } = variables
 
       logger.info(`Creating new workflow in workspace: ${workspaceId}`)
 
@@ -220,6 +226,7 @@ export function useCreateWorkflow() {
           color: color || getNextWorkflowColor(),
           workspaceId,
           folderId: folderId || null,
+          sortOrder,
         }),
       })
 

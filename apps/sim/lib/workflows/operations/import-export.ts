@@ -16,6 +16,7 @@ export interface WorkflowExportData {
     description?: string
     color?: string
     folderId?: string | null
+    sortOrder?: number
   }
   state: WorkflowState
   variables?: Record<string, Variable>
@@ -25,6 +26,7 @@ export interface FolderExportData {
   id: string
   name: string
   parentId: string | null
+  sortOrder?: number
 }
 
 export interface WorkspaceExportStructure {
@@ -71,7 +73,12 @@ export async function exportWorkspaceToZip(
       name: workspaceName,
       exportedAt: new Date().toISOString(),
     },
-    folders: folders.map((f) => ({ id: f.id, name: f.name, parentId: f.parentId })),
+    folders: folders.map((f) => ({
+      id: f.id,
+      name: f.name,
+      parentId: f.parentId,
+      sortOrder: f.sortOrder,
+    })),
   }
 
   zip.file('_workspace.json', JSON.stringify(metadata, null, 2))
@@ -84,6 +91,7 @@ export async function exportWorkspaceToZip(
           name: workflow.workflow.name,
           description: workflow.workflow.description,
           color: workflow.workflow.color,
+          sortOrder: workflow.workflow.sortOrder,
           exportedAt: new Date().toISOString(),
         },
         variables: workflow.variables,
@@ -109,11 +117,18 @@ export interface ImportedWorkflow {
   content: string
   name: string
   folderPath: string[]
+  sortOrder?: number
 }
 
 export interface WorkspaceImportMetadata {
   workspaceName: string
   exportedAt?: string
+  folders?: Array<{
+    id: string
+    name: string
+    parentId: string | null
+    sortOrder?: number
+  }>
 }
 
 export async function extractWorkflowsFromZip(
@@ -133,6 +148,7 @@ export async function extractWorkflowsFromZip(
         metadata = {
           workspaceName: parsed.workspace?.name || 'Imported Workspace',
           exportedAt: parsed.workspace?.exportedAt,
+          folders: parsed.folders,
         }
       } catch (error) {
         logger.error('Failed to parse workspace metadata:', error)
@@ -147,10 +163,19 @@ export async function extractWorkflowsFromZip(
       const pathParts = path.split('/').filter((p) => p.length > 0)
       const filename = pathParts.pop() || path
 
+      let sortOrder: number | undefined
+      try {
+        const parsed = JSON.parse(content)
+        sortOrder = parsed.state?.metadata?.sortOrder ?? parsed.metadata?.sortOrder
+      } catch {
+        // ignore parse errors for sortOrder extraction
+      }
+
       workflows.push({
         content,
         name: filename,
         folderPath: pathParts,
+        sortOrder,
       })
     } catch (error) {
       logger.error(`Failed to extract ${path}:`, error)
@@ -168,10 +193,20 @@ export async function extractWorkflowsFromFiles(files: File[]): Promise<Imported
 
     try {
       const content = await file.text()
+
+      let sortOrder: number | undefined
+      try {
+        const parsed = JSON.parse(content)
+        sortOrder = parsed.state?.metadata?.sortOrder ?? parsed.metadata?.sortOrder
+      } catch {
+        // ignore parse errors for sortOrder extraction
+      }
+
       workflows.push({
         content,
         name: file.name,
         folderPath: [],
+        sortOrder,
       })
     } catch (error) {
       logger.error(`Failed to read ${file.name}:`, error)

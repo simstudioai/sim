@@ -165,6 +165,7 @@ export function useExportFolder({ workspaceId, folderId, onSuccess }: UseExportF
               name: workflow.name,
               description: workflow.description,
               color: workflow.color,
+              sortOrder: workflow.sortOrder,
               exportedAt: new Date().toISOString(),
             },
             variables: workflowVariables,

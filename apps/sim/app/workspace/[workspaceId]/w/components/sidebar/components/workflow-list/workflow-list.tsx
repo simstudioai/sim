@@ -241,7 +241,7 @@ export function WorkflowList({
           </div>
           <DropIndicatorLine show={showAfter} level={level} />
 
-          {isExpanded && (
+          {isExpanded && (hasChildren || isDragging) && (
             <div className='relative'>
               <div
                 className='pointer-events-none absolute top-0 bottom-0 w-px bg-[var(--border)]'
@@ -253,7 +253,7 @@ export function WorkflowList({
                     ? renderFolderSection(item.data as FolderTreeNode, level + 1, folder.id)
                     : renderWorkflowItem(item.data as WorkflowMetadata, level + 1, folder.id)
                 )}
-                {!hasChildren && (
+                {!hasChildren && isDragging && (
                   <div className='h-[24px]' {...createEmptyFolderDropZone(folder.id)} />
                 )}
               </div>

@@ -68,6 +68,7 @@ interface CreateFolderVariables {
   name: string
   parentId?: string
   color?: string
+  sortOrder?: number
 }
 
 interface UpdateFolderVariables {
@@ -160,18 +161,20 @@ export function useCreateFolder() {
       parentId: variables.parentId || null,
       color: variables.color || '#808080',
       isExpanded: false,
-      sortOrder: getNextSortOrder(previousFolders, variables.workspaceId, variables.parentId),
+      sortOrder:
+        variables.sortOrder ??
+        getNextSortOrder(previousFolders, variables.workspaceId, variables.parentId),
       createdAt: new Date(),
       updatedAt: new Date(),
     })
   )
 
   return useMutation({
-    mutationFn: async ({ workspaceId, ...payload }: CreateFolderVariables) => {
+    mutationFn: async ({ workspaceId, sortOrder, ...payload }: CreateFolderVariables) => {
       const response = await fetch('/api/folders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, workspaceId }),
+        body: JSON.stringify({ ...payload, workspaceId, sortOrder }),
       })
 
       if (!response.ok) {

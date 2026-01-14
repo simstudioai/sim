@@ -86,6 +86,7 @@ export function useExportWorkspace({ onSuccess }: UseExportWorkspaceProps = {}) 
                 description: workflow.description,
                 color: workflow.color,
                 folderId: workflow.folderId,
+                sortOrder: workflow.sortOrder,
               },
               state: workflowData.state,
               variables: workflowVariables,
@@ -100,6 +101,7 @@ export function useExportWorkspace({ onSuccess }: UseExportWorkspaceProps = {}) 
             id: folder.id,
             name: folder.name,
             parentId: folder.parentId,
+            sortOrder: folder.sortOrder,
           })
         )
 
