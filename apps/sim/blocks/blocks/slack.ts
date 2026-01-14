@@ -26,6 +26,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         { label: 'Send Message', id: 'send' },
         { label: 'Create Canvas', id: 'canvas' },
         { label: 'Read Messages', id: 'read' },
+        { label: 'Get Message', id: 'get_message' },
         { label: 'List Channels', id: 'list_channels' },
         { label: 'List Channel Members', id: 'list_members' },
         { label: 'List Users', id: 'list_users' },
@@ -316,6 +317,32 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       },
       required: true,
     },
+    // Get Message specific fields
+    {
+      id: 'getMessageTimestamp',
+      title: 'Message Timestamp',
+      type: 'short-input',
+      placeholder: 'Message timestamp (e.g., 1405894322.002768)',
+      condition: {
+        field: 'operation',
+        value: 'get_message',
+      },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Extract or generate a Slack message timestamp from the user's input.
+Slack message timestamps are in the format: XXXXXXXXXX.XXXXXX (seconds.microseconds since Unix epoch).
+Examples:
+- "1405894322.002768" -> 1405894322.002768 (already a valid timestamp)
+- "thread_ts from the trigger" -> The user wants to reference a variable, output the original text
+- A URL like "https://slack.com/archives/C123/p1405894322002768" -> Extract 1405894322.002768 (remove 'p' prefix, add decimal after 10th digit)
+
+If the input looks like a reference to another block's output (contains < and >) or a variable, return it as-is.
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Paste a Slack message URL or timestamp...',
+        generationType: 'timestamp',
+      },
+    },
     {
       id: 'oldest',
       title: 'Oldest Timestamp',
@@ -430,6 +457,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'slack_message',
       'slack_canvas',
       'slack_message_reader',
+      'slack_get_message',
       'slack_list_channels',
       'slack_list_members',
       'slack_list_users',
@@ -448,6 +476,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'slack_canvas'
           case 'read':
             return 'slack_message_reader'
+          case 'get_message':
+            return 'slack_get_message'
           case 'list_channels':
             return 'slack_list_channels'
           case 'list_members':
@@ -498,6 +528,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           includeDeleted,
           userLimit,
           userId,
+          getMessageTimestamp,
           ...rest
         } = params
 
@@ -573,6 +604,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             }
             break
           }
+
+          case 'get_message':
+            if (!getMessageTimestamp) {
+              throw new Error('Message timestamp is required for get message operation')
+            }
+            baseParams.timestamp = getMessageTimestamp
+            break
 
           case 'list_channels': {
             baseParams.includePrivate = includePrivate !== 'false'
@@ -679,6 +717,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     userLimit: { type: 'string', description: 'Maximum number of users to return' },
     // Get User inputs
     userId: { type: 'string', description: 'User ID to look up' },
+    // Get Message inputs
+    getMessageTimestamp: { type: 'string', description: 'Message timestamp to retrieve' },
   },
   outputs: {
     // slack_message outputs (send operation)

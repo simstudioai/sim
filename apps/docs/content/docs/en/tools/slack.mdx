@@ -124,6 +124,25 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 | --------- | ---- | ----------- |
 | `messages` | array | Array of message objects from the channel |
 
+### `slack_get_message`
+
+Retrieve a specific message by its timestamp. Useful for getting a thread parent message.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Slack channel ID \(e.g., C1234567890\) |
+| `timestamp` | string | Yes | Message timestamp to retrieve \(e.g., 1405894322.002768\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | object | The retrieved message object |
+
 ### `slack_list_channels`
 
 List all channels in a Slack workspace. Returns public and private channels the bot has access to.

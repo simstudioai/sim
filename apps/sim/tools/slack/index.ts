@@ -2,6 +2,7 @@ import { slackAddReactionTool } from '@/tools/slack/add_reaction'
 import { slackCanvasTool } from '@/tools/slack/canvas'
 import { slackDeleteMessageTool } from '@/tools/slack/delete_message'
 import { slackDownloadTool } from '@/tools/slack/download'
+import { slackGetMessageTool } from '@/tools/slack/get_message'
 import { slackGetUserTool } from '@/tools/slack/get_user'
 import { slackListChannelsTool } from '@/tools/slack/list_channels'
 import { slackListMembersTool } from '@/tools/slack/list_members'
@@ -22,4 +23,5 @@ export {
   slackListMembersTool,
   slackListUsersTool,
   slackGetUserTool,
+  slackGetMessageTool,
 }
