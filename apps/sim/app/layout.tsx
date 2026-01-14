@@ -7,6 +7,7 @@ import { generateBrandedMetadata, generateStructuredData } from '@/lib/branding/
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
 import '@/app/_styles/globals.css'
 import { OneDollarStats } from '@/components/analytics/onedollarstats'
+import { isReactGrabEnabled } from '@/lib/core/config/feature-flags'
 import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
 import { QueryProvider } from '@/app/_shell/providers/query-provider'
 import { SessionProvider } from '@/app/_shell/providers/session-provider'
@@ -33,14 +34,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang='en' suppressHydrationWarning>
       <head>
-        {process.env.NODE_ENV === 'development' && (
+        {isReactGrabEnabled && (
           <Script
             src='//unpkg.com/react-grab/dist/index.global.js'
             crossOrigin='anonymous'
             strategy='beforeInteractive'
           />
         )}
-        {process.env.NODE_ENV === 'development' && (
+        {isReactGrabEnabled && (
           <Script
             src='//unpkg.com/@react-grab/cursor/dist/client.global.js'
             strategy='lazyOnload'
