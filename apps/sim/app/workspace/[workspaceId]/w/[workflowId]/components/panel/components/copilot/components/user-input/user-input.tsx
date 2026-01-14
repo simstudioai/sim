@@ -40,7 +40,7 @@ import { useCopilotStore } from '@/stores/panel'
 
 const logger = createLogger('CopilotUserInput')
 
-const TOP_LEVEL_COMMANDS = ['fast', 'plan', 'debug', 'research', 'deploy', 'superagent'] as const
+const TOP_LEVEL_COMMANDS = ['fast', 'research', 'superagent'] as const
 const WEB_COMMANDS = ['search', 'read', 'scrape', 'crawl'] as const
 const ALL_COMMANDS = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
 
