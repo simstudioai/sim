@@ -2,12 +2,12 @@ import type { DatasetParams, DatasetResponse } from '@/tools/brightdata/types'
 import type { ToolConfig } from '@/tools/types'
 
 /**
- * Bright Data Amazon Product dataset tool.
+ * Bright Data Google Maps Reviews dataset tool.
  */
-export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse> = {
-  id: 'brightdata_dataset_amazon_product',
-  name: 'Bright Data Amazon Product Dataset',
-  description: "Quickly read structured amazon product data.\nRequires a valid product URL with /dp/ in it.\nThis can be a cache lookup, so it can be more reliable than scraping",
+export const datasetGoogleMapsReviewsTool: ToolConfig<DatasetParams, DatasetResponse> = {
+  id: 'brightdata_dataset_google_maps_reviews',
+  name: 'Bright Data Google Maps Reviews Dataset',
+  description: "Quickly read structured Google maps reviews data.\nRequires a valid Google maps URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
   version: '1.0.0',
 
   params: {
@@ -16,6 +16,12 @@ export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse
       required: true,
       visibility: 'user-or-llm',
       description: 'Dataset input URL',
+    },
+    days_limit: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Days limit (default: 3)',
     },
     apiToken: {
       type: 'string',
@@ -33,9 +39,14 @@ export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
-        datasetId: 'gd_l7q7dkf244hwjntr0',
+        datasetId: 'gd_luzfs1dn2oa0teb81',
         apiToken: params.apiToken,
         url: params.url,
+        days_limit: params.days_limit,
+      }
+
+      if (body.days_limit === undefined) {
+        body.days_limit = '3'
       }
 
       return body

@@ -2,12 +2,12 @@ import type { DatasetParams, DatasetResponse } from '@/tools/brightdata/types'
 import type { ToolConfig } from '@/tools/types'
 
 /**
- * Bright Data Amazon Product dataset tool.
+ * Bright Data Linkedin People Search dataset tool.
  */
-export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse> = {
-  id: 'brightdata_dataset_amazon_product',
-  name: 'Bright Data Amazon Product Dataset',
-  description: "Quickly read structured amazon product data.\nRequires a valid product URL with /dp/ in it.\nThis can be a cache lookup, so it can be more reliable than scraping",
+export const datasetLinkedinPeopleSearchTool: ToolConfig<DatasetParams, DatasetResponse> = {
+  id: 'brightdata_dataset_linkedin_people_search',
+  name: 'Bright Data Linkedin People Search Dataset',
+  description: "Quickly read structured linkedin people search data\nThis can be a cache lookup, so it can be more reliable than scraping",
   version: '1.0.0',
 
   params: {
@@ -16,6 +16,18 @@ export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse
       required: true,
       visibility: 'user-or-llm',
       description: 'Dataset input URL',
+    },
+    first_name: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'First name',
+    },
+    last_name: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Last name',
     },
     apiToken: {
       type: 'string',
@@ -33,9 +45,11 @@ export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
-        datasetId: 'gd_l7q7dkf244hwjntr0',
+        datasetId: 'gd_m8d03he47z8nwb5xc',
         apiToken: params.apiToken,
         url: params.url,
+        first_name: params.first_name,
+        last_name: params.last_name,
       }
 
       return body

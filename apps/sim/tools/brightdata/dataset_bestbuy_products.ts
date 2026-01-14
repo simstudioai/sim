@@ -2,12 +2,12 @@ import type { DatasetParams, DatasetResponse } from '@/tools/brightdata/types'
 import type { ToolConfig } from '@/tools/types'
 
 /**
- * Bright Data Amazon Product dataset tool.
+ * Bright Data Bestbuy Products dataset tool.
  */
-export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse> = {
-  id: 'brightdata_dataset_amazon_product',
-  name: 'Bright Data Amazon Product Dataset',
-  description: "Quickly read structured amazon product data.\nRequires a valid product URL with /dp/ in it.\nThis can be a cache lookup, so it can be more reliable than scraping",
+export const datasetBestbuyProductsTool: ToolConfig<DatasetParams, DatasetResponse> = {
+  id: 'brightdata_dataset_bestbuy_products',
+  name: 'Bright Data Bestbuy Products Dataset',
+  description: "Quickly read structured bestbuy product data.\nRequires a valid bestbuy product URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
   version: '1.0.0',
 
   params: {
@@ -33,7 +33,7 @@ export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
-        datasetId: 'gd_l7q7dkf244hwjntr0',
+        datasetId: 'gd_ltre1jqe1jfr7cccf',
         apiToken: params.apiToken,
         url: params.url,
       }

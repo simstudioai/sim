@@ -2,12 +2,12 @@ import type { DatasetParams, DatasetResponse } from '@/tools/brightdata/types'
 import type { ToolConfig } from '@/tools/types'
 
 /**
- * Bright Data Amazon Product dataset tool.
+ * Bright Data Tiktok Comments dataset tool.
  */
-export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse> = {
-  id: 'brightdata_dataset_amazon_product',
-  name: 'Bright Data Amazon Product Dataset',
-  description: "Quickly read structured amazon product data.\nRequires a valid product URL with /dp/ in it.\nThis can be a cache lookup, so it can be more reliable than scraping",
+export const datasetTiktokCommentsTool: ToolConfig<DatasetParams, DatasetResponse> = {
+  id: 'brightdata_dataset_tiktok_comments',
+  name: 'Bright Data Tiktok Comments Dataset',
+  description: "Quickly read structured Tiktok comments data.\nRequires a valid Tiktok video URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
   version: '1.0.0',
 
   params: {
@@ -33,7 +33,7 @@ export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
-        datasetId: 'gd_l7q7dkf244hwjntr0',
+        datasetId: 'gd_lkf2st302ap89utw5k',
         apiToken: params.apiToken,
         url: params.url,
       }

@@ -2,12 +2,12 @@ import type { DatasetParams, DatasetResponse } from '@/tools/brightdata/types'
 import type { ToolConfig } from '@/tools/types'
 
 /**
- * Bright Data Amazon Product dataset tool.
+ * Bright Data Youtube Comments dataset tool.
  */
-export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse> = {
-  id: 'brightdata_dataset_amazon_product',
-  name: 'Bright Data Amazon Product Dataset',
-  description: "Quickly read structured amazon product data.\nRequires a valid product URL with /dp/ in it.\nThis can be a cache lookup, so it can be more reliable than scraping",
+export const datasetYoutubeCommentsTool: ToolConfig<DatasetParams, DatasetResponse> = {
+  id: 'brightdata_dataset_youtube_comments',
+  name: 'Bright Data Youtube Comments Dataset',
+  description: "Quickly read structured youtube comments data.\nRequires a valid youtube video URL.\nThis can be a cache lookup, so it can be more reliable than scraping",
   version: '1.0.0',
 
   params: {
@@ -16,6 +16,12 @@ export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse
       required: true,
       visibility: 'user-or-llm',
       description: 'Dataset input URL',
+    },
+    num_of_comments: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of comments to fetch (default: 10)',
     },
     apiToken: {
       type: 'string',
@@ -33,9 +39,14 @@ export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
-        datasetId: 'gd_l7q7dkf244hwjntr0',
+        datasetId: 'gd_lk9q0ew71spt1mxywf',
         apiToken: params.apiToken,
         url: params.url,
+        num_of_comments: params.num_of_comments,
+      }
+
+      if (body.num_of_comments === undefined) {
+        body.num_of_comments = '10'
       }
 
       return body

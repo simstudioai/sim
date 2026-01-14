@@ -2,12 +2,12 @@ import type { DatasetParams, DatasetResponse } from '@/tools/brightdata/types'
 import type { ToolConfig } from '@/tools/types'
 
 /**
- * Bright Data Amazon Product dataset tool.
+ * Bright Data Facebook Company Reviews dataset tool.
  */
-export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse> = {
-  id: 'brightdata_dataset_amazon_product',
-  name: 'Bright Data Amazon Product Dataset',
-  description: "Quickly read structured amazon product data.\nRequires a valid product URL with /dp/ in it.\nThis can be a cache lookup, so it can be more reliable than scraping",
+export const datasetFacebookCompanyReviewsTool: ToolConfig<DatasetParams, DatasetResponse> = {
+  id: 'brightdata_dataset_facebook_company_reviews',
+  name: 'Bright Data Facebook Company Reviews Dataset',
+  description: "Quickly read structured Facebook company reviews data.\nRequires a valid Facebook company URL and number of reviews.\nThis can be a cache lookup, so it can be more reliable than scraping",
   version: '1.0.0',
 
   params: {
@@ -16,6 +16,12 @@ export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse
       required: true,
       visibility: 'user-or-llm',
       description: 'Dataset input URL',
+    },
+    num_of_reviews: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Number of reviews to fetch',
     },
     apiToken: {
       type: 'string',
@@ -33,9 +39,10 @@ export const datasetAmazonProductTool: ToolConfig<DatasetParams, DatasetResponse
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
-        datasetId: 'gd_l7q7dkf244hwjntr0',
+        datasetId: 'gd_m0dtqpiu1mbcyc2g86',
         apiToken: params.apiToken,
         url: params.url,
+        num_of_reviews: params.num_of_reviews,
       }
 
       return body
