@@ -1636,10 +1636,8 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
  * Checks if a tool is an integration tool (server-side executed, not a client tool)
  */
 function isIntegrationTool(toolName: string): boolean {
-  // Check if it's NOT a client tool (not in CLASS_TOOL_METADATA and not in registered tools)
-  const isClientTool = !!CLASS_TOOL_METADATA[toolName]
-  const isRegisteredTool = !!getRegisteredTools()[toolName]
-  return !isClientTool && !isRegisteredTool
+  // Any tool NOT in CLASS_TOOL_METADATA is an integration tool (server-side execution)
+  return !CLASS_TOOL_METADATA[toolName]
 }
 
 function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
@@ -1668,16 +1666,9 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
     return true
   }
 
-  // Also show buttons for integration tools in pending state (they need user confirmation)
-  // But NOT if the tool is auto-allowed (it will auto-execute)
+  // Always show buttons for integration tools in pending state (they need user confirmation)
   const mode = useCopilotStore.getState().mode
-  const isAutoAllowed = useCopilotStore.getState().isToolAutoAllowed(toolCall.name)
-  if (
-    mode === 'build' &&
-    isIntegrationTool(toolCall.name) &&
-    toolCall.state === 'pending' &&
-    !isAutoAllowed
-  ) {
+  if (mode === 'build' && isIntegrationTool(toolCall.name) && toolCall.state === 'pending') {
     return true
   }
 
@@ -1899,15 +1890,20 @@ function RunSkipButtons({
 
   if (buttonsHidden) return null
 
-  // Standardized buttons for all interrupt tools: Allow, Always Allow, Skip
+  // Hide "Always Allow" for integration tools (only show for client tools with interrupts)
+  const showAlwaysAllow = !isIntegrationTool(toolCall.name)
+
+  // Standardized buttons for all interrupt tools: Allow, (Always Allow for client tools only), Skip
   return (
     <div className='mt-1.5 flex gap-[6px]'>
       <Button onClick={onRun} disabled={isProcessing} variant='tertiary'>
         {isProcessing ? 'Allowing...' : 'Allow'}
       </Button>
-      <Button onClick={onAlwaysAllow} disabled={isProcessing} variant='default'>
-        {isProcessing ? 'Allowing...' : 'Always Allow'}
-      </Button>
+      {showAlwaysAllow && (
+        <Button onClick={onAlwaysAllow} disabled={isProcessing} variant='default'>
+          {isProcessing ? 'Allowing...' : 'Always Allow'}
+        </Button>
+      )}
       <Button onClick={onSkip} disabled={isProcessing} variant='default'>
         Skip
       </Button>

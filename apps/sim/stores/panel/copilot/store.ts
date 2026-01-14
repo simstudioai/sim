@@ -1223,30 +1223,20 @@ const sseHandlers: Record<string, SSEHandler> = {
       }
     } catch {}
 
-    // Integration tools: Check if auto-allowed, otherwise wait for user confirmation
-    // This handles tools like google_calendar_*, exa_*, etc. that aren't in the client registry
+    // Integration tools: Stay in pending state until user confirms via buttons
+    // This handles tools like google_calendar_*, exa_*, gmail_read, etc. that aren't in the client registry
     // Only relevant if mode is 'build' (agent)
-    const { mode, workflowId, autoAllowedTools } = get()
+    const { mode, workflowId } = get()
     if (mode === 'build' && workflowId) {
-      // Check if tool was NOT found in client registry (def is undefined from above)
+      // Check if tool was NOT found in client registry
       const def = name ? getTool(name) : undefined
       const inst = getClientTool(id) as any
       if (!def && !inst && name) {
-        // Check if this tool is auto-allowed
-        if (autoAllowedTools.includes(name)) {
-          logger.info('[build mode] Integration tool auto-allowed, executing', { id, name })
-
-          // Auto-execute the tool
-          setTimeout(() => {
-            get().executeIntegrationTool(id)
-          }, 0)
-        } else {
-          // Integration tools stay in pending state until user confirms
-          logger.info('[build mode] Integration tool awaiting user confirmation', {
-            id,
-            name,
-          })
-        }
+        // Integration tools stay in pending state until user confirms
+        logger.info('[build mode] Integration tool awaiting user confirmation', {
+          id,
+          name,
+        })
       }
     }
   },
@@ -2639,13 +2629,14 @@ export const useCopilotStore = create<CopilotStore>()(
             ),
             isSendingMessage: false,
             isAborting: false,
-            abortController: null,
+            // Keep abortController so streaming loop can check signal.aborted
+            // It will be nulled when streaming completes or new message starts
           }))
         } else {
           set({
             isSendingMessage: false,
             isAborting: false,
-            abortController: null,
+            // Keep abortController so streaming loop can check signal.aborted
           })
         }
 
@@ -2674,7 +2665,7 @@ export const useCopilotStore = create<CopilotStore>()(
           } catch {}
         }
       } catch {
-        set({ isSendingMessage: false, isAborting: false, abortController: null })
+        set({ isSendingMessage: false, isAborting: false })
       }
     },
 
@@ -3175,6 +3166,7 @@ export const useCopilotStore = create<CopilotStore>()(
               : msg
           ),
           isSendingMessage: false,
+          isAborting: false,
           abortController: null,
           currentUserMessageId: null,
         }))
