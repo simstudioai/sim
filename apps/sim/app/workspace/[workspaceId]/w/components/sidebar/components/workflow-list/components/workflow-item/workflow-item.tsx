@@ -24,9 +24,15 @@ import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
-const EMPTY_DRAG_IMAGE = new Image(1, 1)
-EMPTY_DRAG_IMAGE.src =
-  'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
+let EMPTY_DRAG_IMAGE: HTMLImageElement | null = null
+function getEmptyDragImage(): HTMLImageElement {
+  if (!EMPTY_DRAG_IMAGE && typeof window !== 'undefined') {
+    EMPTY_DRAG_IMAGE = new Image(1, 1)
+    EMPTY_DRAG_IMAGE.src =
+      'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
+  }
+  return EMPTY_DRAG_IMAGE!
+}
 
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
@@ -231,8 +237,9 @@ export function WorkflowItem({
         return
       }
 
-      if (EMPTY_DRAG_IMAGE.complete) {
-        e.dataTransfer.setDragImage(EMPTY_DRAG_IMAGE, 0, 0)
+      const emptyImg = getEmptyDragImage()
+      if (emptyImg?.complete) {
+        e.dataTransfer.setDragImage(emptyImg, 0, 0)
       }
 
       const currentSelection = useFolderStore.getState().selectedWorkflows

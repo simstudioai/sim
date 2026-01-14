@@ -120,6 +120,19 @@ export function useDragDrop() {
     []
   )
 
+  const calculateFolderDropPosition = useCallback(
+    (e: React.DragEvent, element: HTMLElement): 'before' | 'inside' | 'after' => {
+      const rect = element.getBoundingClientRect()
+      const relativeY = e.clientY - rect.top
+      const height = rect.height
+      // Top 25% = before, middle 50% = inside, bottom 25% = after
+      if (relativeY < height * 0.25) return 'before'
+      if (relativeY > height * 0.75) return 'after'
+      return 'inside'
+    },
+    []
+  )
+
   type SiblingItem = { type: 'folder' | 'workflow'; id: string; sortOrder: number }
 
   const getDestinationFolderId = useCallback((indicator: DropIndicator): string | null => {
@@ -193,24 +206,34 @@ export function useDragDrop() {
 
   const setNormalizedDropIndicator = useCallback(
     (indicator: DropIndicator | null) => {
-      if (!indicator || indicator.position !== 'after' || indicator.targetId === 'root') {
-        setDropIndicator(indicator)
-        return
-      }
+      setDropIndicator((prev) => {
+        let next: DropIndicator | null = indicator
 
-      const siblings = getSiblingItems(indicator.folderId)
-      const currentIdx = siblings.findIndex((s) => s.id === indicator.targetId)
-      const nextSibling = siblings[currentIdx + 1]
+        // Normalize 'after' to 'before' of next sibling
+        if (indicator && indicator.position === 'after' && indicator.targetId !== 'root') {
+          const siblings = getSiblingItems(indicator.folderId)
+          const currentIdx = siblings.findIndex((s) => s.id === indicator.targetId)
+          const nextSibling = siblings[currentIdx + 1]
+          if (nextSibling) {
+            next = {
+              targetId: nextSibling.id,
+              position: 'before',
+              folderId: indicator.folderId,
+            }
+          }
+        }
 
-      if (nextSibling) {
-        setDropIndicator({
-          targetId: nextSibling.id,
-          position: 'before',
-          folderId: indicator.folderId,
-        })
-      } else {
-        setDropIndicator(indicator)
-      }
+        // Skip update if indicator hasn't changed
+        if (
+          prev?.targetId === next?.targetId &&
+          prev?.position === next?.position &&
+          prev?.folderId === next?.folderId
+        ) {
+          return prev
+        }
+
+        return next
+      })
     },
     [getSiblingItems]
   )
@@ -431,11 +454,19 @@ export function useDragDrop() {
             setHoverFolderId(folderId)
           }
         } else {
+          // Workflow being dragged over a folder
           const isSameParent = draggedSourceFolderRef.current === parentFolderId
           if (isSameParent) {
-            const position = calculateDropPosition(e, e.currentTarget)
+            // Same level - use three zones: top=before, middle=inside, bottom=after
+            const position = calculateFolderDropPosition(e, e.currentTarget)
             setNormalizedDropIndicator({ targetId: folderId, position, folderId: parentFolderId })
+            if (position === 'inside') {
+              setHoverFolderId(folderId)
+            } else {
+              setHoverFolderId(null)
+            }
           } else {
+            // Different container - drop into folder
             setNormalizedDropIndicator({
               targetId: folderId,
               position: 'inside',
@@ -450,7 +481,14 @@ export function useDragDrop() {
       },
       onDrop: handleDrop,
     }),
-    [initDragOver, calculateDropPosition, setNormalizedDropIndicator, isLeavingElement, handleDrop]
+    [
+      initDragOver,
+      calculateDropPosition,
+      calculateFolderDropPosition,
+      setNormalizedDropIndicator,
+      isLeavingElement,
+      handleDrop,
+    ]
   )
 
   const createEmptyFolderDropZone = useCallback(
@@ -462,6 +500,23 @@ export function useDragDrop() {
       onDrop: handleDrop,
     }),
     [initDragOver, setNormalizedDropIndicator, handleDrop]
+  )
+
+  const createFolderContentDropZone = useCallback(
+    (folderId: string) => ({
+      onDragOver: (e: React.DragEvent<HTMLElement>) => {
+        e.preventDefault()
+        e.stopPropagation() // Prevent bubbling to root when in gaps between items
+        lastDragYRef.current = e.clientY
+        setIsDragging(true)
+        // Only set folder highlight if dragging from a different folder
+        if (draggedSourceFolderRef.current !== folderId) {
+          setNormalizedDropIndicator({ targetId: folderId, position: 'inside', folderId: null })
+        }
+      },
+      onDrop: handleDrop,
+    }),
+    [setNormalizedDropIndicator, handleDrop]
   )
 
   const createRootDropZone = useCallback(
@@ -506,6 +561,7 @@ export function useDragDrop() {
     createWorkflowDragHandlers,
     createFolderDragHandlers,
     createEmptyFolderDropZone,
+    createFolderContentDropZone,
     createRootDropZone,
     handleDragStart,
     handleDragEnd,

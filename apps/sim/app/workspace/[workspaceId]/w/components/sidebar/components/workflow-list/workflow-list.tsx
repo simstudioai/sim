@@ -60,6 +60,7 @@ export function WorkflowList({
     createWorkflowDragHandlers,
     createFolderDragHandlers,
     createEmptyFolderDropZone,
+    createFolderContentDropZone,
     createRootDropZone,
     handleDragStart,
     handleDragEnd,
@@ -245,7 +246,7 @@ export function WorkflowList({
           <DropIndicatorLine show={showAfter} level={level} />
 
           {isExpanded && (hasChildren || isDragging) && (
-            <div className='relative'>
+            <div className='relative' {...createFolderContentDropZone(folder.id)}>
               <div
                 className='pointer-events-none absolute top-0 bottom-0 w-px bg-[var(--border)]'
                 style={{ left: `${level * TREE_SPACING.INDENT_PER_LEVEL + 12}px` }}
@@ -272,6 +273,7 @@ export function WorkflowList({
       isDragging,
       createFolderDragHandlers,
       createEmptyFolderDropZone,
+      createFolderContentDropZone,
       handleDragStart,
       handleDragEnd,
       renderWorkflowItem,
