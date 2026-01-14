@@ -2290,7 +2290,7 @@ describe('hasWorkflowChanged', () => {
           block1: createBlock('block1', {
             type: 'starter',
             subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
+              model: { value: 'gpt-4' },
               webhookId: { value: null },
             },
           }),
@@ -2302,7 +2302,7 @@ describe('hasWorkflowChanged', () => {
           block1: createBlock('block1', {
             type: 'starter',
             subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
+              model: { value: 'gpt-4' },
               webhookId: { value: 'wh_123456' },
             },
           }),
@@ -2318,7 +2318,7 @@ describe('hasWorkflowChanged', () => {
           block1: createBlock('block1', {
             type: 'starter',
             subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
+              model: { value: 'gpt-4' },
               triggerPath: { value: '' },
             },
           }),
@@ -2330,7 +2330,7 @@ describe('hasWorkflowChanged', () => {
           block1: createBlock('block1', {
             type: 'starter',
             subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
+              model: { value: 'gpt-4' },
               triggerPath: { value: '/api/webhooks/abc123' },
             },
           }),
@@ -2346,7 +2346,7 @@ describe('hasWorkflowChanged', () => {
           block1: createBlock('block1', {
             type: 'starter',
             subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
+              model: { value: 'gpt-4' },
               webhookId: { value: null },
               triggerPath: { value: '' },
             },
@@ -2359,7 +2359,7 @@ describe('hasWorkflowChanged', () => {
           block1: createBlock('block1', {
             type: 'starter',
             subBlocks: {
-              triggerConfig: { value: { event: 'push' } },
+              model: { value: 'gpt-4' },
               webhookId: { value: 'wh_123456' },
               triggerPath: { value: '/api/webhooks/abc123' },
             },
@@ -2371,14 +2371,18 @@ describe('hasWorkflowChanged', () => {
     })
 
     it.concurrent(
-      'should detect change when triggerConfig differs but runtime metadata also differs',
+      'should detect change when actual config differs but runtime metadata also differs',
       () => {
+        // Test that when a real config field changes along with runtime metadata,
+        // the change is still detected. Using 'model' as the config field since
+        // triggerConfig is now excluded from comparison (individual trigger fields
+        // are compared separately).
         const deployedState = createWorkflowState({
           blocks: {
             block1: createBlock('block1', {
               type: 'starter',
               subBlocks: {
-                triggerConfig: { value: { event: 'push' } },
+                model: { value: 'gpt-4' },
                 webhookId: { value: null },
               },
             }),
@@ -2390,7 +2394,7 @@ describe('hasWorkflowChanged', () => {
             block1: createBlock('block1', {
               type: 'starter',
               subBlocks: {
-                triggerConfig: { value: { event: 'pull_request' } },
+                model: { value: 'gpt-4o' },
                 webhookId: { value: 'wh_123456' },
               },
             }),
@@ -2402,8 +2406,12 @@ describe('hasWorkflowChanged', () => {
     )
 
     it.concurrent(
-      'should not detect change when runtime metadata is added to current state',
+      'should not detect change when triggerConfig differs (individual fields compared separately)',
       () => {
+        // triggerConfig is excluded from comparison because:
+        // 1. Individual trigger fields are stored as separate subblocks and compared individually
+        // 2. The client populates triggerConfig with default values from trigger definitions,
+        //    which aren't present in the deployed state, causing false positive change detection
         const deployedState = createWorkflowState({
           blocks: {
             block1: createBlock('block1', {
@@ -2420,7 +2428,36 @@ describe('hasWorkflowChanged', () => {
             block1: createBlock('block1', {
               type: 'starter',
               subBlocks: {
-                triggerConfig: { value: { event: 'push' } },
+                triggerConfig: { value: { event: 'pull_request', extraField: true } },
+              },
+            }),
+          },
+        })
+
+        expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+      }
+    )
+
+    it.concurrent(
+      'should not detect change when runtime metadata is added to current state',
+      () => {
+        const deployedState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                model: { value: 'gpt-4' },
+              },
+            }),
+          },
+        })
+
+        const currentState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                model: { value: 'gpt-4' },
                 webhookId: { value: 'wh_123456' },
                 triggerPath: { value: '/api/webhooks/abc123' },
               },
@@ -2440,7 +2477,7 @@ describe('hasWorkflowChanged', () => {
             block1: createBlock('block1', {
               type: 'starter',
               subBlocks: {
-                triggerConfig: { value: { event: 'push' } },
+                model: { value: 'gpt-4' },
                 webhookId: { value: 'wh_old123' },
                 triggerPath: { value: '/api/webhooks/old' },
               },
@@ -2453,7 +2490,7 @@ describe('hasWorkflowChanged', () => {
             block1: createBlock('block1', {
               type: 'starter',
               subBlocks: {
-                triggerConfig: { value: { event: 'push' } },
+                model: { value: 'gpt-4' },
               },
             }),
           },

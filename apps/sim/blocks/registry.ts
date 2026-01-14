@@ -313,6 +313,26 @@ export const getBlock = (type: string): BlockConfig | undefined => {
   return registry[normalized]
 }
 
+export const getLatestBlock = (baseType: string): BlockConfig | undefined => {
+  const normalized = baseType.replace(/-/g, '_')
+
+  const versionedKeys = Object.keys(registry).filter((key) => {
+    const match = key.match(new RegExp(`^${normalized}_v(\\d+)$`))
+    return match !== null
+  })
+
+  if (versionedKeys.length > 0) {
+    const sorted = versionedKeys.sort((a, b) => {
+      const versionA = Number.parseInt(a.match(/_v(\d+)$/)?.[1] || '0', 10)
+      const versionB = Number.parseInt(b.match(/_v(\d+)$/)?.[1] || '0', 10)
+      return versionB - versionA
+    })
+    return registry[sorted[0]]
+  }
+
+  return registry[normalized]
+}
+
 export const getBlockByToolName = (toolName: string): BlockConfig | undefined => {
   return Object.values(registry).find((block) => block.tools?.access?.includes(toolName))
 }

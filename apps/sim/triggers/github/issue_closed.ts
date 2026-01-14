@@ -116,6 +116,11 @@ export const githubIssueClosedTrigger: TriggerConfig = {
   ],
 
   outputs: {
+    event_type: {
+      type: 'string',
+      description:
+        'GitHub event type from X-GitHub-Event header (e.g., issues, pull_request, push)',
+    },
     action: {
       type: 'string',
       description: 'Action performed (opened, closed, reopened, edited, etc.)',

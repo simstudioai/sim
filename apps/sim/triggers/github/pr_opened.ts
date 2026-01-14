@@ -116,6 +116,10 @@ export const githubPROpenedTrigger: TriggerConfig = {
   ],
 
   outputs: {
+    event_type: {
+      type: 'string',
+      description: 'GitHub event type from X-GitHub-Event header (e.g., pull_request)',
+    },
     action: {
       type: 'string',
       description: 'Action performed (opened, closed, synchronize, reopened, edited, etc.)',

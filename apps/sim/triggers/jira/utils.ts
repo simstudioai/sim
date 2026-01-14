@@ -265,11 +265,6 @@ function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
         },
       },
     },
-
-    webhook: {
-      type: 'json',
-      description: 'Webhook metadata including provider, path, and raw payload',
-    },
   }
 }
 
