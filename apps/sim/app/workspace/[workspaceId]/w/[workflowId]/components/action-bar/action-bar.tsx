@@ -1,13 +1,14 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import clsx from 'clsx'
+import { Scan } from 'lucide-react'
 import { useReactFlow } from 'reactflow'
 import {
   Button,
   ChevronDown,
   Cursor,
-  Expand,
   Hand,
   Popover,
   PopoverAnchor,
@@ -19,11 +20,14 @@ import {
   Undo,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useGeneralStore } from '@/stores/settings/general'
+import { useTerminalStore } from '@/stores/terminal'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -36,6 +40,7 @@ export function ActionBar() {
   const { undo, redo } = useCollaborativeWorkflow()
   const showActionBar = useGeneralStore((s) => s.showActionBar)
   const updateSetting = useUpdateGeneralSetting()
+  const isTerminalResizing = useTerminalStore((state) => state.isResizing)
 
   const { activeWorkflowId } = useWorkflowRegistry()
   const { data: session } = useSession()
@@ -45,6 +50,17 @@ export function ActionBar() {
   const stack = (key && stacks[key]) || { undo: [], redo: [] }
   const canUndo = stack.undo.length > 0
   const canRedo = stack.redo.length > 0
+
+  const handleFitToView = useCallback(() => {
+    fitViewToBounds({ padding: 0.1, duration: 300 })
+  }, [fitViewToBounds])
+
+  useRegisterGlobalCommands([
+    createCommand({
+      id: 'fit-to-view',
+      handler: handleFitToView,
+    }),
+  ])
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [isCanvasModeOpen, setIsCanvasModeOpen] = useState(false)
@@ -72,7 +88,14 @@ export function ActionBar() {
   return (
     <>
       <div
-        className='-translate-x-1/2 fixed bottom-[calc(var(--terminal-height)+16px)] left-[calc((100vw+var(--sidebar-width)-var(--panel-width))/2)] z-10 flex h-[36px] items-center gap-[2px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] p-[4px] shadow-sm transition-[left,bottom] duration-100 ease-out'
+        className={clsx(
+          'fixed z-10 flex h-[36px] items-center gap-[2px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] p-[4px]',
+          !isTerminalResizing && 'transition-[bottom] duration-100 ease-out'
+        )}
+        style={{
+          bottom: 'calc(var(--terminal-height) + 16px)',
+          left: 'calc(var(--sidebar-width) + 16px)',
+        }}
         onContextMenu={handleContextMenu}
       >
         {/* Canvas Mode Selector */}
@@ -82,20 +105,27 @@ export function ActionBar() {
           variant='secondary'
           size='sm'
         >
-          <PopoverTrigger asChild>
-            <div className='flex cursor-pointer items-center gap-[4px]'>
-              <Button className='h-[28px] w-[28px] rounded-[6px] p-0' variant='active'>
-                {mode === 'hand' ? (
-                  <Hand className='h-[14px] w-[14px]' />
-                ) : (
-                  <Cursor className='h-[14px] w-[14px]' />
-                )}
-              </Button>
-              <Button className='!p-[2px] group' variant='ghost'>
-                <ChevronDown className='h-[8px] w-[10px] text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]' />
-              </Button>
-            </div>
-          </PopoverTrigger>
+          <Tooltip.Root>
+            <PopoverTrigger asChild>
+              <div className='flex cursor-pointer items-center gap-[4px]'>
+                <Tooltip.Trigger asChild>
+                  <Button className='h-[28px] w-[28px] rounded-[6px] p-0' variant='active'>
+                    {mode === 'hand' ? (
+                      <Hand className='h-[14px] w-[14px]' />
+                    ) : (
+                      <Cursor className='h-[14px] w-[14px]' />
+                    )}
+                  </Button>
+                </Tooltip.Trigger>
+                <Button className='-m-[4px] !p-[6px] group' variant='ghost'>
+                  <ChevronDown
+                    className={`h-[8px] w-[10px] text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${isCanvasModeOpen ? 'rotate-180' : ''}`}
+                  />
+                </Button>
+              </div>
+            </PopoverTrigger>
+            <Tooltip.Content side='top'>{mode === 'hand' ? 'Mover' : 'Pointer'}</Tooltip.Content>
+          </Tooltip.Root>
           <PopoverContent align='center' side='top' sideOffset={8} maxWidth={100} minWidth={100}>
             <PopoverItem
               onClick={() => {
@@ -159,12 +189,14 @@ export function ActionBar() {
             <Button
               variant='ghost'
               className='h-[28px] w-[28px] rounded-[6px] p-0 hover:bg-[var(--surface-5)]'
-              onClick={() => fitViewToBounds({ padding: 0.1, duration: 300 })}
+              onClick={handleFitToView}
             >
-              <Expand className='h-[16px] w-[16px]' />
+              <Scan className='h-[16px] w-[16px]' />
             </Button>
           </Tooltip.Trigger>
-          <Tooltip.Content side='top'>Zoom to fit</Tooltip.Content>
+          <Tooltip.Content side='top'>
+            <Tooltip.Shortcut keys='⌘⇧F'>Fit to View</Tooltip.Shortcut>
+          </Tooltip.Content>
         </Tooltip.Root>
       </div>
 
