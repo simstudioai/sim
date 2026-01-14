@@ -77,6 +77,14 @@
 }
 
 /**
+ * Suppress the default selection ring for grouped selections
+ * These blocks show a more transparent ring via the component's ring overlay
+ */
+.react-flow__node.selected > div[data-grouped-selection="true"] > div::after {
+  box-shadow: none;
+}
+
+/**
  * Color tokens - single source of truth for all colors
  * Light mode: Warm theme
  * Dark mode: Dark neutral theme

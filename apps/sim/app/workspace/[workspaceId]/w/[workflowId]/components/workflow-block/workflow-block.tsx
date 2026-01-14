@@ -915,8 +915,10 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const userPermissions = useUserPermissionsContext()
   const isWorkflowSelector = type === 'workflow' || type === 'workflow_input'
 
+  const isGroupedSelection = data.isGroupedSelection ?? false
+
   return (
-    <div className='group relative'>
+    <div className='group relative' data-grouped-selection={isGroupedSelection ? 'true' : undefined}>
       <div
         ref={contentRef}
         onClick={handleClick}

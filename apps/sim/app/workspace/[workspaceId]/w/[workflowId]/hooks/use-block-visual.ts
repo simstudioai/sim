@@ -30,6 +30,7 @@ interface UseBlockVisualProps {
 export function useBlockVisual({ blockId, data, isPending = false }: UseBlockVisualProps) {
   const isPreview = data.isPreview ?? false
   const isPreviewSelected = data.isPreviewSelected ?? false
+  const isGroupedSelection = data.isGroupedSelection ?? false
 
   const currentWorkflow = useCurrentWorkflow()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -64,8 +65,18 @@ export function useBlockVisual({ blockId, data, isPending = false }: UseBlockVis
         diffStatus: isPreview ? undefined : diffStatus,
         runPathStatus,
         isPreviewSelection: isPreview && isPreviewSelected,
+        isGroupedSelection: !isPreview && isGroupedSelection,
       }),
-    [isActive, isPending, isDeletedBlock, diffStatus, runPathStatus, isPreview, isPreviewSelected]
+    [
+      isActive,
+      isPending,
+      isDeletedBlock,
+      diffStatus,
+      runPathStatus,
+      isPreview,
+      isPreviewSelected,
+      isGroupedSelection,
+    ]
   )
 
   return {

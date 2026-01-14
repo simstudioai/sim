@@ -12,6 +12,8 @@ export interface WorkflowBlockProps {
   isPreview?: boolean
   /** Whether this block is selected in preview mode */
   isPreviewSelected?: boolean
+  /** Whether this block is selected as part of a group (not directly clicked) */
+  isGroupedSelection?: boolean
   subBlockValues?: Record<string, any>
   blockState?: any
 }

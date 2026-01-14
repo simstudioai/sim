@@ -11,6 +11,7 @@ export interface BlockRingOptions {
   diffStatus: BlockDiffStatus
   runPathStatus: BlockRunPathStatus
   isPreviewSelection?: boolean
+  isGroupedSelection?: boolean
 }
 
 /**
@@ -21,8 +22,15 @@ export function getBlockRingStyles(options: BlockRingOptions): {
   hasRing: boolean
   ringClassName: string
 } {
-  const { isActive, isPending, isDeletedBlock, diffStatus, runPathStatus, isPreviewSelection } =
-    options
+  const {
+    isActive,
+    isPending,
+    isDeletedBlock,
+    diffStatus,
+    runPathStatus,
+    isPreviewSelection,
+    isGroupedSelection,
+  } = options
 
   const hasRing =
     isActive ||
@@ -30,17 +38,24 @@ export function getBlockRingStyles(options: BlockRingOptions): {
     diffStatus === 'new' ||
     diffStatus === 'edited' ||
     isDeletedBlock ||
-    !!runPathStatus
+    !!runPathStatus ||
+    !!isGroupedSelection
 
   const ringClassName = cn(
+    // Grouped selection: more transparent ring for blocks selected as part of a group
+    // Using rgba with the brand-secondary color (#33b4ff) at 40% opacity
+    isGroupedSelection &&
+      !isActive &&
+      'ring-[2px] ring-[rgba(51,180,255,0.4)]',
     // Preview selection: static blue ring (standard thickness, no animation)
     isActive && isPreviewSelection && 'ring-[1.75px] ring-[var(--brand-secondary)]',
     // Executing block: pulsing success ring with prominent thickness
     isActive &&
       !isPreviewSelection &&
+      !isGroupedSelection &&
       'ring-[3.5px] ring-[var(--border-success)] animate-ring-pulse',
-    // Non-active states use standard ring utilities
-    !isActive && hasRing && 'ring-[1.75px]',
+    // Non-active states use standard ring utilities (except grouped selection which has its own)
+    !isActive && hasRing && !isGroupedSelection && 'ring-[1.75px]',
     // Pending state: warning ring
     !isActive && isPending && 'ring-[var(--warning)]',
     // Deleted state (highest priority after active/pending)

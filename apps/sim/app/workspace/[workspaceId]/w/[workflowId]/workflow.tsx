@@ -2589,9 +2589,53 @@ const WorkflowContent = React.memo(() => {
         parentId: currentParentId,
       })
 
-      // Capture all selected nodes' positions for multi-node undo/redo
+      // Expand selection to include all group members before capturing positions
+      const groups = getGroups()
       const allNodes = getNodes()
-      const selectedNodes = allNodes.filter((n) => n.selected)
+
+      // Find the group of the dragged node
+      const draggedBlockGroupId = blocks[node.id]?.data?.groupId
+
+      // If the dragged node is in a group, expand selection to include all group members
+      if (draggedBlockGroupId && groups[draggedBlockGroupId]) {
+        const group = groups[draggedBlockGroupId]
+        const groupBlockIds = new Set(group.blockIds)
+
+        // Check if we need to expand selection
+        const currentSelectedIds = new Set(allNodes.filter((n) => n.selected).map((n) => n.id))
+        const needsExpansion = [...groupBlockIds].some((id) => !currentSelectedIds.has(id))
+
+        if (needsExpansion) {
+          setNodes((nodes) =>
+            nodes.map((n) => {
+              const isInGroup = groupBlockIds.has(n.id)
+              const isDirectlyDragged = n.id === node.id
+              return {
+                ...n,
+                selected: isInGroup ? true : n.selected,
+                data: {
+                  ...n.data,
+                  // Mark as grouped selection if in group but not the directly dragged node
+                  isGroupedSelection: isInGroup && !isDirectlyDragged && !n.selected,
+                },
+              }
+            })
+          )
+        }
+      }
+
+      // Capture all selected nodes' positions for multi-node undo/redo
+      // Re-get nodes after potential selection expansion
+      const updatedNodes = getNodes()
+      const selectedNodes = updatedNodes.filter((n) => {
+        // Include node if it's selected OR if it's in the same group as the dragged node
+        if (n.selected) return true
+        if (draggedBlockGroupId && groups[draggedBlockGroupId]) {
+          return groups[draggedBlockGroupId].blockIds.includes(n.id)
+        }
+        return false
+      })
+
       multiNodeDragStartRef.current.clear()
       selectedNodes.forEach((n) => {
         const block = blocks[n.id]
@@ -2604,7 +2648,7 @@ const WorkflowContent = React.memo(() => {
         }
       })
     },
-    [blocks, setDragStartPosition, getNodes, potentialParentId, setPotentialParentId]
+    [blocks, setDragStartPosition, getNodes, setNodes, getGroups, potentialParentId, setPotentialParentId]
   )
 
   /** Handles node drag stop to establish parent-child relationships. */
@@ -3228,6 +3272,7 @@ const WorkflowContent = React.memo(() => {
   /**
    * Handles node click to select the node in ReactFlow.
    * When clicking on a grouped block, also selects all other blocks in the group.
+   * Grouped blocks are marked with isGroupedSelection for different visual styling.
    * Parent-child conflict resolution happens automatically in onNodesChange.
    */
   const handleNodeClick = useCallback(
@@ -3235,12 +3280,29 @@ const WorkflowContent = React.memo(() => {
       const isMultiSelect = event.shiftKey || event.metaKey || event.ctrlKey
       const groups = getGroups()
 
+      // Track which nodes are directly clicked vs. group-expanded
+      const directlySelectedIds = new Set<string>()
+
       setNodes((nodes) => {
         // First, calculate the base selection
-        let updatedNodes = nodes.map((n) => ({
-          ...n,
-          selected: isMultiSelect ? (n.id === node.id ? true : n.selected) : n.id === node.id,
-        }))
+        let updatedNodes = nodes.map((n) => {
+          const isDirectlySelected = isMultiSelect
+            ? n.id === node.id
+              ? true
+              : n.selected
+            : n.id === node.id
+          if (isDirectlySelected) {
+            directlySelectedIds.add(n.id)
+          }
+          return {
+            ...n,
+            selected: isDirectlySelected,
+            data: {
+              ...n.data,
+              isGroupedSelection: false, // Reset grouped selection flag
+            },
+          }
+        })
 
         // Expand selection to include all group members
         const selectedNodeIds = new Set(updatedNodes.filter((n) => n.selected).map((n) => n.id))
@@ -3264,12 +3326,19 @@ const WorkflowContent = React.memo(() => {
             }
           })
 
-          // Update nodes with expanded selection
+          // Update nodes with expanded selection, marking group-expanded nodes
           if (expandedNodeIds.size > selectedNodeIds.size) {
-            updatedNodes = updatedNodes.map((n) => ({
-              ...n,
-              selected: expandedNodeIds.has(n.id) ? true : n.selected,
-            }))
+            updatedNodes = updatedNodes.map((n) => {
+              const isGroupExpanded = expandedNodeIds.has(n.id) && !directlySelectedIds.has(n.id)
+              return {
+                ...n,
+                selected: expandedNodeIds.has(n.id) ? true : n.selected,
+                data: {
+                  ...n.data,
+                  isGroupedSelection: isGroupExpanded,
+                },
+              }
+            })
           }
         }
 
