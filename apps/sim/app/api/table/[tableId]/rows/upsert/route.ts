@@ -8,62 +8,14 @@ import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { TableSchema } from '@/lib/table'
 import { getUniqueColumns, validateRowAgainstSchema, validateRowSize } from '@/lib/table'
+import { checkTableWriteAccess, verifyTableWorkspace } from '../../utils'
 
 const logger = createLogger('TableUpsertAPI')
 
 const UpsertRowSchema = z.object({
-  workspaceId: z.string().min(1),
+  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility, validated via table access
   data: z.record(z.any()),
 })
-
-/**
- * Check if user has write access to workspace
- */
-async function checkWorkspaceAccess(workspaceId: string, userId: string) {
-  const { workspace, permissions } = await import('@sim/db/schema')
-
-  const [workspaceData] = await db
-    .select({
-      id: workspace.id,
-      ownerId: workspace.ownerId,
-    })
-    .from(workspace)
-    .where(eq(workspace.id, workspaceId))
-    .limit(1)
-
-  if (!workspaceData) {
-    return { hasAccess: false, canWrite: false }
-  }
-
-  if (workspaceData.ownerId === userId) {
-    return { hasAccess: true, canWrite: true }
-  }
-
-  const [permission] = await db
-    .select({
-      permissionType: permissions.permissionType,
-    })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workspaceId)
-      )
-    )
-    .limit(1)
-
-  if (!permission) {
-    return { hasAccess: false, canWrite: false }
-  }
-
-  const canWrite = permission.permissionType === 'admin' || permission.permissionType === 'write'
-
-  return {
-    hasAccess: true,
-    canWrite,
-  }
-}
 
 /**
  * POST /api/table/[tableId]/rows/upsert
@@ -86,27 +38,37 @@ export async function POST(
     const body = await request.json()
     const validated = UpsertRowSchema.parse(body)
 
-    // Check workspace access
-    const { hasAccess, canWrite } = await checkWorkspaceAccess(
-      validated.workspaceId,
-      authResult.userId
-    )
+    // Check table write access (centralized access control)
+    const accessCheck = await checkTableWriteAccess(tableId, authResult.userId)
 
-    if (!hasAccess || !canWrite) {
+    if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Table not found: ${tableId}`)
+        return NextResponse.json({ error: 'Table not found' }, { status: 404 })
+      }
+      logger.warn(
+        `[${requestId}] User ${authResult.userId} attempted to upsert row in unauthorized table ${tableId}`
+      )
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // Security check: If workspaceId is provided, verify it matches the table's workspace
+    const actualWorkspaceId = validated.workspaceId || accessCheck.table.workspaceId
+    if (validated.workspaceId) {
+      const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
+      if (!isValidWorkspace) {
+        logger.warn(
+          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+        )
+        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+      }
     }
 
     // Get table definition
     const [table] = await db
       .select()
       .from(userTableDefinitions)
-      .where(
-        and(
-          eq(userTableDefinitions.id, tableId),
-          eq(userTableDefinitions.workspaceId, validated.workspaceId),
-          isNull(userTableDefinitions.deletedAt)
-        )
-      )
+      .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
       .limit(1)
 
     if (!table) {
@@ -174,7 +136,7 @@ export async function POST(
       .where(
         and(
           eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, validated.workspaceId),
+          eq(userTableRows.workspaceId, actualWorkspaceId),
           ...validUniqueFilters
         )
       )
@@ -211,10 +173,11 @@ export async function POST(
       .insert(userTableRows)
       .values({
         tableId,
-        workspaceId: validated.workspaceId,
+        workspaceId: actualWorkspaceId,
         data: validated.data,
         createdAt: now,
         updatedAt: now,
+        createdBy: authResult.userId,
       })
       .returning()
 

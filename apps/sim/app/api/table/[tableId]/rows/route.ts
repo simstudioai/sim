@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissions, userTableDefinitions, userTableRows, workspace } from '@sim/db/schema'
+import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -15,21 +15,22 @@ import {
   validateUniqueConstraints,
 } from '@/lib/table'
 import { buildFilterClause, buildSortClause } from '@/lib/table/query-builder'
+import { checkTableAccess, checkTableWriteAccess, verifyTableWorkspace } from '../../utils'
 
 const logger = createLogger('TableRowsAPI')
 
 const InsertRowSchema = z.object({
-  workspaceId: z.string().min(1),
+  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility, validated via table access
   data: z.record(z.any()),
 })
 
 const BatchInsertRowsSchema = z.object({
-  workspaceId: z.string().min(1),
+  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility, validated via table access
   rows: z.array(z.record(z.any())).min(1).max(1000), // Max 1000 rows per batch
 })
 
 const QueryRowsSchema = z.object({
-  workspaceId: z.string().min(1),
+  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility, validated via table access
   filter: z.record(z.any()).optional(),
   sort: z.record(z.enum(['asc', 'desc'])).optional(),
   limit: z.coerce.number().int().min(1).max(TABLE_LIMITS.MAX_QUERY_LIMIT).optional().default(100),
@@ -37,64 +38,17 @@ const QueryRowsSchema = z.object({
 })
 
 const UpdateRowsByFilterSchema = z.object({
-  workspaceId: z.string().min(1),
+  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility, validated via table access
   filter: z.record(z.any()), // Required - must specify what to update
   data: z.record(z.any()), // New data to set
   limit: z.coerce.number().int().min(1).max(1000).optional(), // Safety limit for bulk updates
 })
 
 const DeleteRowsByFilterSchema = z.object({
-  workspaceId: z.string().min(1),
+  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility, validated via table access
   filter: z.record(z.any()), // Required - must specify what to delete
   limit: z.coerce.number().int().min(1).max(1000).optional(), // Safety limit for bulk deletes
 })
-
-/**
- * Check if user has write access to workspace
- */
-async function checkWorkspaceAccess(workspaceId: string, userId: string) {
-  const [workspaceData] = await db
-    .select({
-      id: workspace.id,
-      ownerId: workspace.ownerId,
-    })
-    .from(workspace)
-    .where(eq(workspace.id, workspaceId))
-    .limit(1)
-
-  if (!workspaceData) {
-    return { hasAccess: false, canWrite: false }
-  }
-
-  if (workspaceData.ownerId === userId) {
-    return { hasAccess: true, canWrite: true }
-  }
-
-  const [permission] = await db
-    .select({
-      permissionType: permissions.permissionType,
-    })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workspaceId)
-      )
-    )
-    .limit(1)
-
-  if (!permission) {
-    return { hasAccess: false, canWrite: false }
-  }
-
-  const canWrite = permission.permissionType === 'admin' || permission.permissionType === 'write'
-
-  return {
-    hasAccess: true,
-    canWrite,
-  }
-}
 
 /**
  * Handle batch insert of multiple rows
@@ -102,29 +56,44 @@ async function checkWorkspaceAccess(workspaceId: string, userId: string) {
 async function handleBatchInsert(requestId: string, tableId: string, body: any, userId: string) {
   const validated = BatchInsertRowsSchema.parse(body)
 
-  // Check workspace access
-  const { hasAccess, canWrite } = await checkWorkspaceAccess(validated.workspaceId, userId)
+  // Check table write access (centralized access control)
+  const accessCheck = await checkTableWriteAccess(tableId, userId)
 
-  if (!hasAccess || !canWrite) {
+  if (!accessCheck.hasAccess) {
+    if ('notFound' in accessCheck && accessCheck.notFound) {
+      logger.warn(`[${requestId}] Table not found: ${tableId}`)
+      return NextResponse.json({ error: 'Table not found' }, { status: 404 })
+    }
+    logger.warn(
+      `[${requestId}] User ${userId} attempted to insert rows into unauthorized table ${tableId}`
+    )
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+  }
+
+  // Security check: If workspaceId is provided, verify it matches the table's workspace
+  if (validated.workspaceId) {
+    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
+    if (!isValidWorkspace) {
+      logger.warn(
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+      )
+      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+    }
   }
 
   // Get table definition
   const [table] = await db
     .select()
     .from(userTableDefinitions)
-    .where(
-      and(
-        eq(userTableDefinitions.id, tableId),
-        eq(userTableDefinitions.workspaceId, validated.workspaceId),
-        isNull(userTableDefinitions.deletedAt)
-      )
-    )
+    .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
     .limit(1)
 
   if (!table) {
     return NextResponse.json({ error: 'Table not found' }, { status: 404 })
   }
+
+  // Use the workspaceId from the access check (more secure)
+  const workspaceId = validated.workspaceId || accessCheck.table.workspaceId
 
   // Check row count limit
   const remainingCapacity = table.maxRows - table.rowCount
@@ -190,7 +159,7 @@ async function handleBatchInsert(requestId: string, tableId: string, body: any, 
       }))
 
       const uniqueValidation = validateUniqueConstraints(rowData, table.schema as TableSchema, [
-        ...existingRows,
+        ...existingRows.map((r) => ({ id: r.id, data: r.data as Record<string, any> })),
         ...batchRows,
       ])
 
@@ -215,7 +184,7 @@ async function handleBatchInsert(requestId: string, tableId: string, body: any, 
   const rowsToInsert = validated.rows.map((data) => ({
     id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
     tableId,
-    workspaceId: validated.workspaceId,
+    workspaceId,
     data,
     createdAt: now,
     updatedAt: now,
@@ -275,32 +244,44 @@ export async function POST(
     // Single row insert
     const validated = InsertRowSchema.parse(body)
 
-    // Check workspace access
-    const { hasAccess, canWrite } = await checkWorkspaceAccess(
-      validated.workspaceId,
-      authResult.userId
-    )
+    // Check table write access (centralized access control)
+    const accessCheck = await checkTableWriteAccess(tableId, authResult.userId)
 
-    if (!hasAccess || !canWrite) {
+    if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Table not found: ${tableId}`)
+        return NextResponse.json({ error: 'Table not found' }, { status: 404 })
+      }
+      logger.warn(
+        `[${requestId}] User ${authResult.userId} attempted to insert row into unauthorized table ${tableId}`
+      )
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // Security check: If workspaceId is provided, verify it matches the table's workspace
+    if (validated.workspaceId) {
+      const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
+      if (!isValidWorkspace) {
+        logger.warn(
+          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+        )
+        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+      }
     }
 
     // Get table definition
     const [table] = await db
       .select()
       .from(userTableDefinitions)
-      .where(
-        and(
-          eq(userTableDefinitions.id, tableId),
-          eq(userTableDefinitions.workspaceId, validated.workspaceId),
-          isNull(userTableDefinitions.deletedAt)
-        )
-      )
+      .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
       .limit(1)
 
     if (!table) {
       return NextResponse.json({ error: 'Table not found' }, { status: 404 })
     }
+
+    // Use the workspaceId from the access check (more secure)
+    const workspaceId = validated.workspaceId || accessCheck.table.workspaceId
 
     // Validate row size
     const sizeValidation = validateRowSize(validated.data)
@@ -335,7 +316,7 @@ export async function POST(
       const uniqueValidation = validateUniqueConstraints(
         validated.data,
         table.schema as TableSchema,
-        existingRows
+        existingRows.map((r) => ({ id: r.id, data: r.data as Record<string, any> }))
       )
 
       if (!uniqueValidation.valid) {
@@ -363,7 +344,7 @@ export async function POST(
       .values({
         id: rowId,
         tableId,
-        workspaceId: validated.workspaceId,
+        workspaceId,
         data: validated.data,
         createdAt: now,
         updatedAt: now,
@@ -450,34 +431,38 @@ export async function GET(
       offset,
     })
 
-    // Check workspace access
-    const { hasAccess } = await checkWorkspaceAccess(validated.workspaceId, authResult.userId)
+    // Check table access (centralized access control)
+    const accessCheck = await checkTableAccess(tableId, authResult.userId)
 
-    if (!hasAccess) {
+    if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Table not found: ${tableId}`)
+        return NextResponse.json({ error: 'Table not found' }, { status: 404 })
+      }
+      logger.warn(
+        `[${requestId}] User ${authResult.userId} attempted to query rows from unauthorized table ${tableId}`
+      )
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Verify table exists
-    const [table] = await db
-      .select({ id: userTableDefinitions.id })
-      .from(userTableDefinitions)
-      .where(
-        and(
-          eq(userTableDefinitions.id, tableId),
-          eq(userTableDefinitions.workspaceId, validated.workspaceId),
-          isNull(userTableDefinitions.deletedAt)
+    // Security check: If workspaceId is provided, verify it matches the table's workspace
+    if (validated.workspaceId) {
+      const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
+      if (!isValidWorkspace) {
+        logger.warn(
+          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
         )
-      )
-      .limit(1)
-
-    if (!table) {
-      return NextResponse.json({ error: 'Table not found' }, { status: 404 })
+        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+      }
     }
+
+    // Use the workspaceId from the access check (more secure)
+    const actualWorkspaceId = validated.workspaceId || accessCheck.table.workspaceId
 
     // Build base where conditions
     const baseConditions = [
       eq(userTableRows.tableId, tableId),
-      eq(userTableRows.workspaceId, validated.workspaceId),
+      eq(userTableRows.workspaceId, actualWorkspaceId),
     ]
 
     // Add filter conditions if provided
@@ -570,32 +555,44 @@ export async function PUT(
     const body = await request.json()
     const validated = UpdateRowsByFilterSchema.parse(body)
 
-    // Check workspace access
-    const { hasAccess, canWrite } = await checkWorkspaceAccess(
-      validated.workspaceId,
-      authResult.userId
-    )
+    // Check table write access (centralized access control)
+    const accessCheck = await checkTableWriteAccess(tableId, authResult.userId)
 
-    if (!hasAccess || !canWrite) {
+    if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Table not found: ${tableId}`)
+        return NextResponse.json({ error: 'Table not found' }, { status: 404 })
+      }
+      logger.warn(
+        `[${requestId}] User ${authResult.userId} attempted to update rows in unauthorized table ${tableId}`
+      )
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // Security check: If workspaceId is provided, verify it matches the table's workspace
+    if (validated.workspaceId) {
+      const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
+      if (!isValidWorkspace) {
+        logger.warn(
+          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+        )
+        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+      }
     }
 
     // Get table definition
     const [table] = await db
       .select()
       .from(userTableDefinitions)
-      .where(
-        and(
-          eq(userTableDefinitions.id, tableId),
-          eq(userTableDefinitions.workspaceId, validated.workspaceId),
-          isNull(userTableDefinitions.deletedAt)
-        )
-      )
+      .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
       .limit(1)
 
     if (!table) {
       return NextResponse.json({ error: 'Table not found' }, { status: 404 })
     }
+
+    // Use the workspaceId from the access check (more secure)
+    const actualWorkspaceId = validated.workspaceId || accessCheck.table.workspaceId
 
     // Validate new data size
     const sizeValidation = validateRowSize(validated.data)
@@ -609,7 +606,7 @@ export async function PUT(
     // Build base where conditions
     const baseConditions = [
       eq(userTableRows.tableId, tableId),
-      eq(userTableRows.workspaceId, validated.workspaceId),
+      eq(userTableRows.workspaceId, actualWorkspaceId),
     ]
 
     // Add filter conditions
@@ -650,7 +647,7 @@ export async function PUT(
 
     // Validate that merged data matches schema for each row
     for (const row of matchingRows) {
-      const mergedData = { ...row.data, ...validated.data }
+      const mergedData = { ...(row.data as Record<string, any>), ...validated.data }
       const rowValidation = validateRowAgainstSchema(mergedData, table.schema as TableSchema)
       if (!rowValidation.valid) {
         return NextResponse.json(
@@ -678,11 +675,11 @@ export async function PUT(
 
       // Validate each updated row for unique constraints
       for (const row of matchingRows) {
-        const mergedData = { ...row.data, ...validated.data }
+        const mergedData = { ...(row.data as Record<string, any>), ...validated.data }
         const uniqueValidation = validateUniqueConstraints(
           mergedData,
           table.schema as TableSchema,
-          allRows,
+          allRows.map((r) => ({ id: r.id, data: r.data as Record<string, any> })),
           row.id // Exclude the current row being updated
         )
 
@@ -710,7 +707,7 @@ export async function PUT(
         db
           .update(userTableRows)
           .set({
-            data: { ...row.data, ...validated.data },
+            data: { ...(row.data as Record<string, any>), ...validated.data },
             updatedAt: now,
           })
           .where(eq(userTableRows.id, row.id))
@@ -767,37 +764,38 @@ export async function DELETE(
     const body = await request.json()
     const validated = DeleteRowsByFilterSchema.parse(body)
 
-    // Check workspace access
-    const { hasAccess, canWrite } = await checkWorkspaceAccess(
-      validated.workspaceId,
-      authResult.userId
-    )
+    // Check table write access (centralized access control)
+    const accessCheck = await checkTableWriteAccess(tableId, authResult.userId)
 
-    if (!hasAccess || !canWrite) {
+    if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Table not found: ${tableId}`)
+        return NextResponse.json({ error: 'Table not found' }, { status: 404 })
+      }
+      logger.warn(
+        `[${requestId}] User ${authResult.userId} attempted to delete rows from unauthorized table ${tableId}`
+      )
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Verify table exists
-    const [table] = await db
-      .select({ id: userTableDefinitions.id })
-      .from(userTableDefinitions)
-      .where(
-        and(
-          eq(userTableDefinitions.id, tableId),
-          eq(userTableDefinitions.workspaceId, validated.workspaceId),
-          isNull(userTableDefinitions.deletedAt)
+    // Security check: If workspaceId is provided, verify it matches the table's workspace
+    if (validated.workspaceId) {
+      const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
+      if (!isValidWorkspace) {
+        logger.warn(
+          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
         )
-      )
-      .limit(1)
-
-    if (!table) {
-      return NextResponse.json({ error: 'Table not found' }, { status: 404 })
+        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+      }
     }
+
+    // Use the workspaceId from the access check (more secure)
+    const actualWorkspaceId = validated.workspaceId || accessCheck.table.workspaceId
 
     // Build base where conditions
     const baseConditions = [
       eq(userTableRows.tableId, tableId),
-      eq(userTableRows.workspaceId, validated.workspaceId),
+      eq(userTableRows.workspaceId, actualWorkspaceId),
     ]
 
     // Add filter conditions
@@ -843,7 +841,7 @@ export async function DELETE(
       await db.delete(userTableRows).where(
         and(
           eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, validated.workspaceId),
+          eq(userTableRows.workspaceId, actualWorkspaceId),
           sql`${userTableRows.id} = ANY(ARRAY[${sql.join(
             batch.map((id) => sql`${id}`),
             sql`, `
