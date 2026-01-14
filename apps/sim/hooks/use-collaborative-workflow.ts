@@ -242,7 +242,20 @@ export function useCollaborativeWorkflow() {
             case EDGES_OPERATIONS.BATCH_ADD_EDGES: {
               const { edges } = payload
               if (Array.isArray(edges) && edges.length > 0) {
-                workflowStore.batchAddEdges(edges)
+                const currentEdges = workflowStore.edges
+                const newEdges = edges.filter((edge: Edge) => {
+                  if (edge.source === edge.target) return false
+                  return !currentEdges.some(
+                    (e) =>
+                      e.source === edge.source &&
+                      e.sourceHandle === edge.sourceHandle &&
+                      e.target === edge.target &&
+                      e.targetHandle === edge.targetHandle
+                  )
+                })
+                if (newEdges.length > 0) {
+                  workflowStore.batchAddEdges(newEdges)
+                }
               }
               break
             }
@@ -976,6 +989,23 @@ export function useCollaborativeWorkflow() {
 
       if (edges.length === 0) return false
 
+      const currentEdges = workflowStore.edges
+      const newEdges = edges.filter((edge) => {
+        if (edge.source === edge.target) return false
+        return !currentEdges.some(
+          (e) =>
+            e.source === edge.source &&
+            e.sourceHandle === edge.sourceHandle &&
+            e.target === edge.target &&
+            e.targetHandle === edge.targetHandle
+        )
+      })
+
+      if (newEdges.length === 0) {
+        logger.debug('Skipping batch add edges - all edges already exist')
+        return false
+      }
+
       const operationId = crypto.randomUUID()
 
       addToQueue({
@@ -983,16 +1013,16 @@ export function useCollaborativeWorkflow() {
         operation: {
           operation: EDGES_OPERATIONS.BATCH_ADD_EDGES,
           target: OPERATION_TARGETS.EDGES,
-          payload: { edges },
+          payload: { edges: newEdges },
         },
         workflowId: activeWorkflowId || '',
         userId: session?.user?.id || 'unknown',
       })
 
-      workflowStore.batchAddEdges(edges)
+      workflowStore.batchAddEdges(newEdges)
 
       if (!options?.skipUndoRedo) {
-        edges.forEach((edge) => undoRedo.recordAddEdge(edge.id))
+        newEdges.forEach((edge) => undoRedo.recordAddEdge(edge.id))
       }
 
       return true

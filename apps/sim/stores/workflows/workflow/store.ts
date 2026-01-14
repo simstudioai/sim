@@ -497,16 +497,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
       batchAddEdges: (edges: Edge[]) => {
         const currentEdges = get().edges
         const newEdges = [...currentEdges]
-        const existingEdgeIds = new Set(currentEdges.map((e) => e.id))
 
         for (const edge of edges) {
-          // Skip if edge ID already exists
-          if (existingEdgeIds.has(edge.id)) continue
-
-          // Skip self-referencing edges
-          if (edge.source === edge.target) continue
-
-          // Skip if identical connection already exists (same ports)
           const connectionExists = newEdges.some(
             (e) =>
               e.source === edge.source &&
@@ -515,8 +507,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
               e.targetHandle === edge.targetHandle
           )
           if (connectionExists) continue
-
-          // Skip if would create a cycle
           if (wouldCreateCycle([...newEdges], edge.source, edge.target)) continue
 
           newEdges.push({
@@ -528,7 +518,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
             type: edge.type || 'default',
             data: edge.data || {},
           })
-          existingEdgeIds.add(edge.id)
         }
 
         const blocks = get().blocks
