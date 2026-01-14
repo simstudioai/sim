@@ -21,19 +21,39 @@ import { useCreateTable } from '@/hooks/queries/use-tables'
 
 const logger = createLogger('CreateTableModal')
 
+/**
+ * Supported column data types for table schemas.
+ */
+type ColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
+
+/**
+ * Definition for a single table column.
+ */
 interface ColumnDefinition {
+  /** Name of the column */
   name: string
-  type: 'string' | 'number' | 'boolean' | 'date' | 'json'
+  /** Data type of the column */
+  type: ColumnType
+  /** Whether this column is required */
   required: boolean
+  /** Whether this column must have unique values */
   unique: boolean
 }
 
+/**
+ * Props for the CreateTableModal component.
+ */
 interface CreateTableModalProps {
+  /** Whether the modal is open */
   isOpen: boolean
+  /** Callback when the modal should close */
   onClose: () => void
 }
 
-const COLUMN_TYPES = [
+/**
+ * Available column type options for the combobox.
+ */
+const COLUMN_TYPES: Array<{ value: ColumnType; label: string }> = [
   { value: 'string', label: 'String' },
   { value: 'number', label: 'Number' },
   { value: 'boolean', label: 'Boolean' },
@@ -41,29 +61,66 @@ const COLUMN_TYPES = [
   { value: 'json', label: 'JSON' },
 ]
 
+/**
+ * Creates an empty column definition with default values.
+ */
+function createEmptyColumn(): ColumnDefinition {
+  return { name: '', type: 'string', required: true, unique: false }
+}
+
+/**
+ * Modal component for creating a new table in a workspace.
+ *
+ * @remarks
+ * This modal allows users to:
+ * - Set a table name and description
+ * - Define columns with name, type, and constraints
+ * - Create the table via the API
+ *
+ * @example
+ * ```tsx
+ * <CreateTableModal
+ *   isOpen={isModalOpen}
+ *   onClose={() => setIsModalOpen(false)}
+ * />
+ * ```
+ */
 export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
   const [tableName, setTableName] = useState('')
   const [description, setDescription] = useState('')
-  const [columns, setColumns] = useState<ColumnDefinition[]>([
-    { name: '', type: 'string', required: true, unique: false },
-  ])
+  const [columns, setColumns] = useState<ColumnDefinition[]>([createEmptyColumn()])
   const [error, setError] = useState<string | null>(null)
 
   const createTable = useCreateTable(workspaceId)
 
+  /**
+   * Adds a new empty column to the schema.
+   */
   const handleAddColumn = () => {
-    setColumns([...columns, { name: '', type: 'string', required: true, unique: false }])
+    setColumns([...columns, createEmptyColumn()])
   }
 
+  /**
+   * Removes a column from the schema by index.
+   *
+   * @param index - Index of the column to remove
+   */
   const handleRemoveColumn = (index: number) => {
     if (columns.length > 1) {
       setColumns(columns.filter((_, i) => i !== index))
     }
   }
 
+  /**
+   * Updates a column field at the specified index.
+   *
+   * @param index - Index of the column to update
+   * @param field - Field name to update
+   * @param value - New value for the field
+   */
   const handleColumnChange = (
     index: number,
     field: keyof ColumnDefinition,
@@ -74,6 +131,9 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
     setColumns(newColumns)
   }
 
+  /**
+   * Validates and submits the form to create the table.
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -108,10 +168,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
       })
 
       // Reset form
-      setTableName('')
-      setDescription('')
-      setColumns([{ name: '', type: 'string', required: true, unique: false }])
-      setError(null)
+      resetForm()
       onClose()
     } catch (err) {
       logger.error('Failed to create table:', err)
@@ -119,12 +176,21 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
     }
   }
 
-  const handleClose = () => {
-    // Reset form on close
+  /**
+   * Resets all form fields to their initial state.
+   */
+  const resetForm = () => {
     setTableName('')
     setDescription('')
-    setColumns([{ name: '', type: 'string', required: true, unique: false }])
+    setColumns([createEmptyColumn()])
     setError(null)
+  }
+
+  /**
+   * Handles modal close and resets form state.
+   */
+  const handleClose = () => {
+    resetForm()
     onClose()
   }
 
@@ -210,69 +276,14 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
               {/* Column Rows */}
               <div className='flex flex-col gap-[10px]'>
                 {columns.map((column, index) => (
-                  <div key={index} className='flex items-center gap-[10px]'>
-                    {/* Column Name */}
-                    <div className='flex-1'>
-                      <Input
-                        value={column.name}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                          handleColumnChange(index, 'name', e.target.value)
-                        }
-                        placeholder='column_name'
-                        className='h-[36px]'
-                      />
-                    </div>
-
-                    {/* Column Type */}
-                    <div className='w-[110px]'>
-                      <Combobox
-                        options={COLUMN_TYPES}
-                        value={column.type}
-                        selectedValue={column.type}
-                        onChange={(value) =>
-                          handleColumnChange(index, 'type', value as ColumnDefinition['type'])
-                        }
-                        placeholder='Type'
-                        editable={false}
-                        filterOptions={false}
-                        className='h-[36px]'
-                      />
-                    </div>
-
-                    {/* Required Checkbox */}
-                    <div className='flex w-[70px] items-center justify-center'>
-                      <Checkbox
-                        checked={column.required}
-                        onCheckedChange={(checked) =>
-                          handleColumnChange(index, 'required', checked === true)
-                        }
-                      />
-                    </div>
-
-                    {/* Unique Checkbox */}
-                    <div className='flex w-[70px] items-center justify-center'>
-                      <Checkbox
-                        checked={column.unique}
-                        onCheckedChange={(checked) =>
-                          handleColumnChange(index, 'unique', checked === true)
-                        }
-                      />
-                    </div>
-
-                    {/* Delete Button */}
-                    <div className='w-[36px]'>
-                      <Button
-                        type='button'
-                        size='sm'
-                        variant='ghost'
-                        onClick={() => handleRemoveColumn(index)}
-                        disabled={columns.length === 1}
-                        className='h-[36px] w-[36px] p-0 text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-error)] hover:text-[var(--text-error)]'
-                      >
-                        <Trash2 className='h-[15px] w-[15px]' />
-                      </Button>
-                    </div>
-                  </div>
+                  <ColumnRow
+                    key={index}
+                    column={column}
+                    index={index}
+                    isRemovable={columns.length > 1}
+                    onChange={handleColumnChange}
+                    onRemove={handleRemoveColumn}
+                  />
                 ))}
               </div>
 
@@ -305,5 +316,86 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
         </ModalFooter>
       </ModalContent>
     </Modal>
+  )
+}
+
+/**
+ * Props for the ColumnRow component.
+ */
+interface ColumnRowProps {
+  /** The column definition */
+  column: ColumnDefinition
+  /** Index of this column in the list */
+  index: number
+  /** Whether the remove button should be enabled */
+  isRemovable: boolean
+  /** Callback when a column field changes */
+  onChange: (index: number, field: keyof ColumnDefinition, value: string | boolean) => void
+  /** Callback to remove this column */
+  onRemove: (index: number) => void
+}
+
+/**
+ * A single row in the column definition list.
+ */
+function ColumnRow({ column, index, isRemovable, onChange, onRemove }: ColumnRowProps) {
+  return (
+    <div className='flex items-center gap-[10px]'>
+      {/* Column Name */}
+      <div className='flex-1'>
+        <Input
+          value={column.name}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            onChange(index, 'name', e.target.value)
+          }
+          placeholder='column_name'
+          className='h-[36px]'
+        />
+      </div>
+
+      {/* Column Type */}
+      <div className='w-[110px]'>
+        <Combobox
+          options={COLUMN_TYPES}
+          value={column.type}
+          selectedValue={column.type}
+          onChange={(value) => onChange(index, 'type', value as ColumnType)}
+          placeholder='Type'
+          editable={false}
+          filterOptions={false}
+          className='h-[36px]'
+        />
+      </div>
+
+      {/* Required Checkbox */}
+      <div className='flex w-[70px] items-center justify-center'>
+        <Checkbox
+          checked={column.required}
+          onCheckedChange={(checked) => onChange(index, 'required', checked === true)}
+        />
+      </div>
+
+      {/* Unique Checkbox */}
+      <div className='flex w-[70px] items-center justify-center'>
+        <Checkbox
+          checked={column.unique}
+          onCheckedChange={(checked) => onChange(index, 'unique', checked === true)}
+        />
+      </div>
+
+      {/* Delete Button */}
+      <div className='w-[36px]'>
+        <Button
+          type='button'
+          size='sm'
+          variant='ghost'
+          onClick={() => onRemove(index)}
+          disabled={!isRemovable}
+          className='h-[36px] w-[36px] p-0 text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-error)] hover:text-[var(--text-error)]'
+        >
+          <Trash2 className='h-[15px] w-[15px]' />
+        </Button>
+      </div>
+    </div>
   )
 }

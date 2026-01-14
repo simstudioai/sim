@@ -8,30 +8,87 @@ import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { TableSchema } from '@/lib/table'
 import { getUniqueColumns, validateRowAgainstSchema, validateRowSize } from '@/lib/table'
-import { checkTableWriteAccess, verifyTableWorkspace } from '../../utils'
+import { checkTableWriteAccess, verifyTableWorkspace } from '../../../utils'
 
 const logger = createLogger('TableUpsertAPI')
 
 /**
- * Schema for upserting a row (insert or update based on unique column constraints)
+ * Type for dynamic row data stored in tables.
+ * Keys are column names, values can be any JSON-serializable type.
+ */
+type RowData = Record<string, unknown>
+
+/**
+ * Zod schema for validating upsert (insert or update) requests.
  *
  * If a row with matching unique field(s) exists, it will be updated.
  * Otherwise, a new row will be inserted.
+ *
+ * @remarks
+ * The workspaceId is optional for backward compatibility but
+ * is validated via table access checks when provided.
  */
 const UpsertRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required').optional(), // Optional for backward compatibility, validated via table access
-  data: z.record(z.any(), { required_error: 'Row data is required' }),
+  workspaceId: z.string().min(1, 'Workspace ID is required').optional(),
+  data: z.record(z.unknown(), { required_error: 'Row data is required' }),
 })
 
 /**
- * POST /api/table/[tableId]/rows/upsert
- * Insert or update a row based on unique column constraints
- * If a row with matching unique field(s) exists, update it; otherwise insert
+ * Route params for upsert endpoint.
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ tableId: string }> }
-) {
+interface UpsertRouteParams {
+  params: Promise<{ tableId: string }>
+}
+
+/**
+ * POST /api/table/[tableId]/rows/upsert
+ *
+ * Inserts or updates a row based on unique column constraints.
+ * If a row with matching unique field(s) exists, it will be updated;
+ * otherwise, a new row will be inserted.
+ *
+ * @param request - The incoming HTTP request with row data
+ * @param context - Route context containing tableId param
+ * @returns JSON response with upserted row and operation type
+ *
+ * @remarks
+ * Requires at least one unique column in the table schema.
+ * The operation is determined by checking existing rows against
+ * the unique field values provided in the request.
+ *
+ * @example Request body:
+ * ```json
+ * {
+ *   "workspaceId": "ws_123",
+ *   "data": { "email": "john@example.com", "name": "John Doe" }
+ * }
+ * ```
+ *
+ * @example Response (insert):
+ * ```json
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "row": { ... },
+ *     "operation": "insert",
+ *     "message": "Row inserted successfully"
+ *   }
+ * }
+ * ```
+ *
+ * @example Response (update):
+ * ```json
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "row": { ... },
+ *     "operation": "update",
+ *     "message": "Row updated successfully"
+ *   }
+ * }
+ * ```
+ */
+export async function POST(request: NextRequest, { params }: UpsertRouteParams) {
   const requestId = generateRequestId()
   const { tableId } = await params
 
@@ -41,7 +98,7 @@ export async function POST(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const body = await request.json()
+    const body: unknown = await request.json()
     const validated = UpsertRowSchema.parse(body)
 
     // Check table write access (centralized access control)
@@ -82,9 +139,10 @@ export async function POST(
     }
 
     const schema = table.schema as TableSchema
+    const rowData = validated.data as RowData
 
     // Validate row size
-    const sizeValidation = validateRowSize(validated.data)
+    const sizeValidation = validateRowSize(rowData)
     if (!sizeValidation.valid) {
       return NextResponse.json(
         { error: 'Invalid row data', details: sizeValidation.errors },
@@ -93,7 +151,7 @@ export async function POST(
     }
 
     // Validate row against schema
-    const rowValidation = validateRowAgainstSchema(validated.data, schema)
+    const rowValidation = validateRowAgainstSchema(rowData, schema)
     if (!rowValidation.valid) {
       return NextResponse.json(
         { error: 'Row data does not match schema', details: rowValidation.errors },
@@ -116,7 +174,7 @@ export async function POST(
 
     // Build filter to find existing row by unique fields
     const uniqueFilters = uniqueColumns.map((col) => {
-      const value = validated.data[col.name]
+      const value = rowData[col.name]
       if (value === undefined || value === null) {
         return null
       }
@@ -124,7 +182,7 @@ export async function POST(
     })
 
     // Filter out null conditions (for optional unique fields that weren't provided)
-    const validUniqueFilters = uniqueFilters.filter((f) => f !== null)
+    const validUniqueFilters = uniqueFilters.filter((f): f is Exclude<typeof f, null> => f !== null)
 
     if (validUniqueFilters.length === 0) {
       return NextResponse.json(

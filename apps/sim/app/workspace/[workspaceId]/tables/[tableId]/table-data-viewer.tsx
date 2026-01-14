@@ -27,7 +27,7 @@ import {
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/core/utils/cn'
-import type { TableSchema } from '@/lib/table'
+import type { ColumnDefinition, TableSchema } from '@/lib/table'
 import { AddRowModal } from './components/add-row-modal'
 import { DeleteRowModal } from './components/delete-row-modal'
 import { EditRowModal } from './components/edit-row-modal'
@@ -36,40 +36,112 @@ import { TableActionBar } from './components/table-action-bar'
 
 const logger = createLogger('TableDataViewer')
 
+/** Number of rows to fetch per page */
 const ROWS_PER_PAGE = 100
 
+/** Maximum length for string display before truncation */
+const STRING_TRUNCATE_LENGTH = 50
+
+/**
+ * Represents row data stored in a table.
+ */
 interface TableRowData {
+  /** Unique identifier for the row */
   id: string
-  data: Record<string, any>
+  /** Row field values keyed by column name */
+  data: Record<string, unknown>
+  /** ISO timestamp when the row was created */
   createdAt: string
+  /** ISO timestamp when the row was last updated */
   updatedAt: string
 }
 
+/**
+ * Represents table metadata.
+ */
 interface TableData {
+  /** Unique identifier for the table */
   id: string
+  /** Table name */
   name: string
+  /** Optional description */
   description?: string
+  /** Schema defining columns */
   schema: TableSchema
+  /** Current number of rows */
   rowCount: number
+  /** Maximum allowed rows */
   maxRows: number
+  /** ISO timestamp when created */
   createdAt: string
+  /** ISO timestamp when last updated */
   updatedAt: string
 }
 
+/**
+ * Data for the cell viewer modal.
+ */
 interface CellViewerData {
+  /** Name of the column being viewed */
   columnName: string
-  value: any
+  /** Value being displayed */
+  value: unknown
+  /** Display type for formatting */
   type: 'json' | 'text' | 'date'
 }
 
-const STRING_TRUNCATE_LENGTH = 50
-
+/**
+ * State for the right-click context menu.
+ */
 interface ContextMenuState {
+  /** Whether the menu is visible */
   isOpen: boolean
+  /** Screen position of the menu */
   position: { x: number; y: number }
+  /** Row the menu was opened on */
   row: TableRowData | null
 }
 
+/**
+ * Gets the badge variant for a column type.
+ *
+ * @param type - The column type
+ * @returns Badge variant name
+ */
+function getTypeBadgeVariant(
+  type: string
+): 'green' | 'blue' | 'purple' | 'orange' | 'teal' | 'gray' {
+  switch (type) {
+    case 'string':
+      return 'green'
+    case 'number':
+      return 'blue'
+    case 'boolean':
+      return 'purple'
+    case 'json':
+      return 'orange'
+    case 'date':
+      return 'teal'
+    default:
+      return 'gray'
+  }
+}
+
+/**
+ * Main component for viewing and managing table data.
+ *
+ * @remarks
+ * Provides functionality for:
+ * - Viewing rows with pagination
+ * - Filtering and sorting
+ * - Adding, editing, and deleting rows
+ * - Viewing cell details for long/complex values
+ *
+ * @example
+ * ```tsx
+ * <TableDataViewer />
+ * ```
+ */
 export function TableDataViewer() {
   const params = useParams()
   const router = useRouter()
@@ -104,9 +176,9 @@ export function TableDataViewer() {
     queryFn: async () => {
       const res = await fetch(`/api/table/${tableId}?workspaceId=${workspaceId}`)
       if (!res.ok) throw new Error('Failed to fetch table')
-      const json = await res.json()
+      const json: { data?: { table: TableData }; table?: TableData } = await res.json()
       const data = json.data || json
-      return data.table as TableData
+      return (data as { table: TableData }).table
     },
   })
 
@@ -118,25 +190,29 @@ export function TableDataViewer() {
   } = useQuery({
     queryKey: ['table-rows', tableId, queryOptions, currentPage],
     queryFn: async () => {
-      const params = new URLSearchParams({
+      const searchParams = new URLSearchParams({
         workspaceId,
         limit: String(ROWS_PER_PAGE),
         offset: String(currentPage * ROWS_PER_PAGE),
       })
 
       if (queryOptions.filter) {
-        params.set('filter', JSON.stringify(queryOptions.filter))
+        searchParams.set('filter', JSON.stringify(queryOptions.filter))
       }
 
       if (queryOptions.sort) {
         // Convert from {column, direction} to {column: direction} format expected by API
         const sortParam = { [queryOptions.sort.column]: queryOptions.sort.direction }
-        params.set('sort', JSON.stringify(sortParam))
+        searchParams.set('sort', JSON.stringify(sortParam))
       }
 
-      const res = await fetch(`/api/table/${tableId}/rows?${params}`)
+      const res = await fetch(`/api/table/${tableId}/rows?${searchParams}`)
       if (!res.ok) throw new Error('Failed to fetch rows')
-      const json = await res.json()
+      const json: {
+        data?: { rows: TableRowData[]; totalCount: number }
+        rows?: TableRowData[]
+        totalCount?: number
+      } = await res.json()
       return json.data || json
     },
     enabled: !!tableData,
@@ -147,11 +223,17 @@ export function TableDataViewer() {
   const totalCount = rowsData?.totalCount || 0
   const totalPages = Math.ceil(totalCount / ROWS_PER_PAGE)
 
+  /**
+   * Applies new query options and resets pagination.
+   */
   const handleApplyQueryOptions = useCallback((options: QueryOptions) => {
     setQueryOptions(options)
     setCurrentPage(0)
   }, [])
 
+  /**
+   * Toggles selection of all visible rows.
+   */
   const handleSelectAll = useCallback(() => {
     if (selectedRows.size === rows.length) {
       setSelectedRows(new Set())
@@ -160,6 +242,9 @@ export function TableDataViewer() {
     }
   }, [rows, selectedRows.size])
 
+  /**
+   * Toggles selection of a single row.
+   */
   const handleSelectRow = useCallback((rowId: string) => {
     setSelectedRows((prev) => {
       const newSet = new Set(prev)
@@ -172,15 +257,23 @@ export function TableDataViewer() {
     })
   }, [])
 
+  /**
+   * Refreshes the rows data.
+   */
   const handleRefresh = useCallback(() => {
     refetchRows()
   }, [refetchRows])
 
+  /**
+   * Opens the delete modal for selected rows.
+   */
   const handleDeleteSelected = useCallback(() => {
     setDeletingRows(Array.from(selectedRows))
   }, [selectedRows])
 
-  // Context menu handlers
+  /**
+   * Opens the context menu for a row.
+   */
   const handleRowContextMenu = useCallback((e: React.MouseEvent, row: TableRowData) => {
     e.preventDefault()
     e.stopPropagation()
@@ -191,10 +284,16 @@ export function TableDataViewer() {
     })
   }, [])
 
+  /**
+   * Closes the context menu.
+   */
   const closeContextMenu = useCallback(() => {
     setContextMenu((prev) => ({ ...prev, isOpen: false }))
   }, [])
 
+  /**
+   * Handles edit action from context menu.
+   */
   const handleContextMenuEdit = useCallback(() => {
     if (contextMenu.row) {
       setEditingRow(contextMenu.row)
@@ -202,6 +301,9 @@ export function TableDataViewer() {
     closeContextMenu()
   }, [contextMenu.row, closeContextMenu])
 
+  /**
+   * Handles delete action from context menu.
+   */
   const handleContextMenuDelete = useCallback(() => {
     if (contextMenu.row) {
       setDeletingRows([contextMenu.row.id])
@@ -209,13 +311,15 @@ export function TableDataViewer() {
     closeContextMenu()
   }, [contextMenu.row, closeContextMenu])
 
+  /**
+   * Copies the current cell value to clipboard.
+   */
   const handleCopyCellValue = useCallback(async () => {
     if (cellViewer) {
       let text: string
       if (cellViewer.type === 'json') {
         text = JSON.stringify(cellViewer.value, null, 2)
       } else if (cellViewer.type === 'date') {
-        // Copy ISO format for dates (parseable)
         text = String(cellViewer.value)
       } else {
         text = String(cellViewer.value)
@@ -226,29 +330,11 @@ export function TableDataViewer() {
     }
   }, [cellViewer])
 
-  const formatValue = (value: any, type: string): string => {
-    if (value === null || value === undefined) return '—'
-
-    switch (type) {
-      case 'boolean':
-        return value ? 'true' : 'false'
-      case 'date':
-        try {
-          return new Date(value).toLocaleDateString()
-        } catch {
-          return String(value)
-        }
-      case 'json':
-        return JSON.stringify(value)
-      case 'number':
-        return String(value)
-      default:
-        return String(value)
-    }
-  }
-
+  /**
+   * Opens the cell viewer modal.
+   */
   const handleCellClick = useCallback(
-    (e: React.MouseEvent, columnName: string, value: any, type: 'json' | 'text' | 'date') => {
+    (e: React.MouseEvent, columnName: string, value: unknown, type: 'json' | 'text' | 'date') => {
       e.preventDefault()
       e.stopPropagation()
       setCellViewer({ columnName, value, type })
@@ -256,7 +342,10 @@ export function TableDataViewer() {
     []
   )
 
-  const renderCellValue = (value: any, column: { name: string; type: string }) => {
+  /**
+   * Renders a cell value with appropriate formatting.
+   */
+  const renderCellValue = (value: unknown, column: ColumnDefinition) => {
     const isNull = value === null || value === undefined
 
     if (isNull) {
@@ -278,9 +367,10 @@ export function TableDataViewer() {
     }
 
     if (column.type === 'boolean') {
+      const boolValue = Boolean(value)
       return (
-        <span className={value ? 'text-green-500' : 'text-[var(--text-tertiary)]'}>
-          {value ? 'true' : 'false'}
+        <span className={boolValue ? 'text-green-500' : 'text-[var(--text-tertiary)]'}>
+          {boolValue ? 'true' : 'false'}
         </span>
       )
     }
@@ -293,7 +383,7 @@ export function TableDataViewer() {
 
     if (column.type === 'date') {
       try {
-        const date = new Date(value)
+        const date = new Date(String(value))
         const formatted = date.toLocaleDateString('en-US', {
           year: 'numeric',
           month: 'short',
@@ -448,59 +538,13 @@ export function TableDataViewer() {
           </TableHeader>
           <TableBody>
             {isLoadingRows ? (
-              Array.from({ length: 25 }).map((_, rowIndex) => (
-                <TableRow key={rowIndex}>
-                  <TableCell>
-                    <Skeleton className='h-[14px] w-[14px]' />
-                  </TableCell>
-                  {columns.map((col, colIndex) => {
-                    // Vary skeleton width based on column type and add some randomness
-                    const baseWidth =
-                      col.type === 'json'
-                        ? 200
-                        : col.type === 'string'
-                          ? 160
-                          : col.type === 'number'
-                            ? 80
-                            : col.type === 'boolean'
-                              ? 50
-                              : col.type === 'date'
-                                ? 100
-                                : 120
-                    // Add some variation per row
-                    const variation = ((rowIndex + colIndex) % 3) * 20
-                    const width = baseWidth + variation
-
-                    return (
-                      <TableCell key={col.name}>
-                        <Skeleton className='h-[16px]' style={{ width: `${width}px` }} />
-                      </TableCell>
-                    )
-                  })}
-                  <TableCell>
-                    <div className='flex gap-[4px]'>
-                      <Skeleton className='h-[24px] w-[24px]' />
-                      <Skeleton className='h-[24px] w-[24px]' />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+              <LoadingRows columns={columns} />
             ) : rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={columns.length + 2} className='h-[160px] text-center'>
-                  <div className='flex flex-col items-center gap-[12px]'>
-                    <span className='text-[13px] text-[var(--text-tertiary)]'>
-                      {queryOptions.filter ? 'No rows match your filter' : 'No data'}
-                    </span>
-                    {!queryOptions.filter && (
-                      <Button variant='default' size='sm' onClick={() => setShowAddModal(true)}>
-                        <Plus className='mr-[4px] h-[12px] w-[12px]' />
-                        Add first row
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
+              <EmptyRows
+                columnCount={columns.length}
+                hasFilter={!!queryOptions.filter}
+                onAddRow={() => setShowAddModal(true)}
+              />
             ) : (
               rows.map((row) => (
                 <TableRow
@@ -623,166 +667,19 @@ export function TableDataViewer() {
       )}
 
       {/* Schema Viewer Modal */}
-      <Modal open={showSchemaModal} onOpenChange={setShowSchemaModal}>
-        <ModalContent className='w-[500px] duration-100'>
-          <div className='flex items-center justify-between gap-[8px] px-[16px] py-[10px]'>
-            <div className='flex min-w-0 items-center gap-[8px]'>
-              <Info className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
-              <span className='font-medium text-[14px] text-[var(--text-primary)]'>
-                Table Schema
-              </span>
-              <Badge variant='gray' size='sm'>
-                {columns.length} columns
-              </Badge>
-            </div>
-            <Button variant='ghost' size='sm' onClick={() => setShowSchemaModal(false)}>
-              <X className='h-[14px] w-[14px]' />
-            </Button>
-          </div>
-          <ModalBody className='p-0'>
-            <div className='max-h-[400px] overflow-auto'>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className='w-[180px]'>Column</TableHead>
-                    <TableHead className='w-[100px]'>Type</TableHead>
-                    <TableHead>Constraints</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {columns.map((column) => (
-                    <TableRow key={column.name}>
-                      <TableCell className='font-mono text-[12px] text-[var(--text-primary)]'>
-                        {column.name}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            column.type === 'string'
-                              ? 'green'
-                              : column.type === 'number'
-                                ? 'blue'
-                                : column.type === 'boolean'
-                                  ? 'purple'
-                                  : column.type === 'json'
-                                    ? 'orange'
-                                    : column.type === 'date'
-                                      ? 'teal'
-                                      : 'gray'
-                          }
-                          size='sm'
-                        >
-                          {column.type}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className='text-[12px]'>
-                        <div className='flex gap-[6px]'>
-                          {column.required && (
-                            <Badge variant='red' size='sm'>
-                              required
-                            </Badge>
-                          )}
-                          {column.unique && (
-                            <Badge variant='purple' size='sm'>
-                              unique
-                            </Badge>
-                          )}
-                          {!column.required && !column.unique && (
-                            <span className='text-[var(--text-muted)]'>—</span>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </ModalBody>
-        </ModalContent>
-      </Modal>
+      <SchemaViewerModal
+        isOpen={showSchemaModal}
+        onClose={() => setShowSchemaModal(false)}
+        columns={columns}
+      />
 
       {/* Cell Viewer Modal */}
-      <Modal open={!!cellViewer} onOpenChange={(open) => !open && setCellViewer(null)}>
-        <ModalContent className='w-[640px] duration-100'>
-          <div className='flex items-center justify-between gap-[8px] px-[16px] py-[10px]'>
-            <div className='flex min-w-0 items-center gap-[8px]'>
-              <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
-                {cellViewer?.columnName}
-              </span>
-              <Badge
-                variant={
-                  cellViewer?.type === 'json'
-                    ? 'blue'
-                    : cellViewer?.type === 'date'
-                      ? 'purple'
-                      : 'gray'
-                }
-                size='sm'
-              >
-                {cellViewer?.type === 'json'
-                  ? 'JSON'
-                  : cellViewer?.type === 'date'
-                    ? 'Date'
-                    : 'Text'}
-              </Badge>
-            </div>
-            <div className='flex shrink-0 items-center gap-[8px]'>
-              <Button
-                variant={copied ? 'tertiary' : 'default'}
-                size='sm'
-                onClick={handleCopyCellValue}
-              >
-                <Copy className='mr-[4px] h-[12px] w-[12px]' />
-                {copied ? 'Copied!' : 'Copy'}
-              </Button>
-              <Button variant='ghost' size='sm' onClick={() => setCellViewer(null)}>
-                <X className='h-[14px] w-[14px]' />
-              </Button>
-            </div>
-          </div>
-          <ModalBody className='p-0'>
-            {cellViewer?.type === 'json' ? (
-              <pre className='m-[16px] max-h-[450px] overflow-auto rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px] font-mono text-[12px] text-[var(--text-primary)] leading-[1.6]'>
-                {cellViewer ? JSON.stringify(cellViewer.value, null, 2) : ''}
-              </pre>
-            ) : cellViewer?.type === 'date' ? (
-              <div className='m-[16px] space-y-[12px]'>
-                <div className='rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px]'>
-                  <div className='mb-[6px] font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
-                    Formatted
-                  </div>
-                  <div className='text-[14px] text-[var(--text-primary)]'>
-                    {cellViewer
-                      ? new Date(cellViewer.value).toLocaleDateString('en-US', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                          timeZoneName: 'short',
-                        })
-                      : ''}
-                  </div>
-                </div>
-                <div className='rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px]'>
-                  <div className='mb-[6px] font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
-                    ISO Format
-                  </div>
-                  <div className='font-mono text-[13px] text-[var(--text-secondary)]'>
-                    {cellViewer ? String(cellViewer.value) : ''}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className='m-[16px] max-h-[450px] overflow-auto whitespace-pre-wrap break-words rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px] text-[13px] text-[var(--text-primary)] leading-[1.7]'>
-                {cellViewer ? String(cellViewer.value) : ''}
-              </div>
-            )}
-          </ModalBody>
-        </ModalContent>
-      </Modal>
+      <CellViewerModal
+        cellViewer={cellViewer}
+        onClose={() => setCellViewer(null)}
+        onCopy={handleCopyCellValue}
+        copied={copied}
+      />
 
       {/* Row Context Menu */}
       <Popover
@@ -821,5 +718,244 @@ export function TableDataViewer() {
         </PopoverContent>
       </Popover>
     </div>
+  )
+}
+
+/**
+ * Loading skeleton for table rows.
+ */
+function LoadingRows({ columns }: { columns: ColumnDefinition[] }) {
+  return (
+    <>
+      {Array.from({ length: 25 }).map((_, rowIndex) => (
+        <TableRow key={rowIndex}>
+          <TableCell>
+            <Skeleton className='h-[14px] w-[14px]' />
+          </TableCell>
+          {columns.map((col, colIndex) => {
+            const baseWidth =
+              col.type === 'json'
+                ? 200
+                : col.type === 'string'
+                  ? 160
+                  : col.type === 'number'
+                    ? 80
+                    : col.type === 'boolean'
+                      ? 50
+                      : col.type === 'date'
+                        ? 100
+                        : 120
+            const variation = ((rowIndex + colIndex) % 3) * 20
+            const width = baseWidth + variation
+
+            return (
+              <TableCell key={col.name}>
+                <Skeleton className='h-[16px]' style={{ width: `${width}px` }} />
+              </TableCell>
+            )
+          })}
+          <TableCell>
+            <div className='flex gap-[4px]'>
+              <Skeleton className='h-[24px] w-[24px]' />
+              <Skeleton className='h-[24px] w-[24px]' />
+            </div>
+          </TableCell>
+        </TableRow>
+      ))}
+    </>
+  )
+}
+
+/**
+ * Empty state for table rows.
+ */
+function EmptyRows({
+  columnCount,
+  hasFilter,
+  onAddRow,
+}: {
+  columnCount: number
+  hasFilter: boolean
+  onAddRow: () => void
+}) {
+  return (
+    <TableRow>
+      <TableCell colSpan={columnCount + 2} className='h-[160px] text-center'>
+        <div className='flex flex-col items-center gap-[12px]'>
+          <span className='text-[13px] text-[var(--text-tertiary)]'>
+            {hasFilter ? 'No rows match your filter' : 'No data'}
+          </span>
+          {!hasFilter && (
+            <Button variant='default' size='sm' onClick={onAddRow}>
+              <Plus className='mr-[4px] h-[12px] w-[12px]' />
+              Add first row
+            </Button>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  )
+}
+
+/**
+ * Modal for viewing table schema.
+ */
+function SchemaViewerModal({
+  isOpen,
+  onClose,
+  columns,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  columns: ColumnDefinition[]
+}) {
+  return (
+    <Modal open={isOpen} onOpenChange={onClose}>
+      <ModalContent className='w-[500px] duration-100'>
+        <div className='flex items-center justify-between gap-[8px] px-[16px] py-[10px]'>
+          <div className='flex min-w-0 items-center gap-[8px]'>
+            <Info className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+            <span className='font-medium text-[14px] text-[var(--text-primary)]'>Table Schema</span>
+            <Badge variant='gray' size='sm'>
+              {columns.length} columns
+            </Badge>
+          </div>
+          <Button variant='ghost' size='sm' onClick={onClose}>
+            <X className='h-[14px] w-[14px]' />
+          </Button>
+        </div>
+        <ModalBody className='p-0'>
+          <div className='max-h-[400px] overflow-auto'>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className='w-[180px]'>Column</TableHead>
+                  <TableHead className='w-[100px]'>Type</TableHead>
+                  <TableHead>Constraints</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {columns.map((column) => (
+                  <TableRow key={column.name}>
+                    <TableCell className='font-mono text-[12px] text-[var(--text-primary)]'>
+                      {column.name}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={getTypeBadgeVariant(column.type)} size='sm'>
+                        {column.type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className='text-[12px]'>
+                      <div className='flex gap-[6px]'>
+                        {column.required && (
+                          <Badge variant='red' size='sm'>
+                            required
+                          </Badge>
+                        )}
+                        {column.unique && (
+                          <Badge variant='purple' size='sm'>
+                            unique
+                          </Badge>
+                        )}
+                        {!column.required && !column.unique && (
+                          <span className='text-[var(--text-muted)]'>—</span>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </ModalBody>
+      </ModalContent>
+    </Modal>
+  )
+}
+
+/**
+ * Modal for viewing cell details.
+ */
+function CellViewerModal({
+  cellViewer,
+  onClose,
+  onCopy,
+  copied,
+}: {
+  cellViewer: CellViewerData | null
+  onClose: () => void
+  onCopy: () => void
+  copied: boolean
+}) {
+  if (!cellViewer) return null
+
+  return (
+    <Modal open={!!cellViewer} onOpenChange={(open) => !open && onClose()}>
+      <ModalContent className='w-[640px] duration-100'>
+        <div className='flex items-center justify-between gap-[8px] px-[16px] py-[10px]'>
+          <div className='flex min-w-0 items-center gap-[8px]'>
+            <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+              {cellViewer.columnName}
+            </span>
+            <Badge
+              variant={
+                cellViewer.type === 'json' ? 'blue' : cellViewer.type === 'date' ? 'purple' : 'gray'
+              }
+              size='sm'
+            >
+              {cellViewer.type === 'json' ? 'JSON' : cellViewer.type === 'date' ? 'Date' : 'Text'}
+            </Badge>
+          </div>
+          <div className='flex shrink-0 items-center gap-[8px]'>
+            <Button variant={copied ? 'tertiary' : 'default'} size='sm' onClick={onCopy}>
+              <Copy className='mr-[4px] h-[12px] w-[12px]' />
+              {copied ? 'Copied!' : 'Copy'}
+            </Button>
+            <Button variant='ghost' size='sm' onClick={onClose}>
+              <X className='h-[14px] w-[14px]' />
+            </Button>
+          </div>
+        </div>
+        <ModalBody className='p-0'>
+          {cellViewer.type === 'json' ? (
+            <pre className='m-[16px] max-h-[450px] overflow-auto rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px] font-mono text-[12px] text-[var(--text-primary)] leading-[1.6]'>
+              {JSON.stringify(cellViewer.value, null, 2)}
+            </pre>
+          ) : cellViewer.type === 'date' ? (
+            <div className='m-[16px] space-y-[12px]'>
+              <div className='rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px]'>
+                <div className='mb-[6px] font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
+                  Formatted
+                </div>
+                <div className='text-[14px] text-[var(--text-primary)]'>
+                  {new Date(String(cellViewer.value)).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    timeZoneName: 'short',
+                  })}
+                </div>
+              </div>
+              <div className='rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px]'>
+                <div className='mb-[6px] font-medium text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide'>
+                  ISO Format
+                </div>
+                <div className='font-mono text-[13px] text-[var(--text-secondary)]'>
+                  {String(cellViewer.value)}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className='m-[16px] max-h-[450px] overflow-auto whitespace-pre-wrap break-words rounded-[6px] border border-[var(--border)] bg-[var(--surface-4)] p-[16px] text-[13px] text-[var(--text-primary)] leading-[1.7]'>
+              {String(cellViewer.value)}
+            </div>
+          )}
+        </ModalBody>
+      </ModalContent>
+    </Modal>
   )
 }

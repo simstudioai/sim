@@ -8,14 +8,40 @@ import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from
 
 const logger = createLogger('DeleteRowModal')
 
+/**
+ * Props for the DeleteRowModal component.
+ */
 interface DeleteRowModalProps {
+  /** Whether the modal is open */
   isOpen: boolean
+  /** Callback when the modal should close */
   onClose: () => void
+  /** ID of the table containing the rows */
   tableId: string
+  /** Array of row IDs to delete */
   rowIds: string[]
+  /** Callback when deletion is successful */
   onSuccess: () => void
 }
 
+/**
+ * Modal component for confirming row deletion.
+ *
+ * @remarks
+ * Supports both single row and batch deletion. Shows a confirmation
+ * dialog before performing the delete operation.
+ *
+ * @example
+ * ```tsx
+ * <DeleteRowModal
+ *   isOpen={isDeleting}
+ *   onClose={() => setIsDeleting(false)}
+ *   tableId="tbl_123"
+ *   rowIds={selectedRowIds}
+ *   onSuccess={() => refetchRows()}
+ * />
+ * ```
+ */
 export function DeleteRowModal({
   isOpen,
   onClose,
@@ -29,13 +55,16 @@ export function DeleteRowModal({
   const [error, setError] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  /**
+   * Handles the delete operation.
+   */
   const handleDelete = async () => {
     setError(null)
     setIsDeleting(true)
 
     try {
-      // Delete rows one by one or in batch
       if (rowIds.length === 1) {
+        // Single row deletion
         const res = await fetch(`/api/table/${tableId}/rows/${rowIds[0]}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
@@ -43,11 +72,11 @@ export function DeleteRowModal({
         })
 
         if (!res.ok) {
-          const result = await res.json()
+          const result: { error?: string } = await res.json()
           throw new Error(result.error || 'Failed to delete row')
         }
       } else {
-        // Batch delete - you might want to implement a batch delete endpoint
+        // Batch deletion - delete rows in parallel
         await Promise.all(
           rowIds.map((rowId) =>
             fetch(`/api/table/${tableId}/rows/${rowId}`, {
@@ -68,10 +97,15 @@ export function DeleteRowModal({
     }
   }
 
+  /**
+   * Handles modal close and resets state.
+   */
   const handleClose = () => {
     setError(null)
     onClose()
   }
+
+  const isSingleRow = rowIds.length === 1
 
   return (
     <Modal open={isOpen} onOpenChange={handleClose}>
@@ -82,7 +116,7 @@ export function DeleteRowModal({
               <AlertCircle className='h-[18px] w-[18px]' />
             </div>
             <h2 className='font-semibold text-[16px]'>
-              Delete {rowIds.length === 1 ? 'Row' : `${rowIds.length} Rows`}
+              Delete {isSingleRow ? 'Row' : `${rowIds.length} Rows`}
             </h2>
           </div>
         </ModalHeader>
@@ -95,8 +129,8 @@ export function DeleteRowModal({
             )}
 
             <p className='text-[14px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete {rowIds.length === 1 ? 'this row' : 'these rows'}?
-              This action cannot be undone.
+              Are you sure you want to delete {isSingleRow ? 'this row' : 'these rows'}? This action
+              cannot be undone.
             </p>
           </div>
         </ModalBody>

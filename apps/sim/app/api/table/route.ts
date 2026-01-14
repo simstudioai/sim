@@ -8,11 +8,14 @@ import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { TABLE_LIMITS, validateTableName, validateTableSchema } from '@/lib/table'
 import type { TableSchema } from '@/lib/table/validation'
+import type { TableColumnData, TableSchemaData } from './utils'
 
 const logger = createLogger('TableAPI')
 
 /**
- * Schema for table column definition
+ * Zod schema for validating a table column definition.
+ *
+ * Columns must have a name, type, and optional required/unique flags.
  */
 const ColumnSchema = z.object({
   name: z
@@ -36,7 +39,9 @@ const ColumnSchema = z.object({
 })
 
 /**
- * Schema for creating a new table
+ * Zod schema for validating create table requests.
+ *
+ * Requires a name, schema with columns, and workspace ID.
  */
 const CreateTableSchema = z.object({
   name: z
@@ -70,16 +75,33 @@ const CreateTableSchema = z.object({
 })
 
 /**
- * Schema for listing tables in a workspace
+ * Zod schema for validating list tables requests.
  */
 const ListTablesSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
 /**
- * Check if user has write access to workspace
+ * Result of a workspace access check.
  */
-async function checkWorkspaceAccess(workspaceId: string, userId: string) {
+interface WorkspaceAccessResult {
+  /** Whether the user has any access to the workspace */
+  hasAccess: boolean
+  /** Whether the user can write (modify tables) in the workspace */
+  canWrite: boolean
+}
+
+/**
+ * Checks if a user has access to a workspace and determines their permission level.
+ *
+ * @param workspaceId - The workspace to check access for
+ * @param userId - The user requesting access
+ * @returns Access result with read and write permissions
+ */
+async function checkWorkspaceAccess(
+  workspaceId: string,
+  userId: string
+): Promise<WorkspaceAccessResult> {
   const [workspaceData] = await db
     .select({
       id: workspace.id,
@@ -126,8 +148,52 @@ async function checkWorkspaceAccess(workspaceId: string, userId: string) {
 }
 
 /**
+ * Column input type that accepts both Zod-inferred columns and database columns.
+ */
+interface ColumnInput {
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'date' | 'json'
+  required?: boolean
+  unique?: boolean
+}
+
+/**
+ * Normalizes a column definition by ensuring all optional fields have explicit values.
+ *
+ * @param col - The column definition to normalize
+ * @returns A normalized column with explicit required and unique values
+ */
+function normalizeColumn(col: ColumnInput): TableColumnData {
+  return {
+    name: col.name,
+    type: col.type,
+    required: col.required ?? false,
+    unique: col.unique ?? false,
+  }
+}
+
+/**
  * POST /api/table
- * Create a new user-defined table
+ *
+ * Creates a new user-defined table in a workspace.
+ *
+ * @param request - The incoming HTTP request containing table definition
+ * @returns JSON response with the created table or error
+ *
+ * @example Request body:
+ * ```json
+ * {
+ *   "name": "customers",
+ *   "description": "Customer records",
+ *   "workspaceId": "ws_123",
+ *   "schema": {
+ *     "columns": [
+ *       { "name": "email", "type": "string", "required": true, "unique": true },
+ *       { "name": "name", "type": "string", "required": true }
+ *     ]
+ *   }
+ * }
+ * ```
  */
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
@@ -138,7 +204,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const body = await request.json()
+    const body: unknown = await request.json()
     const params = CreateTableSchema.parse(body)
 
     // Validate table name
@@ -210,13 +276,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Normalize schema to ensure all fields have explicit defaults
-    const normalizedSchema = {
-      columns: params.schema.columns.map((col) => ({
-        name: col.name,
-        type: col.type,
-        required: col.required ?? false,
-        unique: col.unique ?? false,
-      })),
+    const normalizedSchema: TableSchemaData = {
+      columns: params.schema.columns.map(normalizeColumn),
     }
 
     // Create table
@@ -272,7 +333,11 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/table?workspaceId=xxx
- * List all tables in a workspace
+ *
+ * Lists all tables in a workspace.
+ *
+ * @param request - The incoming HTTP request with workspaceId query param
+ * @returns JSON response with array of tables or error
  */
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
@@ -329,19 +394,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        tables: tables.map((t) => ({
-          ...t,
-          schema: {
-            columns: (t.schema as any).columns.map((col: any) => ({
-              name: col.name,
-              type: col.type,
-              required: col.required ?? false,
-              unique: col.unique ?? false,
-            })),
-          },
-          createdAt: t.createdAt.toISOString(),
-          updatedAt: t.updatedAt.toISOString(),
-        })),
+        tables: tables.map((t) => {
+          const schemaData = t.schema as TableSchemaData
+          return {
+            ...t,
+            schema: {
+              columns: schemaData.columns.map(normalizeColumn),
+            },
+            createdAt: t.createdAt.toISOString(),
+            updatedAt: t.updatedAt.toISOString(),
+          }
+        }),
         totalCount: tables.length,
       },
     })

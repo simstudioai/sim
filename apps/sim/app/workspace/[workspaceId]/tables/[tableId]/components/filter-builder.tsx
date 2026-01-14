@@ -5,7 +5,7 @@ import { ArrowDownAZ, ArrowUpAZ, Plus, X } from 'lucide-react'
 import { Button, Combobox, Input } from '@/components/emcn'
 
 /**
- * Available comparison operators for filter conditions
+ * Available comparison operators for filter conditions.
  */
 const COMPARISON_OPERATORS = [
   { value: 'eq', label: 'equals' },
@@ -19,7 +19,7 @@ const COMPARISON_OPERATORS = [
 ] as const
 
 /**
- * Logical operators for combining conditions (for subsequent filters)
+ * Logical operators for combining filter conditions.
  */
 const LOGICAL_OPERATORS = [
   { value: 'and', label: 'and' },
@@ -27,7 +27,7 @@ const LOGICAL_OPERATORS = [
 ] as const
 
 /**
- * Sort direction options
+ * Sort direction options.
  */
 const SORT_DIRECTIONS = [
   { value: 'asc', label: 'ascending' },
@@ -35,80 +35,129 @@ const SORT_DIRECTIONS = [
 ] as const
 
 /**
- * Represents a single filter condition
+ * Represents a single filter condition.
  */
 export interface FilterCondition {
+  /** Unique identifier for the condition */
   id: string
+  /** How this condition combines with the previous one */
   logicalOperator: 'and' | 'or'
+  /** Column to filter on */
   column: string
+  /** Comparison operator */
   operator: string
+  /** Value to compare against */
   value: string
 }
 
 /**
- * Represents a sort configuration
+ * Represents a sort configuration.
  */
 export interface SortConfig {
+  /** Column to sort by */
   column: string
+  /** Sort direction */
   direction: 'asc' | 'desc'
 }
 
 /**
- * Query options for the table
+ * Filter value structure for API queries.
+ */
+type FilterValue = string | number | boolean | null | FilterValue[] | { [key: string]: FilterValue }
+
+/**
+ * Query options for the table API.
  */
 export interface QueryOptions {
-  filter: Record<string, any> | null
+  /** Filter criteria or null for no filter */
+  filter: Record<string, FilterValue> | null
+  /** Sort configuration or null for default sort */
   sort: SortConfig | null
 }
 
+/**
+ * Column definition for filter building.
+ */
 interface Column {
+  /** Column name */
   name: string
+  /** Column data type */
   type: string
 }
 
+/**
+ * Props for the FilterBuilder component.
+ */
 interface FilterBuilderProps {
+  /** Available columns for filtering */
   columns: Column[]
+  /** Callback when query options should be applied */
   onApply: (options: QueryOptions) => void
+  /** Callback to add a new row */
   onAddRow: () => void
 }
 
 /**
- * Generates a unique ID for filter conditions
+ * Generates a unique ID for filter conditions.
+ *
+ * @returns A random string ID
  */
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9)
 }
 
 /**
- * Converts filter conditions to MongoDB-style filter object
+ * Parses a string value into its appropriate type.
+ *
+ * @param value - String value to parse
+ * @returns Parsed value (boolean, null, number, or string)
  */
-function conditionsToFilter(conditions: FilterCondition[]): Record<string, any> | null {
+function parseValue(value: string): string | number | boolean | null {
+  if (value === 'true') return true
+  if (value === 'false') return false
+  if (value === 'null') return null
+  if (!Number.isNaN(Number(value)) && value !== '') return Number(value)
+  return value
+}
+
+/**
+ * Parses a comma-separated string into an array of values.
+ *
+ * @param value - Comma-separated string
+ * @returns Array of parsed values
+ */
+function parseArrayValue(value: string): FilterValue[] {
+  return value.split(',').map((v) => {
+    const trimmed = v.trim()
+    return parseValue(trimmed)
+  })
+}
+
+/**
+ * Converts filter conditions to MongoDB-style filter object.
+ *
+ * @param conditions - Array of filter conditions
+ * @returns Filter object for API or null if no conditions
+ */
+function conditionsToFilter(conditions: FilterCondition[]): Record<string, FilterValue> | null {
   if (conditions.length === 0) return null
 
-  const orGroups: Record<string, any>[] = []
-  let currentAndGroup: Record<string, any> = {}
+  const orGroups: Record<string, FilterValue>[] = []
+  let currentAndGroup: Record<string, FilterValue> = {}
 
   conditions.forEach((condition, index) => {
     const { column, operator, value } = condition
     const operatorKey = `$${operator}`
 
-    let parsedValue: any = value
-    if (value === 'true') parsedValue = true
-    else if (value === 'false') parsedValue = false
-    else if (value === 'null') parsedValue = null
-    else if (!Number.isNaN(Number(value)) && value !== '') parsedValue = Number(value)
-    else if (operator === 'in') {
-      parsedValue = value.split(',').map((v) => {
-        const trimmed = v.trim()
-        if (trimmed === 'true') return true
-        if (trimmed === 'false') return false
-        if (trimmed === 'null') return null
-        if (!Number.isNaN(Number(trimmed)) && trimmed !== '') return Number(trimmed)
-        return trimmed
-      })
+    let parsedValue: FilterValue = value
+    if (operator === 'in') {
+      parsedValue = parseArrayValue(value)
+    } else {
+      parsedValue = parseValue(value)
     }
 
-    const conditionObj = operator === 'eq' ? parsedValue : { [operatorKey]: parsedValue }
+    const conditionObj: FilterValue =
+      operator === 'eq' ? parsedValue : { [operatorKey]: parsedValue }
 
     if (index === 0 || condition.logicalOperator === 'and') {
       currentAndGroup[column] = conditionObj
@@ -131,6 +180,24 @@ function conditionsToFilter(conditions: FilterCondition[]): Record<string, any> 
   return orGroups[0] || null
 }
 
+/**
+ * Component for building filter and sort queries for table data.
+ *
+ * @remarks
+ * Provides a visual interface for:
+ * - Adding multiple filter conditions with AND/OR logic
+ * - Configuring sort column and direction
+ * - Applying or clearing the query
+ *
+ * @example
+ * ```tsx
+ * <FilterBuilder
+ *   columns={tableColumns}
+ *   onApply={(options) => setQueryOptions(options)}
+ *   onAddRow={() => setShowAddModal(true)}
+ * />
+ * ```
+ */
 export function FilterBuilder({ columns, onApply, onAddRow }: FilterBuilderProps) {
   const [conditions, setConditions] = useState<FilterCondition[]>([])
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null)
@@ -155,6 +222,9 @@ export function FilterBuilder({ columns, onApply, onAddRow }: FilterBuilderProps
     []
   )
 
+  /**
+   * Adds a new filter condition.
+   */
   const handleAddCondition = useCallback(() => {
     const newCondition: FilterCondition = {
       id: generateId(),
@@ -166,10 +236,16 @@ export function FilterBuilder({ columns, onApply, onAddRow }: FilterBuilderProps
     setConditions((prev) => [...prev, newCondition])
   }, [columns])
 
+  /**
+   * Removes a filter condition by ID.
+   */
   const handleRemoveCondition = useCallback((id: string) => {
     setConditions((prev) => prev.filter((c) => c.id !== id))
   }, [])
 
+  /**
+   * Updates a filter condition field.
+   */
   const handleUpdateCondition = useCallback(
     (id: string, field: keyof FilterCondition, value: string) => {
       setConditions((prev) => prev.map((c) => (c.id === id ? { ...c, [field]: value } : c)))
@@ -177,6 +253,9 @@ export function FilterBuilder({ columns, onApply, onAddRow }: FilterBuilderProps
     []
   )
 
+  /**
+   * Adds a sort configuration.
+   */
   const handleAddSort = useCallback(() => {
     setSortConfig({
       column: columns[0]?.name || '',
@@ -184,10 +263,16 @@ export function FilterBuilder({ columns, onApply, onAddRow }: FilterBuilderProps
     })
   }, [columns])
 
+  /**
+   * Removes the sort configuration.
+   */
   const handleRemoveSort = useCallback(() => {
     setSortConfig(null)
   }, [])
 
+  /**
+   * Applies the current filter and sort configuration.
+   */
   const handleApply = useCallback(() => {
     const filter = conditionsToFilter(conditions)
     onApply({
@@ -196,6 +281,9 @@ export function FilterBuilder({ columns, onApply, onAddRow }: FilterBuilderProps
     })
   }, [conditions, sortConfig, onApply])
 
+  /**
+   * Clears all filters and sort configuration.
+   */
   const handleClear = useCallback(() => {
     setConditions([])
     setSortConfig(null)
@@ -211,123 +299,28 @@ export function FilterBuilder({ columns, onApply, onAddRow }: FilterBuilderProps
     <div className='flex flex-col gap-[8px]'>
       {/* Filter Conditions */}
       {conditions.map((condition, index) => (
-        <div key={condition.id} className='flex items-center gap-[8px]'>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() => handleRemoveCondition(condition.id)}
-            className='h-[28px] w-[28px] shrink-0 p-0 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
-          >
-            <X className='h-[12px] w-[12px]' />
-          </Button>
-
-          <div className='w-[80px] shrink-0'>
-            {index === 0 ? (
-              <Combobox
-                size='sm'
-                options={[{ value: 'where', label: 'where' }]}
-                value='where'
-                disabled
-              />
-            ) : (
-              <Combobox
-                size='sm'
-                options={logicalOptions}
-                value={condition.logicalOperator}
-                onChange={(value) =>
-                  handleUpdateCondition(condition.id, 'logicalOperator', value as 'and' | 'or')
-                }
-              />
-            )}
-          </div>
-
-          <div className='w-[140px] shrink-0'>
-            <Combobox
-              size='sm'
-              options={columnOptions}
-              value={condition.column}
-              onChange={(value) => handleUpdateCondition(condition.id, 'column', value)}
-              placeholder='Column'
-            />
-          </div>
-
-          <div className='w-[130px] shrink-0'>
-            <Combobox
-              size='sm'
-              options={comparisonOptions}
-              value={condition.operator}
-              onChange={(value) => handleUpdateCondition(condition.id, 'operator', value)}
-            />
-          </div>
-
-          <Input
-            className='h-[28px] min-w-[200px] flex-1 text-[12px]'
-            value={condition.value}
-            onChange={(e) => handleUpdateCondition(condition.id, 'value', e.target.value)}
-            placeholder='Value'
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleApply()
-              }
-            }}
-          />
-        </div>
+        <FilterConditionRow
+          key={condition.id}
+          condition={condition}
+          index={index}
+          columnOptions={columnOptions}
+          comparisonOptions={comparisonOptions}
+          logicalOptions={logicalOptions}
+          onUpdate={handleUpdateCondition}
+          onRemove={handleRemoveCondition}
+          onApply={handleApply}
+        />
       ))}
 
       {/* Sort Row */}
       {sortConfig && (
-        <div className='flex items-center gap-[8px]'>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={handleRemoveSort}
-            className='h-[28px] w-[28px] shrink-0 p-0 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
-          >
-            <X className='h-[12px] w-[12px]' />
-          </Button>
-
-          <div className='w-[80px] shrink-0'>
-            <Combobox
-              size='sm'
-              options={[{ value: 'order', label: 'order' }]}
-              value='order'
-              disabled
-            />
-          </div>
-
-          <div className='w-[140px] shrink-0'>
-            <Combobox
-              size='sm'
-              options={columnOptions}
-              value={sortConfig.column}
-              onChange={(value) =>
-                setSortConfig((prev) => (prev ? { ...prev, column: value } : null))
-              }
-              placeholder='Column'
-            />
-          </div>
-
-          <div className='w-[130px] shrink-0'>
-            <Combobox
-              size='sm'
-              options={sortDirectionOptions}
-              value={sortConfig.direction}
-              onChange={(value) =>
-                setSortConfig((prev) =>
-                  prev ? { ...prev, direction: value as 'asc' | 'desc' } : null
-                )
-              }
-            />
-          </div>
-
-          <div className='flex items-center text-[12px] text-[var(--text-tertiary)]'>
-            {sortConfig.direction === 'asc' ? (
-              <ArrowUpAZ className='h-[14px] w-[14px]' />
-            ) : (
-              <ArrowDownAZ className='h-[14px] w-[14px]' />
-            )}
-          </div>
-        </div>
+        <SortConfigRow
+          sortConfig={sortConfig}
+          columnOptions={columnOptions}
+          sortDirectionOptions={sortDirectionOptions}
+          onChange={setSortConfig}
+          onRemove={handleRemoveSort}
+        />
       )}
 
       {/* Action Buttons */}
@@ -362,6 +355,175 @@ export function FilterBuilder({ columns, onApply, onAddRow }: FilterBuilderProps
               Clear all
             </button>
           </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Props for the FilterConditionRow component.
+ */
+interface FilterConditionRowProps {
+  /** The filter condition */
+  condition: FilterCondition
+  /** Index in the conditions array */
+  index: number
+  /** Available column options */
+  columnOptions: Array<{ value: string; label: string }>
+  /** Available comparison operator options */
+  comparisonOptions: Array<{ value: string; label: string }>
+  /** Available logical operator options */
+  logicalOptions: Array<{ value: string; label: string }>
+  /** Callback to update a condition field */
+  onUpdate: (id: string, field: keyof FilterCondition, value: string) => void
+  /** Callback to remove the condition */
+  onRemove: (id: string) => void
+  /** Callback to apply filters */
+  onApply: () => void
+}
+
+/**
+ * A single filter condition row.
+ */
+function FilterConditionRow({
+  condition,
+  index,
+  columnOptions,
+  comparisonOptions,
+  logicalOptions,
+  onUpdate,
+  onRemove,
+  onApply,
+}: FilterConditionRowProps) {
+  return (
+    <div className='flex items-center gap-[8px]'>
+      <Button
+        variant='ghost'
+        size='sm'
+        onClick={() => onRemove(condition.id)}
+        className='h-[28px] w-[28px] shrink-0 p-0 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
+      >
+        <X className='h-[12px] w-[12px]' />
+      </Button>
+
+      <div className='w-[80px] shrink-0'>
+        {index === 0 ? (
+          <Combobox
+            size='sm'
+            options={[{ value: 'where', label: 'where' }]}
+            value='where'
+            disabled
+          />
+        ) : (
+          <Combobox
+            size='sm'
+            options={logicalOptions}
+            value={condition.logicalOperator}
+            onChange={(value) => onUpdate(condition.id, 'logicalOperator', value as 'and' | 'or')}
+          />
+        )}
+      </div>
+
+      <div className='w-[140px] shrink-0'>
+        <Combobox
+          size='sm'
+          options={columnOptions}
+          value={condition.column}
+          onChange={(value) => onUpdate(condition.id, 'column', value)}
+          placeholder='Column'
+        />
+      </div>
+
+      <div className='w-[130px] shrink-0'>
+        <Combobox
+          size='sm'
+          options={comparisonOptions}
+          value={condition.operator}
+          onChange={(value) => onUpdate(condition.id, 'operator', value)}
+        />
+      </div>
+
+      <Input
+        className='h-[28px] min-w-[200px] flex-1 text-[12px]'
+        value={condition.value}
+        onChange={(e) => onUpdate(condition.id, 'value', e.target.value)}
+        placeholder='Value'
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            onApply()
+          }
+        }}
+      />
+    </div>
+  )
+}
+
+/**
+ * Props for the SortConfigRow component.
+ */
+interface SortConfigRowProps {
+  /** The sort configuration */
+  sortConfig: SortConfig
+  /** Available column options */
+  columnOptions: Array<{ value: string; label: string }>
+  /** Available sort direction options */
+  sortDirectionOptions: Array<{ value: string; label: string }>
+  /** Callback to update the sort configuration */
+  onChange: (config: SortConfig | null) => void
+  /** Callback to remove the sort */
+  onRemove: () => void
+}
+
+/**
+ * Sort configuration row component.
+ */
+function SortConfigRow({
+  sortConfig,
+  columnOptions,
+  sortDirectionOptions,
+  onChange,
+  onRemove,
+}: SortConfigRowProps) {
+  return (
+    <div className='flex items-center gap-[8px]'>
+      <Button
+        variant='ghost'
+        size='sm'
+        onClick={onRemove}
+        className='h-[28px] w-[28px] shrink-0 p-0 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
+      >
+        <X className='h-[12px] w-[12px]' />
+      </Button>
+
+      <div className='w-[80px] shrink-0'>
+        <Combobox size='sm' options={[{ value: 'order', label: 'order' }]} value='order' disabled />
+      </div>
+
+      <div className='w-[140px] shrink-0'>
+        <Combobox
+          size='sm'
+          options={columnOptions}
+          value={sortConfig.column}
+          onChange={(value) => onChange({ ...sortConfig, column: value })}
+          placeholder='Column'
+        />
+      </div>
+
+      <div className='w-[130px] shrink-0'>
+        <Combobox
+          size='sm'
+          options={sortDirectionOptions}
+          value={sortConfig.direction}
+          onChange={(value) => onChange({ ...sortConfig, direction: value as 'asc' | 'desc' })}
+        />
+      </div>
+
+      <div className='flex items-center text-[12px] text-[var(--text-tertiary)]'>
+        {sortConfig.direction === 'asc' ? (
+          <ArrowUpAZ className='h-[14px] w-[14px]' />
+        ) : (
+          <ArrowDownAZ className='h-[14px] w-[14px]' />
         )}
       </div>
     </div>

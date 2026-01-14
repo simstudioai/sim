@@ -6,25 +6,69 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import type { TableColumnData, TableSchemaData } from '../utils'
 import { checkTableAccess, checkTableWriteAccess, verifyTableWorkspace } from '../utils'
 
 const logger = createLogger('TableDetailAPI')
 
 /**
- * Schema for getting a table by ID
+ * Zod schema for validating get table requests.
+ *
+ * The workspaceId is optional for backward compatibility but
+ * is validated via table access checks when provided.
  */
 const GetTableSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required').optional(), // Optional for backward compatibility, validated via table access
+  workspaceId: z.string().min(1, 'Workspace ID is required').optional(),
 })
 
 /**
- * GET /api/table/[tableId]?workspaceId=xxx
- * Get table details
+ * Route params for table detail endpoints.
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ tableId: string }> }
-) {
+interface TableRouteParams {
+  params: Promise<{ tableId: string }>
+}
+
+/**
+ * Normalizes a column definition ensuring all optional fields have explicit values.
+ *
+ * @param col - The column data to normalize
+ * @returns Normalized column with explicit required and unique values
+ */
+function normalizeColumn(col: TableColumnData): TableColumnData {
+  return {
+    name: col.name,
+    type: col.type,
+    required: col.required ?? false,
+    unique: col.unique ?? false,
+  }
+}
+
+/**
+ * GET /api/table/[tableId]?workspaceId=xxx
+ *
+ * Retrieves details for a specific table.
+ *
+ * @param request - The incoming HTTP request
+ * @param context - Route context containing tableId param
+ * @returns JSON response with table details or error
+ *
+ * @example Response:
+ * ```json
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "table": {
+ *       "id": "tbl_abc123",
+ *       "name": "customers",
+ *       "schema": { "columns": [...] },
+ *       "rowCount": 150,
+ *       "maxRows": 10000
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export async function GET(request: NextRequest, { params }: TableRouteParams) {
   const requestId = generateRequestId()
   const { tableId } = await params
 
@@ -78,6 +122,8 @@ export async function GET(
 
     logger.info(`[${requestId}] Retrieved table ${tableId} for user ${authResult.userId}`)
 
+    const schemaData = table.schema as TableSchemaData
+
     return NextResponse.json({
       success: true,
       data: {
@@ -86,12 +132,7 @@ export async function GET(
           name: table.name,
           description: table.description,
           schema: {
-            columns: (table.schema as any).columns.map((col: any) => ({
-              name: col.name,
-              type: col.type,
-              required: col.required ?? false,
-              unique: col.unique ?? false,
-            })),
+            columns: schemaData.columns.map(normalizeColumn),
           },
           rowCount: table.rowCount,
           maxRows: table.maxRows,
@@ -115,17 +156,23 @@ export async function GET(
 
 /**
  * DELETE /api/table/[tableId]?workspaceId=xxx
- * Delete a table (hard delete)
+ *
+ * Permanently deletes a table and all its rows.
+ *
+ * @param request - The incoming HTTP request
+ * @param context - Route context containing tableId param
+ * @returns JSON response confirming deletion or error
+ *
+ * @remarks
+ * This performs a hard delete, removing all data permanently.
+ * The operation requires write access to the table.
  */
-export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ tableId: string }> }
-) {
+export async function DELETE(request: NextRequest, { params }: TableRouteParams) {
   const requestId = generateRequestId()
   const { tableId } = await params
 
   try {
-    const authResult = await checkHybridAuth(_request)
+    const authResult = await checkHybridAuth(request)
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized table delete attempt`)
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })

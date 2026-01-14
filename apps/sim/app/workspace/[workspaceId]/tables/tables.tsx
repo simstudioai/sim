@@ -14,6 +14,20 @@ import { TableCard } from './components/table-card'
 
 const logger = createLogger('Tables')
 
+/**
+ * Tables page component that displays a list of all tables in a workspace.
+ *
+ * @remarks
+ * This component provides functionality to:
+ * - View all tables in the workspace
+ * - Search tables by name or description
+ * - Create new tables (with write permission)
+ *
+ * @example
+ * ```tsx
+ * <Tables />
+ * ```
+ */
 export function Tables() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -87,56 +101,11 @@ export function Tables() {
             {/* Content */}
             <div className='mt-[24px] grid grid-cols-1 gap-[20px] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
               {isLoading ? (
-                // Loading skeleton matching the new card style
-                Array.from({ length: 8 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className='flex h-full flex-col gap-[12px] rounded-[4px] bg-[var(--surface-3)] px-[8px] py-[6px] dark:bg-[var(--surface-4)]'
-                  >
-                    <div className='flex items-center justify-between gap-[8px]'>
-                      <div className='h-[17px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-                      <div className='h-[22px] w-[90px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-                    </div>
-                    <div className='flex flex-1 flex-col gap-[8px]'>
-                      <div className='flex items-center justify-between'>
-                        <div className='flex items-center gap-[12px]'>
-                          <div className='h-[15px] w-[50px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-                          <div className='h-[15px] w-[50px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-                        </div>
-                        <div className='h-[15px] w-[60px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-                      </div>
-                      <div className='h-0 w-full border-[var(--divider)] border-t' />
-                      <div className='flex h-[36px] flex-col gap-[6px]'>
-                        <div className='h-[15px] w-full animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-                        <div className='h-[15px] w-[75%] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-                      </div>
-                    </div>
-                  </div>
-                ))
+                <LoadingSkeletons />
               ) : error ? (
-                <div className='col-span-full flex h-64 items-center justify-center rounded-[4px] bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>
-                  <div className='text-center'>
-                    <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                      Error loading tables
-                    </p>
-                    <p className='mt-1 text-[var(--text-muted)] text-xs'>
-                      {error instanceof Error ? error.message : 'An error occurred'}
-                    </p>
-                  </div>
-                </div>
+                <ErrorState error={error} />
               ) : filteredTables.length === 0 ? (
-                <div className='col-span-full flex h-64 items-center justify-center rounded-[4px] bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>
-                  <div className='text-center'>
-                    <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                      {searchQuery ? 'No tables found' : 'No tables yet'}
-                    </p>
-                    <p className='mt-1 text-[var(--text-muted)] text-xs'>
-                      {searchQuery
-                        ? 'Try adjusting your search query'
-                        : 'Create your first table to store structured data for your workflows'}
-                    </p>
-                  </div>
-                </div>
+                <EmptyState hasSearchQuery={!!searchQuery} />
               ) : (
                 filteredTables.map((table) => (
                   <TableCard key={table.id} table={table} workspaceId={workspaceId} />
@@ -149,5 +118,82 @@ export function Tables() {
 
       <CreateTableModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
     </>
+  )
+}
+
+/**
+ * Loading skeleton component for table cards.
+ */
+function LoadingSkeletons() {
+  return (
+    <>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div
+          key={i}
+          className='flex h-full flex-col gap-[12px] rounded-[4px] bg-[var(--surface-3)] px-[8px] py-[6px] dark:bg-[var(--surface-4)]'
+        >
+          <div className='flex items-center justify-between gap-[8px]'>
+            <div className='h-[17px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+            <div className='h-[22px] w-[90px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+          </div>
+          <div className='flex flex-1 flex-col gap-[8px]'>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-[12px]'>
+                <div className='h-[15px] w-[50px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+                <div className='h-[15px] w-[50px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+              </div>
+              <div className='h-[15px] w-[60px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+            </div>
+            <div className='h-0 w-full border-[var(--divider)] border-t' />
+            <div className='flex h-[36px] flex-col gap-[6px]'>
+              <div className='h-[15px] w-full animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+              <div className='h-[15px] w-[75%] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+            </div>
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
+
+/**
+ * Error state component displayed when table loading fails.
+ *
+ * @param props - Component props
+ * @param props.error - The error that occurred
+ */
+function ErrorState({ error }: { error: unknown }) {
+  return (
+    <div className='col-span-full flex h-64 items-center justify-center rounded-[4px] bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>
+      <div className='text-center'>
+        <p className='font-medium text-[var(--text-secondary)] text-sm'>Error loading tables</p>
+        <p className='mt-1 text-[var(--text-muted)] text-xs'>
+          {error instanceof Error ? error.message : 'An error occurred'}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Empty state component displayed when no tables exist or match the search.
+ *
+ * @param props - Component props
+ * @param props.hasSearchQuery - Whether a search query is active
+ */
+function EmptyState({ hasSearchQuery }: { hasSearchQuery: boolean }) {
+  return (
+    <div className='col-span-full flex h-64 items-center justify-center rounded-[4px] bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>
+      <div className='text-center'>
+        <p className='font-medium text-[var(--text-secondary)] text-sm'>
+          {hasSearchQuery ? 'No tables found' : 'No tables yet'}
+        </p>
+        <p className='mt-1 text-[var(--text-muted)] text-xs'>
+          {hasSearchQuery
+            ? 'Try adjusting your search query'
+            : 'Create your first table to store structured data for your workflows'}
+        </p>
+      </div>
+    </div>
   )
 }

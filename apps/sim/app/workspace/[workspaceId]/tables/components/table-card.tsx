@@ -29,13 +29,21 @@ import type { TableDefinition } from '@/tools/table/types'
 
 const logger = createLogger('TableCard')
 
+/**
+ * Props for the TableCard component.
+ */
 interface TableCardProps {
+  /** The table definition to display */
   table: TableDefinition
+  /** ID of the workspace containing this table */
   workspaceId: string
 }
 
 /**
- * Formats a date string to relative time (e.g., "2h ago", "3d ago")
+ * Formats a date string to relative time (e.g., "2h ago", "3d ago").
+ *
+ * @param dateString - ISO date string to format
+ * @returns Human-readable relative time string
  */
 function formatRelativeTime(dateString: string): string {
   const date = new Date(dateString)
@@ -52,7 +60,10 @@ function formatRelativeTime(dateString: string): string {
 }
 
 /**
- * Formats a date string to absolute format for tooltip display
+ * Formats a date string to absolute format for tooltip display.
+ *
+ * @param dateString - ISO date string to format
+ * @returns Formatted date string (e.g., "Jan 15, 2024, 10:30 AM")
  */
 function formatAbsoluteDate(dateString: string): string {
   const date = new Date(dateString)
@@ -65,6 +76,43 @@ function formatAbsoluteDate(dateString: string): string {
   })
 }
 
+/**
+ * Gets the badge variant for a column type.
+ *
+ * @param type - The column type
+ * @returns Badge variant name
+ */
+function getTypeBadgeVariant(
+  type: string
+): 'green' | 'blue' | 'purple' | 'orange' | 'teal' | 'gray' {
+  switch (type) {
+    case 'string':
+      return 'green'
+    case 'number':
+      return 'blue'
+    case 'boolean':
+      return 'purple'
+    case 'json':
+      return 'orange'
+    case 'date':
+      return 'teal'
+    default:
+      return 'gray'
+  }
+}
+
+/**
+ * Card component for displaying a table summary.
+ *
+ * @remarks
+ * Shows table name, column/row counts, description, and provides
+ * actions for viewing schema and deleting the table.
+ *
+ * @example
+ * ```tsx
+ * <TableCard table={tableData} workspaceId="ws_123" />
+ * ```
+ */
 export function TableCard({ table, workspaceId }: TableCardProps) {
   const router = useRouter()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -73,6 +121,9 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
 
   const deleteTable = useDeleteTable(workspaceId)
 
+  /**
+   * Handles table deletion.
+   */
   const handleDelete = async () => {
     try {
       await deleteTable.mutateAsync(table.id)
@@ -80,6 +131,13 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
     } catch (error) {
       logger.error('Failed to delete table:', error)
     }
+  }
+
+  /**
+   * Navigates to the table detail page.
+   */
+  const navigateToTable = () => {
+    router.push(`/workspace/${workspaceId}/tables/${table.id}`)
   }
 
   const columnCount = table.schema.columns.length
@@ -91,11 +149,11 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
         tabIndex={0}
         data-table-card
         className='h-full cursor-pointer'
-        onClick={() => router.push(`/workspace/${workspaceId}/tables/${table.id}`)}
+        onClick={navigateToTable}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            router.push(`/workspace/${workspaceId}/tables/${table.id}`)
+            navigateToTable()
           }
         }}
       >
@@ -176,6 +234,7 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
         </div>
       </div>
 
+      {/* Delete Confirmation Modal */}
       <Modal open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <ModalContent className='w-[400px]'>
           <ModalHeader>Delete Table</ModalHeader>
@@ -207,6 +266,7 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
         </ModalContent>
       </Modal>
 
+      {/* Schema Viewer Modal */}
       <Modal open={isSchemaModalOpen} onOpenChange={setIsSchemaModalOpen}>
         <ModalContent className='w-[500px] duration-100'>
           <ModalHeader>
@@ -235,22 +295,7 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
                         {column.name}
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant={
-                            column.type === 'string'
-                              ? 'green'
-                              : column.type === 'number'
-                                ? 'blue'
-                                : column.type === 'boolean'
-                                  ? 'purple'
-                                  : column.type === 'json'
-                                    ? 'orange'
-                                    : column.type === 'date'
-                                      ? 'teal'
-                                      : 'gray'
-                          }
-                          size='sm'
-                        >
+                        <Badge variant={getTypeBadgeVariant(column.type)} size='sm'>
                           {column.type}
                         </Badge>
                       </TableCell>

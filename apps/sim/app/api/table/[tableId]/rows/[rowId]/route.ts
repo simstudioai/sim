@@ -13,40 +13,73 @@ import {
   validateRowSize,
   validateUniqueConstraints,
 } from '@/lib/table'
-import { checkTableAccess, checkTableWriteAccess, verifyTableWorkspace } from '../../utils'
+import { checkTableAccess, checkTableWriteAccess, verifyTableWorkspace } from '../../../utils'
 
 const logger = createLogger('TableRowAPI')
 
 /**
- * Schema for getting a single row by ID
+ * Type for dynamic row data stored in tables.
+ * Keys are column names, values can be any JSON-serializable type.
+ */
+type RowData = Record<string, unknown>
+
+/**
+ * Zod schema for validating get row requests.
+ *
+ * The workspaceId is optional for backward compatibility but
+ * is validated via table access checks when provided.
  */
 const GetRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required').optional(), // Optional for backward compatibility, validated via table access
+  workspaceId: z.string().min(1, 'Workspace ID is required').optional(),
 })
 
 /**
- * Schema for updating a single row
+ * Zod schema for validating update row requests.
  */
 const UpdateRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required').optional(), // Optional for backward compatibility, validated via table access
-  data: z.record(z.any(), { required_error: 'Row data is required' }),
+  workspaceId: z.string().min(1, 'Workspace ID is required').optional(),
+  data: z.record(z.unknown(), { required_error: 'Row data is required' }),
 })
 
 /**
- * Schema for deleting a single row
+ * Zod schema for validating delete row requests.
  */
 const DeleteRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required').optional(), // Optional for backward compatibility, validated via table access
+  workspaceId: z.string().min(1, 'Workspace ID is required').optional(),
 })
+
+/**
+ * Route params for single row endpoints.
+ */
+interface RowRouteParams {
+  params: Promise<{ tableId: string; rowId: string }>
+}
 
 /**
  * GET /api/table/[tableId]/rows/[rowId]?workspaceId=xxx
- * Get a single row by ID
+ *
+ * Retrieves a single row by its ID.
+ *
+ * @param request - The incoming HTTP request
+ * @param context - Route context containing tableId and rowId params
+ * @returns JSON response with row data or error
+ *
+ * @example Response:
+ * ```json
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "row": {
+ *       "id": "row_abc123",
+ *       "data": { "name": "John", "email": "john@example.com" },
+ *       "createdAt": "2024-01-01T00:00:00.000Z",
+ *       "updatedAt": "2024-01-01T00:00:00.000Z"
+ *     }
+ *   }
+ * }
+ * ```
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ tableId: string; rowId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: RowRouteParams) {
   const requestId = generateRequestId()
   const { tableId, rowId } = await params
 
@@ -137,12 +170,25 @@ export async function GET(
 
 /**
  * PATCH /api/table/[tableId]/rows/[rowId]
- * Update an existing row
+ *
+ * Updates an existing row with new data.
+ *
+ * @param request - The incoming HTTP request with update data
+ * @param context - Route context containing tableId and rowId params
+ * @returns JSON response with updated row or error
+ *
+ * @remarks
+ * The entire row data must be provided; this is a full replacement,
+ * not a partial update.
+ *
+ * @example Request body:
+ * ```json
+ * {
+ *   "data": { "name": "Jane", "email": "jane@example.com" }
+ * }
+ * ```
  */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ tableId: string; rowId: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
   const requestId = generateRequestId()
   const { tableId, rowId } = await params
 
@@ -152,7 +198,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const body = await request.json()
+    const body: unknown = await request.json()
     const validated = UpdateRowSchema.parse(body)
 
     // Check table write access (centralized access control)
@@ -192,8 +238,10 @@ export async function PATCH(
       return NextResponse.json({ error: 'Table not found' }, { status: 404 })
     }
 
+    const rowData = validated.data as RowData
+
     // Validate row size
-    const sizeValidation = validateRowSize(validated.data)
+    const sizeValidation = validateRowSize(rowData)
     if (!sizeValidation.valid) {
       return NextResponse.json(
         { error: 'Invalid row data', details: sizeValidation.errors },
@@ -202,7 +250,7 @@ export async function PATCH(
     }
 
     // Validate row against schema
-    const rowValidation = validateRowAgainstSchema(validated.data, table.schema as TableSchema)
+    const rowValidation = validateRowAgainstSchema(rowData, table.schema as TableSchema)
     if (!rowValidation.valid) {
       return NextResponse.json(
         { error: 'Row data does not match schema', details: rowValidation.errors },
@@ -223,9 +271,9 @@ export async function PATCH(
         .where(eq(userTableRows.tableId, tableId))
 
       const uniqueValidation = validateUniqueConstraints(
-        validated.data,
+        rowData,
         table.schema as TableSchema,
-        existingRows,
+        existingRows.map((r) => ({ id: r.id, data: r.data as RowData })),
         rowId // Exclude the current row being updated
       )
 
@@ -288,12 +336,21 @@ export async function PATCH(
 
 /**
  * DELETE /api/table/[tableId]/rows/[rowId]
- * Delete a row
+ *
+ * Permanently deletes a single row.
+ *
+ * @param request - The incoming HTTP request
+ * @param context - Route context containing tableId and rowId params
+ * @returns JSON response confirming deletion or error
+ *
+ * @example Request body:
+ * ```json
+ * {
+ *   "workspaceId": "ws_123"
+ * }
+ * ```
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ tableId: string; rowId: string }> }
-) {
+export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
   const requestId = generateRequestId()
   const { tableId, rowId } = await params
 
@@ -303,7 +360,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const body = await request.json()
+    const body: unknown = await request.json()
     const validated = DeleteRowSchema.parse(body)
 
     // Check table write access (centralized access control)
