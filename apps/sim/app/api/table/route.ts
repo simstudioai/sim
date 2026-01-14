@@ -11,32 +11,69 @@ import type { TableSchema } from '@/lib/table/validation'
 
 const logger = createLogger('TableAPI')
 
+/**
+ * Schema for table column definition
+ */
 const ColumnSchema = z.object({
   name: z
     .string()
-    .min(1)
-    .max(TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH)
-    .regex(/^[a-z_][a-z0-9_]*$/i, 'Invalid column name'),
-  type: z.enum(['string', 'number', 'boolean', 'date', 'json']),
+    .min(1, 'Column name is required')
+    .max(
+      TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH,
+      `Column name must be ${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters or less`
+    )
+    .regex(
+      /^[a-z_][a-z0-9_]*$/i,
+      'Column name must start with a letter or underscore and contain only alphanumeric characters and underscores'
+    ),
+  type: z.enum(['string', 'number', 'boolean', 'date', 'json'], {
+    errorMap: () => ({
+      message: 'Column type must be one of: string, number, boolean, date, json',
+    }),
+  }),
   required: z.boolean().optional().default(false),
   unique: z.boolean().optional().default(false),
 })
 
+/**
+ * Schema for creating a new table
+ */
 const CreateTableSchema = z.object({
   name: z
     .string()
-    .min(1)
-    .max(TABLE_LIMITS.MAX_TABLE_NAME_LENGTH)
-    .regex(/^[a-z_][a-z0-9_]*$/i, 'Invalid table name'),
-  description: z.string().max(TABLE_LIMITS.MAX_DESCRIPTION_LENGTH).optional(),
+    .min(1, 'Table name is required')
+    .max(
+      TABLE_LIMITS.MAX_TABLE_NAME_LENGTH,
+      `Table name must be ${TABLE_LIMITS.MAX_TABLE_NAME_LENGTH} characters or less`
+    )
+    .regex(
+      /^[a-z_][a-z0-9_]*$/i,
+      'Table name must start with a letter or underscore and contain only alphanumeric characters and underscores'
+    ),
+  description: z
+    .string()
+    .max(
+      TABLE_LIMITS.MAX_DESCRIPTION_LENGTH,
+      `Description must be ${TABLE_LIMITS.MAX_DESCRIPTION_LENGTH} characters or less`
+    )
+    .optional(),
   schema: z.object({
-    columns: z.array(ColumnSchema).min(1).max(TABLE_LIMITS.MAX_COLUMNS_PER_TABLE),
+    columns: z
+      .array(ColumnSchema)
+      .min(1, 'Table must have at least one column')
+      .max(
+        TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
+        `Table cannot have more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} columns`
+      ),
   }),
-  workspaceId: z.string().min(1),
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
+/**
+ * Schema for listing tables in a workspace
+ */
 const ListTablesSchema = z.object({
-  workspaceId: z.string().min(1),
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
 /**
@@ -205,17 +242,20 @@ export async function POST(request: NextRequest) {
     logger.info(`[${requestId}] Created table ${tableId} in workspace ${params.workspaceId}`)
 
     return NextResponse.json({
-      table: {
-        id: table.id,
-        name: table.name,
-        description: table.description,
-        schema: table.schema,
-        rowCount: table.rowCount,
-        maxRows: table.maxRows,
-        createdAt: table.createdAt.toISOString(),
-        updatedAt: table.updatedAt.toISOString(),
+      success: true,
+      data: {
+        table: {
+          id: table.id,
+          name: table.name,
+          description: table.description,
+          schema: table.schema,
+          rowCount: table.rowCount,
+          maxRows: table.maxRows,
+          createdAt: table.createdAt.toISOString(),
+          updatedAt: table.updatedAt.toISOString(),
+        },
+        message: 'Table created successfully',
       },
-      message: 'Table created successfully',
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -287,20 +327,23 @@ export async function GET(request: NextRequest) {
     logger.info(`[${requestId}] Listed ${tables.length} tables in workspace ${params.workspaceId}`)
 
     return NextResponse.json({
-      tables: tables.map((t) => ({
-        ...t,
-        schema: {
-          columns: (t.schema as any).columns.map((col: any) => ({
-            name: col.name,
-            type: col.type,
-            required: col.required ?? false,
-            unique: col.unique ?? false,
-          })),
-        },
-        createdAt: t.createdAt.toISOString(),
-        updatedAt: t.updatedAt.toISOString(),
-      })),
-      totalCount: tables.length,
+      success: true,
+      data: {
+        tables: tables.map((t) => ({
+          ...t,
+          schema: {
+            columns: (t.schema as any).columns.map((col: any) => ({
+              name: col.name,
+              type: col.type,
+              required: col.required ?? false,
+              unique: col.unique ?? false,
+            })),
+          },
+          createdAt: t.createdAt.toISOString(),
+          updatedAt: t.updatedAt.toISOString(),
+        })),
+        totalCount: tables.length,
+      },
     })
   } catch (error) {
     if (error instanceof z.ZodError) {

@@ -95,11 +95,14 @@ export function Dropdown({
 
   const dependsOnFields = useMemo(() => getDependsOnFields(dependsOn), [dependsOn])
 
+  // Stable empty array for when there are no dependencies
+  const emptyDependencyValues = useMemo(() => [], [])
+
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
-  const dependencyValues = useSubBlockStore(
+  const dependencyValuesFromStore = useSubBlockStore(
     useCallback(
       (state) => {
-        if (dependsOnFields.length === 0 || !activeWorkflowId) return []
+        if (dependsOnFields.length === 0 || !activeWorkflowId) return null
         const workflowValues = state.workflowValues[activeWorkflowId] || {}
         const blockValues = workflowValues[blockId] || {}
         return dependsOnFields.map((depKey) => blockValues[depKey] ?? null)
@@ -107,6 +110,8 @@ export function Dropdown({
       [dependsOnFields, activeWorkflowId, blockId]
     )
   )
+
+  const dependencyValues = dependencyValuesFromStore ?? emptyDependencyValues
 
   const [storeInitialized, setStoreInitialized] = useState(false)
   const [fetchedOptions, setFetchedOptions] = useState<Array<{ label: string; id: string }>>([])

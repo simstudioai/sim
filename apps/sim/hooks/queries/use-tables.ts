@@ -74,8 +74,8 @@ export function useTablesList(workspaceId?: string) {
         throw new Error(error.error || 'Failed to fetch tables')
       }
 
-      const data = await res.json()
-      return data.tables as TableDefinition[]
+      const response = await res.json()
+      return (response.data?.tables || []) as TableDefinition[]
     },
     enabled: Boolean(workspaceId),
     staleTime: 30 * 1000, // Cache data for 30 seconds before refetching

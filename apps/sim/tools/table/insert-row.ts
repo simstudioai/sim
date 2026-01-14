@@ -42,7 +42,8 @@ export const tableInsertRowTool: ToolConfig<TableRowInsertParams, TableRowRespon
   },
 
   transformResponse: async (response): Promise<TableRowResponse> => {
-    const data = await response.json()
+    const result = await response.json()
+    const data = result.data || result
 
     return {
       success: true,

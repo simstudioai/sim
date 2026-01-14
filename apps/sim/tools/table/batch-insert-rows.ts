@@ -45,7 +45,8 @@ export const tableBatchInsertRowsTool: ToolConfig<
   },
 
   transformResponse: async (response): Promise<TableBatchInsertResponse> => {
-    const data = await response.json()
+    const result = await response.json()
+    const data = result.data || result
 
     return {
       success: true,

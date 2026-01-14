@@ -12,9 +12,15 @@ import { checkTableWriteAccess, verifyTableWorkspace } from '../../utils'
 
 const logger = createLogger('TableUpsertAPI')
 
+/**
+ * Schema for upserting a row (insert or update based on unique column constraints)
+ *
+ * If a row with matching unique field(s) exists, it will be updated.
+ * Otherwise, a new row will be inserted.
+ */
 const UpsertRowSchema = z.object({
-  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility, validated via table access
-  data: z.record(z.any()),
+  workspaceId: z.string().min(1, 'Workspace ID is required').optional(), // Optional for backward compatibility, validated via table access
+  data: z.record(z.any(), { required_error: 'Row data is required' }),
 })
 
 /**
@@ -158,14 +164,17 @@ export async function POST(
       logger.info(`[${requestId}] Upserted (updated) row ${updatedRow.id} in table ${tableId}`)
 
       return NextResponse.json({
-        row: {
-          id: updatedRow.id,
-          data: updatedRow.data,
-          createdAt: updatedRow.createdAt.toISOString(),
-          updatedAt: updatedRow.updatedAt.toISOString(),
+        success: true,
+        data: {
+          row: {
+            id: updatedRow.id,
+            data: updatedRow.data,
+            createdAt: updatedRow.createdAt.toISOString(),
+            updatedAt: updatedRow.updatedAt.toISOString(),
+          },
+          operation: 'update',
+          message: 'Row updated successfully',
         },
-        operation: 'update',
-        message: 'Row updated successfully',
       })
     }
     // Insert new row
@@ -193,14 +202,17 @@ export async function POST(
     logger.info(`[${requestId}] Upserted (inserted) row ${insertedRow.id} in table ${tableId}`)
 
     return NextResponse.json({
-      row: {
-        id: insertedRow.id,
-        data: insertedRow.data,
-        createdAt: insertedRow.createdAt.toISOString(),
-        updatedAt: insertedRow.updatedAt.toISOString(),
+      success: true,
+      data: {
+        row: {
+          id: insertedRow.id,
+          data: insertedRow.data,
+          createdAt: insertedRow.createdAt.toISOString(),
+          updatedAt: insertedRow.updatedAt.toISOString(),
+        },
+        operation: 'insert',
+        message: 'Row inserted successfully',
       },
-      operation: 'insert',
-      message: 'Row inserted successfully',
     })
   } catch (error) {
     if (error instanceof z.ZodError) {

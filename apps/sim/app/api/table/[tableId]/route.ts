@@ -6,12 +6,15 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { checkTableAccess, checkTableWriteAccess } from '../utils'
+import { checkTableAccess, checkTableWriteAccess, verifyTableWorkspace } from '../utils'
 
 const logger = createLogger('TableDetailAPI')
 
+/**
+ * Schema for getting a table by ID
+ */
 const GetTableSchema = z.object({
-  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility
+  workspaceId: z.string().min(1, 'Workspace ID is required').optional(), // Optional for backward compatibility, validated via table access
 })
 
 /**
@@ -32,6 +35,11 @@ export async function GET(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
+    const { searchParams } = new URL(request.url)
+    const validated = GetTableSchema.parse({
+      workspaceId: searchParams.get('workspaceId'),
+    })
+
     // Check table access (similar to knowledge base access control)
     const accessCheck = await checkTableAccess(tableId, authResult.userId)
 
@@ -44,6 +52,17 @@ export async function GET(
         `[${requestId}] User ${authResult.userId} attempted to access unauthorized table ${tableId}`
       )
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // Security check: If workspaceId is provided, verify it matches the table's workspace
+    if (validated.workspaceId) {
+      const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
+      if (!isValidWorkspace) {
+        logger.warn(
+          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+        )
+        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+      }
     }
 
     // Get table (workspaceId validation is now handled by access check)
@@ -60,22 +79,25 @@ export async function GET(
     logger.info(`[${requestId}] Retrieved table ${tableId} for user ${authResult.userId}`)
 
     return NextResponse.json({
-      table: {
-        id: table.id,
-        name: table.name,
-        description: table.description,
-        schema: {
-          columns: (table.schema as any).columns.map((col: any) => ({
-            name: col.name,
-            type: col.type,
-            required: col.required ?? false,
-            unique: col.unique ?? false,
-          })),
+      success: true,
+      data: {
+        table: {
+          id: table.id,
+          name: table.name,
+          description: table.description,
+          schema: {
+            columns: (table.schema as any).columns.map((col: any) => ({
+              name: col.name,
+              type: col.type,
+              required: col.required ?? false,
+              unique: col.unique ?? false,
+            })),
+          },
+          rowCount: table.rowCount,
+          maxRows: table.maxRows,
+          createdAt: table.createdAt.toISOString(),
+          updatedAt: table.updatedAt.toISOString(),
         },
-        rowCount: table.rowCount,
-        maxRows: table.maxRows,
-        createdAt: table.createdAt.toISOString(),
-        updatedAt: table.updatedAt.toISOString(),
       },
     })
   } catch (error) {
@@ -139,8 +161,10 @@ export async function DELETE(
     logger.info(`[${requestId}] Deleted table ${tableId} for user ${authResult.userId}`)
 
     return NextResponse.json({
-      message: 'Table deleted successfully',
       success: true,
+      data: {
+        message: 'Table deleted successfully',
+      },
     })
   } catch (error) {
     if (error instanceof z.ZodError) {

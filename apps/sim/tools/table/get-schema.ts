@@ -32,14 +32,15 @@ export const tableGetSchemaTool: ToolConfig<TableGetSchemaParams, TableGetSchema
   },
 
   transformResponse: async (response): Promise<TableGetSchemaResponse> => {
-    const data = await response.json()
+    const result = await response.json()
+    const data = result.data || result
 
     return {
       success: true,
       output: {
         name: data.table.name,
         columns: data.table.schema.columns,
-        message: 'Schema retrieved successfully',
+        message: data.message || 'Schema retrieved successfully',
       },
     }
   },

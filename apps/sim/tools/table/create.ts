@@ -50,7 +50,8 @@ export const tableCreateTool: ToolConfig<TableCreateParams, TableCreateResponse>
   },
 
   transformResponse: async (response): Promise<TableCreateResponse> => {
-    const data = await response.json()
+    const result = await response.json()
+    const data = result.data || result
 
     return {
       success: true,

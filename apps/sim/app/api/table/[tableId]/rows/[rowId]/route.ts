@@ -17,17 +17,26 @@ import { checkTableAccess, checkTableWriteAccess, verifyTableWorkspace } from '.
 
 const logger = createLogger('TableRowAPI')
 
+/**
+ * Schema for getting a single row by ID
+ */
 const GetRowSchema = z.object({
-  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility, validated via table access
+  workspaceId: z.string().min(1, 'Workspace ID is required').optional(), // Optional for backward compatibility, validated via table access
 })
 
+/**
+ * Schema for updating a single row
+ */
 const UpdateRowSchema = z.object({
-  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility, validated via table access
-  data: z.record(z.any()),
+  workspaceId: z.string().min(1, 'Workspace ID is required').optional(), // Optional for backward compatibility, validated via table access
+  data: z.record(z.any(), { required_error: 'Row data is required' }),
 })
 
+/**
+ * Schema for deleting a single row
+ */
 const DeleteRowSchema = z.object({
-  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility, validated via table access
+  workspaceId: z.string().min(1, 'Workspace ID is required').optional(), // Optional for backward compatibility, validated via table access
 })
 
 /**
@@ -103,11 +112,14 @@ export async function GET(
     logger.info(`[${requestId}] Retrieved row ${rowId} from table ${tableId}`)
 
     return NextResponse.json({
-      row: {
-        id: row.id,
-        data: row.data,
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: row.updatedAt.toISOString(),
+      success: true,
+      data: {
+        row: {
+          id: row.id,
+          data: row.data,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        },
       },
     })
   } catch (error) {
@@ -250,13 +262,16 @@ export async function PATCH(
     logger.info(`[${requestId}] Updated row ${rowId} in table ${tableId}`)
 
     return NextResponse.json({
-      row: {
-        id: updatedRow.id,
-        data: updatedRow.data,
-        createdAt: updatedRow.createdAt.toISOString(),
-        updatedAt: updatedRow.updatedAt.toISOString(),
+      success: true,
+      data: {
+        row: {
+          id: updatedRow.id,
+          data: updatedRow.data,
+          createdAt: updatedRow.createdAt.toISOString(),
+          updatedAt: updatedRow.updatedAt.toISOString(),
+        },
+        message: 'Row updated successfully',
       },
-      message: 'Row updated successfully',
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -345,8 +360,11 @@ export async function DELETE(
     logger.info(`[${requestId}] Deleted row ${rowId} from table ${tableId}`)
 
     return NextResponse.json({
-      message: 'Row deleted successfully',
-      deletedCount: 1,
+      success: true,
+      data: {
+        message: 'Row deleted successfully',
+        deletedCount: 1,
+      },
     })
   } catch (error) {
     if (error instanceof z.ZodError) {

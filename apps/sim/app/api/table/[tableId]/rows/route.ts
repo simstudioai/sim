@@ -19,35 +19,83 @@ import { checkTableAccess, checkTableWriteAccess, verifyTableWorkspace } from '.
 
 const logger = createLogger('TableRowsAPI')
 
+/**
+ * Schema for inserting a single row into a table
+ */
 const InsertRowSchema = z.object({
-  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility, validated via table access
-  data: z.record(z.any()),
+  workspaceId: z.string().min(1, 'Workspace ID is required').optional(), // Optional for backward compatibility, validated via table access
+  data: z.record(z.any(), { required_error: 'Row data is required' }),
 })
 
+/**
+ * Schema for batch inserting multiple rows
+ *
+ * Limits:
+ * - Maximum 1000 rows per batch
+ */
 const BatchInsertRowsSchema = z.object({
-  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility, validated via table access
-  rows: z.array(z.record(z.any())).min(1).max(1000), // Max 1000 rows per batch
+  workspaceId: z.string().min(1, 'Workspace ID is required').optional(), // Optional for backward compatibility, validated via table access
+  rows: z
+    .array(z.record(z.any()), { required_error: 'Rows array is required' })
+    .min(1, 'At least one row is required')
+    .max(1000, 'Cannot insert more than 1000 rows per batch'),
 })
 
+/**
+ * Schema for querying rows with filtering, sorting, and pagination
+ */
 const QueryRowsSchema = z.object({
-  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility, validated via table access
+  workspaceId: z.string().min(1, 'Workspace ID is required').optional(), // Optional for backward compatibility, validated via table access
   filter: z.record(z.any()).optional(),
   sort: z.record(z.enum(['asc', 'desc'])).optional(),
-  limit: z.coerce.number().int().min(1).max(TABLE_LIMITS.MAX_QUERY_LIMIT).optional().default(100),
-  offset: z.coerce.number().int().min(0).optional().default(0),
+  limit: z.coerce
+    .number({ required_error: 'Limit must be a number' })
+    .int('Limit must be an integer')
+    .min(1, 'Limit must be at least 1')
+    .max(TABLE_LIMITS.MAX_QUERY_LIMIT, `Limit cannot exceed ${TABLE_LIMITS.MAX_QUERY_LIMIT}`)
+    .optional()
+    .default(100),
+  offset: z.coerce
+    .number({ required_error: 'Offset must be a number' })
+    .int('Offset must be an integer')
+    .min(0, 'Offset must be 0 or greater')
+    .optional()
+    .default(0),
 })
 
+/**
+ * Schema for updating multiple rows by filter criteria
+ *
+ * Limits:
+ * - Maximum 1000 rows can be updated per operation (safety limit)
+ */
 const UpdateRowsByFilterSchema = z.object({
-  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility, validated via table access
-  filter: z.record(z.any()), // Required - must specify what to update
-  data: z.record(z.any()), // New data to set
-  limit: z.coerce.number().int().min(1).max(1000).optional(), // Safety limit for bulk updates
+  workspaceId: z.string().min(1, 'Workspace ID is required').optional(), // Optional for backward compatibility, validated via table access
+  filter: z.record(z.any(), { required_error: 'Filter criteria is required' }),
+  data: z.record(z.any(), { required_error: 'Update data is required' }),
+  limit: z.coerce
+    .number({ required_error: 'Limit must be a number' })
+    .int('Limit must be an integer')
+    .min(1, 'Limit must be at least 1')
+    .max(1000, 'Cannot update more than 1000 rows per operation')
+    .optional(),
 })
 
+/**
+ * Schema for deleting multiple rows by filter criteria
+ *
+ * Limits:
+ * - Maximum 1000 rows can be deleted per operation (safety limit)
+ */
 const DeleteRowsByFilterSchema = z.object({
-  workspaceId: z.string().min(1).optional(), // Optional for backward compatibility, validated via table access
-  filter: z.record(z.any()), // Required - must specify what to delete
-  limit: z.coerce.number().int().min(1).max(1000).optional(), // Safety limit for bulk deletes
+  workspaceId: z.string().min(1, 'Workspace ID is required').optional(), // Optional for backward compatibility, validated via table access
+  filter: z.record(z.any(), { required_error: 'Filter criteria is required' }),
+  limit: z.coerce
+    .number({ required_error: 'Limit must be a number' })
+    .int('Limit must be an integer')
+    .min(1, 'Limit must be at least 1')
+    .max(1000, 'Cannot delete more than 1000 rows per operation')
+    .optional(),
 })
 
 /**
@@ -205,14 +253,17 @@ async function handleBatchInsert(requestId: string, tableId: string, body: any, 
   logger.info(`[${requestId}] Batch inserted ${insertedRows.length} rows into table ${tableId}`)
 
   return NextResponse.json({
-    rows: insertedRows.map((r) => ({
-      id: r.id,
-      data: r.data,
-      createdAt: r.createdAt.toISOString(),
-      updatedAt: r.updatedAt.toISOString(),
-    })),
-    insertedCount: insertedRows.length,
-    message: `Successfully inserted ${insertedRows.length} rows`,
+    success: true,
+    data: {
+      rows: insertedRows.map((r) => ({
+        id: r.id,
+        data: r.data,
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
+      })),
+      insertedCount: insertedRows.length,
+      message: `Successfully inserted ${insertedRows.length} rows`,
+    },
   })
 }
 
@@ -364,13 +415,16 @@ export async function POST(
     logger.info(`[${requestId}] Inserted row ${rowId} into table ${tableId}`)
 
     return NextResponse.json({
-      row: {
-        id: row.id,
-        data: row.data,
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: row.updatedAt.toISOString(),
+      success: true,
+      data: {
+        row: {
+          id: row.id,
+          data: row.data,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        },
+        message: 'Row inserted successfully',
       },
-      message: 'Row inserted successfully',
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -510,16 +564,19 @@ export async function GET(
     )
 
     return NextResponse.json({
-      rows: rows.map((r) => ({
-        id: r.id,
-        data: r.data,
-        createdAt: r.createdAt.toISOString(),
-        updatedAt: r.updatedAt.toISOString(),
-      })),
-      rowCount: rows.length,
-      totalCount: Number(totalCount),
-      limit: validated.limit,
-      offset: validated.offset,
+      success: true,
+      data: {
+        rows: rows.map((r) => ({
+          id: r.id,
+          data: r.data,
+          createdAt: r.createdAt.toISOString(),
+          updatedAt: r.updatedAt.toISOString(),
+        })),
+        rowCount: rows.length,
+        totalCount: Number(totalCount),
+        limit: validated.limit,
+        offset: validated.offset,
+      },
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -633,8 +690,11 @@ export async function PUT(
     if (matchingRows.length === 0) {
       return NextResponse.json(
         {
-          message: 'No rows matched the filter criteria',
-          updatedCount: 0,
+          success: true,
+          data: {
+            message: 'No rows matched the filter criteria',
+            updatedCount: 0,
+          },
         },
         { status: 200 }
       )
@@ -722,9 +782,12 @@ export async function PUT(
     logger.info(`[${requestId}] Updated ${matchingRows.length} rows in table ${tableId}`)
 
     return NextResponse.json({
-      message: 'Rows updated successfully',
-      updatedCount: matchingRows.length,
-      updatedRowIds: matchingRows.map((r) => r.id),
+      success: true,
+      data: {
+        message: 'Rows updated successfully',
+        updatedCount: matchingRows.length,
+        updatedRowIds: matchingRows.map((r) => r.id),
+      },
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -819,8 +882,11 @@ export async function DELETE(
     if (matchingRows.length === 0) {
       return NextResponse.json(
         {
-          message: 'No rows matched the filter criteria',
-          deletedCount: 0,
+          success: true,
+          data: {
+            message: 'No rows matched the filter criteria',
+            deletedCount: 0,
+          },
         },
         { status: 200 }
       )
@@ -866,9 +932,12 @@ export async function DELETE(
     logger.info(`[${requestId}] Deleted ${matchingRows.length} rows from table ${tableId}`)
 
     return NextResponse.json({
-      message: 'Rows deleted successfully',
-      deletedCount: matchingRows.length,
-      deletedRowIds: rowIds,
+      success: true,
+      data: {
+        message: 'Rows deleted successfully',
+        deletedCount: matchingRows.length,
+        deletedRowIds: rowIds,
+      },
     })
   } catch (error) {
     if (error instanceof z.ZodError) {

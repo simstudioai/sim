@@ -24,7 +24,8 @@ export const tableListTool: ToolConfig<TableListParams, TableListResponse> = {
   },
 
   transformResponse: async (response): Promise<TableListResponse> => {
-    const data = await response.json()
+    const result = await response.json()
+    const data = result.data || result
 
     return {
       success: true,

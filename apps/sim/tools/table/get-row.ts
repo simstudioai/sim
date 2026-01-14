@@ -38,13 +38,14 @@ export const tableGetRowTool: ToolConfig<TableRowGetParams, TableRowResponse> = 
   },
 
   transformResponse: async (response): Promise<TableRowResponse> => {
-    const data = await response.json()
+    const result = await response.json()
+    const data = result.data || result
 
     return {
       success: true,
       output: {
         row: data.row,
-        message: 'Row retrieved successfully',
+        message: data.message || 'Row retrieved successfully',
       },
     }
   },
