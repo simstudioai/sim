@@ -30,11 +30,14 @@ export const a2aResubscribeTool: ToolConfig<A2AResubscribeParams, A2AResubscribe
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: A2AResubscribeParams) => ({
-      agentUrl: params.agentUrl,
-      taskId: params.taskId,
-      apiKey: params.apiKey,
-    }),
+    body: (params: A2AResubscribeParams) => {
+      const body: Record<string, string> = {
+        agentUrl: params.agentUrl,
+        taskId: params.taskId,
+      }
+      if (params.apiKey) body.apiKey = params.apiKey
+      return body
+    },
   },
 
   transformResponse: async (response) => {

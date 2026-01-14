@@ -36,9 +36,10 @@ class ApiKeyInterceptor implements CallInterceptor {
 /**
  * Create an A2A client from an agent URL with optional API key authentication
  *
- * The agent URL should be the full endpoint URL (e.g., /api/a2a/serve/{agentId}).
- * We pass an empty path to createFromUrl so it uses the URL directly for agent card
- * discovery (GET on the URL) instead of appending .well-known/agent-card.json.
+ * Supports both standard A2A agents (agent card at /.well-known/agent.json)
+ * and Sim Studio agents (agent card at root URL via GET).
+ *
+ * Tries standard path first, falls back to root URL for compatibility.
  */
 export async function createA2AClient(agentUrl: string, apiKey?: string): Promise<Client> {
   const factoryOptions = apiKey
@@ -49,6 +50,18 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
       })
     : ClientFactoryOptions.default
   const factory = new ClientFactory(factoryOptions)
+
+  // Try standard A2A path first (/.well-known/agent.json)
+  try {
+    return await factory.createFromUrl(agentUrl, '/.well-known/agent.json')
+  } catch (standardError) {
+    logger.debug('Standard agent card path failed, trying root URL', {
+      agentUrl,
+      error: standardError instanceof Error ? standardError.message : String(standardError),
+    })
+  }
+
+  // Fall back to root URL (Sim Studio compatibility)
   return factory.createFromUrl(agentUrl, '')
 }
 

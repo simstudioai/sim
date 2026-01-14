@@ -42,13 +42,16 @@ export const a2aSetPushNotificationTool: ToolConfig<
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: A2ASetPushNotificationParams) => ({
-      agentUrl: params.agentUrl,
-      taskId: params.taskId,
-      webhookUrl: params.webhookUrl,
-      token: params.token,
-      apiKey: params.apiKey,
-    }),
+    body: (params: A2ASetPushNotificationParams) => {
+      const body: Record<string, string> = {
+        agentUrl: params.agentUrl,
+        taskId: params.taskId,
+        webhookUrl: params.webhookUrl,
+      }
+      if (params.token) body.token = params.token
+      if (params.apiKey) body.apiKey = params.apiKey
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {

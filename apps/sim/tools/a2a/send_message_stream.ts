@@ -38,13 +38,16 @@ export const a2aSendMessageStreamTool: ToolConfig<A2ASendMessageParams, A2ASendM
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      agentUrl: params.agentUrl,
-      message: params.message,
-      taskId: params.taskId,
-      contextId: params.contextId,
-      apiKey: params.apiKey,
-    }),
+    body: (params) => {
+      const body: Record<string, string> = {
+        agentUrl: params.agentUrl,
+        message: params.message,
+      }
+      if (params.taskId) body.taskId = params.taskId
+      if (params.contextId) body.contextId = params.contextId
+      if (params.apiKey) body.apiKey = params.apiKey
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {

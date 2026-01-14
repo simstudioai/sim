@@ -1,4 +1,4 @@
-import type { Message, Task } from '@a2a-js/sdk'
+import type { DataPart, FilePart, Message, Part, Task, TextPart } from '@a2a-js/sdk'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -10,11 +10,20 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('A2ASendMessageAPI')
 
+const FileInputSchema = z.object({
+  type: z.enum(['file', 'url']),
+  data: z.string(),
+  name: z.string(),
+  mime: z.string().optional(),
+})
+
 const A2ASendMessageSchema = z.object({
   agentUrl: z.string().min(1, 'Agent URL is required'),
   message: z.string().min(1, 'Message is required'),
   taskId: z.string().optional(),
   contextId: z.string().optional(),
+  data: z.string().optional(),
+  files: z.array(FileInputSchema).optional(),
   apiKey: z.string().optional(),
 })
 
@@ -51,18 +60,98 @@ export async function POST(request: NextRequest) {
       hasContextId: !!validatedData.contextId,
     })
 
-    const client = await createA2AClient(validatedData.agentUrl, validatedData.apiKey)
+    let client
+    try {
+      client = await createA2AClient(validatedData.agentUrl, validatedData.apiKey)
+      logger.info(`[${requestId}] A2A client created successfully`)
+    } catch (clientError) {
+      logger.error(`[${requestId}] Failed to create A2A client:`, clientError)
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Failed to connect to agent: ${clientError instanceof Error ? clientError.message : 'Unknown error'}`,
+        },
+        { status: 502 }
+      )
+    }
+
+    const parts: Part[] = []
+
+    const textPart: TextPart = { kind: 'text', text: validatedData.message }
+    parts.push(textPart)
+
+    if (validatedData.data) {
+      try {
+        const parsedData = JSON.parse(validatedData.data)
+        const dataPart: DataPart = { kind: 'data', data: parsedData }
+        parts.push(dataPart)
+      } catch (parseError) {
+        logger.warn(`[${requestId}] Failed to parse data as JSON, skipping DataPart`, {
+          error: parseError instanceof Error ? parseError.message : String(parseError),
+        })
+      }
+    }
+
+    if (validatedData.files && validatedData.files.length > 0) {
+      for (const file of validatedData.files) {
+        if (file.type === 'url') {
+          const filePart: FilePart = {
+            kind: 'file',
+            file: {
+              name: file.name,
+              mimeType: file.mime,
+              uri: file.data,
+            },
+          }
+          parts.push(filePart)
+        } else if (file.type === 'file') {
+          let bytes = file.data
+          let mimeType = file.mime
+
+          if (file.data.startsWith('data:')) {
+            const match = file.data.match(/^data:([^;]+);base64,(.+)$/)
+            if (match) {
+              mimeType = mimeType || match[1]
+              bytes = match[2]
+            }
+          }
+
+          const filePart: FilePart = {
+            kind: 'file',
+            file: {
+              name: file.name,
+              mimeType: mimeType || 'application/octet-stream',
+              bytes,
+            },
+          }
+          parts.push(filePart)
+        }
+      }
+    }
 
     const message: Message = {
       kind: 'message',
       messageId: crypto.randomUUID(),
       role: 'user',
-      parts: [{ kind: 'text', text: validatedData.message }],
+      parts,
       ...(validatedData.taskId && { taskId: validatedData.taskId }),
       ...(validatedData.contextId && { contextId: validatedData.contextId }),
     }
 
-    const result = await client.sendMessage({ message })
+    let result
+    try {
+      result = await client.sendMessage({ message })
+      logger.info(`[${requestId}] A2A sendMessage completed`, { resultKind: result?.kind })
+    } catch (sendError) {
+      logger.error(`[${requestId}] Failed to send A2A message:`, sendError)
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Failed to send message: ${sendError instanceof Error ? sendError.message : 'Unknown error'}`,
+        },
+        { status: 502 }
+      )
+    }
 
     if (result.kind === 'message') {
       const responseMessage = result as Message

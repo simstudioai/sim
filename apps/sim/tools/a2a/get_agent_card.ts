@@ -25,10 +25,13 @@ export const a2aGetAgentCardTool: ToolConfig<A2AGetAgentCardParams, A2AGetAgentC
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      agentUrl: params.agentUrl,
-      apiKey: params.apiKey,
-    }),
+    body: (params) => {
+      const body: Record<string, string> = {
+        agentUrl: params.agentUrl,
+      }
+      if (params.apiKey) body.apiKey = params.apiKey
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {

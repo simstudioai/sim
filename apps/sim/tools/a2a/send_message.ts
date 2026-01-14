@@ -26,6 +26,14 @@ export const a2aSendMessageTool: ToolConfig<A2ASendMessageParams, A2ASendMessage
       type: 'string',
       description: 'Context ID for conversation continuity',
     },
+    data: {
+      type: 'string',
+      description: 'Structured data to include with the message (JSON string)',
+    },
+    files: {
+      type: 'array',
+      description: 'Files to include with the message',
+    },
     apiKey: {
       type: 'string',
       description: 'API key for authentication',
@@ -35,7 +43,21 @@ export const a2aSendMessageTool: ToolConfig<A2ASendMessageParams, A2ASendMessage
   request: {
     url: '/api/tools/a2a/send-message',
     method: 'POST',
-    headers: () => ({}),
+    headers: () => ({
+      'Content-Type': 'application/json',
+    }),
+    body: (params) => {
+      const body: Record<string, unknown> = {
+        agentUrl: params.agentUrl,
+        message: params.message,
+      }
+      if (params.taskId) body.taskId = params.taskId
+      if (params.contextId) body.contextId = params.contextId
+      if (params.data) body.data = params.data
+      if (params.files && params.files.length > 0) body.files = params.files
+      if (params.apiKey) body.apiKey = params.apiKey
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {
