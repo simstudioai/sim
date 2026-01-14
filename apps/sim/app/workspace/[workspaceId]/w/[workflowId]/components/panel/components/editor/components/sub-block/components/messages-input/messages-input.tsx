@@ -20,6 +20,7 @@ const MAX_TEXTAREA_HEIGHT_PX = 320
 interface Message {
   role: 'system' | 'user' | 'assistant'
   content: string
+  reasoning_content?: string
 }
 
 /**
@@ -60,6 +61,7 @@ export function MessagesInput({
   const [localMessages, setLocalMessages] = useState<Message[]>([{ role: 'user', content: '' }])
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const [openPopoverIndex, setOpenPopoverIndex] = useState<number | null>(null)
+  const [showReasoningContent, setShowReasoningContent] = useState<Record<number, boolean>>({})
   const subBlockInput = useSubBlockInput({
     blockId,
     subBlockId,
@@ -74,8 +76,24 @@ export function MessagesInput({
   useEffect(() => {
     if (isPreview && previewValue && Array.isArray(previewValue)) {
       setLocalMessages(previewValue)
+      // Auto-show reasoning content if it exists
+      const reasoningMap: Record<number, boolean> = {}
+      previewValue.forEach((msg, idx) => {
+        if (msg.role === 'assistant' && msg.reasoning_content) {
+          reasoningMap[idx] = true
+        }
+      })
+      setShowReasoningContent(reasoningMap)
     } else if (messages && Array.isArray(messages) && messages.length > 0) {
       setLocalMessages(messages)
+      // Auto-show reasoning content if it exists
+      const reasoningMap: Record<number, boolean> = {}
+      messages.forEach((msg, idx) => {
+        if (msg.role === 'assistant' && msg.reasoning_content) {
+          reasoningMap[idx] = true
+        }
+      })
+      setShowReasoningContent(reasoningMap)
     }
   }, [isPreview, previewValue, messages])
 
@@ -110,6 +128,24 @@ export function MessagesInput({
       updatedMessages[index] = {
         ...updatedMessages[index],
         content,
+      }
+      setLocalMessages(updatedMessages)
+      setMessages(updatedMessages)
+    },
+    [localMessages, setMessages, isPreview, disabled]
+  )
+
+  /**
+   * Updates a specific message's reasoning_content
+   */
+  const updateMessageReasoningContent = useCallback(
+    (index: number, reasoning_content: string) => {
+      if (isPreview || disabled) return
+
+      const updatedMessages = [...localMessages]
+      updatedMessages[index] = {
+        ...updatedMessages[index],
+        reasoning_content,
       }
       setLocalMessages(updatedMessages)
       setMessages(updatedMessages)
@@ -197,6 +233,21 @@ export function MessagesInput({
       setMessages(newMessages)
     },
     [localMessages, setMessages, isPreview, disabled]
+  )
+
+  /**
+   * Toggles reasoning content visibility for a message
+   */
+  const toggleReasoningContent = useCallback(
+    (index: number) => {
+      if (isPreview || disabled) return
+
+      setShowReasoningContent((prev) => ({
+        ...prev,
+        [index]: !prev[index],
+      }))
+    },
+    [isPreview, disabled]
   )
 
   /**
@@ -355,25 +406,26 @@ export function MessagesInput({
                   className='flex cursor-pointer items-center justify-between px-[8px] pt-[6px]'
                   onClick={(e) => handleHeaderClick(index, e)}
                 >
-                  <Popover
-                    open={openPopoverIndex === index}
-                    onOpenChange={(open) => setOpenPopoverIndex(open ? index : null)}
-                  >
-                    <PopoverTrigger asChild>
-                      <button
-                        type='button'
-                        disabled={isPreview || disabled}
-                        className={cn(
-                          '-ml-1.5 -my-1 rounded px-1.5 py-1 font-medium text-[13px] text-[var(--text-primary)] leading-none transition-colors hover:bg-[var(--surface-5)] hover:text-[var(--text-secondary)]',
-                          (isPreview || disabled) &&
-                            'cursor-default hover:bg-transparent hover:text-[var(--text-primary)]'
-                        )}
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label='Select message role'
-                      >
-                        {formatRole(message.role)}
-                      </button>
-                    </PopoverTrigger>
+                  <div className='flex items-center gap-2'>
+                    <Popover
+                      open={openPopoverIndex === index}
+                      onOpenChange={(open) => setOpenPopoverIndex(open ? index : null)}
+                    >
+                      <PopoverTrigger asChild>
+                        <button
+                          type='button'
+                          disabled={isPreview || disabled}
+                          className={cn(
+                            '-ml-1.5 -my-1 rounded px-1.5 py-1 font-medium text-[13px] text-[var(--text-primary)] leading-none transition-colors hover:bg-[var(--surface-5)] hover:text-[var(--text-secondary)]',
+                            (isPreview || disabled) &&
+                              'cursor-default hover:bg-transparent hover:text-[var(--text-primary)]'
+                          )}
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label='Select message role'
+                        >
+                          {formatRole(message.role)}
+                        </button>
+                      </PopoverTrigger>
                     <PopoverContent minWidth={140} align='start'>
                       <div className='flex flex-col gap-[2px]'>
                         {(['system', 'user', 'assistant'] as const).map((role) => (
@@ -390,10 +442,25 @@ export function MessagesInput({
                         ))}
                       </div>
                     </PopoverContent>
-                  </Popover>
+                    </Popover>
+                  </div>
 
                   {!isPreview && !disabled && (
-                    <div className='flex items-center'>
+                    <div className='flex items-center gap-1'>
+                      {message.role === 'assistant' && (
+                        <Button
+                          variant='ghost'
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation()
+                            toggleReasoningContent(index)
+                          }}
+                          disabled={disabled}
+                          className='-my-1 h-6 px-2 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                          aria-label='Toggle reasoning content'
+                        >
+                          {showReasoningContent[index] ? '− Reasoning' : '+ Reasoning'}
+                        </Button>
+                      )}
                       {currentMessages.length > 1 && (
                         <>
                           <Button
@@ -452,13 +519,22 @@ export function MessagesInput({
 
                 {/* Content Input with overlay for variable highlighting */}
                 <div className='relative w-full'>
+                  {message.role === 'assistant' && showReasoningContent[index] && (
+                    <div className='px-[8px] pt-[4px] pb-[2px]'>
+                      <span className='font-medium text-[11px] text-[var(--text-muted)]'>Content</span>
+                    </div>
+                  )}
                   <textarea
                     ref={(el) => {
                       textareaRefs.current[fieldId] = el
                     }}
                     className='allow-scroll box-border min-h-[80px] w-full resize-none whitespace-pre-wrap break-words border-none bg-transparent px-[8px] pt-[8px] font-[inherit] font-medium text-sm text-transparent leading-[inherit] caret-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed'
                     rows={3}
-                    placeholder='Enter message content...'
+                    placeholder={
+                      message.role === 'assistant'
+                        ? 'Enter assistant response content...'
+                        : 'Enter message content...'
+                    }
                     value={message.content}
                     onChange={(e) => {
                       fieldHandlers.onChange(e)
@@ -544,6 +620,119 @@ export function MessagesInput({
                     </div>
                   )}
                 </div>
+
+                {/* Reasoning Content Input (only for assistant role when toggled on) */}
+                {message.role === 'assistant' && showReasoningContent[index] && (() => {
+                  const reasoningFieldId = `message-${index}-reasoning`
+                  const reasoningFieldState = subBlockInput.fieldHelpers.getFieldState(reasoningFieldId)
+                  const reasoningFieldHandlers = subBlockInput.fieldHelpers.createFieldHandlers(
+                    reasoningFieldId,
+                    message.reasoning_content || '',
+                    (newValue: string) => {
+                      updateMessageReasoningContent(index, newValue)
+                    }
+                  )
+
+                  const handleReasoningEnvSelect = subBlockInput.fieldHelpers.createEnvVarSelectHandler(
+                    reasoningFieldId,
+                    message.reasoning_content || '',
+                    (newValue: string) => {
+                      updateMessageReasoningContent(index, newValue)
+                    }
+                  )
+
+                  const handleReasoningTagSelect = subBlockInput.fieldHelpers.createTagSelectHandler(
+                    reasoningFieldId,
+                    message.reasoning_content || '',
+                    (newValue: string) => {
+                      updateMessageReasoningContent(index, newValue)
+                    }
+                  )
+
+                  const reasoningTextareaRefObject = {
+                    current: textareaRefs.current[reasoningFieldId] ?? null,
+                  } as React.RefObject<HTMLTextAreaElement>
+
+                  return (
+                    <div className='relative w-full border-t border-[var(--border-1)]'>
+                      <div className='px-[8px] pt-[8px] pb-[2px]'>
+                        <span className='font-medium text-[11px] text-[var(--text-muted)]'>Reasoning Content</span>
+                      </div>
+                      <textarea
+                        ref={(el) => {
+                          textareaRefs.current[reasoningFieldId] = el
+                        }}
+                        className='allow-scroll box-border min-h-[80px] w-full resize-none whitespace-pre-wrap break-words border-none bg-transparent px-[8px] pt-[4px] font-[inherit] font-medium text-sm text-transparent leading-[inherit] caret-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed'
+                        rows={3}
+                        placeholder='Enter reasoning content (optional, for o1/o3 models)...'
+                        value={message.reasoning_content || ''}
+                        onChange={(e) => {
+                          reasoningFieldHandlers.onChange(e)
+                          autoResizeTextarea(reasoningFieldId)
+                        }}
+                        onKeyDown={reasoningFieldHandlers.onKeyDown}
+                        onDrop={reasoningFieldHandlers.onDrop}
+                        onDragOver={reasoningFieldHandlers.onDragOver}
+                        onScroll={(e) => {
+                          const overlay = overlayRefs.current[reasoningFieldId]
+                          if (overlay) {
+                            overlay.scrollTop = e.currentTarget.scrollTop
+                            overlay.scrollLeft = e.currentTarget.scrollLeft
+                          }
+                        }}
+                        disabled={isPreview || disabled}
+                      />
+                      <div
+                        ref={(el) => {
+                          overlayRefs.current[reasoningFieldId] = el
+                        }}
+                        className='scrollbar-none pointer-events-none absolute top-[34px] left-0 box-border w-full overflow-auto whitespace-pre-wrap break-words border-none bg-transparent px-[8px] pt-[4px] font-[inherit] font-medium text-[var(--text-primary)] text-sm leading-[inherit]'
+                      >
+                        {formatDisplayText(message.reasoning_content || '', {
+                          accessiblePrefixes,
+                          highlightAll: !accessiblePrefixes,
+                        })}
+                      </div>
+
+                      {/* Env var dropdown for reasoning content */}
+                      <EnvVarDropdown
+                        visible={reasoningFieldState.showEnvVars && !isPreview && !disabled}
+                        onSelect={handleReasoningEnvSelect}
+                        searchTerm={reasoningFieldState.searchTerm}
+                        inputValue={message.reasoning_content || ''}
+                        cursorPosition={reasoningFieldState.cursorPosition}
+                        onClose={() => subBlockInput.fieldHelpers.hideFieldDropdowns(reasoningFieldId)}
+                        workspaceId={subBlockInput.workspaceId}
+                        maxHeight='192px'
+                        inputRef={reasoningTextareaRefObject}
+                      />
+
+                      {/* Tag dropdown for reasoning content */}
+                      <TagDropdown
+                        visible={reasoningFieldState.showTags && !isPreview && !disabled}
+                        onSelect={handleReasoningTagSelect}
+                        blockId={blockId}
+                        activeSourceBlockId={reasoningFieldState.activeSourceBlockId}
+                        inputValue={message.reasoning_content || ''}
+                        cursorPosition={reasoningFieldState.cursorPosition}
+                        onClose={() => subBlockInput.fieldHelpers.hideFieldDropdowns(reasoningFieldId)}
+                        inputRef={reasoningTextareaRefObject}
+                      />
+
+                      {!isPreview && !disabled && (
+                        <div
+                          className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+                          onMouseDown={(e) => handleResizeStart(reasoningFieldId, e)}
+                          onDragStart={(e) => {
+                            e.preventDefault()
+                          }}
+                        >
+                          <ChevronsUpDown className='h-3 w-3 text-[var(--text-muted)]' />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
               </>
             )
           })()}
