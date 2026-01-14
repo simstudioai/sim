@@ -19,9 +19,11 @@ import {
   type MentionCategory,
   type MentionFolderId,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
-import { useCaretViewport } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-caret-viewport'
-import type { useMentionData } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-mention-data'
-import type { useMentionMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-mention-menu'
+import {
+  useCaretViewport,
+  type useMentionData,
+  type useMentionMenu,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
 import {
   getFolderData as getFolderDataUtil,
   getFolderEnsureLoaded as getFolderEnsureLoadedUtil,

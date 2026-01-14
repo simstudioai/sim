@@ -43,8 +43,6 @@ interface FolderContentProps {
   activeIndex: number
   /** Callback when an item is clicked */
   onItemClick: (item: any) => void
-  /** Whether to show active state styling */
-  showActiveState?: boolean
 }
 
 export function renderItemIcon(folderId: MentionFolderId, item: any): ReactNode {
@@ -86,7 +84,6 @@ export function FolderContent({
   currentQuery,
   activeIndex,
   onItemClick,
-  showActiveState = true,
 }: FolderContentProps) {
   const config = FOLDER_CONFIGS[folderId]
 
@@ -109,7 +106,7 @@ export function FolderContent({
           key={config.getId(item)}
           onClick={() => onItemClick(item)}
           data-idx={index}
-          active={showActiveState && index === activeIndex}
+          active={index === activeIndex}
         >
           {renderItemIcon(folderId, item)}
           <span className={folderId === 'logs' ? 'min-w-0 flex-1 truncate' : 'truncate'}>
@@ -127,7 +124,7 @@ export function FolderPreviewContent({
   items,
   isLoading,
   onItemClick,
-}: Omit<FolderContentProps, 'currentQuery' | 'activeIndex' | 'showActiveState'>) {
+}: Omit<FolderContentProps, 'currentQuery' | 'activeIndex'>) {
   const config = FOLDER_CONFIGS[folderId]
 
   if (isLoading) {

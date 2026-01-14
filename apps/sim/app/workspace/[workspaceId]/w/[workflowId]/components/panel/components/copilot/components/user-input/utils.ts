@@ -45,23 +45,21 @@ export function getFolderEnsureLoaded(
 /**
  * Extract specific ChatContext types for type-safe narrowing
  */
-export type PastChatContext = Extract<ChatContext, { kind: 'past_chat' }>
-export type WorkflowContext = Extract<ChatContext, { kind: 'workflow' }>
-export type CurrentWorkflowContext = Extract<ChatContext, { kind: 'current_workflow' }>
-export type BlocksContext = Extract<ChatContext, { kind: 'blocks' }>
-export type WorkflowBlockContext = Extract<ChatContext, { kind: 'workflow_block' }>
-export type KnowledgeContext = Extract<ChatContext, { kind: 'knowledge' }>
-export type TemplatesContext = Extract<ChatContext, { kind: 'templates' }>
-export type LogsContext = Extract<ChatContext, { kind: 'logs' }>
-export type SlashCommandContext = Extract<ChatContext, { kind: 'slash_command' }>
+type PastChatContext = Extract<ChatContext, { kind: 'past_chat' }>
+type WorkflowContext = Extract<ChatContext, { kind: 'workflow' }>
+type CurrentWorkflowContext = Extract<ChatContext, { kind: 'current_workflow' }>
+type BlocksContext = Extract<ChatContext, { kind: 'blocks' }>
+type WorkflowBlockContext = Extract<ChatContext, { kind: 'workflow_block' }>
+type KnowledgeContext = Extract<ChatContext, { kind: 'knowledge' }>
+type TemplatesContext = Extract<ChatContext, { kind: 'templates' }>
+type LogsContext = Extract<ChatContext, { kind: 'logs' }>
+type SlashCommandContext = Extract<ChatContext, { kind: 'slash_command' }>
 
 /**
  * Checks if two contexts of the same kind are equal by their ID fields.
  * Assumes c.kind === context.kind (must be checked before calling).
  */
 export function areContextsEqual(c: ChatContext, context: ChatContext): boolean {
-  // After the kind check, we know c.kind === context.kind
-  // Use Extract types for type-safe narrowing
   switch (c.kind) {
     case 'past_chat': {
       const ctx = context as PastChatContext

@@ -12,8 +12,6 @@ export type MentionFolderId =
   | 'templates'
   | 'logs'
 
-export type ContextKind = ChatContext['kind']
-
 /**
  * Menu item category types for mention menu (includes folders + docs item)
  */
@@ -27,8 +25,6 @@ export interface FolderConfig<TItem = any> {
   id: MentionFolderId
   /** Display title in menu */
   title: string
-  /** Context kind for ChatContext objects */
-  contextKind: ContextKind
   /** Data source key in useMentionData return */
   dataKey: string
   /** Loading state key in useMentionData return */
@@ -58,7 +54,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
   chats: {
     id: 'chats',
     title: 'Chats',
-    contextKind: 'past_chat',
     dataKey: 'pastChats',
     loadingKey: 'isLoadingPastChats',
     ensureLoadedKey: 'ensurePastChatsLoaded',
@@ -77,7 +72,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
   workflows: {
     id: 'workflows',
     title: 'All workflows',
-    contextKind: 'workflow',
     dataKey: 'workflows',
     loadingKey: 'isLoadingWorkflows',
     // No ensureLoadedKey - workflows auto-load from registry store
@@ -96,7 +90,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
   knowledge: {
     id: 'knowledge',
     title: 'Knowledge Bases',
-    contextKind: 'knowledge',
     dataKey: 'knowledgeBases',
     loadingKey: 'isLoadingKnowledge',
     ensureLoadedKey: 'ensureKnowledgeLoaded',
@@ -115,7 +108,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
   blocks: {
     id: 'blocks',
     title: 'Blocks',
-    contextKind: 'blocks',
     dataKey: 'blocksList',
     loadingKey: 'isLoadingBlocks',
     ensureLoadedKey: 'ensureBlocksLoaded',
@@ -134,7 +126,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
   'workflow-blocks': {
     id: 'workflow-blocks',
     title: 'Workflow Blocks',
-    contextKind: 'workflow_block',
     dataKey: 'workflowBlocks',
     loadingKey: 'isLoadingWorkflowBlocks',
     // No ensureLoadedKey - workflow blocks auto-sync from store
@@ -154,7 +145,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
   templates: {
     id: 'templates',
     title: 'Templates',
-    contextKind: 'templates',
     dataKey: 'templatesList',
     loadingKey: 'isLoadingTemplates',
     ensureLoadedKey: 'ensureTemplatesLoaded',
@@ -173,7 +163,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
   logs: {
     id: 'logs',
     title: 'Logs',
-    contextKind: 'logs',
     dataKey: 'logsList',
     loadingKey: 'isLoadingLogs',
     ensureLoadedKey: 'ensureLogsLoaded',
@@ -209,9 +198,6 @@ export const FOLDER_ORDER: MentionFolderId[] = [
  * Docs item configuration (special case - not a folder)
  */
 export const DOCS_CONFIG = {
-  id: 'docs' as const,
-  title: 'Docs',
-  contextKind: 'docs' as const,
   getLabel: () => 'Docs',
   buildContext: (): ChatContext => ({ kind: 'docs', label: 'Docs' }),
 } as const
