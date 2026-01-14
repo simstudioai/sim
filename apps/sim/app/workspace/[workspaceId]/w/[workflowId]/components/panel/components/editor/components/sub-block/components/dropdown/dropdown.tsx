@@ -1,13 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Badge } from '@/components/emcn'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
-import type { FilterCondition, SortCondition } from '@/lib/table/filter-builder-utils'
-import {
-  conditionsToJsonString,
-  jsonStringToConditions,
-  jsonStringToSortConditions,
-  sortConditionsToJsonString,
-} from '@/lib/table/filter-builder-utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
@@ -122,55 +115,17 @@ export function Dropdown({
   const previousModeRef = useRef<string | null>(null)
   const previousDependencyValuesRef = useRef<string>('')
 
+  // State for dataMode conversion (structured ↔ JSON)
   const [builderData, setBuilderData] = useSubBlockValue<any[]>(blockId, 'builderData')
   const [data, setData] = useSubBlockValue<string>(blockId, 'data')
 
-  // Filter builder state for filterMode conversion
-  const [filterBuilder, setFilterBuilder] = useSubBlockValue<FilterCondition[]>(
-    blockId,
-    'filterBuilder'
-  )
-  const [filter, setFilter] = useSubBlockValue<string>(blockId, 'filter')
-
-  // Sort builder state for sortMode conversion
-  const [sortBuilder, setSortBuilder] = useSubBlockValue<SortCondition[]>(blockId, 'sortBuilder')
-  const [sort, setSort] = useSubBlockValue<string>(blockId, 'sort')
-
-  // Bulk filter builder state for bulkFilterMode conversion
-  const [bulkFilterBuilder, setBulkFilterBuilder] = useSubBlockValue<FilterCondition[]>(
-    blockId,
-    'bulkFilterBuilder'
-  )
-  const [filterCriteria, setFilterCriteria] = useSubBlockValue<string>(blockId, 'filterCriteria')
-
   const builderDataRef = useRef(builderData)
   const dataRef = useRef(data)
-  const filterBuilderRef = useRef(filterBuilder)
-  const filterRef = useRef(filter)
-  const sortBuilderRef = useRef(sortBuilder)
-  const sortRef = useRef(sort)
-  const bulkFilterBuilderRef = useRef(bulkFilterBuilder)
-  const filterCriteriaRef = useRef(filterCriteria)
 
   useEffect(() => {
     builderDataRef.current = builderData
     dataRef.current = data
-    filterBuilderRef.current = filterBuilder
-    filterRef.current = filter
-    sortBuilderRef.current = sortBuilder
-    sortRef.current = sort
-    bulkFilterBuilderRef.current = bulkFilterBuilder
-    filterCriteriaRef.current = filterCriteria
-  }, [
-    builderData,
-    data,
-    filterBuilder,
-    filter,
-    sortBuilder,
-    sort,
-    bulkFilterBuilder,
-    filterCriteria,
-  ])
+  }, [builderData, data])
 
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
@@ -355,123 +310,6 @@ export function Dropdown({
 
     previousModeRef.current = currentMode
   }, [storeValue, subBlockId, isPreview, disabled, setData, setBuilderData, multiSelect])
-
-  /**
-   * Handle filterMode conversion between builder and json formats
-   */
-  const previousFilterModeRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (multiSelect || subBlockId !== 'filterMode' || isPreview || disabled) return
-
-    const currentMode = storeValue as string
-    const previousMode = previousFilterModeRef.current
-
-    if (previousMode !== null && previousMode !== currentMode) {
-      if (currentMode === 'json' && previousMode === 'builder') {
-        // Convert builder conditions to JSON string
-        const currentFilterBuilder = filterBuilderRef.current
-        if (
-          currentFilterBuilder &&
-          Array.isArray(currentFilterBuilder) &&
-          currentFilterBuilder.length > 0
-        ) {
-          const jsonString = conditionsToJsonString(currentFilterBuilder)
-          setFilter(jsonString)
-        }
-      } else if (currentMode === 'builder' && previousMode === 'json') {
-        // Convert JSON string to builder conditions
-        const currentFilter = filterRef.current
-        if (currentFilter && typeof currentFilter === 'string' && currentFilter.trim().length > 0) {
-          const conditions = jsonStringToConditions(currentFilter)
-          setFilterBuilder(conditions)
-        }
-      }
-    }
-
-    previousFilterModeRef.current = currentMode
-  }, [storeValue, subBlockId, isPreview, disabled, setFilter, setFilterBuilder, multiSelect])
-
-  /**
-   * Handle sortMode conversion between builder and json formats
-   */
-  const previousSortModeRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (multiSelect || subBlockId !== 'sortMode' || isPreview || disabled) return
-
-    const currentMode = storeValue as string
-    const previousMode = previousSortModeRef.current
-
-    if (previousMode !== null && previousMode !== currentMode) {
-      if (currentMode === 'json' && previousMode === 'builder') {
-        // Convert sort builder conditions to JSON string
-        const currentSortBuilder = sortBuilderRef.current
-        if (
-          currentSortBuilder &&
-          Array.isArray(currentSortBuilder) &&
-          currentSortBuilder.length > 0
-        ) {
-          const jsonString = sortConditionsToJsonString(currentSortBuilder)
-          setSort(jsonString)
-        }
-      } else if (currentMode === 'builder' && previousMode === 'json') {
-        // Convert JSON string to sort builder conditions
-        const currentSort = sortRef.current
-        if (currentSort && typeof currentSort === 'string' && currentSort.trim().length > 0) {
-          const conditions = jsonStringToSortConditions(currentSort)
-          setSortBuilder(conditions)
-        }
-      }
-    }
-
-    previousSortModeRef.current = currentMode
-  }, [storeValue, subBlockId, isPreview, disabled, setSort, setSortBuilder, multiSelect])
-
-  /**
-   * Handle bulkFilterMode conversion between builder and json formats
-   */
-  const previousBulkFilterModeRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (multiSelect || subBlockId !== 'bulkFilterMode' || isPreview || disabled) return
-
-    const currentMode = storeValue as string
-    const previousMode = previousBulkFilterModeRef.current
-
-    if (previousMode !== null && previousMode !== currentMode) {
-      if (currentMode === 'json' && previousMode === 'builder') {
-        // Convert bulk filter builder conditions to JSON string
-        const currentBulkFilterBuilder = bulkFilterBuilderRef.current
-        if (
-          currentBulkFilterBuilder &&
-          Array.isArray(currentBulkFilterBuilder) &&
-          currentBulkFilterBuilder.length > 0
-        ) {
-          const jsonString = conditionsToJsonString(currentBulkFilterBuilder)
-          setFilterCriteria(jsonString)
-        }
-      } else if (currentMode === 'builder' && previousMode === 'json') {
-        // Convert JSON string to bulk filter builder conditions
-        const currentFilterCriteria = filterCriteriaRef.current
-        if (
-          currentFilterCriteria &&
-          typeof currentFilterCriteria === 'string' &&
-          currentFilterCriteria.trim().length > 0
-        ) {
-          const conditions = jsonStringToConditions(currentFilterCriteria)
-          setBulkFilterBuilder(conditions)
-        }
-      }
-    }
-
-    previousBulkFilterModeRef.current = currentMode
-  }, [
-    storeValue,
-    subBlockId,
-    isPreview,
-    disabled,
-    setFilterCriteria,
-    setBulkFilterBuilder,
-    multiSelect,
-  ])
 
   /**
    * Handles selection change for both single and multi-select modes

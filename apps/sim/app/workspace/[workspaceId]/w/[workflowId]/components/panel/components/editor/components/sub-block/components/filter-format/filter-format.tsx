@@ -25,9 +25,9 @@ interface FilterFormatProps {
   disabled?: boolean
   columns?: Array<{ value: string; label: string }>
   tableIdSubBlockId?: string
-  /** SubBlock ID for the mode dropdown (e.g., 'builderMode' or 'bulkFilterMode') */
+  /** SubBlock ID for the mode dropdown (e.g., 'filterMode') - enables builder ↔ JSON sync */
   modeSubBlockId?: string
-  /** SubBlock ID for the JSON filter (e.g., 'filter' or 'filterCriteria') */
+  /** SubBlock ID for the JSON filter field (e.g., 'filter') - target for JSON output */
   jsonSubBlockId?: string
 }
 
@@ -42,6 +42,14 @@ const createDefaultCondition = (columns: ComboboxOption[]): FilterCondition => (
   value: '',
 })
 
+/**
+ * Visual builder for filter conditions with optional JSON sync.
+ *
+ * When `modeSubBlockId` and `jsonSubBlockId` are provided, this component handles
+ * bidirectional conversion between builder conditions and JSON format:
+ * - Builder → JSON: Conditions sync to JSON when modified in builder mode
+ * - JSON → Builder: JSON parses to conditions when switching to builder mode
+ */
 export function FilterFormat({
   blockId,
   subBlockId,
@@ -58,7 +66,7 @@ export function FilterFormat({
   const [dynamicColumns, setDynamicColumns] = useState<ComboboxOption[]>([])
   const fetchedTableIdRef = useRef<string | null>(null)
 
-  // For syncing with JSON editor mode
+  // Mode sync state - only used when modeSubBlockId and jsonSubBlockId are provided
   const [modeValue] = useSubBlockValue<string>(blockId, modeSubBlockId || '_unused_mode')
   const [jsonValue, setJsonValue] = useSubBlockValue<string>(
     blockId,
@@ -69,44 +77,46 @@ export function FilterFormat({
 
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
-  // Sync from JSON when switching to builder mode
+  /**
+   * Syncs JSON → Builder when mode switches to 'builder'.
+   * Uses refs to prevent sync loops and only triggers on actual mode transitions.
+   */
   useEffect(() => {
     if (!modeSubBlockId || !jsonSubBlockId || isPreview) return
 
-    // Detect mode change to 'builder'
-    if (
-      prevModeRef.current !== null &&
-      prevModeRef.current !== 'builder' &&
-      modeValue === 'builder'
-    ) {
-      // Switching from JSON to Builder - sync JSON to conditions
-      if (jsonValue && typeof jsonValue === 'string' && jsonValue.trim()) {
-        isSyncingRef.current = true
-        const conditions = jsonStringToConditions(jsonValue)
-        if (conditions.length > 0) {
-          setStoreValue(conditions)
-        }
-        isSyncingRef.current = false
+    const switchingToBuilder =
+      prevModeRef.current !== null && prevModeRef.current !== 'builder' && modeValue === 'builder'
+
+    if (switchingToBuilder && jsonValue?.trim()) {
+      isSyncingRef.current = true
+      const conditions = jsonStringToConditions(jsonValue)
+      if (conditions.length > 0) {
+        setStoreValue(conditions)
       }
+      isSyncingRef.current = false
     }
+
     prevModeRef.current = modeValue
   }, [modeValue, jsonValue, modeSubBlockId, jsonSubBlockId, setStoreValue, isPreview])
 
-  // Sync to JSON when conditions change (and we're in builder mode)
+  /**
+   * Syncs Builder → JSON when conditions change while in builder mode.
+   * Skips sync when isSyncingRef is true to prevent loops.
+   */
   useEffect(() => {
     if (!modeSubBlockId || !jsonSubBlockId || isPreview || isSyncingRef.current) return
     if (modeValue !== 'builder') return
 
     const conditions = Array.isArray(storeValue) ? storeValue : []
     if (conditions.length > 0) {
-      const jsonString = conditionsToJsonString(conditions)
-      if (jsonString !== jsonValue) {
-        setJsonValue(jsonString)
+      const newJson = conditionsToJsonString(conditions)
+      if (newJson !== jsonValue) {
+        setJsonValue(newJson)
       }
     }
   }, [storeValue, modeValue, modeSubBlockId, jsonSubBlockId, jsonValue, setJsonValue, isPreview])
 
-  // Fetch columns when tableId changes
+  /** Fetches table schema columns when tableId changes */
   useEffect(() => {
     const fetchColumns = async () => {
       if (!tableIdValue || tableIdValue === fetchedTableIdRef.current) return
@@ -120,14 +130,13 @@ export function FilterFormat({
         if (!response.ok) return
 
         const result = await response.json()
-        const data = result.data || result
-        const cols = data.table?.schema?.columns || []
+        const cols = result.data?.table?.schema?.columns || result.table?.schema?.columns || []
         setDynamicColumns(
           cols.map((col: { name: string }) => ({ value: col.name, label: col.name }))
         )
         fetchedTableIdRef.current = tableIdValue
       } catch {
-        // Ignore errors
+        // Silently fail - columns will be empty
       }
     }
 
