@@ -3,31 +3,15 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQuery } from '@tanstack/react-query'
-import {
-  ChevronLeft,
-  ChevronRight,
-  Columns,
-  Copy,
-  Edit,
-  Filter,
-  HelpCircle,
-  Plus,
-  RefreshCw,
-  Trash2,
-  X,
-} from 'lucide-react'
+import { Columns, Copy, Edit, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Badge,
   Button,
   Checkbox,
-  Input,
   Modal,
   ModalBody,
   ModalContent,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
   Table,
   TableBody,
   TableCell,
@@ -42,6 +26,7 @@ import type { TableSchema } from '@/lib/table'
 import { AddRowModal } from './components/add-row-modal'
 import { DeleteRowModal } from './components/delete-row-modal'
 import { EditRowModal } from './components/edit-row-modal'
+import { FilterBuilder, type QueryOptions } from './components/filter-builder'
 import { TableActionBar } from './components/table-action-bar'
 
 const logger = createLogger('TableDataViewer')
@@ -82,9 +67,10 @@ export function TableDataViewer() {
   const tableId = params.tableId as string
 
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
-  const [filterInput, setFilterInput] = useState('')
-  const [appliedFilter, setAppliedFilter] = useState<Record<string, any> | null>(null)
-  const [filterError, setFilterError] = useState<string | null>(null)
+  const [queryOptions, setQueryOptions] = useState<QueryOptions>({
+    filter: null,
+    sort: null,
+  })
   const [currentPage, setCurrentPage] = useState(0)
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowData | null>(null)
@@ -104,25 +90,31 @@ export function TableDataViewer() {
     },
   })
 
-  // Fetch table rows with filter
+  // Fetch table rows with filter and sort
   const {
     data: rowsData,
     isLoading: isLoadingRows,
     refetch: refetchRows,
   } = useQuery({
-    queryKey: ['table-rows', tableId, currentPage, appliedFilter],
+    queryKey: ['table-rows', tableId, queryOptions, currentPage],
     queryFn: async () => {
-      const queryParams = new URLSearchParams({
+      const params = new URLSearchParams({
         workspaceId,
         limit: String(ROWS_PER_PAGE),
         offset: String(currentPage * ROWS_PER_PAGE),
       })
 
-      if (appliedFilter) {
-        queryParams.set('filter', JSON.stringify(appliedFilter))
+      if (queryOptions.filter) {
+        params.set('filter', JSON.stringify(queryOptions.filter))
       }
 
-      const res = await fetch(`/api/table/${tableId}/rows?${queryParams}`)
+      if (queryOptions.sort) {
+        // Convert from {column, direction} to {column: direction} format expected by API
+        const sortParam = { [queryOptions.sort.column]: queryOptions.sort.direction }
+        params.set('sort', JSON.stringify(sortParam))
+      }
+
+      const res = await fetch(`/api/table/${tableId}/rows?${params}`)
       if (!res.ok) throw new Error('Failed to fetch rows')
       return res.json()
     },
@@ -134,28 +126,8 @@ export function TableDataViewer() {
   const totalCount = rowsData?.totalCount || 0
   const totalPages = Math.ceil(totalCount / ROWS_PER_PAGE)
 
-  const handleApplyFilter = useCallback(() => {
-    setFilterError(null)
-
-    if (!filterInput.trim()) {
-      setAppliedFilter(null)
-      setCurrentPage(0)
-      return
-    }
-
-    try {
-      const parsed = JSON.parse(filterInput)
-      setAppliedFilter(parsed)
-      setCurrentPage(0)
-    } catch (err) {
-      setFilterError('Invalid JSON. Use format: {"column": {"$eq": "value"}}')
-    }
-  }, [filterInput])
-
-  const handleClearFilter = useCallback(() => {
-    setFilterInput('')
-    setAppliedFilter(null)
-    setFilterError(null)
+  const handleApplyQueryOptions = useCallback((options: QueryOptions) => {
+    setQueryOptions(options)
     setCurrentPage(0)
   }, [])
 
@@ -338,145 +310,16 @@ export function TableDataViewer() {
             </Tooltip.Trigger>
             <Tooltip.Content>Refresh</Tooltip.Content>
           </Tooltip.Root>
-
-          <Button variant='default' size='sm' onClick={() => setShowAddModal(true)}>
-            <Plus className='mr-[4px] h-[12px] w-[12px]' />
-            Add Row
-          </Button>
         </div>
       </div>
 
       {/* Filter Bar */}
       <div className='flex shrink-0 flex-col gap-[8px] border-[var(--border)] border-b px-[16px] py-[10px]'>
-        <div className='flex items-center gap-[8px]'>
-          <Filter className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
-          <Input
-            value={filterInput}
-            onChange={(e) => setFilterInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleApplyFilter()
-              }
-            }}
-            placeholder='{"column": {"$eq": "value"}}'
-            className={cn(
-              'h-[32px] flex-1 font-mono text-[11px]',
-              filterError && 'border-[var(--text-error)]'
-            )}
-          />
-          <Button variant='default' size='sm' onClick={handleApplyFilter}>
-            Apply
-          </Button>
-          {appliedFilter && (
-            <Button variant='ghost' size='sm' onClick={handleClearFilter}>
-              <X className='h-[12px] w-[12px]' />
-            </Button>
-          )}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant='ghost' size='sm'>
-                <HelpCircle className='h-[14px] w-[14px]' />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className='w-[360px] p-[12px]' align='end'>
-              <div className='flex flex-col gap-[12px]'>
-                <div>
-                  <h4 className='font-medium text-[12px] text-[var(--text-primary)]'>
-                    Filter Operators
-                  </h4>
-                  <p className='text-[11px] text-[var(--text-tertiary)]'>
-                    Use MongoDB-style operators to filter rows
-                  </p>
-                </div>
-                <div className='flex flex-col gap-[6px] font-mono text-[10px]'>
-                  <div className='flex items-start gap-[8px]'>
-                    <code className='rounded bg-[var(--surface-5)] px-[4px] py-[2px] text-[var(--brand-secondary)]'>
-                      $eq
-                    </code>
-                    <span className='text-[var(--text-secondary)]'>
-                      Equals: {`{"status": "active"}`}
-                    </span>
-                  </div>
-                  <div className='flex items-start gap-[8px]'>
-                    <code className='rounded bg-[var(--surface-5)] px-[4px] py-[2px] text-[var(--brand-secondary)]'>
-                      $ne
-                    </code>
-                    <span className='text-[var(--text-secondary)]'>
-                      Not equals: {`{"status": {"$ne": "deleted"}}`}
-                    </span>
-                  </div>
-                  <div className='flex items-start gap-[8px]'>
-                    <code className='rounded bg-[var(--surface-5)] px-[4px] py-[2px] text-[var(--brand-secondary)]'>
-                      $gt
-                    </code>
-                    <span className='text-[var(--text-secondary)]'>
-                      Greater than: {`{"age": {"$gt": 18}}`}
-                    </span>
-                  </div>
-                  <div className='flex items-start gap-[8px]'>
-                    <code className='rounded bg-[var(--surface-5)] px-[4px] py-[2px] text-[var(--brand-secondary)]'>
-                      $gte
-                    </code>
-                    <span className='text-[var(--text-secondary)]'>
-                      Greater or equal: {`{"age": {"$gte": 21}}`}
-                    </span>
-                  </div>
-                  <div className='flex items-start gap-[8px]'>
-                    <code className='rounded bg-[var(--surface-5)] px-[4px] py-[2px] text-[var(--brand-secondary)]'>
-                      $lt
-                    </code>
-                    <span className='text-[var(--text-secondary)]'>
-                      Less than: {`{"price": {"$lt": 100}}`}
-                    </span>
-                  </div>
-                  <div className='flex items-start gap-[8px]'>
-                    <code className='rounded bg-[var(--surface-5)] px-[4px] py-[2px] text-[var(--brand-secondary)]'>
-                      $lte
-                    </code>
-                    <span className='text-[var(--text-secondary)]'>
-                      Less or equal: {`{"qty": {"$lte": 10}}`}
-                    </span>
-                  </div>
-                  <div className='flex items-start gap-[8px]'>
-                    <code className='rounded bg-[var(--surface-5)] px-[4px] py-[2px] text-[var(--brand-secondary)]'>
-                      $in
-                    </code>
-                    <span className='text-[var(--text-secondary)]'>
-                      In array: {`{"status": {"$in": ["a", "b"]}}`}
-                    </span>
-                  </div>
-                  <div className='flex items-start gap-[8px]'>
-                    <code className='rounded bg-[var(--surface-5)] px-[4px] py-[2px] text-[var(--brand-secondary)]'>
-                      $contains
-                    </code>
-                    <span className='text-[var(--text-secondary)]'>
-                      String contains: {`{"email": {"$contains": "@"}}`}
-                    </span>
-                  </div>
-                </div>
-                <div className='border-[var(--border)] border-t pt-[8px]'>
-                  <p className='text-[10px] text-[var(--text-tertiary)]'>
-                    Combine multiple conditions:{' '}
-                    <code className='text-[var(--text-secondary)]'>
-                      {`{"age": {"$gte": 18}, "active": true}`}
-                    </code>
-                  </p>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
-        {filterError && <span className='text-[11px] text-[var(--text-error)]'>{filterError}</span>}
-        {appliedFilter && (
-          <div className='flex items-center gap-[6px]'>
-            <Badge variant='blue' size='sm'>
-              Filter active
-            </Badge>
-            <span className='font-mono text-[10px] text-[var(--text-tertiary)]'>
-              {JSON.stringify(appliedFilter)}
-            </span>
-          </div>
-        )}
+        <FilterBuilder
+          columns={columns}
+          onApply={handleApplyQueryOptions}
+          onAddRow={() => setShowAddModal(true)}
+        />
         {selectedRows.size > 0 && (
           <span className='text-[11px] text-[var(--text-tertiary)]'>
             {selectedRows.size} selected
@@ -565,9 +408,9 @@ export function TableDataViewer() {
                 <TableCell colSpan={columns.length + 2} className='h-[160px] text-center'>
                   <div className='flex flex-col items-center gap-[12px]'>
                     <span className='text-[13px] text-[var(--text-tertiary)]'>
-                      {appliedFilter ? 'No rows match your filter' : 'No data'}
+                      {queryOptions.filter ? 'No rows match your filter' : 'No data'}
                     </span>
-                    {!appliedFilter && (
+                    {!queryOptions.filter && (
                       <Button variant='default' size='sm' onClick={() => setShowAddModal(true)}>
                         <Plus className='mr-[4px] h-[12px] w-[12px]' />
                         Add first row
@@ -635,7 +478,7 @@ export function TableDataViewer() {
       {totalPages > 1 && (
         <div className='flex h-[40px] shrink-0 items-center justify-between border-[var(--border)] border-t px-[16px]'>
           <span className='text-[11px] text-[var(--text-tertiary)]'>
-            Page {currentPage + 1} of {totalPages}
+            Page {currentPage + 1} of {totalPages} ({totalCount} rows)
           </span>
           <div className='flex items-center gap-[4px]'>
             <Button
@@ -644,7 +487,7 @@ export function TableDataViewer() {
               onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
               disabled={currentPage === 0}
             >
-              <ChevronLeft className='h-[14px] w-[14px]' />
+              Previous
             </Button>
             <Button
               variant='ghost'
@@ -652,7 +495,7 @@ export function TableDataViewer() {
               onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={currentPage === totalPages - 1}
             >
-              <ChevronRight className='h-[14px] w-[14px]' />
+              Next
             </Button>
           </div>
         </div>

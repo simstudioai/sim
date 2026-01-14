@@ -15,20 +15,22 @@
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 
+export interface FieldCondition {
+  $eq?: any
+  $ne?: any
+  $gt?: number
+  $gte?: number
+  $lt?: number
+  $lte?: number
+  $in?: any[]
+  $nin?: any[]
+  $contains?: string
+}
+
 export interface QueryFilter {
-  [key: string]:
-    | any
-    | {
-        $eq?: any
-        $ne?: any
-        $gt?: number
-        $gte?: number
-        $lt?: number
-        $lte?: number
-        $in?: any[]
-        $nin?: any[]
-        $contains?: string
-      }
+  $or?: QueryFilter[]
+  $and?: QueryFilter[]
+  [key: string]: any | FieldCondition | QueryFilter[] | undefined
 }
 
 /**
@@ -42,8 +44,78 @@ function buildContainmentClause(tableName: string, field: string, value: any): S
 }
 
 /**
+ * Build a single field condition clause
+ */
+function buildFieldCondition(tableName: string, field: string, condition: any): SQL[] {
+  const conditions: SQL[] = []
+  const escapedField = field.replace(/'/g, "''")
+
+  if (typeof condition === 'object' && condition !== null && !Array.isArray(condition)) {
+    // Operator-based filter
+    for (const [op, value] of Object.entries(condition)) {
+      switch (op) {
+        case '$eq':
+          conditions.push(buildContainmentClause(tableName, field, value))
+          break
+        case '$ne':
+          conditions.push(sql`NOT (${buildContainmentClause(tableName, field, value)})`)
+          break
+        case '$gt':
+          conditions.push(
+            sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric > ${value}`
+          )
+          break
+        case '$gte':
+          conditions.push(
+            sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric >= ${value}`
+          )
+          break
+        case '$lt':
+          conditions.push(
+            sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric < ${value}`
+          )
+          break
+        case '$lte':
+          conditions.push(
+            sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric <= ${value}`
+          )
+          break
+        case '$in':
+          if (Array.isArray(value) && value.length > 0) {
+            if (value.length === 1) {
+              conditions.push(buildContainmentClause(tableName, field, value[0]))
+            } else {
+              const inConditions = value.map((v) => buildContainmentClause(tableName, field, v))
+              conditions.push(sql`(${sql.join(inConditions, sql.raw(' OR '))})`)
+            }
+          }
+          break
+        case '$nin':
+          if (Array.isArray(value) && value.length > 0) {
+            const ninConditions = value.map(
+              (v) => sql`NOT (${buildContainmentClause(tableName, field, v)})`
+            )
+            conditions.push(sql`(${sql.join(ninConditions, sql.raw(' AND '))})`)
+          }
+          break
+        case '$contains':
+          conditions.push(
+            sql`${sql.raw(`${tableName}.data->>'${escapedField}'`)} ILIKE ${`%${value}%`}`
+          )
+          break
+      }
+    }
+  } else {
+    // Direct equality
+    conditions.push(buildContainmentClause(tableName, field, condition))
+  }
+
+  return conditions
+}
+
+/**
  * Build WHERE clause from filter object
- * Supports: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains
+ * Supports: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $or, $and
  *
  * Uses GIN-index-compatible containment operator (@>) for:
  * - $eq (equality)
@@ -55,81 +127,56 @@ function buildContainmentClause(tableName: string, field: string, value: any): S
  * - $gt, $gte, $lt, $lte (numeric comparisons)
  * - $nin (not in)
  * - $contains (pattern matching)
+ *
+ * Logical operators:
+ * - $or: Array of filter objects, joined with OR
+ * - $and: Array of filter objects, joined with AND
  */
 export function buildFilterClause(filter: QueryFilter, tableName: string): SQL | undefined {
   const conditions: SQL[] = []
 
   for (const [field, condition] of Object.entries(filter)) {
-    // Escape field name to prevent SQL injection (for ->> operators)
-    const escapedField = field.replace(/'/g, "''")
-
-    if (typeof condition === 'object' && condition !== null && !Array.isArray(condition)) {
-      // Operator-based filter
-      for (const [op, value] of Object.entries(condition)) {
-        switch (op) {
-          case '$eq':
-            // Use containment operator for GIN index support
-            conditions.push(buildContainmentClause(tableName, field, value))
-            break
-          case '$ne':
-            // NOT containment - still uses GIN index for the containment check
-            conditions.push(sql`NOT (${buildContainmentClause(tableName, field, value)})`)
-            break
-          case '$gt':
-            // Numeric comparison requires text extraction (no GIN support)
-            conditions.push(
-              sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric > ${value}`
-            )
-            break
-          case '$gte':
-            conditions.push(
-              sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric >= ${value}`
-            )
-            break
-          case '$lt':
-            conditions.push(
-              sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric < ${value}`
-            )
-            break
-          case '$lte':
-            conditions.push(
-              sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric <= ${value}`
-            )
-            break
-          case '$in':
-            // Use OR of containment checks for GIN index support
-            if (Array.isArray(value) && value.length > 0) {
-              if (value.length === 1) {
-                // Single value - just use containment
-                conditions.push(buildContainmentClause(tableName, field, value[0]))
-              } else {
-                // Multiple values - OR of containment checks
-                const inConditions = value.map((v) => buildContainmentClause(tableName, field, v))
-                conditions.push(sql`(${sql.join(inConditions, sql.raw(' OR '))})`)
-              }
-            }
-            break
-          case '$nin':
-            // NOT IN requires checking none of the values match
-            if (Array.isArray(value) && value.length > 0) {
-              const ninConditions = value.map(
-                (v) => sql`NOT (${buildContainmentClause(tableName, field, v)})`
-              )
-              conditions.push(sql`(${sql.join(ninConditions, sql.raw(' AND '))})`)
-            }
-            break
-          case '$contains':
-            // Pattern matching requires text extraction (no GIN support)
-            conditions.push(
-              sql`${sql.raw(`${tableName}.data->>'${escapedField}'`)} ILIKE ${`%${value}%`}`
-            )
-            break
+    // Handle $or operator
+    if (field === '$or' && Array.isArray(condition)) {
+      const orConditions: SQL[] = []
+      for (const subFilter of condition) {
+        const subClause = buildFilterClause(subFilter as QueryFilter, tableName)
+        if (subClause) {
+          orConditions.push(subClause)
         }
       }
-    } else {
-      // Direct equality - use containment operator for GIN index support
-      conditions.push(buildContainmentClause(tableName, field, condition))
+      if (orConditions.length > 0) {
+        if (orConditions.length === 1) {
+          conditions.push(orConditions[0])
+        } else {
+          conditions.push(sql`(${sql.join(orConditions, sql.raw(' OR '))})`)
+        }
+      }
+      continue
     }
+
+    // Handle $and operator
+    if (field === '$and' && Array.isArray(condition)) {
+      const andConditions: SQL[] = []
+      for (const subFilter of condition) {
+        const subClause = buildFilterClause(subFilter as QueryFilter, tableName)
+        if (subClause) {
+          andConditions.push(subClause)
+        }
+      }
+      if (andConditions.length > 0) {
+        if (andConditions.length === 1) {
+          conditions.push(andConditions[0])
+        } else {
+          conditions.push(sql`(${sql.join(andConditions, sql.raw(' AND '))})`)
+        }
+      }
+      continue
+    }
+
+    // Handle regular field conditions
+    const fieldConditions = buildFieldCondition(tableName, field, condition)
+    conditions.push(...fieldConditions)
   }
 
   if (conditions.length === 0) return undefined
