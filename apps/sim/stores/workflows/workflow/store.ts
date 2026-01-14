@@ -639,7 +639,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         const newName = getUniqueBlockName(block.name, get().blocks)
 
-        const mergedBlock = mergeSubblockState(get().blocks, id)[id]
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        const mergedBlock = mergeSubblockState(get().blocks, activeWorkflowId || undefined, id)[id]
 
         const newSubBlocks = Object.entries(mergedBlock.subBlocks).reduce(
           (acc, [subId, subBlock]) => ({
@@ -668,7 +669,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           parallels: get().generateParallelBlocks(),
         }
 
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
         if (activeWorkflowId) {
           const subBlockValues =
             useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id] || {}

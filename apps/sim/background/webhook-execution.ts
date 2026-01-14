@@ -172,7 +172,7 @@ async function executeWebhookJobInternal(
     const workflowVariables = (wfRows[0]?.variables as Record<string, any>) || {}
 
     // Merge subblock states (matching workflow-execution pattern)
-    const mergedStates = mergeSubblockState(blocks, {})
+    const mergedStates = mergeSubblockState(blocks)
 
     // Create serialized workflow
     const serializer = new Serializer()

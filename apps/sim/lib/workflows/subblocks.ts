@@ -1,3 +1,5 @@
+import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
+
 export const DEFAULT_SUBBLOCK_TYPE = 'short-input'
 
 /**
@@ -32,4 +34,47 @@ export function mergeSubBlockValues(
   })
 
   return merged
+}
+
+/**
+ * Merges workflow block states with explicit subblock values while maintaining block structure.
+ * Values that are null or undefined do not override existing subblock values.
+ * @param blocks - Block configurations from workflow state
+ * @param subBlockValues - Subblock values keyed by blockId -> subBlockId -> value
+ * @param blockId - Optional specific block ID to merge (merges all if not provided)
+ * @returns Merged block states with updated subblocks
+ */
+export function mergeSubblockStateWithValues(
+  blocks: Record<string, BlockState>,
+  subBlockValues: Record<string, Record<string, unknown>> = {},
+  blockId?: string
+): Record<string, BlockState> {
+  const blocksToProcess = blockId ? { [blockId]: blocks[blockId] } : blocks
+
+  return Object.entries(blocksToProcess).reduce(
+    (acc, [id, block]) => {
+      if (!block) {
+        return acc
+      }
+
+      const blockSubBlocks = block.subBlocks || {}
+      const blockValues = subBlockValues[id] || {}
+      const filteredValues = Object.fromEntries(
+        Object.entries(blockValues).filter(([, value]) => value !== null && value !== undefined)
+      )
+
+      const mergedSubBlocks = mergeSubBlockValues(blockSubBlocks, filteredValues) as Record<
+        string,
+        SubBlockState
+      >
+
+      acc[id] = {
+        ...block,
+        subBlocks: mergedSubBlocks,
+      }
+
+      return acc
+    },
+    {} as Record<string, BlockState>
+  )
 }
