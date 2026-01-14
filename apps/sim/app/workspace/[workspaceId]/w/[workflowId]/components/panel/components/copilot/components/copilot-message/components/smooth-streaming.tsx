@@ -93,10 +93,14 @@ function calculateAdaptiveDelay(displayedLength: number, totalLength: number): n
  */
 export const SmoothStreamingText = memo(
   ({ content, isStreaming }: SmoothStreamingTextProps) => {
-    const [displayedContent, setDisplayedContent] = useState('')
+    // Initialize with full content when not streaming to avoid flash on page load
+    const [displayedContent, setDisplayedContent] = useState(() =>
+      isStreaming ? '' : content
+    )
     const contentRef = useRef(content)
     const rafRef = useRef<number | null>(null)
-    const indexRef = useRef(0)
+    // Initialize index based on streaming state
+    const indexRef = useRef(isStreaming ? 0 : content.length)
     const lastFrameTimeRef = useRef<number>(0)
     const isAnimatingRef = useRef(false)
 

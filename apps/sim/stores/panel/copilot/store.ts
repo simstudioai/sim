@@ -441,12 +441,20 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
 
     // Register client tool instances and clear streaming flags for all tool calls
     for (const message of messages) {
+      // Clear from contentBlocks (current format)
       if (message.contentBlocks) {
         for (const block of message.contentBlocks as any[]) {
           if (block?.type === 'tool_call' && block.toolCall) {
             registerToolCallInstances(block.toolCall)
             clearStreamingFlags(block.toolCall)
           }
+        }
+      }
+      // Clear from toolCalls array (legacy format)
+      if (message.toolCalls) {
+        for (const toolCall of message.toolCalls) {
+          registerToolCallInstances(toolCall)
+          clearStreamingFlags(toolCall)
         }
       }
     }
@@ -464,10 +472,8 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
 function clearStreamingFlags(toolCall: any): void {
   if (!toolCall) return
 
-  // Clear the subAgentStreaming flag
-  if ('subAgentStreaming' in toolCall) {
-    toolCall.subAgentStreaming = false
-  }
+  // Always set subAgentStreaming to false - messages loaded from DB are never streaming
+  toolCall.subAgentStreaming = false
 
   // Clear nested subagent tool calls
   if (Array.isArray(toolCall.subAgentBlocks)) {
