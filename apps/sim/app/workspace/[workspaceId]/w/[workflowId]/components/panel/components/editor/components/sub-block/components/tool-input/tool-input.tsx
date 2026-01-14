@@ -1036,6 +1036,7 @@ export function ToolInput({
           block.type === 'api' ||
           block.type === 'webhook_request' ||
           block.type === 'workflow' ||
+          block.type === 'workflow_input' ||
           block.type === 'knowledge' ||
           block.type === 'function') &&
         block.type !== 'evaluator' &&
@@ -1761,7 +1762,7 @@ export function ToolInput({
           iconElement: createToolIcon('#6366F1', WorkflowIcon),
           onSelect: () => {
             const newTool: StoredTool = {
-              type: 'workflow',
+              type: 'workflow_input',
               title: 'Workflow',
               toolId: 'workflow_executor',
               params: {
@@ -2195,9 +2196,10 @@ export function ToolInput({
       {/* Selected Tools List */}
       {selectedTools.length > 0 &&
         selectedTools.map((tool, toolIndex) => {
-          // Handle custom tools and MCP tools differently
+          // Handle custom tools, MCP tools, and workflow tools differently
           const isCustomTool = tool.type === 'custom-tool'
           const isMcpTool = tool.type === 'mcp'
+          const isWorkflowTool = tool.type === 'workflow'
           const toolBlock =
             !isCustomTool && !isMcpTool
               ? toolBlocks.find((block) => block.type === tool.type)
@@ -2323,13 +2325,17 @@ export function ToolInput({
                         ? '#3B82F6'
                         : isMcpTool
                           ? mcpTool?.bgColor || '#6366F1'
-                          : toolBlock?.bgColor,
+                          : isWorkflowTool
+                            ? '#6366F1'
+                            : toolBlock?.bgColor,
                     }}
                   >
                     {isCustomTool ? (
                       <WrenchIcon className='h-[10px] w-[10px] text-white' />
                     ) : isMcpTool ? (
                       <IconComponent icon={McpIcon} className='h-[10px] w-[10px] text-white' />
+                    ) : isWorkflowTool ? (
+                      <IconComponent icon={WorkflowIcon} className='h-[10px] w-[10px] text-white' />
                     ) : (
                       <IconComponent
                         icon={toolBlock?.icon}
@@ -2369,9 +2375,10 @@ export function ToolInput({
                         </Tooltip.Root>
                       )
                     })()}
-                  {tool.type === 'workflow' && tool.params?.workflowId && (
-                    <WorkflowToolDeployBadge workflowId={tool.params.workflowId} />
-                  )}
+                  {(tool.type === 'workflow' || tool.type === 'workflow_input') &&
+                    tool.params?.workflowId && (
+                      <WorkflowToolDeployBadge workflowId={tool.params.workflowId} />
+                    )}
                 </div>
                 <div className='flex flex-shrink-0 items-center gap-[8px]'>
                   {supportsToolControl && !(isMcpTool && isMcpToolUnavailable(tool)) && (

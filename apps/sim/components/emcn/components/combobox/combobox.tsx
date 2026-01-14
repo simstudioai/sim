@@ -256,6 +256,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
           customOnSelect()
           setOpen(false)
           setHighlightedIndex(-1)
+          setSearchQuery('')
           return
         }
 
@@ -269,6 +270,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
           onChange?.(selectedValue)
           setOpen(false)
           setHighlightedIndex(-1)
+          setSearchQuery('')
           if (editable && inputRef.current) {
             inputRef.current.blur()
           }
@@ -312,6 +314,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
         if (!activeElement || (!isInContainer && !isInDropdown && !isSearchInput)) {
           setOpen(false)
           setHighlightedIndex(-1)
+          setSearchQuery('')
         }
       }, 150)
     }, [])
@@ -326,6 +329,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
         if (e.key === 'Escape') {
           setOpen(false)
           setHighlightedIndex(-1)
+          setSearchQuery('')
           if (editable && inputRef.current) {
             inputRef.current.blur()
           }
