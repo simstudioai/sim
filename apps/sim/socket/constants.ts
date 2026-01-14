@@ -16,6 +16,8 @@ export const BLOCKS_OPERATIONS = {
   BATCH_TOGGLE_ENABLED: 'batch-toggle-enabled',
   BATCH_TOGGLE_HANDLES: 'batch-toggle-handles',
   BATCH_UPDATE_PARENT: 'batch-update-parent',
+  GROUP_BLOCKS: 'group-blocks',
+  UNGROUP_BLOCKS: 'ungroup-blocks',
 } as const
 
 export type BlocksOperation = (typeof BLOCKS_OPERATIONS)[keyof typeof BLOCKS_OPERATIONS]
@@ -87,6 +89,8 @@ export const UNDO_REDO_OPERATIONS = {
   APPLY_DIFF: 'apply-diff',
   ACCEPT_DIFF: 'accept-diff',
   REJECT_DIFF: 'reject-diff',
+  GROUP_BLOCKS: 'group-blocks',
+  UNGROUP_BLOCKS: 'ungroup-blocks',
 } as const
 
 export type UndoRedoOperation = (typeof UNDO_REDO_OPERATIONS)[keyof typeof UNDO_REDO_OPERATIONS]

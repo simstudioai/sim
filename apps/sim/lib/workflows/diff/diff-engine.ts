@@ -1174,5 +1174,6 @@ export function stripWorkflowDiffMarkers(state: WorkflowState): WorkflowState {
     edges: structuredClone(state.edges || []),
     loops: structuredClone(state.loops || {}),
     parallels: structuredClone(state.parallels || {}),
+    groups: structuredClone(state.groups || {}),
   }
 }

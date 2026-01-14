@@ -95,6 +95,7 @@ const initialState = {
   edges: [],
   loops: {},
   parallels: {},
+  groups: {},
   lastSaved: undefined,
   deploymentStatuses: {},
   needsRedeployment: false,
@@ -577,6 +578,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           edges: state.edges,
           loops: state.loops,
           parallels: state.parallels,
+          groups: state.groups,
           lastSaved: state.lastSaved,
           deploymentStatuses: state.deploymentStatuses,
           needsRedeployment: state.needsRedeployment,
@@ -597,6 +599,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             Object.keys(workflowState.parallels || {}).length > 0
               ? workflowState.parallels
               : generateParallelBlocks(nextBlocks)
+          const nextGroups = workflowState.groups || state.groups
 
           return {
             ...state,
@@ -604,6 +607,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             edges: nextEdges,
             loops: nextLoops,
             parallels: nextParallels,
+            groups: nextGroups,
             deploymentStatuses: workflowState.deploymentStatuses || state.deploymentStatuses,
             needsRedeployment:
               workflowState.needsRedeployment !== undefined
@@ -1332,6 +1336,135 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
       getDragStartPosition: () => {
         return get().dragStartPosition || null
+      },
+
+      groupBlocks: (blockIds: string[], groupId?: string) => {
+        if (blockIds.length === 0) return ''
+
+        const newGroupId = groupId || crypto.randomUUID()
+        const currentGroups = get().groups || {}
+        const currentBlocks = get().blocks
+
+        // Remove blocks from any existing groups they might be in
+        const updatedGroups = { ...currentGroups }
+        for (const gId of Object.keys(updatedGroups)) {
+          updatedGroups[gId] = {
+            ...updatedGroups[gId],
+            blockIds: updatedGroups[gId].blockIds.filter((bid) => !blockIds.includes(bid)),
+          }
+          // Remove empty groups
+          if (updatedGroups[gId].blockIds.length === 0) {
+            delete updatedGroups[gId]
+          }
+        }
+
+        // Create the new group
+        updatedGroups[newGroupId] = {
+          id: newGroupId,
+          blockIds: [...blockIds],
+        }
+
+        // Update blocks with the new groupId
+        const newBlocks = { ...currentBlocks }
+        for (const blockId of blockIds) {
+          if (newBlocks[blockId]) {
+            newBlocks[blockId] = {
+              ...newBlocks[blockId],
+              data: {
+                ...newBlocks[blockId].data,
+                groupId: newGroupId,
+              },
+            }
+          }
+        }
+
+        set({
+          blocks: newBlocks,
+          groups: updatedGroups,
+        })
+
+        get().updateLastSaved()
+        logger.info('Created block group', { groupId: newGroupId, blockCount: blockIds.length })
+        return newGroupId
+      },
+
+      ungroupBlocks: (groupId: string) => {
+        const currentGroups = get().groups || {}
+        const currentBlocks = get().blocks
+        const group = currentGroups[groupId]
+
+        if (!group) {
+          logger.warn('Attempted to ungroup non-existent group', { groupId })
+          return []
+        }
+
+        const blockIds = [...group.blockIds]
+        const parentGroupId = group.parentGroupId
+
+        // Remove the group
+        const updatedGroups = { ...currentGroups }
+        delete updatedGroups[groupId]
+
+        // Update blocks - remove groupId or assign to parent group
+        const newBlocks = { ...currentBlocks }
+        for (const blockId of blockIds) {
+          if (newBlocks[blockId]) {
+            const newData = { ...newBlocks[blockId].data }
+            if (parentGroupId) {
+              newData.groupId = parentGroupId
+            } else {
+              delete newData.groupId
+            }
+            newBlocks[blockId] = {
+              ...newBlocks[blockId],
+              data: newData,
+            }
+          }
+        }
+
+        // If there's a parent group, add the blocks to it
+        if (parentGroupId && updatedGroups[parentGroupId]) {
+          updatedGroups[parentGroupId] = {
+            ...updatedGroups[parentGroupId],
+            blockIds: [...updatedGroups[parentGroupId].blockIds, ...blockIds],
+          }
+        }
+
+        set({
+          blocks: newBlocks,
+          groups: updatedGroups,
+        })
+
+        get().updateLastSaved()
+        logger.info('Ungrouped blocks', { groupId, blockCount: blockIds.length })
+        return blockIds
+      },
+
+      getGroupBlockIds: (groupId: string, recursive = false) => {
+        const groups = get().groups || {}
+        const group = groups[groupId]
+
+        if (!group) return []
+
+        if (!recursive) {
+          return [...group.blockIds]
+        }
+
+        // Recursively get all block IDs, including from nested groups
+        const allBlockIds: string[] = [...group.blockIds]
+
+        // Find child groups (groups whose parentGroupId is this group)
+        for (const g of Object.values(groups)) {
+          if (g.parentGroupId === groupId) {
+            allBlockIds.push(...get().getGroupBlockIds(g.id, true))
+          }
+        }
+
+        return allBlockIds
+      },
+
+      getGroups: () => {
+        return get().groups || {}
       },
     }),
     { name: 'workflow-store' }

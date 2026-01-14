@@ -22,7 +22,9 @@ import {
   type BatchToggleHandlesOperation,
   type BatchUpdateParentOperation,
   createOperationEntry,
+  type GroupBlocksOperation,
   runWithUndoRedoRecordingSuspended,
+  type UngroupBlocksOperation,
   type UpdateParentOperation,
   useUndoRedoStore,
 } from '@/stores/undo-redo'
@@ -874,6 +876,46 @@ export function useUndoRedo() {
           })
           break
         }
+        case UNDO_REDO_OPERATIONS.GROUP_BLOCKS: {
+          // Undoing group = ungroup (inverse is ungroup operation)
+          const inverseOp = entry.inverse as unknown as UngroupBlocksOperation
+          const { groupId } = inverseOp.data
+
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: BLOCKS_OPERATIONS.UNGROUP_BLOCKS,
+              target: OPERATION_TARGETS.BLOCKS,
+              payload: { groupId, blockIds: inverseOp.data.blockIds },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          workflowStore.ungroupBlocks(groupId)
+          logger.debug('Undid group blocks', { groupId })
+          break
+        }
+        case UNDO_REDO_OPERATIONS.UNGROUP_BLOCKS: {
+          // Undoing ungroup = re-group (inverse is group operation)
+          const inverseOp = entry.inverse as unknown as GroupBlocksOperation
+          const { groupId, blockIds } = inverseOp.data
+
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: BLOCKS_OPERATIONS.GROUP_BLOCKS,
+              target: OPERATION_TARGETS.BLOCKS,
+              payload: { groupId, blockIds },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          workflowStore.groupBlocks(blockIds, groupId)
+          logger.debug('Undid ungroup blocks', { groupId })
+          break
+        }
         case UNDO_REDO_OPERATIONS.APPLY_DIFF: {
           const applyDiffInverse = entry.inverse as any
           const { baselineSnapshot } = applyDiffInverse.data
@@ -1482,6 +1524,46 @@ export function useUndoRedo() {
           })
           break
         }
+        case UNDO_REDO_OPERATIONS.GROUP_BLOCKS: {
+          // Redo group = group again
+          const groupOp = entry.operation as GroupBlocksOperation
+          const { groupId, blockIds } = groupOp.data
+
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: BLOCKS_OPERATIONS.GROUP_BLOCKS,
+              target: OPERATION_TARGETS.BLOCKS,
+              payload: { groupId, blockIds },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          workflowStore.groupBlocks(blockIds, groupId)
+          logger.debug('Redid group blocks', { groupId })
+          break
+        }
+        case UNDO_REDO_OPERATIONS.UNGROUP_BLOCKS: {
+          // Redo ungroup = ungroup again
+          const ungroupOp = entry.operation as UngroupBlocksOperation
+          const { groupId } = ungroupOp.data
+
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: BLOCKS_OPERATIONS.UNGROUP_BLOCKS,
+              target: OPERATION_TARGETS.BLOCKS,
+              payload: { groupId, blockIds: ungroupOp.data.blockIds },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          workflowStore.ungroupBlocks(groupId)
+          logger.debug('Redid ungroup blocks', { groupId })
+          break
+        }
         case UNDO_REDO_OPERATIONS.APPLY_DIFF: {
           // Redo apply-diff means re-applying the proposed state with diff markers
           const applyDiffOp = entry.operation as any
@@ -1793,6 +1875,66 @@ export function useUndoRedo() {
     [activeWorkflowId, userId, undoRedoStore]
   )
 
+  const recordGroupBlocks = useCallback(
+    (blockIds: string[], groupId: string) => {
+      if (!activeWorkflowId || blockIds.length === 0) return
+
+      const operation: GroupBlocksOperation = {
+        id: crypto.randomUUID(),
+        type: UNDO_REDO_OPERATIONS.GROUP_BLOCKS,
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: { groupId, blockIds },
+      }
+
+      const inverse: UngroupBlocksOperation = {
+        id: crypto.randomUUID(),
+        type: UNDO_REDO_OPERATIONS.UNGROUP_BLOCKS,
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: { groupId, blockIds },
+      }
+
+      const entry = createOperationEntry(operation, inverse)
+      undoRedoStore.push(activeWorkflowId, userId, entry)
+
+      logger.debug('Recorded group blocks', { groupId, blockCount: blockIds.length })
+    },
+    [activeWorkflowId, userId, undoRedoStore]
+  )
+
+  const recordUngroupBlocks = useCallback(
+    (groupId: string, blockIds: string[], parentGroupId?: string) => {
+      if (!activeWorkflowId || blockIds.length === 0) return
+
+      const operation: UngroupBlocksOperation = {
+        id: crypto.randomUUID(),
+        type: UNDO_REDO_OPERATIONS.UNGROUP_BLOCKS,
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: { groupId, blockIds, parentGroupId },
+      }
+
+      const inverse: GroupBlocksOperation = {
+        id: crypto.randomUUID(),
+        type: UNDO_REDO_OPERATIONS.GROUP_BLOCKS,
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: { groupId, blockIds },
+      }
+
+      const entry = createOperationEntry(operation, inverse)
+      undoRedoStore.push(activeWorkflowId, userId, entry)
+
+      logger.debug('Recorded ungroup blocks', { groupId, blockCount: blockIds.length })
+    },
+    [activeWorkflowId, userId, undoRedoStore]
+  )
+
   return {
     recordBatchAddBlocks,
     recordBatchRemoveBlocks,
@@ -1806,6 +1948,8 @@ export function useUndoRedo() {
     recordApplyDiff,
     recordAcceptDiff,
     recordRejectDiff,
+    recordGroupBlocks,
+    recordUngroupBlocks,
     undo,
     redo,
     getStackSizes,

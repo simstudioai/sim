@@ -424,6 +424,35 @@ export function useCollaborativeWorkflow() {
               logger.info('Successfully applied batch-update-parent from remote user')
               break
             }
+            case BLOCKS_OPERATIONS.GROUP_BLOCKS: {
+              const { blockIds, groupId } = payload
+              logger.info('Received group-blocks from remote user', {
+                userId,
+                groupId,
+                blockCount: (blockIds || []).length,
+              })
+
+              if (blockIds && blockIds.length > 0 && groupId) {
+                workflowStore.groupBlocks(blockIds, groupId)
+              }
+
+              logger.info('Successfully applied group-blocks from remote user')
+              break
+            }
+            case BLOCKS_OPERATIONS.UNGROUP_BLOCKS: {
+              const { groupId } = payload
+              logger.info('Received ungroup-blocks from remote user', {
+                userId,
+                groupId,
+              })
+
+              if (groupId) {
+                workflowStore.ungroupBlocks(groupId)
+              }
+
+              logger.info('Successfully applied ungroup-blocks from remote user')
+              break
+            }
           }
         }
       } catch (error) {
@@ -1584,6 +1613,84 @@ export function useCollaborativeWorkflow() {
     ]
   )
 
+  const collaborativeGroupBlocks = useCallback(
+    (blockIds: string[]) => {
+      if (!isInActiveRoom()) {
+        logger.debug('Skipping group blocks - not in active workflow')
+        return null
+      }
+
+      if (blockIds.length < 2) {
+        logger.debug('Cannot group fewer than 2 blocks')
+        return null
+      }
+
+      const groupId = crypto.randomUUID()
+
+      const operationId = crypto.randomUUID()
+
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: BLOCKS_OPERATIONS.GROUP_BLOCKS,
+          target: OPERATION_TARGETS.BLOCKS,
+          payload: { blockIds, groupId },
+        },
+        workflowId: activeWorkflowId || '',
+        userId: session?.user?.id || 'unknown',
+      })
+
+      workflowStore.groupBlocks(blockIds, groupId)
+
+      undoRedo.recordGroupBlocks(blockIds, groupId)
+
+      logger.info('Grouped blocks collaboratively', { groupId, blockCount: blockIds.length })
+      return groupId
+    },
+    [addToQueue, activeWorkflowId, session?.user?.id, isInActiveRoom, workflowStore, undoRedo]
+  )
+
+  const collaborativeUngroupBlocks = useCallback(
+    (groupId: string) => {
+      if (!isInActiveRoom()) {
+        logger.debug('Skipping ungroup blocks - not in active workflow')
+        return []
+      }
+
+      const groups = workflowStore.getGroups()
+      const group = groups[groupId]
+
+      if (!group) {
+        logger.warn('Cannot ungroup - group not found', { groupId })
+        return []
+      }
+
+      const blockIds = [...group.blockIds]
+      const parentGroupId = group.parentGroupId
+
+      const operationId = crypto.randomUUID()
+
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: BLOCKS_OPERATIONS.UNGROUP_BLOCKS,
+          target: OPERATION_TARGETS.BLOCKS,
+          payload: { groupId, blockIds, parentGroupId },
+        },
+        workflowId: activeWorkflowId || '',
+        userId: session?.user?.id || 'unknown',
+      })
+
+      workflowStore.ungroupBlocks(groupId)
+
+      undoRedo.recordUngroupBlocks(groupId, blockIds, parentGroupId)
+
+      logger.info('Ungrouped blocks collaboratively', { groupId, blockCount: blockIds.length })
+      return blockIds
+    },
+    [addToQueue, activeWorkflowId, session?.user?.id, isInActiveRoom, workflowStore, undoRedo]
+  )
+
   return {
     // Connection status
     isConnected,
@@ -1621,6 +1728,10 @@ export function useCollaborativeWorkflow() {
     // Unified iteration operations
     collaborativeUpdateIterationCount,
     collaborativeUpdateIterationCollection,
+
+    // Collaborative block group operations
+    collaborativeGroupBlocks,
+    collaborativeUngroupBlocks,
 
     // Direct access to stores for non-collaborative operations
     workflowStore,

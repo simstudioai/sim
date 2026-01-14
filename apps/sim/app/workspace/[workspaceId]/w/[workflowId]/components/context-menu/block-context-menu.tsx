@@ -29,6 +29,8 @@ export function BlockContextMenu({
   onRemoveFromSubflow,
   onOpenEditor,
   onRename,
+  onGroupBlocks,
+  onUngroupBlocks,
   hasClipboard = false,
   showRemoveFromSubflow = false,
   disableEdit = false,
@@ -46,6 +48,14 @@ export function BlockContextMenu({
     isSingleBlock && (selectedBlocks[0]?.type === 'loop' || selectedBlocks[0]?.type === 'parallel')
 
   const canRemoveFromSubflow = showRemoveFromSubflow && !hasStarterBlock
+
+  // Check if we can group: need at least 2 blocks selected
+  const canGroup = selectedBlocks.length >= 2
+
+  // Check if we can ungroup: at least one selected block must be in a group
+  // Ungrouping will ungroup all blocks in that group (the entire group, not just selected blocks)
+  const hasGroupedBlock = selectedBlocks.some((b) => !!b.groupId)
+  const canUngroup = hasGroupedBlock
 
   const getToggleEnabledLabel = () => {
     if (allEnabled) return 'Disable'
@@ -138,6 +148,31 @@ export function BlockContextMenu({
             }}
           >
             Remove from Subflow
+          </PopoverItem>
+        )}
+
+        {/* Block group actions */}
+        {(canGroup || canUngroup) && <PopoverDivider />}
+        {canGroup && (
+          <PopoverItem
+            disabled={disableEdit}
+            onClick={() => {
+              onGroupBlocks()
+              onClose()
+            }}
+          >
+            Group Blocks
+          </PopoverItem>
+        )}
+        {canUngroup && (
+          <PopoverItem
+            disabled={disableEdit}
+            onClick={() => {
+              onUngroupBlocks()
+              onClose()
+            }}
+          >
+            Ungroup
           </PopoverItem>
         )}
 

@@ -221,6 +221,30 @@ export const BatchUpdateParentSchema = z.object({
   operationId: z.string().optional(),
 })
 
+export const GroupBlocksSchema = z.object({
+  operation: z.literal(BLOCKS_OPERATIONS.GROUP_BLOCKS),
+  target: z.literal(OPERATION_TARGETS.BLOCKS),
+  payload: z.object({
+    blockIds: z.array(z.string()),
+    groupId: z.string(),
+    name: z.string().optional(),
+  }),
+  timestamp: z.number(),
+  operationId: z.string().optional(),
+})
+
+export const UngroupBlocksSchema = z.object({
+  operation: z.literal(BLOCKS_OPERATIONS.UNGROUP_BLOCKS),
+  target: z.literal(OPERATION_TARGETS.BLOCKS),
+  payload: z.object({
+    groupId: z.string(),
+    blockIds: z.array(z.string()),
+    parentGroupId: z.string().optional(),
+  }),
+  timestamp: z.number(),
+  operationId: z.string().optional(),
+})
+
 export const WorkflowOperationSchema = z.union([
   BlockOperationSchema,
   BatchPositionUpdateSchema,
@@ -229,6 +253,8 @@ export const WorkflowOperationSchema = z.union([
   BatchToggleEnabledSchema,
   BatchToggleHandlesSchema,
   BatchUpdateParentSchema,
+  GroupBlocksSchema,
+  UngroupBlocksSchema,
   EdgeOperationSchema,
   BatchAddEdgesSchema,
   BatchRemoveEdgesSchema,

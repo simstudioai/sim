@@ -63,6 +63,9 @@ export interface BlockData {
 
   // Container node type (for ReactFlow node type determination)
   type?: string
+
+  // Block group membership
+  groupId?: string
 }
 
 export interface BlockLayoutState {
@@ -144,6 +147,22 @@ export interface Variable {
   value: unknown
 }
 
+/**
+ * Represents a group of blocks on the canvas.
+ * Groups can be nested (a group can contain other groups via block membership).
+ * When a block is in a group, it stores the groupId in its data.
+ */
+export interface BlockGroup {
+  /** Unique identifier for the group */
+  id: string
+  /** Optional display name for the group */
+  name?: string
+  /** Block IDs that are direct members of this group */
+  blockIds: string[]
+  /** Parent group ID if this group is nested inside another group */
+  parentGroupId?: string
+}
+
 export interface DragStartPosition {
   id: string
   x: number
@@ -157,6 +176,8 @@ export interface WorkflowState {
   lastSaved?: number
   loops: Record<string, Loop>
   parallels: Record<string, Parallel>
+  /** Block groups for organizing blocks on the canvas */
+  groups?: Record<string, BlockGroup>
   lastUpdate?: number
   metadata?: {
     name?: string
@@ -243,6 +264,28 @@ export interface WorkflowActions {
     workflowState: WorkflowState,
     options?: { updateLastSaved?: boolean }
   ) => void
+
+  // Block group operations
+  /**
+   * Groups the specified blocks together.
+   * If any blocks are already in a group, they are removed from their current group first.
+   * @returns The new group ID
+   */
+  groupBlocks: (blockIds: string[], groupId?: string) => string
+  /**
+   * Ungroups a group, removing it and releasing its blocks.
+   * If the group has a parent group, blocks are moved to the parent group.
+   * @returns The block IDs that were in the group
+   */
+  ungroupBlocks: (groupId: string) => string[]
+  /**
+   * Gets all block IDs in a group, including blocks in nested groups (recursive).
+   */
+  getGroupBlockIds: (groupId: string, recursive?: boolean) => string[]
+  /**
+   * Gets all groups in the workflow.
+   */
+  getGroups: () => Record<string, BlockGroup>
 }
 
 export type WorkflowStore = WorkflowState & WorkflowActions

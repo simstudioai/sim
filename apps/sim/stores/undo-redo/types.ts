@@ -126,6 +126,23 @@ export interface RejectDiffOperation extends BaseOperation {
   }
 }
 
+export interface GroupBlocksOperation extends BaseOperation {
+  type: typeof UNDO_REDO_OPERATIONS.GROUP_BLOCKS
+  data: {
+    groupId: string
+    blockIds: string[]
+  }
+}
+
+export interface UngroupBlocksOperation extends BaseOperation {
+  type: typeof UNDO_REDO_OPERATIONS.UNGROUP_BLOCKS
+  data: {
+    groupId: string
+    blockIds: string[]
+    parentGroupId?: string
+  }
+}
+
 export type Operation =
   | BatchAddBlocksOperation
   | BatchRemoveBlocksOperation
@@ -139,6 +156,8 @@ export type Operation =
   | ApplyDiffOperation
   | AcceptDiffOperation
   | RejectDiffOperation
+  | GroupBlocksOperation
+  | UngroupBlocksOperation
 
 export interface OperationEntry {
   id: string

@@ -810,6 +810,89 @@ async function handleBlocksOperationTx(
       break
     }
 
+    case BLOCKS_OPERATIONS.GROUP_BLOCKS: {
+      const { blockIds, groupId } = payload
+      if (!Array.isArray(blockIds) || blockIds.length === 0 || !groupId) {
+        logger.debug('Invalid payload for group blocks operation')
+        return
+      }
+
+      logger.info(`Grouping ${blockIds.length} blocks into group ${groupId} in workflow ${workflowId}`)
+
+      for (const blockId of blockIds) {
+        const [currentBlock] = await tx
+          .select({ data: workflowBlocks.data })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        if (!currentBlock) {
+          logger.warn(`Block ${blockId} not found for grouping`)
+          continue
+        }
+
+        const currentData = currentBlock?.data || {}
+        const updatedData = { ...currentData, groupId }
+
+        await tx
+          .update(workflowBlocks)
+          .set({
+            data: updatedData,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+      }
+
+      logger.debug(`Grouped ${blockIds.length} blocks into group ${groupId}`)
+      break
+    }
+
+    case BLOCKS_OPERATIONS.UNGROUP_BLOCKS: {
+      const { groupId, blockIds, parentGroupId } = payload
+      if (!groupId || !Array.isArray(blockIds)) {
+        logger.debug('Invalid payload for ungroup blocks operation')
+        return
+      }
+
+      logger.info(`Ungrouping ${blockIds.length} blocks from group ${groupId} in workflow ${workflowId}`)
+
+      for (const blockId of blockIds) {
+        const [currentBlock] = await tx
+          .select({ data: workflowBlocks.data })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        if (!currentBlock) {
+          logger.warn(`Block ${blockId} not found for ungrouping`)
+          continue
+        }
+
+        const currentData = currentBlock?.data || {}
+        let updatedData: Record<string, any>
+
+        if (parentGroupId) {
+          // Move to parent group
+          updatedData = { ...currentData, groupId: parentGroupId }
+        } else {
+          // Remove from group entirely
+          const { groupId: _removed, ...restData } = currentData
+          updatedData = restData
+        }
+
+        await tx
+          .update(workflowBlocks)
+          .set({
+            data: updatedData,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+      }
+
+      logger.debug(`Ungrouped ${blockIds.length} blocks from group ${groupId}`)
+      break
+    }
+
     default:
       throw new Error(`Unsupported blocks operation: ${operation}`)
   }

@@ -6,8 +6,10 @@ import type {
   BatchRemoveBlocksOperation,
   BatchRemoveEdgesOperation,
   BatchUpdateParentOperation,
+  GroupBlocksOperation,
   Operation,
   OperationEntry,
+  UngroupBlocksOperation,
 } from '@/stores/undo-redo/types'
 
 export function createOperationEntry(operation: Operation, inverse: Operation): OperationEntry {
@@ -163,6 +165,30 @@ export function createInverseOperation(operation: Operation): Operation {
           previousStates: operation.data.previousStates,
         },
       }
+
+    case UNDO_REDO_OPERATIONS.GROUP_BLOCKS: {
+      const op = operation as GroupBlocksOperation
+      return {
+        ...operation,
+        type: UNDO_REDO_OPERATIONS.UNGROUP_BLOCKS,
+        data: {
+          groupId: op.data.groupId,
+          blockIds: op.data.blockIds,
+        },
+      } as UngroupBlocksOperation
+    }
+
+    case UNDO_REDO_OPERATIONS.UNGROUP_BLOCKS: {
+      const op = operation as UngroupBlocksOperation
+      return {
+        ...operation,
+        type: UNDO_REDO_OPERATIONS.GROUP_BLOCKS,
+        data: {
+          groupId: op.data.groupId,
+          blockIds: op.data.blockIds,
+        },
+      } as GroupBlocksOperation
+    }
 
     default: {
       const exhaustiveCheck: never = operation

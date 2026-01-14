@@ -264,12 +264,14 @@ const WorkflowContent = React.memo(() => {
   const canUndo = undoRedoStack.undo.length > 0
   const canRedo = undoRedoStack.redo.length > 0
 
-  const { updateNodeDimensions, setDragStartPosition, getDragStartPosition } = useWorkflowStore(
-    useShallow((state) => ({
-      updateNodeDimensions: state.updateNodeDimensions,
-      setDragStartPosition: state.setDragStartPosition,
-      getDragStartPosition: state.getDragStartPosition,
-    }))
+  const { updateNodeDimensions, setDragStartPosition, getDragStartPosition, getGroups } =
+    useWorkflowStore(
+      useShallow((state) => ({
+        updateNodeDimensions: state.updateNodeDimensions,
+        setDragStartPosition: state.setDragStartPosition,
+        getDragStartPosition: state.getDragStartPosition,
+        getGroups: state.getGroups,
+      }))
   )
 
   const copilotCleanup = useCopilotStore((state) => state.cleanup)
@@ -458,6 +460,8 @@ const WorkflowContent = React.memo(() => {
     collaborativeBatchRemoveBlocks,
     collaborativeBatchToggleBlockEnabled,
     collaborativeBatchToggleBlockHandles,
+    collaborativeGroupBlocks,
+    collaborativeUngroupBlocks,
     undo,
     redo,
   } = useCollaborativeWorkflow()
@@ -781,6 +785,21 @@ const WorkflowContent = React.memo(() => {
     const blockIds = contextMenuBlocks.map((block) => block.id)
     collaborativeBatchToggleBlockHandles(blockIds)
   }, [contextMenuBlocks, collaborativeBatchToggleBlockHandles])
+
+  const handleContextGroupBlocks = useCallback(() => {
+    const blockIds = contextMenuBlocks.map((block) => block.id)
+    if (blockIds.length >= 2) {
+      collaborativeGroupBlocks(blockIds)
+    }
+  }, [contextMenuBlocks, collaborativeGroupBlocks])
+
+  const handleContextUngroupBlocks = useCallback(() => {
+    // Find the first block with a groupId and ungroup that entire group
+    const groupedBlock = contextMenuBlocks.find((block) => block.groupId)
+    if (groupedBlock?.groupId) {
+      collaborativeUngroupBlocks(groupedBlock.groupId)
+    }
+  }, [contextMenuBlocks, collaborativeUngroupBlocks])
 
   const handleContextRemoveFromSubflow = useCallback(() => {
     const blocksToRemove = contextMenuBlocks.filter(
@@ -2060,16 +2079,56 @@ const WorkflowContent = React.memo(() => {
       window.removeEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
   }, [blocks, edgesForDisplay, getNodeAbsolutePosition, collaborativeBatchUpdateParent])
 
-  /** Handles node changes - applies changes and resolves parent-child selection conflicts. */
+  /** Handles node changes - applies changes and resolves parent-child selection conflicts.
+   *  Also expands selection to include all group members when a grouped block is selected.
+   */
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       setDisplayNodes((nds) => {
-        const updated = applyNodeChanges(changes, nds)
+        let updated = applyNodeChanges(changes, nds)
         const hasSelectionChange = changes.some((c) => c.type === 'select')
-        return hasSelectionChange ? resolveParentChildSelectionConflicts(updated, blocks) : updated
+
+        if (hasSelectionChange) {
+          // Expand selection to include all group members
+          const groups = getGroups()
+          const selectedNodeIds = new Set(updated.filter((n) => n.selected).map((n) => n.id))
+          const groupsToInclude = new Set<string>()
+
+          // Find all groups that have at least one selected member
+          selectedNodeIds.forEach((nodeId) => {
+            const groupId = blocks[nodeId]?.data?.groupId
+            if (groupId && groups[groupId]) {
+              groupsToInclude.add(groupId)
+            }
+          })
+
+          // Add all blocks from those groups to the selection
+          if (groupsToInclude.size > 0) {
+            const expandedNodeIds = new Set(selectedNodeIds)
+            groupsToInclude.forEach((groupId) => {
+              const group = groups[groupId]
+              if (group) {
+                group.blockIds.forEach((blockId) => expandedNodeIds.add(blockId))
+              }
+            })
+
+            // Update nodes to include expanded selection
+            if (expandedNodeIds.size > selectedNodeIds.size) {
+              updated = updated.map((n) => ({
+                ...n,
+                selected: expandedNodeIds.has(n.id) ? true : n.selected,
+              }))
+            }
+          }
+
+          // Resolve parent-child conflicts
+          updated = resolveParentChildSelectionConflicts(updated, blocks)
+        }
+
+        return updated
       })
     },
-    [blocks]
+    [blocks, getGroups]
   )
 
   /**
@@ -3168,19 +3227,56 @@ const WorkflowContent = React.memo(() => {
 
   /**
    * Handles node click to select the node in ReactFlow.
+   * When clicking on a grouped block, also selects all other blocks in the group.
    * Parent-child conflict resolution happens automatically in onNodesChange.
    */
   const handleNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
       const isMultiSelect = event.shiftKey || event.metaKey || event.ctrlKey
-      setNodes((nodes) =>
-        nodes.map((n) => ({
+      const groups = getGroups()
+
+      setNodes((nodes) => {
+        // First, calculate the base selection
+        let updatedNodes = nodes.map((n) => ({
           ...n,
           selected: isMultiSelect ? (n.id === node.id ? true : n.selected) : n.id === node.id,
         }))
-      )
+
+        // Expand selection to include all group members
+        const selectedNodeIds = new Set(updatedNodes.filter((n) => n.selected).map((n) => n.id))
+        const groupsToInclude = new Set<string>()
+
+        // Find all groups that have at least one selected member
+        selectedNodeIds.forEach((nodeId) => {
+          const groupId = blocks[nodeId]?.data?.groupId
+          if (groupId && groups[groupId]) {
+            groupsToInclude.add(groupId)
+          }
+        })
+
+        // Add all blocks from those groups to the selection
+        if (groupsToInclude.size > 0) {
+          const expandedNodeIds = new Set(selectedNodeIds)
+          groupsToInclude.forEach((groupId) => {
+            const group = groups[groupId]
+            if (group) {
+              group.blockIds.forEach((blockId) => expandedNodeIds.add(blockId))
+            }
+          })
+
+          // Update nodes with expanded selection
+          if (expandedNodeIds.size > selectedNodeIds.size) {
+            updatedNodes = updatedNodes.map((n) => ({
+              ...n,
+              selected: expandedNodeIds.has(n.id) ? true : n.selected,
+            }))
+          }
+        }
+
+        return updatedNodes
+      })
     },
-    [setNodes]
+    [setNodes, blocks, getGroups]
   )
 
   /** Handles edge selection with container context tracking and Shift-click multi-selection. */
@@ -3415,6 +3511,8 @@ const WorkflowContent = React.memo(() => {
               onRemoveFromSubflow={handleContextRemoveFromSubflow}
               onOpenEditor={handleContextOpenEditor}
               onRename={handleContextRename}
+              onGroupBlocks={handleContextGroupBlocks}
+              onUngroupBlocks={handleContextUngroupBlocks}
               hasClipboard={hasClipboard()}
               showRemoveFromSubflow={contextMenuBlocks.some(
                 (b) => b.parentId && (b.parentType === 'loop' || b.parentType === 'parallel')

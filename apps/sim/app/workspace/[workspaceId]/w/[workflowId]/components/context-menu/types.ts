@@ -24,6 +24,8 @@ export interface ContextMenuBlockInfo {
   parentId?: string
   /** Parent type ('loop' | 'parallel') if nested */
   parentType?: string
+  /** Group ID if block is in a group */
+  groupId?: string
 }
 
 /**
@@ -50,6 +52,8 @@ export interface BlockContextMenuProps {
   onRemoveFromSubflow: () => void
   onOpenEditor: () => void
   onRename: () => void
+  onGroupBlocks: () => void
+  onUngroupBlocks: () => void
   /** Whether clipboard has content for pasting */
   hasClipboard?: boolean
   /** Whether remove from subflow option should be shown */

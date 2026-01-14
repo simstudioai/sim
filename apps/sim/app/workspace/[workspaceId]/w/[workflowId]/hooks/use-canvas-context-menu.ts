@@ -35,6 +35,7 @@ export function useCanvasContextMenu({ blocks, getNodes }: UseCanvasContextMenuP
         const block = blocks[n.id]
         const parentId = block?.data?.parentId
         const parentType = parentId ? blocks[parentId]?.type : undefined
+        const groupId = block?.data?.groupId
         return {
           id: n.id,
           type: block?.type || '',
@@ -42,6 +43,7 @@ export function useCanvasContextMenu({ blocks, getNodes }: UseCanvasContextMenuP
           horizontalHandles: block?.horizontalHandles ?? false,
           parentId,
           parentType,
+          groupId,
         }
       }),
     [blocks]
@@ -49,14 +51,22 @@ export function useCanvasContextMenu({ blocks, getNodes }: UseCanvasContextMenuP
 
   /**
    * Handle right-click on a node (block)
+   * If the node is part of a multiselection, include all selected nodes.
+   * If the node is not selected, just use that node.
    */
   const handleNodeContextMenu = useCallback(
     (event: React.MouseEvent, node: Node) => {
       event.preventDefault()
       event.stopPropagation()
 
-      const selectedNodes = getNodes().filter((n) => n.selected)
-      const nodesToUse = selectedNodes.some((n) => n.id === node.id) ? selectedNodes : [node]
+      // Get all currently selected nodes
+      const allNodes = getNodes()
+      const selectedNodes = allNodes.filter((n) => n.selected)
+
+      // If the right-clicked node is already selected, use all selected nodes
+      // Otherwise, just use the right-clicked node
+      const isNodeSelected = selectedNodes.some((n) => n.id === node.id)
+      const nodesToUse = isNodeSelected && selectedNodes.length > 0 ? selectedNodes : [node]
 
       setPosition({ x: event.clientX, y: event.clientY })
       setSelectedBlocks(nodesToBlockInfos(nodesToUse))

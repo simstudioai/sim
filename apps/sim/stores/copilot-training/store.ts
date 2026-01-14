@@ -25,6 +25,7 @@ function captureWorkflowSnapshot(): WorkflowState {
     edges: rawState.edges || [],
     loops: rawState.loops || {},
     parallels: rawState.parallels || {},
+    groups: rawState.groups || {},
     lastSaved: Date.now(),
   }
 }
