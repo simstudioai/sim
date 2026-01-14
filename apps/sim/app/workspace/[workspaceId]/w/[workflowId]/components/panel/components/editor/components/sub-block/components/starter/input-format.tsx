@@ -1,5 +1,6 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Trash } from '@/components/emcn/icons/trash'
 import 'prismjs/components/prism-json'
 import Editor from 'react-simple-code-editor'
@@ -17,11 +18,26 @@ import {
 } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
+import {
+  isLikelyReferenceSegment,
+  SYSTEM_REFERENCE_PREFIXES,
+  splitReferenceSegment,
+} from '@/lib/workflows/sanitization/references'
+import {
+  checkEnvVarTrigger,
+  EnvVarDropdown,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
-import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import {
+  checkTagTrigger,
+  TagDropdown,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
+import { useTagSelection } from '@/hooks/kb/use-tag-selection'
+import { normalizeName } from '@/stores/workflows/utils'
 
 interface Field {
   id: string
@@ -81,6 +97,61 @@ const createDefaultField = (): Field => ({
  */
 const validateFieldName = (name: string): string => name.replace(/[\x00-\x1F"\\]/g, '').trim()
 
+/**
+ * Placeholder type for code highlighting
+ */
+interface CodePlaceholder {
+  placeholder: string
+  original: string
+  type: 'var' | 'env'
+}
+
+/**
+ * Creates a syntax highlighter function with custom reference and environment variable highlighting.
+ */
+const createHighlightFunction = (
+  shouldHighlightReference: (part: string) => boolean
+): ((codeToHighlight: string) => string) => {
+  return (codeToHighlight: string): string => {
+    const placeholders: CodePlaceholder[] = []
+    let processedCode = codeToHighlight
+
+    processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
+      const placeholder = `__ENV_VAR_${placeholders.length}__`
+      placeholders.push({ placeholder, original: match, type: 'env' })
+      return placeholder
+    })
+
+    processedCode = processedCode.replace(createReferencePattern(), (match) => {
+      if (shouldHighlightReference(match)) {
+        const placeholder = `__VAR_REF_${placeholders.length}__`
+        placeholders.push({ placeholder, original: match, type: 'var' })
+        return placeholder
+      }
+      return match
+    })
+
+    let highlightedCode = highlight(processedCode, languages.json, 'json')
+
+    placeholders.forEach(({ placeholder, original, type }) => {
+      if (type === 'env') {
+        highlightedCode = highlightedCode.replace(
+          placeholder,
+          `<span style="color: var(--brand-secondary);">${original}</span>`
+        )
+      } else if (type === 'var') {
+        const escaped = original.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        highlightedCode = highlightedCode.replace(
+          placeholder,
+          `<span style="color: var(--brand-secondary);">${escaped}</span>`
+        )
+      }
+    })
+
+    return highlightedCode
+  }
+}
+
 export function FieldFormat({
   blockId,
   subBlockId,
@@ -93,12 +164,67 @@ export function FieldFormat({
   showValue = false,
   valuePlaceholder = 'Enter default value',
 }: FieldFormatProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
   const [storeValue, setStoreValue] = useSubBlockValue<Field[]>(blockId, subBlockId)
   const valueInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement>>({})
   const nameInputRefs = useRef<Record<string, HTMLInputElement>>({})
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const nameOverlayRefs = useRef<Record<string, HTMLDivElement>>({})
+  const codeEditorRefs = useRef<Record<string, HTMLDivElement>>({})
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
+  const emitTagSelection = useTagSelection(blockId, subBlockId)
+
+  // State for code editor dropdowns (per field)
+  const [codeEditorDropdownState, setCodeEditorDropdownState] = useState<
+    Record<
+      string,
+      {
+        showTags: boolean
+        showEnvVars: boolean
+        searchTerm: string
+        cursorPosition: number
+        activeSourceBlockId: string | null
+      }
+    >
+  >({})
+
+  /**
+   * Determines whether a `<...>` segment should be highlighted as a reference.
+   */
+  const shouldHighlightReference = (part: string): boolean => {
+    if (!part.startsWith('<') || !part.endsWith('>')) {
+      return false
+    }
+
+    if (!isLikelyReferenceSegment(part)) {
+      return false
+    }
+
+    const split = splitReferenceSegment(part)
+    if (!split) {
+      return false
+    }
+
+    const reference = split.reference
+
+    if (!accessiblePrefixes) {
+      return true
+    }
+
+    const inner = reference.slice(1, -1)
+    const [prefix] = inner.split('.')
+    const normalizedPrefix = normalizeName(prefix)
+
+    if (SYSTEM_REFERENCE_PREFIXES.has(normalizedPrefix)) {
+      return true
+    }
+
+    return accessiblePrefixes.has(normalizedPrefix)
+  }
+
+  const highlightCode = createHighlightFunction(shouldHighlightReference)
 
   const inputController = useSubBlockInput({
     blockId,
@@ -327,9 +453,25 @@ export function FieldFormat({
       />
     )
 
-    if (field.type === 'object') {
+    // Code editor types with tag support
+    if (field.type === 'object' || field.type === 'array' || field.type === 'files') {
       const lineCount = fieldValue.split('\n').length
       const gutterWidth = calculateGutterWidth(lineCount)
+      const editorFieldKey = `code-${field.id}`
+      const dropdownState = codeEditorDropdownState[editorFieldKey] || {
+        showTags: false,
+        showEnvVars: false,
+        searchTerm: '',
+        cursorPosition: 0,
+        activeSourceBlockId: null,
+      }
+
+      const placeholders: Record<string, string> = {
+        object: '{\n  "key": "value"\n}',
+        array: '[\n  1, 2, 3\n]',
+        files:
+          '[\n  {\n    "data": "<base64>",\n    "type": "file",\n    "name": "document.pdf",\n    "mime": "application/pdf"\n  }\n]',
+      }
 
       const renderLineNumbers = () => {
         return Array.from({ length: lineCount }, (_, i) => (
@@ -343,106 +485,189 @@ export function FieldFormat({
         ))
       }
 
-      return (
-        <Code.Container className='min-h-[120px]'>
-          <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
-          <Code.Content paddingLeft={`${gutterWidth}px`}>
-            <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
-              {'{\n  "key": "value"\n}'}
-            </Code.Placeholder>
-            <Editor
-              value={fieldValue}
-              onValueChange={(newValue) => {
-                if (!isReadOnly) {
-                  updateField(field.id, 'value', newValue)
-                }
-              }}
-              highlight={(code) => highlight(code, languages.json, 'json')}
-              disabled={isReadOnly}
-              {...getCodeEditorProps({ disabled: isReadOnly })}
-            />
-          </Code.Content>
-        </Code.Container>
-      )
-    }
+      const handleCodeChange = (newValue: string) => {
+        if (isReadOnly) return
+        updateField(field.id, 'value', newValue)
 
-    if (field.type === 'array') {
-      const lineCount = fieldValue.split('\n').length
-      const gutterWidth = calculateGutterWidth(lineCount)
+        const editorContainer = codeEditorRefs.current[editorFieldKey]
+        const textarea = editorContainer?.querySelector('textarea')
+        if (textarea) {
+          const pos = textarea.selectionStart
+          const tagTrigger = checkTagTrigger(newValue, pos)
+          const envVarTrigger = checkEnvVarTrigger(newValue, pos)
 
-      const renderLineNumbers = () => {
-        return Array.from({ length: lineCount }, (_, i) => (
-          <div
-            key={i}
-            className='font-medium font-mono text-[var(--text-muted)] text-xs'
-            style={{ height: `${21}px`, lineHeight: `${21}px` }}
-          >
-            {i + 1}
-          </div>
-        ))
+          setCodeEditorDropdownState((prev) => ({
+            ...prev,
+            [editorFieldKey]: {
+              showTags: tagTrigger.show,
+              showEnvVars: envVarTrigger.show,
+              searchTerm: envVarTrigger.show ? envVarTrigger.searchTerm : '',
+              cursorPosition: pos,
+              activeSourceBlockId: tagTrigger.show ? dropdownState.activeSourceBlockId : null,
+            },
+          }))
+        }
+      }
+
+      const handleTagSelect = (newValue: string) => {
+        if (!isReadOnly) {
+          updateField(field.id, 'value', newValue)
+          emitTagSelection(newValue)
+        }
+        setCodeEditorDropdownState((prev) => ({
+          ...prev,
+          [editorFieldKey]: {
+            ...dropdownState,
+            showTags: false,
+            activeSourceBlockId: null,
+          },
+        }))
+        setTimeout(() => {
+          codeEditorRefs.current[editorFieldKey]?.querySelector('textarea')?.focus()
+        }, 0)
+      }
+
+      const handleEnvVarSelect = (newValue: string) => {
+        if (!isReadOnly) {
+          updateField(field.id, 'value', newValue)
+          emitTagSelection(newValue)
+        }
+        setCodeEditorDropdownState((prev) => ({
+          ...prev,
+          [editorFieldKey]: {
+            ...dropdownState,
+            showEnvVars: false,
+            searchTerm: '',
+          },
+        }))
+        setTimeout(() => {
+          codeEditorRefs.current[editorFieldKey]?.querySelector('textarea')?.focus()
+        }, 0)
+      }
+
+      const handleDrop = (e: React.DragEvent) => {
+        if (isReadOnly) return
+        e.preventDefault()
+        try {
+          const data = JSON.parse(e.dataTransfer.getData('application/json'))
+          if (data.type !== 'connectionBlock') return
+
+          const textarea = codeEditorRefs.current[editorFieldKey]?.querySelector('textarea')
+          const dropPosition = textarea?.selectionStart ?? fieldValue.length
+          const newValue = `${fieldValue.slice(0, dropPosition)}<${fieldValue.slice(dropPosition)}`
+
+          updateField(field.id, 'value', newValue)
+          const newCursorPosition = dropPosition + 1
+
+          setTimeout(() => {
+            if (textarea) {
+              textarea.focus()
+              textarea.selectionStart = newCursorPosition
+              textarea.selectionEnd = newCursorPosition
+
+              setCodeEditorDropdownState((prev) => ({
+                ...prev,
+                [editorFieldKey]: {
+                  showTags: true,
+                  showEnvVars: false,
+                  searchTerm: '',
+                  cursorPosition: newCursorPosition,
+                  activeSourceBlockId: data.connectionData?.sourceBlockId || null,
+                },
+              }))
+            }
+          }, 0)
+        } catch {
+          // Ignore drop errors
+        }
       }
 
       return (
-        <Code.Container className='min-h-[120px]'>
-          <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
-          <Code.Content paddingLeft={`${gutterWidth}px`}>
-            <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
-              {'[\n  1, 2, 3\n]'}
-            </Code.Placeholder>
-            <Editor
-              value={fieldValue}
-              onValueChange={(newValue) => {
-                if (!isReadOnly) {
-                  updateField(field.id, 'value', newValue)
-                }
-              }}
-              highlight={(code) => highlight(code, languages.json, 'json')}
-              disabled={isReadOnly}
-              {...getCodeEditorProps({ disabled: isReadOnly })}
-            />
-          </Code.Content>
-        </Code.Container>
-      )
-    }
-
-    if (field.type === 'files') {
-      const lineCount = fieldValue.split('\n').length
-      const gutterWidth = calculateGutterWidth(lineCount)
-
-      const renderLineNumbers = () => {
-        return Array.from({ length: lineCount }, (_, i) => (
-          <div
-            key={i}
-            className='font-medium font-mono text-[var(--text-muted)] text-xs'
-            style={{ height: `${21}px`, lineHeight: `${21}px` }}
-          >
-            {i + 1}
-          </div>
-        ))
-      }
-
-      return (
-        <Code.Container className='min-h-[120px]'>
-          <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
-          <Code.Content paddingLeft={`${gutterWidth}px`}>
-            <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
-              {
-                '[\n  {\n    "data": "<base64>",\n    "type": "file",\n    "name": "document.pdf",\n    "mime": "application/pdf"\n  }\n]'
-              }
-            </Code.Placeholder>
-            <Editor
-              value={fieldValue}
-              onValueChange={(newValue) => {
-                if (!isReadOnly) {
-                  updateField(field.id, 'value', newValue)
-                }
-              }}
-              highlight={(code) => highlight(code, languages.json, 'json')}
-              disabled={isReadOnly}
-              {...getCodeEditorProps({ disabled: isReadOnly })}
-            />
-          </Code.Content>
-        </Code.Container>
+        <div
+          ref={(el) => {
+            if (el) codeEditorRefs.current[editorFieldKey] = el
+          }}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleDrop}
+        >
+          <Code.Container className='min-h-[120px]'>
+            <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
+            <Code.Content paddingLeft={`${gutterWidth}px`}>
+              <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
+                {placeholders[field.type]}
+              </Code.Placeholder>
+              <Editor
+                value={fieldValue}
+                onValueChange={handleCodeChange}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setCodeEditorDropdownState((prev) => ({
+                      ...prev,
+                      [editorFieldKey]: {
+                        ...dropdownState,
+                        showTags: false,
+                        showEnvVars: false,
+                      },
+                    }))
+                  }
+                }}
+                highlight={highlightCode}
+                disabled={isReadOnly}
+                {...getCodeEditorProps({ disabled: isReadOnly })}
+              />
+              {dropdownState.showEnvVars && !isReadOnly && (
+                <EnvVarDropdown
+                  visible={dropdownState.showEnvVars}
+                  onSelect={handleEnvVarSelect}
+                  searchTerm={dropdownState.searchTerm}
+                  inputValue={fieldValue}
+                  cursorPosition={dropdownState.cursorPosition}
+                  workspaceId={workspaceId}
+                  onClose={() => {
+                    setCodeEditorDropdownState((prev) => ({
+                      ...prev,
+                      [editorFieldKey]: {
+                        ...dropdownState,
+                        showEnvVars: false,
+                        searchTerm: '',
+                      },
+                    }))
+                  }}
+                  inputRef={{
+                    current: codeEditorRefs.current[editorFieldKey]?.querySelector(
+                      'textarea'
+                    ) as HTMLTextAreaElement,
+                  }}
+                />
+              )}
+              {dropdownState.showTags && !isReadOnly && (
+                <TagDropdown
+                  visible={dropdownState.showTags}
+                  onSelect={handleTagSelect}
+                  blockId={blockId}
+                  activeSourceBlockId={dropdownState.activeSourceBlockId}
+                  inputValue={fieldValue}
+                  cursorPosition={dropdownState.cursorPosition}
+                  onClose={() => {
+                    setCodeEditorDropdownState((prev) => ({
+                      ...prev,
+                      [editorFieldKey]: {
+                        ...dropdownState,
+                        showTags: false,
+                        activeSourceBlockId: null,
+                      },
+                    }))
+                  }}
+                  inputRef={{
+                    current: codeEditorRefs.current[editorFieldKey]?.querySelector(
+                      'textarea'
+                    ) as HTMLTextAreaElement,
+                  }}
+                />
+              )}
+            </Code.Content>
+          </Code.Container>
+        </div>
       )
     }
 

@@ -1,5 +1,6 @@
-import { type JSX, type MouseEvent, memo, useRef, useState } from 'react'
-import { AlertTriangle, Wand2 } from 'lucide-react'
+import { type JSX, type MouseEvent, memo, useCallback, useRef, useState } from 'react'
+import { AlertTriangle, ExternalLink, Wand2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Label, Tooltip } from '@/components/emcn/components'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
@@ -46,6 +47,8 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 /**
  * Interface for wand control handlers exposed by sub-block inputs
@@ -294,6 +297,99 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
 }
 
 /**
+ * Props for the DropdownWithTableLink component
+ */
+interface DropdownWithTableLinkProps {
+  blockId: string
+  config: SubBlockConfig
+  isPreview: boolean
+  previewValue: string | string[] | null | undefined
+  isDisabled: boolean
+  handleMouseDown: (e: MouseEvent<HTMLDivElement>) => void
+}
+
+/**
+ * Renders a dropdown with an optional navigation link for table selectors.
+ * When the dropdown is for selecting a table (tableId), shows an icon button
+ * to navigate directly to the table page view.
+ */
+function DropdownWithTableLink({
+  blockId,
+  config,
+  isPreview,
+  previewValue,
+  isDisabled,
+  handleMouseDown,
+}: DropdownWithTableLinkProps): JSX.Element {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const tableId = useSubBlockStore(
+    useCallback(
+      (state) => {
+        if (!activeWorkflowId) return null
+        const value = state.workflowValues[activeWorkflowId]?.[blockId]?.[config.id]
+        return typeof value === 'string' ? value : null
+      },
+      [activeWorkflowId, blockId, config.id]
+    )
+  )
+
+  const isTableSelector = config.id === 'tableId'
+  const hasSelectedTable = isTableSelector && tableId && !tableId.startsWith('<')
+
+  const handleNavigateToTable = useCallback(
+    (e: MouseEvent) => {
+      e.stopPropagation()
+      if (tableId && workspaceId) {
+        window.open(`/workspace/${workspaceId}/tables/${tableId}`, '_blank')
+      }
+    },
+    [workspaceId, tableId]
+  )
+
+  return (
+    <div onMouseDown={handleMouseDown} className='flex items-center gap-[6px]'>
+      <div className='flex-1'>
+        <Dropdown
+          blockId={blockId}
+          subBlockId={config.id}
+          options={config.options as { label: string; id: string }[]}
+          defaultValue={typeof config.value === 'function' ? config.value({}) : config.value}
+          placeholder={config.placeholder}
+          isPreview={isPreview}
+          previewValue={previewValue}
+          disabled={isDisabled}
+          multiSelect={config.multiSelect}
+          fetchOptions={config.fetchOptions}
+          fetchOptionById={config.fetchOptionById}
+          dependsOn={config.dependsOn}
+          searchable={config.searchable}
+        />
+      </div>
+      {hasSelectedTable && !isPreview && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='ghost'
+              size='sm'
+              className='h-[30px] w-[30px] flex-shrink-0 p-0'
+              onClick={handleNavigateToTable}
+            >
+              <ExternalLink className='h-[14px] w-[14px] text-[var(--text-secondary)]' />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='top'>
+            <p>View table</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
+    </div>
+  )
+}
+
+/**
  * Renders a single workflow sub-block input based on config.type.
  *
  * @remarks
@@ -451,23 +547,14 @@ function SubBlockComponent({
 
       case 'dropdown':
         return (
-          <div onMouseDown={handleMouseDown}>
-            <Dropdown
-              blockId={blockId}
-              subBlockId={config.id}
-              options={config.options as { label: string; id: string }[]}
-              defaultValue={typeof config.value === 'function' ? config.value({}) : config.value}
-              placeholder={config.placeholder}
-              isPreview={isPreview}
-              previewValue={previewValue}
-              disabled={isDisabled}
-              multiSelect={config.multiSelect}
-              fetchOptions={config.fetchOptions}
-              fetchOptionById={config.fetchOptionById}
-              dependsOn={config.dependsOn}
-              searchable={config.searchable}
-            />
-          </div>
+          <DropdownWithTableLink
+            blockId={blockId}
+            config={config}
+            isPreview={isPreview}
+            previewValue={previewValue}
+            isDisabled={isDisabled}
+            handleMouseDown={handleMouseDown}
+          />
         )
 
       case 'combobox':
@@ -800,7 +887,17 @@ function SubBlockComponent({
           />
         )
 
-      case 'filter-format':
+      case 'filter-format': {
+        // Determine sync props based on subBlockId
+        let modeSubBlockId: string | undefined
+        let jsonSubBlockId: string | undefined
+        if (config.id === 'filterBuilder') {
+          modeSubBlockId = 'builderMode'
+          jsonSubBlockId = 'filter'
+        } else if (config.id === 'bulkFilterBuilder') {
+          modeSubBlockId = 'bulkFilterMode'
+          jsonSubBlockId = 'filterCriteria'
+        }
         return (
           <FilterFormat
             blockId={blockId}
@@ -808,10 +905,20 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as FilterCondition[] | null | undefined}
             disabled={isDisabled}
+            modeSubBlockId={modeSubBlockId}
+            jsonSubBlockId={jsonSubBlockId}
           />
         )
+      }
 
-      case 'sort-format':
+      case 'sort-format': {
+        // Determine sync props based on subBlockId
+        let modeSubBlockId: string | undefined
+        let jsonSubBlockId: string | undefined
+        if (config.id === 'sortBuilder') {
+          modeSubBlockId = 'builderMode'
+          jsonSubBlockId = 'sort'
+        }
         return (
           <SortFormat
             blockId={blockId}
@@ -819,8 +926,11 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as SortCondition[] | null | undefined}
             disabled={isDisabled}
+            modeSubBlockId={modeSubBlockId}
+            jsonSubBlockId={jsonSubBlockId}
           />
         )
+      }
 
       case 'channel-selector':
       case 'user-selector':

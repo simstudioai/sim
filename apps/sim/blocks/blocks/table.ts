@@ -469,7 +469,8 @@ Return ONLY the sort JSON:`,
         const { operation, ...rest } = params
 
         /**
-         * Helper to parse JSON with better error messages
+         * Helper to parse JSON with better error messages.
+         * Also handles common issues with block references in JSON.
          */
         const parseJSON = (value: string | any, fieldName: string): any => {
           if (typeof value !== 'string') return value
@@ -478,9 +479,22 @@ Return ONLY the sort JSON:`,
             return JSON.parse(value)
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error)
-            throw new Error(
-              `Invalid JSON in ${fieldName}: ${errorMsg}. Make sure all property names are in double quotes (e.g., {"name": "value"} not {name: "value"})`
+
+            // Check if the error might be due to unquoted string values (common when block references are resolved)
+            // This happens when users write {"field": <ref>} instead of {"field": "<ref>"}
+            const unquotedValueMatch = value.match(
+              /:\s*([a-zA-Z][a-zA-Z0-9_\s]*[a-zA-Z0-9]|[a-zA-Z])\s*[,}]/
             )
+
+            let hint =
+              'Make sure all property names are in double quotes (e.g., {"name": "value"} not {name: "value"}).'
+
+            if (unquotedValueMatch) {
+              hint =
+                'It looks like a string value is not quoted. When using block references in JSON, wrap them in double quotes: {"field": "<blockName.output>"} not {"field": <blockName.output>}.'
+            }
+
+            throw new Error(`Invalid JSON in ${fieldName}: ${errorMsg}. ${hint}`)
           }
         }
 
