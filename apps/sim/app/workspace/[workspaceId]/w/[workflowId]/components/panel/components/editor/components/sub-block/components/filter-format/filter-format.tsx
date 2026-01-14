@@ -3,13 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Button, Combobox, type ComboboxOption, Input } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import {
   COMPARISON_OPERATORS,
   type FilterCondition,
   generateFilterId,
   LOGICAL_OPERATORS,
 } from '@/lib/table/filter-builder-utils'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 
 interface FilterFormatProps {
   blockId: string
@@ -45,6 +49,8 @@ export function FilterFormat({
   const [tableIdValue] = useSubBlockValue<string>(blockId, tableIdSubBlockId)
   const [dynamicColumns, setDynamicColumns] = useState<ComboboxOption[]>([])
   const fetchedTableIdRef = useRef<string | null>(null)
+
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   // Fetch columns when tableId changes
   useEffect(() => {
@@ -116,7 +122,7 @@ export function FilterFormat({
   return (
     <div className='flex flex-col gap-[8px]'>
       {conditions.length === 0 ? (
-        <div className='flex items-center justify-center rounded-[4px] border border-dashed border-[var(--border-1)] py-[16px]'>
+        <div className='flex items-center justify-center rounded-[4px] border border-[var(--border-1)] border-dashed py-[16px]'>
           <Button variant='ghost' size='sm' onClick={addCondition} disabled={isReadOnly}>
             <Plus className='mr-[4px] h-[12px] w-[12px]' />
             Add filter condition
@@ -182,14 +188,52 @@ export function FilterFormat({
                 />
               </div>
 
-              {/* Value Input */}
-              <Input
-                className='h-[28px] min-w-[80px] flex-1 text-[12px]'
-                value={condition.value}
-                onChange={(e) => updateCondition(condition.id, 'value', e.target.value)}
-                placeholder='Value'
-                disabled={isReadOnly}
-              />
+              {/* Value Input with Tag Dropdown */}
+              <div className='relative min-w-[80px] flex-1'>
+                <SubBlockInputController
+                  blockId={blockId}
+                  subBlockId={`${subBlockId}_filter_${condition.id}`}
+                  config={{ id: `filter_value_${condition.id}`, type: 'short-input' }}
+                  value={condition.value}
+                  onChange={(newValue) => updateCondition(condition.id, 'value', newValue)}
+                  isPreview={isPreview}
+                  disabled={disabled}
+                >
+                  {({ ref, value: ctrlValue, onChange, onKeyDown, onDrop, onDragOver }) => {
+                    const formattedText = formatDisplayText(ctrlValue, {
+                      accessiblePrefixes,
+                      highlightAll: !accessiblePrefixes,
+                    })
+
+                    return (
+                      <div className='relative'>
+                        <Input
+                          ref={ref as React.RefObject<HTMLInputElement>}
+                          className='h-[28px] w-full overflow-auto text-[12px] text-transparent caret-foreground [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-muted-foreground/50 [&::-webkit-scrollbar]:hidden'
+                          value={ctrlValue}
+                          onChange={onChange as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                          onKeyDown={
+                            onKeyDown as (e: React.KeyboardEvent<HTMLInputElement>) => void
+                          }
+                          onDrop={onDrop as (e: React.DragEvent<HTMLInputElement>) => void}
+                          onDragOver={onDragOver as (e: React.DragEvent<HTMLInputElement>) => void}
+                          placeholder='Value'
+                          disabled={isReadOnly}
+                          autoComplete='off'
+                        />
+                        <div
+                          className={cn(
+                            'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-[12px] text-foreground [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                            (isPreview || disabled) && 'opacity-50'
+                          )}
+                        >
+                          <div className='min-w-fit whitespace-pre'>{formattedText}</div>
+                        </div>
+                      </div>
+                    )
+                  }}
+                </SubBlockInputController>
+              </div>
             </div>
           ))}
 
