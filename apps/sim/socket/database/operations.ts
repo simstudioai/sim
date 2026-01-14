@@ -74,6 +74,33 @@ function isSubflowBlockType(blockType: string): blockType is SubflowType {
   return Object.values(SubflowType).includes(blockType as SubflowType)
 }
 
+function mergeSubBlockValues(
+  subBlocks: Record<string, unknown> | undefined,
+  values: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  const merged = { ...(subBlocks || {}) } as Record<string, any>
+
+  if (!values) return merged
+
+  Object.entries(values).forEach(([subBlockId, value]) => {
+    if (merged[subBlockId] && typeof merged[subBlockId] === 'object') {
+      merged[subBlockId] = {
+        ...(merged[subBlockId] as Record<string, unknown>),
+        value,
+      }
+      return
+    }
+
+    merged[subBlockId] = {
+      id: subBlockId,
+      type: 'short-input',
+      value,
+    }
+  })
+
+  return merged
+}
+
 export async function updateSubflowNodeList(dbOrTx: any, workflowId: string, parentId: string) {
   try {
     // Get all child blocks of this parent
@@ -455,7 +482,7 @@ async function handleBlocksOperationTx(
     }
 
     case BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS: {
-      const { blocks, edges, loops, parallels } = payload
+      const { blocks, edges, loops, parallels, subBlockValues } = payload
 
       logger.info(`Batch adding blocks to workflow ${workflowId}`, {
         blockCount: blocks?.length || 0,
@@ -465,22 +492,30 @@ async function handleBlocksOperationTx(
       })
 
       if (blocks && blocks.length > 0) {
-        const blockValues = blocks.map((block: Record<string, unknown>) => ({
-          id: block.id as string,
-          workflowId,
-          type: block.type as string,
-          name: block.name as string,
-          positionX: (block.position as { x: number; y: number }).x,
-          positionY: (block.position as { x: number; y: number }).y,
-          data: (block.data as Record<string, unknown>) || {},
-          subBlocks: (block.subBlocks as Record<string, unknown>) || {},
-          outputs: (block.outputs as Record<string, unknown>) || {},
-          enabled: (block.enabled as boolean) ?? true,
-          horizontalHandles: (block.horizontalHandles as boolean) ?? true,
-          advancedMode: (block.advancedMode as boolean) ?? false,
-          triggerMode: (block.triggerMode as boolean) ?? false,
-          height: (block.height as number) || 0,
-        }))
+        const blockValues = blocks.map((block: Record<string, unknown>) => {
+          const blockId = block.id as string
+          const mergedSubBlocks = mergeSubBlockValues(
+            block.subBlocks as Record<string, unknown>,
+            subBlockValues?.[blockId]
+          )
+
+          return {
+            id: blockId,
+            workflowId,
+            type: block.type as string,
+            name: block.name as string,
+            positionX: (block.position as { x: number; y: number }).x,
+            positionY: (block.position as { x: number; y: number }).y,
+            data: (block.data as Record<string, unknown>) || {},
+            subBlocks: mergedSubBlocks,
+            outputs: (block.outputs as Record<string, unknown>) || {},
+            enabled: (block.enabled as boolean) ?? true,
+            horizontalHandles: (block.horizontalHandles as boolean) ?? true,
+            advancedMode: (block.advancedMode as boolean) ?? false,
+            triggerMode: (block.triggerMode as boolean) ?? false,
+            height: (block.height as number) || 0,
+          }
+        })
 
         await tx.insert(workflowBlocks).values(blockValues)
 
