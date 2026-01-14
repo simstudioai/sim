@@ -1,18 +1,22 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
-import { devtools, persist } from 'zustand/middleware'
+import { createJSONStorage, devtools, persist } from 'zustand/middleware'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import { useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
 import { useGeneralStore } from '@/stores/settings/general'
+import { indexedDBStorage } from '@/stores/terminal/console/storage'
 import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from '@/stores/terminal/console/types'
 
 const logger = createLogger('TerminalConsoleStore')
 
 /**
- * Updates a NormalizedBlockOutput with new content
+ * Maximum number of console entries to keep per workflow.
+ * Keeps the stored data size reasonable and improves performance.
  */
+const MAX_ENTRIES_PER_WORKFLOW = 500
+
 const updateBlockOutput = (
   existingOutput: NormalizedBlockOutput | undefined,
   contentUpdate: string
@@ -23,9 +27,6 @@ const updateBlockOutput = (
   }
 }
 
-/**
- * Checks if output represents a streaming object that should be skipped
- */
 const isStreamingOutput = (output: any): boolean => {
   if (typeof ReadableStream !== 'undefined' && output instanceof ReadableStream) {
     return true
@@ -44,9 +45,6 @@ const isStreamingOutput = (output: any): boolean => {
   )
 }
 
-/**
- * Checks if entry should be skipped to prevent duplicates
- */
 const shouldSkipEntry = (output: any): boolean => {
   if (typeof output !== 'object' || !output) {
     return false
@@ -69,6 +67,9 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
       (set, get) => ({
         entries: [],
         isOpen: false,
+        _hasHydrated: false,
+
+        setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),
 
         addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => {
           set((state) => {
@@ -94,7 +95,15 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               timestamp: new Date().toISOString(),
             }
 
-            return { entries: [newEntry, ...state.entries] }
+            const newEntries = [newEntry, ...state.entries]
+            const workflowCounts = new Map<string, number>()
+            const trimmedEntries = newEntries.filter((entry) => {
+              const count = workflowCounts.get(entry.workflowId) || 0
+              if (count >= MAX_ENTRIES_PER_WORKFLOW) return false
+              workflowCounts.set(entry.workflowId, count + 1)
+              return true
+            })
+            return { entries: trimmedEntries }
           })
 
           const newEntry = get().entries[0]
@@ -130,10 +139,6 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           return newEntry
         },
 
-        /**
-         * Clears console entries for a specific workflow and clears the run path
-         * @param workflowId - The workflow ID to clear entries for
-         */
         clearWorkflowConsole: (workflowId: string) => {
           set((state) => ({
             entries: state.entries.filter((entry) => entry.workflowId !== workflowId),
@@ -148,9 +153,6 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
             return
           }
 
-          /**
-           * Formats a value for CSV export
-           */
           const formatCSVValue = (value: any): string => {
             if (value === null || value === undefined) {
               return ''
@@ -297,7 +299,34 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
       }),
       {
         name: 'terminal-console-store',
+        storage: createJSONStorage(() => indexedDBStorage),
+        partialize: (state) => ({
+          entries: state.entries,
+          isOpen: state.isOpen,
+        }),
+        onRehydrateStorage: () => (_state, error) => {
+          if (error) {
+            logger.error('Failed to rehydrate console store', { error })
+          }
+        },
+        merge: (persistedState, currentState) => {
+          const persisted = persistedState as Partial<ConsoleStore> | undefined
+          return {
+            ...currentState,
+            entries: persisted?.entries ?? currentState.entries,
+            isOpen: persisted?.isOpen ?? currentState.isOpen,
+          }
+        },
       }
     )
   )
 )
+
+if (typeof window !== 'undefined') {
+  if (useTerminalConsoleStore.persist.hasHydrated()) {
+    useTerminalConsoleStore.setState({ _hasHydrated: true })
+  }
+  useTerminalConsoleStore.persist.onFinishHydration(() => {
+    useTerminalConsoleStore.setState({ _hasHydrated: true })
+  })
+}

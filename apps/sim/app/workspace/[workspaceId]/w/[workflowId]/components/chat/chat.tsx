@@ -221,7 +221,9 @@ export function Chat() {
     exportChatCSV,
   } = useChatStore()
 
-  const { entries } = useTerminalConsoleStore()
+  const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
+  const entriesFromStore = useTerminalConsoleStore((state) => state.entries)
+  const entries = hasConsoleHydrated ? entriesFromStore : []
   const { isExecuting } = useExecutionStore()
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const { data: session } = useSession()
