@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef } from 'react'
+import { memo, useCallback, useMemo, useRef } from 'react'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, type NodeProps, Position, useReactFlow } from 'reactflow'
 import { Button, Trash } from '@/components/emcn'
@@ -8,6 +8,7 @@ import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePanelEditorStore } from '@/stores/panel'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
  * Global styles for subflow nodes (loop and parallel containers).
@@ -51,6 +52,8 @@ export interface SubflowNodeData {
   isPreviewSelected?: boolean
   kind: 'loop' | 'parallel'
   name?: string
+  /** The ID of the group this subflow belongs to */
+  groupId?: string
 }
 
 /**
@@ -62,8 +65,9 @@ export interface SubflowNodeData {
  * @returns Rendered subflow node component
  */
 export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeData>) => {
-  const { getNodes } = useReactFlow()
+  const { getNodes, setNodes } = useReactFlow()
   const { collaborativeBatchRemoveBlocks } = useCollaborativeWorkflow()
+  const { getGroups } = useWorkflowStore()
   const blockRef = useRef<HTMLDivElement>(null)
 
   const currentWorkflow = useCurrentWorkflow()
@@ -140,10 +144,57 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
     diffStatus === 'edited' && 'ring-[var(--warning)]'
   )
 
+  /**
+   * Expands selection to include all group members on mouse down.
+   * This ensures that when a user starts dragging a subflow in a group,
+   * all other blocks in the group are also selected and will move together.
+   */
+  const handleGroupMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      // Only process left mouse button clicks
+      if (e.button !== 0) return
+
+      const groupId = data.groupId
+      if (!groupId) return
+
+      const groups = getGroups()
+      const group = groups[groupId]
+      if (!group || group.blockIds.length <= 1) return
+
+      const groupBlockIds = new Set(group.blockIds)
+      const allNodes = getNodes()
+
+      // Check if all group members are already selected
+      const allSelected = [...groupBlockIds].every((blockId) =>
+        allNodes.find((n) => n.id === blockId && n.selected)
+      )
+
+      if (allSelected) return
+
+      // Expand selection to include all group members
+      setNodes((nodes) =>
+        nodes.map((n) => {
+          const isInGroup = groupBlockIds.has(n.id)
+          const isThisBlock = n.id === id
+          return {
+            ...n,
+            selected: isInGroup ? true : n.selected,
+            data: {
+              ...n.data,
+              // Mark as grouped selection if in group but not the directly clicked block
+              isGroupedSelection: isInGroup && !isThisBlock && !n.selected,
+            },
+          }
+        })
+      )
+    },
+    [id, data.groupId, getNodes, setNodes, getGroups]
+  )
+
   return (
     <>
       <SubflowNodeStyles />
-      <div className='group relative'>
+      <div className='group relative' onMouseDown={handleGroupMouseDown}>
         <div
           ref={blockRef}
           onClick={() => setCurrentBlockId(id)}

@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
-import type { NodeProps } from 'reactflow'
+import { type NodeProps, useReactFlow } from 'reactflow'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/core/utils/cn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -10,6 +10,7 @@ import {
   useBlockDimensions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { ActionBar } from '../workflow-block/components'
 import type { WorkflowBlockProps } from '../workflow-block/types'
 
@@ -198,6 +199,57 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
 
   const userPermissions = useUserPermissionsContext()
 
+  // Get React Flow methods for group selection expansion
+  const { getNodes, setNodes } = useReactFlow()
+  const { getGroups } = useWorkflowStore()
+
+  /**
+   * Expands selection to include all group members on mouse down.
+   * This ensures that when a user starts dragging a note in a group,
+   * all other blocks in the group are also selected and will move together.
+   */
+  const handleGroupMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      // Only process left mouse button clicks
+      if (e.button !== 0) return
+
+      const groupId = data.groupId
+      if (!groupId) return
+
+      const groups = getGroups()
+      const group = groups[groupId]
+      if (!group || group.blockIds.length <= 1) return
+
+      const groupBlockIds = new Set(group.blockIds)
+      const allNodes = getNodes()
+
+      // Check if all group members are already selected
+      const allSelected = [...groupBlockIds].every((blockId) =>
+        allNodes.find((n) => n.id === blockId && n.selected)
+      )
+
+      if (allSelected) return
+
+      // Expand selection to include all group members
+      setNodes((nodes) =>
+        nodes.map((n) => {
+          const isInGroup = groupBlockIds.has(n.id)
+          const isThisBlock = n.id === id
+          return {
+            ...n,
+            selected: isInGroup ? true : n.selected,
+            data: {
+              ...n.data,
+              // Mark as grouped selection if in group but not the directly clicked block
+              isGroupedSelection: isInGroup && !isThisBlock && !n.selected,
+            },
+          }
+        })
+      )
+    },
+    [id, data.groupId, getNodes, setNodes, getGroups]
+  )
+
   /**
    * Calculate deterministic dimensions based on content structure.
    * Uses fixed width and computed height to avoid ResizeObserver jitter.
@@ -217,7 +269,7 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
   })
 
   return (
-    <div className='group relative'>
+    <div className='group relative' onMouseDown={handleGroupMouseDown}>
       <div
         className={cn(
           'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)]'

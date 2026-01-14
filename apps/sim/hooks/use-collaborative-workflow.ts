@@ -1666,7 +1666,6 @@ export function useCollaborativeWorkflow() {
       }
 
       const blockIds = [...group.blockIds]
-      const parentGroupId = group.parentGroupId
 
       const operationId = crypto.randomUUID()
 
@@ -1675,7 +1674,7 @@ export function useCollaborativeWorkflow() {
         operation: {
           operation: BLOCKS_OPERATIONS.UNGROUP_BLOCKS,
           target: OPERATION_TARGETS.BLOCKS,
-          payload: { groupId, blockIds, parentGroupId },
+          payload: { groupId, blockIds },
         },
         workflowId: activeWorkflowId || '',
         userId: session?.user?.id || 'unknown',
@@ -1683,7 +1682,7 @@ export function useCollaborativeWorkflow() {
 
       workflowStore.ungroupBlocks(groupId)
 
-      undoRedo.recordUngroupBlocks(groupId, blockIds, parentGroupId)
+      undoRedo.recordUngroupBlocks(groupId, blockIds)
 
       logger.info('Ungrouped blocks collaboratively', { groupId, blockCount: blockIds.length })
       return blockIds

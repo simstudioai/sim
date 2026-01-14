@@ -14,6 +14,8 @@ export interface WorkflowBlockProps {
   isPreviewSelected?: boolean
   /** Whether this block is selected as part of a group (not directly clicked) */
   isGroupedSelection?: boolean
+  /** The ID of the group this block belongs to */
+  groupId?: string
   subBlockValues?: Record<string, any>
   blockState?: any
 }

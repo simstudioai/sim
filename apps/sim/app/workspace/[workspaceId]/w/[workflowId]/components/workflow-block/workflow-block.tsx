@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
+import { Handle, type NodeProps, Position, useReactFlow, useUpdateNodeInternals } from 'reactflow'
 import { Badge, Tooltip } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
@@ -917,8 +917,63 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const isGroupedSelection = data.isGroupedSelection ?? false
 
+  // Get React Flow methods for group selection expansion
+  const { getNodes, setNodes } = useReactFlow()
+  const { getGroups } = useWorkflowStore()
+
+  /**
+   * Expands selection to include all group members on mouse down.
+   * This ensures that when a user starts dragging a block in a group,
+   * all other blocks in the group are also selected and will move together.
+   */
+  const handleGroupMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      // Only process left mouse button clicks
+      if (e.button !== 0) return
+
+      const groupId = data.groupId
+      if (!groupId) return
+
+      const groups = getGroups()
+      const group = groups[groupId]
+      if (!group || group.blockIds.length <= 1) return
+
+      const groupBlockIds = new Set(group.blockIds)
+      const allNodes = getNodes()
+
+      // Check if all group members are already selected
+      const allSelected = [...groupBlockIds].every((blockId) =>
+        allNodes.find((n) => n.id === blockId && n.selected)
+      )
+
+      if (allSelected) return
+
+      // Expand selection to include all group members
+      setNodes((nodes) =>
+        nodes.map((n) => {
+          const isInGroup = groupBlockIds.has(n.id)
+          const isThisBlock = n.id === id
+          return {
+            ...n,
+            selected: isInGroup ? true : n.selected,
+            data: {
+              ...n.data,
+              // Mark as grouped selection if in group but not the directly clicked block
+              isGroupedSelection: isInGroup && !isThisBlock && !n.selected,
+            },
+          }
+        })
+      )
+    },
+    [id, data.groupId, getNodes, setNodes, getGroups]
+  )
+
   return (
-    <div className='group relative' data-grouped-selection={isGroupedSelection ? 'true' : undefined}>
+    <div
+      className='group relative'
+      data-grouped-selection={isGroupedSelection ? 'true' : undefined}
+      onMouseDown={handleGroupMouseDown}
+    >
       <div
         ref={contentRef}
         onClick={handleClick}

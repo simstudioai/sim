@@ -27,8 +27,52 @@ export interface TargetedLayoutOptions extends LayoutOptions {
 }
 
 /**
+ * Identifies block groups from the blocks' groupId data.
+ * Returns a map of groupId to array of block IDs in that group.
+ */
+function identifyBlockGroups(blocks: Record<string, BlockState>): Map<string, string[]> {
+  const groups = new Map<string, string[]>()
+
+  for (const [blockId, block] of Object.entries(blocks)) {
+    const groupId = block.data?.groupId
+    if (!groupId) continue
+
+    if (!groups.has(groupId)) {
+      groups.set(groupId, [])
+    }
+    groups.get(groupId)!.push(blockId)
+  }
+
+  return groups
+}
+
+/**
+ * Expands changed block IDs to include all blocks in the same group.
+ * If any block in a group changed, all blocks in that group should be treated as changed.
+ */
+function expandChangedToGroups(
+  changedBlockIds: string[],
+  blockGroups: Map<string, string[]>,
+  blocks: Record<string, BlockState>
+): Set<string> {
+  const expandedSet = new Set(changedBlockIds)
+
+  for (const blockId of changedBlockIds) {
+    const groupId = blocks[blockId]?.data?.groupId
+    if (groupId && blockGroups.has(groupId)) {
+      for (const groupBlockId of blockGroups.get(groupId)!) {
+        expandedSet.add(groupBlockId)
+      }
+    }
+  }
+
+  return expandedSet
+}
+
+/**
  * Applies targeted layout to only reposition changed blocks.
  * Unchanged blocks act as anchors to preserve existing layout.
+ * Blocks in groups are moved together as a unit.
  */
 export function applyTargetedLayout(
   blocks: Record<string, BlockState>,
@@ -45,8 +89,13 @@ export function applyTargetedLayout(
     return blocks
   }
 
-  const changedSet = new Set(changedBlockIds)
   const blocksCopy: Record<string, BlockState> = JSON.parse(JSON.stringify(blocks))
+
+  // Identify block groups
+  const blockGroups = identifyBlockGroups(blocksCopy)
+
+  // Expand changed set to include all blocks in affected groups
+  const changedSet = expandChangedToGroups(changedBlockIds, blockGroups, blocksCopy)
 
   // Pre-calculate container dimensions by laying out their children (bottom-up)
   // This ensures accurate widths/heights before root-level layout
@@ -71,7 +120,8 @@ export function applyTargetedLayout(
     changedSet,
     verticalSpacing,
     horizontalSpacing,
-    subflowDepths
+    subflowDepths,
+    blockGroups
   )
 
   for (const [parentId, childIds] of groups.children.entries()) {
@@ -83,7 +133,8 @@ export function applyTargetedLayout(
       changedSet,
       verticalSpacing,
       horizontalSpacing,
-      subflowDepths
+      subflowDepths,
+      blockGroups
     )
   }
 
@@ -92,6 +143,7 @@ export function applyTargetedLayout(
 
 /**
  * Layouts a group of blocks (either root level or within a container)
+ * Blocks in block groups are moved together as a unit.
  */
 function layoutGroup(
   parentId: string | null,
@@ -101,7 +153,8 @@ function layoutGroup(
   changedSet: Set<string>,
   verticalSpacing: number,
   horizontalSpacing: number,
-  subflowDepths: Map<string, number>
+  subflowDepths: Map<string, number>,
+  blockGroups: Map<string, string[]>
 ): void {
   if (childIds.length === 0) return
 
@@ -141,7 +194,7 @@ function layoutGroup(
     return
   }
 
-  // Store old positions for anchor calculation
+  // Store old positions for anchor calculation and group delta tracking
   const oldPositions = new Map<string, { x: number; y: number }>()
   for (const id of layoutEligibleChildIds) {
     const block = blocks[id]
@@ -185,14 +238,47 @@ function layoutGroup(
     }
   }
 
+  // Track which groups have already had their deltas applied
+  const processedGroups = new Set<string>()
+
   // Apply new positions only to blocks that need layout
   for (const id of needsLayout) {
     const block = blocks[id]
     const newPos = layoutPositions.get(id)
     if (!block || !newPos) continue
-    block.position = {
-      x: newPos.x + offsetX,
-      y: newPos.y + offsetY,
+
+    const groupId = block.data?.groupId
+
+    // If this block is in a group, move all blocks in the group together
+    if (groupId && blockGroups.has(groupId) && !processedGroups.has(groupId)) {
+      processedGroups.add(groupId)
+
+      // Calculate the delta for this block (the one that needs layout)
+      const oldPos = oldPositions.get(id)
+      if (oldPos) {
+        const deltaX = newPos.x + offsetX - oldPos.x
+        const deltaY = newPos.y + offsetY - oldPos.y
+
+        // Apply delta to ALL blocks in the group using their original positions
+        for (const groupBlockId of blockGroups.get(groupId)!) {
+          const groupBlock = blocks[groupBlockId]
+          if (groupBlock && layoutEligibleChildIds.includes(groupBlockId)) {
+            const groupOriginalPos = oldPositions.get(groupBlockId)
+            if (groupOriginalPos) {
+              groupBlock.position = {
+                x: groupOriginalPos.x + deltaX,
+                y: groupOriginalPos.y + deltaY,
+              }
+            }
+          }
+        }
+      }
+    } else if (!groupId) {
+      // Non-grouped block - apply position normally
+      block.position = {
+        x: newPos.x + offsetX,
+        y: newPos.y + offsetY,
+      }
     }
   }
 }

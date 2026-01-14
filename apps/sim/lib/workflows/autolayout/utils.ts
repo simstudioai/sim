@@ -41,11 +41,18 @@ export function isContainerType(blockType: string): boolean {
 }
 
 /**
- * Checks if a block should be excluded from autolayout
+ * Checks if a block should be excluded from autolayout.
+ * Note blocks are excluded unless they are part of a group.
  */
-export function shouldSkipAutoLayout(block?: BlockState): boolean {
+export function shouldSkipAutoLayout(block?: BlockState, isInGroup?: boolean): boolean {
   if (!block) return true
-  return AUTO_LAYOUT_EXCLUDED_TYPES.has(block.type)
+  // If the block type is normally excluded (e.g., note), but it's in a group, include it
+  if (AUTO_LAYOUT_EXCLUDED_TYPES.has(block.type)) {
+    // Check if block is in a group - if so, include it in layout
+    const blockIsInGroup = isInGroup ?? !!block.data?.groupId
+    return !blockIsInGroup
+  }
+  return false
 }
 
 /**

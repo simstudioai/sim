@@ -1928,6 +1928,7 @@ const WorkflowContent = React.memo(() => {
           name: block.name,
           isActive,
           isPending,
+          groupId: block.data?.groupId,
         },
         // Include dynamic dimensions for container resizing calculations (must match rendered size)
         // Both note and workflow blocks calculate dimensions deterministically via useBlockDimensions
@@ -2436,6 +2437,50 @@ const WorkflowContent = React.memo(() => {
       // Note: We don't emit position updates during drag to avoid flooding socket events.
       // The final position is sent in onNodeDragStop for collaborative updates.
 
+      // Move all group members together if the dragged node is in a group
+      const draggedBlockGroupId = blocks[node.id]?.data?.groupId
+      if (draggedBlockGroupId) {
+        const groups = getGroups()
+        const group = groups[draggedBlockGroupId]
+        if (group && group.blockIds.length > 1) {
+          // Get the starting position of the dragged node
+          const startPos = multiNodeDragStartRef.current.get(node.id)
+          if (startPos) {
+            // Calculate delta from start position
+            const deltaX = node.position.x - startPos.x
+            const deltaY = node.position.y - startPos.y
+
+            // Update positions of all nodes in the group (including dragged node to preserve React Flow's position)
+            setNodes((nodes) =>
+              nodes.map((n) => {
+                // For the dragged node, use the position from React Flow's node parameter
+                if (n.id === node.id) {
+                  return {
+                    ...n,
+                    position: node.position,
+                  }
+                }
+
+                // Only update nodes in the same group
+                if (group.blockIds.includes(n.id)) {
+                  const memberStartPos = multiNodeDragStartRef.current.get(n.id)
+                  if (memberStartPos) {
+                    return {
+                      ...n,
+                      position: {
+                        x: memberStartPos.x + deltaX,
+                        y: memberStartPos.y + deltaY,
+                      },
+                    }
+                  }
+                }
+                return n
+              })
+            )
+          }
+        }
+      }
+
       // Get the current parent ID of the node being dragged
       const currentParentId = blocks[node.id]?.data?.parentId || null
 
@@ -2568,11 +2613,13 @@ const WorkflowContent = React.memo(() => {
     },
     [
       getNodes,
+      setNodes,
       potentialParentId,
       blocks,
       getNodeAbsolutePosition,
       getNodeDepth,
       updateContainerDimensionsDuringDrag,
+      getGroups,
     ]
   )
 
@@ -2631,6 +2678,8 @@ const WorkflowContent = React.memo(() => {
       // Re-get nodes after potential selection expansion
       const updatedNodes = getNodes()
       const selectedNodes = updatedNodes.filter((n) => {
+        // Always include the dragged node
+        if (n.id === node.id) return true
         // Include node if it's selected OR if it's in the same group as the dragged node
         if (n.selected) return true
         if (draggedBlockGroupId && groups[draggedBlockGroupId]) {
@@ -2661,9 +2710,31 @@ const WorkflowContent = React.memo(() => {
 
       // Get all selected nodes to update their positions too
       const allNodes = getNodes()
-      const selectedNodes = allNodes.filter((n) => n.selected)
+      let selectedNodes = allNodes.filter((n) => n.selected)
 
-      // If multiple nodes are selected, update all their positions
+      // If the dragged node is in a group, include all group members
+      const draggedBlockGroupId = blocks[node.id]?.data?.groupId
+      if (draggedBlockGroupId) {
+        const groups = getGroups()
+        const group = groups[draggedBlockGroupId]
+        if (group && group.blockIds.length > 1) {
+          const groupBlockIds = new Set(group.blockIds)
+          // Include the dragged node and all group members that aren't already selected
+          const groupNodes = allNodes.filter(
+            (n) => groupBlockIds.has(n.id) && !selectedNodes.some((sn) => sn.id === n.id)
+          )
+          selectedNodes = [...selectedNodes, ...groupNodes]
+          // Also ensure the dragged node is included
+          if (!selectedNodes.some((n) => n.id === node.id)) {
+            const draggedNode = allNodes.find((n) => n.id === node.id)
+            if (draggedNode) {
+              selectedNodes = [...selectedNodes, draggedNode]
+            }
+          }
+        }
+      }
+
+      // If multiple nodes are selected (or in a group), update all their positions
       if (selectedNodes.length > 1) {
         const positionUpdates = computeClampedPositionUpdates(selectedNodes, blocks, allNodes)
         collaborativeBatchUpdatePositions(positionUpdates, {
