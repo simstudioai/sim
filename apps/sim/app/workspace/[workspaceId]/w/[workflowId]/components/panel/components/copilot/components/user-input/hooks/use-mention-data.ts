@@ -84,13 +84,43 @@ interface UseMentionDataProps {
 }
 
 /**
+ * Return type for useMentionData hook
+ */
+export interface MentionDataReturn {
+  // Data arrays
+  pastChats: PastChat[]
+  workflows: WorkflowItem[]
+  knowledgeBases: KnowledgeItem[]
+  blocksList: BlockItem[]
+  workflowBlocks: WorkflowBlockItem[]
+  templatesList: TemplateItem[]
+  logsList: LogItem[]
+
+  // Loading states
+  isLoadingPastChats: boolean
+  isLoadingWorkflows: boolean
+  isLoadingKnowledge: boolean
+  isLoadingBlocks: boolean
+  isLoadingWorkflowBlocks: boolean
+  isLoadingTemplates: boolean
+  isLoadingLogs: boolean
+
+  // Ensure loaded functions
+  ensurePastChatsLoaded: () => Promise<void>
+  ensureKnowledgeLoaded: () => Promise<void>
+  ensureBlocksLoaded: () => Promise<void>
+  ensureTemplatesLoaded: () => Promise<void>
+  ensureLogsLoaded: () => Promise<void>
+}
+
+/**
  * Custom hook to fetch and manage data for mention suggestions
  * Loads data from APIs for chats, workflows, knowledge bases, blocks, templates, and logs
  *
  * @param props - Configuration including workflow and workspace IDs
  * @returns Mention data state and loading operations
  */
-export function useMentionData(props: UseMentionDataProps) {
+export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
   const { workflowId, workspaceId } = props
 
   const { config, isBlockAllowed } = usePermissionConfig()
@@ -104,7 +134,6 @@ export function useMentionData(props: UseMentionDataProps) {
   const [blocksList, setBlocksList] = useState<BlockItem[]>([])
   const [isLoadingBlocks, setIsLoadingBlocks] = useState(false)
 
-  // Reset blocks list when permission config changes
   useEffect(() => {
     setBlocksList([])
   }, [config.allowedIntegrations])
@@ -118,12 +147,10 @@ export function useMentionData(props: UseMentionDataProps) {
   const [workflowBlocks, setWorkflowBlocks] = useState<WorkflowBlockItem[]>([])
   const [isLoadingWorkflowBlocks, setIsLoadingWorkflowBlocks] = useState(false)
 
-  // Only subscribe to block keys to avoid re-rendering on position updates
   const blockKeys = useWorkflowStore(
     useShallow(useCallback((state) => Object.keys(state.blocks), []))
   )
 
-  // Use workflow registry as source of truth for workflows
   const registryWorkflows = useWorkflowRegistry((state) => state.workflows)
   const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
   const isLoadingWorkflows =
@@ -131,7 +158,6 @@ export function useMentionData(props: UseMentionDataProps) {
     hydrationPhase === 'metadata-loading' ||
     hydrationPhase === 'state-loading'
 
-  // Convert registry workflows to mention format, filtered by workspace and sorted
   const workflows: WorkflowItem[] = Object.values(registryWorkflows)
     .filter((w) => w.workspaceId === workspaceId)
     .sort((a, b) => {
@@ -218,14 +244,6 @@ export function useMentionData(props: UseMentionDataProps) {
       setIsLoadingPastChats(false)
     }
   }, [isLoadingPastChats, pastChats.length, workflowId])
-
-  /**
-   * Ensures workflows are loaded (now using registry store)
-   */
-  const ensureWorkflowsLoaded = useCallback(() => {
-    // Workflows are now automatically loaded from the registry store
-    // No manual fetching needed
-  }, [])
 
   /**
    * Ensures knowledge bases are loaded
@@ -348,18 +366,6 @@ export function useMentionData(props: UseMentionDataProps) {
     }
   }, [isLoadingLogs, logsList.length, workspaceId])
 
-  /**
-   * Ensures workflow blocks are loaded (synced from store)
-   */
-  const ensureWorkflowBlocksLoaded = useCallback(async () => {
-    if (!workflowId) return
-    logger.debug('ensureWorkflowBlocksLoaded called', {
-      workflowId,
-      storeBlocksCount: blockKeys.length,
-      workflowBlocksCount: workflowBlocks.length,
-    })
-  }, [workflowId, blockKeys.length, workflowBlocks.length])
-
   return {
     // State
     pastChats,
@@ -379,11 +385,9 @@ export function useMentionData(props: UseMentionDataProps) {
 
     // Operations
     ensurePastChatsLoaded,
-    ensureWorkflowsLoaded,
     ensureKnowledgeLoaded,
     ensureBlocksLoaded,
     ensureTemplatesLoaded,
     ensureLogsLoaded,
-    ensureWorkflowBlocksLoaded,
   }
 }

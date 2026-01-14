@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  filterOutContext,
+  isContextAlreadySelected,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import type { ChatContext } from '@/stores/panel'
 
 interface UseContextManagementProps {
@@ -35,53 +39,7 @@ export function useContextManagement({ message, initialContexts }: UseContextMan
    */
   const addContext = useCallback((context: ChatContext) => {
     setSelectedContexts((prev) => {
-      // CRITICAL: Check label collision FIRST
-      // The token system uses @label format, so we cannot have duplicate labels
-      // regardless of kind or ID differences
-      const exists = prev.some((c) => {
-        // Primary check: label collision
-        // This prevents duplicate @Label tokens which would break the overlay
-        if (c.label && context.label && c.label === context.label) {
-          return true
-        }
-
-        // Secondary check: exact duplicate by ID fields based on kind
-        // This prevents the same entity from being added twice even with different labels
-        if (c.kind === context.kind) {
-          if (c.kind === 'past_chat' && 'chatId' in context && 'chatId' in c) {
-            return c.chatId === (context as any).chatId
-          }
-          if (c.kind === 'workflow' && 'workflowId' in context && 'workflowId' in c) {
-            return c.workflowId === (context as any).workflowId
-          }
-          if (c.kind === 'blocks' && 'blockId' in context && 'blockId' in c) {
-            return c.blockId === (context as any).blockId
-          }
-          if (c.kind === 'workflow_block' && 'blockId' in context && 'blockId' in c) {
-            return (
-              c.workflowId === (context as any).workflowId && c.blockId === (context as any).blockId
-            )
-          }
-          if (c.kind === 'knowledge' && 'knowledgeId' in context && 'knowledgeId' in c) {
-            return c.knowledgeId === (context as any).knowledgeId
-          }
-          if (c.kind === 'templates' && 'templateId' in context && 'templateId' in c) {
-            return c.templateId === (context as any).templateId
-          }
-          if (c.kind === 'logs' && 'executionId' in context && 'executionId' in c) {
-            return c.executionId === (context as any).executionId
-          }
-          if (c.kind === 'docs') {
-            return true // Only one docs context allowed
-          }
-          if (c.kind === 'slash_command' && 'command' in context && 'command' in c) {
-            return c.command === (context as any).command
-          }
-        }
-
-        return false
-      })
-      if (exists) return prev
+      if (isContextAlreadySelected(context, prev)) return prev
       return [...prev, context]
     })
   }, [])
@@ -92,38 +50,7 @@ export function useContextManagement({ message, initialContexts }: UseContextMan
    * @param contextToRemove - Context to remove
    */
   const removeContext = useCallback((contextToRemove: ChatContext) => {
-    setSelectedContexts((prev) =>
-      prev.filter((c) => {
-        // Match by kind and specific ID fields
-        if (c.kind !== contextToRemove.kind) return true
-
-        switch (c.kind) {
-          case 'past_chat':
-            return (c as any).chatId !== (contextToRemove as any).chatId
-          case 'workflow':
-            return (c as any).workflowId !== (contextToRemove as any).workflowId
-          case 'blocks':
-            return (c as any).blockId !== (contextToRemove as any).blockId
-          case 'workflow_block':
-            return (
-              (c as any).workflowId !== (contextToRemove as any).workflowId ||
-              (c as any).blockId !== (contextToRemove as any).blockId
-            )
-          case 'knowledge':
-            return (c as any).knowledgeId !== (contextToRemove as any).knowledgeId
-          case 'templates':
-            return (c as any).templateId !== (contextToRemove as any).templateId
-          case 'logs':
-            return (c as any).executionId !== (contextToRemove as any).executionId
-          case 'docs':
-            return false // Remove docs (only one docs context)
-          case 'slash_command':
-            return (c as any).command !== (contextToRemove as any).command
-          default:
-            return c.label !== contextToRemove.label
-        }
-      })
-    )
+    setSelectedContexts((prev) => filterOutContext(prev, contextToRemove))
   }, [])
 
   /**

@@ -7,7 +7,6 @@
 export function getTimezoneAbbreviation(timezone: string, date: Date = new Date()): string {
   if (timezone === 'UTC') return 'UTC'
 
-  // Common timezone mappings
   const timezoneMap: Record<string, { standard: string; daylight: string }> = {
     'America/Los_Angeles': { standard: 'PST', daylight: 'PDT' },
     'America/Denver': { standard: 'MST', daylight: 'MDT' },
@@ -20,30 +19,22 @@ export function getTimezoneAbbreviation(timezone: string, date: Date = new Date(
     'Asia/Singapore': { standard: 'SGT', daylight: 'SGT' }, // Singapore doesn't use DST
   }
 
-  // If we have a mapping for this timezone
   if (timezone in timezoneMap) {
-    // January 1 is guaranteed to be standard time in northern hemisphere
-    // July 1 is guaranteed to be daylight time in northern hemisphere (if observed)
     const januaryDate = new Date(date.getFullYear(), 0, 1)
     const julyDate = new Date(date.getFullYear(), 6, 1)
 
-    // Get offset in January (standard time)
     const januaryFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
       timeZoneName: 'short',
     })
 
-    // Get offset in July (likely daylight time)
     const julyFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
       timeZoneName: 'short',
     })
 
-    // If offsets are different, timezone observes DST
     const isDSTObserved = januaryFormatter.format(januaryDate) !== julyFormatter.format(julyDate)
 
-    // If DST is observed, check if current date is in DST by comparing its offset
-    // with January's offset (standard time)
     if (isDSTObserved) {
       const currentFormatter = new Intl.DateTimeFormat('en-US', {
         timeZone: timezone,
@@ -54,11 +45,9 @@ export function getTimezoneAbbreviation(timezone: string, date: Date = new Date(
       return isDST ? timezoneMap[timezone].daylight : timezoneMap[timezone].standard
     }
 
-    // If DST is not observed, always use standard
     return timezoneMap[timezone].standard
   }
 
-  // For unknown timezones, use full IANA name
   return timezone
 }
 
@@ -79,7 +68,6 @@ export function formatDateTime(date: Date, timezone?: string): string {
     timeZone: timezone || undefined,
   })
 
-  // If timezone is provided, add a friendly timezone abbreviation
   if (timezone) {
     const tzAbbr = getTimezoneAbbreviation(timezone, date)
     return `${formattedDate} ${tzAbbr}`
@@ -112,6 +100,24 @@ export function formatTime(date: Date): string {
     minute: '2-digit',
     hour12: true,
   })
+}
+
+/**
+ * Format an ISO timestamp into a compact format for UI display
+ * @param iso - ISO timestamp string
+ * @returns A formatted string in "MM-DD HH:mm" format
+ */
+export function formatCompactTimestamp(iso: string): string {
+  try {
+    const d = new Date(iso)
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    const hh = String(d.getHours()).padStart(2, '0')
+    const min = String(d.getMinutes()).padStart(2, '0')
+    return `${mm}-${dd} ${hh}:${min}`
+  } catch {
+    return iso
+  }
 }
 
 /**
