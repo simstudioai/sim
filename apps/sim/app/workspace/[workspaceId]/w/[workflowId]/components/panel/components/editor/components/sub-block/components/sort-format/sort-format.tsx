@@ -2,14 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X } from 'lucide-react'
+import { nanoid } from 'nanoid'
 import { Button, Combobox, type ComboboxOption } from '@/components/emcn'
 import {
-  generateId,
   jsonStringToSortConditions,
-  SORT_DIRECTIONS,
-  type SortCondition,
   sortConditionsToJsonString,
-} from '@/lib/table/filters/filter-builder-utils'
+} from '@/lib/table/filters/builder-utils'
+import { SORT_DIRECTIONS, type SortCondition } from '@/lib/table/filters/constants'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 
 interface SortFormatProps {
@@ -30,7 +29,7 @@ interface SortFormatProps {
  * Creates a new sort condition with default values
  */
 const createDefaultCondition = (columns: ComboboxOption[]): SortCondition => ({
-  id: generateId(),
+  id: nanoid(),
   column: columns[0]?.value || '',
   direction: 'asc',
 })

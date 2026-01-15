@@ -4,12 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Button, Combobox, type ComboboxOption, Input } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import {
-  conditionsToJsonString,
-  jsonStringToConditions,
-} from '@/lib/table/filters/filter-builder-utils'
-import type { FilterCondition } from '@/lib/table/filters/filter-constants'
-import { useFilterBuilder } from '@/lib/table/filters/use-filter-builder'
+import { conditionsToJsonString, jsonStringToConditions } from '@/lib/table/filters/builder-utils'
+import type { FilterCondition } from '@/lib/table/filters/constants'
+import { useFilterBuilder } from '@/lib/table/filters/use-builder'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'

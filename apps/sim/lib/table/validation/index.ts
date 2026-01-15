@@ -4,5 +4,5 @@
  * @module lib/table/validation
  */
 
-export * from './validation'
-export * from './validation-helpers'
+export * from './helpers'
+export * from './schema'

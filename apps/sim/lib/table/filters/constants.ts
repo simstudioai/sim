@@ -1,7 +1,7 @@
 /**
  * Shared constants and types for table filtering and sorting.
  *
- * @module lib/table/filters/filter-constants
+ * @module lib/table/filters/constants
  *
  */
 
@@ -67,14 +67,4 @@ export interface SortCondition {
   column: string
   /** Sort direction */
   direction: 'asc' | 'desc'
-}
-
-/**
- * Generates a unique ID for filter or sort conditions.
- * Used as React keys for list items in builder UI.
- *
- * @returns Random alphanumeric string
- */
-export function generateConditionId(): string {
-  return Math.random().toString(36).substring(2, 9)
 }

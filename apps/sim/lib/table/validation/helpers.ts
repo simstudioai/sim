@@ -4,20 +4,20 @@
  * These helpers consolidate common validation patterns (size, schema, uniqueness)
  * into reusable functions that return formatted error responses.
  *
- * @module lib/table/validation/validation-helpers
+ * @module lib/table/validation/helpers
  */
 
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import type { TableSchema } from './validation'
+import type { TableSchema } from './schema'
 import {
   getUniqueColumns,
   validateRowAgainstSchema,
   validateRowSize,
   validateUniqueConstraints,
-} from './validation'
+} from './schema'
 
 /**
  * Row data type for validation functions.

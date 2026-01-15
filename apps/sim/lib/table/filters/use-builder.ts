@@ -3,59 +3,37 @@
  *
  * Provides reusable filter condition management logic shared between
  * the table data viewer's FilterBuilder and workflow block's FilterFormat.
- *
- * @module lib/table/filters/use-filter-builder
  */
 
 import { useCallback, useMemo } from 'react'
+import { nanoid } from 'nanoid'
 import {
   COMPARISON_OPERATORS,
   type FilterCondition,
-  generateConditionId,
   LOGICAL_OPERATORS,
   SORT_DIRECTIONS,
   type SortCondition,
-} from './filter-constants'
+} from './constants'
 
-/**
- * Column option for dropdowns.
- */
 export interface ColumnOption {
   value: string
   label: string
 }
 
-/**
- * Props for the useFilterBuilder hook.
- */
 export interface UseFilterBuilderProps {
-  /** Available columns for filtering */
   columns: ColumnOption[]
-  /** Current filter conditions */
   conditions: FilterCondition[]
-  /** Setter function for updating conditions */
   setConditions: (conditions: FilterCondition[]) => void
-  /** Whether the builder is read-only */
   isReadOnly?: boolean
 }
 
-/**
- * Return type for the useFilterBuilder hook.
- */
 export interface UseFilterBuilderReturn {
-  /** Memoized comparison operator options */
   comparisonOptions: ColumnOption[]
-  /** Memoized logical operator options */
   logicalOptions: ColumnOption[]
-  /** Memoized sort direction options */
   sortDirectionOptions: ColumnOption[]
-  /** Adds a new filter condition */
   addCondition: () => void
-  /** Removes a filter condition by ID */
   removeCondition: (id: string) => void
-  /** Updates a specific field of a condition */
   updateCondition: (id: string, field: keyof FilterCondition, value: string) => void
-  /** Creates a default condition (for external use) */
   createDefaultCondition: () => FilterCondition
 }
 
@@ -97,7 +75,6 @@ export function useFilterBuilder({
   setConditions,
   isReadOnly = false,
 }: UseFilterBuilderProps): UseFilterBuilderReturn {
-  // Memoized options for dropdowns
   const comparisonOptions = useMemo(
     () => COMPARISON_OPERATORS.map((op) => ({ value: op.value, label: op.label })),
     []
@@ -113,12 +90,9 @@ export function useFilterBuilder({
     []
   )
 
-  /**
-   * Creates a new filter condition with default values.
-   */
   const createDefaultCondition = useCallback((): FilterCondition => {
     return {
-      id: generateConditionId(),
+      id: nanoid(),
       logicalOperator: 'and',
       column: columns[0]?.value || '',
       operator: 'eq',
@@ -126,17 +100,11 @@ export function useFilterBuilder({
     }
   }, [columns])
 
-  /**
-   * Adds a new filter condition.
-   */
   const addCondition = useCallback(() => {
     if (isReadOnly) return
     setConditions([...conditions, createDefaultCondition()])
   }, [isReadOnly, conditions, setConditions, createDefaultCondition])
 
-  /**
-   * Removes a filter condition by ID.
-   */
   const removeCondition = useCallback(
     (id: string) => {
       if (isReadOnly) return
@@ -145,9 +113,6 @@ export function useFilterBuilder({
     [isReadOnly, conditions, setConditions]
   )
 
-  /**
-   * Updates a specific field of a condition.
-   */
   const updateCondition = useCallback(
     (id: string, field: keyof FilterCondition, value: string) => {
       if (isReadOnly) return
@@ -167,31 +132,17 @@ export function useFilterBuilder({
   }
 }
 
-/**
- * Props for sort configuration management.
- */
 export interface UseSortBuilderProps {
-  /** Available columns for sorting */
   columns: ColumnOption[]
-  /** Current sort condition */
   sortCondition: SortCondition | null
-  /** Setter function for updating sort */
   setSortCondition: (sort: SortCondition | null) => void
 }
 
-/**
- * Return type for the useSortBuilder hook.
- */
 export interface UseSortBuilderReturn {
-  /** Memoized sort direction options */
   sortDirectionOptions: ColumnOption[]
-  /** Adds a sort configuration */
   addSort: () => void
-  /** Removes the sort configuration */
   removeSort: () => void
-  /** Updates the sort column */
   updateSortColumn: (column: string) => void
-  /** Updates the sort direction */
   updateSortDirection: (direction: 'asc' | 'desc') => void
 }
 
@@ -221,7 +172,7 @@ export function useSortBuilder({
 
   const addSort = useCallback(() => {
     setSortCondition({
-      id: generateConditionId(),
+      id: nanoid(),
       column: columns[0]?.value || '',
       direction: 'asc',
     })

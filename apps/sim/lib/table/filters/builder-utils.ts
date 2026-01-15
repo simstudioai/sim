@@ -1,24 +1,11 @@
 /**
  * Shared utilities for filter builder UI components.
  *
- * @module lib/table/filters/filter-builder-utils
+ * @module lib/table/filters/builder-utils
  */
 
-// Re-export shared constants and types for backward compatibility
-export {
-  COMPARISON_OPERATORS,
-  type FilterCondition,
-  generateConditionId as generateId,
-  LOGICAL_OPERATORS,
-  SORT_DIRECTIONS,
-  type SortCondition,
-} from './filter-constants'
-
-// Import for internal use
-import { type FilterCondition, generateConditionId, type SortCondition } from './filter-constants'
-
-// Use internal alias for generateConditionId
-const generateId = generateConditionId
+import { nanoid } from 'nanoid'
+import type { FilterCondition, SortCondition } from './constants'
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
@@ -141,7 +128,7 @@ function parseFilterGroup(group: Record<string, JsonValue>): FilterCondition[] {
       for (const [op, opValue] of Object.entries(value)) {
         if (op.startsWith('$')) {
           conditions.push({
-            id: generateId(),
+            id: nanoid(),
             logicalOperator: 'and',
             column,
             operator: op.substring(1),
@@ -151,7 +138,7 @@ function parseFilterGroup(group: Record<string, JsonValue>): FilterCondition[] {
       }
     } else {
       conditions.push({
-        id: generateId(),
+        id: nanoid(),
         logicalOperator: 'and',
         column,
         operator: 'eq',
@@ -234,7 +221,7 @@ export function sortToConditions(sort: Record<string, string> | null): SortCondi
   if (!sort) return []
 
   return Object.entries(sort).map(([column, direction]) => ({
-    id: generateId(),
+    id: nanoid(),
     column,
     direction: direction === 'desc' ? 'desc' : 'asc',
   }))

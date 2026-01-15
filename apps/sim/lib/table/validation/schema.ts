@@ -1,7 +1,7 @@
 /**
  * Validation utilities for table schemas and row data.
  *
- * @module lib/table/validation/validation
+ * @module lib/table/validation/schema
  */
 
 import type { ColumnType } from '../constants'
