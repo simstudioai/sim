@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatLatency, parseDuration } from '@/app/workspace/[workspaceId]/logs/utils'
+import { formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
+import type { DashboardStatsResponse, WorkflowStats } from '@/hooks/queries/logs'
 import { useFilterStore } from '@/stores/logs/filters/store'
-import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { LineChart, WorkflowsList } from './components'
 
@@ -25,10 +25,6 @@ interface WorkflowExecution {
   }[]
   overallSuccessRate: number
 }
-
-const DEFAULT_SEGMENTS = 72
-const MIN_SEGMENT_PX = 10
-const MIN_SEGMENT_MS = 60000
 
 const SKELETON_BAR_HEIGHTS = [
   45, 72, 38, 85, 52, 68, 30, 90, 55, 42, 78, 35, 88, 48, 65, 28, 82, 58, 40, 75, 32, 95, 50, 70,
@@ -120,13 +116,32 @@ function DashboardSkeleton() {
 }
 
 interface DashboardProps {
-  logs: WorkflowLog[]
+  stats?: DashboardStatsResponse
   isLoading: boolean
   error?: Error | null
 }
 
-export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
-  const [segmentCount, setSegmentCount] = useState<number>(DEFAULT_SEGMENTS)
+/**
+ * Converts server WorkflowStats to the internal WorkflowExecution format.
+ */
+function toWorkflowExecution(wf: WorkflowStats): WorkflowExecution {
+  return {
+    workflowId: wf.workflowId,
+    workflowName: wf.workflowName,
+    overallSuccessRate: wf.overallSuccessRate,
+    segments: wf.segments.map((seg) => ({
+      timestamp: seg.timestamp,
+      totalExecutions: seg.totalExecutions,
+      successfulExecutions: seg.successfulExecutions,
+      hasExecutions: seg.totalExecutions > 0,
+      successRate:
+        seg.totalExecutions > 0 ? (seg.successfulExecutions / seg.totalExecutions) * 100 : 100,
+      avgDurationMs: seg.avgDurationMs,
+    })),
+  }
+}
+
+export default function Dashboard({ stats, isLoading, error }: DashboardProps) {
   const [selectedSegments, setSelectedSegments] = useState<Record<string, number[]>>({})
   const [lastAnchorIndices, setLastAnchorIndices] = useState<Record<string, number>>({})
   const barsAreaRef = useRef<HTMLDivElement | null>(null)
@@ -137,182 +152,32 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
 
   const expandedWorkflowId = workflowIds.length === 1 ? workflowIds[0] : null
 
-  const lastExecutionByWorkflow = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const log of logs) {
-      const wfId = log.workflowId
-      if (!wfId) continue
-      const ts = new Date(log.createdAt).getTime()
-      const existing = map.get(wfId)
-      if (!existing || ts > existing) {
-        map.set(wfId, ts)
-      }
-    }
-    return map
-  }, [logs])
-
-  const timeBounds = useMemo(() => {
-    if (logs.length === 0) {
-      const now = new Date()
-      return { start: now, end: now }
-    }
-
-    let minTime = Number.POSITIVE_INFINITY
-    let maxTime = Number.NEGATIVE_INFINITY
-
-    for (const log of logs) {
-      const ts = new Date(log.createdAt).getTime()
-      if (ts < minTime) minTime = ts
-      if (ts > maxTime) maxTime = ts
-    }
-
-    const end = new Date(Math.max(maxTime, Date.now()))
-    const start = new Date(minTime)
-
-    return { start, end }
-  }, [logs])
-
   const { executions, aggregateSegments, segmentMs } = useMemo(() => {
-    const allWorkflowsList = Object.values(allWorkflows)
-
-    if (allWorkflowsList.length === 0) {
+    if (!stats) {
       return { executions: [], aggregateSegments: [], segmentMs: 0 }
     }
 
-    const { start, end } =
-      logs.length > 0
-        ? timeBounds
-        : { start: new Date(Date.now() - 24 * 60 * 60 * 1000), end: new Date() }
-
-    const totalMs = Math.max(1, end.getTime() - start.getTime())
-    const calculatedSegmentMs = Math.max(
-      MIN_SEGMENT_MS,
-      Math.floor(totalMs / Math.max(1, segmentCount))
-    )
-
-    const logsByWorkflow = new Map<string, WorkflowLog[]>()
-    for (const log of logs) {
-      const wfId = log.workflowId
-      if (!logsByWorkflow.has(wfId)) {
-        logsByWorkflow.set(wfId, [])
-      }
-      logsByWorkflow.get(wfId)!.push(log)
-    }
-
-    const workflowExecutions: WorkflowExecution[] = []
-
-    for (const workflow of allWorkflowsList) {
-      const workflowLogs = logsByWorkflow.get(workflow.id) || []
-
-      const segments: WorkflowExecution['segments'] = Array.from(
-        { length: segmentCount },
-        (_, i) => ({
-          timestamp: new Date(start.getTime() + i * calculatedSegmentMs).toISOString(),
-          hasExecutions: false,
-          totalExecutions: 0,
-          successfulExecutions: 0,
-          successRate: 100,
-          avgDurationMs: 0,
-        })
-      )
-
-      const durations: number[][] = Array.from({ length: segmentCount }, () => [])
-
-      for (const log of workflowLogs) {
-        const logTime = new Date(log.createdAt).getTime()
-        const idx = Math.min(
-          segmentCount - 1,
-          Math.max(0, Math.floor((logTime - start.getTime()) / calculatedSegmentMs))
-        )
-
-        segments[idx].totalExecutions += 1
-        segments[idx].hasExecutions = true
-
-        if (log.level !== 'error') {
-          segments[idx].successfulExecutions += 1
-        }
-
-        const duration = parseDuration({ duration: log.duration ?? undefined })
-        if (duration !== null && duration > 0) {
-          durations[idx].push(duration)
-        }
-      }
-
-      let totalExecs = 0
-      let totalSuccess = 0
-
-      for (let i = 0; i < segmentCount; i++) {
-        const seg = segments[i]
-        totalExecs += seg.totalExecutions
-        totalSuccess += seg.successfulExecutions
-
-        if (seg.totalExecutions > 0) {
-          seg.successRate = (seg.successfulExecutions / seg.totalExecutions) * 100
-        }
-
-        if (durations[i].length > 0) {
-          seg.avgDurationMs = Math.round(
-            durations[i].reduce((sum, d) => sum + d, 0) / durations[i].length
-          )
-        }
-      }
-
-      const overallSuccessRate = totalExecs > 0 ? (totalSuccess / totalExecs) * 100 : 100
-
-      workflowExecutions.push({
-        workflowId: workflow.id,
-        workflowName: workflow.name,
-        segments,
-        overallSuccessRate,
-      })
-    }
-
-    workflowExecutions.sort((a, b) => {
-      const errA = a.overallSuccessRate < 100 ? 1 - a.overallSuccessRate / 100 : 0
-      const errB = b.overallSuccessRate < 100 ? 1 - b.overallSuccessRate / 100 : 0
-      if (errA !== errB) return errB - errA
-      return a.workflowName.localeCompare(b.workflowName)
-    })
-
-    const aggSegments: {
-      timestamp: string
-      totalExecutions: number
-      successfulExecutions: number
-      avgDurationMs: number
-    }[] = Array.from({ length: segmentCount }, (_, i) => ({
-      timestamp: new Date(start.getTime() + i * calculatedSegmentMs).toISOString(),
-      totalExecutions: 0,
-      successfulExecutions: 0,
-      avgDurationMs: 0,
-    }))
-
-    const weightedDurationSums: number[] = Array(segmentCount).fill(0)
-    const executionCounts: number[] = Array(segmentCount).fill(0)
-
-    for (const wf of workflowExecutions) {
-      wf.segments.forEach((s, i) => {
-        aggSegments[i].totalExecutions += s.totalExecutions
-        aggSegments[i].successfulExecutions += s.successfulExecutions
-
-        if (s.avgDurationMs && s.avgDurationMs > 0 && s.totalExecutions > 0) {
-          weightedDurationSums[i] += s.avgDurationMs * s.totalExecutions
-          executionCounts[i] += s.totalExecutions
-        }
-      })
-    }
-
-    aggSegments.forEach((seg, i) => {
-      if (executionCounts[i] > 0) {
-        seg.avgDurationMs = weightedDurationSums[i] / executionCounts[i]
-      }
-    })
+    const workflowExecutions = stats.workflows.map(toWorkflowExecution)
 
     return {
       executions: workflowExecutions,
-      aggregateSegments: aggSegments,
-      segmentMs: calculatedSegmentMs,
+      aggregateSegments: stats.aggregateSegments,
+      segmentMs: stats.segmentMs,
     }
-  }, [logs, timeBounds, segmentCount, allWorkflows])
+  }, [stats])
+
+  const lastExecutionByWorkflow = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const wf of executions) {
+      for (let i = wf.segments.length - 1; i >= 0; i--) {
+        if (wf.segments[i].totalExecutions > 0) {
+          map.set(wf.workflowId, new Date(wf.segments[i].timestamp).getTime())
+          break
+        }
+      }
+    }
+    return map
+  }, [executions])
 
   const filteredExecutions = useMemo(() => {
     let filtered = executions
@@ -511,37 +376,12 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
   useEffect(() => {
     setSelectedSegments({})
     setLastAnchorIndices({})
-  }, [logs, timeRange, workflowIds, searchQuery])
-
-  useEffect(() => {
-    if (!barsAreaRef.current) return
-    const el = barsAreaRef.current
-    let debounceId: ReturnType<typeof setTimeout> | null = null
-    const ro = new ResizeObserver(([entry]) => {
-      const w = entry?.contentRect?.width || 720
-      const n = Math.max(36, Math.min(96, Math.floor(w / MIN_SEGMENT_PX)))
-      if (debounceId) clearTimeout(debounceId)
-      debounceId = setTimeout(() => {
-        setSegmentCount(n)
-      }, 150)
-    })
-    ro.observe(el)
-    const rect = el.getBoundingClientRect()
-    if (rect?.width) {
-      const n = Math.max(36, Math.min(96, Math.floor(rect.width / MIN_SEGMENT_PX)))
-      setSegmentCount(n)
-    }
-    return () => {
-      if (debounceId) clearTimeout(debounceId)
-      ro.disconnect()
-    }
-  }, [])
+  }, [stats, timeRange, workflowIds, searchQuery])
 
   if (isLoading) {
     return <DashboardSkeleton />
   }
 
-  // Show error state
   if (error) {
     return (
       <div className='mt-[24px] flex flex-1 items-center justify-center'>

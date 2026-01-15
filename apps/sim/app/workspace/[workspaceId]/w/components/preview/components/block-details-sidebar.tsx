@@ -1124,7 +1124,9 @@ function BlockDetailsSidebarContent({
 
   const visibleSubBlocks = blockConfig.subBlocks.filter((subBlock) => {
     if (subBlock.hidden || subBlock.hideFromPreview) return false
-    if (subBlock.mode === 'trigger') return false
+    // Only filter out trigger-mode subblocks for non-trigger blocks
+    // Trigger-only blocks (category 'triggers') should display their trigger subblocks
+    if (subBlock.mode === 'trigger' && blockConfig.category !== 'triggers') return false
     if (subBlock.condition) {
       return evaluateCondition(subBlock.condition, subBlockValues)
     }

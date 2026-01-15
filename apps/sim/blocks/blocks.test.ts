@@ -386,6 +386,7 @@ describe('Blocks Module', () => {
         'webhook-config',
         'schedule-info',
         'file-selector',
+        'sheet-selector',
         'project-selector',
         'channel-selector',
         'user-selector',

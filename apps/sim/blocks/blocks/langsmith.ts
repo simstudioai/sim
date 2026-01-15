@@ -19,10 +19,10 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        { label: 'Create Run', id: 'create_run' },
-        { label: 'Create Runs Batch', id: 'create_runs_batch' },
+        { label: 'Create Run', id: 'langsmith_create_run' },
+        { label: 'Create Runs Batch', id: 'langsmith_create_runs_batch' },
       ],
-      value: () => 'create_run',
+      value: () => 'langsmith_create_run',
     },
     {
       id: 'apiKey',
@@ -37,15 +37,15 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Run ID',
       type: 'short-input',
       placeholder: 'Auto-generated if blank',
-      condition: { field: 'operation', value: 'create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
     },
     {
       id: 'name',
       title: 'Name',
       type: 'short-input',
       placeholder: 'Run name',
-      required: { field: 'operation', value: 'create_run' },
-      condition: { field: 'operation', value: 'create_run' },
+      required: { field: 'operation', value: 'langsmith_create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
     },
     {
       id: 'run_type',
@@ -61,23 +61,22 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
         { label: 'Parser', id: 'parser' },
       ],
       value: () => 'chain',
-      required: { field: 'operation', value: 'create_run' },
-      condition: { field: 'operation', value: 'create_run' },
+      required: { field: 'operation', value: 'langsmith_create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
     },
     {
       id: 'start_time',
       title: 'Start Time',
       type: 'short-input',
-      placeholder: '2025-01-01T12:00:00Z',
-      condition: { field: 'operation', value: 'create_run' },
-      value: () => new Date().toISOString(),
+      placeholder: 'e.g. 2025-01-01T12:00:00Z (defaults to now)',
+      condition: { field: 'operation', value: 'langsmith_create_run' },
     },
     {
       id: 'end_time',
       title: 'End Time',
       type: 'short-input',
       placeholder: '2025-01-01T12:00:30Z',
-      condition: { field: 'operation', value: 'create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
       mode: 'advanced',
     },
     {
@@ -85,7 +84,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Inputs',
       type: 'code',
       placeholder: '{"input":"value"}',
-      condition: { field: 'operation', value: 'create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
       mode: 'advanced',
     },
     {
@@ -93,7 +92,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Outputs',
       type: 'code',
       placeholder: '{"output":"value"}',
-      condition: { field: 'operation', value: 'create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
       mode: 'advanced',
     },
     {
@@ -101,7 +100,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Metadata',
       type: 'code',
       placeholder: '{"ls_model":"gpt-4"}',
-      condition: { field: 'operation', value: 'create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
       mode: 'advanced',
     },
     {
@@ -109,7 +108,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Tags',
       type: 'code',
       placeholder: '["production","workflow"]',
-      condition: { field: 'operation', value: 'create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
       mode: 'advanced',
     },
     {
@@ -117,7 +116,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Parent Run ID',
       type: 'short-input',
       placeholder: 'Parent run identifier',
-      condition: { field: 'operation', value: 'create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
       mode: 'advanced',
     },
     {
@@ -125,7 +124,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Trace ID',
       type: 'short-input',
       placeholder: 'Auto-generated if blank',
-      condition: { field: 'operation', value: 'create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
       mode: 'advanced',
     },
     {
@@ -133,7 +132,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Session ID',
       type: 'short-input',
       placeholder: 'Session identifier',
-      condition: { field: 'operation', value: 'create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
       mode: 'advanced',
     },
     {
@@ -141,7 +140,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Session Name',
       type: 'short-input',
       placeholder: 'Session name',
-      condition: { field: 'operation', value: 'create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
       mode: 'advanced',
     },
     {
@@ -149,7 +148,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Status',
       type: 'short-input',
       placeholder: 'success',
-      condition: { field: 'operation', value: 'create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
       mode: 'advanced',
     },
     {
@@ -157,7 +156,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Error',
       type: 'long-input',
       placeholder: 'Error message',
-      condition: { field: 'operation', value: 'create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
       mode: 'advanced',
     },
     {
@@ -165,7 +164,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Dotted Order',
       type: 'short-input',
       placeholder: 'Defaults to <YYYYMMDDTHHMMSSffffff>Z<id>',
-      condition: { field: 'operation', value: 'create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
       mode: 'advanced',
     },
     {
@@ -173,7 +172,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Events',
       type: 'code',
       placeholder: '[{"event":"token","value":1}]',
-      condition: { field: 'operation', value: 'create_run' },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
       mode: 'advanced',
     },
     {
@@ -181,28 +180,36 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Post Runs',
       type: 'code',
       placeholder: '[{"id":"...","name":"...","run_type":"chain","start_time":"..."}]',
-      condition: { field: 'operation', value: 'create_runs_batch' },
+      condition: { field: 'operation', value: 'langsmith_create_runs_batch' },
+      wandConfig: {
+        enabled: true,
+        generationType: 'json-object',
+        prompt: `Output ONLY a JSON array with a single LangSmith run object. No explanation.
+Required: name (string), run_type ("tool"|"chain"|"llm"|"retriever"|"embedding"|"prompt"|"parser")
+Optional: inputs, outputs, tags, extra, session_name, end_time
+Fields id, trace_id, dotted_order, start_time are auto-generated if omitted.`,
+      },
     },
     {
       id: 'patch',
       title: 'Patch Runs',
       type: 'code',
       placeholder: '[{"id":"...","name":"...","run_type":"chain","start_time":"..."}]',
-      condition: { field: 'operation', value: 'create_runs_batch' },
+      condition: { field: 'operation', value: 'langsmith_create_runs_batch' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        generationType: 'json-object',
+        prompt: `Output ONLY a JSON array with a single LangSmith run object to update. No explanation.
+Required: id (existing run UUID), name, run_type ("tool"|"chain"|"llm"|"retriever"|"embedding"|"prompt"|"parser")
+Common patch fields: outputs, end_time, status, error`,
+      },
     },
   ],
   tools: {
     access: ['langsmith_create_run', 'langsmith_create_runs_batch'],
     config: {
-      tool: (params) => {
-        switch (params.operation) {
-          case 'create_runs_batch':
-            return 'langsmith_create_runs_batch'
-          default:
-            return 'langsmith_create_run'
-        }
-      },
+      tool: (params) => params.operation,
       params: (params) => {
         const parseJsonValue = (value: unknown, label: string) => {
           if (value === undefined || value === null || value === '') {
@@ -220,7 +227,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
           return value
         }
 
-        if (params.operation === 'create_runs_batch') {
+        if (params.operation === 'langsmith_create_runs_batch') {
           const post = parseJsonValue(params.post, 'post runs')
           const patch = parseJsonValue(params.patch, 'patch runs')
 

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull, min } from 'drizzle-orm'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import type { Variable } from '@/stores/panel/variables/types'
 import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
@@ -26,6 +26,7 @@ interface DuplicateWorkflowResult {
   color: string
   workspaceId: string
   folderId: string | null
+  sortOrder: number
   blocksCount: number
   edgesCount: number
   subflowsCount: number
@@ -88,12 +89,29 @@ export async function duplicateWorkflow(
       throw new Error('Source workflow not found or access denied')
     }
 
+    const targetWorkspaceId = workspaceId || source.workspaceId
+    const targetFolderId = folderId !== undefined ? folderId : source.folderId
+    const folderCondition = targetFolderId
+      ? eq(workflow.folderId, targetFolderId)
+      : isNull(workflow.folderId)
+
+    const [minResult] = await tx
+      .select({ minOrder: min(workflow.sortOrder) })
+      .from(workflow)
+      .where(
+        targetWorkspaceId
+          ? and(eq(workflow.workspaceId, targetWorkspaceId), folderCondition)
+          : and(eq(workflow.userId, userId), folderCondition)
+      )
+    const sortOrder = (minResult?.minOrder ?? 1) - 1
+
     // Create the new workflow first (required for foreign key constraints)
     await tx.insert(workflow).values({
       id: newWorkflowId,
       userId,
-      workspaceId: workspaceId || source.workspaceId,
-      folderId: folderId !== undefined ? folderId : source.folderId,
+      workspaceId: targetWorkspaceId,
+      folderId: targetFolderId,
+      sortOrder,
       name,
       description: description || source.description,
       color: color || source.color,
@@ -286,7 +304,8 @@ export async function duplicateWorkflow(
       description: description || source.description,
       color: color || source.color,
       workspaceId: finalWorkspaceId,
-      folderId: folderId !== undefined ? folderId : source.folderId,
+      folderId: targetFolderId,
+      sortOrder,
       blocksCount: sourceBlocks.length,
       edgesCount: sourceEdges.length,
       subflowsCount: sourceSubflows.length,

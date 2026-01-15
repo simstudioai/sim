@@ -32,6 +32,7 @@ const logger = createLogger('FolderItem')
 interface FolderItemProps {
   folder: FolderTreeNode
   level: number
+  dragDisabled?: boolean
   hoverHandlers?: {
     onDragEnter?: (e: React.DragEvent<HTMLElement>) => void
     onDragLeave?: (e: React.DragEvent<HTMLElement>) => void
@@ -51,6 +52,7 @@ interface FolderItemProps {
 export function FolderItem({
   folder,
   level,
+  dragDisabled = false,
   hoverHandlers,
   onDragStart: onDragStartProp,
   onDragEnd: onDragEndProp,
@@ -294,7 +296,7 @@ export function FolderItem({
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
-        draggable={!isEditing}
+        draggable={!isEditing && !dragDisabled}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         {...hoverHandlers}

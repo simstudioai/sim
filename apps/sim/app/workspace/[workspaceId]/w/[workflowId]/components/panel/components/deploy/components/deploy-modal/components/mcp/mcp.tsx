@@ -138,10 +138,12 @@ export function McpDeploy({
 
   const [toolName, setToolName] = useState(() => sanitizeToolName(workflowName))
   const [toolDescription, setToolDescription] = useState(() => {
+    const normalizedDesc = workflowDescription?.toLowerCase().trim()
     const isDefaultDescription =
       !workflowDescription ||
       workflowDescription === workflowName ||
-      workflowDescription.toLowerCase() === 'new workflow'
+      normalizedDesc === 'new workflow' ||
+      normalizedDesc === 'your first workflow - start building here!'
 
     return isDefaultDescription ? '' : workflowDescription
   })
@@ -193,10 +195,12 @@ export function McpDeploy({
         setToolName(toolInfo.tool.toolName)
 
         const loadedDescription = toolInfo.tool.toolDescription || ''
+        const normalizedLoadedDesc = loadedDescription.toLowerCase().trim()
         const isDefaultDescription =
           !loadedDescription ||
           loadedDescription === workflowName ||
-          loadedDescription.toLowerCase() === 'new workflow'
+          normalizedLoadedDesc === 'new workflow' ||
+          normalizedLoadedDesc === 'your first workflow - start building here!'
         setToolDescription(isDefaultDescription ? '' : loadedDescription)
 
         const schema = toolInfo.tool.parameterSchema as Record<string, unknown> | undefined

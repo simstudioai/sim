@@ -18,7 +18,12 @@ export interface DropIndicator {
   folderId: string | null
 }
 
-export function useDragDrop() {
+interface UseDragDropOptions {
+  disabled?: boolean
+}
+
+export function useDragDrop(options: UseDragDropOptions = {}) {
+  const { disabled = false } = options
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [hoverFolderId, setHoverFolderId] = useState<string | null>(null)
@@ -133,7 +138,20 @@ export function useDragDrop() {
     []
   )
 
-  type SiblingItem = { type: 'folder' | 'workflow'; id: string; sortOrder: number }
+  type SiblingItem = {
+    type: 'folder' | 'workflow'
+    id: string
+    sortOrder: number
+    createdAt: Date
+  }
+
+  const compareSiblingItems = (a: SiblingItem, b: SiblingItem): number => {
+    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+    const timeA = a.createdAt.getTime()
+    const timeB = b.createdAt.getTime()
+    if (timeA !== timeB) return timeA - timeB
+    return a.id.localeCompare(b.id)
+  }
 
   const getDestinationFolderId = useCallback((indicator: DropIndicator): string | null => {
     return indicator.position === 'inside'
@@ -202,11 +220,21 @@ export function useDragDrop() {
     return [
       ...Object.values(currentFolders)
         .filter((f) => f.parentId === folderId)
-        .map((f) => ({ type: 'folder' as const, id: f.id, sortOrder: f.sortOrder })),
+        .map((f) => ({
+          type: 'folder' as const,
+          id: f.id,
+          sortOrder: f.sortOrder,
+          createdAt: f.createdAt,
+        })),
       ...Object.values(currentWorkflows)
         .filter((w) => w.folderId === folderId)
-        .map((w) => ({ type: 'workflow' as const, id: w.id, sortOrder: w.sortOrder })),
-    ].sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((w) => ({
+          type: 'workflow' as const,
+          id: w.id,
+          sortOrder: w.sortOrder,
+          createdAt: w.createdAt,
+        })),
+    ].sort(compareSiblingItems)
   }, [])
 
   const setNormalizedDropIndicator = useCallback(
@@ -299,8 +327,9 @@ export function useDragDrop() {
             type: 'workflow' as const,
             id,
             sortOrder: currentWorkflows[id]?.sortOrder ?? 0,
+            createdAt: currentWorkflows[id]?.createdAt ?? new Date(),
           }))
-          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .sort(compareSiblingItems)
 
         const insertAt = calculateInsertIndex(remaining, indicator)
 
@@ -369,7 +398,12 @@ export function useDragDrop() {
 
         const newOrder: SiblingItem[] = [
           ...remaining.slice(0, insertAt),
-          { type: 'folder', id: draggedFolderId, sortOrder: 0 },
+          {
+            type: 'folder',
+            id: draggedFolderId,
+            sortOrder: 0,
+            createdAt: draggedFolder?.createdAt ?? new Date(),
+          },
           ...remaining.slice(insertAt),
         ]
 
@@ -558,9 +592,31 @@ export function useDragDrop() {
     scrollContainerRef.current = element
   }, [])
 
+  const noopDragHandlers = {
+    onDragOver: (e: React.DragEvent<HTMLElement>) => e.preventDefault(),
+    onDrop: (e: React.DragEvent<HTMLElement>) => e.preventDefault(),
+  }
+
+  if (disabled) {
+    return {
+      dropIndicator: null,
+      isDragging: false,
+      disabled: true,
+      setScrollContainer,
+      createWorkflowDragHandlers: () => noopDragHandlers,
+      createFolderDragHandlers: () => ({ ...noopDragHandlers, onDragLeave: () => {} }),
+      createEmptyFolderDropZone: () => noopDragHandlers,
+      createFolderContentDropZone: () => noopDragHandlers,
+      createRootDropZone: () => ({ ...noopDragHandlers, onDragLeave: () => {} }),
+      handleDragStart: () => {},
+      handleDragEnd: () => {},
+    }
+  }
+
   return {
     dropIndicator,
     isDragging,
+    disabled: false,
     setScrollContainer,
     createWorkflowDragHandlers,
     createFolderDragHandlers,

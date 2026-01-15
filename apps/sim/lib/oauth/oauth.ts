@@ -495,7 +495,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     services: {
       slack: {
         name: 'Slack',
-        description: 'Send messages using a Slack bot.',
+        description: 'Send messages using a bot for Slack.',
         providerId: 'slack',
         icon: SlackIcon,
         baseProviderIcon: SlackIcon,

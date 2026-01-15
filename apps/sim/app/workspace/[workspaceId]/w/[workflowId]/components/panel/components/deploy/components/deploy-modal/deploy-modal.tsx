@@ -742,7 +742,7 @@ export function DeployModal({
                 )}
               </ModalTabsContent> */}
 
-              <ModalTabsContent value='mcp'>
+              <ModalTabsContent value='mcp' className='h-full'>
                 {workflowId && (
                   <McpDeploy
                     workflowId={workflowId}
@@ -808,7 +808,7 @@ export function DeployModal({
                 {chatExists && (
                   <Button
                     type='button'
-                    variant='destructive'
+                    variant='default'
                     onClick={handleChatDelete}
                     disabled={chatSubmitting}
                   >

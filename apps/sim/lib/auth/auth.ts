@@ -426,7 +426,8 @@ export const auth = betterAuth({
   },
   emailVerification: {
     autoSignInAfterVerification: true,
-    afterEmailVerification: async (user) => {
+    // onEmailVerification is called by the emailOTP plugin when email is verified via OTP
+    onEmailVerification: async (user) => {
       if (isHosted && user.email) {
         try {
           const html = await renderWelcomeEmail(user.name || undefined)
@@ -441,11 +442,11 @@ export const auth = betterAuth({
             emailType: 'transactional',
           })
 
-          logger.info('[emailVerification.afterEmailVerification] Welcome email sent', {
+          logger.info('[emailVerification.onEmailVerification] Welcome email sent', {
             userId: user.id,
           })
         } catch (error) {
-          logger.error('[emailVerification.afterEmailVerification] Failed to send welcome email', {
+          logger.error('[emailVerification.onEmailVerification] Failed to send welcome email', {
             userId: user.id,
             error,
           })
@@ -456,7 +457,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: isEmailVerificationEnabled,
-    sendVerificationOnSignUp: false,
+    sendVerificationOnSignUp: isEmailVerificationEnabled, // Auto-send verification OTP on signup when verification is required
     throwOnMissingCredentials: true,
     throwOnInvalidCredentials: true,
     sendResetPassword: async ({ user, url, token }, request) => {
@@ -592,6 +593,7 @@ export const auth = betterAuth({
       sendVerificationOnSignUp: false,
       otpLength: 6, // Explicitly set the OTP length
       expiresIn: 15 * 60, // 15 minutes in seconds
+      overrideDefaultEmailVerification: true,
     }),
     genericOAuth({
       config: [

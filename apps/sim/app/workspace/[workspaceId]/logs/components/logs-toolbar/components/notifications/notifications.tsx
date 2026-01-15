@@ -422,7 +422,8 @@ export function NotificationSettings({
       levelFilter: formData.levelFilter,
       triggerFilter: formData.triggerFilter,
       includeFinalOutput: formData.includeFinalOutput,
-      includeTraceSpans: formData.includeTraceSpans,
+      // Trace spans only available for webhooks (too large for email/Slack)
+      includeTraceSpans: activeTab === 'webhook' ? formData.includeTraceSpans : false,
       includeRateLimits: formData.includeRateLimits,
       includeUsageData: formData.includeUsageData,
       alertConfig,
@@ -830,7 +831,10 @@ export function NotificationSettings({
             <Combobox
               options={[
                 { label: 'Final Output', value: 'includeFinalOutput' },
-                { label: 'Trace Spans', value: 'includeTraceSpans' },
+                // Trace spans only available for webhooks (too large for email/Slack)
+                ...(activeTab === 'webhook'
+                  ? [{ label: 'Trace Spans', value: 'includeTraceSpans' }]
+                  : []),
                 { label: 'Rate Limits', value: 'includeRateLimits' },
                 { label: 'Usage Data', value: 'includeUsageData' },
               ]}
@@ -838,7 +842,7 @@ export function NotificationSettings({
               multiSelectValues={
                 [
                   formData.includeFinalOutput && 'includeFinalOutput',
-                  formData.includeTraceSpans && 'includeTraceSpans',
+                  formData.includeTraceSpans && activeTab === 'webhook' && 'includeTraceSpans',
                   formData.includeRateLimits && 'includeRateLimits',
                   formData.includeUsageData && 'includeUsageData',
                 ].filter(Boolean) as string[]
@@ -862,7 +866,7 @@ export function NotificationSettings({
                 }
                 const selected = [
                   formData.includeFinalOutput && 'includeFinalOutput',
-                  formData.includeTraceSpans && 'includeTraceSpans',
+                  formData.includeTraceSpans && activeTab === 'webhook' && 'includeTraceSpans',
                   formData.includeRateLimits && 'includeRateLimits',
                   formData.includeUsageData && 'includeUsageData',
                 ].filter(Boolean) as string[]
