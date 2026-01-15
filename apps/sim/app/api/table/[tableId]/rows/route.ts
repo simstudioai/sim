@@ -274,7 +274,7 @@ async function handleBatchInsert(
     }
   }
 
-  // Insert all rows
+  // Insert all rows in a transaction to ensure atomicity
   const now = new Date()
   const rowsToInsert = validated.rows.map((data) => ({
     id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
@@ -286,16 +286,21 @@ async function handleBatchInsert(
     createdBy: userId,
   }))
 
-  const insertedRows = await db.insert(userTableRows).values(rowsToInsert).returning()
+  const insertedRows = await db.transaction(async (trx) => {
+    // Insert all rows
+    const inserted = await trx.insert(userTableRows).values(rowsToInsert).returning()
 
-  // Update row count
-  await db
-    .update(userTableDefinitions)
-    .set({
-      rowCount: sql`${userTableDefinitions.rowCount} + ${validated.rows.length}`,
-      updatedAt: now,
-    })
-    .where(eq(userTableDefinitions.id, tableId))
+    // Update row count
+    await trx
+      .update(userTableDefinitions)
+      .set({
+        rowCount: sql`${userTableDefinitions.rowCount} + ${validated.rows.length}`,
+        updatedAt: now,
+      })
+      .where(eq(userTableDefinitions.id, tableId))
+
+    return inserted
+  })
 
   logger.info(`[${requestId}] Batch inserted ${insertedRows.length} rows into table ${tableId}`)
 
@@ -460,31 +465,36 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
       )
     }
 
-    // Insert row
+    // Insert row in a transaction to ensure atomicity
     const rowId = `row_${crypto.randomUUID().replace(/-/g, '')}`
     const now = new Date()
 
-    const [row] = await db
-      .insert(userTableRows)
-      .values({
-        id: rowId,
-        tableId,
-        workspaceId,
-        data: validated.data,
-        createdAt: now,
-        updatedAt: now,
-        createdBy: authResult.userId,
-      })
-      .returning()
+    const [row] = await db.transaction(async (trx) => {
+      // Insert row
+      const insertedRow = await trx
+        .insert(userTableRows)
+        .values({
+          id: rowId,
+          tableId,
+          workspaceId,
+          data: validated.data,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: authResult.userId,
+        })
+        .returning()
 
-    // Update row count
-    await db
-      .update(userTableDefinitions)
-      .set({
-        rowCount: sql`${userTableDefinitions.rowCount} + 1`,
-        updatedAt: now,
-      })
-      .where(eq(userTableDefinitions.id, tableId))
+      // Update row count
+      await trx
+        .update(userTableDefinitions)
+        .set({
+          rowCount: sql`${userTableDefinitions.rowCount} + 1`,
+          updatedAt: now,
+        })
+        .where(eq(userTableDefinitions.id, tableId))
+
+      return insertedRow
+    })
 
     logger.info(`[${requestId}] Inserted row ${rowId} into table ${tableId}`)
 
@@ -849,29 +859,33 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
       }
     }
 
-    // Update rows by merging existing data with new data in batches
+    // Update rows by merging existing data with new data in a transaction
     const now = new Date()
     const BATCH_SIZE = 100 // Smaller batch for updates since each is a separate query
-    let totalUpdated = 0
 
-    for (let i = 0; i < matchingRows.length; i += BATCH_SIZE) {
-      const batch = matchingRows.slice(i, i + BATCH_SIZE)
-      const updatePromises = batch.map((row) => {
-        const existingData = row.data as RowData
-        return db
-          .update(userTableRows)
-          .set({
-            data: { ...existingData, ...updateData },
-            updatedAt: now,
-          })
-          .where(eq(userTableRows.id, row.id))
-      })
-      await Promise.all(updatePromises)
-      totalUpdated += batch.length
-      logger.info(
-        `[${requestId}] Updated batch ${Math.floor(i / BATCH_SIZE) + 1} (${totalUpdated}/${matchingRows.length} rows)`
-      )
-    }
+    await db.transaction(async (trx) => {
+      let totalUpdated = 0
+
+      // Process updates in batches
+      for (let i = 0; i < matchingRows.length; i += BATCH_SIZE) {
+        const batch = matchingRows.slice(i, i + BATCH_SIZE)
+        const updatePromises = batch.map((row) => {
+          const existingData = row.data as RowData
+          return trx
+            .update(userTableRows)
+            .set({
+              data: { ...existingData, ...updateData },
+              updatedAt: now,
+            })
+            .where(eq(userTableRows.id, row.id))
+        })
+        await Promise.all(updatePromises)
+        totalUpdated += batch.length
+        logger.info(
+          `[${requestId}] Updated batch ${Math.floor(i / BATCH_SIZE) + 1} (${totalUpdated}/${matchingRows.length} rows)`
+        )
+      }
+    })
 
     logger.info(`[${requestId}] Updated ${matchingRows.length} rows in table ${tableId}`)
 
@@ -999,37 +1013,41 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
       logger.warn(`[${requestId}] Deleting ${matchingRows.length} rows. This may take some time.`)
     }
 
-    // Delete the matching rows in batches to avoid stack overflow
+    // Delete the matching rows in a transaction to ensure atomicity
     const rowIds = matchingRows.map((r) => r.id)
     const BATCH_SIZE = 1000
-    let totalDeleted = 0
 
-    for (let i = 0; i < rowIds.length; i += BATCH_SIZE) {
-      const batch = rowIds.slice(i, i + BATCH_SIZE)
-      await db.delete(userTableRows).where(
-        and(
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, actualWorkspaceId),
-          sql`${userTableRows.id} = ANY(ARRAY[${sql.join(
-            batch.map((id) => sql`${id}`),
-            sql`, `
-          )}])`
+    await db.transaction(async (trx) => {
+      let totalDeleted = 0
+
+      // Delete rows in batches to avoid stack overflow
+      for (let i = 0; i < rowIds.length; i += BATCH_SIZE) {
+        const batch = rowIds.slice(i, i + BATCH_SIZE)
+        await trx.delete(userTableRows).where(
+          and(
+            eq(userTableRows.tableId, tableId),
+            eq(userTableRows.workspaceId, actualWorkspaceId),
+            sql`${userTableRows.id} = ANY(ARRAY[${sql.join(
+              batch.map((id) => sql`${id}`),
+              sql`, `
+            )}])`
+          )
         )
-      )
-      totalDeleted += batch.length
-      logger.info(
-        `[${requestId}] Deleted batch ${Math.floor(i / BATCH_SIZE) + 1} (${totalDeleted}/${rowIds.length} rows)`
-      )
-    }
+        totalDeleted += batch.length
+        logger.info(
+          `[${requestId}] Deleted batch ${Math.floor(i / BATCH_SIZE) + 1} (${totalDeleted}/${rowIds.length} rows)`
+        )
+      }
 
-    // Update row count
-    await db
-      .update(userTableDefinitions)
-      .set({
-        rowCount: sql`${userTableDefinitions.rowCount} - ${matchingRows.length}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(userTableDefinitions.id, tableId))
+      // Update row count
+      await trx
+        .update(userTableDefinitions)
+        .set({
+          rowCount: sql`${userTableDefinitions.rowCount} - ${matchingRows.length}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(userTableDefinitions.id, tableId))
+    })
 
     logger.info(`[${requestId}] Deleted ${matchingRows.length} rows from table ${tableId}`)
 

@@ -389,30 +389,39 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
       }
     }
 
-    // Delete row
-    const [deletedRow] = await db
-      .delete(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.id, rowId),
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, actualWorkspaceId)
+    // Delete row in a transaction to ensure atomicity
+    const deletedRow = await db.transaction(async (trx) => {
+      // Delete row
+      const [deleted] = await trx
+        .delete(userTableRows)
+        .where(
+          and(
+            eq(userTableRows.id, rowId),
+            eq(userTableRows.tableId, tableId),
+            eq(userTableRows.workspaceId, actualWorkspaceId)
+          )
         )
-      )
-      .returning()
+        .returning()
+
+      if (!deleted) {
+        return null
+      }
+
+      // Update row count
+      await trx
+        .update(userTableDefinitions)
+        .set({
+          rowCount: sql`${userTableDefinitions.rowCount} - 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(userTableDefinitions.id, tableId))
+
+      return deleted
+    })
 
     if (!deletedRow) {
       return NextResponse.json({ error: 'Row not found' }, { status: 404 })
     }
-
-    // Update row count
-    await db
-      .update(userTableDefinitions)
-      .set({
-        rowCount: sql`${userTableDefinitions.rowCount} - 1`,
-        updatedAt: new Date(),
-      })
-      .where(eq(userTableDefinitions.id, tableId))
 
     logger.info(`[${requestId}] Deleted row ${rowId} from table ${tableId}`)
 

@@ -208,68 +208,69 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
 
     const now = new Date()
 
-    if (existingRow) {
-      // Update existing row
-      const [updatedRow] = await db
-        .update(userTableRows)
-        .set({
+    // Perform upsert in a transaction to ensure atomicity
+    const result = await db.transaction(async (trx) => {
+      if (existingRow) {
+        // Update existing row
+        const [updatedRow] = await trx
+          .update(userTableRows)
+          .set({
+            data: validated.data,
+            updatedAt: now,
+          })
+          .where(eq(userTableRows.id, existingRow.id))
+          .returning()
+
+        return {
+          row: updatedRow,
+          operation: 'update' as const,
+        }
+      }
+
+      // Insert new row
+      const [insertedRow] = await trx
+        .insert(userTableRows)
+        .values({
+          id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+          tableId,
+          workspaceId: actualWorkspaceId,
           data: validated.data,
+          createdAt: now,
           updatedAt: now,
+          createdBy: authResult.userId,
         })
-        .where(eq(userTableRows.id, existingRow.id))
         .returning()
 
-      logger.info(`[${requestId}] Upserted (updated) row ${updatedRow.id} in table ${tableId}`)
+      // Update row count for insert
+      await trx
+        .update(userTableDefinitions)
+        .set({
+          rowCount: sql`${userTableDefinitions.rowCount} + 1`,
+          updatedAt: now,
+        })
+        .where(eq(userTableDefinitions.id, tableId))
 
-      return NextResponse.json({
-        success: true,
-        data: {
-          row: {
-            id: updatedRow.id,
-            data: updatedRow.data,
-            createdAt: updatedRow.createdAt.toISOString(),
-            updatedAt: updatedRow.updatedAt.toISOString(),
-          },
-          operation: 'update',
-          message: 'Row updated successfully',
-        },
-      })
-    }
-    // Insert new row
-    const [insertedRow] = await db
-      .insert(userTableRows)
-      .values({
-        tableId,
-        workspaceId: actualWorkspaceId,
-        data: validated.data,
-        createdAt: now,
-        updatedAt: now,
-        createdBy: authResult.userId,
-      })
-      .returning()
+      return {
+        row: insertedRow,
+        operation: 'insert' as const,
+      }
+    })
 
-    // Update row count
-    await db
-      .update(userTableDefinitions)
-      .set({
-        rowCount: sql`${userTableDefinitions.rowCount} + 1`,
-        updatedAt: now,
-      })
-      .where(eq(userTableDefinitions.id, tableId))
-
-    logger.info(`[${requestId}] Upserted (inserted) row ${insertedRow.id} in table ${tableId}`)
+    logger.info(
+      `[${requestId}] Upserted (${result.operation}) row ${result.row.id} in table ${tableId}`
+    )
 
     return NextResponse.json({
       success: true,
       data: {
         row: {
-          id: insertedRow.id,
-          data: insertedRow.data,
-          createdAt: insertedRow.createdAt.toISOString(),
-          updatedAt: insertedRow.updatedAt.toISOString(),
+          id: result.row.id,
+          data: result.row.data,
+          createdAt: result.row.createdAt.toISOString(),
+          updatedAt: result.row.updatedAt.toISOString(),
         },
-        operation: 'insert',
-        message: 'Row inserted successfully',
+        operation: result.operation,
+        message: `Row ${result.operation === 'update' ? 'updated' : 'inserted'} successfully`,
       },
     })
   } catch (error) {

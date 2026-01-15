@@ -81,6 +81,86 @@ export interface TableAccessDenied {
 export type TableAccessCheck = TableAccessResult | TableAccessDenied
 
 /**
+ * Permission level required for table access.
+ * - 'read': Any workspace permission (read, write, or admin)
+ * - 'write': Write or admin permission required
+ * - 'admin': Admin permission required
+ */
+export type TablePermissionLevel = 'read' | 'write' | 'admin'
+
+/**
+ * Internal function to check if a user has the required permission level for a table.
+ *
+ * Access is granted if:
+ * 1. User created the table directly, OR
+ * 2. User has the required permission level on the table's workspace
+ *
+ * @param tableId - The unique identifier of the table to check
+ * @param userId - The unique identifier of the user requesting access
+ * @param requiredLevel - The minimum permission level required ('read', 'write', or 'admin')
+ * @returns A promise resolving to the access check result
+ *
+ * @internal
+ */
+async function checkTableAccessInternal(
+  tableId: string,
+  userId: string,
+  requiredLevel: TablePermissionLevel
+): Promise<TableAccessCheck> {
+  // Fetch table data
+  const table = await db
+    .select({
+      id: userTableDefinitions.id,
+      createdBy: userTableDefinitions.createdBy,
+      workspaceId: userTableDefinitions.workspaceId,
+    })
+    .from(userTableDefinitions)
+    .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
+    .limit(1)
+
+  if (table.length === 0) {
+    return { hasAccess: false, notFound: true }
+  }
+
+  const tableData = table[0]
+
+  // Case 1: User created the table directly (always has full access)
+  if (tableData.createdBy === userId) {
+    return { hasAccess: true, table: tableData }
+  }
+
+  // Case 2: Check workspace permissions
+  const userPermission = await getUserEntityPermissions(userId, 'workspace', tableData.workspaceId)
+
+  if (userPermission === null) {
+    return { hasAccess: false }
+  }
+
+  // Determine if user has sufficient permission level
+  const hasAccess = (() => {
+    switch (requiredLevel) {
+      case 'read':
+        // Any permission level grants read access
+        return true
+      case 'write':
+        // Write or admin permission required
+        return userPermission === 'write' || userPermission === 'admin'
+      case 'admin':
+        // Only admin permission grants admin access
+        return userPermission === 'admin'
+      default:
+        return false
+    }
+  })()
+
+  if (hasAccess) {
+    return { hasAccess: true, table: tableData }
+  }
+
+  return { hasAccess: false }
+}
+
+/**
  * Checks if a user has read access to a table.
  *
  * Access is granted if:
@@ -104,34 +184,7 @@ export type TableAccessCheck = TableAccessResult | TableAccessDenied
  * ```
  */
 export async function checkTableAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
-  const table = await db
-    .select({
-      id: userTableDefinitions.id,
-      createdBy: userTableDefinitions.createdBy,
-      workspaceId: userTableDefinitions.workspaceId,
-    })
-    .from(userTableDefinitions)
-    .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
-    .limit(1)
-
-  if (table.length === 0) {
-    return { hasAccess: false, notFound: true }
-  }
-
-  const tableData = table[0]
-
-  // Case 1: User created the table directly
-  if (tableData.createdBy === userId) {
-    return { hasAccess: true, table: tableData }
-  }
-
-  // Case 2: Table belongs to a workspace the user has permissions for
-  const userPermission = await getUserEntityPermissions(userId, 'workspace', tableData.workspaceId)
-  if (userPermission !== null) {
-    return { hasAccess: true, table: tableData }
-  }
-
-  return { hasAccess: false }
+  return checkTableAccessInternal(tableId, userId, 'read')
 }
 
 /**
@@ -158,34 +211,7 @@ export async function checkTableWriteAccess(
   tableId: string,
   userId: string
 ): Promise<TableAccessCheck> {
-  const table = await db
-    .select({
-      id: userTableDefinitions.id,
-      createdBy: userTableDefinitions.createdBy,
-      workspaceId: userTableDefinitions.workspaceId,
-    })
-    .from(userTableDefinitions)
-    .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
-    .limit(1)
-
-  if (table.length === 0) {
-    return { hasAccess: false, notFound: true }
-  }
-
-  const tableData = table[0]
-
-  // Case 1: User created the table directly
-  if (tableData.createdBy === userId) {
-    return { hasAccess: true, table: tableData }
-  }
-
-  // Case 2: Table belongs to a workspace and user has write/admin permissions
-  const userPermission = await getUserEntityPermissions(userId, 'workspace', tableData.workspaceId)
-  if (userPermission === 'write' || userPermission === 'admin') {
-    return { hasAccess: true, table: tableData }
-  }
-
-  return { hasAccess: false }
+  return checkTableAccessInternal(tableId, userId, 'write')
 }
 
 /**

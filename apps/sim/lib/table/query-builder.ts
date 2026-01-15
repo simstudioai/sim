@@ -7,6 +7,7 @@
 
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
+import { NAME_PATTERN } from './constants'
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
@@ -29,6 +30,55 @@ export interface QueryFilter {
 }
 
 /**
+ * Whitelist of allowed operators for query filtering.
+ * Only these operators can be used in filter conditions.
+ */
+const ALLOWED_OPERATORS = new Set([
+  '$eq',
+  '$ne',
+  '$gt',
+  '$gte',
+  '$lt',
+  '$lte',
+  '$in',
+  '$nin',
+  '$contains',
+])
+
+/**
+ * Validates a field name to prevent SQL injection.
+ * Field names must match the NAME_PATTERN (alphanumeric + underscore, starting with letter/underscore).
+ *
+ * @param field - The field name to validate
+ * @throws Error if field name is invalid
+ */
+function validateFieldName(field: string): void {
+  if (!field || typeof field !== 'string') {
+    throw new Error('Field name must be a non-empty string')
+  }
+
+  if (!NAME_PATTERN.test(field)) {
+    throw new Error(
+      `Invalid field name "${field}". Field names must start with a letter or underscore, followed by alphanumeric characters or underscores.`
+    )
+  }
+}
+
+/**
+ * Validates an operator to ensure it's in the allowed list.
+ *
+ * @param operator - The operator to validate
+ * @throws Error if operator is not allowed
+ */
+function validateOperator(operator: string): void {
+  if (!ALLOWED_OPERATORS.has(operator)) {
+    throw new Error(
+      `Invalid operator "${operator}". Allowed operators: ${Array.from(ALLOWED_OPERATORS).join(', ')}`
+    )
+  }
+}
+
+/**
  * Builds a JSONB containment clause using GIN index.
  * Generates: `table.data @> '{"field": value}'::jsonb`
  */
@@ -42,11 +92,17 @@ function buildFieldCondition(
   field: string,
   condition: JsonValue | FieldCondition
 ): SQL[] {
+  // Validate field name to prevent SQL injection
+  validateFieldName(field)
+
   const conditions: SQL[] = []
   const escapedField = field.replace(/'/g, "''")
 
   if (typeof condition === 'object' && condition !== null && !Array.isArray(condition)) {
     for (const [op, value] of Object.entries(condition)) {
+      // Validate operator to ensure only allowed operators are used
+      validateOperator(op)
+
       switch (op) {
         case '$eq':
           conditions.push(buildContainmentClause(tableName, field, value as JsonValue))
@@ -107,6 +163,10 @@ function buildFieldCondition(
             sql`${sql.raw(`${tableName}.data->>'${escapedField}'`)} ILIKE ${`%${value}%`}`
           )
           break
+
+        default:
+          // This should never happen due to validateOperator, but added for completeness
+          throw new Error(`Unsupported operator: ${op}`)
       }
     }
   } else {
@@ -221,6 +281,11 @@ export function buildFilterClause(filter: QueryFilter, tableName: string): SQL |
 /**
  * Builds an ORDER BY clause from a sort object.
  * Note: JSONB fields use text extraction, so numeric sorting may not work as expected.
+ *
+ * @param sort - Sort object with field names and directions
+ * @param tableName - Table name for the query
+ * @returns SQL ORDER BY clause or undefined if no sort specified
+ * @throws Error if field name is invalid
  */
 export function buildSortClause(
   sort: Record<string, 'asc' | 'desc'>,
@@ -233,10 +298,18 @@ export function buildSortClause(
    * - For `createdAt` and `updatedAt`, use the top-level table columns for proper type sorting.
    * - For all other fields, treat them as keys in the table's data JSONB column.
    *   Extraction is performed with ->> to return text, which is then sorted.
-   * - Field names are escaped for safety.
+   * - Field names are validated to prevent SQL injection.
    */
   for (const [field, direction] of Object.entries(sort)) {
-    // Escape single quotes for SQL safety
+    // Validate field name to prevent SQL injection
+    validateFieldName(field)
+
+    // Validate direction
+    if (direction !== 'asc' && direction !== 'desc') {
+      throw new Error(`Invalid sort direction "${direction}". Must be "asc" or "desc".`)
+    }
+
+    // Escape single quotes for SQL safety (defense in depth)
     const escapedField = field.replace(/'/g, "''")
 
     if (field === 'createdAt' || field === 'updatedAt') {
