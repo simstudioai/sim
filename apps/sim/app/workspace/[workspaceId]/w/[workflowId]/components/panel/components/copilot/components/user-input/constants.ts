@@ -239,7 +239,7 @@ export const MODEL_OPTIONS = [
   { value: 'claude-4.5-sonnet', label: 'Claude 4.5 Sonnet' },
   { value: 'claude-4.5-haiku', label: 'Claude 4.5 Haiku' },
   { value: 'gpt-5.2-codex', label: 'GPT 5.2 Codex' },
-  { value: 'gpt-5.2', label: 'GPT 5.2' },
+  { value: 'gpt-5.2-pro', label: 'GPT 5.2 Pro' },
   { value: 'gemini-3-pro', label: 'Gemini 3 Pro' },
 ] as const
 

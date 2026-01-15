@@ -108,6 +108,7 @@ export interface CopilotState {
     | 'gpt-5.1-codex'
     | 'gpt-5.2'
     | 'gpt-5.2-codex'
+    | 'gpt-5.2-pro'
     | 'gpt-4o'
     | 'gpt-4.1'
     | 'o3'
