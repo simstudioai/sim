@@ -350,6 +350,36 @@ export function AccessControl() {
         category: 'Collaboration',
         configKey: 'disableInvitations' as const,
       },
+      {
+        id: 'hide-deploy-api',
+        label: 'API',
+        category: 'Deploy Tabs',
+        configKey: 'hideDeployApi' as const,
+      },
+      {
+        id: 'hide-deploy-mcp',
+        label: 'MCP',
+        category: 'Deploy Tabs',
+        configKey: 'hideDeployMcp' as const,
+      },
+      {
+        id: 'hide-deploy-a2a',
+        label: 'A2A',
+        category: 'Deploy Tabs',
+        configKey: 'hideDeployA2a' as const,
+      },
+      {
+        id: 'hide-deploy-chatbot',
+        label: 'Chat',
+        category: 'Deploy Tabs',
+        configKey: 'hideDeployChatbot' as const,
+      },
+      {
+        id: 'hide-deploy-template',
+        label: 'Template',
+        category: 'Deploy Tabs',
+        configKey: 'hideDeployTemplate' as const,
+      },
     ],
     []
   )
@@ -926,7 +956,12 @@ export function AccessControl() {
                             !editingConfig?.disableMcpTools &&
                             !editingConfig?.disableCustomTools &&
                             !editingConfig?.hideTraceSpans &&
-                            !editingConfig?.disableInvitations
+                            !editingConfig?.disableInvitations &&
+                            !editingConfig?.hideDeployApi &&
+                            !editingConfig?.hideDeployMcp &&
+                            !editingConfig?.hideDeployA2a &&
+                            !editingConfig?.hideDeployChatbot &&
+                            !editingConfig?.hideDeployTemplate
                           setEditingConfig((prev) =>
                             prev
                               ? {
@@ -941,6 +976,11 @@ export function AccessControl() {
                                   disableCustomTools: allVisible,
                                   hideTraceSpans: allVisible,
                                   disableInvitations: allVisible,
+                                  hideDeployApi: allVisible,
+                                  hideDeployMcp: allVisible,
+                                  hideDeployA2a: allVisible,
+                                  hideDeployChatbot: allVisible,
+                                  hideDeployTemplate: allVisible,
                                 }
                               : prev
                           )
@@ -955,7 +995,12 @@ export function AccessControl() {
                         !editingConfig?.disableMcpTools &&
                         !editingConfig?.disableCustomTools &&
                         !editingConfig?.hideTraceSpans &&
-                        !editingConfig?.disableInvitations
+                        !editingConfig?.disableInvitations &&
+                        !editingConfig?.hideDeployApi &&
+                        !editingConfig?.hideDeployMcp &&
+                        !editingConfig?.hideDeployA2a &&
+                        !editingConfig?.hideDeployChatbot &&
+                        !editingConfig?.hideDeployTemplate
                           ? 'Deselect All'
                           : 'Select All'}
                       </Button>

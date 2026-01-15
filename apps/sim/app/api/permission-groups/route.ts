@@ -26,6 +26,12 @@ const configSchema = z.object({
   disableMcpTools: z.boolean().optional(),
   disableCustomTools: z.boolean().optional(),
   hideTemplates: z.boolean().optional(),
+  disableInvitations: z.boolean().optional(),
+  hideDeployApi: z.boolean().optional(),
+  hideDeployMcp: z.boolean().optional(),
+  hideDeployA2a: z.boolean().optional(),
+  hideDeployChatbot: z.boolean().optional(),
+  hideDeployTemplate: z.boolean().optional(),
 })
 
 const createSchema = z.object({
