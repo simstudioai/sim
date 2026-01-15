@@ -161,7 +161,10 @@ export function useWorkspaceManagement({
         }
 
         // Update local state immediately after successful API call
-        setActiveWorkspace((prev) => (prev ? { ...prev, name: newName.trim() } : null))
+        // Only update activeWorkspace if it's the one being renamed
+        setActiveWorkspace((prev) =>
+          prev && prev.id === workspaceId ? { ...prev, name: newName.trim() } : prev
+        )
         setWorkspaces((prev) =>
           prev.map((workspace) =>
             workspace.id === workspaceId ? { ...workspace, name: newName.trim() } : workspace
