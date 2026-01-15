@@ -1,5 +1,29 @@
 import type { ToolResponse } from '@/tools/types'
 
+// Re-export shared types from lib/table for convenience
+export type {
+  ColumnDefinition,
+  ColumnType,
+  ColumnValue,
+  FilterOperators,
+  JsonValue,
+  QueryFilter,
+  RowData,
+  TableDefinition,
+  TableRow,
+  TableSchema,
+} from '@/lib/table/types'
+
+// Import types for use in this file
+import type {
+  ColumnDefinition,
+  QueryFilter,
+  RowData,
+  TableDefinition,
+  TableRow,
+  TableSchema,
+} from '@/lib/table/types'
+
 /**
  * Execution context provided by the workflow executor
  */
@@ -17,53 +41,6 @@ export interface ToolParamsWithContext {
   _context?: ExecutionContext
 }
 
-export type ColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
-
-export interface ColumnDefinition {
-  name: string
-  type: ColumnType
-  required?: boolean
-  unique?: boolean
-}
-
-export interface TableSchema {
-  columns: ColumnDefinition[]
-}
-
-export interface TableDefinition {
-  id: string
-  name: string
-  description?: string
-  schema: TableSchema
-  rowCount: number
-  maxRows: number
-  createdAt: string
-  updatedAt: string
-}
-
-export interface TableRow {
-  id: string
-  data: Record<string, any>
-  createdAt: string
-  updatedAt: string
-}
-
-export interface QueryFilter {
-  [key: string]:
-    | any
-    | {
-        $eq?: any
-        $ne?: any
-        $gt?: number
-        $gte?: number
-        $lt?: number
-        $lte?: number
-        $in?: any[]
-        $nin?: any[]
-        $contains?: string
-      }
-}
-
 export interface TableCreateParams extends ToolParamsWithContext {
   name: string
   description?: string
@@ -77,14 +54,14 @@ export interface TableListParams extends ToolParamsWithContext {
 
 export interface TableRowInsertParams extends ToolParamsWithContext {
   tableId: string
-  data: Record<string, any>
+  data: RowData
   workspaceId?: string
 }
 
 export interface TableRowUpdateParams extends ToolParamsWithContext {
   tableId: string
   rowId: string
-  data: Record<string, any>
+  data: RowData
   workspaceId?: string
 }
 
@@ -149,7 +126,7 @@ export interface TableDeleteResponse extends ToolResponse {
 
 export interface TableBatchInsertParams extends ToolParamsWithContext {
   tableId: string
-  rows: Record<string, any>[]
+  rows: RowData[]
   workspaceId?: string
 }
 
@@ -164,7 +141,7 @@ export interface TableBatchInsertResponse extends ToolResponse {
 export interface TableUpdateByFilterParams extends ToolParamsWithContext {
   tableId: string
   filter: QueryFilter
-  data: Record<string, any>
+  data: RowData
   limit?: number
   workspaceId?: string
 }

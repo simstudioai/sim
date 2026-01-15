@@ -4,26 +4,10 @@
  * @module lib/table/validation/schema
  */
 
-import type { ColumnType } from '../constants'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '../constants'
+import type { ColumnDefinition, RowData, TableSchema, ValidationResult } from '../types'
 
-export interface ColumnDefinition {
-  name: string
-  type: ColumnType
-  required?: boolean
-  unique?: boolean
-}
-
-export interface TableSchema {
-  columns: ColumnDefinition[]
-}
-
-interface ValidationResult {
-  valid: boolean
-  errors: string[]
-}
-
-type RowData = Record<string, unknown>
+export type { ColumnDefinition, TableSchema, ValidationResult }
 
 export function validateTableName(name: string): ValidationResult {
   const errors: string[] = []

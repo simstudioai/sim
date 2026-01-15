@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import type { QueryFilter, TableSchema } from '@/lib/table'
+import type { QueryFilter, RowData, TableSchema } from '@/lib/table'
 import {
   getUniqueColumns,
   TABLE_LIMITS,
@@ -19,18 +19,12 @@ import {
 import { buildFilterClause, buildSortClause } from '@/lib/table/query-builder'
 import {
   checkAccessOrRespond,
+  checkAccessWithFullTable,
   checkTableAccess,
-  getTableById,
   verifyTableWorkspace,
 } from '../../utils'
 
 const logger = createLogger('TableRowsAPI')
-
-/**
- * Type for dynamic row data stored in tables.
- * Keys are column names, values can be any JSON-serializable type.
- */
-type RowData = Record<string, unknown>
 
 /**
  * Type for sort direction specification.
@@ -148,29 +142,22 @@ async function handleBatchInsert(
 ): Promise<NextResponse> {
   const validated = BatchInsertRowsSchema.parse(body)
 
-  // Check table write access
-  const accessResult = await checkAccessOrRespond(tableId, userId, requestId, 'write')
+  // Check table write access and get full table data in one query
+  const accessResult = await checkAccessWithFullTable(tableId, userId, requestId, 'write')
   if (accessResult instanceof NextResponse) return accessResult
 
+  const table = accessResult.table
+
   // Security check: If workspaceId is provided, verify it matches the table's workspace
-  if (validated.workspaceId) {
-    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-    if (!isValidWorkspace) {
-      logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
-      )
-      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-    }
+  if (validated.workspaceId && validated.workspaceId !== table.workspaceId) {
+    logger.warn(
+      `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
+    )
+    return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
   }
 
-  // Get table definition
-  const table = await getTableById(tableId)
-  if (!table) {
-    return NextResponse.json({ error: 'Table not found' }, { status: 404 })
-  }
-
-  // Use the workspaceId from the access check (more secure)
-  const workspaceId = validated.workspaceId || accessResult.table.workspaceId
+  // Use the workspaceId from the table (more secure)
+  const workspaceId = table.workspaceId
 
   // Check row count limit
   const remainingCapacity = table.maxRows - table.rowCount
@@ -290,29 +277,27 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
     // Single row insert
     const validated = InsertRowSchema.parse(body)
 
-    // Check table write access
-    const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
+    // Check table write access and get full table data in one query
+    const accessResult = await checkAccessWithFullTable(
+      tableId,
+      authResult.userId,
+      requestId,
+      'write'
+    )
     if (accessResult instanceof NextResponse) return accessResult
 
+    const table = accessResult.table
+
     // Security check: If workspaceId is provided, verify it matches the table's workspace
-    if (validated.workspaceId) {
-      const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-      if (!isValidWorkspace) {
-        logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
-        )
-        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-      }
+    if (validated.workspaceId && validated.workspaceId !== table.workspaceId) {
+      logger.warn(
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
+      )
+      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Get table definition
-    const table = await getTableById(tableId)
-    if (!table) {
-      return NextResponse.json({ error: 'Table not found' }, { status: 404 })
-    }
-
-    // Use the workspaceId from the access check (more secure)
-    const workspaceId = validated.workspaceId || accessResult.table.workspaceId
+    // Use the workspaceId from the table (more secure)
+    const workspaceId = table.workspaceId
     const rowData = validated.data as RowData
 
     // Validate row data (size, schema, unique constraints)
@@ -578,29 +563,27 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
     const body: unknown = await request.json()
     const validated = UpdateRowsByFilterSchema.parse(body)
 
-    // Check table write access
-    const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
+    // Check table write access and get full table data in one query
+    const accessResult = await checkAccessWithFullTable(
+      tableId,
+      authResult.userId,
+      requestId,
+      'write'
+    )
     if (accessResult instanceof NextResponse) return accessResult
 
+    const table = accessResult.table
+
     // Security check: If workspaceId is provided, verify it matches the table's workspace
-    if (validated.workspaceId) {
-      const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-      if (!isValidWorkspace) {
-        logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
-        )
-        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-      }
+    if (validated.workspaceId && validated.workspaceId !== table.workspaceId) {
+      logger.warn(
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
+      )
+      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Get table definition
-    const table = await getTableById(tableId)
-    if (!table) {
-      return NextResponse.json({ error: 'Table not found' }, { status: 404 })
-    }
-
-    // Use the workspaceId from the access check (more secure)
-    const actualWorkspaceId = validated.workspaceId || accessResult.table.workspaceId
+    // Use the workspaceId from the table (more secure)
+    const actualWorkspaceId = table.workspaceId
     const updateData = validated.data as RowData
 
     // Validate new data size
@@ -653,7 +636,7 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
     }
 
     // Log warning for large operations but allow them
-    if (matchingRows.length > 1000) {
+    if (matchingRows.length > TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
       logger.warn(`[${requestId}] Updating ${matchingRows.length} rows. This may take some time.`)
     }
 
@@ -712,14 +695,13 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
 
     // Update rows by merging existing data with new data in a transaction
     const now = new Date()
-    const BATCH_SIZE = 100 // Smaller batch for updates since each is a separate query
 
     await db.transaction(async (trx) => {
       let totalUpdated = 0
 
       // Process updates in batches
-      for (let i = 0; i < matchingRows.length; i += BATCH_SIZE) {
-        const batch = matchingRows.slice(i, i + BATCH_SIZE)
+      for (let i = 0; i < matchingRows.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
+        const batch = matchingRows.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
         const updatePromises = batch.map((row) => {
           const existingData = row.data as RowData
           return trx
@@ -733,7 +715,7 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
         await Promise.all(updatePromises)
         totalUpdated += batch.length
         logger.info(
-          `[${requestId}] Updated batch ${Math.floor(i / BATCH_SIZE) + 1} (${totalUpdated}/${matchingRows.length} rows)`
+          `[${requestId}] Updated batch ${Math.floor(i / TABLE_LIMITS.UPDATE_BATCH_SIZE) + 1} (${totalUpdated}/${matchingRows.length} rows)`
         )
       }
     })
@@ -850,20 +832,19 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
     }
 
     // Log warning for large operations but allow them
-    if (matchingRows.length > 1000) {
+    if (matchingRows.length > TABLE_LIMITS.DELETE_BATCH_SIZE) {
       logger.warn(`[${requestId}] Deleting ${matchingRows.length} rows. This may take some time.`)
     }
 
     // Delete the matching rows in a transaction to ensure atomicity
     const rowIds = matchingRows.map((r) => r.id)
-    const BATCH_SIZE = 1000
 
     await db.transaction(async (trx) => {
       let totalDeleted = 0
 
       // Delete rows in batches to avoid stack overflow
-      for (let i = 0; i < rowIds.length; i += BATCH_SIZE) {
-        const batch = rowIds.slice(i, i + BATCH_SIZE)
+      for (let i = 0; i < rowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
+        const batch = rowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
         await trx.delete(userTableRows).where(
           and(
             eq(userTableRows.tableId, tableId),
@@ -876,7 +857,7 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
         )
         totalDeleted += batch.length
         logger.info(
-          `[${requestId}] Deleted batch ${Math.floor(i / BATCH_SIZE) + 1} (${totalDeleted}/${rowIds.length} rows)`
+          `[${requestId}] Deleted batch ${Math.floor(i / TABLE_LIMITS.DELETE_BATCH_SIZE) + 1} (${totalDeleted}/${rowIds.length} rows)`
         )
       }
 

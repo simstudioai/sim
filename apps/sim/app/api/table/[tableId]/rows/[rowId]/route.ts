@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import type { TableSchema } from '@/lib/table'
+import type { RowData, TableSchema } from '@/lib/table'
 import { validateRowData } from '@/lib/table'
 import {
   checkAccessOrRespond,
@@ -16,12 +16,6 @@ import {
 } from '../../../utils'
 
 const logger = createLogger('TableRowAPI')
-
-/**
- * Type for dynamic row data stored in tables.
- * Keys are column names, values can be any JSON-serializable type.
- */
-type RowData = Record<string, unknown>
 
 /**
  * Zod schema for validating get row requests.

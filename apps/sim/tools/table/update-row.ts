@@ -29,12 +29,12 @@ export const tableUpdateRowTool: ToolConfig<TableRowUpdateParams, TableRowRespon
   },
 
   request: {
-    url: (params: any) => `/api/table/${params.tableId}/rows/${params.rowId}`,
+    url: (params: TableRowUpdateParams) => `/api/table/${params.tableId}/rows/${params.rowId}`,
     method: 'PATCH',
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: any) => {
+    body: (params: TableRowUpdateParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('workspaceId is required in execution context')

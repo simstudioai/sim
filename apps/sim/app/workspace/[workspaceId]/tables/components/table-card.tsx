@@ -40,12 +40,13 @@ interface TableCardProps {
 }
 
 /**
- * Formats a date string to relative time (e.g., "2h ago", "3d ago").
+ * Formats a date to relative time (e.g., "2h ago", "3d ago").
  *
- * @param dateString - ISO date string to format
+ * @param dateValue - Date string or Date object to format
  * @returns Human-readable relative time string
  */
-function formatRelativeTime(dateString: string): string {
+function formatRelativeTime(dateValue: string | Date): string {
+  const dateString = typeof dateValue === 'string' ? dateValue : dateValue.toISOString()
   const date = new Date(dateString)
   const now = new Date()
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
@@ -60,12 +61,13 @@ function formatRelativeTime(dateString: string): string {
 }
 
 /**
- * Formats a date string to absolute format for tooltip display.
+ * Formats a date to absolute format for tooltip display.
  *
- * @param dateString - ISO date string to format
+ * @param dateValue - Date string or Date object to format
  * @returns Formatted date string (e.g., "Jan 15, 2024, 10:30 AM")
  */
-function formatAbsoluteDate(dateString: string): string {
+function formatAbsoluteDate(dateValue: string | Date): string {
+  const dateString = typeof dateValue === 'string' ? dateValue : dateValue.toISOString()
   const date = new Date(dateString)
   return date.toLocaleDateString('en-US', {
     year: 'numeric',

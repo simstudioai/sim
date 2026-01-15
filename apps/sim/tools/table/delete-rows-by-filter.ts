@@ -33,12 +33,12 @@ export const tableDeleteRowsByFilterTool: ToolConfig<
   },
 
   request: {
-    url: (params: any) => `/api/table/${params.tableId}/rows`,
+    url: (params: TableDeleteByFilterParams) => `/api/table/${params.tableId}/rows`,
     method: 'DELETE',
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: any) => {
+    body: (params: TableDeleteByFilterParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('workspaceId is required in execution context')

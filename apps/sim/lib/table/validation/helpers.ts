@@ -11,18 +11,13 @@ import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import type { TableSchema } from './schema'
+import type { RowData, TableSchema } from '../types'
 import {
   getUniqueColumns,
   validateRowAgainstSchema,
   validateRowSize,
   validateUniqueConstraints,
 } from './schema'
-
-/**
- * Row data type for validation functions.
- */
-type RowData = Record<string, unknown>
 
 /**
  * Result of a successful row validation.

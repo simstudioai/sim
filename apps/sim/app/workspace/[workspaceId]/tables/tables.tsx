@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createLogger } from '@sim/logger'
 import { Database, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Tooltip } from '@/components/emcn'
@@ -11,8 +10,6 @@ import { useTablesList } from '@/hooks/queries/use-tables'
 import { useDebounce } from '@/hooks/use-debounce'
 import { CreateTableModal } from './components/create-table-modal'
 import { TableCard } from './components/table-card'
-
-const logger = createLogger('Tables')
 
 /**
  * Tables page component that displays a list of all tables in a workspace.

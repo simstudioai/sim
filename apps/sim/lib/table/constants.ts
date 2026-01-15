@@ -15,6 +15,14 @@ export const TABLE_LIMITS = {
   MAX_DESCRIPTION_LENGTH: 500,
   DEFAULT_QUERY_LIMIT: 100,
   MAX_QUERY_LIMIT: 1000,
+  /** Batch size for bulk update operations */
+  UPDATE_BATCH_SIZE: 100,
+  /** Batch size for bulk delete operations */
+  DELETE_BATCH_SIZE: 1000,
+  /** Maximum rows per batch insert */
+  MAX_BATCH_INSERT_SIZE: 1000,
+  /** Maximum rows per bulk update/delete operation */
+  MAX_BULK_OPERATION_SIZE: 1000,
 } as const
 
 export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as const

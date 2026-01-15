@@ -23,7 +23,7 @@ export const tableGetRowTool: ToolConfig<TableRowGetParams, TableRowResponse> = 
   },
 
   request: {
-    url: (params: any) => {
+    url: (params: TableRowGetParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('workspaceId is required in execution context')

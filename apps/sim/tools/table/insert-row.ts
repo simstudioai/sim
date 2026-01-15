@@ -23,12 +23,12 @@ export const tableInsertRowTool: ToolConfig<TableRowInsertParams, TableRowRespon
   },
 
   request: {
-    url: (params: any) => `/api/table/${params.tableId}/rows`,
+    url: (params: TableRowInsertParams) => `/api/table/${params.tableId}/rows`,
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: any) => {
+    body: (params: TableRowInsertParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('workspaceId is required in execution context')

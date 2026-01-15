@@ -17,7 +17,7 @@ export const tableGetSchemaTool: ToolConfig<TableGetSchemaParams, TableGetSchema
   },
 
   request: {
-    url: (params: any) => {
+    url: (params: TableGetSchemaParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('workspaceId is required in execution context')

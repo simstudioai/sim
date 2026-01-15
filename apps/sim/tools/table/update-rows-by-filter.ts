@@ -39,12 +39,12 @@ export const tableUpdateRowsByFilterTool: ToolConfig<
   },
 
   request: {
-    url: (params: any) => `/api/table/${params.tableId}/rows`,
+    url: (params: TableUpdateByFilterParams) => `/api/table/${params.tableId}/rows`,
     method: 'PUT',
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: any) => {
+    body: (params: TableUpdateByFilterParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('workspaceId is required in execution context')

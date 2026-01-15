@@ -6,17 +6,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import type { TableSchema } from '@/lib/table'
+import type { RowData, TableSchema } from '@/lib/table'
 import { getUniqueColumns, validateRowData } from '@/lib/table'
 import { checkAccessOrRespond, getTableById, verifyTableWorkspace } from '../../../utils'
 
 const logger = createLogger('TableUpsertAPI')
-
-/**
- * Type for dynamic row data stored in tables.
- * Keys are column names, values can be any JSON-serializable type.
- */
-type RowData = Record<string, unknown>
 
 /**
  * Zod schema for validating upsert (insert or update) requests.

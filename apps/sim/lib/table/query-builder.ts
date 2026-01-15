@@ -8,26 +8,13 @@
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { NAME_PATTERN } from './constants'
+import type { FilterOperators, JsonValue, QueryFilter } from './types'
 
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
-
-export interface FieldCondition {
-  $eq?: JsonValue
-  $ne?: JsonValue
-  $gt?: number
-  $gte?: number
-  $lt?: number
-  $lte?: number
-  $in?: JsonValue[]
-  $nin?: JsonValue[]
-  $contains?: string
-}
-
-export interface QueryFilter {
-  $or?: QueryFilter[]
-  $and?: QueryFilter[]
-  [key: string]: JsonValue | FieldCondition | QueryFilter[] | undefined
-}
+/**
+ * Field condition is an alias for FilterOperators.
+ * @deprecated Use FilterOperators from types.ts instead.
+ */
+export type FieldCondition = FilterOperators
 
 /**
  * Whitelist of allowed operators for query filtering.

@@ -68,6 +68,16 @@ export interface TableAccessResult {
 }
 
 /**
+ * Result returned when a user has access to a table with full data.
+ */
+export interface TableAccessResultFull {
+  /** Indicates the user has access */
+  hasAccess: true
+  /** Full table data */
+  table: TableData
+}
+
+/**
  * Result returned when a user is denied access to a table.
  */
 export interface TableAccessDenied {
@@ -261,6 +271,83 @@ export async function checkAccessOrRespond(
 }
 
 /**
+ * Checks table access and returns full table data or an error response.
+ *
+ * This is an optimized version of checkAccessOrRespond that fetches the full
+ * table data in a single query, avoiding a redundant getTableById call.
+ *
+ * @param tableId - The unique identifier of the table to check
+ * @param userId - The unique identifier of the user requesting access
+ * @param requestId - Request ID for logging
+ * @param level - Permission level required ('read' or 'write')
+ * @returns Either a TableAccessResultFull with full table data, or a NextResponse with error
+ *
+ * @example
+ * ```typescript
+ * const result = await checkAccessWithFullTable(tableId, userId, requestId, 'write')
+ * if (result instanceof NextResponse) return result
+ *
+ * // Access granted - use result.table which has full table data
+ * const schema = result.table.schema
+ * const rowCount = result.table.rowCount
+ * ```
+ */
+export async function checkAccessWithFullTable(
+  tableId: string,
+  userId: string,
+  requestId: string,
+  level: TablePermissionLevel = 'write'
+): Promise<TableAccessResultFull | NextResponse> {
+  // Fetch full table data in one query
+  const [tableData] = await db
+    .select()
+    .from(userTableDefinitions)
+    .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
+    .limit(1)
+
+  if (!tableData) {
+    logger.warn(`[${requestId}] Table not found: ${tableId}`)
+    return NextResponse.json({ error: 'Table not found' }, { status: 404 })
+  }
+
+  const table = tableData as unknown as TableData
+
+  // Case 1: User created the table directly (always has full access)
+  if (table.createdBy === userId) {
+    return { hasAccess: true, table }
+  }
+
+  // Case 2: Check workspace permissions
+  const userPermission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
+
+  if (userPermission === null) {
+    logger.warn(`[${requestId}] User ${userId} denied ${level} access to table ${tableId}`)
+    return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+  }
+
+  // Determine if user has sufficient permission level
+  const hasAccess = (() => {
+    switch (level) {
+      case 'read':
+        return true
+      case 'write':
+        return userPermission === 'write' || userPermission === 'admin'
+      case 'admin':
+        return userPermission === 'admin'
+      default:
+        return false
+    }
+  })()
+
+  if (!hasAccess) {
+    logger.warn(`[${requestId}] User ${userId} denied ${level} access to table ${tableId}`)
+    return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+  }
+
+  return { hasAccess: true, table }
+}
+
+/**
  * Fetches a table by ID with soft-delete awareness.
  *
  * @param tableId - The unique identifier of the table to fetch
@@ -321,4 +408,80 @@ export async function verifyTableWorkspace(tableId: string, workspaceId: string)
   }
 
   return table[0].workspaceId === workspaceId
+}
+
+/**
+ * Standard error response structure for table API routes.
+ */
+export interface ApiErrorResponse {
+  error: string
+  details?: unknown
+}
+
+/**
+ * Creates a standardized error response.
+ *
+ * @param message - Error message to display
+ * @param status - HTTP status code
+ * @param details - Optional additional error details
+ * @returns NextResponse with standardized error format
+ *
+ * @example
+ * ```typescript
+ * return errorResponse('Table not found', 404)
+ * return errorResponse('Validation error', 400, zodError.errors)
+ * ```
+ */
+export function errorResponse(
+  message: string,
+  status: number,
+  details?: unknown
+): NextResponse<ApiErrorResponse> {
+  const body: ApiErrorResponse = { error: message }
+  if (details !== undefined) {
+    body.details = details
+  }
+  return NextResponse.json(body, { status })
+}
+
+/**
+ * Creates a 400 Bad Request error response.
+ */
+export function badRequestResponse(
+  message: string,
+  details?: unknown
+): NextResponse<ApiErrorResponse> {
+  return errorResponse(message, 400, details)
+}
+
+/**
+ * Creates a 401 Unauthorized error response.
+ */
+export function unauthorizedResponse(
+  message = 'Authentication required'
+): NextResponse<ApiErrorResponse> {
+  return errorResponse(message, 401)
+}
+
+/**
+ * Creates a 403 Forbidden error response.
+ */
+export function forbiddenResponse(message = 'Access denied'): NextResponse<ApiErrorResponse> {
+  return errorResponse(message, 403)
+}
+
+/**
+ * Creates a 404 Not Found error response.
+ */
+export function notFoundResponse(message = 'Resource not found'): NextResponse<ApiErrorResponse> {
+  return errorResponse(message, 404)
+}
+
+/**
+ * Creates a 500 Internal Server Error response.
+ */
+export function serverErrorResponse(
+  message = 'Internal server error'
+): NextResponse<ApiErrorResponse> {
+  return errorResponse(message, 500)
 }

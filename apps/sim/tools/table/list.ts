@@ -10,7 +10,7 @@ export const tableListTool: ToolConfig<TableListParams, TableListResponse> = {
   params: {},
 
   request: {
-    url: (params: any) => {
+    url: (params: TableListParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('workspaceId is required in execution context')

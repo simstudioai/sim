@@ -32,12 +32,12 @@ export const tableUpsertRowTool: ToolConfig<TableRowInsertParams, TableUpsertRes
   },
 
   request: {
-    url: (params: any) => `/api/table/${params.tableId}/rows/upsert`,
+    url: (params: TableRowInsertParams) => `/api/table/${params.tableId}/rows/upsert`,
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: any) => {
+    body: (params: TableRowInsertParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('workspaceId is required in execution context')
