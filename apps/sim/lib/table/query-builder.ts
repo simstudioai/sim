@@ -8,7 +8,7 @@
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { NAME_PATTERN } from './constants'
-import type { FilterOperators, JsonValue, QueryFilter } from './types'
+import type { Filter, FilterOperator, JsonValue } from './types'
 
 /**
  * Whitelist of allowed operators for query filtering.
@@ -92,7 +92,7 @@ function buildContainsClause(tableName: string, field: string, value: string): S
  *
  * @param tableName - The name of the table to query (used for SQL table reference)
  * @param field - The field name to filter on (must match NAME_PATTERN)
- * @param condition - Either a simple value (for equality) or a FilterOperators
+ * @param condition - Either a simple value (for equality) or a FilterOperator
  *                    object with operators like $eq, $gt, $in, etc.
  * @returns Array of SQL condition fragments. Multiple conditions are returned
  *          when the condition object contains multiple operators.
@@ -101,7 +101,7 @@ function buildContainsClause(tableName: string, field: string, value: string): S
 function buildFieldCondition(
   tableName: string,
   field: string,
-  condition: JsonValue | FilterOperators
+  condition: JsonValue | FilterOperator
 ): SQL[] {
   validateFieldName(field)
 
@@ -181,7 +181,7 @@ function buildFieldCondition(
  * Builds SQL clauses from nested filters and joins them with the specified operator.
  */
 function buildLogicalClause(
-  subFilters: QueryFilter[],
+  subFilters: Filter[],
   tableName: string,
   operator: 'OR' | 'AND'
 ): SQL | undefined {
@@ -203,7 +203,7 @@ function buildLogicalClause(
  * Builds a WHERE clause from a filter object.
  * Recursively processes logical operators ($or, $and) and field conditions.
  */
-export function buildFilterClause(filter: QueryFilter, tableName: string): SQL | undefined {
+export function buildFilterClause(filter: Filter, tableName: string): SQL | undefined {
   const conditions: SQL[] = []
 
   for (const [field, condition] of Object.entries(filter)) {
@@ -212,7 +212,7 @@ export function buildFilterClause(filter: QueryFilter, tableName: string): SQL |
     }
 
     if (field === '$or' && Array.isArray(condition)) {
-      const orClause = buildLogicalClause(condition as QueryFilter[], tableName, 'OR')
+      const orClause = buildLogicalClause(condition as Filter[], tableName, 'OR')
       if (orClause) {
         conditions.push(orClause)
       }
@@ -220,7 +220,7 @@ export function buildFilterClause(filter: QueryFilter, tableName: string): SQL |
     }
 
     if (field === '$and' && Array.isArray(condition)) {
-      const andClause = buildLogicalClause(condition as QueryFilter[], tableName, 'AND')
+      const andClause = buildLogicalClause(condition as Filter[], tableName, 'AND')
       if (andClause) {
         conditions.push(andClause)
       }
@@ -234,7 +234,7 @@ export function buildFilterClause(filter: QueryFilter, tableName: string): SQL |
     const fieldConditions = buildFieldCondition(
       tableName,
       field,
-      condition as JsonValue | FilterOperators
+      condition as JsonValue | FilterOperator
     )
     conditions.push(...fieldConditions)
   }

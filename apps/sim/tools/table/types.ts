@@ -1,6 +1,6 @@
 import type {
   ColumnDefinition,
-  QueryFilter,
+  Filter,
   RowData,
   TableDefinition,
   TableRow,
@@ -40,7 +40,7 @@ export interface TableRowDeleteParams {
 
 export interface TableRowQueryParams {
   tableId: string
-  filter?: QueryFilter
+  filter?: Filter
   sort?: Record<string, 'asc' | 'desc'>
   limit?: number
   offset?: number
@@ -107,7 +107,7 @@ export interface TableBatchInsertResponse extends ToolResponse {
 
 export interface TableUpdateByFilterParams {
   tableId: string
-  filter: QueryFilter
+  filter: Filter
   data: RowData
   limit?: number
   _context?: ToolExecutionContext
@@ -115,7 +115,7 @@ export interface TableUpdateByFilterParams {
 
 export interface TableDeleteByFilterParams {
   tableId: string
-  filter: QueryFilter
+  filter: Filter
   limit?: number
   _context?: ToolExecutionContext
 }

@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import type { QueryFilter, RowData, TableSchema } from '@/lib/table'
+import type { Filter, RowData, TableSchema } from '@/lib/table'
 import {
   getUniqueColumns,
   TABLE_LIMITS,
@@ -409,7 +409,7 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
 
     // Add filter conditions if provided
     if (validated.filter) {
-      const filterClause = buildFilterClause(validated.filter as QueryFilter, 'user_table_rows')
+      const filterClause = buildFilterClause(validated.filter as Filter, 'user_table_rows')
       if (filterClause) {
         baseConditions.push(filterClause)
       }
@@ -546,7 +546,7 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
     ]
 
     // Add filter conditions
-    const filterClause = buildFilterClause(validated.filter as QueryFilter, 'user_table_rows')
+    const filterClause = buildFilterClause(validated.filter as Filter, 'user_table_rows')
     if (filterClause) {
       baseConditions.push(filterClause)
     }
@@ -740,7 +740,7 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
     ]
 
     // Add filter conditions
-    const filterClause = buildFilterClause(validated.filter as QueryFilter, 'user_table_rows')
+    const filterClause = buildFilterClause(validated.filter as Filter, 'user_table_rows')
     if (filterClause) {
       baseConditions.push(filterClause)
     }

@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { buildFilterClause, buildSortClause } from './query-builder'
-import type { QueryFilter } from './types'
+import type { Filter } from './types'
 
 describe('Query Builder', () => {
   describe('buildFilterClause', () => {
@@ -19,84 +19,84 @@ describe('Query Builder', () => {
     })
 
     it('should handle simple equality filter', () => {
-      const filter: QueryFilter = { name: 'John' }
+      const filter: Filter = { name: 'John' }
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
     })
 
     it('should handle $eq operator', () => {
-      const filter: QueryFilter = { status: { $eq: 'active' } }
+      const filter: Filter = { status: { $eq: 'active' } }
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
     })
 
     it('should handle $ne operator', () => {
-      const filter: QueryFilter = { status: { $ne: 'deleted' } }
+      const filter: Filter = { status: { $ne: 'deleted' } }
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
     })
 
     it('should handle $gt operator', () => {
-      const filter: QueryFilter = { age: { $gt: 18 } }
+      const filter: Filter = { age: { $gt: 18 } }
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
     })
 
     it('should handle $gte operator', () => {
-      const filter: QueryFilter = { age: { $gte: 18 } }
+      const filter: Filter = { age: { $gte: 18 } }
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
     })
 
     it('should handle $lt operator', () => {
-      const filter: QueryFilter = { age: { $lt: 65 } }
+      const filter: Filter = { age: { $lt: 65 } }
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
     })
 
     it('should handle $lte operator', () => {
-      const filter: QueryFilter = { age: { $lte: 65 } }
+      const filter: Filter = { age: { $lte: 65 } }
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
     })
 
     it('should handle $in operator with single value', () => {
-      const filter: QueryFilter = { status: { $in: ['active'] } }
+      const filter: Filter = { status: { $in: ['active'] } }
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
     })
 
     it('should handle $in operator with multiple values', () => {
-      const filter: QueryFilter = { status: { $in: ['active', 'pending'] } }
+      const filter: Filter = { status: { $in: ['active', 'pending'] } }
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
     })
 
     it('should handle $nin operator', () => {
-      const filter: QueryFilter = { status: { $nin: ['deleted', 'archived'] } }
+      const filter: Filter = { status: { $nin: ['deleted', 'archived'] } }
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
     })
 
     it('should handle $contains operator', () => {
-      const filter: QueryFilter = { name: { $contains: 'john' } }
+      const filter: Filter = { name: { $contains: 'john' } }
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
     })
 
     it('should handle $or logical operator', () => {
-      const filter: QueryFilter = {
+      const filter: Filter = {
         $or: [{ status: 'active' }, { status: 'pending' }],
       }
       const result = buildFilterClause(filter, tableName)
@@ -105,7 +105,7 @@ describe('Query Builder', () => {
     })
 
     it('should handle $and logical operator', () => {
-      const filter: QueryFilter = {
+      const filter: Filter = {
         $and: [{ status: 'active' }, { age: { $gt: 18 } }],
       }
       const result = buildFilterClause(filter, tableName)
@@ -114,7 +114,7 @@ describe('Query Builder', () => {
     })
 
     it('should handle multiple conditions combined with AND', () => {
-      const filter: QueryFilter = {
+      const filter: Filter = {
         status: 'active',
         age: { $gt: 18 },
       }
@@ -124,7 +124,7 @@ describe('Query Builder', () => {
     })
 
     it('should handle nested $or and $and', () => {
-      const filter: QueryFilter = {
+      const filter: Filter = {
         $or: [{ $and: [{ status: 'active' }, { verified: true }] }, { role: 'admin' }],
       }
       const result = buildFilterClause(filter, tableName)
@@ -133,40 +133,40 @@ describe('Query Builder', () => {
     })
 
     it('should throw error for invalid field name', () => {
-      const filter: QueryFilter = { 'invalid-field': 'value' }
+      const filter: Filter = { 'invalid-field': 'value' }
 
       expect(() => buildFilterClause(filter, tableName)).toThrow('Invalid field name')
     })
 
     it('should throw error for invalid operator', () => {
-      const filter = { name: { $invalid: 'value' } } as unknown as QueryFilter
+      const filter = { name: { $invalid: 'value' } } as unknown as Filter
 
       expect(() => buildFilterClause(filter, tableName)).toThrow('Invalid operator')
     })
 
     it('should skip undefined values', () => {
-      const filter: QueryFilter = { name: undefined, status: 'active' }
+      const filter: Filter = { name: undefined, status: 'active' }
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
     })
 
     it('should handle boolean values', () => {
-      const filter: QueryFilter = { active: true }
+      const filter: Filter = { active: true }
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
     })
 
     it('should handle null values', () => {
-      const filter: QueryFilter = { deleted_at: null }
+      const filter: Filter = { deleted_at: null }
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
     })
 
     it('should handle numeric values', () => {
-      const filter: QueryFilter = { count: 42 }
+      const filter: Filter = { count: 42 }
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
@@ -236,13 +236,13 @@ describe('Query Builder', () => {
       const validNames = ['name', 'user_id', '_private', 'Count123', 'a']
 
       for (const name of validNames) {
-        const filter: QueryFilter = { [name]: 'value' }
+        const filter: Filter = { [name]: 'value' }
         expect(() => buildFilterClause(filter, tableName)).not.toThrow()
       }
     })
 
     it('should reject field names starting with number', () => {
-      const filter: QueryFilter = { '123name': 'value' }
+      const filter: Filter = { '123name': 'value' }
       expect(() => buildFilterClause(filter, tableName)).toThrow('Invalid field name')
     })
 
@@ -250,7 +250,7 @@ describe('Query Builder', () => {
       const invalidNames = ['field-name', 'field.name', 'field name', 'field@name']
 
       for (const name of invalidNames) {
-        const filter: QueryFilter = { [name]: 'value' }
+        const filter: Filter = { [name]: 'value' }
         expect(() => buildFilterClause(filter, tableName)).toThrow('Invalid field name')
       }
     })
@@ -259,7 +259,7 @@ describe('Query Builder', () => {
       const sqlInjectionAttempts = ["'; DROP TABLE users; --", 'name OR 1=1', 'name; DELETE FROM']
 
       for (const attempt of sqlInjectionAttempts) {
-        const filter: QueryFilter = { [attempt]: 'value' }
+        const filter: Filter = { [attempt]: 'value' }
         expect(() => buildFilterClause(filter, tableName)).toThrow('Invalid field name')
       }
     })
