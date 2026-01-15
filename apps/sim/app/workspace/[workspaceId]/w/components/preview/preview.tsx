@@ -181,17 +181,18 @@ interface FitViewOnChangeProps {
  */
 function FitViewOnChange({ nodeIds, fitPadding }: FitViewOnChangeProps) {
   const { fitView } = useReactFlow()
-  const hasFittedRef = useRef(false)
+  const lastNodeIdsRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (nodeIds.length > 0 && !hasFittedRef.current) {
-      hasFittedRef.current = true
-      // Small delay to ensure nodes are rendered before fitting
-      const timeoutId = setTimeout(() => {
-        fitView({ padding: fitPadding, duration: 200 })
-      }, 50)
-      return () => clearTimeout(timeoutId)
-    }
+    if (!nodeIds.length) return
+    const shouldFit = lastNodeIdsRef.current !== nodeIds
+    if (!shouldFit) return
+    lastNodeIdsRef.current = nodeIds
+
+    const timeoutId = setTimeout(() => {
+      fitView({ padding: fitPadding, duration: 200 })
+    }, 50)
+    return () => clearTimeout(timeoutId)
   }, [nodeIds, fitPadding, fitView])
 
   return null

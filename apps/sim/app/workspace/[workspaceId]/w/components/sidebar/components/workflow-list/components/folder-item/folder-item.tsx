@@ -342,7 +342,7 @@ export function FolderItem({
             spellCheck='false'
           />
         ) : (
-          <>
+          <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
             <span
               className='min-w-0 flex-1 truncate font-medium text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
               onDoubleClick={handleDoubleClick}
@@ -357,7 +357,7 @@ export function FolderItem({
             >
               <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
             </button>
-          </>
+          </div>
         )}
       </div>
 

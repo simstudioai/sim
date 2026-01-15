@@ -1156,11 +1156,6 @@ function BlockDetailsSidebarContent({
         <span className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
           {block.name || blockConfig.name}
         </span>
-        {block.enabled === false && (
-          <Badge variant='red' size='sm'>
-            Disabled
-          </Badge>
-        )}
         {onClose && (
           <Button variant='ghost' className='!p-[4px] flex-shrink-0' onClick={onClose}>
             <X className='h-[14px] w-[14px]' />
