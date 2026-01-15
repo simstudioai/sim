@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { userTableDefinitions, userTableRows } from '@sim/db/schema'
+import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -210,15 +210,6 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
           createdBy: authResult.userId,
         })
         .returning()
-
-      // Update row count for insert
-      await trx
-        .update(userTableDefinitions)
-        .set({
-          rowCount: sql`${userTableDefinitions.rowCount} + 1`,
-          updatedAt: now,
-        })
-        .where(eq(userTableDefinitions.id, tableId))
 
       return {
         row: insertedRow,

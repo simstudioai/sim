@@ -146,15 +146,14 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
 /**
  * DELETE /api/table/[tableId]?workspaceId=xxx
  *
- * Soft deletes a table.
+ * Deletes a table.
  *
  * @param request - The incoming HTTP request
  * @param context - Route context containing tableId param
  * @returns JSON response confirming deletion or error
  *
  * @remarks
- * This performs a soft delete, marking the table as deleted.
- * Rows remain in the database but become inaccessible.
+ * This performs a hard delete, removing the table and its rows.
  * The operation requires write access to the table.
  */
 export async function DELETE(request: NextRequest, { params }: TableRouteParams) {

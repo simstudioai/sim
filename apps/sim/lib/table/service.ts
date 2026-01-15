@@ -10,7 +10,7 @@
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, isNull, sql } from 'drizzle-orm'
+import { and, count, eq, sql } from 'drizzle-orm'
 import { TABLE_LIMITS } from './constants'
 import { buildFilterClause, buildSortClause } from './query-builder'
 import type {
@@ -39,6 +39,15 @@ import {
 
 const logger = createLogger('TableService')
 
+async function getTableRowCount(tableId: string): Promise<number> {
+  const [result] = await db
+    .select({ count: count() })
+    .from(userTableRows)
+    .where(eq(userTableRows.tableId, tableId))
+
+  return Number(result?.count ?? 0)
+}
+
 /**
  * Gets a table by ID with full details.
  *
@@ -49,18 +58,19 @@ export async function getTableById(tableId: string): Promise<TableDefinition | n
   const results = await db
     .select()
     .from(userTableDefinitions)
-    .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
+    .where(eq(userTableDefinitions.id, tableId))
     .limit(1)
 
   if (results.length === 0) return null
 
   const table = results[0]
+  const rowCount = await getTableRowCount(tableId)
   return {
     id: table.id,
     name: table.name,
     description: table.description,
     schema: table.schema as TableSchema,
-    rowCount: table.rowCount,
+    rowCount,
     maxRows: table.maxRows,
     workspaceId: table.workspaceId,
     createdAt: table.createdAt,
@@ -78,17 +88,26 @@ export async function listTables(workspaceId: string): Promise<TableDefinition[]
   const tables = await db
     .select()
     .from(userTableDefinitions)
-    .where(
-      and(eq(userTableDefinitions.workspaceId, workspaceId), isNull(userTableDefinitions.deletedAt))
-    )
+    .where(eq(userTableDefinitions.workspaceId, workspaceId))
     .orderBy(userTableDefinitions.createdAt)
+
+  const rowCounts = await db
+    .select({
+      tableId: userTableRows.tableId,
+      rowCount: count(),
+    })
+    .from(userTableRows)
+    .where(eq(userTableRows.workspaceId, workspaceId))
+    .groupBy(userTableRows.tableId)
+
+  const rowCountByTable = new Map(rowCounts.map((row) => [row.tableId, Number(row.rowCount ?? 0)]))
 
   return tables.map((t) => ({
     id: t.id,
     name: t.name,
     description: t.description,
     schema: t.schema as TableSchema,
-    rowCount: t.rowCount,
+    rowCount: rowCountByTable.get(t.id) ?? 0,
     maxRows: t.maxRows,
     workspaceId: t.workspaceId,
     createdAt: t.createdAt,
@@ -124,12 +143,7 @@ export async function createTable(
   const existingCount = await db
     .select({ count: count() })
     .from(userTableDefinitions)
-    .where(
-      and(
-        eq(userTableDefinitions.workspaceId, data.workspaceId),
-        isNull(userTableDefinitions.deletedAt)
-      )
-    )
+    .where(eq(userTableDefinitions.workspaceId, data.workspaceId))
 
   if (existingCount[0].count >= TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE) {
     throw new Error(
@@ -144,8 +158,7 @@ export async function createTable(
     .where(
       and(
         eq(userTableDefinitions.workspaceId, data.workspaceId),
-        eq(userTableDefinitions.name, data.name),
-        isNull(userTableDefinitions.deletedAt)
+        eq(userTableDefinitions.name, data.name)
       )
     )
     .limit(1)
@@ -164,7 +177,6 @@ export async function createTable(
     schema: data.schema,
     workspaceId: data.workspaceId,
     createdBy: data.userId,
-    rowCount: 0,
     maxRows: TABLE_LIMITS.MAX_ROWS_PER_TABLE,
     createdAt: now,
     updatedAt: now,
@@ -179,7 +191,7 @@ export async function createTable(
     name: newTable.name,
     description: newTable.description,
     schema: newTable.schema as TableSchema,
-    rowCount: newTable.rowCount,
+    rowCount: 0,
     maxRows: newTable.maxRows,
     workspaceId: newTable.workspaceId,
     createdAt: newTable.createdAt,
@@ -188,24 +200,16 @@ export async function createTable(
 }
 
 /**
- * Deletes a table (soft delete).
- *
- * Note: Rows are not soft-deleted as they don't have a deletedAt column.
- * They remain in the database but are orphaned (not accessible via normal queries
- * since the parent table is soft-deleted).
+ * Deletes a table (hard delete).
  *
  * @param tableId - Table ID to delete
  * @param requestId - Request ID for logging
  */
 export async function deleteTable(tableId: string, requestId: string): Promise<void> {
-  const now = new Date()
-
-  // Soft delete the table only
-  // Rows don't have deletedAt - they're effectively orphaned when table is soft-deleted
-  await db
-    .update(userTableDefinitions)
-    .set({ deletedAt: now, updatedAt: now })
-    .where(eq(userTableDefinitions.id, tableId))
+  await db.transaction(async (trx) => {
+    await trx.delete(userTableRows).where(eq(userTableRows.tableId, tableId))
+    await trx.delete(userTableDefinitions).where(eq(userTableDefinitions.id, tableId))
+  })
 
   logger.info(`[${requestId}] Deleted table ${tableId}`)
 }
@@ -224,8 +228,10 @@ export async function insertRow(
   table: TableDefinition,
   requestId: string
 ): Promise<TableRow> {
+  const rowCount = await getTableRowCount(data.tableId)
+
   // Check capacity
-  if (table.rowCount >= table.maxRows) {
+  if (rowCount >= table.maxRows) {
     throw new Error(`Table has reached maximum row limit (${table.maxRows})`)
   }
 
@@ -271,16 +277,7 @@ export async function insertRow(
     updatedAt: now,
   }
 
-  await db.transaction(async (trx) => {
-    await trx.insert(userTableRows).values(newRow)
-    await trx
-      .update(userTableDefinitions)
-      .set({
-        rowCount: sql`${userTableDefinitions.rowCount} + 1`,
-        updatedAt: now,
-      })
-      .where(eq(userTableDefinitions.id, data.tableId))
-  })
+  await db.insert(userTableRows).values(newRow)
 
   logger.info(`[${requestId}] Inserted row ${rowId} into table ${data.tableId}`)
 
@@ -306,11 +303,13 @@ export async function batchInsertRows(
   table: TableDefinition,
   requestId: string
 ): Promise<TableRow[]> {
+  const currentRowCount = await getTableRowCount(data.tableId)
+
   // Check capacity
-  const remainingCapacity = table.maxRows - table.rowCount
+  const remainingCapacity = table.maxRows - currentRowCount
   if (remainingCapacity < data.rows.length) {
     throw new Error(
-      `Insufficient capacity. Can only insert ${remainingCapacity} more rows (table has ${table.rowCount}/${table.maxRows} rows)`
+      `Insufficient capacity. Can only insert ${remainingCapacity} more rows (table has ${currentRowCount}/${table.maxRows} rows)`
     )
   }
 
@@ -359,16 +358,7 @@ export async function batchInsertRows(
     updatedAt: now,
   }))
 
-  await db.transaction(async (trx) => {
-    await trx.insert(userTableRows).values(rowsToInsert)
-    await trx
-      .update(userTableDefinitions)
-      .set({
-        rowCount: sql`${userTableDefinitions.rowCount} + ${data.rows.length}`,
-        updatedAt: now,
-      })
-      .where(eq(userTableDefinitions.id, data.tableId))
-  })
+  await db.insert(userTableRows).values(rowsToInsert)
 
   logger.info(`[${requestId}] Batch inserted ${data.rows.length} rows into table ${data.tableId}`)
 
@@ -584,19 +574,7 @@ export async function deleteRow(
     throw new Error('Row not found')
   }
 
-  const now = new Date()
-
-  await db.transaction(async (trx) => {
-    await trx.delete(userTableRows).where(eq(userTableRows.id, rowId))
-
-    await trx
-      .update(userTableDefinitions)
-      .set({
-        rowCount: sql`${userTableDefinitions.rowCount} - 1`,
-        updatedAt: now,
-      })
-      .where(eq(userTableDefinitions.id, tableId))
-  })
+  await db.delete(userTableRows).where(eq(userTableRows.id, rowId))
 
   logger.info(`[${requestId}] Deleted row ${rowId} from table ${tableId}`)
 }
@@ -744,15 +722,6 @@ export async function deleteRowsByFilter(
         )
       )
     }
-
-    // Update row count
-    await trx
-      .update(userTableDefinitions)
-      .set({
-        rowCount: sql`${userTableDefinitions.rowCount} - ${matchingRows.length}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(userTableDefinitions.id, data.tableId))
   })
 
   logger.info(`[${requestId}] Deleted ${matchingRows.length} rows from table ${data.tableId}`)

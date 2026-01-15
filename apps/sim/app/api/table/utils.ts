@@ -1,17 +1,26 @@
 import { db } from '@sim/db'
-import { userTableDefinitions } from '@sim/db/schema'
+import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull } from 'drizzle-orm'
+import { count, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import type { ColumnDefinition, TableSchema } from '@/lib/table'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TableUtils')
 
+async function getTableRowCount(tableId: string): Promise<number> {
+  const [result] = await db
+    .select({ count: count() })
+    .from(userTableRows)
+    .where(eq(userTableRows.tableId, tableId))
+
+  return Number(result?.count ?? 0)
+}
+
 /**
  * Represents the core data structure for a user-defined table as stored in the database.
  *
- * This extends the base TableDefinition with DB-specific fields like createdBy and deletedAt.
+ * This extends the base TableDefinition with DB-specific fields like createdBy.
  */
 export interface TableData {
   /** Unique identifier for the table */
@@ -30,8 +39,6 @@ export interface TableData {
   maxRows: number
   /** Current number of rows in the table */
   rowCount: number
-  /** Timestamp when the table was soft-deleted, if applicable */
-  deletedAt?: Date | null
   /** Timestamp when the table was created */
   createdAt: Date
   /** Timestamp when the table was last updated */
@@ -97,7 +104,7 @@ async function checkTableAccessInternal(
       workspaceId: userTableDefinitions.workspaceId,
     })
     .from(userTableDefinitions)
-    .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
+    .where(eq(userTableDefinitions.id, tableId))
     .limit(1)
 
   if (table.length === 0) {
@@ -273,7 +280,7 @@ export async function checkAccessWithFullTable(
   const [tableData] = await db
     .select()
     .from(userTableDefinitions)
-    .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
+    .where(eq(userTableDefinitions.id, tableId))
     .limit(1)
 
   if (!tableData) {
@@ -281,7 +288,8 @@ export async function checkAccessWithFullTable(
     return NextResponse.json({ error: 'Table not found' }, { status: 404 })
   }
 
-  const table = tableData as unknown as TableData
+  const rowCount = await getTableRowCount(tableId)
+  const table = { ...tableData, rowCount } as unknown as TableData
 
   // Case 1: User created the table directly (always has full access)
   if (table.createdBy === userId) {
@@ -319,10 +327,10 @@ export async function checkAccessWithFullTable(
 }
 
 /**
- * Fetches a table by ID with soft-delete awareness.
+ * Fetches a table by ID.
  *
  * @param tableId - The unique identifier of the table to fetch
- * @returns Promise resolving to table data or null if not found/deleted
+ * @returns Promise resolving to table data or null if not found
  *
  * @example
  * ```typescript
@@ -336,14 +344,15 @@ export async function getTableById(tableId: string): Promise<TableData | null> {
   const [table] = await db
     .select()
     .from(userTableDefinitions)
-    .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
+    .where(eq(userTableDefinitions.id, tableId))
     .limit(1)
 
   if (!table) {
     return null
   }
 
-  return table as unknown as TableData
+  const rowCount = await getTableRowCount(tableId)
+  return { ...table, rowCount } as unknown as TableData
 }
 
 /**
@@ -371,7 +380,7 @@ export async function verifyTableWorkspace(tableId: string, workspaceId: string)
   const table = await db
     .select({ workspaceId: userTableDefinitions.workspaceId })
     .from(userTableDefinitions)
-    .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
+    .where(eq(userTableDefinitions.id, tableId))
     .limit(1)
 
   if (table.length === 0) {

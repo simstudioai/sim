@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { userTableDefinitions, userTableRows } from '@sim/db/schema'
+import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -170,7 +170,7 @@ async function handleBatchInsert(
   })
   if (!validation.valid) return validation.response
 
-  // Insert all rows in a transaction to ensure atomicity
+  // Insert all rows
   const now = new Date()
   const rowsToInsert = validated.rows.map((data) => ({
     id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
@@ -182,21 +182,7 @@ async function handleBatchInsert(
     createdBy: userId,
   }))
 
-  const insertedRows = await db.transaction(async (trx) => {
-    // Insert all rows
-    const inserted = await trx.insert(userTableRows).values(rowsToInsert).returning()
-
-    // Update row count
-    await trx
-      .update(userTableDefinitions)
-      .set({
-        rowCount: sql`${userTableDefinitions.rowCount} + ${validated.rows.length}`,
-        updatedAt: now,
-      })
-      .where(eq(userTableDefinitions.id, tableId))
-
-    return inserted
-  })
+  const insertedRows = await db.insert(userTableRows).values(rowsToInsert).returning()
 
   logger.info(`[${requestId}] Batch inserted ${insertedRows.length} rows into table ${tableId}`)
 
@@ -313,36 +299,22 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
       )
     }
 
-    // Insert row in a transaction to ensure atomicity
+    // Insert row
     const rowId = `row_${crypto.randomUUID().replace(/-/g, '')}`
     const now = new Date()
 
-    const [row] = await db.transaction(async (trx) => {
-      // Insert row
-      const insertedRow = await trx
-        .insert(userTableRows)
-        .values({
-          id: rowId,
-          tableId,
-          workspaceId,
-          data: validated.data,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: authResult.userId,
-        })
-        .returning()
-
-      // Update row count
-      await trx
-        .update(userTableDefinitions)
-        .set({
-          rowCount: sql`${userTableDefinitions.rowCount} + 1`,
-          updatedAt: now,
-        })
-        .where(eq(userTableDefinitions.id, tableId))
-
-      return insertedRow
-    })
+    const [row] = await db
+      .insert(userTableRows)
+      .values({
+        id: rowId,
+        tableId,
+        workspaceId,
+        data: validated.data,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: authResult.userId,
+      })
+      .returning()
 
     logger.info(`[${requestId}] Inserted row ${rowId} into table ${tableId}`)
 
@@ -857,15 +829,6 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
           `[${requestId}] Deleted batch ${Math.floor(i / TABLE_LIMITS.DELETE_BATCH_SIZE) + 1} (${totalDeleted}/${rowIds.length} rows)`
         )
       }
-
-      // Update row count
-      await trx
-        .update(userTableDefinitions)
-        .set({
-          rowCount: sql`${userTableDefinitions.rowCount} - ${matchingRows.length}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(userTableDefinitions.id, tableId))
     })
 
     logger.info(`[${requestId}] Deleted ${matchingRows.length} rows from table ${tableId}`)

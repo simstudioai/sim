@@ -2126,13 +2126,11 @@ export const userTableDefinitions = pgTable(
      */
     schema: jsonb('schema').notNull(),
     maxRows: integer('max_rows').notNull().default(10000),
-    rowCount: integer('row_count').notNull().default(0),
     createdBy: text('created_by')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
-    deletedAt: timestamp('deleted_at'),
   },
   (table) => ({
     workspaceIdIdx: index('user_table_def_workspace_id_idx').on(table.workspaceId),
@@ -2140,7 +2138,6 @@ export const userTableDefinitions = pgTable(
       table.workspaceId,
       table.name
     ),
-    deletedAtIdx: index('user_table_def_deleted_at_idx').on(table.deletedAt),
   })
 )
 

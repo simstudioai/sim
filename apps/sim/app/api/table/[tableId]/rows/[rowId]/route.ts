@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { userTableDefinitions, userTableRows } from '@sim/db/schema'
+import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
@@ -322,35 +322,17 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
       }
     }
 
-    // Delete row in a transaction to ensure atomicity
-    const deletedRow = await db.transaction(async (trx) => {
-      // Delete row
-      const [deleted] = await trx
-        .delete(userTableRows)
-        .where(
-          and(
-            eq(userTableRows.id, rowId),
-            eq(userTableRows.tableId, tableId),
-            eq(userTableRows.workspaceId, actualWorkspaceId)
-          )
+    // Delete row
+    const [deletedRow] = await db
+      .delete(userTableRows)
+      .where(
+        and(
+          eq(userTableRows.id, rowId),
+          eq(userTableRows.tableId, tableId),
+          eq(userTableRows.workspaceId, actualWorkspaceId)
         )
-        .returning()
-
-      if (!deleted) {
-        return null
-      }
-
-      // Update row count
-      await trx
-        .update(userTableDefinitions)
-        .set({
-          rowCount: sql`${userTableDefinitions.rowCount} - 1`,
-          updatedAt: new Date(),
-        })
-        .where(eq(userTableDefinitions.id, tableId))
-
-      return deleted
-    })
+      )
+      .returning()
 
     if (!deletedRow) {
       return NextResponse.json({ error: 'Row not found' }, { status: 404 })

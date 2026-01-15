@@ -23,6 +23,7 @@ export function createMockSqlOperators() {
     gte: vi.fn((a, b) => ({ type: 'gte', left: a, right: b })),
     lt: vi.fn((a, b) => ({ type: 'lt', left: a, right: b })),
     lte: vi.fn((a, b) => ({ type: 'lte', left: a, right: b })),
+    count: vi.fn((column) => ({ type: 'count', column })),
     and: vi.fn((...conditions) => ({ type: 'and', conditions })),
     or: vi.fn((...conditions) => ({ type: 'or', conditions })),
     not: vi.fn((condition) => ({ type: 'not', condition })),
