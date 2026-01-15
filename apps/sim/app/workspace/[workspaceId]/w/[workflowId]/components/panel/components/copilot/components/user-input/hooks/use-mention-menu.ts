@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
+import { SCROLL_TOLERANCE } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
 import type { ChatContext } from '@/stores/panel'
-import { SCROLL_TOLERANCE } from '../constants'
-
-const logger = createLogger('useMentionMenu')
 
 interface UseMentionMenuProps {
   /** Current message text */
@@ -70,11 +67,25 @@ export function useMentionMenu({
       // Ensure '@' starts a token (start or whitespace before)
       if (atIndex > 0 && !/\s/.test(before.charAt(atIndex - 1))) return null
 
-      // Check if this '@' is part of a completed mention token ( @label )
+      // Check if this '@' is part of a completed mention token
       if (selectedContexts.length > 0) {
-        const labels = selectedContexts.map((c) => c.label).filter(Boolean) as string[]
-        for (const label of labels) {
-          // Space-wrapped token: " @label "
+        // Only check non-slash_command contexts for mentions
+        const mentionLabels = selectedContexts
+          .filter((c) => c.kind !== 'slash_command')
+          .map((c) => c.label)
+          .filter(Boolean) as string[]
+
+        for (const label of mentionLabels) {
+          // Check for token at start of text: "@label "
+          if (atIndex === 0) {
+            const startToken = `@${label} `
+            if (text.startsWith(startToken)) {
+              // This @ is part of a completed token
+              return null
+            }
+          }
+
+          // Check for space-wrapped token: " @label "
           const token = ` @${label} `
           let fromIndex = 0
           while (fromIndex <= text.length) {
@@ -88,7 +99,6 @@ export function useMentionMenu({
             // Check if the @ we found is the @ of this completed token
             if (atIndex === atPositionInToken) {
               // The @ we found is part of a completed mention
-              // Don't show menu - user is typing after the completed mention
               return null
             }
 
@@ -109,6 +119,76 @@ export function useMentionMenu({
       }
 
       return { query: segment, start: atIndex, end: pos }
+    },
+    [message, selectedContexts]
+  )
+
+  /**
+   * Finds active slash command query at the given position
+   *
+   * @param pos - Position in the text to check
+   * @param textOverride - Optional text override (for checking during input)
+   * @returns Active slash query object or null if no active slash command
+   */
+  const getActiveSlashQueryAtPosition = useCallback(
+    (pos: number, textOverride?: string) => {
+      const text = textOverride ?? message
+      const before = text.slice(0, pos)
+      const slashIndex = before.lastIndexOf('/')
+      if (slashIndex === -1) return null
+
+      // Ensure '/' starts a token (start or whitespace before)
+      if (slashIndex > 0 && !/\s/.test(before.charAt(slashIndex - 1))) return null
+
+      // Check if this '/' is part of a completed slash token
+      if (selectedContexts.length > 0) {
+        // Only check slash_command contexts
+        const slashLabels = selectedContexts
+          .filter((c) => c.kind === 'slash_command')
+          .map((c) => c.label)
+          .filter(Boolean) as string[]
+
+        for (const label of slashLabels) {
+          // Check for token at start of text: "/label "
+          if (slashIndex === 0) {
+            const startToken = `/${label} `
+            if (text.startsWith(startToken)) {
+              // This slash is part of a completed token
+              return null
+            }
+          }
+
+          // Check for space-wrapped token: " /label "
+          const token = ` /${label} `
+          let fromIndex = 0
+          while (fromIndex <= text.length) {
+            const idx = text.indexOf(token, fromIndex)
+            if (idx === -1) break
+
+            const tokenStart = idx
+            const tokenEnd = idx + token.length
+            const slashPositionInToken = idx + 1 // position of / in " /label "
+
+            if (slashIndex === slashPositionInToken) {
+              return null
+            }
+
+            if (pos > tokenStart && pos < tokenEnd) {
+              return null
+            }
+
+            fromIndex = tokenEnd
+          }
+        }
+      }
+
+      const segment = before.slice(slashIndex + 1)
+      // Close the popup if user types space immediately after /
+      if (segment.length > 0 && /^\s/.test(segment)) {
+        return null
+      }
+
+      return { query: segment, start: slashIndex, end: pos }
     },
     [message, selectedContexts]
   )
@@ -200,9 +280,10 @@ export function useMentionMenu({
       const before = message.slice(0, active.start)
       const after = message.slice(active.end)
 
-      // Always include leading space, avoid duplicate if one exists
-      const needsLeadingSpace = !before.endsWith(' ')
-      const insertion = `${needsLeadingSpace ? ' ' : ''}@${label} `
+      // Add leading space only if not at start and previous char isn't whitespace
+      const needsLeadingSpace = before.length > 0 && !before.endsWith(' ')
+      // Always add trailing space for easy continued typing
+      const insertion = `${needsLeadingSpace ? ' ' : ''}@${label}  `
 
       const next = `${before}${insertion}${after}`
       onMessageChange(next)
@@ -215,6 +296,41 @@ export function useMentionMenu({
       return true
     },
     [message, getActiveMentionQueryAtPosition, onMessageChange]
+  )
+
+  /**
+   * Replaces active slash command with a label
+   *
+   * @param label - Label to replace the slash command with
+   * @returns True if replacement was successful, false if no active slash command found
+   */
+  const replaceActiveSlashWith = useCallback(
+    (label: string) => {
+      const textarea = textareaRef.current
+      if (!textarea) return false
+      const pos = textarea.selectionStart ?? message.length
+      const active = getActiveSlashQueryAtPosition(pos)
+      if (!active) return false
+
+      const before = message.slice(0, active.start)
+      const after = message.slice(active.end)
+
+      // Add leading space only if not at start and previous char isn't whitespace
+      const needsLeadingSpace = before.length > 0 && !before.endsWith(' ')
+      // Always add trailing space for easy continued typing
+      const insertion = `${needsLeadingSpace ? ' ' : ''}/${label}  `
+
+      const next = `${before}${insertion}${after}`
+      onMessageChange(next)
+
+      setTimeout(() => {
+        const cursorPos = before.length + insertion.length
+        textarea.setSelectionRange(cursorPos, cursorPos)
+        textarea.focus()
+      }, 0)
+      return true
+    },
+    [message, getActiveSlashQueryAtPosition, onMessageChange]
   )
 
   /**
@@ -304,10 +420,12 @@ export function useMentionMenu({
     // Operations
     getCaretPos,
     getActiveMentionQueryAtPosition,
+    getActiveSlashQueryAtPosition,
     getSubmenuQuery,
     resetActiveMentionQuery,
     insertAtCursor,
     replaceActiveMentionWith,
+    replaceActiveSlashWith,
     scrollActiveItemIntoView,
     closeMentionMenu,
   }

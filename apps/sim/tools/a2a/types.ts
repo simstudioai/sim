@@ -25,11 +25,20 @@ export interface A2AGetAgentCardResponse extends ToolResponse {
   }
 }
 
+export interface A2ASendMessageFileInput {
+  type: 'file' | 'url'
+  data: string
+  name: string
+  mime?: string
+}
+
 export interface A2ASendMessageParams {
   agentUrl: string
   message: string
   taskId?: string
   contextId?: string
+  data?: string
+  files?: A2ASendMessageFileInput[]
   apiKey?: string
 }
 

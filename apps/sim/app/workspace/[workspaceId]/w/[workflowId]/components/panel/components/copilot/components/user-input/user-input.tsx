@@ -18,11 +18,21 @@ import { cn } from '@/lib/core/utils/cn'
 import {
   AttachedFilesDisplay,
   ContextPills,
+  type MentionFolderNav,
   MentionMenu,
   ModelSelector,
   ModeSelector,
+  type SlashFolderNav,
+  SlashMenu,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components'
-import { NEAR_TOP_THRESHOLD } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
+import {
+  ALL_COMMAND_IDS,
+  getCommandDisplayLabel,
+  getNextIndex,
+  NEAR_TOP_THRESHOLD,
+  TOP_LEVEL_COMMANDS,
+  WEB_COMMANDS,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
 import {
   useContextManagement,
   useFileAttachments,
@@ -67,6 +77,8 @@ interface UserInputProps {
   hideModeSelector?: boolean
   /** Disable @mention functionality */
   disableMentions?: boolean
+  /** Initial contexts for editing a message with existing context mentions */
+  initialContexts?: ChatContext[]
 }
 
 interface UserInputRef {
@@ -103,10 +115,10 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       onModelChangeOverride,
       hideModeSelector = false,
       disableMentions = false,
+      initialContexts,
     },
     ref
   ) => {
-    // Refs and external hooks
     const { data: session } = useSession()
     const params = useParams()
     const workspaceId = params.workspaceId as string
@@ -118,18 +130,18 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       selectedModelOverride !== undefined ? selectedModelOverride : copilotStore.selectedModel
     const setSelectedModel = onModelChangeOverride || copilotStore.setSelectedModel
 
-    // Internal state
     const [internalMessage, setInternalMessage] = useState('')
     const [isNearTop, setIsNearTop] = useState(false)
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null)
     const [inputContainerRef, setInputContainerRef] = useState<HTMLDivElement | null>(null)
+    const [showSlashMenu, setShowSlashMenu] = useState(false)
+    const [slashFolderNav, setSlashFolderNav] = useState<SlashFolderNav | null>(null)
+    const [mentionFolderNav, setMentionFolderNav] = useState<MentionFolderNav | null>(null)
 
-    // Controlled vs uncontrolled message state
     const message = controlledValue !== undefined ? controlledValue : internalMessage
     const setMessage =
       controlledValue !== undefined ? onControlledChange || (() => {}) : setInternalMessage
 
-    // Effective placeholder
     const effectivePlaceholder =
       placeholder ||
       (mode === 'ask'
@@ -138,11 +150,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           ? 'Plan your workflow'
           : 'Plan, search, build anything')
 
-    // Custom hooks - order matters for ref sharing
-    // Context management (manages selectedContexts state)
-    const contextManagement = useContextManagement({ message })
+    const contextManagement = useContextManagement({ message, initialContexts })
 
-    // Mention menu
     const mentionMenu = useMentionMenu({
       message,
       selectedContexts: contextManagement.selectedContexts,
@@ -150,7 +159,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       onMessageChange: setMessage,
     })
 
-    // Mention token utilities
     const mentionTokensWithContext = useMentionTokens({
       message,
       selectedContexts: contextManagement.selectedContexts,
@@ -178,22 +186,21 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       isLoading,
     })
 
-    // Insert mention handlers
     const insertHandlers = useMentionInsertHandlers({
       mentionMenu,
       workflowId: workflowId || null,
       selectedContexts: contextManagement.selectedContexts,
       onContextAdd: contextManagement.addContext,
+      mentionFolderNav,
     })
 
-    // Keyboard navigation hook
     const mentionKeyboard = useMentionKeyboard({
       mentionMenu,
       mentionData,
       insertHandlers,
+      mentionFolderNav,
     })
 
-    // Expose focus method to parent
     useImperativeHandle(
       ref,
       () => ({
@@ -210,17 +217,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       [mentionMenu.textareaRef]
     )
 
-    // Note: textarea auto-resize is handled by the useTextareaAutoResize hook
-
-    // Load workflows on mount if we have a workflowId
-    useEffect(() => {
-      if (workflowId) {
-        void mentionData.ensureWorkflowsLoaded()
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [workflowId])
-
-    // Detect if input is near top of screen
     useEffect(() => {
       const checkPosition = () => {
         if (containerRef) {
@@ -248,7 +244,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }, [containerRef])
 
-    // Also check position when mention menu opens
     useEffect(() => {
       if (mentionMenu.showMentionMenu && containerRef) {
         const rect = containerRef.getBoundingClientRect()
@@ -256,9 +251,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }, [mentionMenu.showMentionMenu, containerRef])
 
-    // Preload mention data when query is active
     useEffect(() => {
-      if (!mentionMenu.showMentionMenu || mentionMenu.openSubmenuFor) {
+      if (!mentionMenu.showMentionMenu || mentionFolderNav?.isInFolder) {
         return
       }
 
@@ -268,38 +262,31 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         .toLowerCase()
 
       if (q && q.length > 0) {
-        // Prefetch all lists when there's any query for instant filtering
         void mentionData.ensurePastChatsLoaded()
-        void mentionData.ensureWorkflowsLoaded()
-        void mentionData.ensureWorkflowBlocksLoaded()
+        // workflows and workflow-blocks auto-load from stores
         void mentionData.ensureKnowledgeLoaded()
         void mentionData.ensureBlocksLoaded()
         void mentionData.ensureTemplatesLoaded()
         void mentionData.ensureLogsLoaded()
 
-        // Reset to first item when query changes
         mentionMenu.setSubmenuActiveIndex(0)
         requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(0))
       }
-      // Only depend on values that trigger data loading, not the entire objects
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mentionMenu.showMentionMenu, mentionMenu.openSubmenuFor, message])
+    }, [mentionMenu.showMentionMenu, mentionFolderNav?.isInFolder, message])
 
-    // When switching into a submenu, select the first item and scroll to it
     useEffect(() => {
-      if (mentionMenu.openSubmenuFor) {
+      if (mentionFolderNav?.isInFolder) {
         mentionMenu.setSubmenuActiveIndex(0)
         requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(0))
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mentionMenu.openSubmenuFor])
+    }, [mentionFolderNav?.isInFolder])
 
-    // Handlers
     const handleSubmit = useCallback(
       async (overrideMessage?: string, options: { preserveInput?: boolean } = {}) => {
         const targetMessage = overrideMessage ?? message
         const trimmedMessage = targetMessage.trim()
-        // Allow submission even when isLoading - store will queue the message
         if (!trimmedMessage || disabled) return
 
         const failedUploads = fileAttachments.attachedFiles.filter((f) => !f.uploading && !f.key)
@@ -370,28 +357,125 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }, [onAbort, isLoading])
 
+    const handleSlashCommandSelect = useCallback(
+      (command: string) => {
+        const displayLabel = getCommandDisplayLabel(command)
+        mentionMenu.replaceActiveSlashWith(displayLabel)
+        contextManagement.addContext({
+          kind: 'slash_command',
+          command,
+          label: displayLabel,
+        })
+
+        setShowSlashMenu(false)
+        mentionMenu.textareaRef.current?.focus()
+      },
+      [mentionMenu, contextManagement]
+    )
+
     const handleKeyDown = useCallback(
       (e: KeyboardEvent<HTMLTextAreaElement>) => {
-        // Escape key handling
-        if (e.key === 'Escape' && mentionMenu.showMentionMenu) {
+        if (e.key === 'Escape' && (mentionMenu.showMentionMenu || showSlashMenu)) {
           e.preventDefault()
-          if (mentionMenu.openSubmenuFor) {
-            mentionMenu.setOpenSubmenuFor(null)
+          if (mentionFolderNav?.isInFolder) {
+            mentionFolderNav.closeFolder()
             mentionMenu.setSubmenuQueryStart(null)
+          } else if (slashFolderNav?.isInFolder) {
+            slashFolderNav.closeFolder()
           } else {
             mentionMenu.closeMentionMenu()
+            setShowSlashMenu(false)
           }
           return
         }
 
-        // Arrow navigation in mention menu
+        if (showSlashMenu) {
+          const caretPos = mentionMenu.getCaretPos()
+          const activeSlash = mentionMenu.getActiveSlashQueryAtPosition(caretPos, message)
+          const query = activeSlash?.query.trim().toLowerCase() || ''
+          const showAggregatedView = query.length > 0
+          const direction = e.key === 'ArrowDown' ? 'down' : 'up'
+          const isInFolder = slashFolderNav?.isInFolder ?? false
+
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault()
+
+            if (isInFolder) {
+              mentionMenu.setSubmenuActiveIndex((prev) => {
+                const next = getNextIndex(prev, direction, WEB_COMMANDS.length - 1)
+                requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(next))
+                return next
+              })
+            } else if (showAggregatedView) {
+              const filtered = ALL_COMMAND_IDS.filter((cmd) => cmd.includes(query))
+              mentionMenu.setSubmenuActiveIndex((prev) => {
+                if (filtered.length === 0) return 0
+                const next = getNextIndex(prev, direction, filtered.length - 1)
+                requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(next))
+                return next
+              })
+            } else {
+              mentionMenu.setMentionActiveIndex((prev) => {
+                const next = getNextIndex(prev, direction, TOP_LEVEL_COMMANDS.length)
+                requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(next))
+                return next
+              })
+            }
+            return
+          }
+
+          if (e.key === 'ArrowRight') {
+            e.preventDefault()
+            if (!showAggregatedView && !isInFolder) {
+              if (mentionMenu.mentionActiveIndex === TOP_LEVEL_COMMANDS.length) {
+                slashFolderNav?.openWebFolder()
+              }
+            }
+            return
+          }
+
+          if (e.key === 'ArrowLeft') {
+            e.preventDefault()
+            if (isInFolder) {
+              slashFolderNav?.closeFolder()
+            }
+            return
+          }
+        }
+
         if (mentionKeyboard.handleArrowNavigation(e)) return
         if (mentionKeyboard.handleArrowRight(e)) return
         if (mentionKeyboard.handleArrowLeft(e)) return
 
-        // Enter key handling
         if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
           e.preventDefault()
+          if (showSlashMenu) {
+            const caretPos = mentionMenu.getCaretPos()
+            const activeSlash = mentionMenu.getActiveSlashQueryAtPosition(caretPos, message)
+            const query = activeSlash?.query.trim().toLowerCase() || ''
+            const showAggregatedView = query.length > 0
+            const isInFolder = slashFolderNav?.isInFolder ?? false
+
+            if (isInFolder) {
+              const selectedCommand =
+                WEB_COMMANDS[mentionMenu.submenuActiveIndex]?.id || WEB_COMMANDS[0].id
+              handleSlashCommandSelect(selectedCommand)
+            } else if (showAggregatedView) {
+              const filtered = ALL_COMMAND_IDS.filter((cmd) => cmd.includes(query))
+              if (filtered.length > 0) {
+                const selectedCommand = filtered[mentionMenu.submenuActiveIndex] || filtered[0]
+                handleSlashCommandSelect(selectedCommand)
+              }
+            } else {
+              const selectedIndex = mentionMenu.mentionActiveIndex
+              if (selectedIndex < TOP_LEVEL_COMMANDS.length) {
+                handleSlashCommandSelect(TOP_LEVEL_COMMANDS[selectedIndex].id)
+              } else if (selectedIndex === TOP_LEVEL_COMMANDS.length) {
+                slashFolderNav?.openWebFolder()
+              }
+            }
+            return
+          }
           if (!mentionMenu.showMentionMenu) {
             handleSubmit()
           } else {
@@ -400,7 +484,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           return
         }
 
-        // Handle mention token behavior (backspace, delete, arrow keys) when menu is closed
         if (!mentionMenu.showMentionMenu) {
           const textarea = mentionMenu.textareaRef.current
           const selStart = textarea?.selectionStart ?? 0
@@ -409,11 +492,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
           if (e.key === 'Backspace' || e.key === 'Delete') {
             if (selectionLength > 0) {
-              // Multi-character selection: Clean up contexts for any overlapping mentions
-              // but let the default behavior handle the actual text deletion
               mentionTokensWithContext.removeContextsInSelection(selStart, selEnd)
             } else {
-              // Single character delete - check if cursor is inside/at a mention token
               const ranges = mentionTokensWithContext.computeMentionRanges()
               const target =
                 e.key === 'Backspace'
@@ -452,7 +532,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             }
           }
 
-          // Prevent typing inside token
           if (e.key.length === 1 || e.key === 'Space') {
             const blocked =
               selectionLength === 0 && !!mentionTokensWithContext.findRangeContaining(selStart)
@@ -469,7 +548,17 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           }
         }
       },
-      [mentionMenu, mentionKeyboard, handleSubmit, message.length, mentionTokensWithContext]
+      [
+        mentionMenu,
+        mentionKeyboard,
+        handleSubmit,
+        handleSlashCommandSelect,
+        message,
+        mentionTokensWithContext,
+        showSlashMenu,
+        slashFolderNav,
+        mentionFolderNav,
+      ]
     )
 
     const handleInputChange = useCallback(
@@ -477,28 +566,36 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         const newValue = e.target.value
         setMessage(newValue)
 
-        // Skip mention menu logic if mentions are disabled
         if (disableMentions) return
 
         const caret = e.target.selectionStart ?? newValue.length
-        const active = mentionMenu.getActiveMentionQueryAtPosition(caret, newValue)
+        const activeMention = mentionMenu.getActiveMentionQueryAtPosition(caret, newValue)
+        const activeSlash = mentionMenu.getActiveSlashQueryAtPosition(caret, newValue)
 
-        if (active) {
+        if (activeMention) {
+          setShowSlashMenu(false)
           mentionMenu.setShowMentionMenu(true)
           mentionMenu.setInAggregated(false)
-          if (mentionMenu.openSubmenuFor) {
+          if (mentionFolderNav?.isInFolder) {
             mentionMenu.setSubmenuActiveIndex(0)
           } else {
             mentionMenu.setMentionActiveIndex(0)
             mentionMenu.setSubmenuActiveIndex(0)
           }
+        } else if (activeSlash) {
+          mentionMenu.setShowMentionMenu(false)
+          mentionMenu.setOpenSubmenuFor(null)
+          mentionMenu.setSubmenuQueryStart(null)
+          setShowSlashMenu(true)
+          mentionMenu.setSubmenuActiveIndex(0)
         } else {
           mentionMenu.setShowMentionMenu(false)
           mentionMenu.setOpenSubmenuFor(null)
           mentionMenu.setSubmenuQueryStart(null)
+          setShowSlashMenu(false)
         }
       },
-      [setMessage, mentionMenu, disableMentions]
+      [setMessage, mentionMenu, disableMentions, mentionFolderNav]
     )
 
     const handleSelectAdjust = useCallback(() => {
@@ -514,58 +611,66 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }, [mentionMenu.textareaRef, mentionTokensWithContext])
 
-    const handleOpenMentionMenuWithAt = useCallback(() => {
-      if (disabled || isLoading) return
-      const textarea = mentionMenu.textareaRef.current
-      if (!textarea) return
-      textarea.focus()
-      const pos = textarea.selectionStart ?? message.length
-      const needsSpaceBefore = pos > 0 && !/\s/.test(message.charAt(pos - 1))
+    const insertTriggerAndOpenMenu = useCallback(
+      (trigger: '@' | '/') => {
+        if (disabled || isLoading) return
+        const textarea = mentionMenu.textareaRef.current
+        if (!textarea) return
 
-      const insertText = needsSpaceBefore ? ' @' : '@'
-      const start = textarea.selectionStart ?? message.length
-      const end = textarea.selectionEnd ?? message.length
-      const before = message.slice(0, start)
-      const after = message.slice(end)
-      const next = `${before}${insertText}${after}`
-      setMessage(next)
-
-      setTimeout(() => {
-        const newPos = before.length + insertText.length
-        textarea.setSelectionRange(newPos, newPos)
         textarea.focus()
-      }, 0)
+        const start = textarea.selectionStart ?? message.length
+        const end = textarea.selectionEnd ?? message.length
+        const needsSpaceBefore = start > 0 && !/\s/.test(message.charAt(start - 1))
 
-      mentionMenu.setShowMentionMenu(true)
-      mentionMenu.setOpenSubmenuFor(null)
-      mentionMenu.setMentionActiveIndex(0)
-      mentionMenu.setSubmenuActiveIndex(0)
-    }, [disabled, isLoading, mentionMenu, message, setMessage])
+        const insertText = needsSpaceBefore ? ` ${trigger}` : trigger
+        const before = message.slice(0, start)
+        const after = message.slice(end)
+        setMessage(`${before}${insertText}${after}`)
+
+        setTimeout(() => {
+          const newPos = before.length + insertText.length
+          textarea.setSelectionRange(newPos, newPos)
+          textarea.focus()
+        }, 0)
+
+        if (trigger === '@') {
+          mentionMenu.setShowMentionMenu(true)
+          mentionMenu.setOpenSubmenuFor(null)
+          mentionMenu.setMentionActiveIndex(0)
+        } else {
+          setShowSlashMenu(true)
+        }
+        mentionMenu.setSubmenuActiveIndex(0)
+      },
+      [disabled, isLoading, mentionMenu, message, setMessage]
+    )
+
+    const handleOpenMentionMenuWithAt = useCallback(
+      () => insertTriggerAndOpenMenu('@'),
+      [insertTriggerAndOpenMenu]
+    )
+
+    const handleOpenSlashMenu = useCallback(
+      () => insertTriggerAndOpenMenu('/'),
+      [insertTriggerAndOpenMenu]
+    )
 
     const canSubmit = message.trim().length > 0 && !disabled && !isLoading
     const showAbortButton = isLoading && onAbort
 
-    // Render overlay content with highlighted mentions
     const renderOverlayContent = useCallback(() => {
       const contexts = contextManagement.selectedContexts
 
-      // Handle empty message
       if (!message) {
         return <span>{'\u00A0'}</span>
       }
 
-      // If no contexts, render the message directly with proper newline handling
       if (contexts.length === 0) {
-        // Add a zero-width space at the end if message ends with newline
-        // This ensures the newline is rendered and height is calculated correctly
         const displayText = message.endsWith('\n') ? `${message}\u200B` : message
         return <span>{displayText}</span>
       }
 
       const elements: React.ReactNode[] = []
-      const labels = contexts.map((c) => c.label).filter(Boolean)
-
-      // Build ranges for all mentions to highlight them including spaces
       const ranges = mentionTokensWithContext.computeMentionRanges()
 
       if (ranges.length === 0) {
@@ -577,14 +682,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       for (let i = 0; i < ranges.length; i++) {
         const range = ranges[i]
 
-        // Add text before mention
         if (range.start > lastIndex) {
           const before = message.slice(lastIndex, range.start)
           elements.push(<span key={`text-${i}-${lastIndex}-${range.start}`}>{before}</span>)
         }
 
-        // Add highlighted mention (including spaces)
-        // Use index + start + end to ensure unique keys even with duplicate contexts
         const mentionText = message.slice(range.start, range.end)
         elements.push(
           <span
@@ -599,12 +701,10 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
       const tail = message.slice(lastIndex)
       if (tail) {
-        // Add a zero-width space at the end if tail ends with newline
         const displayTail = tail.endsWith('\n') ? `${tail}\u200B` : tail
         elements.push(<span key={`tail-${lastIndex}`}>{displayTail}</span>)
       }
 
-      // Ensure there's always something to render for height calculation
       return elements.length > 0 ? elements : <span>{'\u00A0'}</span>
     }, [message, contextManagement.selectedContexts, mentionTokensWithContext])
 
@@ -641,6 +741,20 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     )}
                   >
                     <AtSign className='h-3 w-3' strokeWidth={1.75} />
+                  </Badge>
+
+                  <Badge
+                    variant='outline'
+                    onClick={handleOpenSlashMenu}
+                    title='Insert /'
+                    className={cn(
+                      'cursor-pointer rounded-[6px] p-[4.5px]',
+                      (disabled || isLoading) && 'cursor-not-allowed'
+                    )}
+                  >
+                    <span className='flex h-3 w-3 items-center justify-center font-medium text-[11px] leading-none'>
+                      /
+                    </span>
                   </Badge>
 
                   {/* Selected Context Pills */}
@@ -714,6 +828,20 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   mentionData={mentionData}
                   message={message}
                   insertHandlers={insertHandlers}
+                  onFolderNavChange={setMentionFolderNav}
+                />,
+                document.body
+              )}
+
+            {/* Slash Menu Portal */}
+            {!disableMentions &&
+              showSlashMenu &&
+              createPortal(
+                <SlashMenu
+                  mentionMenu={mentionMenu}
+                  message={message}
+                  onSelectCommand={handleSlashCommandSelect}
+                  onFolderNavChange={setSlashFolderNav}
                 />,
                 document.body
               )}

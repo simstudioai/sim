@@ -1,3 +1,4 @@
+export { useCaretViewport } from './use-caret-viewport'
 export { useContextManagement } from './use-context-management'
 export { useFileAttachments } from './use-file-attachments'
 export { useMentionData } from './use-mention-data'

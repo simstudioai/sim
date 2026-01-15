@@ -8,7 +8,8 @@
  * or React hooks, making it safe for use in Next.js API routes.
  */
 
-import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
+import { mergeSubblockStateWithValues } from '@/lib/workflows/subblocks'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 
 /**
  * Server-safe version of mergeSubblockState for API routes
@@ -26,72 +27,7 @@ export function mergeSubblockState(
   subBlockValues: Record<string, Record<string, any>> = {},
   blockId?: string
 ): Record<string, BlockState> {
-  const blocksToProcess = blockId ? { [blockId]: blocks[blockId] } : blocks
-
-  return Object.entries(blocksToProcess).reduce(
-    (acc, [id, block]) => {
-      // Skip if block is undefined
-      if (!block) {
-        return acc
-      }
-
-      // Initialize subBlocks if not present
-      const blockSubBlocks = block.subBlocks || {}
-
-      // Get stored values for this block
-      const blockValues = subBlockValues[id] || {}
-
-      // Create a deep copy of the block's subBlocks to maintain structure
-      const mergedSubBlocks = Object.entries(blockSubBlocks).reduce(
-        (subAcc, [subBlockId, subBlock]) => {
-          // Skip if subBlock is undefined
-          if (!subBlock) {
-            return subAcc
-          }
-
-          // Get the stored value for this subblock
-          const storedValue = blockValues[subBlockId]
-
-          // Create a new subblock object with the same structure but updated value
-          subAcc[subBlockId] = {
-            ...subBlock,
-            value: storedValue !== undefined && storedValue !== null ? storedValue : subBlock.value,
-          }
-
-          return subAcc
-        },
-        {} as Record<string, SubBlockState>
-      )
-
-      // Return the full block state with updated subBlocks
-      acc[id] = {
-        ...block,
-        subBlocks: mergedSubBlocks,
-      }
-
-      // Add any values that exist in the provided values but aren't in the block structure
-      // This handles cases where block config has been updated but values still exist
-      Object.entries(blockValues).forEach(([subBlockId, value]) => {
-        if (!mergedSubBlocks[subBlockId] && value !== null && value !== undefined) {
-          // Create a minimal subblock structure
-          mergedSubBlocks[subBlockId] = {
-            id: subBlockId,
-            type: 'short-input', // Default type that's safe to use
-            value: value,
-          }
-        }
-      })
-
-      // Update the block with the final merged subBlocks (including orphaned values)
-      acc[id] = {
-        ...block,
-        subBlocks: mergedSubBlocks,
-      }
-
-      return acc
-    },
-    {} as Record<string, BlockState>
-  )
+  return mergeSubblockStateWithValues(blocks, subBlockValues, blockId)
 }
 
 /**

@@ -1,18 +1,22 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
-import { devtools, persist } from 'zustand/middleware'
+import { createJSONStorage, devtools, persist } from 'zustand/middleware'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import { useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
 import { useGeneralStore } from '@/stores/settings/general'
+import { indexedDBStorage } from '@/stores/terminal/console/storage'
 import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from '@/stores/terminal/console/types'
 
 const logger = createLogger('TerminalConsoleStore')
 
 /**
- * Updates a NormalizedBlockOutput with new content
+ * Maximum number of console entries to keep per workflow.
+ * Keeps the stored data size reasonable and improves performance.
  */
+const MAX_ENTRIES_PER_WORKFLOW = 1000
+
 const updateBlockOutput = (
   existingOutput: NormalizedBlockOutput | undefined,
   contentUpdate: string
@@ -23,9 +27,6 @@ const updateBlockOutput = (
   }
 }
 
-/**
- * Checks if output represents a streaming object that should be skipped
- */
 const isStreamingOutput = (output: any): boolean => {
   if (typeof ReadableStream !== 'undefined' && output instanceof ReadableStream) {
     return true
@@ -44,9 +45,6 @@ const isStreamingOutput = (output: any): boolean => {
   )
 }
 
-/**
- * Checks if entry should be skipped to prevent duplicates
- */
 const shouldSkipEntry = (output: any): boolean => {
   if (typeof output !== 'object' || !output) {
     return false
@@ -69,6 +67,9 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
       (set, get) => ({
         entries: [],
         isOpen: false,
+        _hasHydrated: false,
+
+        setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),
 
         addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => {
           set((state) => {
@@ -94,7 +95,59 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               timestamp: new Date().toISOString(),
             }
 
-            return { entries: [newEntry, ...state.entries] }
+            const newEntries = [newEntry, ...state.entries]
+
+            const executionsToRemove = new Set<string>()
+
+            const workflowGroups = new Map<string, ConsoleEntry[]>()
+            for (const e of newEntries) {
+              const group = workflowGroups.get(e.workflowId) || []
+              group.push(e)
+              workflowGroups.set(e.workflowId, group)
+            }
+
+            for (const [workflowId, entries] of workflowGroups) {
+              if (entries.length <= MAX_ENTRIES_PER_WORKFLOW) continue
+
+              const execOrder: string[] = []
+              const seen = new Set<string>()
+              for (const e of entries) {
+                const execId = e.executionId ?? e.id
+                if (!seen.has(execId)) {
+                  execOrder.push(execId)
+                  seen.add(execId)
+                }
+              }
+
+              const counts = new Map<string, number>()
+              for (const e of entries) {
+                const execId = e.executionId ?? e.id
+                counts.set(execId, (counts.get(execId) || 0) + 1)
+              }
+
+              let total = 0
+              const toKeep = new Set<string>()
+              for (const execId of execOrder) {
+                const c = counts.get(execId) || 0
+                if (total + c <= MAX_ENTRIES_PER_WORKFLOW) {
+                  toKeep.add(execId)
+                  total += c
+                }
+              }
+
+              for (const execId of execOrder) {
+                if (!toKeep.has(execId)) {
+                  executionsToRemove.add(`${workflowId}:${execId}`)
+                }
+              }
+            }
+
+            const trimmedEntries = newEntries.filter((e) => {
+              const key = `${e.workflowId}:${e.executionId ?? e.id}`
+              return !executionsToRemove.has(key)
+            })
+
+            return { entries: trimmedEntries }
           })
 
           const newEntry = get().entries[0]
@@ -130,10 +183,6 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           return newEntry
         },
 
-        /**
-         * Clears console entries for a specific workflow and clears the run path
-         * @param workflowId - The workflow ID to clear entries for
-         */
         clearWorkflowConsole: (workflowId: string) => {
           set((state) => ({
             entries: state.entries.filter((entry) => entry.workflowId !== workflowId),
@@ -148,9 +197,6 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
             return
           }
 
-          /**
-           * Formats a value for CSV export
-           */
           const formatCSVValue = (value: any): string => {
             if (value === null || value === undefined) {
               return ''
@@ -297,7 +343,35 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
       }),
       {
         name: 'terminal-console-store',
+        storage: createJSONStorage(() => indexedDBStorage),
+        partialize: (state) => ({
+          entries: state.entries,
+          isOpen: state.isOpen,
+        }),
+        onRehydrateStorage: () => (_state, error) => {
+          if (error) {
+            logger.error('Failed to rehydrate console store', { error })
+          }
+        },
+        merge: (persistedState, currentState) => {
+          const persisted = persistedState as Partial<ConsoleStore> | undefined
+          return {
+            ...currentState,
+            entries: persisted?.entries ?? currentState.entries,
+            isOpen: persisted?.isOpen ?? currentState.isOpen,
+          }
+        },
       }
     )
   )
 )
+
+if (typeof window !== 'undefined') {
+  useTerminalConsoleStore.persist.onFinishHydration(() => {
+    useTerminalConsoleStore.setState({ _hasHydrated: true })
+  })
+
+  if (useTerminalConsoleStore.persist.hasHydrated()) {
+    useTerminalConsoleStore.setState({ _hasHydrated: true })
+  }
+}

@@ -93,7 +93,7 @@ export function useVerification({
 
     try {
       const normalizedEmail = email.trim().toLowerCase()
-      const response = await client.signIn.emailOtp({
+      const response = await client.emailOtp.verifyEmail({
         email: normalizedEmail,
         otp,
       })
@@ -169,7 +169,7 @@ export function useVerification({
     client.emailOtp
       .sendVerificationOtp({
         email: normalizedEmail,
-        type: 'sign-in',
+        type: 'email-verification',
       })
       .then(() => {})
       .catch(() => {

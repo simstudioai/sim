@@ -1,4 +1,4 @@
-import { getBlock } from '@/blocks/registry'
+import { getLatestBlock } from '@/blocks/registry'
 import { getAllTriggers } from '@/triggers'
 
 export interface TriggerOption {
@@ -49,22 +49,13 @@ export function getTriggerOptions(): TriggerOption[] {
       continue
     }
 
-    const block = getBlock(provider)
+    const block = getLatestBlock(provider)
 
-    if (block) {
-      providerMap.set(provider, {
-        value: provider,
-        label: block.name, // Use block's display name (e.g., "Slack", "GitHub")
-        color: block.bgColor || '#6b7280', // Use block's hex color, fallback to gray
-      })
-    } else {
-      const label = formatProviderName(provider)
-      providerMap.set(provider, {
-        value: provider,
-        label,
-        color: '#6b7280', // gray fallback
-      })
-    }
+    providerMap.set(provider, {
+      value: provider,
+      label: block?.name || formatProviderName(provider),
+      color: block?.bgColor || '#6b7280',
+    })
   }
 
   const integrationOptions = Array.from(providerMap.values()).sort((a, b) =>

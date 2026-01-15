@@ -5,7 +5,6 @@ import {
   a2aGetPushNotificationTool,
   a2aGetTaskTool,
   a2aResubscribeTool,
-  a2aSendMessageStreamTool,
   a2aSendMessageTool,
   a2aSetPushNotificationTool,
 } from '@/tools/a2a'
@@ -417,9 +416,13 @@ import {
 } from '@/tools/google_groups'
 import {
   googleSheetsAppendTool,
+  googleSheetsAppendV2Tool,
   googleSheetsReadTool,
+  googleSheetsReadV2Tool,
   googleSheetsUpdateTool,
+  googleSheetsUpdateV2Tool,
   googleSheetsWriteTool,
+  googleSheetsWriteV2Tool,
 } from '@/tools/google_sheets'
 import {
   googleSlidesAddImageTool,
@@ -654,6 +657,7 @@ import {
   knowledgeSearchTool,
   knowledgeUploadChunkTool,
 } from '@/tools/knowledge'
+import { langsmithCreateRunsBatchTool, langsmithCreateRunTool } from '@/tools/langsmith'
 import { lemlistGetActivitiesTool, lemlistGetLeadTool, lemlistSendEmailTool } from '@/tools/lemlist'
 import {
   linearAddLabelToIssueTool,
@@ -827,9 +831,11 @@ import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from '@/tools/memory'
 import {
   microsoftExcelReadTool,
+  microsoftExcelReadV2Tool,
   microsoftExcelTableAddTool,
   microsoftExcelWorksheetAddTool,
   microsoftExcelWriteTool,
+  microsoftExcelWriteV2Tool,
 } from '@/tools/microsoft_excel'
 import {
   microsoftPlannerCreateBucketTool,
@@ -1180,6 +1186,8 @@ import {
   slackCanvasTool,
   slackDeleteMessageTool,
   slackDownloadTool,
+  slackGetMessageTool,
+  slackGetThreadTool,
   slackGetUserTool,
   slackListChannelsTool,
   slackListMembersTool,
@@ -1380,6 +1388,7 @@ import {
   telegramSendVideoTool,
 } from '@/tools/telegram'
 import { thinkingTool } from '@/tools/thinking'
+import { tinybirdEventsTool, tinybirdQueryTool } from '@/tools/tinybird'
 import {
   trelloAddCommentTool,
   trelloCreateCardTool,
@@ -1541,7 +1550,6 @@ export const tools: Record<string, ToolConfig> = {
   a2a_get_task: a2aGetTaskTool,
   a2a_resubscribe: a2aResubscribeTool,
   a2a_send_message: a2aSendMessageTool,
-  a2a_send_message_stream: a2aSendMessageStreamTool,
   a2a_set_push_notification: a2aSetPushNotificationTool,
   arxiv_search: arxivSearchTool,
   arxiv_get_paper: arxivGetPaperTool,
@@ -1731,6 +1739,8 @@ export const tools: Record<string, ToolConfig> = {
   slack_list_members: slackListMembersTool,
   slack_list_users: slackListUsersTool,
   slack_get_user: slackGetUserTool,
+  slack_get_message: slackGetMessageTool,
+  slack_get_thread: slackGetThreadTool,
   slack_canvas: slackCanvasTool,
   slack_download: slackDownloadTool,
   slack_update_message: slackUpdateMessageTool,
@@ -2103,6 +2113,10 @@ export const tools: Record<string, ToolConfig> = {
   google_sheets_write: googleSheetsWriteTool,
   google_sheets_update: googleSheetsUpdateTool,
   google_sheets_append: googleSheetsAppendTool,
+  google_sheets_read_v2: googleSheetsReadV2Tool,
+  google_sheets_write_v2: googleSheetsWriteV2Tool,
+  google_sheets_update_v2: googleSheetsUpdateV2Tool,
+  google_sheets_append_v2: googleSheetsAppendV2Tool,
   google_slides_read: googleSlidesReadTool,
   google_slides_write: googleSlidesWriteTool,
   google_slides_create: googleSlidesCreateTool,
@@ -2235,6 +2249,8 @@ export const tools: Record<string, ToolConfig> = {
   apollo_email_accounts: apolloEmailAccountsTool,
   mistral_parser: mistralParserTool,
   thinking_tool: thinkingTool,
+  tinybird_events: tinybirdEventsTool,
+  tinybird_query: tinybirdQueryTool,
   stagehand_extract: stagehandExtractTool,
   stagehand_agent: stagehandAgentTool,
   mem0_add_memories: mem0AddMemoriesTool,
@@ -2437,6 +2453,8 @@ export const tools: Record<string, ToolConfig> = {
   linear_update_project_status: linearUpdateProjectStatusTool,
   linear_delete_project_status: linearDeleteProjectStatusTool,
   linear_list_project_statuses: linearListProjectStatusesTool,
+  langsmith_create_run: langsmithCreateRunTool,
+  langsmith_create_runs_batch: langsmithCreateRunsBatchTool,
   lemlist_get_activities: lemlistGetActivitiesTool,
   lemlist_get_lead: lemlistGetLeadTool,
   lemlist_send_email: lemlistSendEmailTool,
@@ -2470,6 +2488,8 @@ export const tools: Record<string, ToolConfig> = {
   microsoft_excel_write: microsoftExcelWriteTool,
   microsoft_excel_table_add: microsoftExcelTableAddTool,
   microsoft_excel_worksheet_add: microsoftExcelWorksheetAddTool,
+  microsoft_excel_read_v2: microsoftExcelReadV2Tool,
+  microsoft_excel_write_v2: microsoftExcelWriteV2Tool,
   microsoft_planner_create_task: microsoftPlannerCreateTaskTool,
   microsoft_planner_read_task: microsoftPlannerReadTaskTool,
   microsoft_planner_update_task: microsoftPlannerUpdateTaskTool,

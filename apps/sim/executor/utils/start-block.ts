@@ -378,21 +378,10 @@ function buildManualTriggerOutput(
 }
 
 function buildIntegrationTriggerOutput(
-  finalInput: unknown,
+  _finalInput: unknown,
   workflowInput: unknown
 ): NormalizedBlockOutput {
-  const base: NormalizedBlockOutput = isPlainObject(workflowInput)
-    ? ({ ...(workflowInput as Record<string, unknown>) } as NormalizedBlockOutput)
-    : {}
-
-  if (isPlainObject(finalInput)) {
-    Object.assign(base, finalInput as Record<string, unknown>)
-    base.input = { ...(finalInput as Record<string, unknown>) }
-  } else {
-    base.input = finalInput
-  }
-
-  return mergeFilesIntoOutput(base, workflowInput)
+  return isPlainObject(workflowInput) ? (workflowInput as NormalizedBlockOutput) : {}
 }
 
 function extractSubBlocks(block: SerializedBlock): Record<string, unknown> | undefined {

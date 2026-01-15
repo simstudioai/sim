@@ -89,10 +89,9 @@ export const account = pgTable(
       table.accountId,
       table.providerId
     ),
-    uniqueUserProviderAccount: uniqueIndex('account_user_provider_account_unique').on(
+    uniqueUserProvider: uniqueIndex('account_user_provider_unique').on(
       table.userId,
-      table.providerId,
-      table.accountId
+      table.providerId
     ),
   })
 )
@@ -150,6 +149,7 @@ export const workflow = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     folderId: text('folder_id').references(() => workflowFolder.id, { onDelete: 'set null' }),
+    sortOrder: integer('sort_order').notNull().default(0),
     name: text('name').notNull(),
     description: text('description'),
     color: text('color').notNull().default('#3972F6'),
@@ -166,6 +166,7 @@ export const workflow = pgTable(
     userIdIdx: index('workflow_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workflow_workspace_id_idx').on(table.workspaceId),
     userWorkspaceIdx: index('workflow_user_workspace_idx').on(table.userId, table.workspaceId),
+    folderSortIdx: index('workflow_folder_sort_idx').on(table.folderId, table.sortOrder),
   })
 )
 

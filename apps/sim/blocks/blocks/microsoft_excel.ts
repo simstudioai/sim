@@ -5,9 +5,10 @@ import type { MicrosoftExcelResponse } from '@/tools/microsoft_excel/types'
 
 export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   type: 'microsoft_excel',
-  name: 'Microsoft Excel',
+  name: 'Microsoft Excel (Legacy)',
   description: 'Read, write, and update data',
   authMode: AuthMode.OAuth,
+  hideFromToolbar: true,
   longDescription:
     'Integrate Microsoft Excel into the workflow. Can read, write, update, add to table, and create new worksheets.',
   docsLink: 'https://docs.sim.ai/tools/microsoft_excel',

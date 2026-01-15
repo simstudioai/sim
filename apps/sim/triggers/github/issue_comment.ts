@@ -117,6 +117,10 @@ export const githubIssueCommentTrigger: TriggerConfig = {
   ],
 
   outputs: {
+    event_type: {
+      type: 'string',
+      description: 'GitHub event type from X-GitHub-Event header (e.g., issue_comment)',
+    },
     action: {
       type: 'string',
       description: 'Action performed (created, edited, deleted)',

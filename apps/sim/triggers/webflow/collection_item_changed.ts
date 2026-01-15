@@ -96,10 +96,6 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
       type: 'string',
       description: 'The site ID where the event occurred',
     },
-    workspaceId: {
-      type: 'string',
-      description: 'The workspace ID where the event occurred',
-    },
     collectionId: {
       type: 'string',
       description: 'The collection ID where the item was changed',

@@ -1,6 +1,6 @@
 import { CirclebackIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildGenericOutputs, circlebackSetupInstructions, circlebackTriggerOptions } from './utils'
+import { buildMeetingOutputs, circlebackSetupInstructions, circlebackTriggerOptions } from './utils'
 
 export const circlebackWebhookTrigger: TriggerConfig = {
   id: 'circleback_webhook',
@@ -74,7 +74,7 @@ export const circlebackWebhookTrigger: TriggerConfig = {
     },
   ],
 
-  outputs: buildGenericOutputs(),
+  outputs: buildMeetingOutputs(),
 
   webhook: {
     method: 'POST',

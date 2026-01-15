@@ -27,11 +27,13 @@ import {
 import { NavigateUIClientTool } from '@/lib/copilot/tools/client/navigation/navigate-ui'
 import { AuthClientTool } from '@/lib/copilot/tools/client/other/auth'
 import { CheckoffTodoClientTool } from '@/lib/copilot/tools/client/other/checkoff-todo'
+import { CrawlWebsiteClientTool } from '@/lib/copilot/tools/client/other/crawl-website'
 import { CustomToolClientTool } from '@/lib/copilot/tools/client/other/custom-tool'
 import { DebugClientTool } from '@/lib/copilot/tools/client/other/debug'
 import { DeployClientTool } from '@/lib/copilot/tools/client/other/deploy'
 import { EditClientTool } from '@/lib/copilot/tools/client/other/edit'
 import { EvaluateClientTool } from '@/lib/copilot/tools/client/other/evaluate'
+import { GetPageContentsClientTool } from '@/lib/copilot/tools/client/other/get-page-contents'
 import { InfoClientTool } from '@/lib/copilot/tools/client/other/info'
 import { KnowledgeClientTool } from '@/lib/copilot/tools/client/other/knowledge'
 import { MakeApiRequestClientTool } from '@/lib/copilot/tools/client/other/make-api-request'
@@ -40,6 +42,7 @@ import { OAuthRequestAccessClientTool } from '@/lib/copilot/tools/client/other/o
 import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
 import { RememberDebugClientTool } from '@/lib/copilot/tools/client/other/remember-debug'
 import { ResearchClientTool } from '@/lib/copilot/tools/client/other/research'
+import { ScrapePageClientTool } from '@/lib/copilot/tools/client/other/scrape-page'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
 import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
 import { SearchLibraryDocsClientTool } from '@/lib/copilot/tools/client/other/search-library-docs'
@@ -120,6 +123,9 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   search_library_docs: (id) => new SearchLibraryDocsClientTool(id),
   search_patterns: (id) => new SearchPatternsClientTool(id),
   search_errors: (id) => new SearchErrorsClientTool(id),
+  scrape_page: (id) => new ScrapePageClientTool(id),
+  get_page_contents: (id) => new GetPageContentsClientTool(id),
+  crawl_website: (id) => new CrawlWebsiteClientTool(id),
   remember_debug: (id) => new RememberDebugClientTool(id),
   set_environment_variables: (id) => new SetEnvironmentVariablesClientTool(id),
   get_credentials: (id) => new GetCredentialsClientTool(id),
@@ -179,6 +185,9 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   search_library_docs: (SearchLibraryDocsClientTool as any)?.metadata,
   search_patterns: (SearchPatternsClientTool as any)?.metadata,
   search_errors: (SearchErrorsClientTool as any)?.metadata,
+  scrape_page: (ScrapePageClientTool as any)?.metadata,
+  get_page_contents: (GetPageContentsClientTool as any)?.metadata,
+  crawl_website: (CrawlWebsiteClientTool as any)?.metadata,
   remember_debug: (RememberDebugClientTool as any)?.metadata,
   set_environment_variables: (SetEnvironmentVariablesClientTool as any)?.metadata,
   get_credentials: (GetCredentialsClientTool as any)?.metadata,
@@ -413,7 +422,8 @@ function abortAllInProgressTools(set: any, get: () => CopilotStore) {
  * Loads messages from DB for UI rendering.
  * Messages are stored exactly as they render, so we just need to:
  * 1. Register client tool instances for any tool calls
- * 2. Return the messages as-is
+ * 2. Clear any streaming flags (messages loaded from DB are never actively streaming)
+ * 3. Return the messages
  */
 function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
   try {
@@ -429,20 +439,51 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
       }
     }
 
-    // Register client tool instances for all tool calls so they can be looked up
+    // Register client tool instances and clear streaming flags for all tool calls
     for (const message of messages) {
       if (message.contentBlocks) {
         for (const block of message.contentBlocks as any[]) {
           if (block?.type === 'tool_call' && block.toolCall) {
             registerToolCallInstances(block.toolCall)
+            clearStreamingFlags(block.toolCall)
           }
         }
       }
+      // Also clear from toolCalls array (legacy format)
+      if (message.toolCalls) {
+        for (const toolCall of message.toolCalls) {
+          clearStreamingFlags(toolCall)
+        }
+      }
     }
-    // Return messages as-is - they're already in the correct format for rendering
     return messages
   } catch {
     return messages
+  }
+}
+
+/**
+ * Recursively clears streaming flags from a tool call and its nested subagent tool calls.
+ * This ensures messages loaded from DB don't appear to be streaming.
+ */
+function clearStreamingFlags(toolCall: any): void {
+  if (!toolCall) return
+
+  // Always set subAgentStreaming to false - messages loaded from DB are never streaming
+  toolCall.subAgentStreaming = false
+
+  // Clear nested subagent tool calls
+  if (Array.isArray(toolCall.subAgentBlocks)) {
+    for (const block of toolCall.subAgentBlocks) {
+      if (block?.type === 'subagent_tool_call' && block.toolCall) {
+        clearStreamingFlags(block.toolCall)
+      }
+    }
+  }
+  if (Array.isArray(toolCall.subAgentToolCalls)) {
+    for (const subTc of toolCall.subAgentToolCalls) {
+      clearStreamingFlags(subTc)
+    }
   }
 }
 
@@ -1214,30 +1255,20 @@ const sseHandlers: Record<string, SSEHandler> = {
       }
     } catch {}
 
-    // Integration tools: Check if auto-allowed, otherwise wait for user confirmation
-    // This handles tools like google_calendar_*, exa_*, etc. that aren't in the client registry
+    // Integration tools: Stay in pending state until user confirms via buttons
+    // This handles tools like google_calendar_*, exa_*, gmail_read, etc. that aren't in the client registry
     // Only relevant if mode is 'build' (agent)
-    const { mode, workflowId, autoAllowedTools } = get()
+    const { mode, workflowId } = get()
     if (mode === 'build' && workflowId) {
-      // Check if tool was NOT found in client registry (def is undefined from above)
+      // Check if tool was NOT found in client registry
       const def = name ? getTool(name) : undefined
       const inst = getClientTool(id) as any
       if (!def && !inst && name) {
-        // Check if this tool is auto-allowed
-        if (autoAllowedTools.includes(name)) {
-          logger.info('[build mode] Integration tool auto-allowed, executing', { id, name })
-
-          // Auto-execute the tool
-          setTimeout(() => {
-            get().executeIntegrationTool(id)
-          }, 0)
-        } else {
-          // Integration tools stay in pending state until user confirms
-          logger.info('[build mode] Integration tool awaiting user confirmation', {
-            id,
-            name,
-          })
-        }
+        // Integration tools stay in pending state until user confirms
+        logger.info('[build mode] Integration tool awaiting user confirmation', {
+          id,
+          name,
+        })
       }
     }
   },
@@ -1854,7 +1885,7 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
 
     updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
 
-    // Execute client tools (same logic as main tool_call handler)
+    // Execute client tools in parallel (non-blocking) - same pattern as main tool_call handler
     try {
       const def = getTool(name)
       if (def) {
@@ -1863,29 +1894,33 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
             ? !!def.hasInterrupt(args || {})
             : !!def.hasInterrupt
         if (!hasInterrupt) {
-          // Auto-execute tools without interrupts
+          // Auto-execute tools without interrupts - non-blocking
           const ctx = createExecutionContext({ toolCallId: id, toolName: name })
-          try {
-            await def.execute(ctx, args || {})
-          } catch (execErr: any) {
-            logger.error('[SubAgent] Tool execution failed', { id, name, error: execErr?.message })
-          }
-        }
-      } else {
-        // Fallback to class-based tools
-        const instance = getClientTool(id)
-        if (instance) {
-          const hasInterruptDisplays = !!instance.getInterruptDisplays?.()
-          if (!hasInterruptDisplays) {
-            try {
-              await instance.execute(args || {})
-            } catch (execErr: any) {
-              logger.error('[SubAgent] Class tool execution failed', {
+          Promise.resolve()
+            .then(() => def.execute(ctx, args || {}))
+            .catch((execErr: any) => {
+              logger.error('[SubAgent] Tool execution failed', {
                 id,
                 name,
                 error: execErr?.message,
               })
-            }
+            })
+        }
+      } else {
+        // Fallback to class-based tools - non-blocking
+        const instance = getClientTool(id)
+        if (instance) {
+          const hasInterruptDisplays = !!instance.getInterruptDisplays?.()
+          if (!hasInterruptDisplays) {
+            Promise.resolve()
+              .then(() => instance.execute(args || {}))
+              .catch((execErr: any) => {
+                logger.error('[SubAgent] Class tool execution failed', {
+                  id,
+                  name,
+                  error: execErr?.message,
+                })
+              })
           }
         }
       }
@@ -2515,6 +2550,13 @@ export const useCopilotStore = create<CopilotStore>()(
         // Call copilot API
         const apiMode: 'ask' | 'agent' | 'plan' =
           mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
+
+        // Extract slash commands from contexts (lowercase) and filter them out from contexts
+        const commands = contexts
+          ?.filter((c) => c.kind === 'slash_command' && 'command' in c)
+          .map((c) => (c as any).command.toLowerCase()) as string[] | undefined
+        const filteredContexts = contexts?.filter((c) => c.kind !== 'slash_command')
+
         const result = await sendStreamingMessage({
           message: messageToSend,
           userMessageId: userMessage.id,
@@ -2526,7 +2568,8 @@ export const useCopilotStore = create<CopilotStore>()(
           createNewChat: !currentChat,
           stream,
           fileAttachments,
-          contexts,
+          contexts: filteredContexts,
+          commands: commands?.length ? commands : undefined,
           abortSignal: abortController.signal,
         })
 
@@ -2618,13 +2661,14 @@ export const useCopilotStore = create<CopilotStore>()(
             ),
             isSendingMessage: false,
             isAborting: false,
-            abortController: null,
+            // Keep abortController so streaming loop can check signal.aborted
+            // It will be nulled when streaming completes or new message starts
           }))
         } else {
           set({
             isSendingMessage: false,
             isAborting: false,
-            abortController: null,
+            // Keep abortController so streaming loop can check signal.aborted
           })
         }
 
@@ -2653,7 +2697,7 @@ export const useCopilotStore = create<CopilotStore>()(
           } catch {}
         }
       } catch {
-        set({ isSendingMessage: false, isAborting: false, abortController: null })
+        set({ isSendingMessage: false, isAborting: false })
       }
     },
 
@@ -3154,6 +3198,7 @@ export const useCopilotStore = create<CopilotStore>()(
               : msg
           ),
           isSendingMessage: false,
+          isAborting: false,
           abortController: null,
           currentUserMessageId: null,
         }))

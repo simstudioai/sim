@@ -49,7 +49,6 @@ export function useTextareaAutoResize({
 
     const styles = window.getComputedStyle(textarea)
 
-    // Copy all text rendering properties exactly (but NOT color - overlay needs visible text)
     overlay.style.font = styles.font
     overlay.style.fontSize = styles.fontSize
     overlay.style.fontFamily = styles.fontFamily
@@ -66,7 +65,6 @@ export function useTextareaAutoResize({
     overlay.style.textTransform = styles.textTransform
     overlay.style.textIndent = styles.textIndent
 
-    // Copy box model properties exactly to ensure identical text flow
     overlay.style.padding = styles.padding
     overlay.style.paddingTop = styles.paddingTop
     overlay.style.paddingRight = styles.paddingRight
@@ -80,7 +78,6 @@ export function useTextareaAutoResize({
     overlay.style.border = styles.border
     overlay.style.borderWidth = styles.borderWidth
 
-    // Copy text wrapping and breaking properties
     overlay.style.whiteSpace = styles.whiteSpace
     overlay.style.wordBreak = styles.wordBreak
     overlay.style.wordWrap = styles.wordWrap
@@ -91,20 +88,17 @@ export function useTextareaAutoResize({
     overlay.style.direction = styles.direction
     overlay.style.hyphens = (styles as any).hyphens ?? ''
 
-    // Critical: Match dimensions exactly
     const textareaWidth = textarea.clientWidth
     const textareaHeight = textarea.clientHeight
 
     overlay.style.width = `${textareaWidth}px`
     overlay.style.height = `${textareaHeight}px`
 
-    // Match max-height behavior
     const computedMaxHeight = styles.maxHeight
     if (computedMaxHeight && computedMaxHeight !== 'none') {
       overlay.style.maxHeight = computedMaxHeight
     }
 
-    // Ensure scroll positions are perfectly synced
     overlay.scrollTop = textarea.scrollTop
     overlay.scrollLeft = textarea.scrollLeft
   })
@@ -119,25 +113,20 @@ export function useTextareaAutoResize({
     const overlay = overlayRef.current
     if (!textarea || !overlay) return
 
-    // Store current cursor position to determine if user is typing at the end
     const cursorPos = textarea.selectionStart ?? 0
     const isAtEnd = cursorPos === message.length
     const wasScrolledToBottom =
       textarea.scrollHeight - textarea.scrollTop - textarea.clientHeight < 5
 
-    // Reset height to auto to get proper scrollHeight
     textarea.style.height = 'auto'
     overlay.style.height = 'auto'
 
-    // Force a reflow to ensure accurate scrollHeight
     void textarea.offsetHeight
     void overlay.offsetHeight
 
-    // Get the scroll height (this includes all content, including trailing newlines)
     const scrollHeight = textarea.scrollHeight
     const nextHeight = Math.min(scrollHeight, MAX_TEXTAREA_HEIGHT)
 
-    // Apply height to BOTH elements simultaneously
     const heightString = `${nextHeight}px`
     const overflowString = scrollHeight > MAX_TEXTAREA_HEIGHT ? 'auto' : 'hidden'
 
@@ -146,22 +135,18 @@ export function useTextareaAutoResize({
     overlay.style.height = heightString
     overlay.style.overflowY = overflowString
 
-    // Force another reflow after height change
     void textarea.offsetHeight
     void overlay.offsetHeight
 
-    // Maintain scroll behavior: if user was at bottom or typing at end, keep them at bottom
     if ((isAtEnd || wasScrolledToBottom) && scrollHeight > nextHeight) {
       const scrollValue = scrollHeight
       textarea.scrollTop = scrollValue
       overlay.scrollTop = scrollValue
     } else {
-      // Otherwise, sync scroll positions
       overlay.scrollTop = textarea.scrollTop
       overlay.scrollLeft = textarea.scrollLeft
     }
 
-    // Sync all other styles after height change
     syncOverlayStyles.current()
   }, [message, selectedContexts, textareaRef])
 
@@ -192,19 +177,15 @@ export function useTextareaAutoResize({
     const overlay = overlayRef.current
     if (!textarea || !overlay || !containerRef || typeof window === 'undefined') return
 
-    // Initial sync
     syncOverlayStyles.current()
 
-    // Observe the CONTAINER - when pills wrap, container height changes
     if (typeof ResizeObserver !== 'undefined' && !containerResizeObserverRef.current) {
       containerResizeObserverRef.current = new ResizeObserver(() => {
-        // Container size changed (pills wrapped) - sync immediately
         syncOverlayStyles.current()
       })
       containerResizeObserverRef.current.observe(containerRef)
     }
 
-    // ALSO observe the textarea for its own size changes
     if (typeof ResizeObserver !== 'undefined' && !textareaResizeObserverRef.current) {
       textareaResizeObserverRef.current = new ResizeObserver(() => {
         syncOverlayStyles.current()
@@ -212,7 +193,6 @@ export function useTextareaAutoResize({
       textareaResizeObserverRef.current.observe(textarea)
     }
 
-    // Setup MutationObserver to detect style changes
     const mutationObserver = new MutationObserver(() => {
       syncOverlayStyles.current()
     })
@@ -221,11 +201,9 @@ export function useTextareaAutoResize({
       attributeFilter: ['style', 'class'],
     })
 
-    // Listen to window resize events (for browser window resizing)
     const handleResize = () => syncOverlayStyles.current()
     window.addEventListener('resize', handleResize)
 
-    // Cleanup
     return () => {
       mutationObserver.disconnect()
       window.removeEventListener('resize', handleResize)

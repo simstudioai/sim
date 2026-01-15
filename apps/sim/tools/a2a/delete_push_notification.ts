@@ -38,12 +38,16 @@ export const a2aDeletePushNotificationTool: ToolConfig<
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      agentUrl: params.agentUrl,
-      taskId: params.taskId,
-      pushNotificationConfigId: params.pushNotificationConfigId,
-      apiKey: params.apiKey,
-    }),
+    body: (params) => {
+      const body: Record<string, string> = {
+        agentUrl: params.agentUrl,
+        taskId: params.taskId,
+      }
+      if (params.pushNotificationConfigId)
+        body.pushNotificationConfigId = params.pushNotificationConfigId
+      if (params.apiKey) body.apiKey = params.apiKey
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {

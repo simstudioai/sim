@@ -426,7 +426,8 @@ export const auth = betterAuth({
   },
   emailVerification: {
     autoSignInAfterVerification: true,
-    afterEmailVerification: async (user) => {
+    // onEmailVerification is called by the emailOTP plugin when email is verified via OTP
+    onEmailVerification: async (user) => {
       if (isHosted && user.email) {
         try {
           const html = await renderWelcomeEmail(user.name || undefined)
@@ -441,11 +442,11 @@ export const auth = betterAuth({
             emailType: 'transactional',
           })
 
-          logger.info('[emailVerification.afterEmailVerification] Welcome email sent', {
+          logger.info('[emailVerification.onEmailVerification] Welcome email sent', {
             userId: user.id,
           })
         } catch (error) {
-          logger.error('[emailVerification.afterEmailVerification] Failed to send welcome email', {
+          logger.error('[emailVerification.onEmailVerification] Failed to send welcome email', {
             userId: user.id,
             error,
           })
@@ -456,7 +457,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: isEmailVerificationEnabled,
-    sendVerificationOnSignUp: false,
+    sendVerificationOnSignUp: isEmailVerificationEnabled, // Auto-send verification OTP on signup when verification is required
     throwOnMissingCredentials: true,
     throwOnInvalidCredentials: true,
     sendResetPassword: async ({ user, url, token }, request) => {
@@ -592,6 +593,7 @@ export const auth = betterAuth({
       sendVerificationOnSignUp: false,
       otpLength: 6, // Explicitly set the OTP length
       expiresIn: 15 * 60, // 15 minutes in seconds
+      overrideDefaultEmailVerification: true,
     }),
     genericOAuth({
       config: [
@@ -656,7 +658,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: profile.id.toString(),
+                id: `${profile.id.toString()}-${crypto.randomUUID()}`,
                 name: profile.name || profile.login,
                 email: profile.email,
                 image: profile.avatar_url,
@@ -962,7 +964,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: uniqueId,
+                id: `${uniqueId}-${crypto.randomUUID()}`,
                 name: 'Wealthbox User',
                 email: `${uniqueId}@wealthbox.user`,
                 emailVerified: false,
@@ -1016,7 +1018,7 @@ export const auth = betterAuth({
               const user = data.data
 
               return {
-                id: user.id.toString(),
+                id: `${user.id.toString()}-${crypto.randomUUID()}`,
                 name: user.name,
                 email: user.email,
                 emailVerified: user.activated,
@@ -1108,7 +1110,7 @@ export const auth = betterAuth({
               })
 
               return {
-                id: data.user_id || data.hub_id.toString(),
+                id: `${data.user_id || data.hub_id.toString()}-${crypto.randomUUID()}`,
                 name: data.user || 'HubSpot User',
                 email: data.user || `hubspot-${data.hub_id}@hubspot.com`,
                 emailVerified: true,
@@ -1162,7 +1164,7 @@ export const auth = betterAuth({
               const data = await response.json()
 
               return {
-                id: data.user_id || data.sub,
+                id: `${data.user_id || data.sub}-${crypto.randomUUID()}`,
                 name: data.name || 'Salesforce User',
                 email: data.email || `salesforce-${data.user_id}@salesforce.com`,
                 emailVerified: data.email_verified || true,
@@ -1221,7 +1223,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: profile.data.id,
+                id: `${profile.data.id}-${crypto.randomUUID()}`,
                 name: profile.data.name || 'X User',
                 email: `${profile.data.username}@x.com`,
                 image: profile.data.profile_image_url,
@@ -1295,7 +1297,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: profile.account_id,
+                id: `${profile.account_id}-${crypto.randomUUID()}`,
                 name: profile.name || profile.display_name || 'Confluence User',
                 email: profile.email || `${profile.account_id}@atlassian.com`,
                 image: profile.picture || undefined,
@@ -1406,7 +1408,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: profile.account_id,
+                id: `${profile.account_id}-${crypto.randomUUID()}`,
                 name: profile.name || profile.display_name || 'Jira User',
                 email: profile.email || `${profile.account_id}@atlassian.com`,
                 image: profile.picture || undefined,
@@ -1456,7 +1458,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: data.id,
+                id: `${data.id}-${crypto.randomUUID()}`,
                 name: data.email ? data.email.split('@')[0] : 'Airtable User',
                 email: data.email || `${data.id}@airtable.user`,
                 emailVerified: !!data.email,
@@ -1505,7 +1507,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: profile.bot?.owner?.user?.id || profile.id,
+                id: `${profile.bot?.owner?.user?.id || profile.id}-${crypto.randomUUID()}`,
                 name: profile.name || profile.bot?.owner?.user?.name || 'Notion User',
                 email: profile.person?.email || `${profile.id}@notion.user`,
                 emailVerified: !!profile.person?.email,
@@ -1572,7 +1574,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: data.id,
+                id: `${data.id}-${crypto.randomUUID()}`,
                 name: data.name || 'Reddit User',
                 email: `${data.name}@reddit.user`,
                 image: data.icon_img || undefined,
@@ -1644,7 +1646,7 @@ export const auth = betterAuth({
               const viewer = data.viewer
 
               return {
-                id: viewer.id,
+                id: `${viewer.id}-${crypto.randomUUID()}`,
                 email: viewer.email,
                 name: viewer.name,
                 emailVerified: true,
@@ -1707,7 +1709,7 @@ export const auth = betterAuth({
               const data = await response.json()
 
               return {
-                id: data.account_id,
+                id: `${data.account_id}-${crypto.randomUUID()}`,
                 email: data.email,
                 name: data.name?.display_name || data.email,
                 emailVerified: data.email_verified || false,
@@ -1758,7 +1760,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: profile.gid,
+                id: `${profile.gid}-${crypto.randomUUID()}`,
                 name: profile.name || 'Asana User',
                 email: profile.email || `${profile.gid}@asana.user`,
                 image: profile.photo?.image_128x128 || undefined,
@@ -1834,7 +1836,7 @@ export const auth = betterAuth({
               logger.info('Slack credential identifier', { teamId, userId, uniqueId, teamName })
 
               return {
-                id: uniqueId,
+                id: `${uniqueId}-${crypto.randomUUID()}`,
                 name: teamName,
                 email: `${teamId}-${userId}@slack.bot`,
                 emailVerified: false,
@@ -1884,7 +1886,7 @@ export const auth = betterAuth({
               const uniqueId = `webflow-${userId}`
 
               return {
-                id: uniqueId,
+                id: `${uniqueId}-${crypto.randomUUID()}`,
                 name: data.user_name || 'Webflow User',
                 email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@webflow.user`,
                 emailVerified: false,
@@ -1931,7 +1933,7 @@ export const auth = betterAuth({
               const profile = await response.json()
 
               return {
-                id: profile.sub,
+                id: `${profile.sub}-${crypto.randomUUID()}`,
                 name: profile.name || 'LinkedIn User',
                 email: profile.email || `${profile.sub}@linkedin.user`,
                 emailVerified: profile.email_verified || true,
@@ -1993,7 +1995,7 @@ export const auth = betterAuth({
               const profile = await response.json()
 
               return {
-                id: profile.id,
+                id: `${profile.id}-${crypto.randomUUID()}`,
                 name:
                   `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Zoom User',
                 email: profile.email || `${profile.id}@zoom.user`,
@@ -2060,7 +2062,7 @@ export const auth = betterAuth({
               const profile = await response.json()
 
               return {
-                id: profile.id,
+                id: `${profile.id}-${crypto.randomUUID()}`,
                 name: profile.display_name || 'Spotify User',
                 email: profile.email || `${profile.id}@spotify.user`,
                 emailVerified: true,
@@ -2108,7 +2110,7 @@ export const auth = betterAuth({
               const profile = await response.json()
 
               return {
-                id: profile.ID?.toString() || profile.id?.toString(),
+                id: `${profile.ID?.toString() || profile.id?.toString()}-${crypto.randomUUID()}`,
                 name: profile.display_name || profile.username || 'WordPress User',
                 email: profile.email || `${profile.username}@wordpress.com`,
                 emailVerified: profile.email_verified || false,

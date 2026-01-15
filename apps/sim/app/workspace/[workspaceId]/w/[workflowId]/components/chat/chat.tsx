@@ -221,7 +221,9 @@ export function Chat() {
     exportChatCSV,
   } = useChatStore()
 
-  const { entries } = useTerminalConsoleStore()
+  const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
+  const entriesFromStore = useTerminalConsoleStore((state) => state.entries)
+  const entries = hasConsoleHydrated ? entriesFromStore : []
   const { isExecuting } = useExecutionStore()
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const { data: session } = useSession()
@@ -529,35 +531,6 @@ export function Chat() {
                   )
                   finalizeMessageStream(responseMessageId)
                   return
-                }
-
-                if (
-                  selectedOutputs.length > 0 &&
-                  'logs' in result &&
-                  Array.isArray(result.logs) &&
-                  activeWorkflowId
-                ) {
-                  const additionalOutputs: string[] = []
-
-                  for (const outputId of selectedOutputs) {
-                    const blockId = extractBlockIdFromOutputId(outputId)
-                    const path = extractPathFromOutputId(outputId, blockId)
-
-                    if (path === 'content') continue
-
-                    const outputValue = extractOutputFromLogs(result.logs as BlockLog[], outputId)
-                    if (outputValue !== undefined) {
-                      const formattedValue =
-                        typeof outputValue === 'string' ? outputValue : JSON.stringify(outputValue)
-                      if (formattedValue) {
-                        additionalOutputs.push(`**${path}:** ${formattedValue}`)
-                      }
-                    }
-                  }
-
-                  if (additionalOutputs.length > 0) {
-                    appendMessageContent(responseMessageId, `\n\n${additionalOutputs.join('\n\n')}`)
-                  }
                 }
 
                 finalizeMessageStream(responseMessageId)

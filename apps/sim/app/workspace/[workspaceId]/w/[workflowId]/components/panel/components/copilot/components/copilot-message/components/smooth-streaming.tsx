@@ -8,12 +8,12 @@ const CHARACTER_DELAY = 3
 
 /**
  * StreamingIndicator shows animated dots during message streaming
- * Uses CSS classes for animations to follow best practices
+ * Used as a standalone indicator when no content has arrived yet
  *
  * @returns Animated loading indicator
  */
 export const StreamingIndicator = memo(() => (
-  <div className='flex items-center py-1 text-muted-foreground transition-opacity duration-200 ease-in-out'>
+  <div className='flex h-[1.25rem] items-center text-muted-foreground'>
     <div className='flex space-x-0.5'>
       <div className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground [animation-delay:0ms] [animation-duration:1.2s]' />
       <div className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground [animation-delay:150ms] [animation-duration:1.2s]' />
@@ -43,44 +43,33 @@ interface SmoothStreamingTextProps {
  */
 export const SmoothStreamingText = memo(
   ({ content, isStreaming }: SmoothStreamingTextProps) => {
-    const [displayedContent, setDisplayedContent] = useState('')
+    // Initialize with full content when not streaming to avoid flash on page load
+    const [displayedContent, setDisplayedContent] = useState(() => (isStreaming ? '' : content))
     const contentRef = useRef(content)
     const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-    const indexRef = useRef(0)
-    const streamingStartTimeRef = useRef<number | null>(null)
+    // Initialize index based on streaming state
+    const indexRef = useRef(isStreaming ? 0 : content.length)
     const isAnimatingRef = useRef(false)
 
-    /**
-     * Handles content streaming animation
-     * Updates displayed content character by character during streaming
-     */
     useEffect(() => {
       contentRef.current = content
 
       if (content.length === 0) {
         setDisplayedContent('')
         indexRef.current = 0
-        streamingStartTimeRef.current = null
         return
       }
 
       if (isStreaming) {
-        if (streamingStartTimeRef.current === null) {
-          streamingStartTimeRef.current = Date.now()
-        }
-
         if (indexRef.current < content.length) {
           const animateText = () => {
             const currentContent = contentRef.current
             const currentIndex = indexRef.current
 
             if (currentIndex < currentContent.length) {
-              const chunkSize = 1
-              const newDisplayed = currentContent.slice(0, currentIndex + chunkSize)
-
+              const newDisplayed = currentContent.slice(0, currentIndex + 1)
               setDisplayedContent(newDisplayed)
-              indexRef.current = currentIndex + chunkSize
-
+              indexRef.current = currentIndex + 1
               timeoutRef.current = setTimeout(animateText, CHARACTER_DELAY)
             } else {
               isAnimatingRef.current = false
@@ -91,16 +80,18 @@ export const SmoothStreamingText = memo(
             if (timeoutRef.current) {
               clearTimeout(timeoutRef.current)
             }
-
             isAnimatingRef.current = true
             animateText()
           }
         }
       } else {
+        // Streaming ended - show full content immediately
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current)
+        }
         setDisplayedContent(content)
         indexRef.current = content.length
         isAnimatingRef.current = false
-        streamingStartTimeRef.current = null
       }
 
       return () => {
@@ -112,7 +103,7 @@ export const SmoothStreamingText = memo(
     }, [content, isStreaming])
 
     return (
-      <div className='relative min-h-[1.25rem] max-w-full overflow-hidden'>
+      <div className='min-h-[1.25rem] max-w-full'>
         <CopilotMarkdownRenderer content={displayedContent} />
       </div>
     )
@@ -121,7 +112,6 @@ export const SmoothStreamingText = memo(
     // Prevent re-renders during streaming unless content actually changed
     return (
       prevProps.content === nextProps.content && prevProps.isStreaming === nextProps.isStreaming
-      // markdownComponents is now memoized so no need to compare
     )
   }
 )

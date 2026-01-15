@@ -104,6 +104,7 @@
     "groq-sdk": "^0.15.0",
     "html-to-image": "1.11.13",
     "html-to-text": "^9.0.5",
+    "idb-keyval": "6.2.2",
     "imapflow": "1.2.4",
     "input-otp": "^1.4.2",
     "ioredis": "^5.6.0",

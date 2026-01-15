@@ -356,6 +356,9 @@ const WorkflowContent = React.memo(() => {
   /** Stores source node/handle info when a connection drag starts for drop-on-block detection. */
   const connectionSourceRef = useRef<{ nodeId: string; handleId: string } | null>(null)
 
+  /** Tracks whether onConnect successfully handled the connection (ReactFlow pattern). */
+  const connectionCompletedRef = useRef(false)
+
   /** Stores start positions for multi-node drag undo/redo recording. */
   const multiNodeDragStartRef = useRef<Map<string, { x: number; y: number; parentId?: string }>>(
     new Map()
@@ -2214,7 +2217,8 @@ const WorkflowContent = React.memo(() => {
   )
 
   /**
-   * Captures the source handle when a connection drag starts
+   * Captures the source handle when a connection drag starts.
+   * Resets connectionCompletedRef to track if onConnect handles this connection.
    */
   const onConnectStart = useCallback((_event: any, params: any) => {
     const handleId: string | undefined = params?.handleId
@@ -2223,6 +2227,7 @@ const WorkflowContent = React.memo(() => {
       nodeId: params?.nodeId,
       handleId: params?.handleId,
     }
+    connectionCompletedRef.current = false
   }, [])
 
   /** Handles new edge connections with container boundary validation. */
@@ -2283,6 +2288,7 @@ const WorkflowContent = React.memo(() => {
               isInsideContainer: true,
             },
           })
+          connectionCompletedRef.current = true
           return
         }
 
@@ -2311,6 +2317,7 @@ const WorkflowContent = React.memo(() => {
               }
             : undefined,
         })
+        connectionCompletedRef.current = true
       }
     },
     [addEdge, getNodes, blocks]
@@ -2319,8 +2326,9 @@ const WorkflowContent = React.memo(() => {
   /**
    * Handles connection drag end. Detects if the edge was dropped over a block
    * and automatically creates a connection to that block's target handle.
-   * Only creates a connection if ReactFlow didn't already handle it (e.g., when
-   * dropping on the block body instead of a handle).
+   *
+   * Uses connectionCompletedRef to check if onConnect already handled this connection
+   * (ReactFlow pattern for distinguishing handle-to-handle vs handle-to-body drops).
    */
   const onConnectEnd = useCallback(
     (event: MouseEvent | TouchEvent) => {
@@ -2328,6 +2336,12 @@ const WorkflowContent = React.memo(() => {
 
       const source = connectionSourceRef.current
       if (!source?.nodeId) {
+        connectionSourceRef.current = null
+        return
+      }
+
+      // If onConnect already handled this connection, skip (handle-to-handle case)
+      if (connectionCompletedRef.current) {
         connectionSourceRef.current = null
         return
       }
@@ -2342,25 +2356,14 @@ const WorkflowContent = React.memo(() => {
       // Find node under cursor
       const targetNode = findNodeAtPosition(flowPosition)
 
-      // Create connection if valid target found AND edge doesn't already exist
-      // ReactFlow's onConnect fires first when dropping on a handle, so we check
-      // if that connection already exists to avoid creating duplicates.
-      // IMPORTANT: We must read directly from the store (not React state) because
-      // the store update from ReactFlow's onConnect may not have triggered a
-      // React re-render yet when this callback runs (typically 1-2ms later).
+      // Create connection if valid target found (handle-to-body case)
       if (targetNode && targetNode.id !== source.nodeId) {
-        const currentEdges = useWorkflowStore.getState().edges
-        const edgeAlreadyExists = currentEdges.some(
-          (e) => e.source === source.nodeId && e.target === targetNode.id
-        )
-        if (!edgeAlreadyExists) {
-          onConnect({
-            source: source.nodeId,
-            sourceHandle: source.handleId,
-            target: targetNode.id,
-            targetHandle: 'target',
-          })
-        }
+        onConnect({
+          source: source.nodeId,
+          sourceHandle: source.handleId,
+          target: targetNode.id,
+          targetHandle: 'target',
+        })
       }
 
       connectionSourceRef.current = null

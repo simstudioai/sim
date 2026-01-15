@@ -112,6 +112,12 @@ export const isE2bEnabled = isTruthy(env.E2B_ENABLED)
 export const isInvitationsDisabled = isTruthy(env.DISABLE_INVITATIONS)
 
 /**
+ * Is React Grab enabled for UI element debugging
+ * When true and in development mode, enables React Grab for copying UI element context to clipboard
+ */
+export const isReactGrabEnabled = isDev && isTruthy(env.REACT_GRAB_ENABLED)
+
+/**
  * Get cost multiplier based on environment
  */
 export function getCostMultiplier(): number {

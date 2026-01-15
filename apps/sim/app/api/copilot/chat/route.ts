@@ -52,6 +52,9 @@ const ChatMessageSchema = z.object({
       'gpt-5.1-high',
       'gpt-5-codex',
       'gpt-5.1-codex',
+      'gpt-5.2',
+      'gpt-5.2-codex',
+      'gpt-5.2-pro',
       'gpt-4o',
       'gpt-4.1',
       'o3',
@@ -97,6 +100,7 @@ const ChatMessageSchema = z.object({
       })
     )
     .optional(),
+  commands: z.array(z.string()).optional(),
 })
 
 /**
@@ -132,6 +136,7 @@ export async function POST(req: NextRequest) {
       provider,
       conversationId,
       contexts,
+      commands,
     } = ChatMessageSchema.parse(body)
     // Ensure we have a consistent user message ID for this request
     const userMessageIdToUse = userMessageId || crypto.randomUUID()
@@ -462,6 +467,7 @@ export async function POST(req: NextRequest) {
       ...(integrationTools.length > 0 && { tools: integrationTools }),
       ...(baseTools.length > 0 && { baseTools }),
       ...(credentials && { credentials }),
+      ...(commands && commands.length > 0 && { commands }),
     }
 
     try {

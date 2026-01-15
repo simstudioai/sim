@@ -53,6 +53,8 @@ export interface ExportWorkflowState {
     metadata?: {
       name?: string
       description?: string
+      color?: string
+      sortOrder?: number
       exportedAt?: string
     }
     variables?: Array<{

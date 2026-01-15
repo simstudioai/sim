@@ -44,6 +44,8 @@ Send a message to an external A2A-compatible agent.
 | `message` | string | Yes | Message to send to the agent |
 | `taskId` | string | No | Task ID for continuing an existing task |
 | `contextId` | string | No | Context ID for conversation continuity |
+| `data` | string | No | Structured data to include with the message \(JSON string\) |
+| `files` | array | No | Files to include with the message |
 | `apiKey` | string | No | API key for authentication |
 
 #### Output
@@ -208,8 +210,3 @@ Delete the push notification webhook configuration for a task.
 | `success` | boolean | Whether deletion was successful |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `a2a`

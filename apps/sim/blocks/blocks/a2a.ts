@@ -99,6 +99,23 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
       required: true,
     },
     {
+      id: 'data',
+      title: 'Data (JSON)',
+      type: 'code',
+      placeholder: '{\n  "key": "value"\n}',
+      description: 'Structured data to include with the message (DataPart)',
+      condition: { field: 'operation', value: 'a2a_send_message' },
+    },
+    {
+      id: 'files',
+      title: 'Files',
+      type: 'file-upload',
+      placeholder: 'Upload files to send',
+      description: 'Files to include with the message (FilePart)',
+      condition: { field: 'operation', value: 'a2a_send_message' },
+      multiple: true,
+    },
+    {
       id: 'taskId',
       title: 'Task ID',
       type: 'short-input',
@@ -207,6 +224,14 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
     contextId: {
       type: 'string',
       description: 'Context ID for conversation continuity',
+    },
+    data: {
+      type: 'json',
+      description: 'Structured data to include with the message',
+    },
+    files: {
+      type: 'array',
+      description: 'Files to include with the message',
     },
     historyLength: {
       type: 'number',

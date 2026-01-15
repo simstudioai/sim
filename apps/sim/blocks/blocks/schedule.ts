@@ -172,7 +172,7 @@ export const ScheduleBlock: BlockConfig = {
         { label: 'Melbourne (UTC+10)', id: 'Australia/Melbourne' },
         { label: 'Auckland (UTC+12)', id: 'Pacific/Auckland' },
       ],
-      value: () => 'UTC',
+      value: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
       required: false,
       mode: 'trigger',
       condition: { field: 'scheduleType', value: ['minutes', 'hourly'], not: true },

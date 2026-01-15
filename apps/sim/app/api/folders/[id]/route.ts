@@ -14,6 +14,7 @@ const updateFolderSchema = z.object({
   color: z.string().optional(),
   isExpanded: z.boolean().optional(),
   parentId: z.string().nullable().optional(),
+  sortOrder: z.number().int().min(0).optional(),
 })
 
 // PUT - Update a folder
@@ -38,7 +39,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: `Validation failed: ${errorMessages}` }, { status: 400 })
     }
 
-    const { name, color, isExpanded, parentId } = validationResult.data
+    const { name, color, isExpanded, parentId, sortOrder } = validationResult.data
 
     // Verify the folder exists
     const existingFolder = await db
@@ -81,12 +82,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    // Update the folder
-    const updates: any = { updatedAt: new Date() }
+    const updates: Record<string, unknown> = { updatedAt: new Date() }
     if (name !== undefined) updates.name = name.trim()
     if (color !== undefined) updates.color = color
     if (isExpanded !== undefined) updates.isExpanded = isExpanded
     if (parentId !== undefined) updates.parentId = parentId || null
+    if (sortOrder !== undefined) updates.sortOrder = sortOrder
 
     const [updatedFolder] = await db
       .update(workflowFolder)

@@ -19,6 +19,7 @@ vi.mock('@/lib/core/config/env', () =>
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
   isDev: false,
+  isReactGrabEnabled: false,
 }))
 
 import {

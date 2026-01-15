@@ -222,7 +222,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    // Encrypt webhook secret if provided
     let webhookConfig = data.webhookConfig || null
     if (webhookConfig?.secret) {
       const { encrypted } = await encryptSecret(webhookConfig.secret)

@@ -1,11 +1,10 @@
 name: 'Auto-translate Documentation'
 
 on:
-  push:
-    branches: [ staging ]
-    paths:
-      - 'apps/docs/content/docs/en/**'
-      - 'apps/docs/i18n.json'
+  schedule:
+    # Run every Sunday at midnight UTC
+    - cron: '0 0 * * 0'
+  workflow_dispatch: # Allow manual triggers
 
 permissions:
   contents: write
@@ -20,6 +19,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: staging
           token: ${{ secrets.GH_PAT }}
           fetch-depth: 0
 
@@ -68,12 +68,11 @@ jobs:
           title: "feat(i18n): update translations"
           body: |
             ## Summary
-            Automated translation updates triggered by changes to documentation.
-            
-            This PR was automatically created after content changes were made, updating translations for all supported languages using Lingo.dev AI translation engine.
-            
-            **Original trigger**: ${{ github.event.head_commit.message }}
-            **Commit**: ${{ github.sha }}
+            Automated weekly translation updates for documentation.
+
+            This PR was automatically created by the scheduled weekly i18n workflow, updating translations for all supported languages using Lingo.dev AI translation engine.
+
+            **Triggered**: Weekly scheduled run
             **Workflow**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
             
             ## Type of Change
@@ -107,7 +106,7 @@ jobs:
             ## Screenshots/Videos
             <!-- Translation changes are text-based - no visual changes expected -->
             <!-- Reviewers should check the documentation site renders correctly for all languages -->
-          branch: auto-translate/staging-merge-${{ github.run_id }}
+          branch: auto-translate/weekly-${{ github.run_id }}
           base: staging
           labels: |
             i18n
@@ -145,6 +144,8 @@ jobs:
           bun install --frozen-lockfile
 
       - name: Build documentation to verify translations
+        env:
+          DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
         run: |
           cd apps/docs
           bun run build
@@ -153,7 +154,7 @@ jobs:
         run: |
           cd apps/docs
           echo "## Translation Status Report" >> $GITHUB_STEP_SUMMARY
-          echo "**Triggered by merge to staging branch**" >> $GITHUB_STEP_SUMMARY
+          echo "**Weekly scheduled translation run**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           en_count=$(find content/docs/en -name "*.mdx" | wc -l)

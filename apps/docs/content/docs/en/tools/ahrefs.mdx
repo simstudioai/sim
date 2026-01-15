@@ -72,6 +72,13 @@ Get a list of backlinks pointing to a target domain or URL. Returns details abou
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `backlinks` | array | List of backlinks pointing to the target |
+|   ↳ `urlFrom` | string | The URL of the page containing the backlink |
+|   ↳ `urlTo` | string | The URL being linked to |
+|   ↳ `anchor` | string | The anchor text of the link |
+|   ↳ `domainRatingSource` | number | Domain Rating of the linking domain |
+|   ↳ `isDofollow` | boolean | Whether the link is dofollow |
+|   ↳ `firstSeen` | string | When the backlink was first discovered |
+|   ↳ `lastVisited` | string | When the backlink was last checked |
 
 ### `ahrefs_backlinks_stats`
 
@@ -91,6 +98,12 @@ Get backlink statistics for a target domain or URL. Returns totals for different
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `stats` | object | Backlink statistics summary |
+| ↳ `total` | number | Total number of live backlinks |
+| ↳ `dofollow` | number | Number of dofollow backlinks |
+| ↳ `nofollow` | number | Number of nofollow backlinks |
+| ↳ `text` | number | Number of text backlinks |
+| ↳ `image` | number | Number of image backlinks |
+| ↳ `redirect` | number | Number of redirect backlinks |
 
 ### `ahrefs_referring_domains`
 
@@ -112,6 +125,12 @@ Get a list of domains that link to a target domain or URL. Returns unique referr
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `referringDomains` | array | List of domains linking to the target |
+|   ↳ `domain` | string | The referring domain |
+|   ↳ `domainRating` | number | Domain Rating of the referring domain |
+|   ↳ `backlinks` | number | Total number of backlinks from this domain |
+|   ↳ `dofollowBacklinks` | number | Number of dofollow backlinks from this domain |
+|   ↳ `firstSeen` | string | When the domain was first seen linking |
+|   ↳ `lastVisited` | string | When the domain was last checked |
 
 ### `ahrefs_organic_keywords`
 
@@ -134,6 +153,12 @@ Get organic keywords that a target domain or URL ranks for in Google search resu
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `keywords` | array | List of organic keywords the target ranks for |
+|   ↳ `keyword` | string | The keyword |
+|   ↳ `volume` | number | Monthly search volume |
+|   ↳ `position` | number | Current ranking position |
+|   ↳ `url` | string | The URL that ranks for this keyword |
+|   ↳ `traffic` | number | Estimated monthly organic traffic |
+|   ↳ `keywordDifficulty` | number | Keyword difficulty score \(0-100\) |
 
 ### `ahrefs_top_pages`
 
@@ -157,6 +182,11 @@ Get the top pages of a target domain sorted by organic traffic. Returns page URL
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `pages` | array | List of top pages by organic traffic |
+|   ↳ `url` | string | The page URL |
+|   ↳ `traffic` | number | Estimated monthly organic traffic |
+|   ↳ `keywords` | number | Number of keywords the page ranks for |
+|   ↳ `topKeyword` | string | The top keyword driving traffic to this page |
+|   ↳ `value` | number | Estimated traffic value in USD |
 
 ### `ahrefs_keyword_overview`
 
@@ -175,6 +205,14 @@ Get detailed metrics for a keyword including search volume, keyword difficulty, 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `overview` | object | Keyword metrics overview |
+| ↳ `keyword` | string | The analyzed keyword |
+| ↳ `searchVolume` | number | Monthly search volume |
+| ↳ `keywordDifficulty` | number | Keyword difficulty score \(0-100\) |
+| ↳ `cpc` | number | Cost per click in USD |
+| ↳ `clicks` | number | Estimated clicks per month |
+| ↳ `clicksPercentage` | number | Percentage of searches that result in clicks |
+| ↳ `parentTopic` | string | The parent topic for this keyword |
+| ↳ `trafficPotential` | number | Estimated traffic potential if ranking #1 |
 
 ### `ahrefs_broken_backlinks`
 
@@ -196,5 +234,10 @@ Get a list of broken backlinks pointing to a target domain or URL. Useful for id
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `brokenBacklinks` | array | List of broken backlinks |
+|   ↳ `urlFrom` | string | The URL of the page containing the broken link |
+|   ↳ `urlTo` | string | The broken URL being linked to |
+|   ↳ `httpCode` | number | HTTP status code \(e.g., 404, 410\) |
+|   ↳ `anchor` | string | The anchor text of the link |
+|   ↳ `domainRatingSource` | number | Domain Rating of the linking domain |
 
 

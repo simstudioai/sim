@@ -117,6 +117,10 @@ export const githubPRReviewedTrigger: TriggerConfig = {
   ],
 
   outputs: {
+    event_type: {
+      type: 'string',
+      description: 'GitHub event type from X-GitHub-Event header (e.g., pull_request_review)',
+    },
     action: {
       type: 'string',
       description: 'Action performed (submitted, edited, dismissed)',

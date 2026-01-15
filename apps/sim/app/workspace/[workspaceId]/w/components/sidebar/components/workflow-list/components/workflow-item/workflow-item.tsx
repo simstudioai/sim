@@ -28,7 +28,10 @@ interface WorkflowItemProps {
   workflow: WorkflowMetadata
   active: boolean
   level: number
+  dragDisabled?: boolean
   onWorkflowClick: (workflowId: string, shiftKey: boolean, metaKey: boolean) => void
+  onDragStart?: () => void
+  onDragEnd?: () => void
 }
 
 /**
@@ -38,7 +41,15 @@ interface WorkflowItemProps {
  * @param props - Component props
  * @returns Workflow item with drag and selection support
  */
-export function WorkflowItem({ workflow, active, level, onWorkflowClick }: WorkflowItemProps) {
+export function WorkflowItem({
+  workflow,
+  active,
+  level,
+  dragDisabled = false,
+  onWorkflowClick,
+  onDragStart: onDragStartProp,
+  onDragEnd: onDragEndProp,
+}: WorkflowItemProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const { selectedWorkflows } = useFolderStore()
@@ -104,30 +115,7 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
     [workflow.id, updateWorkflow]
   )
 
-  /**
-   * Drag start handler - handles workflow dragging with multi-selection support
-   *
-   * @param e - React drag event
-   */
-  const onDragStart = useCallback(
-    (e: React.DragEvent) => {
-      if (isEditing) {
-        e.preventDefault()
-        return
-      }
-
-      const workflowIds =
-        isSelected && selectedWorkflows.size > 1 ? Array.from(selectedWorkflows) : [workflow.id]
-
-      e.dataTransfer.setData('workflow-ids', JSON.stringify(workflowIds))
-      e.dataTransfer.effectAllowed = 'move'
-    },
-    [isSelected, selectedWorkflows, workflow.id]
-  )
-
-  const { isDragging, shouldPreventClickRef, handleDragStart, handleDragEnd } = useItemDrag({
-    onDragStart,
-  })
+  const isEditingRef = useRef(false)
 
   const {
     isOpen: isContextMenuOpen,
@@ -232,6 +220,43 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
     itemId: workflow.id,
   })
 
+  isEditingRef.current = isEditing
+
+  const onDragStart = useCallback(
+    (e: React.DragEvent) => {
+      if (isEditingRef.current) {
+        e.preventDefault()
+        return
+      }
+
+      const currentSelection = useFolderStore.getState().selectedWorkflows
+      const isCurrentlySelected = currentSelection.has(workflow.id)
+      const workflowIds =
+        isCurrentlySelected && currentSelection.size > 1
+          ? Array.from(currentSelection)
+          : [workflow.id]
+
+      e.dataTransfer.setData('workflow-ids', JSON.stringify(workflowIds))
+      e.dataTransfer.effectAllowed = 'move'
+      onDragStartProp?.()
+    },
+    [workflow.id, onDragStartProp]
+  )
+
+  const {
+    isDragging,
+    shouldPreventClickRef,
+    handleDragStart,
+    handleDragEnd: handleDragEndBase,
+  } = useItemDrag({
+    onDragStart,
+  })
+
+  const handleDragEnd = useCallback(() => {
+    handleDragEndBase()
+    onDragEndProp?.()
+  }, [handleDragEndBase, onDragEndProp])
+
   /**
    * Handle double-click on workflow name to enter rename mode
    */
@@ -284,7 +309,7 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
             : '',
           isDragging ? 'opacity-50' : ''
         )}
-        draggable={!isEditing}
+        draggable={!isEditing && !dragDisabled}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onClick={handleClick}

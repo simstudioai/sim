@@ -41,6 +41,7 @@ import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
 import { GoogleFormsBlock } from '@/blocks/blocks/google_form'
 import { GoogleGroupsBlock } from '@/blocks/blocks/google_groups'
 import { GoogleSheetsBlock } from '@/blocks/blocks/google_sheets'
+import { GoogleSheetsV2Block } from '@/blocks/blocks/google_sheets_v2'
 import { GoogleSlidesBlock } from '@/blocks/blocks/google_slides'
 import { GoogleVaultBlock } from '@/blocks/blocks/google_vault'
 import { GrafanaBlock } from '@/blocks/blocks/grafana'
@@ -61,6 +62,7 @@ import { JiraBlock } from '@/blocks/blocks/jira'
 import { JiraServiceManagementBlock } from '@/blocks/blocks/jira_service_management'
 import { KalshiBlock } from '@/blocks/blocks/kalshi'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
+import { LangsmithBlock } from '@/blocks/blocks/langsmith'
 import { LemlistBlock } from '@/blocks/blocks/lemlist'
 import { LinearBlock } from '@/blocks/blocks/linear'
 import { LinkedInBlock } from '@/blocks/blocks/linkedin'
@@ -72,6 +74,7 @@ import { McpBlock } from '@/blocks/blocks/mcp'
 import { Mem0Block } from '@/blocks/blocks/mem0'
 import { MemoryBlock } from '@/blocks/blocks/memory'
 import { MicrosoftExcelBlock } from '@/blocks/blocks/microsoft_excel'
+import { MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel_v2'
 import { MicrosoftPlannerBlock } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock } from '@/blocks/blocks/microsoft_teams'
 import { MistralParseBlock } from '@/blocks/blocks/mistral_parse'
@@ -121,6 +124,7 @@ import { SupabaseBlock } from '@/blocks/blocks/supabase'
 import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
+import { TinybirdBlock } from '@/blocks/blocks/tinybird'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { TrelloBlock } from '@/blocks/blocks/trello'
 import { TtsBlock } from '@/blocks/blocks/tts'
@@ -198,6 +202,7 @@ export const registry: Record<string, BlockConfig> = {
   google_forms: GoogleFormsBlock,
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
+  google_sheets_v2: GoogleSheetsV2Block,
   google_slides: GoogleSlidesBlock,
   google_vault: GoogleVaultBlock,
   google_groups: GoogleGroupsBlock,
@@ -216,6 +221,7 @@ export const registry: Record<string, BlockConfig> = {
   jira_service_management: JiraServiceManagementBlock,
   kalshi: KalshiBlock,
   knowledge: KnowledgeBlock,
+  langsmith: LangsmithBlock,
   lemlist: LemlistBlock,
   linear: LinearBlock,
   linkedin: LinkedInBlock,
@@ -227,6 +233,7 @@ export const registry: Record<string, BlockConfig> = {
   mem0: Mem0Block,
   memory: MemoryBlock,
   microsoft_excel: MicrosoftExcelBlock,
+  microsoft_excel_v2: MicrosoftExcelV2Block,
   microsoft_planner: MicrosoftPlannerBlock,
   microsoft_teams: MicrosoftTeamsBlock,
   mistral_parse: MistralParseBlock,
@@ -281,6 +288,7 @@ export const registry: Record<string, BlockConfig> = {
   tavily: TavilyBlock,
   telegram: TelegramBlock,
   thinking: ThinkingBlock,
+  tinybird: TinybirdBlock,
   translate: TranslateBlock,
   trello: TrelloBlock,
   twilio_sms: TwilioSMSBlock,
@@ -310,6 +318,26 @@ export const getBlock = (type: string): BlockConfig | undefined => {
     return registry[type]
   }
   const normalized = type.replace(/-/g, '_')
+  return registry[normalized]
+}
+
+export const getLatestBlock = (baseType: string): BlockConfig | undefined => {
+  const normalized = baseType.replace(/-/g, '_')
+
+  const versionedKeys = Object.keys(registry).filter((key) => {
+    const match = key.match(new RegExp(`^${normalized}_v(\\d+)$`))
+    return match !== null
+  })
+
+  if (versionedKeys.length > 0) {
+    const sorted = versionedKeys.sort((a, b) => {
+      const versionA = Number.parseInt(a.match(/_v(\d+)$/)?.[1] || '0', 10)
+      const versionB = Number.parseInt(b.match(/_v(\d+)$/)?.[1] || '0', 10)
+      return versionB - versionA
+    })
+    return registry[sorted[0]]
+  }
+
   return registry[normalized]
 }
 

@@ -260,6 +260,9 @@ export const env = createEnv({
     // Invitations - for self-hosted deployments
     DISABLE_INVITATIONS:                   z.boolean().optional(),                 // Disable workspace invitations globally (for self-hosted deployments)
 
+    // Development Tools
+    REACT_GRAB_ENABLED:                    z.boolean().optional(),                 // Enable React Grab for UI element debugging in Cursor/AI agents (dev only)
+
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
     SSO_PROVIDER_TYPE:                     z.enum(['oidc', 'saml']).optional(),    // [REQUIRED] SSO provider type
