@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Badge, Input } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
@@ -7,39 +7,7 @@ import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-
-/**
- * Represents a field in the input format configuration
- */
-interface InputFormatField {
-  name: string
-  type?: string
-}
-
-/**
- * Represents an input trigger block structure
- */
-interface InputTriggerBlock {
-  type: 'input_trigger' | 'start_trigger'
-  subBlocks?: {
-    inputFormat?: { value?: InputFormatField[] }
-  }
-}
-
-/**
- * Represents a legacy starter block structure
- */
-interface StarterBlockLegacy {
-  type: 'starter'
-  subBlocks?: {
-    inputFormat?: { value?: InputFormatField[] }
-  }
-  config?: {
-    params?: {
-      inputFormat?: InputFormatField[]
-    }
-  }
-}
+import { useWorkflowInputFields } from '@/hooks/queries/workflows'
 
 /**
  * Props for the InputMappingField component
@@ -68,73 +36,6 @@ interface InputMappingProps {
   isPreview?: boolean
   previewValue?: Record<string, unknown>
   disabled?: boolean
-}
-
-/**
- * Type guard to check if a value is an InputTriggerBlock
- * @param value - The value to check
- * @returns True if the value is an InputTriggerBlock
- */
-function isInputTriggerBlock(value: unknown): value is InputTriggerBlock {
-  const type = (value as { type?: unknown }).type
-  return (
-    !!value && typeof value === 'object' && (type === 'input_trigger' || type === 'start_trigger')
-  )
-}
-
-/**
- * Type guard to check if a value is a StarterBlockLegacy
- * @param value - The value to check
- * @returns True if the value is a StarterBlockLegacy
- */
-function isStarterBlock(value: unknown): value is StarterBlockLegacy {
-  return !!value && typeof value === 'object' && (value as { type?: unknown }).type === 'starter'
-}
-
-/**
- * Type guard to check if a value is an InputFormatField
- * @param value - The value to check
- * @returns True if the value is an InputFormatField
- */
-function isInputFormatField(value: unknown): value is InputFormatField {
-  if (typeof value !== 'object' || value === null) return false
-  if (!('name' in value)) return false
-  const { name, type } = value as { name: unknown; type?: unknown }
-  if (typeof name !== 'string' || name.trim() === '') return false
-  if (type !== undefined && typeof type !== 'string') return false
-  return true
-}
-
-/**
- * Extracts input format fields from workflow blocks
- * @param blocks - The workflow blocks to extract from
- * @returns Array of input format fields or null if not found
- */
-function extractInputFormatFields(blocks: Record<string, unknown>): InputFormatField[] | null {
-  const triggerEntry = Object.entries(blocks).find(([, b]) => isInputTriggerBlock(b))
-  if (triggerEntry && isInputTriggerBlock(triggerEntry[1])) {
-    const inputFormat = triggerEntry[1].subBlocks?.inputFormat?.value
-    if (Array.isArray(inputFormat)) {
-      return (inputFormat as unknown[])
-        .filter(isInputFormatField)
-        .map((f) => ({ name: f.name, type: f.type }))
-    }
-  }
-
-  const starterEntry = Object.entries(blocks).find(([, b]) => isStarterBlock(b))
-  if (starterEntry && isStarterBlock(starterEntry[1])) {
-    const starter = starterEntry[1]
-    const subBlockFormat = starter.subBlocks?.inputFormat?.value
-    const legacyParamsFormat = starter.config?.params?.inputFormat
-    const chosen = Array.isArray(subBlockFormat) ? subBlockFormat : legacyParamsFormat
-    if (Array.isArray(chosen)) {
-      return (chosen as unknown[])
-        .filter(isInputFormatField)
-        .map((f) => ({ name: f.name, type: f.type }))
-    }
-  }
-
-  return null
 }
 
 /**
@@ -168,61 +69,9 @@ export function InputMapping({
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
   const overlayRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
-  const [childInputFields, setChildInputFields] = useState<InputFormatField[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const workflowId = typeof selectedWorkflowId === 'string' ? selectedWorkflowId : undefined
+  const { data: childInputFields = [], isLoading } = useWorkflowInputFields(workflowId)
   const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
-
-  useEffect(() => {
-    let isMounted = true
-    const controller = new AbortController()
-
-    async function fetchChildSchema() {
-      if (!selectedWorkflowId) {
-        if (isMounted) {
-          setChildInputFields([])
-          setIsLoading(false)
-        }
-        return
-      }
-
-      try {
-        if (isMounted) setIsLoading(true)
-
-        const res = await fetch(`/api/workflows/${selectedWorkflowId}`, {
-          signal: controller.signal,
-        })
-
-        if (!res.ok) {
-          if (isMounted) {
-            setChildInputFields([])
-            setIsLoading(false)
-          }
-          return
-        }
-
-        const { data } = await res.json()
-        const blocks = (data?.state?.blocks as Record<string, unknown>) || {}
-        const fields = extractInputFormatFields(blocks)
-
-        if (isMounted) {
-          setChildInputFields(fields || [])
-          setIsLoading(false)
-        }
-      } catch (error) {
-        if (isMounted) {
-          setChildInputFields([])
-          setIsLoading(false)
-        }
-      }
-    }
-
-    fetchChildSchema()
-
-    return () => {
-      isMounted = false
-      controller.abort()
-    }
-  }, [selectedWorkflowId])
 
   const valueObj: Record<string, string> = useMemo(() => {
     if (isPreview && previewValue && typeof previewValue === 'object') {

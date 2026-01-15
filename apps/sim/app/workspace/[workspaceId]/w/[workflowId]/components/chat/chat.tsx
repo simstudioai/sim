@@ -29,7 +29,7 @@ import {
   extractPathFromOutputId,
   parseOutputContentSafely,
 } from '@/lib/core/utils/response-format'
-import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { START_BLOCK_RESERVED_FIELDS } from '@/lib/workflows/types'
 import {
