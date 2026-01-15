@@ -318,7 +318,6 @@
     "postgres": "^3.4.5",
     "react": "19.2.1",
     "react-dom": "19.2.1",
-    "vite": "7.3.1",
   },
   "packages": {
     "@a2a-js/sdk": ["@a2a-js/sdk@0.3.7", "", { "dependencies": { "uuid": "^11.1.0" }, "peerDependencies": { "express": "^4.21.2 || ^5.1.0" }, "optionalPeers": ["express"] }, "sha512-1WBghkOjgiKt4rPNje8jlB9VateVQXqyjlc887bY/H8yM82Hlf0+5JW8zB98BPExKAplI5XqtXVH980J6vqi+w=="],
