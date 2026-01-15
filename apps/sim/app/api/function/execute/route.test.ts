@@ -3,10 +3,9 @@
  *
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
+import { createMockRequest, loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
 vi.mock('@/lib/execution/isolated-vm', () => ({
   executeInIsolatedVM: vi.fn().mockImplementation(async (req) => {

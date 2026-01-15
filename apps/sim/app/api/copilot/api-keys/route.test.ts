@@ -3,9 +3,9 @@
  *
  * @vitest-environment node
  */
+import { mockAuth, mockCryptoUuid, setupCommonApiMocks } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mockAuth, mockCryptoUuid, setupCommonApiMocks } from '@/app/api/__test-utils__/utils'
 
 describe('Copilot API Keys API Route', () => {
   const mockFetch = vi.fn()

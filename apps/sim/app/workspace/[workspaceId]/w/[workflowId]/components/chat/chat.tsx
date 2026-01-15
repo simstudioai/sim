@@ -20,6 +20,7 @@ import {
   PopoverItem,
   PopoverScrollArea,
   PopoverTrigger,
+  Tooltip,
   Trash,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
@@ -29,7 +30,7 @@ import {
   extractPathFromOutputId,
   parseOutputContentSafely,
 } from '@/lib/core/utils/response-format'
-import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { START_BLOCK_RESERVED_FIELDS } from '@/lib/workflows/types'
 import {
@@ -869,7 +870,7 @@ export function Chat() {
 
         <div className='flex flex-shrink-0 items-center gap-[8px]'>
           {/* More menu with actions */}
-          <Popover variant='default' open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
+          <Popover variant='default' size='sm' open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant='ghost'
@@ -1042,17 +1043,21 @@ export function Chat() {
 
               {/* Buttons positioned absolutely on the right */}
               <div className='-translate-y-1/2 absolute top-1/2 right-[2px] flex items-center gap-[10px]'>
-                <Badge
-                  onClick={() => document.getElementById('floating-chat-file-input')?.click()}
-                  title='Attach file'
-                  className={cn(
-                    '!bg-transparent !border-0 cursor-pointer rounded-[6px] p-[0px]',
-                    (!activeWorkflowId || isExecuting || chatFiles.length >= 15) &&
-                      'cursor-not-allowed opacity-50'
-                  )}
-                >
-                  <Paperclip className='!h-3.5 !w-3.5' />
-                </Badge>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Badge
+                      onClick={() => document.getElementById('floating-chat-file-input')?.click()}
+                      className={cn(
+                        '!bg-transparent !border-0 cursor-pointer rounded-[6px] p-[0px]',
+                        (!activeWorkflowId || isExecuting || chatFiles.length >= 15) &&
+                          'cursor-not-allowed opacity-50'
+                      )}
+                    >
+                      <Paperclip className='!h-3.5 !w-3.5' />
+                    </Badge>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>Attach file</Tooltip.Content>
+                </Tooltip.Root>
 
                 {isStreaming ? (
                   <Button

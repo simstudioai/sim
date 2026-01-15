@@ -4,6 +4,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { removeMcpToolsForWorkflow, syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
+import { cleanupWebhooksForWorkflow, saveTriggerWebhooksForDeploy } from '@/lib/webhooks/deploy'
 import {
   deployWorkflow,
   loadWorkflowFromNormalizedTables,
@@ -130,6 +131,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse(`Invalid schedule configuration: ${scheduleValidation.error}`, 400)
     }
 
+    const triggerSaveResult = await saveTriggerWebhooksForDeploy({
+      request,
+      workflowId: id,
+      workflow: workflowData,
+      userId: actorUserId,
+      blocks: normalizedData.blocks,
+      requestId,
+    })
+
+    if (!triggerSaveResult.success) {
+      return createErrorResponse(
+        triggerSaveResult.error?.message || 'Failed to save trigger configuration',
+        triggerSaveResult.error?.status || 500
+      )
+    }
+
     const deployResult = await deployWorkflow({
       workflowId: id,
       deployedBy: actorUserId,
@@ -202,10 +219,17 @@ export async function DELETE(
   try {
     logger.debug(`[${requestId}] Undeploying workflow: ${id}`)
 
-    const { error } = await validateWorkflowPermissions(id, requestId, 'admin')
+    const { error, workflow: workflowData } = await validateWorkflowPermissions(
+      id,
+      requestId,
+      'admin'
+    )
     if (error) {
       return createErrorResponse(error.message, error.status)
     }
+
+    // Clean up external webhook subscriptions before undeploying
+    await cleanupWebhooksForWorkflow(id, workflowData as Record<string, unknown>, requestId)
 
     const result = await undeployWorkflow({ workflowId: id })
     if (!result.success) {

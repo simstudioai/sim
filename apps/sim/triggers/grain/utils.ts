@@ -19,7 +19,6 @@ export function grainSetupInstructions(eventType: string): string {
   const instructions = [
     'Enter your Grain API Key (Personal Access Token) above.',
     'You can find or create your API key in Grain at <strong>Settings > Integrations > API</strong>.',
-    `Click <strong>"Save Configuration"</strong> to automatically create the webhook in Grain for <strong>${eventType}</strong> events.`,
     'The webhook will be automatically deleted when you remove this trigger.',
   ]
 

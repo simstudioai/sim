@@ -186,6 +186,7 @@ export function DeployModal({
   useEffect(() => {
     if (open && workflowId) {
       setActiveTab('general')
+      setApiDeployError(null)
       fetchChatDeploymentInfo()
     }
   }, [open, workflowId, fetchChatDeploymentInfo])
@@ -504,6 +505,7 @@ export function DeployModal({
   const handleCloseModal = () => {
     setIsSubmitting(false)
     setChatSubmitting(false)
+    setApiDeployError(null)
     onOpenChange(false)
   }
 
@@ -653,6 +655,12 @@ export function DeployModal({
             </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>
+              {apiDeployError && (
+                <div className='mb-3 rounded-[4px] border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
+                  <div className='font-semibold'>Deployment Error</div>
+                  <div>{apiDeployError}</div>
+                </div>
+              )}
               <ModalTabsContent value='general'>
                 <GeneralDeploy
                   workflowId={workflowId}

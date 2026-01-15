@@ -5,13 +5,13 @@
  *
  * @vitest-environment node
  */
-import { createEnvMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  createEnvMock,
   createMockRequest,
   mockConsoleLogger,
   mockKnowledgeSchemas,
-} from '@/app/api/__test-utils__/utils'
+} from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn().mockImplementation((...args) => ({ and: args })),

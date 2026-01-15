@@ -451,7 +451,7 @@ export const settings = pgTable('settings', {
     .unique(), // One settings record per user
 
   // General settings
-  theme: text('theme').notNull().default('system'),
+  theme: text('theme').notNull().default('dark'),
   autoConnect: boolean('auto_connect').notNull().default(true),
 
   // Privacy settings
@@ -474,6 +474,7 @@ export const settings = pgTable('settings', {
 
   // Canvas preferences
   snapToGridSize: integer('snap_to_grid_size').notNull().default(0), // 0 = off, 10-50 = grid size
+  showActionBar: boolean('show_action_bar').notNull().default(true),
 
   // Copilot preferences - maps model_id to enabled/disabled boolean
   copilotEnabledModels: jsonb('copilot_enabled_models').notNull().default('{}'),

@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 
 const logger = createLogger('LazyCleanup')
 
@@ -12,38 +13,14 @@ const logger = createLogger('LazyCleanup')
  * @returns Set of valid field names defined in the child's inputFormat
  */
 function extractValidInputFieldNames(childWorkflowBlocks: Record<string, any>): Set<string> | null {
-  const validFieldNames = new Set<string>()
+  const fields = extractInputFieldsFromBlocks(childWorkflowBlocks)
 
-  const startBlock = Object.values(childWorkflowBlocks).find((block: any) => {
-    const blockType = block?.type
-    return blockType === 'start_trigger' || blockType === 'input_trigger' || blockType === 'starter'
-  })
-
-  if (!startBlock) {
-    logger.debug('No start block found in child workflow')
+  if (fields.length === 0) {
+    logger.debug('No inputFormat fields found in child workflow')
     return null
   }
 
-  const inputFormat =
-    (startBlock as any)?.subBlocks?.inputFormat?.value ??
-    (startBlock as any)?.config?.params?.inputFormat
-
-  if (!Array.isArray(inputFormat)) {
-    logger.debug('No inputFormat array found in child workflow start block')
-    return null
-  }
-
-  // Extract field names
-  for (const field of inputFormat) {
-    if (field?.name && typeof field.name === 'string') {
-      const fieldName = field.name.trim()
-      if (fieldName) {
-        validFieldNames.add(fieldName)
-      }
-    }
-  }
-
-  return validFieldNames
+  return new Set(fields.map((field) => field.name))
 }
 
 /**

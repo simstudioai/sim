@@ -19,21 +19,21 @@ export function ZoomOut(props: SVGProps<SVGSVGElement>) {
         cy='5'
         r='3.5'
         stroke='currentColor'
-        strokeWidth='1.5'
+        strokeWidth='1'
         strokeLinecap='round'
         strokeLinejoin='round'
       />
       <path
         d='M3.5 5H6.5'
         stroke='currentColor'
-        strokeWidth='1.5'
+        strokeWidth='1'
         strokeLinecap='round'
         strokeLinejoin='round'
       />
       <path
         d='M7.5 7.5L10.5 10.5'
         stroke='currentColor'
-        strokeWidth='1.5'
+        strokeWidth='1'
         strokeLinecap='round'
         strokeLinejoin='round'
       />
