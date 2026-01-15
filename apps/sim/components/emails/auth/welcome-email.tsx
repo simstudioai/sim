@@ -36,7 +36,7 @@ export function WelcomeEmail({ userName }: WelcomeEmailProps) {
       <div style={baseStyles.divider} />
 
       <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
-        You're on the free plan with $10 in credits to get started.
+        You're on the free plan with $20 in credits to get started.
       </Text>
     </EmailLayout>
   )
