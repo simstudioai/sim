@@ -422,7 +422,8 @@ function abortAllInProgressTools(set: any, get: () => CopilotStore) {
  * Loads messages from DB for UI rendering.
  * Messages are stored exactly as they render, so we just need to:
  * 1. Register client tool instances for any tool calls
- * 2. Return the messages as-is
+ * 2. Clear any streaming flags (messages loaded from DB are never actively streaming)
+ * 3. Return the messages
  */
 function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
   try {
@@ -438,20 +439,51 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
       }
     }
 
-    // Register client tool instances for all tool calls so they can be looked up
+    // Register client tool instances and clear streaming flags for all tool calls
     for (const message of messages) {
       if (message.contentBlocks) {
         for (const block of message.contentBlocks as any[]) {
           if (block?.type === 'tool_call' && block.toolCall) {
             registerToolCallInstances(block.toolCall)
+            clearStreamingFlags(block.toolCall)
           }
         }
       }
+      // Also clear from toolCalls array (legacy format)
+      if (message.toolCalls) {
+        for (const toolCall of message.toolCalls) {
+          clearStreamingFlags(toolCall)
+        }
+      }
     }
-    // Return messages as-is - they're already in the correct format for rendering
     return messages
   } catch {
     return messages
+  }
+}
+
+/**
+ * Recursively clears streaming flags from a tool call and its nested subagent tool calls.
+ * This ensures messages loaded from DB don't appear to be streaming.
+ */
+function clearStreamingFlags(toolCall: any): void {
+  if (!toolCall) return
+
+  // Always set subAgentStreaming to false - messages loaded from DB are never streaming
+  toolCall.subAgentStreaming = false
+
+  // Clear nested subagent tool calls
+  if (Array.isArray(toolCall.subAgentBlocks)) {
+    for (const block of toolCall.subAgentBlocks) {
+      if (block?.type === 'subagent_tool_call' && block.toolCall) {
+        clearStreamingFlags(block.toolCall)
+      }
+    }
+  }
+  if (Array.isArray(toolCall.subAgentToolCalls)) {
+    for (const subTc of toolCall.subAgentToolCalls) {
+      clearStreamingFlags(subTc)
+    }
   }
 }
 

@@ -2,29 +2,9 @@ import { memo, useEffect, useRef, useState } from 'react'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 
 /**
- * Minimum delay between characters (fast catch-up mode)
+ * Character animation delay in milliseconds
  */
-const MIN_DELAY = 1
-
-/**
- * Maximum delay between characters (when waiting for content)
- */
-const MAX_DELAY = 12
-
-/**
- * Default delay when streaming normally
- */
-const DEFAULT_DELAY = 4
-
-/**
- * How far behind (in characters) before we speed up
- */
-const CATCH_UP_THRESHOLD = 20
-
-/**
- * How close to content before we slow down
- */
-const SLOW_DOWN_THRESHOLD = 5
+const CHARACTER_DELAY = 3
 
 /**
  * StreamingIndicator shows animated dots during message streaming
@@ -55,49 +35,20 @@ interface SmoothStreamingTextProps {
 }
 
 /**
- * Calculates adaptive delay based on how far behind animation is from actual content
- *
- * @param displayedLength - Current displayed content length
- * @param totalLength - Total available content length
- * @returns Delay in milliseconds
- */
-function calculateAdaptiveDelay(displayedLength: number, totalLength: number): number {
-  const charsRemaining = totalLength - displayedLength
-
-  if (charsRemaining > CATCH_UP_THRESHOLD) {
-    // Far behind - speed up to catch up
-    // Scale from MIN_DELAY to DEFAULT_DELAY based on how far behind
-    const catchUpFactor = Math.min(1, (charsRemaining - CATCH_UP_THRESHOLD) / 50)
-    return MIN_DELAY + (DEFAULT_DELAY - MIN_DELAY) * (1 - catchUpFactor)
-  }
-
-  if (charsRemaining <= SLOW_DOWN_THRESHOLD) {
-    // Close to content edge - slow down to feel natural
-    // The closer we are, the slower we go (up to MAX_DELAY)
-    const slowFactor = 1 - charsRemaining / SLOW_DOWN_THRESHOLD
-    return DEFAULT_DELAY + (MAX_DELAY - DEFAULT_DELAY) * slowFactor
-  }
-
-  // Normal streaming speed
-  return DEFAULT_DELAY
-}
-
-/**
  * SmoothStreamingText component displays text with character-by-character animation
- * Creates a smooth streaming effect for AI responses with adaptive speed
- *
- * Uses adaptive pacing: speeds up when catching up, slows down near content edge
+ * Creates a smooth streaming effect for AI responses
  *
  * @param props - Component props
  * @returns Streaming text with smooth animation
  */
 export const SmoothStreamingText = memo(
   ({ content, isStreaming }: SmoothStreamingTextProps) => {
-    const [displayedContent, setDisplayedContent] = useState('')
+    // Initialize with full content when not streaming to avoid flash on page load
+    const [displayedContent, setDisplayedContent] = useState(() => (isStreaming ? '' : content))
     const contentRef = useRef(content)
-    const rafRef = useRef<number | null>(null)
-    const indexRef = useRef(0)
-    const lastFrameTimeRef = useRef<number>(0)
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+    // Initialize index based on streaming state
+    const indexRef = useRef(isStreaming ? 0 : content.length)
     const isAnimatingRef = useRef(false)
 
     useEffect(() => {
@@ -110,42 +61,33 @@ export const SmoothStreamingText = memo(
       }
 
       if (isStreaming) {
-        if (indexRef.current < content.length && !isAnimatingRef.current) {
-          isAnimatingRef.current = true
-          lastFrameTimeRef.current = performance.now()
-
-          const animateText = (timestamp: number) => {
+        if (indexRef.current < content.length) {
+          const animateText = () => {
             const currentContent = contentRef.current
             const currentIndex = indexRef.current
-            const elapsed = timestamp - lastFrameTimeRef.current
 
-            // Calculate adaptive delay based on how far behind we are
-            const delay = calculateAdaptiveDelay(currentIndex, currentContent.length)
-
-            if (elapsed >= delay) {
-              if (currentIndex < currentContent.length) {
-                const newDisplayed = currentContent.slice(0, currentIndex + 1)
-                setDisplayedContent(newDisplayed)
-                indexRef.current = currentIndex + 1
-                lastFrameTimeRef.current = timestamp
-              }
-            }
-
-            if (indexRef.current < currentContent.length) {
-              rafRef.current = requestAnimationFrame(animateText)
+            if (currentIndex < currentContent.length) {
+              const newDisplayed = currentContent.slice(0, currentIndex + 1)
+              setDisplayedContent(newDisplayed)
+              indexRef.current = currentIndex + 1
+              timeoutRef.current = setTimeout(animateText, CHARACTER_DELAY)
             } else {
               isAnimatingRef.current = false
             }
           }
 
-          rafRef.current = requestAnimationFrame(animateText)
-        } else if (indexRef.current < content.length && isAnimatingRef.current) {
-          // Animation already running, it will pick up new content automatically
+          if (!isAnimatingRef.current) {
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current)
+            }
+            isAnimatingRef.current = true
+            animateText()
+          }
         }
       } else {
         // Streaming ended - show full content immediately
-        if (rafRef.current) {
-          cancelAnimationFrame(rafRef.current)
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current)
         }
         setDisplayedContent(content)
         indexRef.current = content.length
@@ -153,8 +95,8 @@ export const SmoothStreamingText = memo(
       }
 
       return () => {
-        if (rafRef.current) {
-          cancelAnimationFrame(rafRef.current)
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current)
         }
         isAnimatingRef.current = false
       }

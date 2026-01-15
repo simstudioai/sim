@@ -33,13 +33,6 @@ function getModelIconComponent(modelValue: string) {
 }
 
 /**
- * Checks if a model should display the MAX badge
- */
-function isMaxModel(modelValue: string): boolean {
-  return modelValue === 'claude-4.5-sonnet' || modelValue === 'claude-4.5-opus'
-}
-
-/**
  * Model selector dropdown for choosing AI model.
  * Displays model icon and label.
  *
@@ -139,11 +132,6 @@ export function ModelSelector({ selectedModel, isNearTop, onModelSelect }: Model
             >
               {getModelIconComponent(option.value)}
               <span>{option.label}</span>
-              {isMaxModel(option.value) && (
-                <Badge size='sm' className='ml-auto'>
-                  MAX
-                </Badge>
-              )}
             </PopoverItem>
           ))}
         </PopoverScrollArea>
