@@ -734,7 +734,7 @@ export function DeployModal({
                 )}
               </ModalTabsContent> */}
 
-              <ModalTabsContent value='mcp'>
+              <ModalTabsContent value='mcp' className='h-full'>
                 {workflowId && (
                   <McpDeploy
                     workflowId={workflowId}
