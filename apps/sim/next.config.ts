@@ -269,6 +269,11 @@ const nextConfig: NextConfig = {
         source: '/github',
         destination: 'https://github.com/simstudioai/sim',
         permanent: false,
+      },
+      {
+        source: '/team',
+        destination: 'https://cal.com/emirkarabeg/sim-team',
+        permanent: false,
       }
     )
 

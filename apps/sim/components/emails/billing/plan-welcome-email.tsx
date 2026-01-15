@@ -33,7 +33,7 @@ export function PlanWelcomeEmail({ planName, userName, loginLink }: PlanWelcomeE
 
       <Text style={baseStyles.paragraph}>
         Want help getting started?{' '}
-        <Link href='https://cal.com/emirkarabeg/sim-team' style={baseStyles.link}>
+        <Link href={`${baseUrl}/team`} style={baseStyles.link}>
           Schedule a call
         </Link>{' '}
         with our team.

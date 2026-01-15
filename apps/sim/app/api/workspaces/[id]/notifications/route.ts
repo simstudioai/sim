@@ -83,6 +83,7 @@ const createNotificationSchema = z
     levelFilter: levelFilterSchema.default(['info', 'error']),
     triggerFilter: triggerFilterSchema.default([...CORE_TRIGGER_TYPES]),
     includeFinalOutput: z.boolean().default(false),
+    includeTraceSpans: z.boolean().default(false),
     includeRateLimits: z.boolean().default(false),
     includeUsageData: z.boolean().default(false),
     alertConfig: alertConfigSchema.optional(),
@@ -137,6 +138,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         levelFilter: workspaceNotificationSubscription.levelFilter,
         triggerFilter: workspaceNotificationSubscription.triggerFilter,
         includeFinalOutput: workspaceNotificationSubscription.includeFinalOutput,
+        includeTraceSpans: workspaceNotificationSubscription.includeTraceSpans,
         includeRateLimits: workspaceNotificationSubscription.includeRateLimits,
         includeUsageData: workspaceNotificationSubscription.includeUsageData,
         webhookConfig: workspaceNotificationSubscription.webhookConfig,
@@ -220,7 +222,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    // Encrypt webhook secret if provided
     let webhookConfig = data.webhookConfig || null
     if (webhookConfig?.secret) {
       const { encrypted } = await encryptSecret(webhookConfig.secret)
@@ -238,6 +239,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         levelFilter: data.levelFilter,
         triggerFilter: data.triggerFilter,
         includeFinalOutput: data.includeFinalOutput,
+        includeTraceSpans: data.includeTraceSpans,
         includeRateLimits: data.includeRateLimits,
         includeUsageData: data.includeUsageData,
         alertConfig: data.alertConfig || null,
@@ -263,6 +265,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         levelFilter: subscription.levelFilter,
         triggerFilter: subscription.triggerFilter,
         includeFinalOutput: subscription.includeFinalOutput,
+        includeTraceSpans: subscription.includeTraceSpans,
         includeRateLimits: subscription.includeRateLimits,
         includeUsageData: subscription.includeUsageData,
         webhookConfig: subscription.webhookConfig,

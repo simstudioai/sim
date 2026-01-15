@@ -92,6 +92,22 @@ function buildTestPayload(subscription: typeof workspaceNotificationSubscription
     data.usage = { currentPeriodCost: 2.45, limit: 20, percentUsed: 12.25, isExceeded: false }
   }
 
+  if (subscription.includeTraceSpans && subscription.notificationType === 'webhook') {
+    data.traceSpans = [
+      {
+        name: 'test-block',
+        startTime: timestamp,
+        endTime: timestamp + 150,
+        duration: 150,
+        status: 'success',
+        blockId: 'block_test_1',
+        blockType: 'agent',
+        blockName: 'Test Agent',
+        children: [],
+      },
+    ]
+  }
+
   return { payload, timestamp }
 }
 

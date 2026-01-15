@@ -61,6 +61,7 @@ export interface NotificationSubscription {
   levelFilter: LogLevel[]
   triggerFilter: TriggerType[]
   includeFinalOutput: boolean
+  includeTraceSpans: boolean
   includeRateLimits: boolean
   includeUsageData: boolean
   webhookConfig?: WebhookConfig | null
@@ -105,6 +106,7 @@ interface CreateNotificationParams {
     levelFilter: LogLevel[]
     triggerFilter: TriggerType[]
     includeFinalOutput: boolean
+    includeTraceSpans: boolean
     includeRateLimits: boolean
     includeUsageData: boolean
     alertConfig?: AlertConfig | null

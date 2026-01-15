@@ -154,68 +154,18 @@ export function useLogDetail(logId: string | undefined) {
   })
 }
 
-interface DashboardFilters {
-  timeRange: TimeRange
-  startDate?: string
-  endDate?: string
-  level: string
-  workflowIds: string[]
-  folderIds: string[]
-  triggers: string[]
-  searchQuery: string
-  segmentCount?: number
-}
-
 /**
- * Fetches aggregated dashboard statistics from the server.
- * Uses SQL aggregation for efficient computation without row limits.
+ * Fetches dashboard stats from the server-side aggregation endpoint.
+ * Uses SQL aggregation for efficient computation without arbitrary limits.
  */
 async function fetchDashboardStats(
   workspaceId: string,
-  filters: DashboardFilters
+  filters: Omit<LogFilters, 'limit'>
 ): Promise<DashboardStatsResponse> {
   const params = new URLSearchParams()
-
   params.set('workspaceId', workspaceId)
 
-  if (filters.segmentCount) {
-    params.set('segmentCount', filters.segmentCount.toString())
-  }
-
-  if (filters.level !== 'all') {
-    params.set('level', filters.level)
-  }
-
-  if (filters.triggers.length > 0) {
-    params.set('triggers', filters.triggers.join(','))
-  }
-
-  if (filters.workflowIds.length > 0) {
-    params.set('workflowIds', filters.workflowIds.join(','))
-  }
-
-  if (filters.folderIds.length > 0) {
-    params.set('folderIds', filters.folderIds.join(','))
-  }
-
-  const startDate = getStartDateFromTimeRange(filters.timeRange, filters.startDate)
-  if (startDate) {
-    params.set('startDate', startDate.toISOString())
-  }
-
-  const endDate = getEndDateFromTimeRange(filters.timeRange, filters.endDate)
-  if (endDate) {
-    params.set('endDate', endDate.toISOString())
-  }
-
-  if (filters.searchQuery.trim()) {
-    const parsedQuery = parseQuery(filters.searchQuery.trim())
-    const searchParams = queryToApiParams(parsedQuery)
-
-    for (const [key, value] of Object.entries(searchParams)) {
-      params.set(key, value)
-    }
-  }
+  applyFilterParams(params, filters)
 
   const response = await fetch(`/api/logs/stats?${params.toString()}`)
 
@@ -232,13 +182,12 @@ interface UseDashboardStatsOptions {
 }
 
 /**
- * Hook for fetching aggregated dashboard statistics.
- * Uses server-side SQL aggregation for efficient computation
- * without any row limits - all matching logs are included in the stats.
+ * Hook for fetching dashboard stats using server-side aggregation.
+ * No arbitrary limits - uses SQL aggregation for accurate metrics.
  */
 export function useDashboardStats(
   workspaceId: string | undefined,
-  filters: DashboardFilters,
+  filters: Omit<LogFilters, 'limit'>,
   options?: UseDashboardStatsOptions
 ) {
   return useQuery({
