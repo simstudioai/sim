@@ -3,26 +3,31 @@ import { baseStyles } from '@/components/emails/_styles'
 import { EmailLayout } from '@/components/emails/components'
 import { getBrandConfig } from '@/lib/branding/branding'
 
-interface RateLimitStatus {
+/**
+ * Serialized rate limit status for email payloads.
+ * Note: This differs from the canonical RateLimitStatus in @/lib/core/rate-limiter
+ * which uses Date for resetAt. This version uses string for JSON serialization.
+ */
+export interface EmailRateLimitStatus {
   requestsPerMinute: number
   remaining: number
   maxBurst?: number
   resetAt?: string
 }
 
-interface RateLimitsData {
-  sync?: RateLimitStatus
-  async?: RateLimitStatus
+export interface EmailRateLimitsData {
+  sync?: EmailRateLimitStatus
+  async?: EmailRateLimitStatus
 }
 
-interface UsageDataProps {
+export interface EmailUsageData {
   currentPeriodCost: number
   limit: number
   percentUsed: number
   isExceeded?: boolean
 }
 
-interface WorkflowNotificationEmailProps {
+export interface WorkflowNotificationEmailProps {
   workflowName: string
   status: 'success' | 'error'
   trigger: string
@@ -31,8 +36,8 @@ interface WorkflowNotificationEmailProps {
   logUrl: string
   alertReason?: string
   finalOutput?: unknown
-  rateLimits?: RateLimitsData
-  usageData?: UsageDataProps
+  rateLimits?: EmailRateLimitsData
+  usageData?: EmailUsageData
 }
 
 function formatJsonForEmail(data: unknown): string {

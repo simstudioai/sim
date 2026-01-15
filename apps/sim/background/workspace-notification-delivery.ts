@@ -10,7 +10,11 @@ import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { renderWorkflowNotificationEmail } from '@/components/emails'
+import {
+  type EmailRateLimitsData,
+  type EmailUsageData,
+  renderWorkflowNotificationEmail,
+} from '@/components/emails'
 import { checkUsageStatus } from '@/lib/billing/calculations/usage-monitor'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -30,25 +34,6 @@ function getRetryDelayWithJitter(baseDelay: number): number {
   return Math.floor(baseDelay + jitter)
 }
 
-interface RateLimitStatus {
-  requestsPerMinute: number
-  remaining: number
-  maxBurst?: number
-  resetAt?: string
-}
-
-interface RateLimitsData {
-  sync?: RateLimitStatus
-  async?: RateLimitStatus
-}
-
-interface UsageDataPayload {
-  currentPeriodCost: number
-  limit: number
-  percentUsed: number
-  isExceeded?: boolean
-}
-
 interface NotificationPayload {
   id: string
   type: 'workflow.execution.completed'
@@ -65,8 +50,8 @@ interface NotificationPayload {
     totalDurationMs: number
     cost?: Record<string, unknown>
     finalOutput?: unknown
-    rateLimits?: RateLimitsData
-    usage?: UsageDataPayload
+    rateLimits?: EmailRateLimitsData
+    usage?: EmailUsageData
   }
 }
 

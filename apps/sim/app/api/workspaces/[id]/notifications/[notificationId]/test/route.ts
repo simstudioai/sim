@@ -5,7 +5,11 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { renderWorkflowNotificationEmail } from '@/components/emails'
+import {
+  type EmailRateLimitsData,
+  type EmailUsageData,
+  renderWorkflowNotificationEmail,
+} from '@/components/emails'
 import { getSession } from '@/lib/auth'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -25,25 +29,6 @@ interface SlackConfig {
   channelId: string
   channelName: string
   accountId: string
-}
-
-interface RateLimitStatus {
-  requestsPerMinute: number
-  remaining: number
-  maxBurst?: number
-  resetAt?: string
-}
-
-interface RateLimitsData {
-  sync?: RateLimitStatus
-  async?: RateLimitStatus
-}
-
-interface UsageDataProps {
-  currentPeriodCost: number
-  limit: number
-  percentUsed: number
-  isExceeded?: boolean
 }
 
 function generateSignature(secret: string, timestamp: number, body: string): string {
@@ -183,15 +168,15 @@ async function testEmail(subscription: typeof workspaceNotificationSubscription.
     cost: `$${(((data.cost as Record<string, unknown>)?.total as number) || 0).toFixed(4)}`,
     logUrl,
     finalOutput: data.finalOutput,
-    rateLimits: data.rateLimits as RateLimitsData | undefined,
-    usageData: data.usage as UsageDataProps | undefined,
+    rateLimits: data.rateLimits as EmailRateLimitsData | undefined,
+    usageData: data.usage as EmailUsageData | undefined,
   })
 
   const result = await sendEmail({
     to: subscription.emailRecipients,
     subject: `[Test] Workflow Execution: ${data.workflowName}`,
     html,
-    text: `This is a test notification from Sim Studio.\n\nWorkflow: ${data.workflowName}\nStatus: ${data.status}\nDuration: ${data.totalDurationMs}ms\n\nView Log: ${logUrl}\n\nThis notification is configured for workspace notifications.`,
+    text: `This is a test notification from Sim.\n\nWorkflow: ${data.workflowName}\nStatus: ${data.status}\nDuration: ${data.totalDurationMs}ms\n\nView Log: ${logUrl}\n\nThis notification is configured for workspace notifications.`,
     emailType: 'notifications',
   })
 
@@ -245,7 +230,7 @@ async function testSlack(
         elements: [
           {
             type: 'mrkdwn',
-            text: 'This is a test notification from Sim Studio workspace notifications.',
+            text: 'This is a test notification from Sim workspace notifications.',
           },
         ],
       },
