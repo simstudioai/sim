@@ -17,7 +17,7 @@ import {
   ModalHeader,
   Textarea,
 } from '@/components/emcn'
-import type { ColumnDefinition, ColumnType } from '@/lib/table'
+import type { ColumnDefinition } from '@/lib/table'
 import { useCreateTable } from '@/hooks/queries/use-tables'
 
 const logger = createLogger('CreateTableModal')
@@ -35,7 +35,7 @@ interface CreateTableModalProps {
 /**
  * Available column type options for the combobox UI.
  */
-const COLUMN_TYPE_OPTIONS: Array<{ value: ColumnType; label: string }> = [
+const COLUMN_TYPE_OPTIONS: Array<{ value: ColumnDefinition['type']; label: string }> = [
   { value: 'string', label: 'String' },
   { value: 'number', label: 'Number' },
   { value: 'boolean', label: 'Boolean' },
@@ -341,7 +341,7 @@ function ColumnRow({ column, index, isRemovable, onChange, onRemove }: ColumnRow
           options={COLUMN_TYPE_OPTIONS}
           value={column.type}
           selectedValue={column.type}
-          onChange={(value) => onChange(index, 'type', value as ColumnType)}
+          onChange={(value) => onChange(index, 'type', value as ColumnDefinition['type'])}
           placeholder='Type'
           editable={false}
           filterOptions={false}

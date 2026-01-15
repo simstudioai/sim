@@ -4,9 +4,7 @@
  * @module lib/table/types
  */
 
-import type { ColumnType } from './constants'
-
-export type { ColumnType }
+import type { COLUMN_TYPES } from './constants'
 
 /** Primitive values that can be stored in table columns */
 export type ColumnValue = string | number | boolean | null | Date
@@ -30,7 +28,7 @@ export interface ColumnDefinition {
   /** Column name (must match NAME_PATTERN) */
   name: string
   /** Data type for the column */
-  type: ColumnType
+  type: (typeof COLUMN_TYPES)[number]
   /** Whether the column is required (non-null) */
   required?: boolean
   /** Whether the column must have unique values */

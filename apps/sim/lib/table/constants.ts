@@ -27,6 +27,4 @@ export const TABLE_LIMITS = {
 
 export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as const
 
-export type ColumnType = (typeof COLUMN_TYPES)[number]
-
 export const NAME_PATTERN = /^[a-z_][a-z0-9_]*$/i

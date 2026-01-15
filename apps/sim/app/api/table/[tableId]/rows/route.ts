@@ -27,11 +27,6 @@ import {
 const logger = createLogger('TableRowsAPI')
 
 /**
- * Type for sort direction specification.
- */
-type SortDirection = Record<string, 'asc' | 'desc'>
-
-/**
  * Zod schema for inserting a single row into a table.
  *
  * The workspaceId is optional for backward compatibility but is validated
@@ -55,9 +50,6 @@ const BatchInsertRowsSchema = z.object({
     .min(1, 'At least one row is required')
     .max(1000, 'Cannot insert more than 1000 rows per batch'),
 })
-
-/** Inferred type for batch insert request body */
-type BatchInsertBody = z.infer<typeof BatchInsertRowsSchema>
 
 /**
  * Zod schema for querying rows with filtering, sorting, and pagination.
@@ -137,7 +129,7 @@ interface TableRowsRouteParams {
 async function handleBatchInsert(
   requestId: string,
   tableId: string,
-  body: BatchInsertBody,
+  body: z.infer<typeof BatchInsertRowsSchema>,
   userId: string
 ): Promise<NextResponse> {
   const validated = BatchInsertRowsSchema.parse(body)
@@ -271,7 +263,12 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
       'rows' in body &&
       Array.isArray((body as Record<string, unknown>).rows)
     ) {
-      return handleBatchInsert(requestId, tableId, body as BatchInsertBody, authResult.userId)
+      return handleBatchInsert(
+        requestId,
+        tableId,
+        body as z.infer<typeof BatchInsertRowsSchema>,
+        authResult.userId
+      )
     }
 
     // Single row insert
@@ -406,14 +403,14 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
     const offset = searchParams.get('offset')
 
     let filter: Record<string, unknown> | undefined
-    let sort: SortDirection | undefined
+    let sort: Record<string, 'asc' | 'desc'> | undefined
 
     try {
       if (filterParam) {
         filter = JSON.parse(filterParam) as Record<string, unknown>
       }
       if (sortParam) {
-        sort = JSON.parse(sortParam) as SortDirection
+        sort = JSON.parse(sortParam) as Record<string, 'asc' | 'desc'>
       }
     } catch {
       return NextResponse.json({ error: 'Invalid filter or sort JSON' }, { status: 400 })

@@ -35,11 +35,6 @@ interface ValidationFailure {
 }
 
 /**
- * Union type for validation results.
- */
-export type RowValidationResult = ValidationSuccess | ValidationFailure
-
-/**
  * Options for single row validation.
  */
 export interface ValidateRowOptions {
@@ -77,7 +72,9 @@ export interface ValidateRowOptions {
  * // Proceed with insert/update
  * ```
  */
-export async function validateRowData(options: ValidateRowOptions): Promise<RowValidationResult> {
+export async function validateRowData(
+  options: ValidateRowOptions
+): Promise<ValidationSuccess | ValidationFailure> {
   const { rowData, schema, tableId, excludeRowId, checkUnique = true } = options
 
   // 1. Validate row size
@@ -162,11 +159,6 @@ interface BatchValidationFailure {
 }
 
 /**
- * Union type for batch validation results.
- */
-export type BatchValidationResult = BatchValidationSuccess | BatchValidationFailure
-
-/**
  * Options for batch row validation.
  */
 export interface ValidateBatchRowsOptions {
@@ -203,7 +195,7 @@ export interface ValidateBatchRowsOptions {
  */
 export async function validateBatchRows(
   options: ValidateBatchRowsOptions
-): Promise<BatchValidationResult> {
+): Promise<BatchValidationSuccess | BatchValidationFailure> {
   const { rows, schema, tableId, checkUnique = true } = options
   const errors: BatchRowError[] = []
 

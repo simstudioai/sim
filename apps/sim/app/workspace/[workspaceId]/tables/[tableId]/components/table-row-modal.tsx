@@ -33,16 +33,11 @@ export interface TableInfo {
 }
 
 /**
- * Modal mode determines the operation and UI.
- */
-export type TableRowModalMode = 'add' | 'edit' | 'delete'
-
-/**
  * Props for the TableRowModal component.
  */
 export interface TableRowModalProps {
   /** The operation mode */
-  mode: TableRowModalMode
+  mode: 'add' | 'edit' | 'delete'
   /** Whether the modal is open */
   isOpen: boolean
   /** Callback when the modal should close */
@@ -57,14 +52,11 @@ export interface TableRowModalProps {
   onSuccess: () => void
 }
 
-/** Row data being edited in the form */
-type RowFormData = Record<string, unknown>
-
 /**
  * Creates initial form data for columns.
  */
-function createInitialRowData(columns: ColumnDefinition[]): RowFormData {
-  const initial: RowFormData = {}
+function createInitialRowData(columns: ColumnDefinition[]): Record<string, unknown> {
+  const initial: Record<string, unknown> = {}
   columns.forEach((col) => {
     if (col.type === 'boolean') {
       initial[col.name] = false
@@ -78,7 +70,10 @@ function createInitialRowData(columns: ColumnDefinition[]): RowFormData {
 /**
  * Cleans and transforms form data for API submission.
  */
-function cleanRowData(columns: ColumnDefinition[], rowData: RowFormData): Record<string, unknown> {
+function cleanRowData(
+  columns: ColumnDefinition[],
+  rowData: Record<string, unknown>
+): Record<string, unknown> {
   const cleanData: Record<string, unknown> = {}
 
   columns.forEach((col) => {
@@ -181,7 +176,7 @@ export function TableRowModal({
   const schema = table?.schema
   const columns = schema?.columns || []
 
-  const [rowData, setRowData] = useState<RowFormData>({})
+  const [rowData, setRowData] = useState<Record<string, unknown>>({})
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 

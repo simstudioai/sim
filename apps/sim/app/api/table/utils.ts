@@ -71,19 +71,6 @@ export interface TableAccessDenied {
 }
 
 /**
- * Union type for table access check results.
- */
-export type TableAccessCheck = TableAccessResult | TableAccessDenied
-
-/**
- * Permission level required for table access.
- * - 'read': Any workspace permission (read, write, or admin)
- * - 'write': Write or admin permission required
- * - 'admin': Admin permission required
- */
-export type TablePermissionLevel = 'read' | 'write' | 'admin'
-
-/**
  * Internal function to check if a user has the required permission level for a table.
  *
  * Access is granted if:
@@ -100,8 +87,8 @@ export type TablePermissionLevel = 'read' | 'write' | 'admin'
 async function checkTableAccessInternal(
   tableId: string,
   userId: string,
-  requiredLevel: TablePermissionLevel
-): Promise<TableAccessCheck> {
+  requiredLevel: 'read' | 'write' | 'admin'
+): Promise<TableAccessResult | TableAccessDenied> {
   // Fetch table data
   const table = await db
     .select({
@@ -178,7 +165,10 @@ async function checkTableAccessInternal(
  * // User has access, proceed with operation
  * ```
  */
-export async function checkTableAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
+export async function checkTableAccess(
+  tableId: string,
+  userId: string
+): Promise<TableAccessResult | TableAccessDenied> {
   return checkTableAccessInternal(tableId, userId, 'read')
 }
 
@@ -205,7 +195,7 @@ export async function checkTableAccess(tableId: string, userId: string): Promise
 export async function checkTableWriteAccess(
   tableId: string,
   userId: string
-): Promise<TableAccessCheck> {
+): Promise<TableAccessResult | TableAccessDenied> {
   return checkTableAccessInternal(tableId, userId, 'write')
 }
 
@@ -234,7 +224,7 @@ export async function checkAccessOrRespond(
   tableId: string,
   userId: string,
   requestId: string,
-  level: TablePermissionLevel = 'write'
+  level: 'read' | 'write' | 'admin' = 'write'
 ): Promise<TableAccessResult | NextResponse> {
   const checkFn = level === 'read' ? checkTableAccess : checkTableWriteAccess
   const accessCheck = await checkFn(tableId, userId)
@@ -277,7 +267,7 @@ export async function checkAccessWithFullTable(
   tableId: string,
   userId: string,
   requestId: string,
-  level: TablePermissionLevel = 'write'
+  level: 'read' | 'write' | 'admin' = 'write'
 ): Promise<TableAccessResultFull | NextResponse> {
   // Fetch full table data in one query
   const [tableData] = await db
