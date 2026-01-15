@@ -33,6 +33,7 @@ const createSchema = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().max(500).optional(),
   config: configSchema.optional(),
+  autoAddNewMembers: z.boolean().optional(),
 })
 
 export async function GET(req: Request) {
@@ -68,6 +69,7 @@ export async function GET(req: Request) {
       createdBy: permissionGroup.createdBy,
       createdAt: permissionGroup.createdAt,
       updatedAt: permissionGroup.updatedAt,
+      autoAddNewMembers: permissionGroup.autoAddNewMembers,
       creatorName: user.name,
       creatorEmail: user.email,
     })
@@ -111,7 +113,8 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { organizationId, name, description, config } = createSchema.parse(body)
+    const { organizationId, name, description, config, autoAddNewMembers } =
+      createSchema.parse(body)
 
     const membership = await db
       .select({ id: member.id, role: member.role })
@@ -154,6 +157,19 @@ export async function POST(req: Request) {
       ...config,
     }
 
+    // If autoAddNewMembers is true, unset it on any existing groups first
+    if (autoAddNewMembers) {
+      await db
+        .update(permissionGroup)
+        .set({ autoAddNewMembers: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(permissionGroup.organizationId, organizationId),
+            eq(permissionGroup.autoAddNewMembers, true)
+          )
+        )
+    }
+
     const now = new Date()
     const newGroup = {
       id: crypto.randomUUID(),
@@ -164,6 +180,7 @@ export async function POST(req: Request) {
       createdBy: session.user.id,
       createdAt: now,
       updatedAt: now,
+      autoAddNewMembers: autoAddNewMembers || false,
     }
 
     await db.insert(permissionGroup).values(newGroup)

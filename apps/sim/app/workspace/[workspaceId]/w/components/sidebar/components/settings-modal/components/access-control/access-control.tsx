@@ -268,6 +268,7 @@ export function AccessControl() {
   const [viewingGroup, setViewingGroup] = useState<PermissionGroup | null>(null)
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupDescription, setNewGroupDescription] = useState('')
+  const [newGroupAutoAdd, setNewGroupAutoAdd] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [deletingGroup, setDeletingGroup] = useState<{ id: string; name: string } | null>(null)
   const [deletingGroupIds, setDeletingGroupIds] = useState<Set<string>>(new Set())
@@ -417,14 +418,16 @@ export function AccessControl() {
     if (!newGroupName.trim() || !activeOrganization?.id) return
     setCreateError(null)
     try {
-      const result = await createPermissionGroup.mutateAsync({
+      await createPermissionGroup.mutateAsync({
         organizationId: activeOrganization.id,
         name: newGroupName.trim(),
         description: newGroupDescription.trim() || undefined,
+        autoAddNewMembers: newGroupAutoAdd,
       })
       setShowCreateModal(false)
       setNewGroupName('')
       setNewGroupDescription('')
+      setNewGroupAutoAdd(false)
     } catch (error) {
       logger.error('Failed to create permission group', error)
       if (error instanceof Error) {
@@ -433,12 +436,19 @@ export function AccessControl() {
         setCreateError('Failed to create permission group')
       }
     }
-  }, [newGroupName, newGroupDescription, activeOrganization?.id, createPermissionGroup])
+  }, [
+    newGroupName,
+    newGroupDescription,
+    newGroupAutoAdd,
+    activeOrganization?.id,
+    createPermissionGroup,
+  ])
 
   const handleCloseCreateModal = useCallback(() => {
     setShowCreateModal(false)
     setNewGroupName('')
     setNewGroupDescription('')
+    setNewGroupAutoAdd(false)
     setCreateError(null)
   }, [])
 
@@ -532,6 +542,23 @@ export function AccessControl() {
       logger.error('Failed to add members', error)
     }
   }, [viewingGroup, selectedMemberIds, bulkAddMembers])
+
+  const handleToggleAutoAdd = useCallback(
+    async (enabled: boolean) => {
+      if (!viewingGroup || !activeOrganization?.id) return
+      try {
+        await updatePermissionGroup.mutateAsync({
+          id: viewingGroup.id,
+          organizationId: activeOrganization.id,
+          autoAddNewMembers: enabled,
+        })
+        setViewingGroup((prev) => (prev ? { ...prev, autoAddNewMembers: enabled } : null))
+      } catch (error) {
+        logger.error('Failed to toggle auto-add', error)
+      }
+    },
+    [viewingGroup, activeOrganization?.id, updatePermissionGroup]
+  )
 
   const toggleIntegration = useCallback(
     (blockType: string) => {
@@ -628,6 +655,22 @@ export function AccessControl() {
             {viewingGroup.description && (
               <p className='text-[13px] text-[var(--text-muted)]'>{viewingGroup.description}</p>
             )}
+          </div>
+
+          <div className='flex items-center justify-between rounded-[8px] border border-[var(--border)] px-[12px] py-[10px]'>
+            <div className='flex flex-col gap-[2px]'>
+              <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                Auto-add new members
+              </span>
+              <span className='text-[12px] text-[var(--text-muted)]'>
+                Automatically add new organization members to this group
+              </span>
+            </div>
+            <Checkbox
+              checked={viewingGroup.autoAddNewMembers}
+              onCheckedChange={(checked) => handleToggleAutoAdd(checked === true)}
+              disabled={updatePermissionGroup.isPending}
+            />
           </div>
 
           <div className='min-h-0 flex-1 overflow-y-auto'>
@@ -814,7 +857,13 @@ export function AccessControl() {
                             editingConfig?.allowedIntegrations === null ||
                             editingConfig?.allowedIntegrations?.length === allBlocks.length
                           setEditingConfig((prev) =>
-                            prev ? { ...prev, allowedIntegrations: allAllowed ? [] : null } : prev
+                            prev
+                              ? {
+                                  ...prev,
+                                  // When deselecting all, keep start_trigger allowed (it should never be disabled)
+                                  allowedIntegrations: allAllowed ? ['start_trigger'] : null,
+                                }
+                              : prev
                           )
                         }}
                       >
@@ -1058,7 +1107,14 @@ export function AccessControl() {
               {filteredGroups.map((group) => (
                 <div key={group.id} className='flex items-center justify-between'>
                   <div className='flex flex-col'>
-                    <span className='font-medium text-[14px]'>{group.name}</span>
+                    <div className='flex items-center gap-[8px]'>
+                      <span className='font-medium text-[14px]'>{group.name}</span>
+                      {group.autoAddNewMembers && (
+                        <span className='rounded-[4px] bg-[var(--surface-3)] px-[6px] py-[2px] text-[10px] text-[var(--text-muted)]'>
+                          Auto-enrolls
+                        </span>
+                      )}
+                    </div>
                     <span className='text-[13px] text-[var(--text-muted)]'>
                       {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
                     </span>
@@ -1105,6 +1161,16 @@ export function AccessControl() {
                   onChange={(e) => setNewGroupDescription(e.target.value)}
                   placeholder='e.g., Limited access for marketing users'
                 />
+              </div>
+              <div className='flex items-center gap-[8px]'>
+                <Checkbox
+                  id='auto-add-members'
+                  checked={newGroupAutoAdd}
+                  onCheckedChange={(checked) => setNewGroupAutoAdd(checked === true)}
+                />
+                <Label htmlFor='auto-add-members' className='cursor-pointer font-normal'>
+                  Auto-add new organization members
+                </Label>
               </div>
               {createError && <p className='text-[12px] text-[var(--text-error)]'>{createError}</p>}
             </div>

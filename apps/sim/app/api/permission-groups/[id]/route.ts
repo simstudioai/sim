@@ -31,6 +31,7 @@ const updateSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   description: z.string().max(500).nullable().optional(),
   config: configSchema.optional(),
+  autoAddNewMembers: z.boolean().optional(),
 })
 
 async function getPermissionGroupWithAccess(groupId: string, userId: string) {
@@ -44,6 +45,7 @@ async function getPermissionGroupWithAccess(groupId: string, userId: string) {
       createdBy: permissionGroup.createdBy,
       createdAt: permissionGroup.createdAt,
       updatedAt: permissionGroup.updatedAt,
+      autoAddNewMembers: permissionGroup.autoAddNewMembers,
     })
     .from(permissionGroup)
     .where(eq(permissionGroup.id, groupId))
@@ -140,11 +142,27 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ? { ...currentConfig, ...updates.config }
       : currentConfig
 
+    // If setting autoAddNewMembers to true, unset it on other groups in the org first
+    if (updates.autoAddNewMembers === true) {
+      await db
+        .update(permissionGroup)
+        .set({ autoAddNewMembers: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(permissionGroup.organizationId, result.group.organizationId),
+            eq(permissionGroup.autoAddNewMembers, true)
+          )
+        )
+    }
+
     await db
       .update(permissionGroup)
       .set({
         ...(updates.name !== undefined && { name: updates.name }),
         ...(updates.description !== undefined && { description: updates.description }),
+        ...(updates.autoAddNewMembers !== undefined && {
+          autoAddNewMembers: updates.autoAddNewMembers,
+        }),
         config: newConfig,
         updatedAt: new Date(),
       })

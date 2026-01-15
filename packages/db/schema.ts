@@ -2078,6 +2078,7 @@ export const permissionGroup = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    autoAddNewMembers: boolean('auto_add_new_members').notNull().default(false),
   },
   (table) => ({
     organizationIdIdx: index('permission_group_organization_id_idx').on(table.organizationId),
@@ -2086,6 +2087,9 @@ export const permissionGroup = pgTable(
       table.organizationId,
       table.name
     ),
+    autoAddNewMembersUnique: uniqueIndex('permission_group_org_auto_add_unique')
+      .on(table.organizationId)
+      .where(sql`auto_add_new_members = true`),
   })
 )
 

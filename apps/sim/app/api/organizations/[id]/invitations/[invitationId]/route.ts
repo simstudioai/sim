@@ -4,6 +4,8 @@ import {
   invitation,
   member,
   organization,
+  permissionGroup,
+  permissionGroupMember,
   permissions,
   subscription as subscriptionTable,
   user,
@@ -17,6 +19,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getEmailSubject, renderInvitationEmail } from '@/components/emails'
 import { getSession } from '@/lib/auth'
+import { hasAccessControlAccess } from '@/lib/billing'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -375,6 +378,47 @@ export async function PUT(
           }
         } catch (error) {
           logger.error('Failed to handle Pro user joining team', {
+            userId: session.user.id,
+            organizationId,
+            error,
+          })
+          // Don't fail the whole invitation acceptance due to this
+        }
+
+        // Auto-assign to permission group if one has autoAddNewMembers enabled
+        try {
+          const hasAccessControl = await hasAccessControlAccess(session.user.id)
+          if (hasAccessControl) {
+            const [autoAddGroup] = await tx
+              .select({ id: permissionGroup.id, name: permissionGroup.name })
+              .from(permissionGroup)
+              .where(
+                and(
+                  eq(permissionGroup.organizationId, organizationId),
+                  eq(permissionGroup.autoAddNewMembers, true)
+                )
+              )
+              .limit(1)
+
+            if (autoAddGroup) {
+              await tx.insert(permissionGroupMember).values({
+                id: randomUUID(),
+                permissionGroupId: autoAddGroup.id,
+                userId: session.user.id,
+                assignedBy: null,
+                assignedAt: new Date(),
+              })
+
+              logger.info('Auto-assigned new member to permission group', {
+                userId: session.user.id,
+                organizationId,
+                permissionGroupId: autoAddGroup.id,
+                permissionGroupName: autoAddGroup.name,
+              })
+            }
+          }
+        } catch (error) {
+          logger.error('Failed to auto-assign user to permission group', {
             userId: session.user.id,
             organizationId,
             error,
