@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
           )
         )
         .where(whereCondition)
-        .groupBy(sql`1, 2, 3`)
+        .groupBy(workflowExecutionLogs.workflowId, workflow.name, sql`segment_index`)
 
       const workflowMap = new Map<
         string,
