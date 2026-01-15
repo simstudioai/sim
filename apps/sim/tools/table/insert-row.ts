@@ -31,7 +31,7 @@ export const tableInsertRowTool: ToolConfig<TableRowInsertParams, TableRowRespon
     body: (params: TableRowInsertParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
-        throw new Error('workspaceId is required in execution context')
+        throw new Error('Workspace ID is required in execution context')
       }
 
       return {

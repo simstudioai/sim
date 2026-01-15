@@ -5,12 +5,7 @@
  *
  */
 
-/**
- * Available comparison operators for filter conditions.
- *
- * @remarks
- * These operators map to the query builder operators in query-builder.ts
- */
+/** Comparison operators for filter conditions (maps to query-builder.ts) */
 export const COMPARISON_OPERATORS = [
   { value: 'eq', label: 'equals' },
   { value: 'ne', label: 'not equals' },
@@ -38,12 +33,7 @@ export const SORT_DIRECTIONS = [
   { value: 'desc', label: 'descending' },
 ] as const
 
-/**
- * Represents a single filter condition.
- *
- * @remarks
- * Used by filter builder UI components to construct filter queries.
- */
+/** Single filter condition used by filter builder UI */
 export interface FilterCondition {
   /** Unique identifier for the condition (used as React key) */
   id: string

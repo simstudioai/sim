@@ -45,7 +45,7 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
     url: (params: TableRowQueryParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
-        throw new Error('workspaceId is required in execution context')
+        throw new Error('Workspace ID is required in execution context')
       }
 
       const searchParams = new URLSearchParams({

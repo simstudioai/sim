@@ -162,22 +162,7 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
 /**
  * PATCH /api/table/[tableId]/rows/[rowId]
  *
- * Updates an existing row with new data.
- *
- * @param request - The incoming HTTP request with update data
- * @param context - Route context containing tableId and rowId params
- * @returns JSON response with updated row or error
- *
- * @remarks
- * The entire row data must be provided; this is a full replacement,
- * not a partial update.
- *
- * @example Request body:
- * ```json
- * {
- *   "data": { "name": "Jane", "email": "jane@example.com" }
- * }
- * ```
+ * Updates an existing row with new data (full replacement, not partial).
  */
 export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
   const requestId = generateRequestId()

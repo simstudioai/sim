@@ -1,8 +1,10 @@
 /**
- * Table service layer for business logic operations.
+ * Table service layer for internal programmatic access.
  *
- * This module provides the core business logic for user-defined tables,
- * extracted from API route handlers for better testability and reuse.
+ * Use this for: workflow executor, background jobs, testing business logic.
+ * Use API routes for: HTTP requests, frontend clients.
+ *
+ * Note: API routes have their own implementations for HTTP-specific concerns.
  *
  * @module lib/table/service
  */

@@ -142,15 +142,7 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
 /**
  * DELETE /api/table/[tableId]?workspaceId=xxx
  *
- * Deletes a table.
- *
- * @param request - The incoming HTTP request
- * @param context - Route context containing tableId param
- * @returns JSON response confirming deletion or error
- *
- * @remarks
- * This performs a hard delete, removing the table and its rows.
- * The operation requires write access to the table.
+ * Deletes a table and all its rows (hard delete, requires write access).
  */
 export async function DELETE(request: NextRequest, { params }: TableRouteParams) {
   const requestId = generateRequestId()

@@ -26,7 +26,7 @@ export const tableGetRowTool: ToolConfig<TableRowGetParams, TableRowResponse> = 
     url: (params: TableRowGetParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
-        throw new Error('workspaceId is required in execution context')
+        throw new Error('Workspace ID is required in execution context')
       }
 
       return `/api/table/${params.tableId}/rows/${params.rowId}?workspaceId=${encodeURIComponent(workspaceId)}`

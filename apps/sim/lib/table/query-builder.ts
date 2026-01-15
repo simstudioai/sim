@@ -59,19 +59,13 @@ function validateOperator(operator: string): void {
   }
 }
 
-/**
- * Builds a JSONB containment clause using GIN index.
- * Generates: `table.data @> '{"field": value}'::jsonb`
- */
+/** Builds JSONB containment clause: `data @> '{"field": value}'::jsonb` (uses GIN index) */
 function buildContainmentClause(tableName: string, field: string, value: JsonValue): SQL {
   const jsonObj = JSON.stringify({ [field]: value })
   return sql`${sql.raw(`${tableName}.data`)} @> ${jsonObj}::jsonb`
 }
 
-/**
- * Builds a numeric comparison clause for JSONB fields.
- * Generates: `(table.data->>'field')::numeric <operator> value`
- */
+/** Builds numeric comparison: `(data->>'field')::numeric <op> value` (cannot use GIN index) */
 function buildComparisonClause(
   tableName: string,
   field: string,
@@ -82,10 +76,7 @@ function buildComparisonClause(
   return sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric ${sql.raw(operator)} ${value}`
 }
 
-/**
- * Builds a case-insensitive pattern matching clause for JSONB text fields.
- * Generates: `table.data->>'field' ILIKE '%value%'`
- */
+/** Builds case-insensitive pattern match: `data->>'field' ILIKE '%value%'` */
 function buildContainsClause(tableName: string, field: string, value: string): SQL {
   const escapedField = field.replace(/'/g, "''")
   return sql`${sql.raw(`${tableName}.data->>'${escapedField}'`)} ILIKE ${`%${value}%`}`

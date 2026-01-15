@@ -8,6 +8,30 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TableUtils')
 
+/** Permission hierarchy: read < write < admin */
+type PermissionLevel = 'read' | 'write' | 'admin'
+
+/**
+ * Checks if a user's permission meets or exceeds the required level.
+ */
+function hasPermissionLevel(
+  userPermission: 'read' | 'write' | 'admin' | null,
+  requiredLevel: PermissionLevel
+): boolean {
+  if (userPermission === null) return false
+
+  switch (requiredLevel) {
+    case 'read':
+      return true
+    case 'write':
+      return userPermission === 'write' || userPermission === 'admin'
+    case 'admin':
+      return userPermission === 'admin'
+    default:
+      return false
+  }
+}
+
 async function getTableRowCount(tableId: string): Promise<number> {
   const [result] = await db
     .select({ count: count() })
@@ -121,28 +145,7 @@ async function checkTableAccessInternal(
   // Case 2: Check workspace permissions
   const userPermission = await getUserEntityPermissions(userId, 'workspace', tableData.workspaceId)
 
-  if (userPermission === null) {
-    return { hasAccess: false }
-  }
-
-  // Determine if user has sufficient permission level
-  const hasAccess = (() => {
-    switch (requiredLevel) {
-      case 'read':
-        // Any permission level grants read access
-        return true
-      case 'write':
-        // Write or admin permission required
-        return userPermission === 'write' || userPermission === 'admin'
-      case 'admin':
-        // Only admin permission grants admin access
-        return userPermission === 'admin'
-      default:
-        return false
-    }
-  })()
-
-  if (hasAccess) {
+  if (hasPermissionLevel(userPermission, requiredLevel)) {
     return { hasAccess: true, table: tableData }
   }
 
@@ -299,26 +302,7 @@ export async function checkAccessWithFullTable(
   // Case 2: Check workspace permissions
   const userPermission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
 
-  if (userPermission === null) {
-    logger.warn(`[${requestId}] User ${userId} denied ${level} access to table ${tableId}`)
-    return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-  }
-
-  // Determine if user has sufficient permission level
-  const hasAccess = (() => {
-    switch (level) {
-      case 'read':
-        return true
-      case 'write':
-        return userPermission === 'write' || userPermission === 'admin'
-      case 'admin':
-        return userPermission === 'admin'
-      default:
-        return false
-    }
-  })()
-
-  if (!hasAccess) {
+  if (!hasPermissionLevel(userPermission, level)) {
     logger.warn(`[${requestId}] User ${userId} denied ${level} access to table ${tableId}`)
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })
   }

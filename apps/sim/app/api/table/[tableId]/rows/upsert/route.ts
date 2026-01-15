@@ -12,16 +12,7 @@ import { checkAccessOrRespond, getTableById, verifyTableWorkspace } from '../../
 
 const logger = createLogger('TableUpsertAPI')
 
-/**
- * Zod schema for validating upsert (insert or update) requests.
- *
- * If a row with matching unique field(s) exists, it will be updated.
- * Otherwise, a new row will be inserted.
- *
- * @remarks
- * The workspaceId is optional for backward compatibility but
- * is validated via table access checks when provided.
- */
+/** Zod schema for upsert requests - inserts new row or updates if unique fields match */
 const UpsertRowSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   data: z.record(z.unknown(), { required_error: 'Row data is required' }),
@@ -38,49 +29,7 @@ interface UpsertRouteParams {
  * POST /api/table/[tableId]/rows/upsert
  *
  * Inserts or updates a row based on unique column constraints.
- * If a row with matching unique field(s) exists, it will be updated;
- * otherwise, a new row will be inserted.
- *
- * @param request - The incoming HTTP request with row data
- * @param context - Route context containing tableId param
- * @returns JSON response with upserted row and operation type
- *
- * @remarks
  * Requires at least one unique column in the table schema.
- * The operation is determined by checking existing rows against
- * the unique field values provided in the request.
- *
- * @example Request body:
- * ```json
- * {
- *   "workspaceId": "ws_123",
- *   "data": { "email": "john@example.com", "name": "John Doe" }
- * }
- * ```
- *
- * @example Response (insert):
- * ```json
- * {
- *   "success": true,
- *   "data": {
- *     "row": { ... },
- *     "operation": "insert",
- *     "message": "Row inserted successfully"
- *   }
- * }
- * ```
- *
- * @example Response (update):
- * ```json
- * {
- *   "success": true,
- *   "data": {
- *     "row": { ... },
- *     "operation": "update",
- *     "message": "Row updated successfully"
- *   }
- * }
- * ```
  */
 export async function POST(request: NextRequest, { params }: UpsertRouteParams) {
   const requestId = generateRequestId()

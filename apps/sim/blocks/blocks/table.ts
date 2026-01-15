@@ -3,6 +3,173 @@ import { conditionsToFilter, sortConditionsToSort } from '@/lib/table/filters/bu
 import type { BlockConfig } from '@/blocks/types'
 import type { TableQueryResponse } from '@/tools/table/types'
 
+/**
+ * Parses a JSON string with helpful error messages.
+ *
+ * Handles common issues like unquoted block references in JSON values.
+ *
+ * @param value - The value to parse (string or already-parsed object)
+ * @param fieldName - Name of the field for error messages
+ * @returns Parsed JSON value
+ * @throws Error with helpful hints if JSON is invalid
+ */
+function parseJSON(value: string | unknown, fieldName: string): unknown {
+  if (typeof value !== 'string') return value
+
+  try {
+    return JSON.parse(value)
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error)
+
+    // Check if the error might be due to unquoted string values
+    // This happens when users write {"field": <ref>} instead of {"field": "<ref>"}
+    const unquotedValueMatch = value.match(
+      /:\s*([a-zA-Z][a-zA-Z0-9_\s]*[a-zA-Z0-9]|[a-zA-Z])\s*[,}]/
+    )
+
+    let hint =
+      'Make sure all property names are in double quotes (e.g., {"name": "value"} not {name: "value"}).'
+
+    if (unquotedValueMatch) {
+      hint =
+        'It looks like a string value is not quoted. When using block references in JSON, wrap them in double quotes: {"field": "<blockName.output>"} not {"field": <blockName.output>}.'
+    }
+
+    throw new Error(`Invalid JSON in ${fieldName}: ${errorMsg}. ${hint}`)
+  }
+}
+
+/** Raw params from block UI before JSON parsing and type conversion */
+interface TableBlockParams {
+  operation: string
+  tableId?: string
+  rowId?: string
+  data?: string | unknown
+  rows?: string | unknown
+  filter?: string | unknown
+  sort?: string | unknown
+  limit?: string
+  offset?: string
+  builderMode?: string
+  filterBuilder?: unknown
+  sortBuilder?: unknown
+  bulkFilterMode?: string
+  bulkFilterBuilder?: unknown
+}
+
+/** Normalized params after parsing, ready for tool request body */
+interface ParsedParams {
+  tableId?: string
+  rowId?: string
+  data?: unknown
+  rows?: unknown
+  filter?: unknown
+  sort?: unknown
+  limit?: number
+  offset?: number
+}
+
+/** Transforms raw block params into tool request params for each operation */
+const paramTransformers: Record<string, (params: TableBlockParams) => ParsedParams> = {
+  insert_row: (params) => ({
+    tableId: params.tableId,
+    data: parseJSON(params.data, 'Row Data'),
+  }),
+
+  upsert_row: (params) => ({
+    tableId: params.tableId,
+    data: parseJSON(params.data, 'Row Data'),
+  }),
+
+  batch_insert_rows: (params) => ({
+    tableId: params.tableId,
+    rows: parseJSON(params.rows, 'Rows Data'),
+  }),
+
+  update_row: (params) => ({
+    tableId: params.tableId,
+    rowId: params.rowId,
+    data: parseJSON(params.data, 'Row Data'),
+  }),
+
+  update_rows_by_filter: (params) => {
+    let filter: unknown
+    if (params.bulkFilterMode === 'builder' && params.bulkFilterBuilder) {
+      filter =
+        conditionsToFilter(params.bulkFilterBuilder as Parameters<typeof conditionsToFilter>[0]) ||
+        undefined
+    } else if (params.filter) {
+      filter = parseJSON(params.filter, 'Filter')
+    }
+
+    return {
+      tableId: params.tableId,
+      filter,
+      data: parseJSON(params.data, 'Row Data'),
+      limit: params.limit ? Number.parseInt(params.limit) : undefined,
+    }
+  },
+
+  delete_row: (params) => ({
+    tableId: params.tableId,
+    rowId: params.rowId,
+  }),
+
+  delete_rows_by_filter: (params) => {
+    let filter: unknown
+    if (params.bulkFilterMode === 'builder' && params.bulkFilterBuilder) {
+      filter =
+        conditionsToFilter(params.bulkFilterBuilder as Parameters<typeof conditionsToFilter>[0]) ||
+        undefined
+    } else if (params.filter) {
+      filter = parseJSON(params.filter, 'Filter')
+    }
+
+    return {
+      tableId: params.tableId,
+      filter,
+      limit: params.limit ? Number.parseInt(params.limit) : undefined,
+    }
+  },
+
+  get_row: (params) => ({
+    tableId: params.tableId,
+    rowId: params.rowId,
+  }),
+
+  get_schema: (params) => ({
+    tableId: params.tableId,
+  }),
+
+  query_rows: (params) => {
+    let filter: unknown
+    if (params.builderMode === 'builder' && params.filterBuilder) {
+      filter =
+        conditionsToFilter(params.filterBuilder as Parameters<typeof conditionsToFilter>[0]) ||
+        undefined
+    } else if (params.filter) {
+      filter = parseJSON(params.filter, 'Filter')
+    }
+
+    let sort: unknown
+    if (params.builderMode === 'builder' && params.sortBuilder) {
+      sort =
+        sortConditionsToSort(params.sortBuilder as Parameters<typeof sortConditionsToSort>[0]) ||
+        undefined
+    } else if (params.sort) {
+      sort = parseJSON(params.sort, 'Sort')
+    }
+
+    return {
+      tableId: params.tableId,
+      filter,
+      sort,
+      limit: params.limit ? Number.parseInt(params.limit) : 100,
+      offset: params.offset ? Number.parseInt(params.offset) : 0,
+    }
+  },
+}
+
 export const TableBlock: BlockConfig<TableQueryResponse> = {
   type: 'table',
   name: 'Table',
@@ -353,154 +520,10 @@ Return ONLY the sort JSON:`,
       },
       params: (params) => {
         const { operation, ...rest } = params
+        const transformer = paramTransformers[operation]
 
-        /**
-         * Helper to parse JSON with better error messages.
-         * Also handles common issues with block references in JSON.
-         */
-        const parseJSON = (value: string | any, fieldName: string): any => {
-          if (typeof value !== 'string') return value
-
-          try {
-            return JSON.parse(value)
-          } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error)
-
-            // Check if the error might be due to unquoted string values (common when block references are resolved)
-            // This happens when users write {"field": <ref>} instead of {"field": "<ref>"}
-            const unquotedValueMatch = value.match(
-              /:\s*([a-zA-Z][a-zA-Z0-9_\s]*[a-zA-Z0-9]|[a-zA-Z])\s*[,}]/
-            )
-
-            let hint =
-              'Make sure all property names are in double quotes (e.g., {"name": "value"} not {name: "value"}).'
-
-            if (unquotedValueMatch) {
-              hint =
-                'It looks like a string value is not quoted. When using block references in JSON, wrap them in double quotes: {"field": "<blockName.output>"} not {"field": <blockName.output>}.'
-            }
-
-            throw new Error(`Invalid JSON in ${fieldName}: ${errorMsg}. ${hint}`)
-          }
-        }
-
-        // Insert Row
-        if (operation === 'insert_row') {
-          const data = parseJSON(rest.data, 'Row Data')
-          return {
-            tableId: rest.tableId,
-            data,
-          }
-        }
-
-        // Upsert Row
-        if (operation === 'upsert_row') {
-          const data = parseJSON(rest.data, 'Row Data')
-          return {
-            tableId: rest.tableId,
-            data,
-          }
-        }
-
-        // Batch Insert Rows
-        if (operation === 'batch_insert_rows') {
-          const rows = parseJSON(rest.rows, 'Rows Data')
-          return {
-            tableId: rest.tableId,
-            rows,
-          }
-        }
-
-        // Update Row by ID
-        if (operation === 'update_row') {
-          const data = parseJSON(rest.data, 'Row Data')
-          return {
-            tableId: rest.tableId,
-            rowId: rest.rowId,
-            data,
-          }
-        }
-
-        // Update Rows by Filter
-        if (operation === 'update_rows_by_filter') {
-          let filter: any
-          if (rest.bulkFilterMode === 'builder' && rest.bulkFilterBuilder) {
-            filter = conditionsToFilter(rest.bulkFilterBuilder as any) || undefined
-          } else if (rest.filter) {
-            filter = parseJSON(rest.filter, 'Filter')
-          }
-          const data = parseJSON(rest.data, 'Row Data')
-          return {
-            tableId: rest.tableId,
-            filter,
-            data,
-            limit: rest.limit ? Number.parseInt(rest.limit as string) : undefined,
-          }
-        }
-
-        // Delete Row by ID
-        if (operation === 'delete_row') {
-          return {
-            tableId: rest.tableId,
-            rowId: rest.rowId,
-          }
-        }
-
-        // Delete Rows by Filter
-        if (operation === 'delete_rows_by_filter') {
-          let filter: any
-          if (rest.bulkFilterMode === 'builder' && rest.bulkFilterBuilder) {
-            filter = conditionsToFilter(rest.bulkFilterBuilder as any) || undefined
-          } else if (rest.filter) {
-            filter = parseJSON(rest.filter, 'Filter')
-          }
-          return {
-            tableId: rest.tableId,
-            filter,
-            limit: rest.limit ? Number.parseInt(rest.limit as string) : undefined,
-          }
-        }
-
-        // Get Row by ID
-        if (operation === 'get_row') {
-          return {
-            tableId: rest.tableId,
-            rowId: rest.rowId,
-          }
-        }
-
-        // Get Schema
-        if (operation === 'get_schema') {
-          return {
-            tableId: rest.tableId,
-          }
-        }
-
-        // Query Rows
-        if (operation === 'query_rows') {
-          let filter: any
-          if (rest.builderMode === 'builder' && rest.filterBuilder) {
-            // Convert builder conditions to filter object
-            filter = conditionsToFilter(rest.filterBuilder as any) || undefined
-          } else if (rest.filter) {
-            filter = parseJSON(rest.filter, 'Filter')
-          }
-
-          let sort: any
-          if (rest.builderMode === 'builder' && rest.sortBuilder) {
-            // Convert sort builder conditions to sort object
-            sort = sortConditionsToSort(rest.sortBuilder as any) || undefined
-          } else if (rest.sort) {
-            sort = parseJSON(rest.sort, 'Sort')
-          }
-
-          return {
-            tableId: rest.tableId,
-            filter,
-            sort,
-            limit: rest.limit ? Number.parseInt(rest.limit as string) : 100,
-            offset: rest.offset ? Number.parseInt(rest.offset as string) : 0,
-          }
+        if (transformer) {
+          return transformer(rest as TableBlockParams)
         }
 
         return rest

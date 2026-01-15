@@ -36,12 +36,7 @@ const InsertRowSchema = z.object({
   data: z.record(z.unknown(), { required_error: 'Row data is required' }),
 })
 
-/**
- * Zod schema for batch inserting multiple rows.
- *
- * @remarks
- * Maximum 1000 rows per batch for performance and safety.
- */
+/** Zod schema for batch inserting multiple rows (max 1000 per batch) */
 const BatchInsertRowsSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   rows: z
@@ -72,12 +67,7 @@ const QueryRowsSchema = z.object({
     .default(0),
 })
 
-/**
- * Zod schema for updating multiple rows by filter criteria.
- *
- * @remarks
- * Maximum 1000 rows can be updated per operation for safety.
- */
+/** Zod schema for updating multiple rows by filter (max 1000 per operation) */
 const UpdateRowsByFilterSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: z.record(z.unknown(), { required_error: 'Filter criteria is required' }),
@@ -90,12 +80,7 @@ const UpdateRowsByFilterSchema = z.object({
     .optional(),
 })
 
-/**
- * Zod schema for deleting multiple rows by filter criteria.
- *
- * @remarks
- * Maximum 1000 rows can be deleted per operation for safety.
- */
+/** Zod schema for deleting multiple rows by filter (max 1000 per operation) */
 const DeleteRowsByFilterSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: z.record(z.unknown(), { required_error: 'Filter criteria is required' }),
@@ -408,7 +393,6 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
     }
 
     // Security check: verify workspaceId matches the table's workspace
-    const actualWorkspaceId = validated.workspaceId
     const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
     if (!isValidWorkspace) {
       logger.warn(
@@ -420,7 +404,7 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
     // Build base where conditions
     const baseConditions = [
       eq(userTableRows.tableId, tableId),
-      eq(userTableRows.workspaceId, actualWorkspaceId),
+      eq(userTableRows.workspaceId, validated.workspaceId),
     ]
 
     // Add filter conditions if provided
@@ -544,7 +528,6 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const actualWorkspaceId = validated.workspaceId
     const updateData = validated.data as RowData
 
     // Validate new data size
@@ -559,7 +542,7 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
     // Build base where conditions
     const baseConditions = [
       eq(userTableRows.tableId, tableId),
-      eq(userTableRows.workspaceId, actualWorkspaceId),
+      eq(userTableRows.workspaceId, validated.workspaceId),
     ]
 
     // Add filter conditions
@@ -742,7 +725,6 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
     if (accessResult instanceof NextResponse) return accessResult
 
     // Security check: verify workspaceId matches the table's workspace
-    const actualWorkspaceId = validated.workspaceId
     const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
     if (!isValidWorkspace) {
       logger.warn(
@@ -754,7 +736,7 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
     // Build base where conditions
     const baseConditions = [
       eq(userTableRows.tableId, tableId),
-      eq(userTableRows.workspaceId, actualWorkspaceId),
+      eq(userTableRows.workspaceId, validated.workspaceId),
     ]
 
     // Add filter conditions
@@ -805,7 +787,7 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
         await trx.delete(userTableRows).where(
           and(
             eq(userTableRows.tableId, tableId),
-            eq(userTableRows.workspaceId, actualWorkspaceId),
+            eq(userTableRows.workspaceId, validated.workspaceId),
             sql`${userTableRows.id} = ANY(ARRAY[${sql.join(
               batch.map((id) => sql`${id}`),
               sql`, `
