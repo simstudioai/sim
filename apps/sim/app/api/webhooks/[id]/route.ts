@@ -7,6 +7,11 @@ import { getSession } from '@/lib/auth'
 import { validateInteger } from '@/lib/core/security/input-validation'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  cleanupExternalWebhook,
+  createExternalWebhookSubscription,
+  shouldRecreateExternalWebhookSubscription,
+} from '@/lib/webhooks/provider-subscriptions'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WebhookAPI')
@@ -177,6 +182,46 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
+    const existingProviderConfig =
+      (webhookData.webhook.providerConfig as Record<string, unknown>) || {}
+    let nextProviderConfig =
+      providerConfig !== undefined &&
+      resolvedProviderConfig &&
+      typeof resolvedProviderConfig === 'object'
+        ? (resolvedProviderConfig as Record<string, unknown>)
+        : existingProviderConfig
+    const nextProvider = (provider ?? webhookData.webhook.provider) as string
+
+    if (
+      providerConfig !== undefined &&
+      shouldRecreateExternalWebhookSubscription({
+        previousProvider: webhookData.webhook.provider as string,
+        nextProvider,
+        previousConfig: existingProviderConfig,
+        nextConfig: nextProviderConfig,
+      })
+    ) {
+      await cleanupExternalWebhook(
+        { ...webhookData.webhook, providerConfig: existingProviderConfig },
+        webhookData.workflow,
+        requestId
+      )
+
+      const result = await createExternalWebhookSubscription(
+        request,
+        {
+          ...webhookData.webhook,
+          provider: nextProvider,
+          providerConfig: nextProviderConfig,
+        },
+        webhookData.workflow,
+        session.user.id,
+        requestId
+      )
+
+      nextProviderConfig = result.updatedProviderConfig as Record<string, unknown>
+    }
+
     logger.debug(`[${requestId}] Updating webhook properties`, {
       hasPathUpdate: path !== undefined,
       hasProviderUpdate: provider !== undefined,
@@ -188,16 +233,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // Merge providerConfig to preserve credential-related fields
     let finalProviderConfig = webhooks[0].webhook.providerConfig
     if (providerConfig !== undefined) {
-      const existingConfig = (webhooks[0].webhook.providerConfig as Record<string, unknown>) || {}
+      const existingConfig = existingProviderConfig
       finalProviderConfig = {
-        ...resolvedProviderConfig,
+        ...nextProviderConfig,
         credentialId: existingConfig.credentialId,
         credentialSetId: existingConfig.credentialSetId,
         userId: existingConfig.userId,
         historyId: existingConfig.historyId,
         lastCheckedTimestamp: existingConfig.lastCheckedTimestamp,
         setupCompleted: existingConfig.setupCompleted,
-        externalId: existingConfig.externalId,
+        externalId: nextProviderConfig.externalId ?? existingConfig.externalId,
       }
     }
 
