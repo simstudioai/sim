@@ -1952,7 +1952,12 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   }, [params])
 
   // Skip rendering some internal tools
-  if (toolCall.name === 'checkoff_todo' || toolCall.name === 'mark_todo_in_progress') return null
+  if (
+    toolCall.name === 'checkoff_todo' ||
+    toolCall.name === 'mark_todo_in_progress' ||
+    toolCall.name === 'tool_search_tool_regex'
+  )
+    return null
 
   // Special rendering for subagent tools - show as thinking text with tool calls at top level
   const SUBAGENT_TOOLS = [
