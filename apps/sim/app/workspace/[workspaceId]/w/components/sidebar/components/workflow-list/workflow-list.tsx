@@ -18,6 +18,17 @@ const TREE_SPACING = {
   INDENT_PER_LEVEL: 20,
 } as const
 
+function compareByOrder<T extends { sortOrder: number; createdAt?: Date; id: string }>(
+  a: T,
+  b: T
+): number {
+  if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+  const timeA = a.createdAt?.getTime() ?? 0
+  const timeB = b.createdAt?.getTime() ?? 0
+  if (timeA !== timeB) return timeA - timeB
+  return a.id.localeCompare(b.id)
+}
+
 interface WorkflowListProps {
   regularWorkflows: WorkflowMetadata[]
   isLoading?: boolean
@@ -97,7 +108,7 @@ export function WorkflowList({
       {} as Record<string, WorkflowMetadata[]>
     )
     for (const folderId of Object.keys(grouped)) {
-      grouped[folderId].sort((a, b) => a.sortOrder - b.sortOrder)
+      grouped[folderId].sort(compareByOrder)
     }
     return grouped
   }, [regularWorkflows])
@@ -226,7 +237,15 @@ export function WorkflowList({
           data: workflow,
         })
       }
-      childItems.sort((a, b) => a.sortOrder - b.sortOrder)
+      childItems.sort((a, b) => {
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+        const dataA = a.data as { createdAt?: Date }
+        const dataB = b.data as { createdAt?: Date }
+        const timeA = dataA.createdAt?.getTime() ?? 0
+        const timeB = dataB.createdAt?.getTime() ?? 0
+        if (timeA !== timeB) return timeA - timeB
+        return a.id.localeCompare(b.id)
+      })
 
       return (
         <div key={folder.id} className='relative'>
@@ -307,7 +326,15 @@ export function WorkflowList({
         data: workflow,
       })
     }
-    return items.sort((a, b) => a.sortOrder - b.sortOrder)
+    return items.sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+      const dataA = a.data as { createdAt?: Date }
+      const dataB = b.data as { createdAt?: Date }
+      const timeA = dataA.createdAt?.getTime() ?? 0
+      const timeB = dataB.createdAt?.getTime() ?? 0
+      if (timeA !== timeB) return timeA - timeB
+      return a.id.localeCompare(b.id)
+    })
   }, [folderTree, rootWorkflows])
 
   const hasRootItems = rootItems.length > 0

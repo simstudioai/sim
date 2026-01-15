@@ -194,7 +194,7 @@ export function useCreateWorkflow() {
         const workflowsInFolder = Object.values(currentWorkflows).filter(
           (w) => w.folderId === targetFolderId
         )
-        sortOrder = workflowsInFolder.reduce((max, w) => Math.max(max, w.sortOrder ?? 0), -1) + 1
+        sortOrder = workflowsInFolder.reduce((min, w) => Math.min(min, w.sortOrder ?? 0), 1) - 1
       }
 
       return {
@@ -294,7 +294,7 @@ export function useDuplicateWorkflowMutation() {
       const workflowsInFolder = Object.values(currentWorkflows).filter(
         (w) => w.folderId === targetFolderId
       )
-      const maxSortOrder = workflowsInFolder.reduce((max, w) => Math.max(max, w.sortOrder ?? 0), -1)
+      const minSortOrder = workflowsInFolder.reduce((min, w) => Math.min(min, w.sortOrder ?? 0), 1)
 
       return {
         id: tempId,
@@ -305,7 +305,7 @@ export function useDuplicateWorkflowMutation() {
         color: variables.color,
         workspaceId: variables.workspaceId,
         folderId: targetFolderId,
-        sortOrder: maxSortOrder + 1,
+        sortOrder: minSortOrder - 1,
       }
     }
   )

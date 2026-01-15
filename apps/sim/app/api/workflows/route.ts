@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, isNull, max } from 'drizzle-orm'
+import { and, asc, eq, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -150,15 +150,15 @@ export async function POST(req: NextRequest) {
       sortOrder = providedSortOrder
     } else {
       const folderCondition = folderId ? eq(workflow.folderId, folderId) : isNull(workflow.folderId)
-      const [maxResult] = await db
-        .select({ maxOrder: max(workflow.sortOrder) })
+      const [minResult] = await db
+        .select({ minOrder: min(workflow.sortOrder) })
         .from(workflow)
         .where(
           workspaceId
             ? and(eq(workflow.workspaceId, workspaceId), folderCondition)
             : and(eq(workflow.userId, session.user.id), folderCondition)
         )
-      sortOrder = (maxResult?.maxOrder ?? -1) + 1
+      sortOrder = (minResult?.minOrder ?? 1) - 1
     }
 
     await db.insert(workflow).values({
