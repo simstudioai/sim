@@ -18,7 +18,12 @@ export interface DropIndicator {
   folderId: string | null
 }
 
-export function useDragDrop() {
+interface UseDragDropOptions {
+  disabled?: boolean
+}
+
+export function useDragDrop(options: UseDragDropOptions = {}) {
+  const { disabled = false } = options
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [hoverFolderId, setHoverFolderId] = useState<string | null>(null)
@@ -587,9 +592,31 @@ export function useDragDrop() {
     scrollContainerRef.current = element
   }, [])
 
+  const noopDragHandlers = {
+    onDragOver: (e: React.DragEvent<HTMLElement>) => e.preventDefault(),
+    onDrop: (e: React.DragEvent<HTMLElement>) => e.preventDefault(),
+  }
+
+  if (disabled) {
+    return {
+      dropIndicator: null,
+      isDragging: false,
+      disabled: true,
+      setScrollContainer,
+      createWorkflowDragHandlers: () => noopDragHandlers,
+      createFolderDragHandlers: () => ({ ...noopDragHandlers, onDragLeave: () => {} }),
+      createEmptyFolderDropZone: () => noopDragHandlers,
+      createFolderContentDropZone: () => noopDragHandlers,
+      createRootDropZone: () => ({ ...noopDragHandlers, onDragLeave: () => {} }),
+      handleDragStart: () => {},
+      handleDragEnd: () => {},
+    }
+  }
+
   return {
     dropIndicator,
     isDragging,
+    disabled: false,
     setScrollContainer,
     createWorkflowDragHandlers,
     createFolderDragHandlers,

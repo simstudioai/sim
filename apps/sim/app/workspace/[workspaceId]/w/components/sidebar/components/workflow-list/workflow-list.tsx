@@ -32,6 +32,7 @@ function compareByOrder<T extends { sortOrder: number; createdAt?: Date; id: str
 interface WorkflowListProps {
   regularWorkflows: WorkflowMetadata[]
   isLoading?: boolean
+  canReorder?: boolean
   handleFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
@@ -58,6 +59,7 @@ const DropIndicatorLine = memo(function DropIndicatorLine({
 export function WorkflowList({
   regularWorkflows,
   isLoading = false,
+  canReorder = true,
   handleFileChange,
   fileInputRef,
   scrollContainerRef,
@@ -73,6 +75,7 @@ export function WorkflowList({
   const {
     dropIndicator,
     isDragging,
+    disabled: dragDisabled,
     setScrollContainer,
     createWorkflowDragHandlers,
     createFolderDragHandlers,
@@ -81,7 +84,7 @@ export function WorkflowList({
     createRootDropZone,
     handleDragStart,
     handleDragEnd,
-  } = useDragDrop()
+  } = useDragDrop({ disabled: !canReorder })
 
   useEffect(() => {
     if (scrollContainerRef.current) {
@@ -180,6 +183,7 @@ export function WorkflowList({
               workflow={workflow}
               active={isWorkflowActive(workflow.id)}
               level={level}
+              dragDisabled={dragDisabled}
               onWorkflowClick={handleWorkflowClick}
               onDragStart={() => handleDragStart('workflow', folderId)}
               onDragEnd={handleDragEnd}
@@ -192,6 +196,7 @@ export function WorkflowList({
     [
       dropIndicator,
       isWorkflowActive,
+      dragDisabled,
       createWorkflowDragHandlers,
       handleWorkflowClick,
       handleDragStart,
@@ -259,6 +264,7 @@ export function WorkflowList({
             <FolderItem
               folder={folder}
               level={level}
+              dragDisabled={dragDisabled}
               onDragStart={() => handleDragStart('folder', parentFolderId)}
               onDragEnd={handleDragEnd}
             />
@@ -291,6 +297,7 @@ export function WorkflowList({
       expandedFolders,
       dropIndicator,
       isDragging,
+      dragDisabled,
       createFolderDragHandlers,
       createEmptyFolderDropZone,
       createFolderContentDropZone,
