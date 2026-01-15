@@ -1,9 +1,19 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronUp } from 'lucide-react'
 import CopilotMarkdownRenderer from './markdown-renderer'
+
+/**
+ * Removes thinking tags (raw or escaped) from streamed content.
+ */
+function stripThinkingTags(text: string): string {
+  return text
+    .replace(/<\/?thinking[^>]*>/gi, '')
+    .replace(/&lt;\/?thinking[^&]*&gt;/gi, '')
+    .trim()
+}
 
 /**
  * Max height for thinking content before internal scrolling kicks in
@@ -187,6 +197,9 @@ export function ThinkingBlock({
   label = 'Thought',
   hasSpecialTags = false,
 }: ThinkingBlockProps) {
+  // Strip thinking tags from content on render to handle persisted messages
+  const cleanContent = useMemo(() => stripThinkingTags(content || ''), [content])
+
   const [isExpanded, setIsExpanded] = useState(false)
   const [duration, setDuration] = useState(0)
   const [userHasScrolledAway, setUserHasScrolledAway] = useState(false)
@@ -209,10 +222,10 @@ export function ThinkingBlock({
       return
     }
 
-    if (!userCollapsedRef.current && content && content.trim().length > 0) {
+    if (!userCollapsedRef.current && cleanContent && cleanContent.length > 0) {
       setIsExpanded(true)
     }
-  }, [isStreaming, content, hasFollowingContent, hasSpecialTags])
+  }, [isStreaming, cleanContent, hasFollowingContent, hasSpecialTags])
 
   // Reset start time when streaming begins
   useEffect(() => {
@@ -298,7 +311,7 @@ export function ThinkingBlock({
     return `${seconds}s`
   }
 
-  const hasContent = content && content.trim().length > 0
+  const hasContent = cleanContent.length > 0
   // Thinking is "done" when streaming ends OR when there's following content (like a tool call) OR when special tags appear
   const isThinkingDone = !isStreaming || hasFollowingContent || hasSpecialTags
   const durationText = `${label} for ${formatDuration(duration)}`
@@ -374,7 +387,7 @@ export function ThinkingBlock({
             isExpanded ? 'mt-1.5 max-h-[150px] opacity-100' : 'max-h-0 opacity-0'
           )}
         >
-          <SmoothThinkingText content={content} isStreaming={isStreaming && !hasFollowingContent} />
+          <SmoothThinkingText content={cleanContent} isStreaming={isStreaming && !hasFollowingContent} />
         </div>
       </div>
     )
@@ -412,7 +425,7 @@ export function ThinkingBlock({
       >
         {/* Completed thinking text - dimmed with markdown */}
         <div className='[&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-[1.4] [&_p]:!m-0 [&_p]:!mb-1 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h1]:!m-0 [&_h1]:!mb-1 [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h2]:!m-0 [&_h2]:!mb-1 [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_h3]:!m-0 [&_h3]:!mb-1 [&_code]:!text-[11px] [&_ul]:!pl-5 [&_ul]:!my-1 [&_ol]:!pl-6 [&_ol]:!my-1 [&_li]:!my-0.5 [&_li]:!py-0 font-season text-[12px] text-[var(--text-muted)]'>
-          <CopilotMarkdownRenderer content={content} />
+          <CopilotMarkdownRenderer content={cleanContent} />
         </div>
       </div>
     </div>

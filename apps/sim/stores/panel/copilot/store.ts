@@ -1002,10 +1002,12 @@ function beginThinkingBlock(context: StreamingContext) {
 }
 
 /**
- * Removes thinking tags from streamed content.
+ * Removes thinking tags (raw or escaped) from streamed content.
  */
 function stripThinkingTags(text: string): string {
-  return text.replace(/<\/?thinking>/g, '')
+  return text
+    .replace(/<\/?thinking[^>]*>/gi, '')
+    .replace(/&lt;\/?thinking[^&]*&gt;/gi, '')
 }
 
 function appendThinkingContent(context: StreamingContext, text: string) {

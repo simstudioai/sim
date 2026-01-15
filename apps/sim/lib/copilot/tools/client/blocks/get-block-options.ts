@@ -37,10 +37,15 @@ export class GetBlockOptionsClientTool extends BaseClientTool {
       },
     },
     getDynamicText: (params, state) => {
-      if (params?.blockId && typeof params.blockId === 'string') {
+      const blockId =
+        (params as any)?.blockId ||
+        (params as any)?.blockType ||
+        (params as any)?.block_id ||
+        (params as any)?.block_type
+      if (typeof blockId === 'string') {
         // Look up the block config to get the human-readable name
-        const blockConfig = getBlock(params.blockId)
-        const blockName = (blockConfig?.name ?? params.blockId.replace(/_/g, ' ')).toLowerCase()
+        const blockConfig = getBlock(blockId)
+        const blockName = (blockConfig?.name ?? blockId.replace(/_/g, ' ')).toLowerCase()
 
         switch (state) {
           case ClientToolCallState.success:
