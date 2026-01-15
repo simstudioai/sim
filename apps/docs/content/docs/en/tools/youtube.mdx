@@ -60,6 +60,12 @@ Search for videos on YouTube using the YouTube Data API. Supports advanced filte
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of YouTube videos matching the search query |
+|   ↳ `videoId` | string | YouTube video ID |
+|   ↳ `title` | string | Video title |
+|   ↳ `description` | string | Video description |
+|   ↳ `thumbnail` | string | Video thumbnail URL |
+| `totalResults` | number | Total number of search results available |
+| `nextPageToken` | string | Token for accessing the next page of results |
 
 ### `youtube_video_details`
 
@@ -134,6 +140,13 @@ Get all videos from a specific YouTube channel, with sorting options.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of videos from the channel |
+|   ↳ `videoId` | string | YouTube video ID |
+|   ↳ `title` | string | Video title |
+|   ↳ `description` | string | Video description |
+|   ↳ `thumbnail` | string | Video thumbnail URL |
+|   ↳ `publishedAt` | string | Video publish date |
+| `totalResults` | number | Total number of videos in the channel |
+| `nextPageToken` | string | Token for accessing the next page of results |
 
 ### `youtube_channel_playlists`
 
@@ -153,6 +166,14 @@ Get all playlists from a specific YouTube channel.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of playlists from the channel |
+|   ↳ `playlistId` | string | YouTube playlist ID |
+|   ↳ `title` | string | Playlist title |
+|   ↳ `description` | string | Playlist description |
+|   ↳ `thumbnail` | string | Playlist thumbnail URL |
+|   ↳ `itemCount` | number | Number of videos in playlist |
+|   ↳ `publishedAt` | string | Playlist creation date |
+| `totalResults` | number | Total number of playlists in the channel |
+| `nextPageToken` | string | Token for accessing the next page of results |
 
 ### `youtube_playlist_items`
 
@@ -172,6 +193,15 @@ Get videos from a YouTube playlist.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of videos in the playlist |
+|   ↳ `videoId` | string | YouTube video ID |
+|   ↳ `title` | string | Video title |
+|   ↳ `description` | string | Video description |
+|   ↳ `thumbnail` | string | Video thumbnail URL |
+|   ↳ `publishedAt` | string | Date added to playlist |
+|   ↳ `channelTitle` | string | Channel name |
+|   ↳ `position` | number | Position in playlist |
+| `totalResults` | number | Total number of items in playlist |
+| `nextPageToken` | string | Token for accessing the next page of results |
 
 ### `youtube_comments`
 
@@ -192,5 +222,16 @@ Get comments from a YouTube video.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of comments from the video |
+|   ↳ `commentId` | string | Comment ID |
+|   ↳ `authorDisplayName` | string | Comment author name |
+|   ↳ `authorChannelUrl` | string | Comment author channel URL |
+|   ↳ `textDisplay` | string | Comment text \(HTML formatted\) |
+|   ↳ `textOriginal` | string | Comment text \(plain text\) |
+|   ↳ `likeCount` | number | Number of likes |
+|   ↳ `publishedAt` | string | Comment publish date |
+|   ↳ `updatedAt` | string | Comment last updated date |
+|   ↳ `replyCount` | number | Number of replies |
+| `totalResults` | number | Total number of comments |
+| `nextPageToken` | string | Token for accessing the next page of results |
 
 

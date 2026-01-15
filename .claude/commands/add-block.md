@@ -577,6 +577,17 @@ export const ServiceBlock: BlockConfig = {
 
 See the `/add-trigger` skill for creating triggers.
 
+## Icon Requirement
+
+If the icon doesn't already exist in `@/components/icons.tsx`, **do NOT search for it yourself**. After completing the block, ask the user to provide the SVG:
+
+```
+The block is complete, but I need an icon for {Service}.
+Please provide the SVG and I'll convert it to a React component.
+
+You can usually find this in the service's brand/press kit page, or copy it from their website.
+```
+
 ## Checklist Before Finishing
 
 - [ ] All subBlocks have `id`, `title` (except switch), and `type`
@@ -588,4 +599,5 @@ See the `/add-trigger` skill for creating triggers.
 - [ ] Tools.config.tool returns correct tool ID
 - [ ] Outputs match tool outputs
 - [ ] Block registered in registry.ts
+- [ ] If icon missing: asked user to provide SVG
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread

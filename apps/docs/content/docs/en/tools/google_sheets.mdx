@@ -100,6 +100,8 @@ Read data from a Google Sheets spreadsheet
 | --------- | ---- | ----------- |
 | `data` | json | Sheet data including range and cell values |
 | `metadata` | json | Spreadsheet metadata including ID and URL |
+| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
 ### `google_sheets_write`
 
@@ -124,6 +126,8 @@ Write data to a Google Sheets spreadsheet
 | `updatedColumns` | number | Number of columns updated |
 | `updatedCells` | number | Number of cells updated |
 | `metadata` | json | Spreadsheet metadata including ID and URL |
+| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
 ### `google_sheets_update`
 
@@ -148,6 +152,8 @@ Update data in a Google Sheets spreadsheet
 | `updatedColumns` | number | Number of columns updated |
 | `updatedCells` | number | Number of cells updated |
 | `metadata` | json | Spreadsheet metadata including ID and URL |
+| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
 ### `google_sheets_append`
 
@@ -174,5 +180,7 @@ Append data to the end of a Google Sheets spreadsheet
 | `updatedColumns` | number | Number of columns updated |
 | `updatedCells` | number | Number of cells updated |
 | `metadata` | json | Spreadsheet metadata including ID and URL |
+| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
 

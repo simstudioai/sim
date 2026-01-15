@@ -78,6 +78,12 @@ Retrieve a list of tickets from Zendesk with optional filtering
 | --------- | ---- | ----------- |
 | `tickets` | array | Array of ticket objects |
 | `paging` | object | Pagination information |
+| ↳ `next_page` | string | URL for next page of results |
+| ↳ `previous_page` | string | URL for previous page of results |
+| ↳ `count` | number | Total count of tickets |
+| `metadata` | object | Response metadata |
+| ↳ `total_returned` | number | Number of tickets returned in this response |
+| ↳ `has_more` | boolean | Whether more tickets are available |
 
 ### `zendesk_get_ticket`
 
@@ -267,6 +273,12 @@ Retrieve a list of users from Zendesk with optional filtering
 | --------- | ---- | ----------- |
 | `users` | array | Array of user objects |
 | `paging` | object | Pagination information |
+| ↳ `next_page` | string | URL for next page of results |
+| ↳ `previous_page` | string | URL for previous page of results |
+| ↳ `count` | number | Total count of users |
+| `metadata` | object | Response metadata |
+| ↳ `total_returned` | number | Number of users returned in this response |
+| ↳ `has_more` | boolean | Whether more users are available |
 
 ### `zendesk_get_user`
 
@@ -329,6 +341,12 @@ Search for users in Zendesk using a query string
 | --------- | ---- | ----------- |
 | `users` | array | Array of user objects |
 | `paging` | object | Pagination information |
+| ↳ `next_page` | string | URL for next page of results |
+| ↳ `previous_page` | string | URL for previous page of results |
+| ↳ `count` | number | Total count of users |
+| `metadata` | object | Response metadata |
+| ↳ `total_returned` | number | Number of users returned in this response |
+| ↳ `has_more` | boolean | Whether more users are available |
 
 ### `zendesk_create_user`
 
@@ -465,6 +483,12 @@ Retrieve a list of organizations from Zendesk
 | --------- | ---- | ----------- |
 | `organizations` | array | Array of organization objects |
 | `paging` | object | Pagination information |
+| ↳ `next_page` | string | URL for next page of results |
+| ↳ `previous_page` | string | URL for previous page of results |
+| ↳ `count` | number | Total count of organizations |
+| `metadata` | object | Response metadata |
+| ↳ `total_returned` | number | Number of organizations returned in this response |
+| ↳ `has_more` | boolean | Whether more organizations are available |
 
 ### `zendesk_get_organization`
 
@@ -507,6 +531,12 @@ Autocomplete organizations in Zendesk by name prefix (for name matching/autocomp
 | --------- | ---- | ----------- |
 | `organizations` | array | Array of organization objects |
 | `paging` | object | Pagination information |
+| ↳ `next_page` | string | URL for next page of results |
+| ↳ `previous_page` | string | URL for previous page of results |
+| ↳ `count` | number | Total count of organizations |
+| `metadata` | object | Response metadata |
+| ↳ `total_returned` | number | Number of organizations returned in this response |
+| ↳ `has_more` | boolean | Whether more organizations are available |
 
 ### `zendesk_create_organization`
 
@@ -622,6 +652,12 @@ Unified search across tickets, users, and organizations in Zendesk
 | --------- | ---- | ----------- |
 | `results` | array | Array of result objects |
 | `paging` | object | Pagination information |
+| ↳ `next_page` | string | URL for next page of results |
+| ↳ `previous_page` | string | URL for previous page of results |
+| ↳ `count` | number | Total count of results |
+| `metadata` | object | Response metadata |
+| ↳ `total_returned` | number | Number of results returned in this response |
+| ↳ `has_more` | boolean | Whether more results are available |
 
 ### `zendesk_search_count`
 

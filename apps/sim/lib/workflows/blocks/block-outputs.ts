@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
 import {
   classifyStartBlockType,
@@ -12,7 +13,10 @@ import {
 } from '@/lib/workflows/types'
 import { getBlock } from '@/blocks'
 import type { BlockConfig, OutputCondition, OutputFieldDefinition } from '@/blocks/types'
+import { getTool } from '@/tools/utils'
 import { getTrigger, isTriggerValid } from '@/triggers'
+
+const logger = createLogger('BlockOutputs')
 
 type OutputDefinition = Record<string, OutputFieldDefinition>
 
@@ -434,4 +438,168 @@ export function getBlockOutputType(
 
   const value = traverseOutputPath(outputs, pathParts)
   return extractType(value)
+}
+
+/**
+ * Recursively generates all output paths from an outputs schema.
+ *
+ * @param outputs - The outputs schema object
+ * @param prefix - Current path prefix for recursion
+ * @returns Array of dot-separated paths to all output fields
+ */
+function generateOutputPaths(outputs: Record<string, any>, prefix = ''): string[] {
+  const paths: string[] = []
+
+  for (const [key, value] of Object.entries(outputs)) {
+    const currentPath = prefix ? `${prefix}.${key}` : key
+
+    if (typeof value === 'string') {
+      paths.push(currentPath)
+    } else if (typeof value === 'object' && value !== null) {
+      if ('type' in value && typeof value.type === 'string') {
+        const hasNestedProperties =
+          ((value.type === 'object' || value.type === 'json') && value.properties) ||
+          (value.type === 'array' && value.items?.properties) ||
+          (value.type === 'array' &&
+            value.items &&
+            typeof value.items === 'object' &&
+            !('type' in value.items))
+
+        if (!hasNestedProperties) {
+          paths.push(currentPath)
+        }
+
+        if ((value.type === 'object' || value.type === 'json') && value.properties) {
+          paths.push(...generateOutputPaths(value.properties, currentPath))
+        } else if (value.type === 'array' && value.items?.properties) {
+          paths.push(...generateOutputPaths(value.items.properties, currentPath))
+        } else if (
+          value.type === 'array' &&
+          value.items &&
+          typeof value.items === 'object' &&
+          !('type' in value.items)
+        ) {
+          paths.push(...generateOutputPaths(value.items, currentPath))
+        }
+      } else {
+        const subPaths = generateOutputPaths(value, currentPath)
+        paths.push(...subPaths)
+      }
+    } else {
+      paths.push(currentPath)
+    }
+  }
+
+  return paths
+}
+
+/**
+ * Recursively generates all output paths with their types from an outputs schema.
+ *
+ * @param outputs - The outputs schema object
+ * @param prefix - Current path prefix for recursion
+ * @returns Array of objects containing path and type for each output field
+ */
+function generateOutputPathsWithTypes(
+  outputs: Record<string, any>,
+  prefix = ''
+): Array<{ path: string; type: string }> {
+  const paths: Array<{ path: string; type: string }> = []
+
+  for (const [key, value] of Object.entries(outputs)) {
+    const currentPath = prefix ? `${prefix}.${key}` : key
+
+    if (typeof value === 'string') {
+      paths.push({ path: currentPath, type: value })
+    } else if (typeof value === 'object' && value !== null) {
+      if ('type' in value && typeof value.type === 'string') {
+        if (value.type === 'array' && value.items?.properties) {
+          paths.push({ path: currentPath, type: 'array' })
+          const subPaths = generateOutputPathsWithTypes(value.items.properties, currentPath)
+          paths.push(...subPaths)
+        } else if ((value.type === 'object' || value.type === 'json') && value.properties) {
+          paths.push({ path: currentPath, type: value.type })
+          const subPaths = generateOutputPathsWithTypes(value.properties, currentPath)
+          paths.push(...subPaths)
+        } else {
+          paths.push({ path: currentPath, type: value.type })
+        }
+      } else {
+        const subPaths = generateOutputPathsWithTypes(value, currentPath)
+        paths.push(...subPaths)
+      }
+    } else {
+      paths.push({ path: currentPath, type: 'any' })
+    }
+  }
+
+  return paths
+}
+
+/**
+ * Gets the tool outputs for a block operation.
+ *
+ * @param blockConfig - The block configuration containing tools config
+ * @param operation - The selected operation for the tool
+ * @returns Outputs schema for the tool, or empty object on error
+ */
+export function getToolOutputs(blockConfig: BlockConfig, operation: string): Record<string, any> {
+  if (!blockConfig?.tools?.config?.tool) return {}
+
+  try {
+    const toolId = blockConfig.tools.config.tool({ operation })
+    if (!toolId) return {}
+
+    const toolConfig = getTool(toolId)
+    if (!toolConfig?.outputs) return {}
+
+    return toolConfig.outputs
+  } catch (error) {
+    logger.warn('Failed to get tool outputs for operation', { operation, error })
+    return {}
+  }
+}
+
+/**
+ * Generates output paths for a tool-based block.
+ *
+ * @param blockConfig - The block configuration containing tools config
+ * @param operation - The selected operation for the tool
+ * @returns Array of output paths for the tool, or empty array on error
+ */
+export function getToolOutputPaths(blockConfig: BlockConfig, operation: string): string[] {
+  const outputs = getToolOutputs(blockConfig, operation)
+  if (!outputs || Object.keys(outputs).length === 0) return []
+  return generateOutputPaths(outputs)
+}
+
+/**
+ * Generates output paths from a schema definition.
+ *
+ * @param outputs - The outputs schema object
+ * @returns Array of dot-separated paths to all output fields
+ */
+export function getOutputPathsFromSchema(outputs: Record<string, any>): string[] {
+  return generateOutputPaths(outputs)
+}
+
+/**
+ * Gets the output type for a specific path in a tool's outputs.
+ *
+ * @param blockConfig - The block configuration containing tools config
+ * @param operation - The selected operation for the tool
+ * @param path - The dot-separated path to the output field
+ * @returns The type of the output field, or 'any' if not found
+ */
+export function getToolOutputType(
+  blockConfig: BlockConfig,
+  operation: string,
+  path: string
+): string {
+  const outputs = getToolOutputs(blockConfig, operation)
+  if (!outputs || Object.keys(outputs).length === 0) return 'any'
+
+  const pathsWithTypes = generateOutputPathsWithTypes(outputs)
+  const matchingPath = pathsWithTypes.find((p) => p.path === path)
+  return matchingPath?.type || 'any'
 }

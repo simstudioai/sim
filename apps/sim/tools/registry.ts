@@ -653,6 +653,7 @@ import {
   knowledgeSearchTool,
   knowledgeUploadChunkTool,
 } from '@/tools/knowledge'
+import { langsmithCreateRunsBatchTool, langsmithCreateRunTool } from '@/tools/langsmith'
 import { lemlistGetActivitiesTool, lemlistGetLeadTool, lemlistSendEmailTool } from '@/tools/lemlist'
 import {
   linearAddLabelToIssueTool,
@@ -2442,6 +2443,8 @@ export const tools: Record<string, ToolConfig> = {
   linear_update_project_status: linearUpdateProjectStatusTool,
   linear_delete_project_status: linearDeleteProjectStatusTool,
   linear_list_project_statuses: linearListProjectStatusesTool,
+  langsmith_create_run: langsmithCreateRunTool,
+  langsmith_create_runs_batch: langsmithCreateRunsBatchTool,
   lemlist_get_activities: lemlistGetActivitiesTool,
   lemlist_get_lead: lemlistGetLeadTool,
   lemlist_send_email: lemlistSendEmailTool,

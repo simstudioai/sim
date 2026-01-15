@@ -79,5 +79,16 @@ Run an autonomous web agent to complete tasks and extract structured data
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `agentResult` | object | Result from the Stagehand agent execution |
+| ↳ `success` | boolean | Whether the agent task completed successfully |
+| ↳ `completed` | boolean | Whether the task was fully completed |
+| ↳ `message` | string | Status message or final result |
+| ↳ `actions` | array | Type of action performed |
+|   ↳ `type` | string | Type of action performed |
+|   ↳ `params` | object | Parameters used for the action |
+|   ↳ `result` | object | Result of the action |
+| ↳ `type` | string | Type of action performed |
+| ↳ `params` | object | Parameters used for the action |
+| ↳ `result` | object | Result of the action |
+| `structuredOutput` | object | Extracted data matching the provided output schema |
 
 

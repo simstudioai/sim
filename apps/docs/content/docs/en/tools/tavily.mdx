@@ -65,7 +65,11 @@ Perform AI-powered web searches using Tavily
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `query` | string | The search query that was executed |
-| `results` | array | results output from the tool |
+| `results` | array | Search results with titles, URLs, content snippets, and optional metadata |
+| `answer` | string | LLM-generated answer to the query \(if requested\) |
+| `images` | array | Query-related images \(if requested\) |
+| `auto_parameters` | object | Automatically selected parameters based on query intent \(if enabled\) |
+| `response_time` | number | Time taken for the search request in seconds |
 
 ### `tavily_extract`
 
@@ -87,6 +91,13 @@ Extract raw content from multiple web pages simultaneously using Tavily
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | The URL that was extracted |
+|   ↳ `url` | string | The URL that was extracted |
+|   ↳ `raw_content` | string | The raw text content from the webpage |
+|   ↳ `favicon` | string | Favicon URL \(if requested\) |
+| `failed_results` | array | The URL that failed extraction |
+|   ↳ `url` | string | The URL that failed extraction |
+|   ↳ `error` | string | Error message for the failed extraction |
+| `response_time` | number | Time taken for the extraction request in seconds |
 
 ### `tavily_crawl`
 
@@ -118,6 +129,11 @@ Systematically crawl and extract content from websites using Tavily
 | --------- | ---- | ----------- |
 | `base_url` | string | The base URL that was crawled |
 | `results` | array | The crawled page URL |
+|   ↳ `url` | string | The crawled page URL |
+|   ↳ `raw_content` | string | Extracted content from the page |
+|   ↳ `favicon` | string | Favicon URL \(if requested\) |
+| `response_time` | number | Time taken for the crawl request in seconds |
+| `request_id` | string | Unique identifier for support reference |
 
 ### `tavily_map`
 
@@ -145,5 +161,8 @@ Discover and visualize website structure using Tavily
 | --------- | ---- | ----------- |
 | `base_url` | string | The base URL that was mapped |
 | `results` | array | Discovered URL |
+|   ↳ `url` | string | Discovered URL |
+| `response_time` | number | Time taken for the map request in seconds |
+| `request_id` | string | Unique identifier for support reference |
 
 

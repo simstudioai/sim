@@ -100,6 +100,11 @@ List objects in an AWS S3 bucket
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `objects` | array | List of S3 objects |
+|   ↳ `key` | string | Object key |
+|   ↳ `size` | number | Object size in bytes |
+|   ↳ `lastModified` | string | Last modified timestamp |
+|   ↳ `etag` | string | Entity tag |
+| `metadata` | object | Listing metadata including pagination info |
 
 ### `s3_delete_object`
 

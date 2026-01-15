@@ -116,6 +116,13 @@ Query and filter Notion database entries with advanced filtering
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Array of Notion page objects from the database |
+|   ↳ `id` | string | Page ID |
+|   ↳ `created_time` | string | Creation timestamp |
+|   ↳ `last_edited_time` | string | Last edit timestamp |
+|   ↳ `url` | string | Page URL |
+| `has_more` | boolean | Whether more results are available |
+| `next_cursor` | string | Cursor for pagination |
+| `total_results` | number | Number of results returned |
 
 ### `notion_search`
 
@@ -134,6 +141,14 @@ Search across all pages and databases in Notion workspace
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Array of search results \(pages and databases\) |
+|   ↳ `id` | string | Object ID |
+|   ↳ `object` | string | Object type \(page or database\) |
+|   ↳ `url` | string | Object URL |
+|   ↳ `created_time` | string | Creation timestamp |
+|   ↳ `last_edited_time` | string | Last edit timestamp |
+| `has_more` | boolean | Whether more results are available |
+| `next_cursor` | string | Cursor for pagination |
+| `total_results` | number | Number of results returned |
 
 ### `notion_create_database`
 
