@@ -61,7 +61,7 @@ export function EmailFooter({ baseUrl = getBaseUrl(), unsubscribe, messageId }: 
                   <tbody>
                     <tr>
                       <td align='left' style={{ padding: '0 8px 0 0' }}>
-                        <Link href='https://x.com/simdotai' rel='noopener noreferrer'>
+                        <Link href={`${baseUrl}/x`} rel='noopener noreferrer'>
                           <Img
                             src={`${baseUrl}/static/x-icon.png`}
                             width='20'
@@ -71,7 +71,7 @@ export function EmailFooter({ baseUrl = getBaseUrl(), unsubscribe, messageId }: 
                         </Link>
                       </td>
                       <td align='left' style={{ padding: '0 8px' }}>
-                        <Link href='https://discord.gg/Hr4UWYEcTT' rel='noopener noreferrer'>
+                        <Link href={`${baseUrl}/discord`} rel='noopener noreferrer'>
                           <Img
                             src={`${baseUrl}/static/discord-icon.png`}
                             width='20'
@@ -81,7 +81,7 @@ export function EmailFooter({ baseUrl = getBaseUrl(), unsubscribe, messageId }: 
                         </Link>
                       </td>
                       <td align='left' style={{ padding: '0 8px' }}>
-                        <Link href='https://github.com/simstudioai/sim' rel='noopener noreferrer'>
+                        <Link href={`${baseUrl}/github`} rel='noopener noreferrer'>
                           <Img
                             src={`${baseUrl}/static/github-icon.png`}
                             width='20'

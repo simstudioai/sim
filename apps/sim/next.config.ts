@@ -253,6 +253,25 @@ const nextConfig: NextConfig = {
   async redirects() {
     const redirects = []
 
+    // Social link redirects (used in emails to avoid spam filter issues)
+    redirects.push(
+      {
+        source: '/discord',
+        destination: 'https://discord.gg/Hr4UWYEcTT',
+        permanent: false,
+      },
+      {
+        source: '/x',
+        destination: 'https://x.com/simdotai',
+        permanent: false,
+      },
+      {
+        source: '/github',
+        destination: 'https://github.com/simstudioai/sim',
+        permanent: false,
+      }
+    )
+
     // Redirect /building and /blog to /studio (legacy URL support)
     redirects.push(
       {
