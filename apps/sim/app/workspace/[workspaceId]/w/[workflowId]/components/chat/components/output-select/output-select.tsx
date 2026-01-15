@@ -331,13 +331,16 @@ export function OutputSelect({
   return (
     <Combobox
       size='sm'
-      className='!w-fit !py-[2px] [&>svg]:!ml-[4px] [&>svg]:!h-3 [&>svg]:!w-3 [&>span]:!text-[var(--text-secondary)] min-w-[100px] rounded-[6px] bg-transparent px-[9px] hover:bg-[var(--surface-5)] dark:hover:border-[var(--surface-6)] dark:hover:bg-transparent [&>span]:text-center'
+      className='!w-fit !py-[2px] min-w-[100px] rounded-[6px] px-[9px]'
       groups={comboboxGroups}
       options={[]}
       multiSelect
       multiSelectValues={normalizedSelectedValues}
       onMultiSelectChange={onOutputSelect}
       placeholder={selectedDisplayText}
+      overlayContent={
+        <span className='truncate text-[var(--text-primary)]'>{selectedDisplayText}</span>
+      }
       disabled={disabled || workflowOutputs.length === 0}
       align={align}
       maxHeight={maxHeight}
