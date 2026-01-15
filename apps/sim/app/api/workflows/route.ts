@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull, max } from 'drizzle-orm'
+import { and, asc, eq, isNull, max } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -64,10 +64,20 @@ export async function GET(request: Request) {
 
     let workflows
 
+    const orderByClause = [asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id)]
+
     if (workspaceId) {
-      workflows = await db.select().from(workflow).where(eq(workflow.workspaceId, workspaceId))
+      workflows = await db
+        .select()
+        .from(workflow)
+        .where(eq(workflow.workspaceId, workspaceId))
+        .orderBy(...orderByClause)
     } else {
-      workflows = await db.select().from(workflow).where(eq(workflow.userId, userId))
+      workflows = await db
+        .select()
+        .from(workflow)
+        .where(eq(workflow.userId, userId))
+        .orderBy(...orderByClause)
     }
 
     return NextResponse.json({ data: workflows }, { status: 200 })
