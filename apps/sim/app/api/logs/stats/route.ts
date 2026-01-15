@@ -99,13 +99,14 @@ export async function GET(request: NextRequest) {
 
       const totalMs = Math.max(1, endTime.getTime() - startTime.getTime())
       const segmentMs = Math.max(60000, Math.floor(totalMs / params.segmentCount))
+      const startTimeIso = startTime.toISOString()
 
       const statsQuery = await db
         .select({
           workflowId: workflowExecutionLogs.workflowId,
           workflowName: workflow.name,
           segmentIndex:
-            sql<number>`FLOOR(EXTRACT(EPOCH FROM (${workflowExecutionLogs.startedAt} - ${startTime}::timestamp)) * 1000 / ${segmentMs})`.as(
+            sql<number>`FLOOR(EXTRACT(EPOCH FROM (${workflowExecutionLogs.startedAt} - ${startTimeIso}::timestamp)) * 1000 / ${segmentMs})`.as(
               'segment_index'
             ),
           totalExecutions: sql<number>`COUNT(*)`.as('total_executions'),
@@ -129,12 +130,7 @@ export async function GET(request: NextRequest) {
           )
         )
         .where(whereCondition)
-        .groupBy(
-          workflowExecutionLogs.workflowId,
-          workflow.name,
-          sql`FLOOR(EXTRACT(EPOCH FROM (${workflowExecutionLogs.startedAt} - ${startTime}::timestamp)) * 1000 / ${segmentMs})`
-        )
-        .orderBy(workflowExecutionLogs.workflowId, sql`segment_index`)
+        .groupBy(sql`1, 2, 3`)
 
       const workflowMap = new Map<
         string,
