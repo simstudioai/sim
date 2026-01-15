@@ -453,33 +453,6 @@ export const auth = betterAuth({
         }
       }
     },
-    // afterEmailVerification is called by link-based verification (kept for backwards compatibility)
-    afterEmailVerification: async (user) => {
-      if (isHosted && user.email) {
-        try {
-          const html = await renderWelcomeEmail(user.name || undefined)
-          const { from, replyTo } = getPersonalEmailFrom()
-
-          await sendEmail({
-            to: user.email,
-            subject: getEmailSubject('welcome'),
-            html,
-            from,
-            replyTo,
-            emailType: 'transactional',
-          })
-
-          logger.info('[emailVerification.afterEmailVerification] Welcome email sent', {
-            userId: user.id,
-          })
-        } catch (error) {
-          logger.error('[emailVerification.afterEmailVerification] Failed to send welcome email', {
-            userId: user.id,
-            error,
-          })
-        }
-      }
-    },
   },
   emailAndPassword: {
     enabled: true,
