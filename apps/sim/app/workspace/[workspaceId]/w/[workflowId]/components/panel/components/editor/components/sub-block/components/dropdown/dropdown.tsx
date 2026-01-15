@@ -88,14 +88,11 @@ export function Dropdown({
 
   const dependsOnFields = useMemo(() => getDependsOnFields(dependsOn), [dependsOn])
 
-  // Stable empty array for when there are no dependencies
-  const emptyDependencyValues = useMemo(() => [], [])
-
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
-  const dependencyValuesFromStore = useSubBlockStore(
+  const dependencyValues = useSubBlockStore(
     useCallback(
       (state) => {
-        if (dependsOnFields.length === 0 || !activeWorkflowId) return null
+        if (dependsOnFields.length === 0 || !activeWorkflowId) return []
         const workflowValues = state.workflowValues[activeWorkflowId] || {}
         const blockValues = workflowValues[blockId] || {}
         return dependsOnFields.map((depKey) => blockValues[depKey] ?? null)
@@ -103,8 +100,6 @@ export function Dropdown({
       [dependsOnFields, activeWorkflowId, blockId]
     )
   )
-
-  const dependencyValues = dependencyValuesFromStore ?? emptyDependencyValues
 
   const [storeInitialized, setStoreInitialized] = useState(false)
   const [fetchedOptions, setFetchedOptions] = useState<Array<{ label: string; id: string }>>([])
@@ -115,7 +110,6 @@ export function Dropdown({
   const previousModeRef = useRef<string | null>(null)
   const previousDependencyValuesRef = useRef<string>('')
 
-  // State for dataMode conversion (structured ↔ JSON)
   const [builderData, setBuilderData] = useSubBlockValue<any[]>(blockId, 'builderData')
   const [data, setData] = useSubBlockValue<string>(blockId, 'data')
 
