@@ -125,10 +125,16 @@ export function FieldFormat({
   }
 
   /**
-   * Removes a field by ID, preventing removal of the last field
+   * Removes a field by ID, or clears it if it's the last field
    */
   const removeField = (id: string) => {
-    if (isReadOnly || fields.length === 1) return
+    if (isReadOnly) return
+
+    if (fields.length === 1) {
+      setStoreValue([createDefaultField()])
+      return
+    }
+
     setStoreValue(fields.filter((field) => field.id !== id))
   }
 
@@ -273,7 +279,7 @@ export function FieldFormat({
         <Button
           variant='ghost'
           onClick={() => removeField(field.id)}
-          disabled={isReadOnly || fields.length === 1}
+          disabled={isReadOnly}
           className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
         >
           <Trash className='h-[14px] w-[14px]' />
