@@ -244,6 +244,7 @@ export function Code({
       case 'json-schema':
         return 'Describe the JSON schema to generate...'
       case 'json-object':
+      case 'table-schema':
         return 'Describe the JSON object to generate...'
       default:
         return 'Describe the JavaScript code to generate...'
@@ -268,9 +269,14 @@ export function Code({
     return wandConfig
   }, [wandConfig, languageValue])
 
+  const [tableIdValue] = useSubBlockValue<string>(blockId, 'tableId')
+
   const wandHook = useWand({
     wandConfig: dynamicWandConfig || { enabled: false, prompt: '' },
     currentValue: code,
+    contextParams: {
+      tableId: typeof tableIdValue === 'string' ? tableIdValue : null,
+    },
     onStreamStart: () => handleStreamStartRef.current?.(),
     onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),
     onGeneratedContent: (content: string) => handleGeneratedContentRef.current?.(content),

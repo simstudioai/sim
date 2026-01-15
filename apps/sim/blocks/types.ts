@@ -26,6 +26,7 @@ export type GenerationType =
   | 'typescript-function-body'
   | 'json-schema'
   | 'json-object'
+  | 'table-schema'
   | 'system-prompt'
   | 'custom-tool-schema'
   | 'sql-query'

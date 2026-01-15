@@ -87,7 +87,7 @@ Table with columns: customer_id (string), total (number), status (string)
 → {"customer_id": "123", "total": 99.99, "status": "pending"}
 
 Return ONLY the data JSON:`,
-        generationType: 'json-object',
+        generationType: 'table-schema',
       },
     },
 
@@ -124,7 +124,7 @@ Table with columns: email (string), name (string), age (number)
 ]
 
 Return ONLY the rows array:`,
-        generationType: 'json-object',
+        generationType: 'table-schema',
       },
     },
 
@@ -212,7 +212,7 @@ IMPORTANT: Reference the table schema to know which columns exist and their type
 → {"email": {"$contains": "gmail.com"}}
 
 Return ONLY the filter JSON:`,
-        generationType: 'json-object',
+        generationType: 'table-schema',
       },
     },
 
@@ -320,7 +320,7 @@ Table with columns: status (string), age (number), email (string), active (boole
 → {"email": {"$contains": "example.com"}}
 
 Return ONLY the filter JSON:`,
-        generationType: 'json-object',
+        generationType: 'table-schema',
       },
     },
 
@@ -373,7 +373,7 @@ Table with columns: name (string), age (number), email (string), createdAt (date
 → {"createdAt": "asc"}
 
 Return ONLY the sort JSON:`,
-        generationType: 'json-object',
+        generationType: 'table-schema',
       },
     },
     {
