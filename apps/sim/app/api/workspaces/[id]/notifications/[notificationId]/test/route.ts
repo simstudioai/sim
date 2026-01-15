@@ -5,8 +5,10 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
+import { renderWorkflowNotificationEmail } from '@/components/emails'
 import { getSession } from '@/lib/auth'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -23,6 +25,25 @@ interface SlackConfig {
   channelId: string
   channelName: string
   accountId: string
+}
+
+interface RateLimitStatus {
+  requestsPerMinute: number
+  remaining: number
+  maxBurst?: number
+  resetAt?: string
+}
+
+interface RateLimitsData {
+  sync?: RateLimitStatus
+  async?: RateLimitStatus
+}
+
+interface UsageDataProps {
+  currentPeriodCost: number
+  limit: number
+  percentUsed: number
+  isExceeded?: boolean
 }
 
 function generateSignature(secret: string, timestamp: number, body: string): string {
@@ -67,29 +88,23 @@ function buildTestPayload(subscription: typeof workspaceNotificationSubscription
     data.finalOutput = { message: 'This is a test notification', test: true }
   }
 
-  if (subscription.includeTraceSpans) {
-    data.traceSpans = [
-      {
-        id: 'span_test_1',
-        name: 'Test Block',
-        type: 'block',
-        status: 'success',
-        startTime: new Date(timestamp - 5000).toISOString(),
-        endTime: new Date(timestamp).toISOString(),
-        duration: 5000,
-      },
-    ]
-  }
-
   if (subscription.includeRateLimits) {
     data.rateLimits = {
-      sync: { limit: 150, remaining: 45, resetAt: new Date(timestamp + 60000).toISOString() },
-      async: { limit: 1000, remaining: 50, resetAt: new Date(timestamp + 60000).toISOString() },
+      sync: {
+        requestsPerMinute: 150,
+        remaining: 45,
+        resetAt: new Date(timestamp + 60000).toISOString(),
+      },
+      async: {
+        requestsPerMinute: 1000,
+        remaining: 50,
+        resetAt: new Date(timestamp + 60000).toISOString(),
+      },
     }
   }
 
   if (subscription.includeUsageData) {
-    data.usage = { currentPeriodCost: 2.45, limit: 20, plan: 'pro', isExceeded: false }
+    data.usage = { currentPeriodCost: 2.45, limit: 20, percentUsed: 12.25, isExceeded: false }
   }
 
   return { payload, timestamp }
@@ -157,23 +172,26 @@ async function testEmail(subscription: typeof workspaceNotificationSubscription.
 
   const { payload } = buildTestPayload(subscription)
   const data = (payload as Record<string, unknown>).data as Record<string, unknown>
+  const baseUrl = getBaseUrl()
+  const logUrl = `${baseUrl}/workspace/${subscription.workspaceId}/logs`
+
+  const html = await renderWorkflowNotificationEmail({
+    workflowName: data.workflowName as string,
+    status: data.status as 'success' | 'error',
+    trigger: data.trigger as string,
+    duration: `${data.totalDurationMs}ms`,
+    cost: `$${(((data.cost as Record<string, unknown>)?.total as number) || 0).toFixed(4)}`,
+    logUrl,
+    finalOutput: data.finalOutput,
+    rateLimits: data.rateLimits as RateLimitsData | undefined,
+    usageData: data.usage as UsageDataProps | undefined,
+  })
 
   const result = await sendEmail({
     to: subscription.emailRecipients,
     subject: `[Test] Workflow Execution: ${data.workflowName}`,
-    text: `This is a test notification from Sim Studio.\n\nWorkflow: ${data.workflowName}\nStatus: ${data.status}\nDuration: ${data.totalDurationMs}ms\n\nThis notification is configured for workspace notifications.`,
-    html: `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #7F2FFF;">Test Notification</h2>
-        <p>This is a test notification from Sim Studio.</p>
-        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-          <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Workflow</strong></td><td style="padding: 8px; border: 1px solid #eee;">${data.workflowName}</td></tr>
-          <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Status</strong></td><td style="padding: 8px; border: 1px solid #eee;">${data.status}</td></tr>
-          <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Duration</strong></td><td style="padding: 8px; border: 1px solid #eee;">${data.totalDurationMs}ms</td></tr>
-        </table>
-        <p style="color: #666; font-size: 12px;">This notification is configured for workspace notifications.</p>
-      </div>
-    `,
+    html,
+    text: `This is a test notification from Sim Studio.\n\nWorkflow: ${data.workflowName}\nStatus: ${data.status}\nDuration: ${data.totalDurationMs}ms\n\nView Log: ${logUrl}\n\nThis notification is configured for workspace notifications.`,
     emailType: 'notifications',
   })
 

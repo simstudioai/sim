@@ -15,6 +15,7 @@ import {
   PollingGroupInvitationEmail,
   WorkspaceInvitationEmail,
 } from '@/components/emails/invitations'
+import { WorkflowNotificationEmail } from '@/components/emails/notifications'
 import { HelpConfirmationEmail } from '@/components/emails/support'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
@@ -255,6 +256,53 @@ export async function renderCareersSubmissionEmail(params: {
       experience: params.experience,
       location: params.location,
       message: params.message,
+    })
+  )
+}
+
+interface RateLimitStatus {
+  requestsPerMinute: number
+  remaining: number
+  maxBurst?: number
+  resetAt?: string
+}
+
+interface RateLimitsData {
+  sync?: RateLimitStatus
+  async?: RateLimitStatus
+}
+
+interface UsageDataProps {
+  currentPeriodCost: number
+  limit: number
+  percentUsed: number
+  isExceeded?: boolean
+}
+
+export async function renderWorkflowNotificationEmail(params: {
+  workflowName: string
+  status: 'success' | 'error'
+  trigger: string
+  duration: string
+  cost: string
+  logUrl: string
+  alertReason?: string
+  finalOutput?: unknown
+  rateLimits?: RateLimitsData
+  usageData?: UsageDataProps
+}): Promise<string> {
+  return await render(
+    WorkflowNotificationEmail({
+      workflowName: params.workflowName,
+      status: params.status,
+      trigger: params.trigger,
+      duration: params.duration,
+      cost: params.cost,
+      logUrl: params.logUrl,
+      alertReason: params.alertReason,
+      finalOutput: params.finalOutput,
+      rateLimits: params.rateLimits,
+      usageData: params.usageData,
     })
   )
 }
