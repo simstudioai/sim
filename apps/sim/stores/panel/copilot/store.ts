@@ -1344,6 +1344,25 @@ const sseHandlers: Record<string, SSEHandler> = {
       context.contentBlocks.push(context.currentTextBlock)
     }
 
+    const splitTrailingPartialTag = (
+      text: string,
+      tags: string[]
+    ): { text: string; remaining: string } => {
+      const partialIndex = text.lastIndexOf('<')
+      if (partialIndex < 0) {
+        return { text, remaining: '' }
+      }
+      const possibleTag = text.substring(partialIndex)
+      const matchesTagStart = tags.some((tag) => tag.startsWith(possibleTag))
+      if (!matchesTagStart) {
+        return { text, remaining: '' }
+      }
+      return {
+        text: text.substring(0, partialIndex),
+        remaining: possibleTag,
+      }
+    }
+
     while (contentToProcess.length > 0) {
       // Handle design_workflow tags (takes priority over other content processing)
       if (context.isInDesignWorkflowBlock) {
@@ -1363,13 +1382,17 @@ const sseHandlers: Record<string, SSEHandler> = {
           hasProcessedContent = true
         } else {
           // Still in design_workflow block, accumulate content
-          context.designWorkflowContent += contentToProcess
+          const { text, remaining } = splitTrailingPartialTag(contentToProcess, ['</design_workflow>'])
+          context.designWorkflowContent += text
 
           // Update store with partial content for streaming effect (available in all modes)
           set({ streamingPlanContent: context.designWorkflowContent })
 
-          contentToProcess = ''
+          contentToProcess = remaining
           hasProcessedContent = true
+          if (remaining) {
+            break
+          }
         }
         continue
       }
@@ -1491,18 +1514,24 @@ const sseHandlers: Record<string, SSEHandler> = {
           contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
           hasProcessedContent = true
         } else {
-          if (context.currentThinkingBlock) {
-            context.currentThinkingBlock.content += contentToProcess
-          } else {
-            context.currentThinkingBlock = contentBlockPool.get()
-            context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
-            context.currentThinkingBlock.content = contentToProcess
-            context.currentThinkingBlock.timestamp = Date.now()
-            context.currentThinkingBlock.startTime = Date.now()
-            context.contentBlocks.push(context.currentThinkingBlock)
+          const { text, remaining } = splitTrailingPartialTag(contentToProcess, ['</thinking>'])
+          if (text) {
+            if (context.currentThinkingBlock) {
+              context.currentThinkingBlock.content += text
+            } else {
+              context.currentThinkingBlock = contentBlockPool.get()
+              context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
+              context.currentThinkingBlock.content = text
+              context.currentThinkingBlock.timestamp = Date.now()
+              context.currentThinkingBlock.startTime = Date.now()
+              context.contentBlocks.push(context.currentThinkingBlock)
+            }
+            hasProcessedContent = true
           }
-          contentToProcess = ''
-          hasProcessedContent = true
+          contentToProcess = remaining
+          if (remaining) {
+            break
+          }
         }
       } else {
         const startMatch = thinkingStartRegex.exec(contentToProcess)
