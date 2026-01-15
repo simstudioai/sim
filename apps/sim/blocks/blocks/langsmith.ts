@@ -68,9 +68,8 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       id: 'start_time',
       title: 'Start Time',
       type: 'short-input',
-      placeholder: '2025-01-01T12:00:00Z',
+      placeholder: 'e.g. 2025-01-01T12:00:00Z (defaults to now)',
       condition: { field: 'operation', value: 'langsmith_create_run' },
-      value: () => new Date().toISOString(),
     },
     {
       id: 'end_time',
@@ -182,6 +181,14 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       type: 'code',
       placeholder: '[{"id":"...","name":"...","run_type":"chain","start_time":"..."}]',
       condition: { field: 'operation', value: 'langsmith_create_runs_batch' },
+      wandConfig: {
+        enabled: true,
+        generationType: 'json-object',
+        prompt: `Output ONLY a JSON array with a single LangSmith run object. No explanation.
+Required: name (string), run_type ("tool"|"chain"|"llm"|"retriever"|"embedding"|"prompt"|"parser")
+Optional: inputs, outputs, tags, extra, session_name, end_time
+Fields id, trace_id, dotted_order, start_time are auto-generated if omitted.`,
+      },
     },
     {
       id: 'patch',
@@ -190,6 +197,13 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       placeholder: '[{"id":"...","name":"...","run_type":"chain","start_time":"..."}]',
       condition: { field: 'operation', value: 'langsmith_create_runs_batch' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        generationType: 'json-object',
+        prompt: `Output ONLY a JSON array with a single LangSmith run object to update. No explanation.
+Required: id (existing run UUID), name, run_type ("tool"|"chain"|"llm"|"retriever"|"embedding"|"prompt"|"parser")
+Common patch fields: outputs, end_time, status, error`,
+      },
     },
   ],
   tools: {
