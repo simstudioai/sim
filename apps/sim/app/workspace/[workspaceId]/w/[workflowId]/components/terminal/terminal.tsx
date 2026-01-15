@@ -9,19 +9,15 @@ import {
   Check,
   ChevronDown,
   Clipboard,
-  Database,
   Filter,
   FilterX,
   MoreHorizontal,
-  Palette,
-  Pause,
   RepeatIcon,
   Search,
   SplitIcon,
   Trash2,
   X,
 } from 'lucide-react'
-import Link from 'next/link'
 import { useShallow } from 'zustand/react/shallow'
 import {
   Badge,
@@ -35,7 +31,6 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { formatTimeWithSeconds } from '@/lib/core/utils/formatting'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -52,8 +47,6 @@ import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sideb
 import { getBlock } from '@/blocks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
-import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
-import { useGeneralStore } from '@/stores/settings/general'
 import type { ConsoleEntry } from '@/stores/terminal'
 import { useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -341,12 +334,6 @@ export function Terminal() {
     externalWrapText: wrapText,
     onWrapTextChange: setWrapText,
   })
-
-  const [isTrainingEnvEnabled, setIsTrainingEnvEnabled] = useState(false)
-  const showTrainingControls = useGeneralStore((state) => state.showTrainingControls)
-  const { isTraining, toggleModal: toggleTrainingModal, stopTraining } = useCopilotTrainingStore()
-
-  const [isPlaygroundEnabled, setIsPlaygroundEnabled] = useState(false)
 
   const { handleMouseDown } = useTerminalResize()
   const { handleMouseDown: handleOutputPanelResizeMouseDown } = useOutputPanelResize()
@@ -698,20 +685,6 @@ export function Terminal() {
     clearCurrentWorkflowConsole()
   }, [clearCurrentWorkflowConsole])
 
-  const handleTrainingClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (isTraining) {
-        stopTraining()
-      } else {
-        toggleTrainingModal()
-      }
-    },
-    [isTraining, stopTraining, toggleTrainingModal]
-  )
-
-  const shouldShowTrainingButton = isTrainingEnvEnabled && showTrainingControls
-
   /**
    * Register global keyboard shortcuts for the terminal:
    * - Mod+D: Clear terminal console for the active workflow
@@ -739,14 +712,6 @@ export function Terminal() {
   useEffect(() => {
     setHasHydrated(true)
   }, [setHasHydrated])
-
-  /**
-   * Check environment variables on mount
-   */
-  useEffect(() => {
-    setIsTrainingEnvEnabled(isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED')))
-    setIsPlaygroundEnabled(isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
-  }, [])
 
   /**
    * Adjust showInput when selected entry changes
@@ -1192,48 +1157,6 @@ export function Terminal() {
               )}
               {!selectedEntry && (
                 <div className='ml-auto flex items-center gap-[8px]'>
-                  {isPlaygroundEnabled && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Link href='/playground'>
-                          <Button
-                            variant='ghost'
-                            aria-label='Component Playground'
-                            className='!p-1.5 -m-1.5'
-                          >
-                            <Palette className='h-3 w-3' />
-                          </Button>
-                        </Link>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>Component Playground</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-                  {shouldShowTrainingButton && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={handleTrainingClick}
-                          aria-label={isTraining ? 'Stop training' : 'Train Copilot'}
-                          className={clsx(
-                            '!p-1.5 -m-1.5',
-                            isTraining && 'text-orange-600 dark:text-orange-400'
-                          )}
-                        >
-                          {isTraining ? (
-                            <Pause className='h-3 w-3' />
-                          ) : (
-                            <Database className='h-3 w-3' />
-                          )}
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>{isTraining ? 'Stop Training' : 'Train Copilot'}</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
                   {hasActiveFilters && (
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
@@ -1524,50 +1447,6 @@ export function Terminal() {
                       </Tooltip.Trigger>
                       <Tooltip.Content>
                         <span>Search</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-
-                  {isPlaygroundEnabled && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Link href='/playground'>
-                          <Button
-                            variant='ghost'
-                            aria-label='Component Playground'
-                            className='!p-1.5 -m-1.5'
-                          >
-                            <Palette className='h-[12px] w-[12px]' />
-                          </Button>
-                        </Link>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>Component Playground</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-
-                  {shouldShowTrainingButton && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={handleTrainingClick}
-                          aria-label={isTraining ? 'Stop training' : 'Train Copilot'}
-                          className={clsx(
-                            '!p-1.5 -m-1.5',
-                            isTraining && 'text-orange-600 dark:text-orange-400'
-                          )}
-                        >
-                          {isTraining ? (
-                            <Pause className='h-[12px] w-[12px]' />
-                          ) : (
-                            <Database className='h-[12px] w-[12px]' />
-                          )}
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>{isTraining ? 'Stop Training' : 'Train Copilot'}</span>
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}

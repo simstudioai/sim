@@ -13,6 +13,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
   HelpModal,
+  ImpersonationIndicator,
   NavItemContextMenu,
   SearchModal,
   SettingsModal,
@@ -642,6 +643,13 @@ export function Sidebar() {
                   />
                 </div>
               </div>
+
+              {/* Impersonation Indicator */}
+              {sessionData?.session?.impersonatedBy && (
+                <ImpersonationIndicator
+                  userName={sessionData?.user?.name || sessionData?.user?.email || 'Unknown'}
+                />
+              )}
 
               {/* Usage Indicator */}
               {isBillingEnabled && <UsageIndicator />}

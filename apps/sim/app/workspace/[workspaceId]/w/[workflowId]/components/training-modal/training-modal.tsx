@@ -15,6 +15,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import {
+  Badge,
   Button,
   Checkbox,
   Input,
@@ -358,10 +359,15 @@ export function TrainingModal() {
           <ModalBody className='flex min-h-[400px] flex-col overflow-hidden'>
             {/* Recording Banner */}
             {isTraining && (
-              <div className='mb-[16px] rounded-[8px] border bg-orange-50 p-[12px] dark:bg-orange-950/30'>
-                <p className='mb-[8px] font-medium text-[13px] text-orange-700 dark:text-orange-300'>
-                  Recording: {currentTitle}
-                </p>
+              <div className='mb-[16px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-3)] p-[12px]'>
+                <div className='mb-[8px] flex items-center gap-[8px]'>
+                  <Badge variant='orange' size='sm'>
+                    Recording
+                  </Badge>
+                  <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                    {currentTitle}
+                  </span>
+                </div>
                 <p className='mb-[12px] text-[12px] text-[var(--text-secondary)]'>
                   {currentPrompt}
                 </p>
@@ -384,7 +390,7 @@ export function TrainingModal() {
                 </div>
                 {startSnapshot && (
                   <div className='mt-[8px] flex items-center gap-[12px] text-[12px]'>
-                    <span className='text-orange-600 dark:text-orange-400'>Starting state:</span>
+                    <span className='text-[var(--text-muted)]'>Starting state:</span>
                     <span className='text-[var(--text-primary)]'>
                       {Object.keys(startSnapshot.blocks).length} blocks
                     </span>
@@ -538,9 +544,9 @@ export function TrainingModal() {
                               </div>
                               <div className='flex items-center gap-[12px]'>
                                 {dataset.sentAt && (
-                                  <span className='inline-flex items-center rounded-full bg-green-50 px-[8px] py-[2px] text-[11px] text-green-700 ring-1 ring-green-600/20 ring-inset dark:bg-green-900/20 dark:text-green-300'>
-                                    <CheckCircle2 className='mr-[4px] h-[10px] w-[10px]' /> Sent
-                                  </span>
+                                  <Badge variant='green' size='sm' icon={CheckCircle2}>
+                                    Sent
+                                  </Badge>
                                 )}
                                 <span className='text-[12px] text-[var(--text-muted)]'>
                                   {dataset.editSequence.length} ops
@@ -617,22 +623,9 @@ export function TrainingModal() {
 
                               <div className='flex gap-[8px]'>
                                 <Button
-                                  variant={
-                                    sentDatasets.has(dataset.id)
-                                      ? 'default'
-                                      : failedDatasets.has(dataset.id)
-                                        ? 'default'
-                                        : 'default'
-                                  }
+                                  variant='default'
                                   onClick={() => handleSendOne(dataset)}
                                   disabled={sendingDatasets.has(dataset.id)}
-                                  className={
-                                    sentDatasets.has(dataset.id)
-                                      ? '!border-green-500 !text-green-600 dark:!border-green-400 dark:!text-green-400'
-                                      : failedDatasets.has(dataset.id)
-                                        ? '!border-red-500 !text-red-600 dark:!border-red-400 dark:!text-red-400'
-                                        : ''
-                                  }
                                 >
                                   {sendingDatasets.has(dataset.id) ? (
                                     'Sending...'
@@ -644,7 +637,7 @@ export function TrainingModal() {
                                   ) : failedDatasets.has(dataset.id) ? (
                                     <>
                                       <XCircle className='mr-[6px] h-[12px] w-[12px]' />
-                                      Failed
+                                      Retry
                                     </>
                                   ) : (
                                     <>
@@ -753,11 +746,7 @@ export function TrainingModal() {
                   currentWorkflow.getBlockCount() === 0
                 }
                 variant='tertiary'
-                className={cn(
-                  'w-full',
-                  liveWorkflowSent && '!bg-green-600 !text-white hover:!bg-green-700',
-                  liveWorkflowFailed && '!bg-red-600 !text-white hover:!bg-red-700'
-                )}
+                className='w-full'
               >
                 {sendingLiveWorkflow ? (
                   'Sending...'
@@ -769,7 +758,7 @@ export function TrainingModal() {
                 ) : liveWorkflowFailed ? (
                   <>
                     <XCircle className='mr-[6px] h-[14px] w-[14px]' />
-                    Failed - Try Again
+                    Retry
                   </>
                 ) : (
                   <>
@@ -780,19 +769,15 @@ export function TrainingModal() {
               </Button>
 
               {liveWorkflowSent && (
-                <div className='rounded-[8px] border bg-green-50 p-[12px] dark:bg-green-950/30'>
-                  <p className='text-[13px] text-green-700 dark:text-green-300'>
-                    Workflow state sent successfully!
-                  </p>
-                </div>
+                <p className='text-center text-[12px] text-[var(--text-secondary)]'>
+                  Workflow state sent successfully.
+                </p>
               )}
 
               {liveWorkflowFailed && (
-                <div className='rounded-[8px] border bg-red-50 p-[12px] dark:bg-red-950/30'>
-                  <p className='text-[13px] text-red-700 dark:text-red-300'>
-                    Failed to send workflow state. Please try again.
-                  </p>
-                </div>
+                <p className='text-center text-[12px] text-[var(--text-error)]'>
+                  Failed to send workflow state. Please try again.
+                </p>
               )}
             </ModalTabsContent>
           </ModalBody>

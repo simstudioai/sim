@@ -1,4 +1,5 @@
 export { HelpModal } from './help-modal/help-modal'
+export { ImpersonationIndicator } from './impersonation-indicator'
 export { NavItemContextMenu } from './nav-item-context-menu'
 export { SearchModal } from './search-modal/search-modal'
 export { SettingsModal } from './settings-modal/settings-modal'

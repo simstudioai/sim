@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Camera, Check, Pencil } from 'lucide-react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Button,
@@ -28,6 +29,7 @@ import { useAdminStatus } from '@/hooks/queries/admin-status'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useUpdateUserProfile, useUserProfile } from '@/hooks/queries/user-profile'
 import { clearUserData } from '@/stores'
+import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 
 const logger = createLogger('General')
 
@@ -134,10 +136,13 @@ export function General({ onOpenChange }: GeneralProps) {
   const isLoading = isProfileLoading || isSettingsLoading
 
   const isTrainingEnabled = isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED'))
+  const isPlaygroundEnabled = isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND'))
   const isAuthDisabled = session?.user?.id === ANONYMOUS_USER_ID
 
-  const { data: adminStatus, isLoading: loadingAdminStatus } = useAdminStatus(!!session?.user?.id)
-  const hasAdminPrivileges = adminStatus?.hasAdminPrivileges ?? false
+  const { data: adminStatus } = useAdminStatus(!!session?.user?.id)
+  const isSuperadmin = adminStatus?.role === 'superadmin'
+
+  const { toggleModal: toggleTrainingModal } = useCopilotTrainingStore()
 
   const [name, setName] = useState(profile?.name || '')
   const [isEditingName, setIsEditingName] = useState(false)
@@ -303,19 +308,13 @@ export function General({ onOpenChange }: GeneralProps) {
     }
   }
 
-  const handleTrainingControlsChange = async (checked: boolean) => {
-    if (checked !== settings?.showTrainingControls && !updateSetting.isPending) {
-      await updateSetting.mutateAsync({ key: 'showTrainingControls', value: checked })
-    }
-  }
-
   const handleErrorNotificationsChange = async (checked: boolean) => {
     if (checked !== settings?.errorNotificationsEnabled && !updateSetting.isPending) {
       await updateSetting.mutateAsync({ key: 'errorNotificationsEnabled', value: checked })
     }
   }
 
-  const handleSuperUserModeToggle = async (checked: boolean) => {
+  const handleAdminModeToggle = async (checked: boolean) => {
     if (checked !== settings?.superUserModeEnabled && !updateSetting.isPending) {
       await updateSetting.mutateAsync({ key: 'superUserModeEnabled', value: checked })
     }
@@ -535,25 +534,49 @@ export function General({ onOpenChange }: GeneralProps) {
         time.
       </p>
 
-      {isTrainingEnabled && (
-        <div className='flex items-center justify-between'>
-          <Label htmlFor='training-controls'>Training controls</Label>
-          <Switch
-            id='training-controls'
-            checked={settings?.showTrainingControls ?? false}
-            onCheckedChange={handleTrainingControlsChange}
-          />
-        </div>
-      )}
-
-      {!loadingAdminStatus && hasAdminPrivileges && (
-        <div className='flex items-center justify-between'>
-          <Label htmlFor='admin-mode'>Admin mode</Label>
-          <Switch
-            id='admin-mode'
-            checked={settings?.superUserModeEnabled ?? true}
-            onCheckedChange={handleSuperUserModeToggle}
-          />
+      {(isSuperadmin || isPlaygroundEnabled || isTrainingEnabled) && (
+        <div className='flex flex-col gap-[8px] border-t pt-[16px]'>
+          <p className='font-medium text-[12px] text-[var(--text-tertiary)]'>Developer Tools</p>
+          <div className='flex flex-wrap gap-[8px]'>
+            {isSuperadmin && (
+              <Link href='/admin/impersonate' onClick={() => onOpenChange?.(false)}>
+                <Button variant='active' size='sm'>
+                  Impersonate User
+                </Button>
+              </Link>
+            )}
+            {isPlaygroundEnabled && (
+              <Link href='/playground' onClick={() => onOpenChange?.(false)}>
+                <Button variant='active' size='sm'>
+                  Component Playground
+                </Button>
+              </Link>
+            )}
+            {isTrainingEnabled && (
+              <Button
+                variant='active'
+                size='sm'
+                onClick={() => {
+                  onOpenChange?.(false)
+                  toggleTrainingModal()
+                }}
+              >
+                Copilot Training
+              </Button>
+            )}
+          </div>
+          {isSuperadmin && (
+            <div className='mt-[4px] flex items-center justify-between'>
+              <Label htmlFor='admin-mode' className='text-[12px]'>
+                Admin mode
+              </Label>
+              <Switch
+                id='admin-mode'
+                checked={settings?.superUserModeEnabled ?? true}
+                onCheckedChange={handleAdminModeToggle}
+              />
+            </div>
+          )}
         </div>
       )}
 

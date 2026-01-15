@@ -5,6 +5,7 @@ import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import { getSessionFromCtx } from 'better-auth/api'
 import { nextCookies } from 'better-auth/next-js'
 import {
   admin,
@@ -522,7 +523,7 @@ export const auth = betterAuth({
 
       // Impersonation authorization: only superadmin users can impersonate
       if (ctx.path.startsWith('/admin/impersonate-user')) {
-        const session = ctx.context.session
+        const session = await getSessionFromCtx(ctx)
         if (!session?.user?.id) {
           throw new Error('You must be logged in to impersonate users.')
         }

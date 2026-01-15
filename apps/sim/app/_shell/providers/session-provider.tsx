@@ -20,6 +20,7 @@ export type AppSession = {
     id?: string
     userId?: string
     activeOrganizationId?: string
+    impersonatedBy?: string | null
   }
 } | null
 
