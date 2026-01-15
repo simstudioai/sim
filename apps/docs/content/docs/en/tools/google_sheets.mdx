@@ -10,6 +10,22 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E0E0E0"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Google Sheets](https://www.google.com/sheets/about/) is a powerful, cloud-based spreadsheet platform that allows teams and individuals to create, edit, and collaborate on spreadsheets in real-time. Widely used for data tracking, reporting, and lightweight database needs, Google Sheets seamlessly integrates with many tools and services to empower workflow automation and data-driven operations.
+
+Google Sheets offers an extensive feature set for managing and analyzing tabular data, supporting everything from basic calculations to complex reporting and collaborative editing. Its robust API and integration capabilities enable automated access, updates, and reporting from agents and external services.
+
+Key features of Google Sheets include:
+
+- Real-Time Collaboration: Multiple users can edit and view spreadsheets simultaneously from anywhere.
+- Rich Data Manipulation: Support for formulas, charts, pivots, and add-ons to analyze and visualize data.
+- Easy Data Import/Export: Ability to connect and sync data from various sources using integrations and APIs.
+- Powerful Permissions: Fine-grained sharing, access controls, and version history for team management.
+
+In Sim, the Google Sheets integration empowers your agents to automate reading from, writing to, and updating specific sheets within spreadsheets. Agents can interact programmatically with Google Sheets to retrieve or modify data, manage collaborative documents, and automate reporting or record-keeping as part of your AI workflows. By connecting Sim with Google Sheets, you can build intelligent agents that manage, analyze, and update your data dynamically—streamlining operations, enhancing productivity, and ensuring up-to-date data access across your organization.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Google Sheets into the workflow with explicit sheet selection. Can read, write, append, and update data in specific sheets.
@@ -20,34 +36,38 @@ Integrate Google Sheets into the workflow with explicit sheet selection. Can rea
 
 ### `google_sheets_read`
 
-Read data from a Google Sheets spreadsheet
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Yes | The ID of the spreadsheet \(found in the URL: docs.google.com/spreadsheets/d/\{SPREADSHEET_ID\}/edit\). |
-| `range` | string | No | The A1 notation range to read \(e.g. "Sheet1!A1:D10", "A1:B5"\). Defaults to first sheet A1:Z1000 if not specified. |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `data` | json | Sheet data including range and cell values |
-| `metadata` | json | Spreadsheet metadata including ID and URL |
-| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
-
-### `google_sheets_write`
-
-Write data to a Google Sheets spreadsheet
+Read data from a specific sheet in a Google Sheets spreadsheet
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet |
-| `range` | string | No | The A1 notation range to write to \(e.g. "Sheet1!A1:D10", "A1:B5"\) |
+| `sheetName` | string | Yes | The name of the sheet/tab to read from |
+| `cellRange` | string | No | The cell range to read \(e.g. "A1:D10"\). Defaults to "A1:Z1000" if not specified. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sheetName` | string | Name of the sheet that was read |
+| `range` | string | The range of cells that was read |
+| `values` | array | The cell values as a 2D array |
+| `metadata` | json | Spreadsheet metadata including ID and URL |
+| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+### `google_sheets_write`
+
+Write data to a specific sheet in a Google Sheets spreadsheet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet |
+| `sheetName` | string | Yes | The name of the sheet/tab to write to |
+| `cellRange` | string | No | The cell range to write to \(e.g. "A1:D10", "A1"\). Defaults to "A1" if not specified. |
 | `values` | array | Yes | The data to write as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
 | `valueInputOption` | string | No | The format of the data to write |
 | `includeValuesInResponse` | boolean | No | Whether to include the written values in the response |
@@ -66,14 +86,15 @@ Write data to a Google Sheets spreadsheet
 
 ### `google_sheets_update`
 
-Update data in a Google Sheets spreadsheet
+Update data in a specific sheet in a Google Sheets spreadsheet
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet to update |
-| `range` | string | No | The A1 notation range to update \(e.g. "Sheet1!A1:D10", "A1:B5"\) |
+| `sheetName` | string | Yes | The name of the sheet/tab to update |
+| `cellRange` | string | No | The cell range to update \(e.g. "A1:D10", "A1"\). Defaults to "A1" if not specified. |
 | `values` | array | Yes | The data to update as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\]\]\) or array of objects. |
 | `valueInputOption` | string | No | The format of the data to update |
 | `includeValuesInResponse` | boolean | No | Whether to include the updated values in the response |
@@ -92,14 +113,14 @@ Update data in a Google Sheets spreadsheet
 
 ### `google_sheets_append`
 
-Append data to the end of a Google Sheets spreadsheet
+Append data to the end of a specific sheet in a Google Sheets spreadsheet
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet to append to |
-| `range` | string | No | The A1 notation range to append after \(e.g. "Sheet1", "Sheet1!A:D"\) |
+| `sheetName` | string | Yes | The name of the sheet/tab to append to |
 | `values` | array | Yes | The data to append as a 2D array \(e.g. \[\["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
 | `valueInputOption` | string | No | The format of the data to append |
 | `insertDataOption` | string | No | How to insert the data \(OVERWRITE or INSERT_ROWS\) |
