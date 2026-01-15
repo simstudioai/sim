@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import type { NextRequest } from 'next/server'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
@@ -298,7 +298,7 @@ async function syncCredentialSetWebhooks(params: {
   return null
 }
 
-async function upsertSingleWebhook(params: {
+async function createWebhookForBlock(params: {
   request: NextRequest
   workflowId: string
   workflow: Record<string, unknown>
@@ -320,66 +320,6 @@ async function upsertSingleWebhook(params: {
     triggerPath,
     requestId,
   } = params
-
-  const existingWebhooks = await db
-    .select()
-    .from(webhook)
-    .where(and(eq(webhook.workflowId, workflowId), eq(webhook.blockId, block.id)))
-    .limit(1)
-
-  const existing = existingWebhooks[0]
-  if (existing) {
-    const existingConfig = (existing.providerConfig as Record<string, unknown>) || {}
-    let nextProviderConfig = providerConfig
-
-    if (
-      shouldRecreateExternalWebhookSubscription({
-        previousProvider: existing.provider as string,
-        nextProvider: provider,
-        previousConfig: existingConfig,
-        nextConfig: nextProviderConfig,
-      })
-    ) {
-      await cleanupExternalWebhook(existing, workflow, requestId)
-      const result = await createExternalWebhookSubscription(
-        request,
-        {
-          ...existing,
-          provider,
-          path: triggerPath,
-          providerConfig: nextProviderConfig,
-        },
-        workflow,
-        userId,
-        requestId
-      )
-      nextProviderConfig = result.updatedProviderConfig as Record<string, unknown>
-    }
-
-    const finalProviderConfig = {
-      ...nextProviderConfig,
-      credentialId: nextProviderConfig.credentialId ?? existingConfig.credentialId,
-      credentialSetId: nextProviderConfig.credentialSetId ?? existingConfig.credentialSetId,
-      userId: nextProviderConfig.userId ?? existingConfig.userId,
-      historyId: existingConfig.historyId,
-      lastCheckedTimestamp: existingConfig.lastCheckedTimestamp,
-      setupCompleted: existingConfig.setupCompleted,
-      externalId: nextProviderConfig.externalId ?? existingConfig.externalId,
-    }
-
-    await db
-      .update(webhook)
-      .set({
-        path: triggerPath,
-        provider,
-        providerConfig: finalProviderConfig,
-        isActive: true,
-        updatedAt: new Date(),
-      })
-      .where(eq(webhook.id, existing.id))
-
-    return null
-  }
 
   const webhookId = nanoid()
   const createPayload = {
@@ -434,6 +374,7 @@ async function upsertSingleWebhook(params: {
 
 /**
  * Saves trigger webhook configurations as part of workflow deployment.
+ * Uses delete + create approach for changed/deleted webhooks.
  */
 export async function saveTriggerWebhooksForDeploy({
   request,
@@ -444,22 +385,31 @@ export async function saveTriggerWebhooksForDeploy({
   requestId,
 }: SaveTriggerWebhooksInput): Promise<TriggerSaveResult> {
   const triggerBlocks = Object.values(blocks || {}).filter(Boolean)
+  const currentBlockIds = new Set(triggerBlocks.map((b) => b.id))
 
-  if (triggerBlocks.length === 0) {
-    return { success: true }
-  }
+  // 1. Get all existing webhooks for this workflow
+  const existingWebhooks = await db.select().from(webhook).where(eq(webhook.workflowId, workflowId))
+
+  const webhooksByBlockId = new Map(
+    existingWebhooks.filter((wh) => wh.blockId).map((wh) => [wh.blockId!, wh])
+  )
+
+  logger.info(`[${requestId}] Starting webhook sync`, {
+    workflowId,
+    currentBlockIds: Array.from(currentBlockIds),
+    existingWebhookBlockIds: Array.from(webhooksByBlockId.keys()),
+  })
+
+  // 2. Determine which webhooks to delete (orphaned or config changed)
+  const webhooksToDelete: typeof existingWebhooks = []
+  const blocksNeedingWebhook: BlockState[] = []
 
   for (const block of triggerBlocks) {
     const triggerId = resolveTriggerId(block)
-    if (!triggerId) continue
-
-    if (!isTriggerValid(triggerId)) {
-      continue
-    }
+    if (!triggerId || !isTriggerValid(triggerId)) continue
 
     const triggerDef = getTrigger(triggerId)
     const provider = triggerDef.provider
-
     const { providerConfig, missingFields, triggerPath } = buildProviderConfig(
       block,
       triggerId,
@@ -475,8 +425,69 @@ export async function saveTriggerWebhooksForDeploy({
         },
       }
     }
+    // Store config for later use
+
+    ;(block as any)._webhookConfig = { provider, providerConfig, triggerPath, triggerDef }
+
+    const existingWh = webhooksByBlockId.get(block.id)
+    if (!existingWh) {
+      // No existing webhook - needs creation
+      blocksNeedingWebhook.push(block)
+    } else {
+      // Check if config changed
+      const existingConfig = (existingWh.providerConfig as Record<string, unknown>) || {}
+      if (
+        shouldRecreateExternalWebhookSubscription({
+          previousProvider: existingWh.provider as string,
+          nextProvider: provider,
+          previousConfig: existingConfig,
+          nextConfig: providerConfig,
+        })
+      ) {
+        // Config changed - delete and recreate
+        webhooksToDelete.push(existingWh)
+        blocksNeedingWebhook.push(block)
+        logger.info(`[${requestId}] Webhook config changed for block ${block.id}, will recreate`)
+      }
+      // else: config unchanged, keep existing webhook
+    }
+  }
+
+  // Add orphaned webhooks (block no longer exists)
+  for (const wh of existingWebhooks) {
+    if (wh.blockId && !currentBlockIds.has(wh.blockId)) {
+      webhooksToDelete.push(wh)
+      logger.info(`[${requestId}] Webhook orphaned (block deleted): ${wh.blockId}`)
+    }
+  }
+
+  // 3. Delete webhooks that need deletion
+  if (webhooksToDelete.length > 0) {
+    logger.info(`[${requestId}] Deleting ${webhooksToDelete.length} webhook(s)`, {
+      webhookIds: webhooksToDelete.map((wh) => wh.id),
+    })
+
+    for (const wh of webhooksToDelete) {
+      try {
+        await cleanupExternalWebhook(wh, workflow, requestId)
+      } catch (cleanupError) {
+        logger.warn(`[${requestId}] Failed to cleanup external webhook ${wh.id}`, cleanupError)
+      }
+    }
+
+    const idsToDelete = webhooksToDelete.map((wh) => wh.id)
+    await db.delete(webhook).where(inArray(webhook.id, idsToDelete))
+  }
+
+  // 4. Create webhooks for blocks that need them
+  for (const block of blocksNeedingWebhook) {
+    const config = (block as any)._webhookConfig
+    if (!config) continue
+
+    const { provider, providerConfig, triggerPath } = config
 
     try {
+      // Handle credential sets
       const credentialSetError = await syncCredentialSetWebhooks({
         workflowId,
         blockId: block.id,
@@ -494,7 +505,7 @@ export async function saveTriggerWebhooksForDeploy({
         continue
       }
 
-      const upsertError = await upsertSingleWebhook({
+      const createError = await createWebhookForBlock({
         request,
         workflowId,
         workflow,
@@ -506,11 +517,11 @@ export async function saveTriggerWebhooksForDeploy({
         requestId,
       })
 
-      if (upsertError) {
-        return { success: false, error: upsertError }
+      if (createError) {
+        return { success: false, error: createError }
       }
     } catch (error: any) {
-      logger.error(`[${requestId}] Failed to save trigger config for ${block.id}`, error)
+      logger.error(`[${requestId}] Failed to create webhook for ${block.id}`, error)
       return {
         success: false,
         error: {
@@ -519,6 +530,11 @@ export async function saveTriggerWebhooksForDeploy({
         },
       }
     }
+  }
+
+  // Clean up temp config
+  for (const block of triggerBlocks) {
+    ;(block as any)._webhookConfig = undefined
   }
 
   return { success: true }

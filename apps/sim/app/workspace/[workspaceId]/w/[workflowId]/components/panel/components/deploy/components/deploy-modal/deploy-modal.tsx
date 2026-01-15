@@ -189,6 +189,7 @@ export function DeployModal({
   useEffect(() => {
     if (open && workflowId) {
       setActiveTab('general')
+      setApiDeployError(null)
       fetchChatDeploymentInfo()
     }
   }, [open, workflowId, fetchChatDeploymentInfo])
@@ -507,6 +508,7 @@ export function DeployModal({
   const handleCloseModal = () => {
     setIsSubmitting(false)
     setChatSubmitting(false)
+    setApiDeployError(null)
     onOpenChange(false)
   }
 

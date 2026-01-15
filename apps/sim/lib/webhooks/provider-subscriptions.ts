@@ -729,32 +729,70 @@ export async function deleteLemlistWebhook(webhook: any, requestId: string): Pro
       return
     }
 
-    if (!externalId) {
-      lemlistLogger.warn(
-        `[${requestId}] Missing externalId for Lemlist webhook deletion ${webhook.id}, skipping cleanup`
-      )
+    const authString = Buffer.from(`:${apiKey}`).toString('base64')
+
+    const deleteById = async (id: string) => {
+      const lemlistApiUrl = `https://api.lemlist.com/api/hooks/${id}`
+      const lemlistResponse = await fetch(lemlistApiUrl, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Basic ${authString}`,
+        },
+      })
+
+      if (!lemlistResponse.ok && lemlistResponse.status !== 404) {
+        const responseBody = await lemlistResponse.json().catch(() => ({}))
+        lemlistLogger.warn(
+          `[${requestId}] Failed to delete Lemlist webhook (non-fatal): ${lemlistResponse.status}`,
+          { response: responseBody }
+        )
+      } else {
+        lemlistLogger.info(`[${requestId}] Successfully deleted Lemlist webhook ${id}`)
+      }
+    }
+
+    if (externalId) {
+      await deleteById(externalId)
       return
     }
 
-    // Lemlist uses Basic Auth with empty username and API key as password
-    const authString = Buffer.from(`:${apiKey}`).toString('base64')
-    const lemlistApiUrl = `https://api.lemlist.com/api/hooks/${externalId}`
-
-    const lemlistResponse = await fetch(lemlistApiUrl, {
-      method: 'DELETE',
+    const notificationUrl = getNotificationUrl(webhook)
+    const listResponse = await fetch('https://api.lemlist.com/api/hooks', {
+      method: 'GET',
       headers: {
         Authorization: `Basic ${authString}`,
       },
     })
 
-    if (!lemlistResponse.ok && lemlistResponse.status !== 404) {
-      const responseBody = await lemlistResponse.json().catch(() => ({}))
+    if (!listResponse.ok) {
       lemlistLogger.warn(
-        `[${requestId}] Failed to delete Lemlist webhook (non-fatal): ${lemlistResponse.status}`,
-        { response: responseBody }
+        `[${requestId}] Failed to list Lemlist webhooks for cleanup ${webhook.id}`,
+        { status: listResponse.status }
       )
-    } else {
-      lemlistLogger.info(`[${requestId}] Successfully deleted Lemlist webhook ${externalId}`)
+      return
+    }
+
+    const listBody = await listResponse.json().catch(() => null)
+    const hooks: Array<Record<string, any>> = Array.isArray(listBody)
+      ? listBody
+      : listBody?.hooks || listBody?.data || []
+    const matches = hooks.filter((hook) => {
+      const targetUrl = hook?.targetUrl || hook?.target_url || hook?.url
+      return typeof targetUrl === 'string' && targetUrl === notificationUrl
+    })
+
+    if (matches.length === 0) {
+      lemlistLogger.info(`[${requestId}] Lemlist webhook not found for cleanup ${webhook.id}`, {
+        notificationUrl,
+      })
+      return
+    }
+
+    for (const hook of matches) {
+      const hookId = hook?._id || hook?.id
+      if (typeof hookId === 'string' && hookId.length > 0) {
+        await deleteById(hookId)
+      }
     }
   } catch (error) {
     lemlistLogger.warn(`[${requestId}] Error deleting Lemlist webhook (non-fatal)`, error)
@@ -988,6 +1026,8 @@ export async function createLemlistWebhookSubscription(
     }
 
     const eventType = eventTypeMap[triggerId]
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+    const authString = Buffer.from(`:${apiKey}`).toString('base64')
 
     lemlistLogger.info(`[${requestId}] Creating Lemlist webhook`, {
       triggerId,
@@ -995,8 +1035,6 @@ export async function createLemlistWebhookSubscription(
       hasCampaignId: !!campaignId,
       webhookId: webhookData.id,
     })
-
-    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
 
     const lemlistApiUrl = 'https://api.lemlist.com/api/hooks'
 
@@ -1011,8 +1049,6 @@ export async function createLemlistWebhookSubscription(
     if (campaignId) {
       requestBody.campaignId = campaignId
     }
-
-    const authString = Buffer.from(`:${apiKey}`).toString('base64')
 
     const lemlistResponse = await fetch(lemlistApiUrl, {
       method: 'POST',
@@ -1426,13 +1462,29 @@ type RecreateCheckInput = {
   nextConfig: Record<string, unknown>
 }
 
-function areValuesEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true
-  if (Array.isArray(a) || Array.isArray(b) || typeof a === 'object' || typeof b === 'object') {
-    return JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
-  }
-  return false
-}
+/** Providers that create external webhook subscriptions */
+const PROVIDERS_WITH_EXTERNAL_SUBSCRIPTIONS = new Set([
+  'airtable',
+  'calendly',
+  'webflow',
+  'typeform',
+  'grain',
+  'lemlist',
+  'telegram',
+  'microsoft-teams',
+])
+
+/** System-managed fields that shouldn't trigger recreation */
+const SYSTEM_MANAGED_FIELDS = new Set([
+  'externalId',
+  'externalSubscriptionId',
+  'eventTypes',
+  'webhookTag',
+  'historyId',
+  'lastCheckedTimestamp',
+  'setupCompleted',
+  'userId',
+])
 
 export function shouldRecreateExternalWebhookSubscription({
   previousProvider,
@@ -1440,30 +1492,34 @@ export function shouldRecreateExternalWebhookSubscription({
   previousConfig,
   nextConfig,
 }: RecreateCheckInput): boolean {
-  const relevantKeysByProvider: Record<string, string[]> = {
-    airtable: ['baseId', 'tableId', 'includeCellValues', 'includeCellValuesInFieldIds'],
-    calendly: ['apiKey', 'organization', 'triggerId'],
-    webflow: ['siteId', 'collectionId', 'formId', 'triggerId'],
-    typeform: ['formId', 'apiKey', 'secret', 'webhookTag'],
-    grain: ['apiKey', 'triggerId', 'includeHighlights', 'includeParticipants', 'includeAiSummary'],
-    lemlist: ['apiKey', 'triggerId', 'campaignId'],
-    telegram: ['botToken'],
-    'microsoft-teams': ['triggerId', 'chatId', 'credentialId', 'credentialSetId'],
-  }
-
   if (previousProvider !== nextProvider) {
     return (
-      Boolean(relevantKeysByProvider[previousProvider]) ||
-      Boolean(relevantKeysByProvider[nextProvider])
+      PROVIDERS_WITH_EXTERNAL_SUBSCRIPTIONS.has(previousProvider) ||
+      PROVIDERS_WITH_EXTERNAL_SUBSCRIPTIONS.has(nextProvider)
     )
   }
 
-  const keys = relevantKeysByProvider[nextProvider]
-  if (!keys) {
+  if (!PROVIDERS_WITH_EXTERNAL_SUBSCRIPTIONS.has(nextProvider)) {
     return false
   }
 
-  return keys.some((key) => !areValuesEqual(previousConfig[key], nextConfig[key]))
+  const allKeys = new Set([...Object.keys(previousConfig), ...Object.keys(nextConfig)])
+
+  for (const key of allKeys) {
+    if (SYSTEM_MANAGED_FIELDS.has(key)) continue
+
+    const prevVal = previousConfig[key]
+    const nextVal = nextConfig[key]
+
+    const prevStr = typeof prevVal === 'object' ? JSON.stringify(prevVal ?? null) : prevVal
+    const nextStr = typeof nextVal === 'object' ? JSON.stringify(nextVal ?? null) : nextVal
+
+    if (prevStr !== nextStr) {
+      return true
+    }
+  }
+
+  return false
 }
 
 export async function createExternalWebhookSubscription(

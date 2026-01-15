@@ -1,13 +1,12 @@
 import { db } from '@sim/db'
-import { webhook, workflow, workflowBlocks } from '@sim/db/schema'
+import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq, inArray } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
@@ -191,59 +190,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       lastSaved: state.lastSaved || Date.now(),
       isDeployed: state.isDeployed || false,
       deployedAt: state.deployedAt,
-    }
-
-    // Find blocks that were deleted or edited
-    const currentBlockIds = new Set(Object.keys(filteredBlocks))
-    const previousBlocks = await db
-      .select({ id: workflowBlocks.id, data: workflowBlocks.data })
-      .from(workflowBlocks)
-      .where(eq(workflowBlocks.workflowId, workflowId))
-
-    const blocksToCleanup: string[] = []
-    for (const prevBlock of previousBlocks) {
-      if (!currentBlockIds.has(prevBlock.id)) {
-        // Block was deleted
-        blocksToCleanup.push(prevBlock.id)
-      } else {
-        // Block still exists - check if it was edited
-        const newBlock = filteredBlocks[prevBlock.id]
-        const prevData = prevBlock.data as Record<string, unknown> | null
-        if (prevData && JSON.stringify(prevData) !== JSON.stringify(newBlock)) {
-          blocksToCleanup.push(prevBlock.id)
-        }
-      }
-    }
-
-    if (blocksToCleanup.length > 0) {
-      const webhooksToCleanup = await db
-        .select()
-        .from(webhook)
-        .where(inArray(webhook.blockId, blocksToCleanup))
-
-      if (webhooksToCleanup.length > 0) {
-        logger.info(`[${requestId}] Cleaning up ${webhooksToCleanup.length} webhook(s)`, {
-          workflowId,
-          blocksEdited: blocksToCleanup.length,
-        })
-
-        const webhookIdsToDelete: string[] = []
-        for (const wh of webhooksToCleanup) {
-          try {
-            await cleanupExternalWebhook(wh, workflowData, requestId)
-          } catch (cleanupError) {
-            logger.warn(
-              `[${requestId}] Failed to cleanup external webhook ${wh.id} during workflow save`,
-              cleanupError
-            )
-          }
-          webhookIdsToDelete.push(wh.id)
-        }
-
-        if (webhookIdsToDelete.length > 0) {
-          await db.delete(webhook).where(inArray(webhook.id, webhookIdsToDelete))
-        }
-      }
     }
 
     const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState as any)

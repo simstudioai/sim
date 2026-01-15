@@ -199,7 +199,6 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
         switch (params.operation) {
           case 'create_runs_batch':
             return 'langsmith_create_runs_batch'
-          case 'create_run':
           default:
             return 'langsmith_create_run'
         }
