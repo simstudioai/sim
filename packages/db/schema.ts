@@ -39,6 +39,7 @@ export const user = pgTable('user', {
   updatedAt: timestamp('updated_at').notNull(),
   stripeCustomerId: text('stripe_customer_id'),
   isSuperUser: boolean('is_super_user').notNull().default(false),
+  role: text('role'), // Used by Better Auth admin plugin for impersonation
 })
 
 export const session = pgTable(
@@ -57,6 +58,7 @@ export const session = pgTable(
     activeOrganizationId: text('active_organization_id').references(() => organization.id, {
       onDelete: 'set null',
     }),
+    impersonatedBy: text('impersonated_by').references(() => user.id, { onDelete: 'cascade' }), // Admin user ID when impersonating
   },
   (table) => ({
     userIdIdx: index('session_user_id_idx').on(table.userId),

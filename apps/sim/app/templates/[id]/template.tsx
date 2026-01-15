@@ -38,6 +38,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { CredentialRequirement } from '@/lib/workflows/credentials/credential-extractor'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks/registry'
+import { useAdminStatus } from '@/hooks/queries/admin-status'
 import { useStarTemplate, useTemplate } from '@/hooks/queries/templates'
 
 const logger = createLogger('TemplateDetails')
@@ -150,7 +151,8 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
   const [currentUserOrgRoles, setCurrentUserOrgRoles] = useState<
     Array<{ organizationId: string; role: string }>
   >([])
-  const [isSuperUser, setIsSuperUser] = useState(false)
+  const { data: adminStatus } = useAdminStatus(!!session?.user?.id)
+  const hasAdminPrivileges = adminStatus?.hasAdminPrivileges ?? false
   const [isUsing, setIsUsing] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isApproving, setIsApproving] = useState(false)
@@ -188,21 +190,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       }
     }
 
-    const fetchSuperUserStatus = async () => {
-      if (!currentUserId) return
-
-      try {
-        const response = await fetch('/api/user/super-user')
-        if (response.ok) {
-          const data = await response.json()
-          setIsSuperUser(data.isSuperUser || false)
-        }
-      } catch (error) {
-        logger.error('Error fetching super user status:', error)
-      }
-    }
-
-    fetchSuperUserStatus()
     fetchUserOrganizations()
   }, [currentUserId])
 
@@ -650,7 +637,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
             {/* Action buttons */}
             <div className='flex items-center gap-[8px]'>
               {/* Approve/Reject buttons for super users */}
-              {isSuperUser && template.status === 'pending' && (
+              {hasAdminPrivileges && template.status === 'pending' && (
                 <>
                   <Button
                     variant='active'
@@ -974,7 +961,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                   <h3 className='font-sans font-semibold text-base text-foreground'>
                     About the Creator
                   </h3>
-                  {isSuperUser && template.creator && (
+                  {hasAdminPrivileges && template.creator && (
                     <Button
                       variant={template.creator.verified ? 'active' : 'default'}
                       onClick={handleToggleVerification}

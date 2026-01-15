@@ -22,15 +22,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user is a super user
     const currentUser = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1)
+    const hasAdminPrivileges =
+      currentUser[0]?.role === 'admin' || currentUser[0]?.role === 'superadmin'
 
-    if (!currentUser[0]?.isSuperUser) {
-      logger.warn(`[${requestId}] Non-super user attempted to verify creator: ${id}`)
-      return NextResponse.json({ error: 'Only super users can verify creators' }, { status: 403 })
+    if (!hasAdminPrivileges) {
+      logger.warn(`[${requestId}] Non-admin user attempted to verify creator: ${id}`)
+      return NextResponse.json({ error: 'Only admin users can verify creators' }, { status: 403 })
     }
 
-    // Check if creator exists
     const existingCreator = await db
       .select()
       .from(templateCreators)
@@ -42,7 +42,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Creator not found' }, { status: 404 })
     }
 
-    // Update creator verified status to true
     await db
       .update(templateCreators)
       .set({ verified: true, updatedAt: new Date() })
@@ -75,15 +74,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user is a super user
     const currentUser = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1)
+    const hasAdminPrivileges =
+      currentUser[0]?.role === 'admin' || currentUser[0]?.role === 'superadmin'
 
-    if (!currentUser[0]?.isSuperUser) {
-      logger.warn(`[${requestId}] Non-super user attempted to unverify creator: ${id}`)
-      return NextResponse.json({ error: 'Only super users can unverify creators' }, { status: 403 })
+    if (!hasAdminPrivileges) {
+      logger.warn(`[${requestId}] Non-admin user attempted to unverify creator: ${id}`)
+      return NextResponse.json({ error: 'Only admin users can unverify creators' }, { status: 403 })
     }
 
-    // Check if creator exists
     const existingCreator = await db
       .select()
       .from(templateCreators)
@@ -95,7 +94,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Creator not found' }, { status: 404 })
     }
 
-    // Update creator verified status to false
     await db
       .update(templateCreators)
       .set({ verified: false, updatedAt: new Date() })

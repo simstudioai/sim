@@ -2,6 +2,7 @@ import { useContext } from 'react'
 import { ssoClient } from '@better-auth/sso/client'
 import { stripeClient } from '@better-auth/stripe/client'
 import {
+  adminClient,
   customSessionClient,
   emailOTPClient,
   genericOAuthClient,
@@ -20,6 +21,7 @@ export const client = createAuthClient({
     emailOTPClient(),
     genericOAuthClient(),
     customSessionClient<typeof auth>(),
+    adminClient(),
     ...(isBillingEnabled
       ? [
           stripeClient({

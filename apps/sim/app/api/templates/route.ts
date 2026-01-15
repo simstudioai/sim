@@ -23,13 +23,10 @@ const logger = createLogger('TemplatesAPI')
 
 export const revalidate = 0
 
-// Function to sanitize sensitive data from workflow state
-// Now uses the more comprehensive sanitizeCredentials from credential-extractor
 function sanitizeWorkflowState(state: any): any {
   return sanitizeCredentials(state)
 }
 
-// Schema for creating a template
 const CreateTemplateSchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
   name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
@@ -43,7 +40,6 @@ const CreateTemplateSchema = z.object({
   tags: z.array(z.string()).max(10, 'Maximum 10 tags allowed').optional().default([]),
 })
 
-// Schema for query parameters
 const QueryParamsSchema = z.object({
   limit: z.coerce.number().optional().default(50),
   offset: z.coerce.number().optional().default(0),
@@ -69,31 +65,21 @@ export async function GET(request: NextRequest) {
 
     logger.debug(`[${requestId}] Fetching templates with params:`, params)
 
-    // Check if user is a super user
     const currentUser = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1)
-    const isSuperUser = currentUser[0]?.isSuperUser || false
+    const isSuperUser = currentUser[0]?.role === 'admin' || currentUser[0]?.role === 'superadmin'
 
-    // Build query conditions
     const conditions = []
 
-    // Apply workflow filter if provided (for getting template by workflow)
-    // When fetching by workflowId, we want to get the template regardless of status
-    // This is used by the deploy modal to check if a template exists
     if (params.workflowId) {
       conditions.push(eq(templates.workflowId, params.workflowId))
-      // Don't apply status filter when fetching by workflowId - we want to show
-      // the template to its owner even if it's pending
     } else {
-      // Apply status filter - only approved templates for non-super users
       if (params.status) {
         conditions.push(eq(templates.status, params.status))
       } else if (!isSuperUser || !params.includeAllStatuses) {
-        // Non-super users and super users without includeAllStatuses flag see only approved templates
         conditions.push(eq(templates.status, 'approved'))
       }
     }
 
-    // Apply search filter if provided
     if (params.search) {
       const searchTerm = `%${params.search}%`
       conditions.push(
@@ -104,10 +90,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Combine conditions
     const whereCondition = conditions.length > 0 ? and(...conditions) : undefined
 
-    // Apply ordering, limit, and offset with star information
     const results = await db
       .select({
         id: templates.id,
@@ -138,7 +122,6 @@ export async function GET(request: NextRequest) {
       .limit(params.limit)
       .offset(params.offset)
 
-    // Get total count for pagination
     const totalCount = await db
       .select({ count: sql<number>`count(*)` })
       .from(templates)
@@ -191,7 +174,6 @@ export async function POST(request: NextRequest) {
       workflowId: data.workflowId,
     })
 
-    // Verify the workflow exists and belongs to the user
     const workflowExists = await db
       .select({ id: workflow.id })
       .from(workflow)
@@ -218,7 +200,6 @@ export async function POST(request: NextRequest) {
     const templateId = uuidv4()
     const now = new Date()
 
-    // Get the active deployment version for the workflow to copy its state
     const activeVersion = await db
       .select({
         id: workflowDeploymentVersion.id,
@@ -243,10 +224,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Ensure the state includes workflow variables (if not already included)
     let stateWithVariables = activeVersion[0].state as any
     if (stateWithVariables && !stateWithVariables.variables) {
-      // Fetch workflow variables if not in deployment version
       const [workflowRecord] = await db
         .select({ variables: workflow.variables })
         .from(workflow)
@@ -259,10 +238,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Extract credential requirements before sanitizing
     const requiredCredentials = extractRequiredCredentials(stateWithVariables)
 
-    // Sanitize the workflow state to remove all credential values
     const sanitizedState = sanitizeWorkflowState(stateWithVariables)
 
     const newTemplate = {

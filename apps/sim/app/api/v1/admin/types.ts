@@ -105,6 +105,7 @@ export interface AdminUser {
   email: string
   emailVerified: boolean
   image: string | null
+  role: string | null
   createdAt: string
   updatedAt: string
 }
@@ -116,6 +117,7 @@ export function toAdminUser(dbUser: DbUser): AdminUser {
     email: dbUser.email,
     emailVerified: dbUser.emailVerified,
     image: dbUser.image,
+    role: dbUser.role,
     createdAt: dbUser.createdAt.toISOString(),
     updatedAt: dbUser.updatedAt.toISOString(),
   }

@@ -6,23 +6,26 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 
-const logger = createLogger('SuperUserAPI')
+const logger = createLogger('AdminStatusAPI')
 
 export const revalidate = 0
 
-// GET /api/user/super-user - Check if current user is a super user (database status)
+/**
+ * GET /api/user/admin-status - Check if current user has admin privileges
+ * Returns hasAdminPrivileges: true if user role is 'admin' or 'superadmin'
+ */
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized super user status check attempt`)
+      logger.warn(`[${requestId}] Unauthorized admin status check attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const currentUser = await db
-      .select({ isSuperUser: user.isSuperUser })
+      .select({ role: user.role })
       .from(user)
       .where(eq(user.id, session.user.id))
       .limit(1)
@@ -32,11 +35,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
+    const role = currentUser[0].role
     return NextResponse.json({
-      isSuperUser: currentUser[0].isSuperUser,
+      hasAdminPrivileges: role === 'admin' || role === 'superadmin',
+      role,
     })
   } catch (error) {
-    logger.error(`[${requestId}] Error checking super user status`, error)
+    logger.error(`[${requestId}] Error checking admin status`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

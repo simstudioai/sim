@@ -39,9 +39,9 @@ export default async function TemplatesPage({ params }: TemplatesPageProps) {
     redirect(`/workspace/${workspaceId}`)
   }
 
-  // Determine effective super user (DB flag AND UI mode enabled)
+  // Determine effective super user (admin/superadmin role AND UI mode enabled)
   const currentUser = await db
-    .select({ isSuperUser: user.isSuperUser })
+    .select({ role: user.role })
     .from(user)
     .where(eq(user.id, session.user.id))
     .limit(1)
@@ -51,7 +51,7 @@ export default async function TemplatesPage({ params }: TemplatesPageProps) {
     .where(eq(settings.userId, session.user.id))
     .limit(1)
 
-  const isSuperUser = currentUser[0]?.isSuperUser || false
+  const isSuperUser = currentUser[0]?.role === 'admin' || currentUser[0]?.role === 'superadmin'
   const superUserModeEnabled = userSettings[0]?.superUserModeEnabled ?? true
   const effectiveSuperUser = isSuperUser && superUserModeEnabled
 

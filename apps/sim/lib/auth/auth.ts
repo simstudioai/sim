@@ -7,6 +7,7 @@ import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
 import {
+  admin,
   createAuthMiddleware,
   customSession,
   emailOTP,
@@ -519,6 +520,23 @@ export const auth = betterAuth({
         }
       }
 
+      // Impersonation authorization: only superadmin users can impersonate
+      if (ctx.path.startsWith('/admin/impersonate-user')) {
+        const session = ctx.context.session
+        if (!session?.user?.id) {
+          throw new Error('You must be logged in to impersonate users.')
+        }
+
+        const currentUser = await db.query.user.findFirst({
+          where: eq(schema.user.id, session.user.id),
+          columns: { role: true },
+        })
+
+        if (currentUser?.role !== 'superadmin') {
+          throw new Error('Only superadmin users can impersonate other users.')
+        }
+      }
+
       return
     }),
   },
@@ -526,6 +544,11 @@ export const auth = betterAuth({
     nextCookies(),
     oneTimeToken({
       expiresIn: 24 * 60 * 60, // 24 hours - Socket.IO handles connection persistence with heartbeats
+    }),
+    admin({
+      impersonationSessionDuration: 60 * 60, // 1 hour in seconds
+      defaultRole: 'user',
+      adminRoles: ['superadmin'], // Only superadmins can use admin plugin features like impersonation
     }),
     customSession(async ({ user, session }) => ({
       user,

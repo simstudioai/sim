@@ -24,6 +24,7 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/hooks/use-profile-picture-upload'
+import { useAdminStatus } from '@/hooks/queries/admin-status'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useUpdateUserProfile, useUserProfile } from '@/hooks/queries/user-profile'
 import { clearUserData } from '@/stores'
@@ -129,8 +130,8 @@ export function General({ onOpenChange }: GeneralProps) {
   const isTrainingEnabled = isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED'))
   const isAuthDisabled = session?.user?.id === ANONYMOUS_USER_ID
 
-  const [isSuperUser, setIsSuperUser] = useState(false)
-  const [loadingSuperUser, setLoadingSuperUser] = useState(true)
+  const { data: adminStatus, isLoading: loadingAdminStatus } = useAdminStatus(!!session?.user?.id)
+  const hasAdminPrivileges = adminStatus?.hasAdminPrivileges ?? false
 
   const [name, setName] = useState(profile?.name || '')
   const [isEditingName, setIsEditingName] = useState(false)
@@ -150,26 +151,6 @@ export function General({ onOpenChange }: GeneralProps) {
       setName(profile.name)
     }
   }, [profile?.name])
-
-  useEffect(() => {
-    const fetchSuperUserStatus = async () => {
-      try {
-        const response = await fetch('/api/user/super-user')
-        if (response.ok) {
-          const data = await response.json()
-          setIsSuperUser(data.isSuperUser)
-        }
-      } catch (error) {
-        logger.error('Failed to fetch super user status:', error)
-      } finally {
-        setLoadingSuperUser(false)
-      }
-    }
-
-    if (session?.user?.id) {
-      fetchSuperUserStatus()
-    }
-  }, [session?.user?.id])
 
   const {
     previewUrl: profilePictureUrl,
@@ -544,11 +525,11 @@ export function General({ onOpenChange }: GeneralProps) {
         </div>
       )}
 
-      {!loadingSuperUser && isSuperUser && (
+      {!loadingAdminStatus && hasAdminPrivileges && (
         <div className='flex items-center justify-between'>
-          <Label htmlFor='super-user-mode'>Super admin mode</Label>
+          <Label htmlFor='admin-mode'>Admin mode</Label>
           <Switch
-            id='super-user-mode'
+            id='admin-mode'
             checked={settings?.superUserModeEnabled ?? true}
             onCheckedChange={handleSuperUserModeToggle}
           />

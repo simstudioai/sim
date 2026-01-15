@@ -5,14 +5,14 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { verifySuperUser } from '@/lib/templates/permissions'
+import { verifyAdminPrivileges } from '@/lib/templates/permissions'
 
 const logger = createLogger('TemplateApprovalAPI')
 
 export const revalidate = 0
 
 /**
- * POST /api/templates/[id]/approve - Approve a template (super users only)
+ * POST /api/templates/[id]/approve - Approve a template (admin users only)
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
@@ -25,10 +25,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { isSuperUser } = await verifySuperUser(session.user.id)
-    if (!isSuperUser) {
-      logger.warn(`[${requestId}] Non-super user attempted to approve template: ${id}`)
-      return NextResponse.json({ error: 'Only super users can approve templates' }, { status: 403 })
+    const { hasAdminPrivileges } = await verifyAdminPrivileges(session.user.id)
+    if (!hasAdminPrivileges) {
+      logger.warn(`[${requestId}] Non-admin user attempted to approve template: ${id}`)
+      return NextResponse.json({ error: 'Only admin users can approve templates' }, { status: 403 })
     }
 
     const existingTemplate = await db.select().from(templates).where(eq(templates.id, id)).limit(1)
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .set({ status: 'approved', updatedAt: new Date() })
       .where(eq(templates.id, id))
 
-    logger.info(`[${requestId}] Template approved: ${id} by super user: ${session.user.id}`)
+    logger.info(`[${requestId}] Template approved: ${id} by admin: ${session.user.id}`)
 
     return NextResponse.json({
       message: 'Template approved successfully',
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 }
 
 /**
- * DELETE /api/templates/[id]/approve - Unapprove a template (super users only)
+ * DELETE /api/templates/[id]/approve - Unapprove a template (admin users only)
  */
 export async function DELETE(
   _request: NextRequest,
@@ -71,10 +71,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { isSuperUser } = await verifySuperUser(session.user.id)
-    if (!isSuperUser) {
-      logger.warn(`[${requestId}] Non-super user attempted to reject template: ${id}`)
-      return NextResponse.json({ error: 'Only super users can reject templates' }, { status: 403 })
+    const { hasAdminPrivileges } = await verifyAdminPrivileges(session.user.id)
+    if (!hasAdminPrivileges) {
+      logger.warn(`[${requestId}] Non-admin user attempted to reject template: ${id}`)
+      return NextResponse.json({ error: 'Only admin users can reject templates' }, { status: 403 })
     }
 
     const existingTemplate = await db.select().from(templates).where(eq(templates.id, id)).limit(1)
@@ -88,7 +88,7 @@ export async function DELETE(
       .set({ status: 'rejected', updatedAt: new Date() })
       .where(eq(templates.id, id))
 
-    logger.info(`[${requestId}] Template rejected: ${id} by super user: ${session.user.id}`)
+    logger.info(`[${requestId}] Template rejected: ${id} by admin: ${session.user.id}`)
 
     return NextResponse.json({
       message: 'Template rejected successfully',

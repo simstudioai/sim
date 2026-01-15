@@ -13,6 +13,8 @@
  *   GET    /api/v1/admin/users/:id                          - Get user details
  *   GET    /api/v1/admin/users/:id/billing                  - Get user billing info
  *   PATCH  /api/v1/admin/users/:id/billing                  - Update user billing (limit, blocked)
+ *   GET    /api/v1/admin/users/:id/role                     - Get user role
+ *   PATCH  /api/v1/admin/users/:id/role                     - Update user role (user, admin, superadmin)
  *
  *   Workspaces:
  *   GET    /api/v1/admin/workspaces                         - List all workspaces

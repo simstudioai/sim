@@ -5,14 +5,17 @@ import { and, eq, or } from 'drizzle-orm'
 export type CreatorPermissionLevel = 'member' | 'admin'
 
 /**
- * Verifies if a user is a super user.
+ * Verifies if a user has admin privileges (admin or superadmin role).
+ * Used for template approval, creator verification, etc.
  *
  * @param userId - The ID of the user to check
- * @returns Object with isSuperUser boolean
+ * @returns Object with hasAdminPrivileges boolean (true if admin or superadmin)
  */
-export async function verifySuperUser(userId: string): Promise<{ isSuperUser: boolean }> {
+export async function verifyAdminPrivileges(
+  userId: string
+): Promise<{ hasAdminPrivileges: boolean }> {
   const [currentUser] = await db.select().from(user).where(eq(user.id, userId)).limit(1)
-  return { isSuperUser: currentUser?.isSuperUser || false }
+  return { hasAdminPrivileges: currentUser?.role === 'admin' || currentUser?.role === 'superadmin' }
 }
 
 /**
