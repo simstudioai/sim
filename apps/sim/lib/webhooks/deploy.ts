@@ -358,9 +358,9 @@ async function upsertSingleWebhook(params: {
 
     const finalProviderConfig = {
       ...nextProviderConfig,
-      credentialId: existingConfig.credentialId,
-      credentialSetId: existingConfig.credentialSetId,
-      userId: existingConfig.userId,
+      credentialId: nextProviderConfig.credentialId ?? existingConfig.credentialId,
+      credentialSetId: nextProviderConfig.credentialSetId ?? existingConfig.credentialSetId,
+      userId: nextProviderConfig.userId ?? existingConfig.userId,
       historyId: existingConfig.historyId,
       lastCheckedTimestamp: existingConfig.lastCheckedTimestamp,
       setupCompleted: existingConfig.setupCompleted,
