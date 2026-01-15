@@ -1,14 +1,14 @@
 /**
  * Cell value renderer for different column types.
  *
- * @module tables/[tableId]/table-data-viewer/components/cell-renderer
+ * @module tables/[tableId]/table-data-viewer/components/table-cell-renderer
  */
 
 import type { ColumnDefinition } from '@/lib/table'
 import { STRING_TRUNCATE_LENGTH } from '../constants'
 import type { CellViewerData } from '../types'
 
-interface CellRendererProps {
+interface TableCellRendererProps {
   value: unknown
   column: ColumnDefinition
   onCellClick: (columnName: string, value: unknown, type: CellViewerData['type']) => void
@@ -20,7 +20,7 @@ interface CellRendererProps {
  * @param props - Component props
  * @returns Formatted cell content
  */
-export function CellRenderer({ value, column, onCellClick }: CellRendererProps) {
+export function TableCellRenderer({ value, column, onCellClick }: TableCellRendererProps) {
   const isNull = value === null || value === undefined
 
   if (isNull) {

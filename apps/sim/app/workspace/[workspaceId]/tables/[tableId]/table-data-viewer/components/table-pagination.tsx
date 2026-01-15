@@ -1,12 +1,12 @@
 /**
  * Pagination controls for the table.
  *
- * @module tables/[tableId]/table-data-viewer/components/pagination
+ * @module tables/[tableId]/table-data-viewer/components/table-pagination
  */
 
 import { Button } from '@/components/emcn'
 
-interface PaginationProps {
+interface TablePaginationProps {
   currentPage: number
   totalPages: number
   totalCount: number
@@ -18,15 +18,15 @@ interface PaginationProps {
  * Renders pagination controls for navigating table pages.
  *
  * @param props - Component props
- * @returns Pagination controls or null if only one page
+ * @returns Table pagination controls or null if only one page
  */
-export function Pagination({
+export function TablePagination({
   currentPage,
   totalPages,
   totalCount,
   onPreviousPage,
   onNextPage,
-}: PaginationProps) {
+}: TablePaginationProps) {
   if (totalPages <= 1) return null
 
   return (

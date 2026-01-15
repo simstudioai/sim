@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import type { ColumnDefinition, TableSchema } from '@/lib/table'
 
-const logger = createLogger('RowModal')
+const logger = createLogger('TableRowModal')
 
 /**
  * Represents row data from the table.
@@ -49,14 +49,14 @@ export interface TableInfo {
 /**
  * Modal mode determines the operation and UI.
  */
-export type RowModalMode = 'add' | 'edit' | 'delete'
+export type TableRowModalMode = 'add' | 'edit' | 'delete'
 
 /**
- * Props for the RowModal component.
+ * Props for the TableRowModal component.
  */
-export interface RowModalProps {
+export interface TableRowModalProps {
   /** The operation mode */
-  mode: RowModalMode
+  mode: TableRowModalMode
   /** Whether the modal is open */
   isOpen: boolean
   /** Callback when the modal should close */
@@ -147,7 +147,7 @@ function formatValueForInput(value: unknown, type: string): string {
  *
  * @example Add mode:
  * ```tsx
- * <RowModal
+ * <TableRowModal
  *   mode="add"
  *   isOpen={isOpen}
  *   onClose={() => setIsOpen(false)}
@@ -158,7 +158,7 @@ function formatValueForInput(value: unknown, type: string): string {
  *
  * @example Edit mode:
  * ```tsx
- * <RowModal
+ * <TableRowModal
  *   mode="edit"
  *   isOpen={isOpen}
  *   onClose={() => setIsOpen(false)}
@@ -170,7 +170,7 @@ function formatValueForInput(value: unknown, type: string): string {
  *
  * @example Delete mode:
  * ```tsx
- * <RowModal
+ * <TableRowModal
  *   mode="delete"
  *   isOpen={isOpen}
  *   onClose={() => setIsOpen(false)}
@@ -180,7 +180,15 @@ function formatValueForInput(value: unknown, type: string): string {
  * />
  * ```
  */
-export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess }: RowModalProps) {
+export function TableRowModal({
+  mode,
+  isOpen,
+  onClose,
+  table,
+  row,
+  rowIds,
+  onSuccess,
+}: TableRowModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 

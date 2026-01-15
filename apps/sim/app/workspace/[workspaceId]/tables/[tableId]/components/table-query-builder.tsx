@@ -42,9 +42,9 @@ interface Column {
 }
 
 /**
- * Props for the FilterBuilder component.
+ * Props for the TableQueryBuilder component.
  */
-interface FilterBuilderProps {
+interface TableQueryBuilderProps {
   /** Available columns for filtering */
   columns: Column[]
   /** Callback when query options should be applied */
@@ -169,14 +169,14 @@ function conditionsToFilter(conditions: FilterCondition[]): Record<string, Filte
  *
  * @example
  * ```tsx
- * <FilterBuilder
+ * <TableQueryBuilder
  *   columns={tableColumns}
  *   onApply={(options) => setQueryOptions(options)}
  *   onAddRow={() => setShowAddModal(true)}
  * />
  * ```
  */
-export function FilterBuilder({ columns, onApply, onAddRow }: FilterBuilderProps) {
+export function TableQueryBuilder({ columns, onApply, onAddRow }: TableQueryBuilderProps) {
   const [conditions, setConditions] = useState<FilterCondition[]>([])
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null)
 

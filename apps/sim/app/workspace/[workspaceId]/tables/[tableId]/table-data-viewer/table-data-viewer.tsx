@@ -19,16 +19,16 @@ import {
   TableRow,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { FilterBuilder, type QueryOptions, RowModal, TableActionBar } from '../components'
+import { type QueryOptions, TableActionBar, TableQueryBuilder, TableRowModal } from '../components'
 import {
-  CellRenderer,
   CellViewerModal,
-  EmptyRows,
-  LoadingRows,
-  Pagination,
   RowContextMenu,
   SchemaViewerModal,
+  TableCellRenderer,
+  TableEmptyRows,
   TableHeaderBar,
+  TableLoadingRows,
+  TablePagination,
 } from './components'
 import { useContextMenu, useRowSelection, useTableData } from './hooks'
 import type { CellViewerData, TableRowData } from './types'
@@ -199,7 +199,7 @@ export function TableDataViewer() {
       />
 
       <div className='flex shrink-0 flex-col gap-[8px] border-[var(--border)] border-b px-[16px] py-[10px]'>
-        <FilterBuilder
+        <TableQueryBuilder
           columns={columns}
           onApply={handleApplyQueryOptions}
           onAddRow={handleAddRow}
@@ -241,9 +241,9 @@ export function TableDataViewer() {
           </TableHeader>
           <TableBody>
             {isLoadingRows ? (
-              <LoadingRows columns={columns} />
+              <TableLoadingRows columns={columns} />
             ) : rows.length === 0 ? (
-              <EmptyRows
+              <TableEmptyRows
                 columnCount={columns.length}
                 hasFilter={!!queryOptions.filter}
                 onAddRow={handleAddRow}
@@ -268,7 +268,7 @@ export function TableDataViewer() {
                   {columns.map((column) => (
                     <TableCell key={column.name}>
                       <div className='max-w-[300px] truncate text-[13px]'>
-                        <CellRenderer
+                        <TableCellRenderer
                           value={row.data[column.name]}
                           column={column}
                           onCellClick={handleCellClick}
@@ -283,7 +283,7 @@ export function TableDataViewer() {
         </Table>
       </div>
 
-      <Pagination
+      <TablePagination
         currentPage={currentPage}
         totalPages={totalPages}
         totalCount={totalCount}
@@ -291,7 +291,7 @@ export function TableDataViewer() {
         onNextPage={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
       />
 
-      <RowModal
+      <TableRowModal
         mode='add'
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
@@ -303,7 +303,7 @@ export function TableDataViewer() {
       />
 
       {editingRow && (
-        <RowModal
+        <TableRowModal
           mode='edit'
           isOpen={true}
           onClose={() => setEditingRow(null)}
@@ -317,7 +317,7 @@ export function TableDataViewer() {
       )}
 
       {deletingRows.length > 0 && (
-        <RowModal
+        <TableRowModal
           mode='delete'
           isOpen={true}
           onClose={() => setDeletingRows([])}

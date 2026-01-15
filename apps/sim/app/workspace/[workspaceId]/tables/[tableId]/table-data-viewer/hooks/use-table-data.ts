@@ -5,7 +5,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query'
-import type { QueryOptions } from '../../components/filter-builder'
+import type { QueryOptions } from '../../components/table-query-builder'
 import { ROWS_PER_PAGE } from '../constants'
 import type { TableData, TableRowData } from '../types'
 

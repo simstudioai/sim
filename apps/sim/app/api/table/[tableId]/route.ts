@@ -1,13 +1,16 @@
-import { db } from '@sim/db'
-import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import type { TableColumnData, TableSchemaData } from '../utils'
-import { checkTableAccess, checkTableWriteAccess, verifyTableWorkspace } from '../utils'
+import { deleteTable, getTableById } from '@/lib/table'
+import type { TableSchemaData } from '../utils'
+import {
+  checkTableAccess,
+  checkTableWriteAccess,
+  normalizeColumn,
+  verifyTableWorkspace,
+} from '../utils'
 
 const logger = createLogger('TableDetailAPI')
 
@@ -26,21 +29,6 @@ const GetTableSchema = z.object({
  */
 interface TableRouteParams {
   params: Promise<{ tableId: string }>
-}
-
-/**
- * Normalizes a column definition ensuring all optional fields have explicit values.
- *
- * @param col - The column data to normalize
- * @returns Normalized column with explicit required and unique values
- */
-function normalizeColumn(col: TableColumnData): TableColumnData {
-  return {
-    name: col.name,
-    type: col.type,
-    required: col.required ?? false,
-    unique: col.unique ?? false,
-  }
 }
 
 /**
@@ -109,12 +97,8 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
       }
     }
 
-    // Get table (workspaceId validation is now handled by access check)
-    const [table] = await db
-      .select()
-      .from(userTableDefinitions)
-      .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
-      .limit(1)
+    // Get table using service layer
+    const table = await getTableById(tableId)
 
     if (!table) {
       return NextResponse.json({ error: 'Table not found' }, { status: 404 })
@@ -136,8 +120,14 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
           },
           rowCount: table.rowCount,
           maxRows: table.maxRows,
-          createdAt: table.createdAt.toISOString(),
-          updatedAt: table.updatedAt.toISOString(),
+          createdAt:
+            table.createdAt instanceof Date
+              ? table.createdAt.toISOString()
+              : String(table.createdAt),
+          updatedAt:
+            table.updatedAt instanceof Date
+              ? table.updatedAt.toISOString()
+              : String(table.updatedAt),
         },
       },
     })
@@ -157,14 +147,15 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
 /**
  * DELETE /api/table/[tableId]?workspaceId=xxx
  *
- * Permanently deletes a table and all its rows.
+ * Soft deletes a table.
  *
  * @param request - The incoming HTTP request
  * @param context - Route context containing tableId param
  * @returns JSON response confirming deletion or error
  *
  * @remarks
- * This performs a hard delete, removing all data permanently.
+ * This performs a soft delete, marking the table as deleted.
+ * Rows remain in the database but become inaccessible.
  * The operation requires write access to the table.
  */
 export async function DELETE(request: NextRequest, { params }: TableRouteParams) {
@@ -192,20 +183,8 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Delete all rows first
-    await db.delete(userTableRows).where(eq(userTableRows.tableId, tableId))
-
-    // Hard delete table
-    const [deletedTable] = await db
-      .delete(userTableDefinitions)
-      .where(eq(userTableDefinitions.id, tableId))
-      .returning()
-
-    if (!deletedTable) {
-      return NextResponse.json({ error: 'Table not found' }, { status: 404 })
-    }
-
-    logger.info(`[${requestId}] Deleted table ${tableId} for user ${authResult.userId}`)
+    // Soft delete table using service layer
+    await deleteTable(tableId, requestId)
 
     return NextResponse.json({
       success: true,

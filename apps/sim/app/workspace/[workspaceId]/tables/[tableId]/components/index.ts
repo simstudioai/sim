@@ -3,6 +3,7 @@
  *
  * @module tables/[tableId]/components
  */
-export * from './filter-builder'
-export * from './row-modal'
+
 export * from './table-action-bar'
+export * from './table-query-builder'
+export * from './table-row-modal'

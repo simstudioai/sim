@@ -1,14 +1,13 @@
 import { db } from '@sim/db'
-import { permissions, userTableDefinitions, workspace } from '@sim/db/schema'
+import { permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { TABLE_LIMITS, validateTableName, validateTableSchema } from '@/lib/table'
-import type { TableSchema } from '@/lib/table/validation/schema'
-import type { TableColumnData, TableSchemaData } from './utils'
+import { createTable, listTables, TABLE_LIMITS } from '@/lib/table'
+import { normalizeColumn, type TableSchemaData } from './utils'
 
 const logger = createLogger('TableAPI')
 
@@ -148,31 +147,6 @@ async function checkWorkspaceAccess(
 }
 
 /**
- * Column input type that accepts both Zod-inferred columns and database columns.
- */
-interface ColumnInput {
-  name: string
-  type: 'string' | 'number' | 'boolean' | 'date' | 'json'
-  required?: boolean
-  unique?: boolean
-}
-
-/**
- * Normalizes a column definition by ensuring all optional fields have explicit values.
- *
- * @param col - The column definition to normalize
- * @returns A normalized column with explicit required and unique values
- */
-function normalizeColumn(col: ColumnInput): TableColumnData {
-  return {
-    name: col.name,
-    type: col.type,
-    required: col.required ?? false,
-    unique: col.unique ?? false,
-  }
-}
-
-/**
  * POST /api/table
  *
  * Creates a new user-defined table in a workspace.
@@ -207,24 +181,6 @@ export async function POST(request: NextRequest) {
     const body: unknown = await request.json()
     const params = CreateTableSchema.parse(body)
 
-    // Validate table name
-    const nameValidation = validateTableName(params.name)
-    if (!nameValidation.valid) {
-      return NextResponse.json(
-        { error: 'Invalid table name', details: nameValidation.errors },
-        { status: 400 }
-      )
-    }
-
-    // Validate schema
-    const schemaValidation = validateTableSchema(params.schema as TableSchema)
-    if (!schemaValidation.valid) {
-      return NextResponse.json(
-        { error: 'Invalid table schema', details: schemaValidation.errors },
-        { status: 400 }
-      )
-    }
-
     // Check workspace access
     const { hasAccess, canWrite } = await checkWorkspaceAccess(
       params.workspaceId,
@@ -235,72 +191,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Check workspace table limit
-    const [tableCount] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(userTableDefinitions)
-      .where(
-        and(
-          eq(userTableDefinitions.workspaceId, params.workspaceId),
-          isNull(userTableDefinitions.deletedAt)
-        )
-      )
-
-    if (Number(tableCount.count) >= TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE) {
-      return NextResponse.json(
-        {
-          error: `Workspace table limit reached (${TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE} tables max)`,
-        },
-        { status: 400 }
-      )
-    }
-
-    // Check for duplicate table name
-    const [existing] = await db
-      .select({ id: userTableDefinitions.id })
-      .from(userTableDefinitions)
-      .where(
-        and(
-          eq(userTableDefinitions.workspaceId, params.workspaceId),
-          eq(userTableDefinitions.name, params.name),
-          isNull(userTableDefinitions.deletedAt)
-        )
-      )
-      .limit(1)
-
-    if (existing) {
-      return NextResponse.json(
-        { error: `Table "${params.name}" already exists in this workspace` },
-        { status: 400 }
-      )
-    }
-
     // Normalize schema to ensure all fields have explicit defaults
     const normalizedSchema: TableSchemaData = {
       columns: params.schema.columns.map(normalizeColumn),
     }
 
-    // Create table
-    const tableId = `tbl_${crypto.randomUUID().replace(/-/g, '')}`
-    const now = new Date()
-
-    const [table] = await db
-      .insert(userTableDefinitions)
-      .values({
-        id: tableId,
-        workspaceId: params.workspaceId,
+    // Create table using service layer
+    const table = await createTable(
+      {
         name: params.name,
         description: params.description,
         schema: normalizedSchema,
-        maxRows: TABLE_LIMITS.MAX_ROWS_PER_TABLE,
-        rowCount: 0,
-        createdBy: authResult.userId,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning()
-
-    logger.info(`[${requestId}] Created table ${tableId} in workspace ${params.workspaceId}`)
+        workspaceId: params.workspaceId,
+        userId: authResult.userId,
+      },
+      requestId
+    )
 
     return NextResponse.json({
       success: true,
@@ -312,8 +218,14 @@ export async function POST(request: NextRequest) {
           schema: table.schema,
           rowCount: table.rowCount,
           maxRows: table.maxRows,
-          createdAt: table.createdAt.toISOString(),
-          updatedAt: table.updatedAt.toISOString(),
+          createdAt:
+            table.createdAt instanceof Date
+              ? table.createdAt.toISOString()
+              : String(table.createdAt),
+          updatedAt:
+            table.updatedAt instanceof Date
+              ? table.updatedAt.toISOString()
+              : String(table.updatedAt),
         },
         message: 'Table created successfully',
       },
@@ -324,6 +236,18 @@ export async function POST(request: NextRequest) {
         { error: 'Validation error', details: error.errors },
         { status: 400 }
       )
+    }
+
+    // Handle service layer errors with specific messages
+    if (error instanceof Error) {
+      if (
+        error.message.includes('Invalid table name') ||
+        error.message.includes('Invalid schema') ||
+        error.message.includes('already exists') ||
+        error.message.includes('maximum table limit')
+      ) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
     }
 
     logger.error(`[${requestId}] Error creating table:`, error)
@@ -368,26 +292,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Get tables
-    const tables = await db
-      .select({
-        id: userTableDefinitions.id,
-        name: userTableDefinitions.name,
-        description: userTableDefinitions.description,
-        schema: userTableDefinitions.schema,
-        rowCount: userTableDefinitions.rowCount,
-        maxRows: userTableDefinitions.maxRows,
-        createdAt: userTableDefinitions.createdAt,
-        updatedAt: userTableDefinitions.updatedAt,
-      })
-      .from(userTableDefinitions)
-      .where(
-        and(
-          eq(userTableDefinitions.workspaceId, params.workspaceId),
-          isNull(userTableDefinitions.deletedAt)
-        )
-      )
-      .orderBy(userTableDefinitions.createdAt)
+    // Get tables using service layer
+    const tables = await listTables(params.workspaceId)
 
     logger.info(`[${requestId}] Listed ${tables.length} tables in workspace ${params.workspaceId}`)
 
@@ -401,8 +307,10 @@ export async function GET(request: NextRequest) {
             schema: {
               columns: schemaData.columns.map(normalizeColumn),
             },
-            createdAt: t.createdAt.toISOString(),
-            updatedAt: t.updatedAt.toISOString(),
+            createdAt:
+              t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
+            updatedAt:
+              t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt),
           }
         }),
         totalCount: tables.length,

@@ -485,3 +485,18 @@ export function serverErrorResponse(
 ): NextResponse<ApiErrorResponse> {
   return errorResponse(message, 500)
 }
+
+/**
+ * Normalizes a column definition by ensuring all optional fields have explicit values.
+ *
+ * @param col - The column definition to normalize
+ * @returns A normalized column with explicit required and unique values
+ */
+export function normalizeColumn(col: TableColumnData): TableColumnData {
+  return {
+    name: col.name,
+    type: col.type,
+    required: col.required ?? false,
+    unique: col.unique ?? false,
+  }
+}

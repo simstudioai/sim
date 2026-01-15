@@ -2,7 +2,7 @@
  * Hook for filter builder functionality.
  *
  * Provides reusable filter condition management logic shared between
- * the table data viewer's FilterBuilder and workflow block's FilterFormat.
+ * the table data viewer's TableQueryBuilder and workflow block's FilterFormat.
  */
 
 import { useCallback, useMemo } from 'react'

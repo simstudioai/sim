@@ -9,14 +9,14 @@ import { Button, TableCell, TableRow } from '@/components/emcn'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ColumnDefinition } from '@/lib/table'
 
-interface LoadingRowsProps {
+interface TableLoadingRowsProps {
   columns: ColumnDefinition[]
 }
 
 /**
  * Renders skeleton rows while table data is loading.
  */
-export function LoadingRows({ columns }: LoadingRowsProps) {
+export function TableLoadingRows({ columns }: TableLoadingRowsProps) {
   return (
     <>
       {Array.from({ length: 25 }).map((_, rowIndex) => (
@@ -52,7 +52,7 @@ export function LoadingRows({ columns }: LoadingRowsProps) {
   )
 }
 
-interface EmptyRowsProps {
+interface TableEmptyRowsProps {
   columnCount: number
   hasFilter: boolean
   onAddRow: () => void
@@ -61,7 +61,7 @@ interface EmptyRowsProps {
 /**
  * Renders an empty state when no rows are present.
  */
-export function EmptyRows({ columnCount, hasFilter, onAddRow }: EmptyRowsProps) {
+export function TableEmptyRows({ columnCount, hasFilter, onAddRow }: TableEmptyRowsProps) {
   return (
     <TableRow>
       <TableCell colSpan={columnCount + 1} className='h-[160px] text-center'>
