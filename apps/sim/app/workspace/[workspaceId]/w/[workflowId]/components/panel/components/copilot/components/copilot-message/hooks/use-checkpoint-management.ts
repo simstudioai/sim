@@ -57,7 +57,7 @@ export function useCheckpointManagement(
         const { messageCheckpoints: currentCheckpoints } = useCopilotStore.getState()
         const updatedCheckpoints = {
           ...currentCheckpoints,
-          [message.id]: messageCheckpoints.slice(1),
+          [message.id]: [],
         }
         useCopilotStore.setState({ messageCheckpoints: updatedCheckpoints })
 
@@ -140,7 +140,7 @@ export function useCheckpointManagement(
           const { messageCheckpoints: currentCheckpoints } = useCopilotStore.getState()
           const updatedCheckpoints = {
             ...currentCheckpoints,
-            [message.id]: messageCheckpoints.slice(1),
+            [message.id]: [],
           }
           useCopilotStore.setState({ messageCheckpoints: updatedCheckpoints })
 

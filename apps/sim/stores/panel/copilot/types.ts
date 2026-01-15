@@ -1,6 +1,7 @@
 import type { CopilotMode, CopilotModelId } from '@/lib/copilot/models'
 export type { CopilotMode, CopilotModelId } from '@/lib/copilot/models'
 import type { ClientToolCallState, ClientToolDisplay } from '@/lib/copilot/tools/client/base-tool'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 export type ToolState = ClientToolCallState
 
@@ -107,6 +108,7 @@ export interface CopilotState {
 
   checkpoints: any[]
   messageCheckpoints: Record<string, any[]>
+  messageSnapshots: Record<string, WorkflowState>
 
   isLoading: boolean
   isLoadingChats: boolean
@@ -195,6 +197,7 @@ export interface CopilotActions {
   loadMessageCheckpoints: (chatId: string) => Promise<void>
   revertToCheckpoint: (checkpointId: string) => Promise<void>
   getCheckpointsForMessage: (messageId: string) => any[]
+  saveMessageCheckpoint: (messageId: string) => Promise<boolean>
 
   clearMessages: () => void
   clearError: () => void

@@ -85,7 +85,9 @@ import type {
 } from '@/stores/panel/copilot/types'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('CopilotStore')
 
@@ -628,6 +630,97 @@ function createErrorMessage(
       },
     ],
     errorType,
+  }
+}
+
+/**
+ * Builds a workflow snapshot suitable for checkpoint persistence.
+ */
+function buildCheckpointWorkflowState(workflowId: string): WorkflowState | null {
+  const rawState = useWorkflowStore.getState().getWorkflowState()
+  if (!rawState) return null
+
+  const blocksWithSubblockValues = mergeSubblockState(rawState.blocks, workflowId)
+
+  const filteredBlocks = Object.entries(blocksWithSubblockValues).reduce(
+    (acc, [blockId, block]) => {
+      if (block?.type && block?.name) {
+        acc[blockId] = {
+          ...block,
+          id: block.id || blockId,
+          enabled: block.enabled !== undefined ? block.enabled : true,
+          horizontalHandles: block.horizontalHandles !== undefined ? block.horizontalHandles : true,
+          height: block.height !== undefined ? block.height : 90,
+          subBlocks: block.subBlocks || {},
+          outputs: block.outputs || {},
+          data: block.data || {},
+          position: block.position || { x: 0, y: 0 },
+        }
+      }
+      return acc
+    },
+    {} as WorkflowState['blocks']
+  )
+
+  return {
+    blocks: filteredBlocks,
+    edges: rawState.edges || [],
+    loops: rawState.loops || {},
+    parallels: rawState.parallels || {},
+    lastSaved: rawState.lastSaved || Date.now(),
+    deploymentStatuses: rawState.deploymentStatuses || {},
+  }
+}
+
+/**
+ * Persists a previously captured snapshot as a workflow checkpoint.
+ */
+async function saveMessageCheckpoint(
+  messageId: string,
+  get: () => CopilotStore,
+  set: (partial: Partial<CopilotStore> | ((state: CopilotStore) => Partial<CopilotStore>)) => void
+): Promise<boolean> {
+  const { workflowId, currentChat, messageSnapshots, messageCheckpoints } = get()
+  if (!workflowId || !currentChat?.id) return false
+
+  const snapshot = messageSnapshots[messageId]
+  if (!snapshot) return false
+
+  const nextSnapshots = { ...messageSnapshots }
+  delete nextSnapshots[messageId]
+  set({ messageSnapshots: nextSnapshots })
+
+  try {
+    const response = await fetch('/api/copilot/checkpoints', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workflowId,
+        chatId: currentChat.id,
+        messageId,
+        workflowState: JSON.stringify(snapshot),
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to create checkpoint: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    const newCheckpoint = result.checkpoint
+    if (newCheckpoint) {
+      const existingCheckpoints = messageCheckpoints[messageId] || []
+      const updatedCheckpoints = {
+        ...messageCheckpoints,
+        [messageId]: [newCheckpoint, ...existingCheckpoints],
+      }
+      set({ messageCheckpoints: updatedCheckpoints })
+    }
+
+    return true
+  } catch (error) {
+    logger.error('Failed to create checkpoint from snapshot:', error)
+    return false
   }
 }
 
@@ -1198,6 +1291,7 @@ const sseHandlers: Record<string, SSEHandler> = {
     // Ensure an inline content block exists/updated for this tool call
     upsertToolCallBlock(context, next)
     updateStreamingMessage(set, context)
+
 
     // Prefer interface-based registry to determine interrupt and execute
     try {
@@ -2082,6 +2176,7 @@ const initialState = {
   messages: [] as CopilotMessage[],
   checkpoints: [] as any[],
   messageCheckpoints: {} as Record<string, any[]>,
+  messageSnapshots: {} as Record<string, WorkflowState>,
   isLoading: false,
   isLoadingChats: false,
   isLoadingCheckpoints: false,
@@ -2128,7 +2223,7 @@ export const useCopilotStore = create<CopilotStore>()(
       // Abort all in-progress tools and clear any diff preview
       abortAllInProgressTools(set, get)
       try {
-        useWorkflowDiffStore.getState().clearDiff()
+        useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
       } catch {}
 
       set({
@@ -2162,7 +2257,7 @@ export const useCopilotStore = create<CopilotStore>()(
       // Abort in-progress tools and clear diff when changing chats
       abortAllInProgressTools(set, get)
       try {
-        useWorkflowDiffStore.getState().clearDiff()
+        useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
       } catch {}
 
       // Restore plan content and config (mode/model) from selected chat
@@ -2255,7 +2350,7 @@ export const useCopilotStore = create<CopilotStore>()(
       // Abort in-progress tools and clear diff on new chat
       abortAllInProgressTools(set, get)
       try {
-        useWorkflowDiffStore.getState().clearDiff()
+        useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
       } catch {}
 
       // Background-save the current chat before clearing (optimistic)
@@ -2458,6 +2553,12 @@ export const useCopilotStore = create<CopilotStore>()(
 
       const userMessage = createUserMessage(message, fileAttachments, contexts, messageId)
       const streamingMessage = createStreamingMessage()
+      const snapshot = workflowId ? buildCheckpointWorkflowState(workflowId) : null
+      if (snapshot) {
+        set((state) => ({
+          messageSnapshots: { ...state.messageSnapshots, [userMessage.id]: snapshot },
+        }))
+      }
 
       let newMessages: CopilotMessage[]
       if (revertState) {
@@ -2940,6 +3041,10 @@ export const useCopilotStore = create<CopilotStore>()(
       if (!workflowId) return
       set({ isRevertingCheckpoint: true, checkpointError: null })
       try {
+        const { messageCheckpoints } = get()
+        const checkpointMessageId = Object.entries(messageCheckpoints).find(([, cps]) =>
+          (cps || []).some((cp: any) => cp?.id === checkpointId)
+        )?.[0]
         const response = await fetch('/api/copilot/checkpoints/revert', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2985,6 +3090,11 @@ export const useCopilotStore = create<CopilotStore>()(
             },
           })
         }
+        if (checkpointMessageId) {
+          const { messageCheckpoints: currentCheckpoints } = get()
+          const updatedCheckpoints = { ...currentCheckpoints, [checkpointMessageId]: [] }
+          set({ messageCheckpoints: updatedCheckpoints })
+        }
         set({ isRevertingCheckpoint: false })
       } catch (error) {
         set({
@@ -2997,6 +3107,10 @@ export const useCopilotStore = create<CopilotStore>()(
     getCheckpointsForMessage: (messageId: string) => {
       const { messageCheckpoints } = get()
       return messageCheckpoints[messageId] || []
+    },
+    saveMessageCheckpoint: async (messageId: string) => {
+      if (!messageId) return false
+      return saveMessageCheckpoint(messageId, get, set)
     },
 
     // Handle streaming response
@@ -3192,21 +3306,33 @@ export const useCopilotStore = create<CopilotStore>()(
         const finalContentWithOptions = context.wasAborted && !context.suppressContinueOption
           ? appendContinueOption(finalContent)
           : finalContent
-        set((state) => ({
-          messages: state.messages.map((msg) =>
-            msg.id === assistantMessageId
-              ? {
-                  ...msg,
-                  content: finalContentWithOptions,
-                  contentBlocks: sanitizedContentBlocks,
-                }
-              : msg
-          ),
-          isSendingMessage: false,
-          isAborting: false,
-          abortController: null,
-          currentUserMessageId: null,
-        }))
+        set((state) => {
+          const snapshotId = state.currentUserMessageId
+          const nextSnapshots =
+            snapshotId && state.messageSnapshots[snapshotId]
+              ? (() => {
+                  const updated = { ...state.messageSnapshots }
+                  delete updated[snapshotId]
+                  return updated
+                })()
+              : state.messageSnapshots
+          return {
+            messages: state.messages.map((msg) =>
+              msg.id === assistantMessageId
+                ? {
+                    ...msg,
+                    content: finalContentWithOptions,
+                    contentBlocks: sanitizedContentBlocks,
+                  }
+                : msg
+            ),
+            isSendingMessage: false,
+            isAborting: false,
+            abortController: null,
+            currentUserMessageId: null,
+            messageSnapshots: nextSnapshots,
+          }
+        })
 
         if (context.newChatId && !get().currentChat) {
           await get().handleNewChatCreation(context.newChatId)

@@ -23,6 +23,31 @@ import {
 const logger = createLogger('WorkflowDiffStore')
 const diffEngine = new WorkflowDiffEngine()
 
+/**
+ * Detects when a diff contains no meaningful changes.
+ */
+function isEmptyDiffAnalysis(diffAnalysis?: { 
+  new_blocks?: string[]
+  edited_blocks?: string[]
+  deleted_blocks?: string[]
+  field_diffs?: Record<string, { changed_fields: string[] }>
+  edge_diff?: { new_edges?: string[]; deleted_edges?: string[] }
+} | null): boolean {
+  if (!diffAnalysis) return false
+  const hasBlockChanges =
+    (diffAnalysis.new_blocks?.length || 0) > 0 ||
+    (diffAnalysis.edited_blocks?.length || 0) > 0 ||
+    (diffAnalysis.deleted_blocks?.length || 0) > 0
+  const hasEdgeChanges =
+    (diffAnalysis.edge_diff?.new_edges?.length || 0) > 0 ||
+    (diffAnalysis.edge_diff?.deleted_edges?.length || 0) > 0
+  const hasFieldChanges =
+    Object.values(diffAnalysis.field_diffs || {}).some(
+      (diff) => (diff?.changed_fields?.length || 0) > 0
+    )
+  return !hasBlockChanges && !hasEdgeChanges && !hasFieldChanges
+}
+
 export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActions>()(
   devtools(
     (set, get) => {
@@ -75,6 +100,24 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             throw new Error(errorMessage)
           }
 
+          const diffAnalysisResult = diffResult.diff.diffAnalysis || null
+          if (isEmptyDiffAnalysis(diffAnalysisResult)) {
+            logger.info('No workflow diff detected; skipping diff view')
+            diffEngine.clearDiff()
+            batchedUpdate({
+              hasActiveDiff: false,
+              isShowingDiff: false,
+              isDiffReady: false,
+              baselineWorkflow: null,
+              baselineWorkflowId: null,
+              diffAnalysis: null,
+              diffMetadata: null,
+              diffError: null,
+              _triggerMessageId: null,
+            })
+            return
+          }
+
           const candidateState = diffResult.diff.proposedState
 
           // Validate proposed workflow using serializer round-trip
@@ -103,11 +146,21 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             isDiffReady: true,
             baselineWorkflow: baselineWorkflow,
             baselineWorkflowId,
-            diffAnalysis: diffResult.diff.diffAnalysis || null,
+            diffAnalysis: diffAnalysisResult,
             diffMetadata: diffResult.diff.metadata,
             diffError: null,
             _triggerMessageId: triggerMessageId ?? null,
           })
+
+          if (triggerMessageId) {
+            import('@/stores/panel/copilot/store')
+              .then(({ useCopilotStore }) =>
+                useCopilotStore.getState().saveMessageCheckpoint(triggerMessageId)
+              )
+              .catch((error) => {
+                logger.warn('Failed to save checkpoint for diff', { error })
+              })
+          }
 
           logger.info('Workflow diff applied optimistically', {
             workflowId: activeWorkflowId,
