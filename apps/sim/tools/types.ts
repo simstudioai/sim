@@ -2,6 +2,17 @@ import type { OAuthService } from '@/lib/oauth'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 
+/**
+ * Minimal execution context injected into tool params at runtime.
+ * This is a subset of the full ExecutionContext from executor/types.ts.
+ */
+export type ToolExecutionContext = {
+  workspaceId?: string
+  workflowId?: string
+  executionId?: string
+  userId?: string
+}
+
 export interface OutputProperty {
   type: string
   description?: string

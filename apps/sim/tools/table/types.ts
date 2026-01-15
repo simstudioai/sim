@@ -6,68 +6,51 @@ import type {
   TableRow,
   TableSchema,
 } from '@/lib/table/types'
-import type { ToolResponse } from '@/tools/types'
+import type { ToolExecutionContext, ToolResponse } from '@/tools/types'
 
-/**
- * Execution context provided by the workflow executor
- */
-export interface ExecutionContext {
-  workspaceId: string
-  workflowId: string
-  userId?: string
-  executionId?: string
-}
-
-/**
- * Base type for tool parameters with execution context
- */
-export interface ToolParamsWithContext {
-  _context?: ExecutionContext
-}
-
-export interface TableCreateParams extends ToolParamsWithContext {
+export interface TableCreateParams {
   name: string
   description?: string
   schema: TableSchema
-  workspaceId?: string
+  _context?: ToolExecutionContext
 }
 
-export interface TableListParams extends ToolParamsWithContext {
-  workspaceId?: string
+export interface TableListParams {
+  _context?: ToolExecutionContext
 }
 
-export interface TableRowInsertParams extends ToolParamsWithContext {
+export interface TableRowInsertParams {
   tableId: string
   data: RowData
-  workspaceId?: string
+  _context?: ToolExecutionContext
 }
 
-export interface TableRowUpdateParams extends ToolParamsWithContext {
+export interface TableRowUpdateParams {
   tableId: string
   rowId: string
   data: RowData
-  workspaceId?: string
+  _context?: ToolExecutionContext
 }
 
-export interface TableRowDeleteParams extends ToolParamsWithContext {
+export interface TableRowDeleteParams {
   tableId: string
   rowId: string
-  workspaceId?: string
+  _context?: ToolExecutionContext
 }
 
-export interface TableRowQueryParams extends ToolParamsWithContext {
+export interface TableRowQueryParams {
   tableId: string
   filter?: QueryFilter
   sort?: Record<string, 'asc' | 'desc'>
   limit?: number
   offset?: number
-  workspaceId?: string
+  _context?: ToolExecutionContext
 }
 
-export interface TableRowGetParams extends ToolParamsWithContext {
+export interface TableRowGetParams {
   tableId: string
   rowId: string
-  workspaceId?: string
+  _context?: ToolExecutionContext
 }
 
 export interface TableCreateResponse extends ToolResponse {
@@ -108,10 +91,10 @@ export interface TableDeleteResponse extends ToolResponse {
   }
 }
 
-export interface TableBatchInsertParams extends ToolParamsWithContext {
+export interface TableBatchInsertParams {
   tableId: string
   rows: RowData[]
-  workspaceId?: string
+  _context?: ToolExecutionContext
 }
 
 export interface TableBatchInsertResponse extends ToolResponse {
@@ -122,19 +105,19 @@ export interface TableBatchInsertResponse extends ToolResponse {
   }
 }
 
-export interface TableUpdateByFilterParams extends ToolParamsWithContext {
+export interface TableUpdateByFilterParams {
   tableId: string
   filter: QueryFilter
   data: RowData
   limit?: number
-  workspaceId?: string
+  _context?: ToolExecutionContext
 }
 
-export interface TableDeleteByFilterParams extends ToolParamsWithContext {
+export interface TableDeleteByFilterParams {
   tableId: string
   filter: QueryFilter
   limit?: number
-  workspaceId?: string
+  _context?: ToolExecutionContext
 }
 
 export interface TableBulkOperationResponse extends ToolResponse {
@@ -147,9 +130,9 @@ export interface TableBulkOperationResponse extends ToolResponse {
   }
 }
 
-export interface TableGetSchemaParams extends ToolParamsWithContext {
+export interface TableGetSchemaParams {
   tableId: string
-  workspaceId?: string
+  _context?: ToolExecutionContext
 }
 
 export interface TableGetSchemaResponse extends ToolResponse {
