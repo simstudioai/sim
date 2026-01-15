@@ -268,14 +268,7 @@ export function ContextMenu({
           height: '1px',
         }}
       />
-      <PopoverContent
-        ref={menuRef}
-        align='start'
-        side='bottom'
-        sideOffset={4}
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onInteractOutside={(e) => e.preventDefault()}
-      >
+      <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
         {/* Back button - shown only when in a folder */}
         <PopoverBackButton />
 
