@@ -1,7 +1,11 @@
 import { db } from '@sim/db'
 import { userTableDefinitions } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
+import { NextResponse } from 'next/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+
+const logger = createLogger('TableUtils')
 
 /**
  * Represents the core data structure for a user-defined table.
@@ -212,6 +216,76 @@ export async function checkTableWriteAccess(
   userId: string
 ): Promise<TableAccessCheck> {
   return checkTableAccessInternal(tableId, userId, 'write')
+}
+
+/**
+ * Checks table access and returns either the access result or an error response.
+ *
+ * This is a convenience function that combines access checking with automatic
+ * error response generation, reducing boilerplate in route handlers.
+ *
+ * @param tableId - The unique identifier of the table to check
+ * @param userId - The unique identifier of the user requesting access
+ * @param requestId - Request ID for logging
+ * @param level - Permission level required ('read' or 'write')
+ * @returns Either a TableAccessResult with table info, or a NextResponse with error
+ *
+ * @example
+ * ```typescript
+ * const accessResult = await checkAccessOrRespond(tableId, userId, requestId, 'write')
+ * if (accessResult instanceof NextResponse) return accessResult
+ *
+ * // Access granted - use accessResult.table
+ * const { table } = accessResult
+ * ```
+ */
+export async function checkAccessOrRespond(
+  tableId: string,
+  userId: string,
+  requestId: string,
+  level: TablePermissionLevel = 'write'
+): Promise<TableAccessResult | NextResponse> {
+  const checkFn = level === 'read' ? checkTableAccess : checkTableWriteAccess
+  const accessCheck = await checkFn(tableId, userId)
+
+  if (!accessCheck.hasAccess) {
+    if ('notFound' in accessCheck && accessCheck.notFound) {
+      logger.warn(`[${requestId}] Table not found: ${tableId}`)
+      return NextResponse.json({ error: 'Table not found' }, { status: 404 })
+    }
+    logger.warn(`[${requestId}] User ${userId} denied ${level} access to table ${tableId}`)
+    return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+  }
+
+  return accessCheck
+}
+
+/**
+ * Fetches a table by ID with soft-delete awareness.
+ *
+ * @param tableId - The unique identifier of the table to fetch
+ * @returns Promise resolving to table data or null if not found/deleted
+ *
+ * @example
+ * ```typescript
+ * const table = await getTableById(tableId)
+ * if (!table) {
+ *   return NextResponse.json({ error: 'Table not found' }, { status: 404 })
+ * }
+ * ```
+ */
+export async function getTableById(tableId: string): Promise<TableData | null> {
+  const [table] = await db
+    .select()
+    .from(userTableDefinitions)
+    .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
+    .limit(1)
+
+  if (!table) {
+    return null
+  }
+
+  return table as unknown as TableData
 }
 
 /**

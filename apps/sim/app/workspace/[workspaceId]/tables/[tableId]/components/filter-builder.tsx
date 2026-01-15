@@ -3,52 +3,8 @@
 import { useCallback, useMemo, useState } from 'react'
 import { ArrowDownAZ, ArrowUpAZ, Plus, X } from 'lucide-react'
 import { Button, Combobox, Input } from '@/components/emcn'
-
-/**
- * Available comparison operators for filter conditions.
- */
-const COMPARISON_OPERATORS = [
-  { value: 'eq', label: 'equals' },
-  { value: 'ne', label: 'not equals' },
-  { value: 'gt', label: 'greater than' },
-  { value: 'gte', label: 'greater or equal' },
-  { value: 'lt', label: 'less than' },
-  { value: 'lte', label: 'less or equal' },
-  { value: 'contains', label: 'contains' },
-  { value: 'in', label: 'in array' },
-] as const
-
-/**
- * Logical operators for combining filter conditions.
- */
-const LOGICAL_OPERATORS = [
-  { value: 'and', label: 'and' },
-  { value: 'or', label: 'or' },
-] as const
-
-/**
- * Sort direction options.
- */
-const SORT_DIRECTIONS = [
-  { value: 'asc', label: 'ascending' },
-  { value: 'desc', label: 'descending' },
-] as const
-
-/**
- * Represents a single filter condition.
- */
-export interface FilterCondition {
-  /** Unique identifier for the condition */
-  id: string
-  /** How this condition combines with the previous one */
-  logicalOperator: 'and' | 'or'
-  /** Column to filter on */
-  column: string
-  /** Comparison operator */
-  operator: string
-  /** Value to compare against */
-  value: string
-}
+import type { FilterCondition } from '@/lib/table/filter-constants'
+import { useFilterBuilder } from '@/lib/table/use-filter-builder'
 
 /**
  * Represents a sort configuration.
@@ -95,15 +51,6 @@ interface FilterBuilderProps {
   onApply: (options: QueryOptions) => void
   /** Callback to add a new row */
   onAddRow: () => void
-}
-
-/**
- * Generates a unique ID for filter conditions.
- *
- * @returns A random string ID
- */
-function generateId(): string {
-  return Math.random().toString(36).substring(2, 9)
 }
 
 /**
@@ -238,51 +185,19 @@ export function FilterBuilder({ columns, onApply, onAddRow }: FilterBuilderProps
     [columns]
   )
 
-  const comparisonOptions = useMemo(
-    () => COMPARISON_OPERATORS.map((op) => ({ value: op.value, label: op.label })),
-    []
-  )
-
-  const logicalOptions = useMemo(
-    () => LOGICAL_OPERATORS.map((op) => ({ value: op.value, label: op.label })),
-    []
-  )
-
-  const sortDirectionOptions = useMemo(
-    () => SORT_DIRECTIONS.map((d) => ({ value: d.value, label: d.label })),
-    []
-  )
-
-  /**
-   * Adds a new filter condition.
-   */
-  const handleAddCondition = useCallback(() => {
-    const newCondition: FilterCondition = {
-      id: generateId(),
-      logicalOperator: 'and',
-      column: columns[0]?.name || '',
-      operator: 'eq',
-      value: '',
-    }
-    setConditions((prev) => [...prev, newCondition])
-  }, [columns])
-
-  /**
-   * Removes a filter condition by ID.
-   */
-  const handleRemoveCondition = useCallback((id: string) => {
-    setConditions((prev) => prev.filter((c) => c.id !== id))
-  }, [])
-
-  /**
-   * Updates a filter condition field.
-   */
-  const handleUpdateCondition = useCallback(
-    (id: string, field: keyof FilterCondition, value: string) => {
-      setConditions((prev) => prev.map((c) => (c.id === id ? { ...c, [field]: value } : c)))
-    },
-    []
-  )
+  // Use the shared filter builder hook
+  const {
+    comparisonOptions,
+    logicalOptions,
+    sortDirectionOptions,
+    addCondition: handleAddCondition,
+    removeCondition: handleRemoveCondition,
+    updateCondition: handleUpdateCondition,
+  } = useFilterBuilder({
+    columns: columnOptions,
+    conditions,
+    setConditions,
+  })
 
   /**
    * Adds a sort configuration.

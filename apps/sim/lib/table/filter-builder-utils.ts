@@ -4,41 +4,23 @@
  * @module lib/table/filter-builder-utils
  */
 
+// Re-export shared constants and types for backward compatibility
+export {
+  COMPARISON_OPERATORS,
+  type FilterCondition,
+  generateConditionId as generateId,
+  LOGICAL_OPERATORS,
+  SORT_DIRECTIONS,
+  type SortCondition,
+} from './filter-constants'
+
+// Import for internal use
+import { type FilterCondition, generateConditionId, type SortCondition } from './filter-constants'
+
+// Use internal alias for generateConditionId
+const generateId = generateConditionId
+
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
-
-export const COMPARISON_OPERATORS = [
-  { value: 'eq', label: 'equals' },
-  { value: 'ne', label: 'not equals' },
-  { value: 'gt', label: 'greater than' },
-  { value: 'gte', label: 'greater or equal' },
-  { value: 'lt', label: 'less than' },
-  { value: 'lte', label: 'less or equal' },
-  { value: 'contains', label: 'contains' },
-  { value: 'in', label: 'in array' },
-] as const
-
-export const LOGICAL_OPERATORS = [
-  { value: 'and', label: 'and' },
-  { value: 'or', label: 'or' },
-] as const
-
-export interface FilterCondition {
-  id: string
-  logicalOperator: 'and' | 'or'
-  column: string
-  operator: string
-  value: string
-}
-
-/**
- * Generates a unique ID for filter or sort conditions.
- * Used as React keys for list items in the builder UI.
- *
- * @returns Random alphanumeric string
- */
-export function generateId(): string {
-  return Math.random().toString(36).substring(2, 9)
-}
 
 /**
  * Parses a string value into its appropriate type based on the operator.
@@ -221,17 +203,6 @@ export function jsonStringToConditions(jsonString: string): FilterCondition[] {
   } catch {
     return []
   }
-}
-
-export const SORT_DIRECTIONS = [
-  { value: 'asc', label: 'ascending' },
-  { value: 'desc', label: 'descending' },
-] as const
-
-export interface SortCondition {
-  id: string
-  column: string
-  direction: 'asc' | 'desc'
 }
 
 /**

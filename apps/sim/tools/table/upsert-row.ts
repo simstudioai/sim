@@ -1,8 +1,12 @@
-import type { ToolConfig } from '@/tools/types'
-import type { TableRowInsertParams, TableRowResponse } from './types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
+import type { TableRow, TableRowInsertParams } from './types'
 
-interface TableUpsertResponse extends TableRowResponse {
-  operation?: 'insert' | 'update'
+interface TableUpsertResponse extends ToolResponse {
+  output: {
+    row: TableRow
+    operation: 'insert' | 'update'
+    message: string
+  }
 }
 
 export const tableUpsertRowTool: ToolConfig<TableRowInsertParams, TableUpsertResponse> = {

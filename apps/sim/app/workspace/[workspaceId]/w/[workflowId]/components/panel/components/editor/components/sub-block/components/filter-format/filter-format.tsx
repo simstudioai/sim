@@ -1,17 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Button, Combobox, type ComboboxOption, Input } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import {
-  COMPARISON_OPERATORS,
-  conditionsToJsonString,
-  type FilterCondition,
-  generateId,
-  jsonStringToConditions,
-  LOGICAL_OPERATORS,
-} from '@/lib/table/filter-builder-utils'
+import { conditionsToJsonString, jsonStringToConditions } from '@/lib/table/filter-builder-utils'
+import type { FilterCondition } from '@/lib/table/filter-constants'
+import { useFilterBuilder } from '@/lib/table/use-filter-builder'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -30,17 +25,6 @@ interface FilterFormatProps {
   /** SubBlock ID for the JSON filter field (e.g., 'filter') - target for JSON output */
   jsonSubBlockId?: string
 }
-
-/**
- * Creates a new filter condition with default values
- */
-const createDefaultCondition = (columns: ComboboxOption[]): FilterCondition => ({
-  id: generateId(),
-  logicalOperator: 'and',
-  column: columns[0]?.value || '',
-  operator: 'eq',
-  value: '',
-})
 
 /**
  * Visual builder for filter conditions with optional JSON sync.
@@ -148,40 +132,18 @@ export function FilterFormat({
     return dynamicColumns
   }, [propColumns, dynamicColumns])
 
-  const comparisonOptions = useMemo(
-    () => COMPARISON_OPERATORS.map((op) => ({ value: op.value, label: op.label })),
-    []
-  )
-
-  const logicalOptions = useMemo(
-    () => LOGICAL_OPERATORS.map((op) => ({ value: op.value, label: op.label })),
-    []
-  )
-
   const value = isPreview ? previewValue : storeValue
   const conditions: FilterCondition[] = Array.isArray(value) && value.length > 0 ? value : []
   const isReadOnly = isPreview || disabled
 
-  const addCondition = useCallback(() => {
-    if (isReadOnly) return
-    setStoreValue([...conditions, createDefaultCondition(columns)])
-  }, [isReadOnly, conditions, columns, setStoreValue])
-
-  const removeCondition = useCallback(
-    (id: string) => {
-      if (isReadOnly) return
-      setStoreValue(conditions.filter((c) => c.id !== id))
-    },
-    [isReadOnly, conditions, setStoreValue]
-  )
-
-  const updateCondition = useCallback(
-    (id: string, field: keyof FilterCondition, newValue: string) => {
-      if (isReadOnly) return
-      setStoreValue(conditions.map((c) => (c.id === id ? { ...c, [field]: newValue } : c)))
-    },
-    [isReadOnly, conditions, setStoreValue]
-  )
+  // Use the shared filter builder hook for condition management
+  const { comparisonOptions, logicalOptions, addCondition, removeCondition, updateCondition } =
+    useFilterBuilder({
+      columns,
+      conditions,
+      setConditions: setStoreValue,
+      isReadOnly,
+    })
 
   return (
     <div className='flex flex-col gap-[8px]'>

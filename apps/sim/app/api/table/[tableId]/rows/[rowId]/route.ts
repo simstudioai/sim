@@ -1,19 +1,19 @@
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { TableSchema } from '@/lib/table'
+import { validateRowData } from '@/lib/table'
 import {
-  getUniqueColumns,
-  validateRowAgainstSchema,
-  validateRowSize,
-  validateUniqueConstraints,
-} from '@/lib/table'
-import { checkTableAccess, checkTableWriteAccess, verifyTableWorkspace } from '../../../utils'
+  checkAccessOrRespond,
+  checkTableAccess,
+  getTableById,
+  verifyTableWorkspace,
+} from '../../../utils'
 
 const logger = createLogger('TableRowAPI')
 
@@ -201,89 +201,38 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
     const body: unknown = await request.json()
     const validated = UpdateRowSchema.parse(body)
 
-    // Check table write access (centralized access control)
-    const accessCheck = await checkTableWriteAccess(tableId, authResult.userId)
-
-    if (!accessCheck.hasAccess) {
-      if ('notFound' in accessCheck && accessCheck.notFound) {
-        logger.warn(`[${requestId}] Table not found: ${tableId}`)
-        return NextResponse.json({ error: 'Table not found' }, { status: 404 })
-      }
-      logger.warn(
-        `[${requestId}] User ${authResult.userId} attempted to update row in unauthorized table ${tableId}`
-      )
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
+    // Check table write access
+    const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
+    if (accessResult instanceof NextResponse) return accessResult
 
     // Security check: If workspaceId is provided, verify it matches the table's workspace
-    const actualWorkspaceId = validated.workspaceId || accessCheck.table.workspaceId
+    const actualWorkspaceId = validated.workspaceId || accessResult.table.workspaceId
     if (validated.workspaceId) {
       const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
       if (!isValidWorkspace) {
         logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
         )
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
     }
 
     // Get table definition
-    const [table] = await db
-      .select()
-      .from(userTableDefinitions)
-      .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
-      .limit(1)
-
+    const table = await getTableById(tableId)
     if (!table) {
       return NextResponse.json({ error: 'Table not found' }, { status: 404 })
     }
 
     const rowData = validated.data as RowData
 
-    // Validate row size
-    const sizeValidation = validateRowSize(rowData)
-    if (!sizeValidation.valid) {
-      return NextResponse.json(
-        { error: 'Invalid row data', details: sizeValidation.errors },
-        { status: 400 }
-      )
-    }
-
-    // Validate row against schema
-    const rowValidation = validateRowAgainstSchema(rowData, table.schema as TableSchema)
-    if (!rowValidation.valid) {
-      return NextResponse.json(
-        { error: 'Row data does not match schema', details: rowValidation.errors },
-        { status: 400 }
-      )
-    }
-
-    // Check unique constraints if any unique columns exist
-    const uniqueColumns = getUniqueColumns(table.schema as TableSchema)
-    if (uniqueColumns.length > 0) {
-      // Fetch existing rows to check for uniqueness
-      const existingRows = await db
-        .select({
-          id: userTableRows.id,
-          data: userTableRows.data,
-        })
-        .from(userTableRows)
-        .where(eq(userTableRows.tableId, tableId))
-
-      const uniqueValidation = validateUniqueConstraints(
-        rowData,
-        table.schema as TableSchema,
-        existingRows.map((r) => ({ id: r.id, data: r.data as RowData })),
-        rowId // Exclude the current row being updated
-      )
-
-      if (!uniqueValidation.valid) {
-        return NextResponse.json(
-          { error: 'Unique constraint violation', details: uniqueValidation.errors },
-          { status: 400 }
-        )
-      }
-    }
+    // Validate row data (size, schema, unique constraints)
+    const validation = await validateRowData({
+      rowData,
+      schema: table.schema as TableSchema,
+      tableId,
+      excludeRowId: rowId,
+    })
+    if (!validation.valid) return validation.response
 
     // Update row
     const now = new Date()
@@ -363,27 +312,17 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
     const body: unknown = await request.json()
     const validated = DeleteRowSchema.parse(body)
 
-    // Check table write access (centralized access control)
-    const accessCheck = await checkTableWriteAccess(tableId, authResult.userId)
-
-    if (!accessCheck.hasAccess) {
-      if ('notFound' in accessCheck && accessCheck.notFound) {
-        logger.warn(`[${requestId}] Table not found: ${tableId}`)
-        return NextResponse.json({ error: 'Table not found' }, { status: 404 })
-      }
-      logger.warn(
-        `[${requestId}] User ${authResult.userId} attempted to delete row from unauthorized table ${tableId}`
-      )
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
+    // Check table write access
+    const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
+    if (accessResult instanceof NextResponse) return accessResult
 
     // Security check: If workspaceId is provided, verify it matches the table's workspace
-    const actualWorkspaceId = validated.workspaceId || accessCheck.table.workspaceId
+    const actualWorkspaceId = validated.workspaceId || accessResult.table.workspaceId
     if (validated.workspaceId) {
       const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
       if (!isValidWorkspace) {
         logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
         )
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }

@@ -19,14 +19,7 @@ import {
   TableRow,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import {
-  AddRowModal,
-  DeleteRowModal,
-  EditRowModal,
-  FilterBuilder,
-  type QueryOptions,
-  TableActionBar,
-} from '../components'
+import { FilterBuilder, type QueryOptions, RowModal, TableActionBar } from '../components'
 import {
   CellRenderer,
   CellViewerModal,
@@ -298,7 +291,8 @@ export function TableDataViewer() {
         onNextPage={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
       />
 
-      <AddRowModal
+      <RowModal
+        mode='add'
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         table={tableData}
@@ -309,7 +303,8 @@ export function TableDataViewer() {
       />
 
       {editingRow && (
-        <EditRowModal
+        <RowModal
+          mode='edit'
           isOpen={true}
           onClose={() => setEditingRow(null)}
           table={tableData}
@@ -322,10 +317,11 @@ export function TableDataViewer() {
       )}
 
       {deletingRows.length > 0 && (
-        <DeleteRowModal
+        <RowModal
+          mode='delete'
           isOpen={true}
           onClose={() => setDeletingRows([])}
-          tableId={tableId}
+          table={tableData}
           rowIds={deletingRows}
           onSuccess={() => {
             refetchRows()

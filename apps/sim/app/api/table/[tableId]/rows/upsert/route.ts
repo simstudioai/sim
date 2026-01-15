@@ -1,14 +1,14 @@
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { TableSchema } from '@/lib/table'
-import { getUniqueColumns, validateRowAgainstSchema, validateRowSize } from '@/lib/table'
-import { checkTableWriteAccess, verifyTableWorkspace } from '../../../utils'
+import { getUniqueColumns, validateRowData } from '@/lib/table'
+import { checkAccessOrRespond, getTableById, verifyTableWorkspace } from '../../../utils'
 
 const logger = createLogger('TableUpsertAPI')
 
@@ -101,39 +101,24 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
     const body: unknown = await request.json()
     const validated = UpsertRowSchema.parse(body)
 
-    // Check table write access (centralized access control)
-    const accessCheck = await checkTableWriteAccess(tableId, authResult.userId)
-
-    if (!accessCheck.hasAccess) {
-      if ('notFound' in accessCheck && accessCheck.notFound) {
-        logger.warn(`[${requestId}] Table not found: ${tableId}`)
-        return NextResponse.json({ error: 'Table not found' }, { status: 404 })
-      }
-      logger.warn(
-        `[${requestId}] User ${authResult.userId} attempted to upsert row in unauthorized table ${tableId}`
-      )
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
+    // Check table write access
+    const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
+    if (accessResult instanceof NextResponse) return accessResult
 
     // Security check: If workspaceId is provided, verify it matches the table's workspace
-    const actualWorkspaceId = validated.workspaceId || accessCheck.table.workspaceId
+    const actualWorkspaceId = validated.workspaceId || accessResult.table.workspaceId
     if (validated.workspaceId) {
       const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
       if (!isValidWorkspace) {
         logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
         )
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
     }
 
     // Get table definition
-    const [table] = await db
-      .select()
-      .from(userTableDefinitions)
-      .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.deletedAt)))
-      .limit(1)
-
+    const table = await getTableById(tableId)
     if (!table) {
       return NextResponse.json({ error: 'Table not found' }, { status: 404 })
     }
@@ -141,25 +126,16 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
     const schema = table.schema as TableSchema
     const rowData = validated.data as RowData
 
-    // Validate row size
-    const sizeValidation = validateRowSize(rowData)
-    if (!sizeValidation.valid) {
-      return NextResponse.json(
-        { error: 'Invalid row data', details: sizeValidation.errors },
-        { status: 400 }
-      )
-    }
+    // Validate row data (size and schema only - unique constraints handled by upsert logic)
+    const validation = await validateRowData({
+      rowData,
+      schema,
+      tableId,
+      checkUnique: false, // Upsert uses unique columns differently - to find existing rows
+    })
+    if (!validation.valid) return validation.response
 
-    // Validate row against schema
-    const rowValidation = validateRowAgainstSchema(rowData, schema)
-    if (!rowValidation.valid) {
-      return NextResponse.json(
-        { error: 'Row data does not match schema', details: rowValidation.errors },
-        { status: 400 }
-      )
-    }
-
-    // Get unique columns
+    // Get unique columns for upsert matching
     const uniqueColumns = getUniqueColumns(schema)
 
     if (uniqueColumns.length === 0) {
