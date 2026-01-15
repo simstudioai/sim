@@ -351,14 +351,16 @@ Enables AI-assisted field generation.
 
 ## Tools Configuration
 
-### Simple Tool Selector
+**Preferred:** Use tool names directly as dropdown option IDs to avoid switch cases:
 ```typescript
-tools: {
-  access: ['service_create', 'service_read', 'service_update'],
-  config: {
-    tool: (params) => `service_${params.operation}`,
-  },
-}
+// Dropdown options use tool IDs directly
+options: [
+  { label: 'Create', id: 'service_create' },
+  { label: 'Read', id: 'service_read' },
+]
+
+// Tool selector just returns the operation value
+tool: (params) => params.operation,
 ```
 
 ### With Parameter Transformation
