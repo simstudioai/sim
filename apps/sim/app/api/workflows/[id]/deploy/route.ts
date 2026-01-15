@@ -4,6 +4,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { removeMcpToolsForWorkflow, syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
+import { saveTriggerWebhooksForDeploy } from '@/lib/webhooks/deploy'
 import {
   deployWorkflow,
   loadWorkflowFromNormalizedTables,
@@ -128,6 +129,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         `[${requestId}] Schedule validation failed for workflow ${id}: ${scheduleValidation.error}`
       )
       return createErrorResponse(`Invalid schedule configuration: ${scheduleValidation.error}`, 400)
+    }
+
+    const triggerSaveResult = await saveTriggerWebhooksForDeploy({
+      request,
+      workflowId: id,
+      workflow: workflowData,
+      userId: actorUserId,
+      blocks: normalizedData.blocks,
+      requestId,
+    })
+
+    if (!triggerSaveResult.success) {
+      return createErrorResponse(
+        triggerSaveResult.error?.message || 'Failed to save trigger configuration',
+        triggerSaveResult.error?.status || 500
+      )
     }
 
     const deployResult = await deployWorkflow({

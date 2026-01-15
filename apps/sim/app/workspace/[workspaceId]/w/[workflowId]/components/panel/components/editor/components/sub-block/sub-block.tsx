@@ -38,7 +38,6 @@ import {
   Text,
   TimeInput,
   ToolInput,
-  TriggerSave,
   VariablesInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
@@ -854,17 +853,6 @@ function SubBlockComponent({
             }
           />
         )
-      case 'trigger-save':
-        return (
-          <TriggerSave
-            blockId={blockId}
-            subBlockId={config.id}
-            triggerId={config.triggerId}
-            isPreview={isPreview}
-            disabled={disabled}
-          />
-        )
-
       case 'messages-input':
         return (
           <MessagesInput
