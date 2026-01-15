@@ -1,11 +1,11 @@
 /**
  * Validation utilities for table schemas and row data.
  *
- * @module lib/table/validation
+ * @module lib/table/validation/validation
  */
 
-import type { ColumnType } from './constants'
-import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from './constants'
+import type { ColumnType } from '../constants'
+import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '../constants'
 
 export interface ColumnDefinition {
   name: string

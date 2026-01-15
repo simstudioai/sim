@@ -4,7 +4,7 @@
  * These helpers consolidate common validation patterns (size, schema, uniqueness)
  * into reusable functions that return formatted error responses.
  *
- * @module lib/table/validation-helpers
+ * @module lib/table/validation/validation-helpers
  */
 
 import { db } from '@sim/db'

@@ -3,8 +3,8 @@
 import { useCallback, useMemo, useState } from 'react'
 import { ArrowDownAZ, ArrowUpAZ, Plus, X } from 'lucide-react'
 import { Button, Combobox, Input } from '@/components/emcn'
-import type { FilterCondition } from '@/lib/table/filter-constants'
-import { useFilterBuilder } from '@/lib/table/use-filter-builder'
+import type { FilterCondition } from '@/lib/table/filters/filter-constants'
+import { useFilterBuilder } from '@/lib/table/filters/use-filter-builder'
 
 /**
  * Represents a sort configuration.

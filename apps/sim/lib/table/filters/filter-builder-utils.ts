@@ -1,7 +1,7 @@
 /**
  * Shared utilities for filter builder UI components.
  *
- * @module lib/table/filter-builder-utils
+ * @module lib/table/filters/filter-builder-utils
  */
 
 // Re-export shared constants and types for backward compatibility

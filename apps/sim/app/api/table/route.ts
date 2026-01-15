@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { TABLE_LIMITS, validateTableName, validateTableSchema } from '@/lib/table'
-import type { TableSchema } from '@/lib/table/validation'
+import type { TableSchema } from '@/lib/table/validation/validation'
 import type { TableColumnData, TableSchemaData } from './utils'
 
 const logger = createLogger('TableAPI')

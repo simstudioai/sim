@@ -87,16 +87,53 @@ function buildContainmentClause(tableName: string, field: string, value: JsonVal
   return sql`${sql.raw(`${tableName}.data`)} @> ${jsonObj}::jsonb`
 }
 
+/**
+ * Builds a numeric comparison clause for JSONB fields.
+ * Generates: `(table.data->>'field')::numeric <operator> value`
+ */
+function buildComparisonClause(
+  tableName: string,
+  field: string,
+  operator: '>' | '>=' | '<' | '<=',
+  value: number
+): SQL {
+  const escapedField = field.replace(/'/g, "''")
+  return sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric ${sql.raw(operator)} ${value}`
+}
+
+/**
+ * Builds a case-insensitive pattern matching clause for JSONB text fields.
+ * Generates: `table.data->>'field' ILIKE '%value%'`
+ */
+function buildContainsClause(tableName: string, field: string, value: string): SQL {
+  const escapedField = field.replace(/'/g, "''")
+  return sql`${sql.raw(`${tableName}.data->>'${escapedField}'`)} ILIKE ${`%${value}%`}`
+}
+
+/**
+ * Builds SQL conditions for a single field based on the provided condition.
+ *
+ * Supports both simple equality checks (using JSONB containment) and complex
+ * operators like comparison, membership, and pattern matching. Field names are
+ * validated to prevent SQL injection, and operators are validated against an
+ * allowed whitelist.
+ *
+ * @param tableName - The name of the table to query (used for SQL table reference)
+ * @param field - The field name to filter on (must match NAME_PATTERN)
+ * @param condition - Either a simple value (for equality) or a FieldCondition
+ *                    object with operators like $eq, $gt, $in, etc.
+ * @returns Array of SQL condition fragments. Multiple conditions are returned
+ *          when the condition object contains multiple operators.
+ * @throws Error if field name is invalid or operator is not allowed
+ */
 function buildFieldCondition(
   tableName: string,
   field: string,
   condition: JsonValue | FieldCondition
 ): SQL[] {
-  // Validate field name to prevent SQL injection
   validateFieldName(field)
 
   const conditions: SQL[] = []
-  const escapedField = field.replace(/'/g, "''")
 
   if (typeof condition === 'object' && condition !== null && !Array.isArray(condition)) {
     for (const [op, value] of Object.entries(condition)) {
@@ -115,34 +152,28 @@ function buildFieldCondition(
           break
 
         case '$gt':
-          conditions.push(
-            sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric > ${value}`
-          )
+          conditions.push(buildComparisonClause(tableName, field, '>', value as number))
           break
 
         case '$gte':
-          conditions.push(
-            sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric >= ${value}`
-          )
+          conditions.push(buildComparisonClause(tableName, field, '>=', value as number))
           break
 
         case '$lt':
-          conditions.push(
-            sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric < ${value}`
-          )
+          conditions.push(buildComparisonClause(tableName, field, '<', value as number))
           break
 
         case '$lte':
-          conditions.push(
-            sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric <= ${value}`
-          )
+          conditions.push(buildComparisonClause(tableName, field, '<=', value as number))
           break
 
         case '$in':
           if (Array.isArray(value) && value.length > 0) {
             if (value.length === 1) {
+              // Single value then use containment clause
               conditions.push(buildContainmentClause(tableName, field, value[0]))
             } else {
+              // Multiple values then use OR clause
               const inConditions = value.map((v) => buildContainmentClause(tableName, field, v))
               conditions.push(sql`(${sql.join(inConditions, sql.raw(' OR '))})`)
             }
@@ -159,9 +190,7 @@ function buildFieldCondition(
           break
 
         case '$contains':
-          conditions.push(
-            sql`${sql.raw(`${tableName}.data->>'${escapedField}'`)} ILIKE ${`%${value}%`}`
-          )
+          conditions.push(buildContainsClause(tableName, field, value as string))
           break
 
         default:
@@ -177,88 +206,59 @@ function buildFieldCondition(
 }
 
 /**
+ * Builds SQL clauses from nested filters and joins them with the specified operator.
+ */
+function buildLogicalClause(
+  subFilters: QueryFilter[],
+  tableName: string,
+  operator: 'OR' | 'AND'
+): SQL | undefined {
+  const clauses: SQL[] = []
+  for (const subFilter of subFilters) {
+    const clause = buildFilterClause(subFilter, tableName)
+    if (clause) {
+      clauses.push(clause)
+    }
+  }
+
+  if (clauses.length === 0) return undefined
+  if (clauses.length === 1) return clauses[0]
+
+  return sql`(${sql.join(clauses, sql.raw(` ${operator} `))})`
+}
+
+/**
  * Builds a WHERE clause from a filter object.
  * Recursively processes logical operators ($or, $and) and field conditions.
  */
 export function buildFilterClause(filter: QueryFilter, tableName: string): SQL | undefined {
   const conditions: SQL[] = []
 
-  /**
-   * Iterate over each field and its associated condition in the filter object.
-   *
-   * The filter is expected to be an object where keys are either field names or logical operators
-   * ('$or', '$and'), and values are the conditions to apply or arrays of nested filter objects.
-   */
   for (const [field, condition] of Object.entries(filter)) {
-    // Skip undefined conditions (e.g., unused or programmatically removed filters)
     if (condition === undefined) {
       continue
     }
 
-    /**
-     * Handle the logical OR operator: { $or: [filter1, filter2, ...] }
-     * Recursively build SQL clauses for each sub-filter,
-     * then join them with an OR. If there is only one sub-filter,
-     * no need for OR grouping.
-     */
     if (field === '$or' && Array.isArray(condition)) {
-      const orConditions: SQL[] = []
-      for (const subFilter of condition) {
-        const subClause = buildFilterClause(subFilter as QueryFilter, tableName)
-        if (subClause) {
-          orConditions.push(subClause)
-        }
-      }
-      if (orConditions.length > 0) {
-        if (orConditions.length === 1) {
-          // Only one condition; no need to wrap in OR
-          conditions.push(orConditions[0])
-        } else {
-          // Multiple conditions; join by OR
-          conditions.push(sql`(${sql.join(orConditions, sql.raw(' OR '))})`)
-        }
+      const orClause = buildLogicalClause(condition as QueryFilter[], tableName, 'OR')
+      if (orClause) {
+        conditions.push(orClause)
       }
       continue
     }
 
-    /**
-     * Handle the logical AND operator: { $and: [filter1, filter2, ...] }
-     * Recursively build SQL clauses for each sub-filter,
-     * then join them with an AND. If there is only one sub-filter,
-     * no need for AND grouping.
-     */
     if (field === '$and' && Array.isArray(condition)) {
-      const andConditions: SQL[] = []
-      for (const subFilter of condition) {
-        const subClause = buildFilterClause(subFilter as QueryFilter, tableName)
-        if (subClause) {
-          andConditions.push(subClause)
-        }
-      }
-      if (andConditions.length > 0) {
-        if (andConditions.length === 1) {
-          // Only one condition; no need to wrap in AND
-          conditions.push(andConditions[0])
-        } else {
-          // Multiple conditions; join by AND
-          conditions.push(sql`(${sql.join(andConditions, sql.raw(' AND '))})`)
-        }
+      const andClause = buildLogicalClause(condition as QueryFilter[], tableName, 'AND')
+      if (andClause) {
+        conditions.push(andClause)
       }
       continue
     }
 
-    /**
-     * If the condition is an array, but not a logical operator,
-     * skip it (invalid filter structure).
-     */
     if (Array.isArray(condition)) {
       continue
     }
 
-    /**
-     * Build conditions for regular fields.
-     * This delegates to buildFieldCondition, which handles comparisons like $eq, $gt, etc.
-     */
     const fieldConditions = buildFieldCondition(
       tableName,
       field,
@@ -267,15 +267,25 @@ export function buildFilterClause(filter: QueryFilter, tableName: string): SQL |
     conditions.push(...fieldConditions)
   }
 
-  /**
-   * If no conditions were built, return undefined to indicate no filter.
-   * If only one condition exists, return it directly.
-   * Otherwise, join all conditions using AND.
-   */
   if (conditions.length === 0) return undefined
   if (conditions.length === 1) return conditions[0]
 
   return sql.join(conditions, sql.raw(' AND '))
+}
+
+/**
+ * Builds a single ORDER BY clause for a field.
+ * Timestamp fields use direct column access, others use JSONB text extraction.
+ */
+function buildSortFieldClause(tableName: string, field: string, direction: 'asc' | 'desc'): SQL {
+  const escapedField = field.replace(/'/g, "''")
+  const directionSql = direction.toUpperCase()
+
+  if (field === 'createdAt' || field === 'updatedAt') {
+    return sql.raw(`${tableName}.${escapedField} ${directionSql}`)
+  }
+
+  return sql.raw(`${tableName}.data->>'${escapedField}' ${directionSql}`)
 }
 
 /**
@@ -293,40 +303,14 @@ export function buildSortClause(
 ): SQL | undefined {
   const clauses: SQL[] = []
 
-  /**
-   * Build ORDER BY SQL clauses based on the sort object keys and directions.
-   * - For `createdAt` and `updatedAt`, use the top-level table columns for proper type sorting.
-   * - For all other fields, treat them as keys in the table's data JSONB column.
-   *   Extraction is performed with ->> to return text, which is then sorted.
-   * - Field names are validated to prevent SQL injection.
-   */
   for (const [field, direction] of Object.entries(sort)) {
-    // Validate field name to prevent SQL injection
     validateFieldName(field)
 
-    // Validate direction
     if (direction !== 'asc' && direction !== 'desc') {
       throw new Error(`Invalid sort direction "${direction}". Must be "asc" or "desc".`)
     }
 
-    // Escape single quotes for SQL safety (defense in depth)
-    const escapedField = field.replace(/'/g, "''")
-
-    if (field === 'createdAt' || field === 'updatedAt') {
-      // Use regular column for timestamp sorting
-      clauses.push(
-        direction === 'asc'
-          ? sql.raw(`${tableName}.${escapedField} ASC`)
-          : sql.raw(`${tableName}.${escapedField} DESC`)
-      )
-    } else {
-      // Use text extraction for JSONB field sorting
-      clauses.push(
-        direction === 'asc'
-          ? sql.raw(`${tableName}.data->>'${escapedField}' ASC`)
-          : sql.raw(`${tableName}.data->>'${escapedField}' DESC`)
-      )
-    }
+    clauses.push(buildSortFieldClause(tableName, field, direction))
   }
 
   return clauses.length > 0 ? sql.join(clauses, sql.raw(', ')) : undefined

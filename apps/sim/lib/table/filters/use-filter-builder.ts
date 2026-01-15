@@ -4,7 +4,7 @@
  * Provides reusable filter condition management logic shared between
  * the table data viewer's FilterBuilder and workflow block's FilterFormat.
  *
- * @module lib/table/use-filter-builder
+ * @module lib/table/filters/use-filter-builder
  */
 
 import { useCallback, useMemo } from 'react'

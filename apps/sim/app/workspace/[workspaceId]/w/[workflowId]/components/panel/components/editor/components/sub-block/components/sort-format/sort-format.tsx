@@ -9,7 +9,7 @@ import {
   SORT_DIRECTIONS,
   type SortCondition,
   sortConditionsToJsonString,
-} from '@/lib/table/filter-builder-utils'
+} from '@/lib/table/filters/filter-builder-utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 
 interface SortFormatProps {

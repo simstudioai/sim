@@ -1,11 +1,8 @@
 /**
  * Shared constants and types for table filtering and sorting.
  *
- * @module lib/table/filter-constants
+ * @module lib/table/filters/filter-constants
  *
- * @remarks
- * This is the single source of truth for all filter and sort constants.
- * All components should import from here to ensure consistency.
  */
 
 /**
