@@ -592,6 +592,7 @@ export const auth = betterAuth({
       sendVerificationOnSignUp: false,
       otpLength: 6, // Explicitly set the OTP length
       expiresIn: 15 * 60, // 15 minutes in seconds
+      overrideDefaultEmailVerification: true,
     }),
     genericOAuth({
       config: [
