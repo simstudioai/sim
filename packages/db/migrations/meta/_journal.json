@@ -988,13 +988,6 @@
       "when": 1768421319400,
       "tag": "0141_daffy_marten_broadcloak",
       "breakpoints": true
-    },
-    {
-      "idx": 142,
-      "version": "7",
-      "when": 1768518361916,
-      "tag": "0142_solid_black_bolt",
-      "breakpoints": true
     }
   ]
 }
