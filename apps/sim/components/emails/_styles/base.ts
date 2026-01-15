@@ -173,6 +173,17 @@ export const baseStyles = {
     margin: 0,
   },
 
+  /** Code block text (for JSON/code display) */
+  codeBlock: {
+    fontSize: typography.fontSize.caption,
+    lineHeight: typography.lineHeight.caption,
+    color: colors.textSecondary,
+    fontFamily: 'monospace',
+    whiteSpace: 'pre-wrap' as const,
+    wordWrap: 'break-word' as const,
+    margin: 0,
+  },
+
   /** Highlighted info box (e.g., "What you get with Pro") */
   infoBox: {
     backgroundColor: colors.bgOuter,

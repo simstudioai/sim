@@ -25,7 +25,6 @@ function prepareLogData(
   log: WorkflowExecutionLog,
   subscription: {
     includeFinalOutput: boolean
-    includeTraceSpans: boolean
   }
 ) {
   const preparedLog = { ...log, executionData: {} as Record<string, unknown> }
@@ -36,10 +35,6 @@ function prepareLogData(
 
     if (subscription.includeFinalOutput && data.finalOutput) {
       webhookData.finalOutput = data.finalOutput
-    }
-
-    if (subscription.includeTraceSpans && data.traceSpans) {
-      webhookData.traceSpans = data.traceSpans
     }
 
     preparedLog.executionData = webhookData
