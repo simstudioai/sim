@@ -1,20 +1,3 @@
-import type { ToolResponse } from '@/tools/types'
-
-// Re-export shared types from lib/table for convenience
-export type {
-  ColumnDefinition,
-  ColumnType,
-  ColumnValue,
-  FilterOperators,
-  JsonValue,
-  QueryFilter,
-  RowData,
-  TableDefinition,
-  TableRow,
-  TableSchema,
-} from '@/lib/table/types'
-
-// Import types for use in this file
 import type {
   ColumnDefinition,
   QueryFilter,
@@ -23,6 +6,7 @@ import type {
   TableRow,
   TableSchema,
 } from '@/lib/table/types'
+import type { ToolResponse } from '@/tools/types'
 
 /**
  * Execution context provided by the workflow executor

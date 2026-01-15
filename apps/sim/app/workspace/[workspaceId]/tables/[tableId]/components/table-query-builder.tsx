@@ -2,33 +2,21 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { ArrowDownAZ, ArrowUpAZ, Plus, X } from 'lucide-react'
+import { nanoid } from 'nanoid'
 import { Button, Combobox, Input } from '@/components/emcn'
-import type { FilterCondition } from '@/lib/table/filters/constants'
+import { conditionsToFilter } from '@/lib/table/filters/builder-utils'
+import type { FilterCondition, SortCondition } from '@/lib/table/filters/constants'
 import { useFilterBuilder } from '@/lib/table/filters/use-builder'
-
-/**
- * Represents a sort configuration.
- */
-export interface SortConfig {
-  /** Column to sort by */
-  column: string
-  /** Sort direction */
-  direction: 'asc' | 'desc'
-}
-
-/**
- * Filter value structure for API queries.
- */
-type FilterValue = string | number | boolean | null | FilterValue[] | { [key: string]: FilterValue }
+import type { JsonValue } from '@/lib/table/types'
 
 /**
  * Query options for the table API.
  */
 export interface QueryOptions {
   /** Filter criteria or null for no filter, keys are column names, values are filter values */
-  filter: Record<string, FilterValue> | null
+  filter: Record<string, JsonValue> | null
   /** Sort configuration or null for default sort */
-  sort: SortConfig | null
+  sort: SortCondition | null
 }
 
 /**
@@ -54,111 +42,6 @@ interface TableQueryBuilderProps {
 }
 
 /**
- * Parses a string value into its appropriate type.
- *
- * @param value - String value to parse
- * @returns Parsed value (boolean, null, number, or string)
- */
-function parseValue(value: string): string | number | boolean | null {
-  if (value === 'true') return true
-  if (value === 'false') return false
-  if (value === 'null') return null
-  if (!Number.isNaN(Number(value)) && value !== '') return Number(value)
-  return value
-}
-
-/**
- * Parses a comma-separated string into an array of values.
- *
- * @param value - Comma-separated string
- * @returns Array of parsed values
- */
-function parseArrayValue(value: string): FilterValue[] {
-  return value.split(',').map((v) => {
-    const trimmed = v.trim()
-    return parseValue(trimmed)
-  })
-}
-
-/**
- * Converts builder filter conditions to a MongoDB-style filter object.
- *
- * Iterates through an array of filter conditions, combining them into a filter expression object
- * that is compatible with MongoDB's query format. Supports both "AND" and "OR" logical groupings:
- *
- * - "AND" conditions are grouped together in objects.
- * - "OR" conditions start new groups; groups are merged under a single `$or` array.
- *
- * @param conditions - The list of filter conditions specified by the user.
- * @returns A filter object to send to the API, or null if there are no conditions.
- *
- * @example
- * [
- *   { logicalOperator: 'and', column: 'age', operator: 'gt', value: '18' },
- *   { logicalOperator: 'or', column: 'role', operator: 'eq', value: 'admin' }
- * ]
- * // =>
- * {
- *   $or: [
- *     { age: { $gt: 18 } },
- *     { role: 'admin' }
- *   ]
- * }
- */
-function conditionsToFilter(conditions: FilterCondition[]): Record<string, FilterValue> | null {
-  // Return null if there are no filter conditions.
-  if (conditions.length === 0) return null
-
-  // Groups for $or logic; each group is an AND-combined object.
-  const orGroups: Record<string, FilterValue>[] = []
-  // Current group of AND'ed conditions.
-  let currentAndGroup: Record<string, FilterValue> = {}
-
-  conditions.forEach((condition, index) => {
-    const { column, operator, value } = condition
-    const operatorKey = `$${operator}`
-
-    // Parse value as per operator: 'in' receives an array, others get a primitive value.
-    let parsedValue: FilterValue = value
-    if (operator === 'in') {
-      parsedValue = parseArrayValue(value)
-    } else {
-      parsedValue = parseValue(value)
-    }
-
-    // For 'eq', value is direct (shorthand), otherwise use a key for the operator.
-    const conditionObj: FilterValue =
-      operator === 'eq' ? parsedValue : { [operatorKey]: parsedValue }
-
-    // Group logic:
-    // - First condition or 'and': add to the current AND group.
-    // - 'or': finalize current AND group and start a new one.
-    if (index === 0 || condition.logicalOperator === 'and') {
-      currentAndGroup[column] = conditionObj
-    } else if (condition.logicalOperator === 'or') {
-      if (Object.keys(currentAndGroup).length > 0) {
-        // Finalize and push the previous AND group to $or groups.
-        orGroups.push({ ...currentAndGroup })
-      }
-      // Start a new AND group for subsequent conditions.
-      currentAndGroup = { [column]: conditionObj }
-    }
-  })
-
-  // Push the last AND group, if any, to the orGroups list.
-  if (Object.keys(currentAndGroup).length > 0) {
-    orGroups.push(currentAndGroup)
-  }
-
-  // If multiple groups exist, return as a $or query; otherwise, return the single group.
-  if (orGroups.length > 1) {
-    return { $or: orGroups }
-  }
-
-  return orGroups[0] || null
-}
-
-/**
  * Component for building filter and sort queries for table data.
  *
  * @remarks
@@ -178,7 +61,7 @@ function conditionsToFilter(conditions: FilterCondition[]): Record<string, Filte
  */
 export function TableQueryBuilder({ columns, onApply, onAddRow }: TableQueryBuilderProps) {
   const [conditions, setConditions] = useState<FilterCondition[]>([])
-  const [sortConfig, setSortConfig] = useState<SortConfig | null>(null)
+  const [sortCondition, setSortCondition] = useState<SortCondition | null>(null)
 
   const columnOptions = useMemo(
     () => columns.map((col) => ({ value: col.name, label: col.name })),
@@ -200,46 +83,47 @@ export function TableQueryBuilder({ columns, onApply, onAddRow }: TableQueryBuil
   })
 
   /**
-   * Adds a sort configuration.
+   * Adds a sort condition.
    */
   const handleAddSort = useCallback(() => {
-    setSortConfig({
+    setSortCondition({
+      id: nanoid(),
       column: columns[0]?.name || '',
       direction: 'asc',
     })
   }, [columns])
 
   /**
-   * Removes the sort configuration.
+   * Removes the sort condition.
    */
   const handleRemoveSort = useCallback(() => {
-    setSortConfig(null)
+    setSortCondition(null)
   }, [])
 
   /**
-   * Applies the current filter and sort configuration.
+   * Applies the current filter and sort conditions.
    */
   const handleApply = useCallback(() => {
     const filter = conditionsToFilter(conditions)
     onApply({
       filter,
-      sort: sortConfig,
+      sort: sortCondition,
     })
-  }, [conditions, sortConfig, onApply])
+  }, [conditions, sortCondition, onApply])
 
   /**
-   * Clears all filters and sort configuration.
+   * Clears all filters and sort conditions.
    */
   const handleClear = useCallback(() => {
     setConditions([])
-    setSortConfig(null)
+    setSortCondition(null)
     onApply({
       filter: null,
       sort: null,
     })
   }, [onApply])
 
-  const hasChanges = conditions.length > 0 || sortConfig !== null
+  const hasChanges = conditions.length > 0 || sortCondition !== null
 
   return (
     <div className='flex flex-col gap-[8px]'>
@@ -259,12 +143,12 @@ export function TableQueryBuilder({ columns, onApply, onAddRow }: TableQueryBuil
       ))}
 
       {/* Sort Row */}
-      {sortConfig && (
-        <SortConfigRow
-          sortConfig={sortConfig}
+      {sortCondition && (
+        <SortConditionRow
+          sortCondition={sortCondition}
           columnOptions={columnOptions}
           sortDirectionOptions={sortDirectionOptions}
-          onChange={setSortConfig}
+          onChange={setSortCondition}
           onRemove={handleRemoveSort}
         />
       )}
@@ -281,7 +165,7 @@ export function TableQueryBuilder({ columns, onApply, onAddRow }: TableQueryBuil
           Add filter
         </Button>
 
-        {!sortConfig && (
+        {!sortCondition && (
           <Button variant='default' size='sm' onClick={handleAddSort}>
             <ArrowUpAZ className='mr-[4px] h-[12px] w-[12px]' />
             Add sort
@@ -406,31 +290,31 @@ function FilterConditionRow({
 }
 
 /**
- * Props for the SortConfigRow component.
+ * Props for the SortConditionRow component.
  */
-interface SortConfigRowProps {
-  /** The sort configuration */
-  sortConfig: SortConfig
+interface SortConditionRowProps {
+  /** The sort condition */
+  sortCondition: SortCondition
   /** Available column options */
   columnOptions: Array<{ value: string; label: string }>
   /** Available sort direction options */
   sortDirectionOptions: Array<{ value: string; label: string }>
-  /** Callback to update the sort configuration */
-  onChange: (config: SortConfig | null) => void
+  /** Callback to update the sort condition */
+  onChange: (condition: SortCondition | null) => void
   /** Callback to remove the sort */
   onRemove: () => void
 }
 
 /**
- * Sort configuration row component.
+ * Sort condition row component.
  */
-function SortConfigRow({
-  sortConfig,
+function SortConditionRow({
+  sortCondition,
   columnOptions,
   sortDirectionOptions,
   onChange,
   onRemove,
-}: SortConfigRowProps) {
+}: SortConditionRowProps) {
   return (
     <div className='flex items-center gap-[8px]'>
       <Button
@@ -450,8 +334,8 @@ function SortConfigRow({
         <Combobox
           size='sm'
           options={columnOptions}
-          value={sortConfig.column}
-          onChange={(value) => onChange({ ...sortConfig, column: value })}
+          value={sortCondition.column}
+          onChange={(value) => onChange({ ...sortCondition, column: value })}
           placeholder='Column'
         />
       </div>
@@ -460,13 +344,13 @@ function SortConfigRow({
         <Combobox
           size='sm'
           options={sortDirectionOptions}
-          value={sortConfig.direction}
-          onChange={(value) => onChange({ ...sortConfig, direction: value as 'asc' | 'desc' })}
+          value={sortCondition.direction}
+          onChange={(value) => onChange({ ...sortCondition, direction: value as 'asc' | 'desc' })}
         />
       </div>
 
       <div className='flex items-center text-[12px] text-[var(--text-tertiary)]'>
-        {sortConfig.direction === 'asc' ? (
+        {sortCondition.direction === 'asc' ? (
           <ArrowUpAZ className='h-[14px] w-[14px]' />
         ) : (
           <ArrowDownAZ className='h-[14px] w-[14px]' />

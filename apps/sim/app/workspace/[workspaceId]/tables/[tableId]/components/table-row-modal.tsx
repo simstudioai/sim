@@ -16,23 +16,9 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
-import type { ColumnDefinition, TableSchema } from '@/lib/table'
+import type { ColumnDefinition, TableRow, TableSchema } from '@/lib/table'
 
 const logger = createLogger('TableRowModal')
-
-/**
- * Represents row data from the table.
- */
-export interface TableRowData {
-  /** Unique identifier for the row */
-  id: string
-  /** Row field values keyed by column name */
-  data: Record<string, unknown>
-  /** ISO timestamp when the row was created */
-  createdAt: string
-  /** ISO timestamp when the row was last updated */
-  updatedAt: string
-}
 
 /**
  * Table metadata needed for row operations.
@@ -64,7 +50,7 @@ export interface TableRowModalProps {
   /** Table to operate on */
   table: TableInfo
   /** Row being edited/deleted (required for edit/delete modes) */
-  row?: TableRowData
+  row?: TableRow
   /** Row IDs to delete (for delete mode batch operations) */
   rowIds?: string[]
   /** Callback when operation is successful */

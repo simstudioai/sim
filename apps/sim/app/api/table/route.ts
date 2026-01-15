@@ -6,8 +6,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createTable, listTables, TABLE_LIMITS } from '@/lib/table'
-import { normalizeColumn, type TableSchemaData } from './utils'
+import { createTable, listTables, TABLE_LIMITS, type TableSchema } from '@/lib/table'
+import { normalizeColumn } from './utils'
 
 const logger = createLogger('TableAPI')
 
@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Normalize schema to ensure all fields have explicit defaults
-    const normalizedSchema: TableSchemaData = {
+    const normalizedSchema: TableSchema = {
       columns: params.schema.columns.map(normalizeColumn),
     }
 
@@ -301,7 +301,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         tables: tables.map((t) => {
-          const schemaData = t.schema as TableSchemaData
+          const schemaData = t.schema as TableSchema
           return {
             ...t,
             schema: {

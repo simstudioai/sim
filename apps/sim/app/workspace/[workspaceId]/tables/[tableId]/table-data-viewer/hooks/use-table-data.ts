@@ -5,9 +5,9 @@
  */
 
 import { useQuery } from '@tanstack/react-query'
+import type { TableDefinition, TableRow } from '@/lib/table'
 import type { QueryOptions } from '../../components/table-query-builder'
 import { ROWS_PER_PAGE } from '../constants'
-import type { TableData, TableRowData } from '../types'
 
 interface UseTableDataParams {
   workspaceId: string
@@ -17,9 +17,9 @@ interface UseTableDataParams {
 }
 
 interface UseTableDataReturn {
-  tableData: TableData | undefined
+  tableData: TableDefinition | undefined
   isLoadingTable: boolean
-  rows: TableRowData[]
+  rows: TableRow[]
   totalCount: number
   totalPages: number
   isLoadingRows: boolean
@@ -43,9 +43,9 @@ export function useTableData({
     queryFn: async () => {
       const res = await fetch(`/api/table/${tableId}?workspaceId=${workspaceId}`)
       if (!res.ok) throw new Error('Failed to fetch table')
-      const json: { data?: { table: TableData }; table?: TableData } = await res.json()
+      const json: { data?: { table: TableDefinition }; table?: TableDefinition } = await res.json()
       const data = json.data || json
-      return (data as { table: TableData }).table
+      return (data as { table: TableDefinition }).table
     },
   })
 
@@ -74,8 +74,8 @@ export function useTableData({
       const res = await fetch(`/api/table/${tableId}/rows?${searchParams}`)
       if (!res.ok) throw new Error('Failed to fetch rows')
       const json: {
-        data?: { rows: TableRowData[]; totalCount: number }
-        rows?: TableRowData[]
+        data?: { rows: TableRow[]; totalCount: number }
+        rows?: TableRow[]
         totalCount?: number
       } = await res.json()
       return json.data || json
@@ -83,7 +83,7 @@ export function useTableData({
     enabled: !!tableData,
   })
 
-  const rows = (rowsData?.rows || []) as TableRowData[]
+  const rows = (rowsData?.rows || []) as TableRow[]
   const totalCount = rowsData?.totalCount || 0
   const totalPages = Math.ceil(totalCount / ROWS_PER_PAGE)
 

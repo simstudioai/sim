@@ -3,12 +3,15 @@ import { userTableDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import type { ColumnDefinition, TableSchema } from '@/lib/table'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TableUtils')
 
 /**
- * Represents the core data structure for a user-defined table.
+ * Represents the core data structure for a user-defined table as stored in the database.
+ *
+ * This extends the base TableDefinition with DB-specific fields like createdBy and deletedAt.
  */
 export interface TableData {
   /** Unique identifier for the table */
@@ -22,7 +25,7 @@ export interface TableData {
   /** Optional description of the table's purpose */
   description?: string | null
   /** JSON schema defining the table's column structure */
-  schema: TableSchemaData
+  schema: TableSchema
   /** Maximum number of rows allowed in this table */
   maxRows: number
   /** Current number of rows in the table */
@@ -33,28 +36,6 @@ export interface TableData {
   createdAt: Date
   /** Timestamp when the table was last updated */
   updatedAt: Date
-}
-
-/**
- * Schema structure for table columns stored in the database.
- */
-export interface TableSchemaData {
-  /** Array of column definitions */
-  columns: TableColumnData[]
-}
-
-/**
- * Represents a single column definition in the table schema.
- */
-export interface TableColumnData {
-  /** Name of the column */
-  name: string
-  /** Data type of the column */
-  type: 'string' | 'number' | 'boolean' | 'date' | 'json'
-  /** Whether this column is required */
-  required?: boolean
-  /** Whether this column must have unique values */
-  unique?: boolean
 }
 
 /**
@@ -492,7 +473,7 @@ export function serverErrorResponse(
  * @param col - The column definition to normalize
  * @returns A normalized column with explicit required and unique values
  */
-export function normalizeColumn(col: TableColumnData): TableColumnData {
+export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
   return {
     name: col.name,
     type: col.type,

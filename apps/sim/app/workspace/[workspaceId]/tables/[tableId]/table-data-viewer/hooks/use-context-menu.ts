@@ -5,11 +5,12 @@
  */
 
 import { useCallback, useState } from 'react'
-import type { ContextMenuState, TableRowData } from '../types'
+import type { TableRow } from '@/lib/table'
+import type { ContextMenuState } from '../types'
 
 interface UseContextMenuReturn {
   contextMenu: ContextMenuState
-  handleRowContextMenu: (e: React.MouseEvent, row: TableRowData) => void
+  handleRowContextMenu: (e: React.MouseEvent, row: TableRow) => void
   closeContextMenu: () => void
 }
 
@@ -28,7 +29,7 @@ export function useContextMenu(): UseContextMenuReturn {
   /**
    * Opens the context menu for a row.
    */
-  const handleRowContextMenu = useCallback((e: React.MouseEvent, row: TableRowData) => {
+  const handleRowContextMenu = useCallback((e: React.MouseEvent, row: TableRow) => {
     e.preventDefault()
     e.stopPropagation()
     setContextMenu({

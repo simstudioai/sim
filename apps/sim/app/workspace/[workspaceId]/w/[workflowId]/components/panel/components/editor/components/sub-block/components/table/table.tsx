@@ -19,11 +19,11 @@ interface TableProps {
   subBlockId: string
   columns: string[]
   isPreview?: boolean
-  previewValue?: TableRow[] | null
+  previewValue?: WorkflowTableRow[] | null
   disabled?: boolean
 }
 
-interface TableRow {
+interface WorkflowTableRow {
   id: string
   cells: Record<string, string>
 }
@@ -38,7 +38,7 @@ export function Table({
 }: TableProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const [storeValue, setStoreValue] = useSubBlockValue<TableRow[]>(blockId, subBlockId)
+  const [storeValue, setStoreValue] = useSubBlockValue<WorkflowTableRow[]>(blockId, subBlockId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   // Use the extended hook for field-level management
@@ -73,7 +73,7 @@ export function Table({
    */
   useEffect(() => {
     if (!isPreview && !disabled && (!Array.isArray(storeValue) || storeValue.length === 0)) {
-      const initialRow: TableRow = {
+      const initialRow: WorkflowTableRow = {
         id: crypto.randomUUID(),
         cells: { ...emptyCellsTemplate },
       }
@@ -110,7 +110,7 @@ export function Table({
       }
     })
 
-    return validatedRows as TableRow[]
+    return validatedRows as WorkflowTableRow[]
   }, [value, emptyCellsTemplate])
 
   // Helper to update a cell value
@@ -164,7 +164,12 @@ export function Table({
     </thead>
   )
 
-  const renderCell = (row: TableRow, rowIndex: number, column: string, cellIndex: number) => {
+  const renderCell = (
+    row: WorkflowTableRow,
+    rowIndex: number,
+    column: string,
+    cellIndex: number
+  ) => {
     // Defensive programming: ensure row.cells exists and has the expected structure
     const hasValidCells = row.cells && typeof row.cells === 'object'
     if (!hasValidCells) logger.warn('Table row has malformed cells data:', row)

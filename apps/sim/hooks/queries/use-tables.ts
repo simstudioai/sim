@@ -3,7 +3,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { TableDefinition } from '@/tools/table/types'
+import type { TableDefinition } from '@/lib/table'
 
 export const tableKeys = {
   all: ['tables'] as const,

@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useState } from 'react'
-import type { TableRowData } from '../types'
+import type { TableRow } from '@/lib/table'
 
 interface UseRowSelectionReturn {
   selectedRows: Set<string>
@@ -20,7 +20,7 @@ interface UseRowSelectionReturn {
  * @param rows - The current rows to select from
  * @returns Selection state and handlers
  */
-export function useRowSelection(rows: TableRowData[]): UseRowSelectionReturn {
+export function useRowSelection(rows: TableRow[]): UseRowSelectionReturn {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
 
   /**

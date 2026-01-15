@@ -5,9 +5,8 @@
  */
 
 import { nanoid } from 'nanoid'
+import type { JsonValue } from '../types'
 import type { FilterCondition, SortCondition } from './constants'
-
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
 /**
  * Parses a string value into its appropriate type based on the operator.
@@ -164,35 +163,6 @@ function formatValueForBuilder(value: JsonValue): string {
 }
 
 /**
- * Converts builder conditions to JSON string.
- *
- * @param conditions - Array of filter conditions
- * @returns JSON string representation
- */
-export function conditionsToJsonString(conditions: FilterCondition[]): string {
-  const filter = conditionsToFilter(conditions)
-  if (!filter) return ''
-  return JSON.stringify(filter, null, 2)
-}
-
-/**
- * Converts JSON string to builder conditions.
- *
- * @param jsonString - JSON string to parse
- * @returns Array of filter conditions or empty array if invalid
- */
-export function jsonStringToConditions(jsonString: string): FilterCondition[] {
-  if (!jsonString || !jsonString.trim()) return []
-
-  try {
-    const filter = JSON.parse(jsonString)
-    return filterToConditions(filter)
-  } catch {
-    return []
-  }
-}
-
-/**
  * Converts builder sort conditions to sort object.
  *
  * @param conditions - Array of sort conditions from the builder UI
@@ -225,33 +195,4 @@ export function sortToConditions(sort: Record<string, string> | null): SortCondi
     column,
     direction: direction === 'desc' ? 'desc' : 'asc',
   }))
-}
-
-/**
- * Converts builder sort conditions to JSON string.
- *
- * @param conditions - Array of sort conditions
- * @returns JSON string representation
- */
-export function sortConditionsToJsonString(conditions: SortCondition[]): string {
-  const sort = sortConditionsToSort(conditions)
-  if (!sort) return ''
-  return JSON.stringify(sort, null, 2)
-}
-
-/**
- * Converts JSON string to sort builder conditions.
- *
- * @param jsonString - JSON string to parse
- * @returns Array of sort conditions or empty array if invalid
- */
-export function jsonStringToSortConditions(jsonString: string): SortCondition[] {
-  if (!jsonString || !jsonString.trim()) return []
-
-  try {
-    const sort = JSON.parse(jsonString)
-    return sortToConditions(sort)
-  } catch {
-    return []
-  }
 }

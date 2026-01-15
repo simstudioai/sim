@@ -19,6 +19,7 @@ import {
   TableRow,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import type { TableRow as TableRowType } from '@/lib/table'
 import { type QueryOptions, TableActionBar, TableQueryBuilder, TableRowModal } from '../components'
 import {
   CellViewerModal,
@@ -31,7 +32,7 @@ import {
   TablePagination,
 } from './components'
 import { useContextMenu, useRowSelection, useTableData } from './hooks'
-import type { CellViewerData, TableRowData } from './types'
+import type { CellViewerData } from './types'
 
 /**
  * Main component for viewing and managing table data.
@@ -62,7 +63,7 @@ export function TableDataViewer() {
   const [currentPage, setCurrentPage] = useState(0)
 
   const [showAddModal, setShowAddModal] = useState(false)
-  const [editingRow, setEditingRow] = useState<TableRowData | null>(null)
+  const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
   const [deletingRows, setDeletingRows] = useState<string[]>([])
   const [showSchemaModal, setShowSchemaModal] = useState(false)
 

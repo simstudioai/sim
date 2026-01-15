@@ -814,17 +814,7 @@ function SubBlockComponent({
           />
         )
 
-      case 'filter-format': {
-        // Determine sync props based on subBlockId
-        let modeSubBlockId: string | undefined
-        let jsonSubBlockId: string | undefined
-        if (config.id === 'filterBuilder') {
-          modeSubBlockId = 'builderMode'
-          jsonSubBlockId = 'filter'
-        } else if (config.id === 'bulkFilterBuilder') {
-          modeSubBlockId = 'bulkFilterMode'
-          jsonSubBlockId = 'filterCriteria'
-        }
+      case 'filter-format':
         return (
           <FilterFormat
             blockId={blockId}
@@ -832,20 +822,10 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as FilterCondition[] | null | undefined}
             disabled={isDisabled}
-            modeSubBlockId={modeSubBlockId}
-            jsonSubBlockId={jsonSubBlockId}
           />
         )
-      }
 
-      case 'sort-format': {
-        // Determine sync props based on subBlockId
-        let modeSubBlockId: string | undefined
-        let jsonSubBlockId: string | undefined
-        if (config.id === 'sortBuilder') {
-          modeSubBlockId = 'builderMode'
-          jsonSubBlockId = 'sort'
-        }
+      case 'sort-format':
         return (
           <SortFormat
             blockId={blockId}
@@ -853,11 +833,8 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as SortCondition[] | null | undefined}
             disabled={isDisabled}
-            modeSubBlockId={modeSubBlockId}
-            jsonSubBlockId={jsonSubBlockId}
           />
         )
-      }
 
       case 'channel-selector':
       case 'user-selector':

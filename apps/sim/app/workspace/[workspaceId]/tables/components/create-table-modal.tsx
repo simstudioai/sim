@@ -17,28 +17,10 @@ import {
   ModalHeader,
   Textarea,
 } from '@/components/emcn'
+import type { ColumnDefinition, ColumnType } from '@/lib/table'
 import { useCreateTable } from '@/hooks/queries/use-tables'
 
 const logger = createLogger('CreateTableModal')
-
-/**
- * Supported column data types for table schemas.
- */
-type ColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
-
-/**
- * Definition for a single table column.
- */
-interface ColumnDefinition {
-  /** Name of the column */
-  name: string
-  /** Data type of the column */
-  type: ColumnType
-  /** Whether this column is required */
-  required: boolean
-  /** Whether this column must have unique values */
-  unique: boolean
-}
 
 /**
  * Props for the CreateTableModal component.
@@ -51,9 +33,9 @@ interface CreateTableModalProps {
 }
 
 /**
- * Available column type options for the combobox.
+ * Available column type options for the combobox UI.
  */
-const COLUMN_TYPES: Array<{ value: ColumnType; label: string }> = [
+const COLUMN_TYPE_OPTIONS: Array<{ value: ColumnType; label: string }> = [
   { value: 'string', label: 'String' },
   { value: 'number', label: 'Number' },
   { value: 'boolean', label: 'Boolean' },
@@ -356,7 +338,7 @@ function ColumnRow({ column, index, isRemovable, onChange, onRemove }: ColumnRow
       {/* Column Type */}
       <div className='w-[110px]'>
         <Combobox
-          options={COLUMN_TYPES}
+          options={COLUMN_TYPE_OPTIONS}
           value={column.type}
           selectedValue={column.type}
           onChange={(value) => onChange(index, 'type', value as ColumnType)}

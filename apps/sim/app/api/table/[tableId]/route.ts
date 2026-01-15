@@ -3,8 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { deleteTable, getTableById } from '@/lib/table'
-import type { TableSchemaData } from '../utils'
+import { deleteTable, getTableById, type TableSchema } from '@/lib/table'
 import {
   checkTableAccess,
   checkTableWriteAccess,
@@ -106,7 +105,7 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
 
     logger.info(`[${requestId}] Retrieved table ${tableId} for user ${authResult.userId}`)
 
-    const schemaData = table.schema as TableSchemaData
+    const schemaData = table.schema as TableSchema
 
     return NextResponse.json({
       success: true,

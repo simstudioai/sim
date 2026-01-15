@@ -112,13 +112,17 @@ export interface ToolConfig<P = any, R = any> {
   directExecution?: (params: P) => Promise<ToolResponse>
 }
 
-export interface TableRow {
+/** Key-value pair row for HTTP request tables (headers, params) */
+export interface KeyValueRow {
   id: string
   cells: {
     Key: string
     Value: any
   }
 }
+
+/** @deprecated Use KeyValueRow instead */
+export type TableRow = KeyValueRow
 
 export interface OAuthTokenPayload {
   credentialId?: string

@@ -24,8 +24,8 @@ import {
   TableRow,
   Tooltip,
 } from '@/components/emcn'
+import type { TableDefinition } from '@/lib/table'
 import { useDeleteTable } from '@/hooks/queries/use-tables'
-import type { TableDefinition } from '@/tools/table/types'
 
 const logger = createLogger('TableCard')
 

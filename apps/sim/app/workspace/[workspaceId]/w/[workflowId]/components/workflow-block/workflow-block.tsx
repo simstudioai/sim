@@ -46,9 +46,9 @@ import { wouldCreateCycle } from '@/stores/workflows/workflow/utils'
 const logger = createLogger('WorkflowBlock')
 
 /**
- * Type guard for table row structure
+ * Type guard for workflow table row structure (sub-block table inputs)
  */
-interface TableRow {
+interface WorkflowTableRow {
   id: string
   cells: Record<string, string>
 }
@@ -67,7 +67,7 @@ interface FieldFormat {
 /**
  * Checks if a value is a table row array
  */
-const isTableRowArray = (value: unknown): value is TableRow[] => {
+const isTableRowArray = (value: unknown): value is WorkflowTableRow[] => {
   if (!Array.isArray(value) || value.length === 0) return false
   const firstItem = value[0]
   return (

@@ -1,15 +1,11 @@
 /**
  * Core type definitions for user-defined tables.
  *
- * This module provides the single source of truth for all table-related types.
- * Import types from here rather than defining them locally.
- *
  * @module lib/table/types
  */
 
 import type { ColumnType } from './constants'
 
-// Re-export ColumnType for convenience
 export type { ColumnType }
 
 /** Primitive values that can be stored in table columns */

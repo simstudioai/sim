@@ -1,5 +1,6 @@
+import type { TableRow } from '@/lib/table'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
-import type { TableRow, TableRowInsertParams } from './types'
+import type { TableRowInsertParams } from './types'
 
 interface TableUpsertResponse extends ToolResponse {
   output: {

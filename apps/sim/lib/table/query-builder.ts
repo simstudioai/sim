@@ -11,12 +11,6 @@ import { NAME_PATTERN } from './constants'
 import type { FilterOperators, JsonValue, QueryFilter } from './types'
 
 /**
- * Field condition is an alias for FilterOperators.
- * @deprecated Use FilterOperators from types.ts instead.
- */
-export type FieldCondition = FilterOperators
-
-/**
  * Whitelist of allowed operators for query filtering.
  * Only these operators can be used in filter conditions.
  */
@@ -107,7 +101,7 @@ function buildContainsClause(tableName: string, field: string, value: string): S
  *
  * @param tableName - The name of the table to query (used for SQL table reference)
  * @param field - The field name to filter on (must match NAME_PATTERN)
- * @param condition - Either a simple value (for equality) or a FieldCondition
+ * @param condition - Either a simple value (for equality) or a FilterOperators
  *                    object with operators like $eq, $gt, $in, etc.
  * @returns Array of SQL condition fragments. Multiple conditions are returned
  *          when the condition object contains multiple operators.
@@ -116,7 +110,7 @@ function buildContainsClause(tableName: string, field: string, value: string): S
 function buildFieldCondition(
   tableName: string,
   field: string,
-  condition: JsonValue | FieldCondition
+  condition: JsonValue | FilterOperators
 ): SQL[] {
   validateFieldName(field)
 
@@ -249,7 +243,7 @@ export function buildFilterClause(filter: QueryFilter, tableName: string): SQL |
     const fieldConditions = buildFieldCondition(
       tableName,
       field,
-      condition as JsonValue | FieldCondition
+      condition as JsonValue | FilterOperators
     )
     conditions.push(...fieldConditions)
   }

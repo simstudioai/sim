@@ -4,12 +4,8 @@ import { useCallback, useMemo } from 'react'
 import { Plus } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { Button, type ComboboxOption } from '@/components/emcn'
-import {
-  jsonStringToSortConditions,
-  sortConditionsToJsonString,
-} from '@/lib/table/filters/builder-utils'
 import { SORT_DIRECTIONS, type SortCondition } from '@/lib/table/filters/constants'
-import { useBuilderJsonSync, useTableColumns } from '@/lib/table/hooks'
+import { useTableColumns } from '@/lib/table/hooks'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { EmptyState } from './components/empty-state'
 import { SortConditionRow } from './components/sort-condition-row'
@@ -22,8 +18,6 @@ interface SortFormatProps {
   disabled?: boolean
   columns?: Array<{ value: string; label: string }>
   tableIdSubBlockId?: string
-  modeSubBlockId?: string
-  jsonSubBlockId?: string
 }
 
 const createDefaultCondition = (columns: ComboboxOption[]): SortCondition => ({
@@ -33,10 +27,7 @@ const createDefaultCondition = (columns: ComboboxOption[]): SortCondition => ({
 })
 
 /**
- * Visual builder for sort conditions with optional JSON sync.
- *
- * When `modeSubBlockId` and `jsonSubBlockId` are provided, handles bidirectional
- * conversion between builder conditions and JSON format.
+ * Visual builder for sort conditions.
  */
 export function SortFormat({
   blockId,
@@ -46,16 +37,9 @@ export function SortFormat({
   disabled = false,
   columns: propColumns,
   tableIdSubBlockId = 'tableId',
-  modeSubBlockId,
-  jsonSubBlockId,
 }: SortFormatProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<SortCondition[]>(blockId, subBlockId)
   const [tableIdValue] = useSubBlockValue<string>(blockId, tableIdSubBlockId)
-  const [modeValue] = useSubBlockValue<string>(blockId, modeSubBlockId || '_unused_mode')
-  const [jsonValue, setJsonValue] = useSubBlockValue<string>(
-    blockId,
-    jsonSubBlockId || '_unused_json'
-  )
 
   const dynamicColumns = useTableColumns({ tableId: tableIdValue, includeBuiltIn: true })
   const columns = useMemo(() => {
@@ -71,18 +55,6 @@ export function SortFormat({
   const value = isPreview ? previewValue : storeValue
   const conditions: SortCondition[] = Array.isArray(value) && value.length > 0 ? value : []
   const isReadOnly = isPreview || disabled
-
-  useBuilderJsonSync({
-    modeValue,
-    jsonValue,
-    setJsonValue,
-    isPreview,
-    conditions,
-    setConditions: setStoreValue,
-    jsonToConditions: jsonStringToSortConditions,
-    conditionsToJson: sortConditionsToJsonString,
-    enabled: Boolean(modeSubBlockId && jsonSubBlockId),
-  })
 
   const addCondition = useCallback(() => {
     if (isReadOnly) return
