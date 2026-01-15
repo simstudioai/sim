@@ -22,7 +22,8 @@ export function useCheckpointManagement(
   messages: CopilotMessage[],
   messageCheckpoints: any[],
   onRevertModeChange?: (isReverting: boolean) => void,
-  onEditModeChange?: (isEditing: boolean) => void
+  onEditModeChange?: (isEditing: boolean) => void,
+  onCancelEdit?: () => void
 ) {
   const [showRestoreConfirmation, setShowRestoreConfirmation] = useState(false)
   const [showCheckpointDiscardModal, setShowCheckpointDiscardModal] = useState(false)
@@ -154,6 +155,8 @@ export function useCheckpointManagement(
       }
 
       setShowCheckpointDiscardModal(false)
+      onEditModeChange?.(false)
+      onCancelEdit?.()
 
       const { sendMessage } = useCopilotStore.getState()
       if (pendingEditRef.current) {
@@ -180,13 +183,22 @@ export function useCheckpointManagement(
     } finally {
       setIsProcessingDiscard(false)
     }
-  }, [messageCheckpoints, revertToCheckpoint, message, messages])
+  }, [
+    messageCheckpoints,
+    revertToCheckpoint,
+    message,
+    messages,
+    onEditModeChange,
+    onCancelEdit,
+  ])
 
   /**
    * Cancels checkpoint discard and clears pending edit
    */
   const handleCancelCheckpointDiscard = useCallback(() => {
     setShowCheckpointDiscardModal(false)
+    onEditModeChange?.(false)
+    onCancelEdit?.()
     pendingEditRef.current = null
   }, [])
 
@@ -218,7 +230,7 @@ export function useCheckpointManagement(
       }
       pendingEditRef.current = null
     }
-  }, [message, messages])
+  }, [message, messages, onEditModeChange, onCancelEdit])
 
   /**
    * Handles keyboard events for restore confirmation (Escape/Enter)

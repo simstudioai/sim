@@ -208,36 +208,48 @@ export class DeployChatClientTool extends BaseClientTool {
         return
       }
 
-      // Deploy action - validate required fields
-      if (!args?.identifier && !workflow?.name) {
-        throw new Error('Either identifier or workflow name is required')
+      this.setState(ClientToolCallState.executing)
+
+      const statusRes = await fetch(`/api/workflows/${workflowId}/chat/status`)
+      const statusJson = statusRes.ok ? await statusRes.json() : null
+      const existingDeployment = statusJson?.deployment || null
+
+      const baseIdentifier =
+        existingDeployment?.identifier || this.generateIdentifier(workflow?.name || 'chat')
+      const baseTitle = existingDeployment?.title || workflow?.name || 'Chat'
+      const baseDescription = existingDeployment?.description || ''
+      const baseAuthType = existingDeployment?.authType || 'public'
+      const baseWelcomeMessage =
+        existingDeployment?.customizations?.welcomeMessage || 'Hi there! How can I help you today?'
+      const basePrimaryColor =
+        existingDeployment?.customizations?.primaryColor || 'var(--brand-primary-hover-hex)'
+      const baseAllowedEmails = Array.isArray(existingDeployment?.allowedEmails)
+        ? existingDeployment.allowedEmails
+        : []
+      const baseOutputConfigs = Array.isArray(existingDeployment?.outputConfigs)
+        ? existingDeployment.outputConfigs
+        : []
+
+      const identifier = args?.identifier || baseIdentifier
+      const title = args?.title || baseTitle
+      const description = args?.description ?? baseDescription
+      const authType = args?.authType || baseAuthType
+      const welcomeMessage = args?.welcomeMessage || baseWelcomeMessage
+      const outputConfigs = args?.outputConfigs || baseOutputConfigs
+      const allowedEmails = args?.allowedEmails || baseAllowedEmails
+      const primaryColor = basePrimaryColor
+
+      if (!identifier || !title) {
+        throw new Error('Chat identifier and title are required')
       }
 
-      if (!args?.title && !workflow?.name) {
-        throw new Error('Chat title is required')
-      }
-
-      const identifier = args?.identifier || this.generateIdentifier(workflow?.name || 'chat')
-      const title = args?.title || workflow?.name || 'Chat'
-      const description = args?.description || ''
-      const authType = args?.authType || 'public'
-      const welcomeMessage = args?.welcomeMessage || 'Hi there! How can I help you today?'
-
-      // Validate auth-specific requirements
-      if (authType === 'password' && !args?.password) {
+      if (authType === 'password' && !args?.password && !existingDeployment?.hasPassword) {
         throw new Error('Password is required when using password protection')
       }
 
-      if (
-        (authType === 'email' || authType === 'sso') &&
-        (!args?.allowedEmails || args.allowedEmails.length === 0)
-      ) {
+      if ((authType === 'email' || authType === 'sso') && allowedEmails.length === 0) {
         throw new Error(`At least one email or domain is required when using ${authType} access`)
       }
-
-      this.setState(ClientToolCallState.executing)
-
-      const outputConfigs = args?.outputConfigs || []
 
       const payload = {
         workflowId,
@@ -245,17 +257,21 @@ export class DeployChatClientTool extends BaseClientTool {
         title: title.trim(),
         description: description.trim(),
         customizations: {
-          primaryColor: 'var(--brand-primary-hover-hex)',
+          primaryColor,
           welcomeMessage: welcomeMessage.trim(),
         },
         authType,
         password: authType === 'password' ? args?.password : undefined,
-        allowedEmails: authType === 'email' || authType === 'sso' ? args?.allowedEmails : [],
+        allowedEmails: authType === 'email' || authType === 'sso' ? allowedEmails : [],
         outputConfigs,
       }
 
-      const res = await fetch('/api/chat', {
-        method: 'POST',
+      const isUpdating = Boolean(existingDeployment?.id)
+      const endpoint = isUpdating ? `/api/chat/manage/${existingDeployment.id}` : '/api/chat'
+      const method = isUpdating ? 'PATCH' : 'POST'
+
+      const res = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
@@ -265,18 +281,18 @@ export class DeployChatClientTool extends BaseClientTool {
       if (!res.ok) {
         if (json.error === 'Identifier already in use') {
           this.setState(ClientToolCallState.error)
-          await this.markToolComplete(
-            400,
-            `The identifier "${identifier}" is already in use. Please choose a different one.`,
-            {
-              success: false,
-              action: 'deploy',
-              isDeployed: false,
-              identifier,
-              error: `Identifier "${identifier}" is already taken`,
-              errorCode: 'IDENTIFIER_TAKEN',
-            }
-          )
+        await this.markToolComplete(
+          400,
+          `The identifier "${identifier}" is already in use. Please choose a different one.`,
+          {
+            success: false,
+            action: 'deploy',
+            isDeployed: false,
+            identifier,
+            error: `Identifier "${identifier}" is already taken`,
+            errorCode: 'IDENTIFIER_TAKEN',
+          }
+        )
           return
         }
 

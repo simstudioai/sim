@@ -72,6 +72,7 @@ import { ListUserWorkflowsClientTool } from '@/lib/copilot/tools/client/workflow
 import { ListWorkspaceMcpServersClientTool } from '@/lib/copilot/tools/client/workflow/list-workspace-mcp-servers'
 import { ManageCustomToolClientTool } from '@/lib/copilot/tools/client/workflow/manage-custom-tool'
 import { ManageMcpToolClientTool } from '@/lib/copilot/tools/client/workflow/manage-mcp-tool'
+import { RedeployClientTool } from '@/lib/copilot/tools/client/workflow/redeploy'
 import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
 import { SetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/set-global-workflow-variables'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
@@ -150,6 +151,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   deploy_api: (id) => new DeployApiClientTool(id),
   deploy_chat: (id) => new DeployChatClientTool(id),
   deploy_mcp: (id) => new DeployMcpClientTool(id),
+  redeploy: (id) => new RedeployClientTool(id),
   list_workspace_mcp_servers: (id) => new ListWorkspaceMcpServersClientTool(id),
   create_workspace_mcp_server: (id) => new CreateWorkspaceMcpServerClientTool(id),
   check_deployment_status: (id) => new CheckDeploymentStatusClientTool(id),
@@ -212,6 +214,7 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   deploy_api: (DeployApiClientTool as any)?.metadata,
   deploy_chat: (DeployChatClientTool as any)?.metadata,
   deploy_mcp: (DeployMcpClientTool as any)?.metadata,
+  redeploy: (RedeployClientTool as any)?.metadata,
   list_workspace_mcp_servers: (ListWorkspaceMcpServersClientTool as any)?.metadata,
   create_workspace_mcp_server: (CreateWorkspaceMcpServerClientTool as any)?.metadata,
   check_deployment_status: (CheckDeploymentStatusClientTool as any)?.metadata,
@@ -2534,7 +2537,14 @@ export const useCopilotStore = create<CopilotStore>()(
 
     // Send a message (streaming only)
     sendMessage: async (message: string, options = {}) => {
-      const { workflowId, currentChat, mode, revertState, isSendingMessage } = get()
+      const {
+        workflowId,
+        currentChat,
+        mode,
+        revertState,
+        isSendingMessage,
+        abortController: activeAbortController,
+      } = get()
       const {
         stream = true,
         fileAttachments,
@@ -2550,7 +2560,17 @@ export const useCopilotStore = create<CopilotStore>()(
       if (!workflowId) return
 
       // If already sending a message, queue this one instead
-      if (isSendingMessage) {
+      if (isSendingMessage && !activeAbortController) {
+        logger.warn('[Copilot] sendMessage: stale sending state detected, clearing', {
+          originalMessageId: messageId,
+        })
+        set({ isSendingMessage: false })
+      } else if (isSendingMessage && activeAbortController?.signal.aborted) {
+        logger.warn('[Copilot] sendMessage: aborted controller detected, clearing', {
+          originalMessageId: messageId,
+        })
+        set({ isSendingMessage: false, abortController: null })
+      } else if (isSendingMessage) {
         get().addToQueue(message, { fileAttachments, contexts, messageId })
         logger.info('[Copilot] Message queued (already sending)', {
           queueLength: get().messageQueue.length + 1,
@@ -2559,8 +2579,8 @@ export const useCopilotStore = create<CopilotStore>()(
         return
       }
 
-      const abortController = new AbortController()
-      set({ isSendingMessage: true, error: null, abortController })
+      const nextAbortController = new AbortController()
+      set({ isSendingMessage: true, error: null, abortController: nextAbortController })
 
       const userMessage = createUserMessage(message, fileAttachments, contexts, messageId)
       const streamingMessage = createStreamingMessage()
@@ -2656,7 +2676,7 @@ export const useCopilotStore = create<CopilotStore>()(
           fileAttachments,
           contexts: filteredContexts,
           commands: commands?.length ? commands : undefined,
-          abortSignal: abortController.signal,
+          abortSignal: nextAbortController.signal,
         })
 
         if (result.success && result.stream) {
