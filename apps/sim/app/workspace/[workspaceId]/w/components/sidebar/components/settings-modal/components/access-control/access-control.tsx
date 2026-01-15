@@ -327,30 +327,6 @@ export function AccessControl() {
         configKey: 'hideFilesTab' as const,
       },
       {
-        id: 'disable-mcp',
-        label: 'MCP Tools',
-        category: 'Tools',
-        configKey: 'disableMcpTools' as const,
-      },
-      {
-        id: 'disable-custom-tools',
-        label: 'Custom Tools',
-        category: 'Tools',
-        configKey: 'disableCustomTools' as const,
-      },
-      {
-        id: 'hide-trace-spans',
-        label: 'Trace Spans',
-        category: 'Logs',
-        configKey: 'hideTraceSpans' as const,
-      },
-      {
-        id: 'disable-invitations',
-        label: 'Invitations',
-        category: 'Collaboration',
-        configKey: 'disableInvitations' as const,
-      },
-      {
         id: 'hide-deploy-api',
         label: 'API',
         category: 'Deploy Tabs',
@@ -379,6 +355,30 @@ export function AccessControl() {
         label: 'Template',
         category: 'Deploy Tabs',
         configKey: 'hideDeployTemplate' as const,
+      },
+      {
+        id: 'disable-mcp',
+        label: 'MCP Tools',
+        category: 'Tools',
+        configKey: 'disableMcpTools' as const,
+      },
+      {
+        id: 'disable-custom-tools',
+        label: 'Custom Tools',
+        category: 'Tools',
+        configKey: 'disableCustomTools' as const,
+      },
+      {
+        id: 'hide-trace-spans',
+        label: 'Trace Spans',
+        category: 'Logs',
+        configKey: 'hideTraceSpans' as const,
+      },
+      {
+        id: 'disable-invitations',
+        label: 'Invitations',
+        category: 'Collaboration',
+        configKey: 'disableInvitations' as const,
       },
     ],
     []
