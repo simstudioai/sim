@@ -1307,6 +1307,11 @@ const sseHandlers: Record<string, SSEHandler> = {
     updateStreamingMessage(set, context)
 
 
+    // Do not execute on partial tool_call frames
+    if (isPartial) {
+      return
+    }
+
     // Prefer interface-based registry to determine interrupt and execute
     try {
       const def = name ? getTool(name) : undefined
@@ -1892,6 +1897,7 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
     const id: string | undefined = toolData.id || data?.toolCallId
     const name: string | undefined = toolData.name || data?.toolName
     if (!id || !name) return
+    const isPartial = toolData.partial === true
 
     // Arguments can come in different locations depending on SSE format
     // Check multiple possible locations
@@ -1957,6 +1963,10 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
     set({ toolCallsById: updated })
 
     updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
+
+    if (isPartial) {
+      return
+    }
 
     // Execute client tools in parallel (non-blocking) - same pattern as main tool_call handler
     try {

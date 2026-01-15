@@ -9,6 +9,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 export class RedeployClientTool extends BaseClientTool {
   static readonly id = 'redeploy'
+  private hasExecuted = false
 
   constructor(toolCallId: string) {
     super(toolCallId, RedeployClientTool.id, RedeployClientTool.metadata)
@@ -30,6 +31,12 @@ export class RedeployClientTool extends BaseClientTool {
   async execute(): Promise<void> {
     const logger = createLogger('RedeployClientTool')
     try {
+      if (this.hasExecuted) {
+        logger.info('execute skipped (already executed)', { toolCallId: this.toolCallId })
+        return
+      }
+      this.hasExecuted = true
+
       this.setState(ClientToolCallState.executing)
 
       const { activeWorkflowId } = useWorkflowRegistry.getState()
