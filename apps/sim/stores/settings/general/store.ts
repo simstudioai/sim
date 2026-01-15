@@ -9,11 +9,12 @@ const initialState: General = {
   isAutoConnectEnabled: true,
   showTrainingControls: false,
   superUserModeEnabled: true,
-  theme: 'system',
+  theme: 'dark',
   telemetryEnabled: true,
   isBillingUsageNotificationsEnabled: true,
   isErrorNotificationsEnabled: true,
   snapToGridSize: 0,
+  showActionBar: true,
 }
 
 export const useGeneralStore = create<GeneralStore>()(

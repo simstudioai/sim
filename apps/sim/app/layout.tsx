@@ -12,6 +12,7 @@ import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
 import { QueryProvider } from '@/app/_shell/providers/query-provider'
 import { SessionProvider } from '@/app/_shell/providers/session-provider'
 import { ThemeProvider } from '@/app/_shell/providers/theme-provider'
+import { TooltipProvider } from '@/app/_shell/providers/tooltip-provider'
 import { season } from '@/app/_styles/fonts/season/season'
 
 export const viewport: Viewport = {
@@ -208,7 +209,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ThemeProvider>
             <QueryProvider>
               <SessionProvider>
-                <BrandedLayout>{children}</BrandedLayout>
+                <TooltipProvider>
+                  <BrandedLayout>{children}</BrandedLayout>
+                </TooltipProvider>
               </SessionProvider>
             </QueryProvider>
           </ThemeProvider>

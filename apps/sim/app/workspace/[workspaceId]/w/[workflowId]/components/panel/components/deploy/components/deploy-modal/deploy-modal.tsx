@@ -23,6 +23,7 @@ import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/w/components/si
 import { startsWithUuid } from '@/executor/constants'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -113,16 +114,12 @@ export function DeployModal({
   const [existingChat, setExistingChat] = useState<ExistingChat | null>(null)
   const [isLoadingChat, setIsLoadingChat] = useState(false)
 
-  const [formSubmitting, setFormSubmitting] = useState(false)
-  const [formExists, setFormExists] = useState(false)
-  const [isFormValid, setIsFormValid] = useState(false)
-
   const [chatSuccess, setChatSuccess] = useState(false)
-  const [formSuccess, setFormSuccess] = useState(false)
 
   const [isCreateKeyModalOpen, setIsCreateKeyModalOpen] = useState(false)
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
+  const { config: permissionConfig } = usePermissionConfig()
   const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
     workflowWorkspaceId || ''
@@ -518,12 +515,6 @@ export function DeployModal({
     setTimeout(() => setChatSuccess(false), 2000)
   }
 
-  const handleFormDeployed = async () => {
-    await handlePostDeploymentUpdate()
-    setFormSuccess(true)
-    setTimeout(() => setFormSuccess(false), 2000)
-  }
-
   const handlePostDeploymentUpdate = async () => {
     if (!workflowId) return
 
@@ -632,17 +623,6 @@ export function DeployModal({
     deleteTrigger?.click()
   }, [])
 
-  const handleFormFormSubmit = useCallback(() => {
-    const form = document.getElementById('form-deploy-form') as HTMLFormElement
-    form?.requestSubmit()
-  }, [])
-
-  const handleFormDelete = useCallback(() => {
-    const form = document.getElementById('form-deploy-form')
-    const deleteTrigger = form?.querySelector('[data-delete-trigger]') as HTMLButtonElement
-    deleteTrigger?.click()
-  }, [])
-
   return (
     <>
       <Modal open={open} onOpenChange={handleCloseModal}>
@@ -656,12 +636,22 @@ export function DeployModal({
           >
             <ModalTabsList activeValue={activeTab}>
               <ModalTabsTrigger value='general'>General</ModalTabsTrigger>
-              <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
-              <ModalTabsTrigger value='mcp'>MCP</ModalTabsTrigger>
-              <ModalTabsTrigger value='a2a'>A2A</ModalTabsTrigger>
-              <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
+              {!permissionConfig.hideDeployApi && (
+                <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
+              )}
+              {!permissionConfig.hideDeployMcp && (
+                <ModalTabsTrigger value='mcp'>MCP</ModalTabsTrigger>
+              )}
+              {!permissionConfig.hideDeployA2a && (
+                <ModalTabsTrigger value='a2a'>A2A</ModalTabsTrigger>
+              )}
+              {!permissionConfig.hideDeployChatbot && (
+                <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
+              )}
               {/* <ModalTabsTrigger value='form'>Form</ModalTabsTrigger> */}
-              <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
+              {!permissionConfig.hideDeployTemplate && (
+                <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
+              )}
             </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>

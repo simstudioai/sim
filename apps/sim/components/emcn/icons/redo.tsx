@@ -17,14 +17,14 @@ export function Redo(props: SVGProps<SVGSVGElement>) {
       <path
         d='M9.5 4.5H4C2.61929 4.5 1.5 5.61929 1.5 7C1.5 8.38071 2.61929 9.5 4 9.5H7'
         stroke='currentColor'
-        strokeWidth='1.5'
+        strokeWidth='1'
         strokeLinecap='round'
         strokeLinejoin='round'
       />
       <path
         d='M8 2.5L10 4.5L8 6.5'
         stroke='currentColor'
-        strokeWidth='1.5'
+        strokeWidth='1'
         strokeLinecap='round'
         strokeLinejoin='round'
       />

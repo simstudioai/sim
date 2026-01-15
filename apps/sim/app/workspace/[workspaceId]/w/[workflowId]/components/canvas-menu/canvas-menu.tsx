@@ -1,5 +1,6 @@
 'use client'
 
+import type { RefObject } from 'react'
 import {
   Popover,
   PopoverAnchor,
@@ -7,13 +8,40 @@ import {
   PopoverDivider,
   PopoverItem,
 } from '@/components/emcn'
-import type { PaneContextMenuProps } from './types'
 
 /**
- * Context menu for workflow canvas pane.
+ * Props for CanvasMenu component
+ */
+export interface CanvasMenuProps {
+  isOpen: boolean
+  position: { x: number; y: number }
+  menuRef: RefObject<HTMLDivElement | null>
+  onClose: () => void
+  onUndo: () => void
+  onRedo: () => void
+  onPaste: () => void
+  onAddBlock: () => void
+  onAutoLayout: () => void
+  onFitToView: () => void
+  onOpenLogs: () => void
+  onToggleVariables: () => void
+  onToggleChat: () => void
+  onInvite: () => void
+  isVariablesOpen?: boolean
+  isChatOpen?: boolean
+  hasClipboard?: boolean
+  disableEdit?: boolean
+  disableAdmin?: boolean
+  canUndo?: boolean
+  canRedo?: boolean
+  isInvitationsDisabled?: boolean
+}
+
+/**
+ * Context menu for workflow canvas.
  * Displays canvas-level actions when right-clicking empty space.
  */
-export function PaneContextMenu({
+export function CanvasMenu({
   isOpen,
   position,
   menuRef,
@@ -23,6 +51,7 @@ export function PaneContextMenu({
   onPaste,
   onAddBlock,
   onAutoLayout,
+  onFitToView,
   onOpenLogs,
   onToggleVariables,
   onToggleChat,
@@ -35,7 +64,7 @@ export function PaneContextMenu({
   canUndo = false,
   canRedo = false,
   isInvitationsDisabled = false,
-}: PaneContextMenuProps) {
+}: CanvasMenuProps) {
   return (
     <Popover
       open={isOpen}
@@ -112,6 +141,14 @@ export function PaneContextMenu({
         >
           <span>Auto-layout</span>
           <span className='ml-auto opacity-70 group-hover:opacity-100'>⇧L</span>
+        </PopoverItem>
+        <PopoverItem
+          onClick={() => {
+            onFitToView()
+            onClose()
+          }}
+        >
+          Fit to View
         </PopoverItem>
 
         {/* Navigation actions */}

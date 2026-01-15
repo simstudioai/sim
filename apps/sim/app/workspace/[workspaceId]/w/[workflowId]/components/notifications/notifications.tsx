@@ -11,7 +11,7 @@ import {
   openCopilotWithMessage,
   useNotificationStore,
 } from '@/stores/notifications'
-import { useSidebarStore } from '@/stores/sidebar/store'
+import { usePanelStore } from '@/stores/panel'
 import { useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -19,9 +19,9 @@ const logger = createLogger('Notifications')
 const MAX_VISIBLE_NOTIFICATIONS = 4
 
 /**
- * Notifications display component
- * Positioned in the bottom-left workspace area, reactive to sidebar width and terminal height
- * Shows both global notifications and workflow-specific notifications
+ * Notifications display component.
+ * Positioned in the bottom-right workspace area, reactive to panel width and terminal height.
+ * Shows both global notifications and workflow-specific notifications.
  */
 export const Notifications = memo(function Notifications() {
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -37,7 +37,7 @@ export const Notifications = memo(function Notifications() {
       .slice(0, MAX_VISIBLE_NOTIFICATIONS)
   }, [allNotifications, activeWorkflowId])
   const isTerminalResizing = useTerminalStore((state) => state.isResizing)
-  const isSidebarResizing = useSidebarStore((state) => state.isResizing)
+  const isPanelResizing = usePanelStore((state) => state.isResizing)
 
   /**
    * Executes a notification action and handles side effects.
@@ -105,15 +105,19 @@ export const Notifications = memo(function Notifications() {
     return null
   }
 
-  const isResizing = isTerminalResizing || isSidebarResizing
+  const isResizing = isTerminalResizing || isPanelResizing
 
   return (
     <div
       ref={preventZoomRef}
       className={clsx(
-        'fixed bottom-[calc(var(--terminal-height)+16px)] left-[calc(var(--sidebar-width)+16px)] z-30 flex flex-col items-start',
-        !isResizing && 'transition-[bottom,left] duration-100 ease-out'
+        'fixed z-30 flex flex-col items-start',
+        !isResizing && 'transition-[bottom,right] duration-100 ease-out'
       )}
+      style={{
+        bottom: 'calc(var(--terminal-height) + 16px)',
+        right: 'calc(var(--panel-width) + 16px)',
+      }}
     >
       {[...visibleNotifications].reverse().map((notification, index, stacked) => {
         const depth = stacked.length - index - 1
@@ -123,8 +127,13 @@ export const Notifications = memo(function Notifications() {
         return (
           <div
             key={notification.id}
-            style={{ transform: `translateX(${xOffset}px)` }}
-            className={`relative h-[80px] w-[240px] overflow-hidden rounded-[4px] border bg-[var(--surface-2)] transition-transform duration-200 ${
+            style={
+              {
+                '--stack-offset': `${xOffset}px`,
+                animation: 'notification-enter 200ms ease-out forwards',
+              } as React.CSSProperties
+            }
+            className={`relative h-[80px] w-[240px] overflow-hidden rounded-[4px] border bg-[var(--surface-2)] ${
               index > 0 ? '-mt-[80px]' : ''
             }`}
           >

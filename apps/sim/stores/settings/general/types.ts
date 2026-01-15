@@ -7,6 +7,7 @@ export interface General {
   isBillingUsageNotificationsEnabled: boolean
   isErrorNotificationsEnabled: boolean
   snapToGridSize: number
+  showActionBar: boolean
 }
 
 export interface GeneralStore extends General {
@@ -23,4 +24,5 @@ export type UserSettings = {
   isBillingUsageNotificationsEnabled: boolean
   errorNotificationsEnabled: boolean
   snapToGridSize: number
+  showActionBar: boolean
 }

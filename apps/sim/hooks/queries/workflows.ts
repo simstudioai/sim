@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
 import {
   createOptimisticMutationHandlers,
   generateTempId,
@@ -22,6 +23,34 @@ export const workflowKeys = {
   deploymentVersions: () => [...workflowKeys.all, 'deploymentVersion'] as const,
   deploymentVersion: (workflowId: string | undefined, version: number | undefined) =>
     [...workflowKeys.deploymentVersions(), workflowId ?? '', version ?? 0] as const,
+  inputFields: (workflowId: string | undefined) =>
+    [...workflowKeys.all, 'inputFields', workflowId ?? ''] as const,
+}
+
+/**
+ * Fetches workflow input fields from the workflow state.
+ */
+async function fetchWorkflowInputFields(workflowId: string): Promise<WorkflowInputField[]> {
+  const response = await fetch(`/api/workflows/${workflowId}`)
+  if (!response.ok) throw new Error('Failed to fetch workflow')
+  const { data } = await response.json()
+  return extractInputFieldsFromBlocks(data?.state?.blocks)
+}
+
+/**
+ * Hook to fetch workflow input fields for configuration.
+ * Uses React Query for caching and deduplication.
+ *
+ * @param workflowId - The workflow ID to fetch input fields for
+ * @returns Query result with input fields array
+ */
+export function useWorkflowInputFields(workflowId: string | undefined) {
+  return useQuery({
+    queryKey: workflowKeys.inputFields(workflowId),
+    queryFn: () => fetchWorkflowInputFields(workflowId!),
+    enabled: Boolean(workflowId),
+    staleTime: 60 * 1000, // 1 minute cache
+  })
 }
 
 function mapWorkflow(workflow: any): WorkflowMetadata {

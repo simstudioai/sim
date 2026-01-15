@@ -88,6 +88,12 @@ function GeneralSkeleton() {
         <Skeleton className='h-8 w-[100px] rounded-[4px]' />
       </div>
 
+      {/* Show canvas controls row */}
+      <div className='flex items-center justify-between'>
+        <Skeleton className='h-4 w-32' />
+        <Skeleton className='h-[17px] w-[30px] rounded-full' />
+      </div>
+
       {/* Telemetry row */}
       <div className='flex items-center justify-between border-t pt-[16px]'>
         <Skeleton className='h-4 w-44' />
@@ -288,6 +294,12 @@ export function General({ onOpenChange }: GeneralProps) {
     const newValue = Number.parseInt(value, 10)
     if (newValue !== settings?.snapToGridSize && !updateSetting.isPending) {
       await updateSetting.mutateAsync({ key: 'snapToGridSize', value: newValue })
+    }
+  }
+
+  const handleShowActionBarChange = async (checked: boolean) => {
+    if (checked !== settings?.showActionBar && !updateSetting.isPending) {
+      await updateSetting.mutateAsync({ key: 'showActionBar', value: checked })
     }
   }
 
@@ -498,6 +510,15 @@ export function General({ onOpenChange }: GeneralProps) {
             ]}
           />
         </div>
+      </div>
+
+      <div className='flex items-center justify-between'>
+        <Label htmlFor='show-action-bar'>Show canvas controls</Label>
+        <Switch
+          id='show-action-bar'
+          checked={settings?.showActionBar ?? true}
+          onCheckedChange={handleShowActionBarChange}
+        />
       </div>
 
       <div className='flex items-center justify-between border-t pt-[16px]'>

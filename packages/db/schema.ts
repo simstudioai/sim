@@ -453,7 +453,7 @@ export const settings = pgTable('settings', {
     .unique(), // One settings record per user
 
   // General settings
-  theme: text('theme').notNull().default('system'),
+  theme: text('theme').notNull().default('dark'),
   autoConnect: boolean('auto_connect').notNull().default(true),
 
   // Privacy settings
@@ -476,6 +476,7 @@ export const settings = pgTable('settings', {
 
   // Canvas preferences
   snapToGridSize: integer('snap_to_grid_size').notNull().default(0), // 0 = off, 10-50 = grid size
+  showActionBar: boolean('show_action_bar').notNull().default(true),
 
   // Copilot preferences - maps model_id to enabled/disabled boolean
   copilotEnabledModels: jsonb('copilot_enabled_models').notNull().default('{}'),
@@ -2080,6 +2081,7 @@ export const permissionGroup = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    autoAddNewMembers: boolean('auto_add_new_members').notNull().default(false),
   },
   (table) => ({
     organizationIdIdx: index('permission_group_organization_id_idx').on(table.organizationId),
@@ -2088,6 +2090,9 @@ export const permissionGroup = pgTable(
       table.organizationId,
       table.name
     ),
+    autoAddNewMembersUnique: uniqueIndex('permission_group_org_auto_add_unique')
+      .on(table.organizationId)
+      .where(sql`auto_add_new_members = true`),
   })
 )
 

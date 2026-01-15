@@ -1,4 +1,4 @@
-import '@/executor/__test-utils__/mock-dependencies'
+import '@sim/testing/mocks/executor'
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import { TriggerBlockHandler } from '@/executor/handlers/trigger/trigger-handler'

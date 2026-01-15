@@ -266,11 +266,13 @@ export interface ConditionConfig {
 }
 
 export function isTriggerBlockType(blockType: string | undefined): boolean {
-  return TRIGGER_BLOCK_TYPES.includes(blockType as any)
+  return blockType !== undefined && (TRIGGER_BLOCK_TYPES as readonly string[]).includes(blockType)
 }
 
 export function isMetadataOnlyBlockType(blockType: string | undefined): boolean {
-  return METADATA_ONLY_BLOCK_TYPES.includes(blockType as any)
+  return (
+    blockType !== undefined && (METADATA_ONLY_BLOCK_TYPES as readonly string[]).includes(blockType)
+  )
 }
 
 export function isWorkflowBlockType(blockType: string | undefined): boolean {
