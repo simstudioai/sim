@@ -219,6 +219,7 @@ export function WorkflowList({
         type: 'folder' | 'workflow'
         id: string
         sortOrder: number
+        createdAt?: Date
         data: FolderTreeNode | WorkflowMetadata
       }> = []
       for (const childFolder of folder.children) {
@@ -226,6 +227,7 @@ export function WorkflowList({
           type: 'folder',
           id: childFolder.id,
           sortOrder: childFolder.sortOrder,
+          createdAt: childFolder.createdAt,
           data: childFolder,
         })
       }
@@ -234,18 +236,11 @@ export function WorkflowList({
           type: 'workflow',
           id: workflow.id,
           sortOrder: workflow.sortOrder,
+          createdAt: workflow.createdAt,
           data: workflow,
         })
       }
-      childItems.sort((a, b) => {
-        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
-        const dataA = a.data as { createdAt?: Date }
-        const dataB = b.data as { createdAt?: Date }
-        const timeA = dataA.createdAt?.getTime() ?? 0
-        const timeB = dataB.createdAt?.getTime() ?? 0
-        if (timeA !== timeB) return timeA - timeB
-        return a.id.localeCompare(b.id)
-      })
+      childItems.sort(compareByOrder)
 
       return (
         <div key={folder.id} className='relative'>
@@ -313,28 +308,28 @@ export function WorkflowList({
       type: 'folder' | 'workflow'
       id: string
       sortOrder: number
+      createdAt?: Date
       data: FolderTreeNode | WorkflowMetadata
     }> = []
     for (const folder of folderTree) {
-      items.push({ type: 'folder', id: folder.id, sortOrder: folder.sortOrder, data: folder })
+      items.push({
+        type: 'folder',
+        id: folder.id,
+        sortOrder: folder.sortOrder,
+        createdAt: folder.createdAt,
+        data: folder,
+      })
     }
     for (const workflow of rootWorkflows) {
       items.push({
         type: 'workflow',
         id: workflow.id,
         sortOrder: workflow.sortOrder,
+        createdAt: workflow.createdAt,
         data: workflow,
       })
     }
-    return items.sort((a, b) => {
-      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
-      const dataA = a.data as { createdAt?: Date }
-      const dataB = b.data as { createdAt?: Date }
-      const timeA = dataA.createdAt?.getTime() ?? 0
-      const timeB = dataB.createdAt?.getTime() ?? 0
-      if (timeA !== timeB) return timeA - timeB
-      return a.id.localeCompare(b.id)
-    })
+    return items.sort(compareByOrder)
   }, [folderTree, rootWorkflows])
 
   const hasRootItems = rootItems.length > 0
