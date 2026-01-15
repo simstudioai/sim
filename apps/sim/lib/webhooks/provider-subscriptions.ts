@@ -10,6 +10,7 @@ const typeformLogger = createLogger('TypeformWebhook')
 const calendlyLogger = createLogger('CalendlyWebhook')
 const grainLogger = createLogger('GrainWebhook')
 const lemlistLogger = createLogger('LemlistWebhook')
+const webflowLogger = createLogger('WebflowWebhook')
 
 function getProviderConfig(webhook: any): Record<string, any> {
   return (webhook.providerConfig as Record<string, any>) || {}
@@ -728,36 +729,861 @@ export async function deleteLemlistWebhook(webhook: any, requestId: string): Pro
       return
     }
 
-    if (!externalId) {
-      lemlistLogger.warn(
-        `[${requestId}] Missing externalId for Lemlist webhook deletion ${webhook.id}, skipping cleanup`
-      )
+    const authString = Buffer.from(`:${apiKey}`).toString('base64')
+
+    const deleteById = async (id: string) => {
+      const lemlistApiUrl = `https://api.lemlist.com/api/hooks/${id}`
+      const lemlistResponse = await fetch(lemlistApiUrl, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Basic ${authString}`,
+        },
+      })
+
+      if (!lemlistResponse.ok && lemlistResponse.status !== 404) {
+        const responseBody = await lemlistResponse.json().catch(() => ({}))
+        lemlistLogger.warn(
+          `[${requestId}] Failed to delete Lemlist webhook (non-fatal): ${lemlistResponse.status}`,
+          { response: responseBody }
+        )
+      } else {
+        lemlistLogger.info(`[${requestId}] Successfully deleted Lemlist webhook ${id}`)
+      }
+    }
+
+    if (externalId) {
+      await deleteById(externalId)
       return
     }
 
-    // Lemlist uses Basic Auth with empty username and API key as password
-    const authString = Buffer.from(`:${apiKey}`).toString('base64')
-    const lemlistApiUrl = `https://api.lemlist.com/api/hooks/${externalId}`
-
-    const lemlistResponse = await fetch(lemlistApiUrl, {
-      method: 'DELETE',
+    const notificationUrl = getNotificationUrl(webhook)
+    const listResponse = await fetch('https://api.lemlist.com/api/hooks', {
+      method: 'GET',
       headers: {
         Authorization: `Basic ${authString}`,
       },
     })
 
-    if (!lemlistResponse.ok && lemlistResponse.status !== 404) {
-      const responseBody = await lemlistResponse.json().catch(() => ({}))
+    if (!listResponse.ok) {
       lemlistLogger.warn(
-        `[${requestId}] Failed to delete Lemlist webhook (non-fatal): ${lemlistResponse.status}`,
-        { response: responseBody }
+        `[${requestId}] Failed to list Lemlist webhooks for cleanup ${webhook.id}`,
+        { status: listResponse.status }
       )
-    } else {
-      lemlistLogger.info(`[${requestId}] Successfully deleted Lemlist webhook ${externalId}`)
+      return
+    }
+
+    const listBody = await listResponse.json().catch(() => null)
+    const hooks: Array<Record<string, any>> = Array.isArray(listBody)
+      ? listBody
+      : listBody?.hooks || listBody?.data || []
+    const matches = hooks.filter((hook) => {
+      const targetUrl = hook?.targetUrl || hook?.target_url || hook?.url
+      return typeof targetUrl === 'string' && targetUrl === notificationUrl
+    })
+
+    if (matches.length === 0) {
+      lemlistLogger.info(`[${requestId}] Lemlist webhook not found for cleanup ${webhook.id}`, {
+        notificationUrl,
+      })
+      return
+    }
+
+    for (const hook of matches) {
+      const hookId = hook?._id || hook?.id
+      if (typeof hookId === 'string' && hookId.length > 0) {
+        await deleteById(hookId)
+      }
     }
   } catch (error) {
     lemlistLogger.warn(`[${requestId}] Error deleting Lemlist webhook (non-fatal)`, error)
   }
+}
+
+export async function deleteWebflowWebhook(
+  webhook: any,
+  workflow: any,
+  requestId: string
+): Promise<void> {
+  try {
+    const config = getProviderConfig(webhook)
+    const siteId = config.siteId as string | undefined
+    const externalId = config.externalId as string | undefined
+
+    if (!siteId) {
+      webflowLogger.warn(
+        `[${requestId}] Missing siteId for Webflow webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    if (!externalId) {
+      webflowLogger.warn(
+        `[${requestId}] Missing externalId for Webflow webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    const accessToken = await getOAuthToken(workflow.userId, 'webflow')
+    if (!accessToken) {
+      webflowLogger.warn(
+        `[${requestId}] Could not retrieve Webflow access token for user ${workflow.userId}. Cannot delete webhook.`,
+        { webhookId: webhook.id }
+      )
+      return
+    }
+
+    const webflowApiUrl = `https://api.webflow.com/v2/sites/${siteId}/webhooks/${externalId}`
+
+    const webflowResponse = await fetch(webflowApiUrl, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        accept: 'application/json',
+      },
+    })
+
+    if (!webflowResponse.ok && webflowResponse.status !== 404) {
+      const responseBody = await webflowResponse.json().catch(() => ({}))
+      webflowLogger.warn(
+        `[${requestId}] Failed to delete Webflow webhook (non-fatal): ${webflowResponse.status}`,
+        { response: responseBody }
+      )
+    } else {
+      webflowLogger.info(`[${requestId}] Successfully deleted Webflow webhook ${externalId}`)
+    }
+  } catch (error) {
+    webflowLogger.warn(`[${requestId}] Error deleting Webflow webhook (non-fatal)`, error)
+  }
+}
+
+export async function createGrainWebhookSubscription(
+  _request: NextRequest,
+  webhookData: any,
+  requestId: string
+): Promise<{ id: string; eventTypes: string[] } | undefined> {
+  try {
+    const { path, providerConfig } = webhookData
+    const { apiKey, triggerId, includeHighlights, includeParticipants, includeAiSummary } =
+      providerConfig || {}
+
+    if (!apiKey) {
+      grainLogger.warn(`[${requestId}] Missing apiKey for Grain webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error(
+        'Grain API Key is required. Please provide your Grain Personal Access Token in the trigger configuration.'
+      )
+    }
+
+    const hookTypeMap: Record<string, string> = {
+      grain_webhook: 'recording_added',
+      grain_recording_created: 'recording_added',
+      grain_recording_updated: 'recording_added',
+      grain_highlight_created: 'recording_added',
+      grain_highlight_updated: 'recording_added',
+      grain_story_created: 'recording_added',
+      grain_upload_status: 'upload_status',
+    }
+
+    const eventTypeMap: Record<string, string[]> = {
+      grain_webhook: [],
+      grain_recording_created: ['recording_added'],
+      grain_recording_updated: ['recording_updated'],
+      grain_highlight_created: ['highlight_created'],
+      grain_highlight_updated: ['highlight_updated'],
+      grain_story_created: ['story_created'],
+      grain_upload_status: ['upload_status'],
+    }
+
+    const hookType = hookTypeMap[triggerId] ?? 'recording_added'
+    const eventTypes = eventTypeMap[triggerId] ?? []
+
+    if (!hookTypeMap[triggerId]) {
+      grainLogger.warn(
+        `[${requestId}] Unknown triggerId for Grain: ${triggerId}, defaulting to recording_added`,
+        {
+          webhookId: webhookData.id,
+        }
+      )
+    }
+
+    grainLogger.info(`[${requestId}] Creating Grain webhook`, {
+      triggerId,
+      hookType,
+      eventTypes,
+      webhookId: webhookData.id,
+    })
+
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+
+    const grainApiUrl = 'https://api.grain.com/_/public-api/v2/hooks/create'
+
+    const requestBody: Record<string, any> = {
+      hook_url: notificationUrl,
+      hook_type: hookType,
+    }
+
+    const include: Record<string, boolean> = {}
+    if (includeHighlights) {
+      include.highlights = true
+    }
+    if (includeParticipants) {
+      include.participants = true
+    }
+    if (includeAiSummary) {
+      include.ai_summary = true
+    }
+    if (Object.keys(include).length > 0) {
+      requestBody.include = include
+    }
+
+    const grainResponse = await fetch(grainApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Public-Api-Version': '2025-10-31',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    const responseBody = await grainResponse.json()
+
+    if (!grainResponse.ok || responseBody.error || responseBody.errors) {
+      const errorMessage =
+        responseBody.errors?.detail ||
+        responseBody.error?.message ||
+        responseBody.error ||
+        responseBody.message ||
+        'Unknown Grain API error'
+      grainLogger.error(
+        `[${requestId}] Failed to create webhook in Grain for webhook ${webhookData.id}. Status: ${grainResponse.status}`,
+        { message: errorMessage, response: responseBody }
+      )
+
+      let userFriendlyMessage = 'Failed to create webhook subscription in Grain'
+      if (grainResponse.status === 401) {
+        userFriendlyMessage =
+          'Invalid Grain API Key. Please verify your Personal Access Token is correct.'
+      } else if (grainResponse.status === 403) {
+        userFriendlyMessage =
+          'Access denied. Please ensure your Grain API Key has appropriate permissions.'
+      } else if (errorMessage && errorMessage !== 'Unknown Grain API error') {
+        userFriendlyMessage = `Grain error: ${errorMessage}`
+      }
+
+      throw new Error(userFriendlyMessage)
+    }
+
+    grainLogger.info(
+      `[${requestId}] Successfully created webhook in Grain for webhook ${webhookData.id}.`,
+      {
+        grainWebhookId: responseBody.id,
+        eventTypes,
+      }
+    )
+
+    return { id: responseBody.id, eventTypes }
+  } catch (error: any) {
+    grainLogger.error(
+      `[${requestId}] Exception during Grain webhook creation for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+    throw error
+  }
+}
+
+export async function createLemlistWebhookSubscription(
+  webhookData: any,
+  requestId: string
+): Promise<{ id: string } | undefined> {
+  try {
+    const { path, providerConfig } = webhookData
+    const { apiKey, triggerId, campaignId } = providerConfig || {}
+
+    if (!apiKey) {
+      lemlistLogger.warn(`[${requestId}] Missing apiKey for Lemlist webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error(
+        'Lemlist API Key is required. Please provide your Lemlist API Key in the trigger configuration.'
+      )
+    }
+
+    const eventTypeMap: Record<string, string | undefined> = {
+      lemlist_email_replied: 'emailsReplied',
+      lemlist_linkedin_replied: 'linkedinReplied',
+      lemlist_interested: 'interested',
+      lemlist_not_interested: 'notInterested',
+      lemlist_email_opened: 'emailsOpened',
+      lemlist_email_clicked: 'emailsClicked',
+      lemlist_email_bounced: 'emailsBounced',
+      lemlist_email_sent: 'emailsSent',
+      lemlist_webhook: undefined,
+    }
+
+    const eventType = eventTypeMap[triggerId]
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+    const authString = Buffer.from(`:${apiKey}`).toString('base64')
+
+    lemlistLogger.info(`[${requestId}] Creating Lemlist webhook`, {
+      triggerId,
+      eventType,
+      hasCampaignId: !!campaignId,
+      webhookId: webhookData.id,
+    })
+
+    const lemlistApiUrl = 'https://api.lemlist.com/api/hooks'
+
+    const requestBody: Record<string, any> = {
+      targetUrl: notificationUrl,
+    }
+
+    if (eventType) {
+      requestBody.type = eventType
+    }
+
+    if (campaignId) {
+      requestBody.campaignId = campaignId
+    }
+
+    const lemlistResponse = await fetch(lemlistApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${authString}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    const responseBody = await lemlistResponse.json()
+
+    if (!lemlistResponse.ok || responseBody.error) {
+      const errorMessage = responseBody.message || responseBody.error || 'Unknown Lemlist API error'
+      lemlistLogger.error(
+        `[${requestId}] Failed to create webhook in Lemlist for webhook ${webhookData.id}. Status: ${lemlistResponse.status}`,
+        { message: errorMessage, response: responseBody }
+      )
+
+      let userFriendlyMessage = 'Failed to create webhook subscription in Lemlist'
+      if (lemlistResponse.status === 401) {
+        userFriendlyMessage = 'Invalid Lemlist API Key. Please verify your API Key is correct.'
+      } else if (lemlistResponse.status === 403) {
+        userFriendlyMessage =
+          'Access denied. Please ensure your Lemlist API Key has appropriate permissions.'
+      } else if (errorMessage && errorMessage !== 'Unknown Lemlist API error') {
+        userFriendlyMessage = `Lemlist error: ${errorMessage}`
+      }
+
+      throw new Error(userFriendlyMessage)
+    }
+
+    lemlistLogger.info(
+      `[${requestId}] Successfully created webhook in Lemlist for webhook ${webhookData.id}.`,
+      {
+        lemlistWebhookId: responseBody._id,
+      }
+    )
+
+    return { id: responseBody._id }
+  } catch (error: any) {
+    lemlistLogger.error(
+      `[${requestId}] Exception during Lemlist webhook creation for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+    throw error
+  }
+}
+
+export async function createAirtableWebhookSubscription(
+  userId: string,
+  webhookData: any,
+  requestId: string
+): Promise<string | undefined> {
+  try {
+    const { path, providerConfig } = webhookData
+    const { baseId, tableId, includeCellValuesInFieldIds } = providerConfig || {}
+
+    if (!baseId || !tableId) {
+      airtableLogger.warn(
+        `[${requestId}] Missing baseId or tableId for Airtable webhook creation.`,
+        {
+          webhookId: webhookData.id,
+        }
+      )
+      throw new Error(
+        'Base ID and Table ID are required to create Airtable webhook. Please provide valid Airtable base and table IDs.'
+      )
+    }
+
+    const accessToken = await getOAuthToken(userId, 'airtable')
+    if (!accessToken) {
+      airtableLogger.warn(
+        `[${requestId}] Could not retrieve Airtable access token for user ${userId}. Cannot create webhook in Airtable.`
+      )
+      throw new Error(
+        'Airtable account connection required. Please connect your Airtable account in the trigger configuration and try again.'
+      )
+    }
+
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+
+    const airtableApiUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks`
+
+    const specification: any = {
+      options: {
+        filters: {
+          dataTypes: ['tableData'],
+          recordChangeScope: tableId,
+        },
+      },
+    }
+
+    if (includeCellValuesInFieldIds === 'all') {
+      specification.options.includes = {
+        includeCellValuesInFieldIds: 'all',
+      }
+    }
+
+    const requestBody: any = {
+      notificationUrl: notificationUrl,
+      specification: specification,
+    }
+
+    const airtableResponse = await fetch(airtableApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    const responseBody = await airtableResponse.json()
+
+    if (!airtableResponse.ok || responseBody.error) {
+      const errorMessage =
+        responseBody.error?.message || responseBody.error || 'Unknown Airtable API error'
+      const errorType = responseBody.error?.type
+      airtableLogger.error(
+        `[${requestId}] Failed to create webhook in Airtable for webhook ${webhookData.id}. Status: ${airtableResponse.status}`,
+        { type: errorType, message: errorMessage, response: responseBody }
+      )
+
+      let userFriendlyMessage = 'Failed to create webhook subscription in Airtable'
+      if (airtableResponse.status === 404) {
+        userFriendlyMessage =
+          'Airtable base or table not found. Please verify that the Base ID and Table ID are correct and that you have access to them.'
+      } else if (errorMessage && errorMessage !== 'Unknown Airtable API error') {
+        userFriendlyMessage = `Airtable error: ${errorMessage}`
+      }
+
+      throw new Error(userFriendlyMessage)
+    }
+    airtableLogger.info(
+      `[${requestId}] Successfully created webhook in Airtable for webhook ${webhookData.id}.`,
+      {
+        airtableWebhookId: responseBody.id,
+      }
+    )
+    return responseBody.id
+  } catch (error: any) {
+    airtableLogger.error(
+      `[${requestId}] Exception during Airtable webhook creation for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+    throw error
+  }
+}
+
+export async function createCalendlyWebhookSubscription(
+  webhookData: any,
+  requestId: string
+): Promise<string | undefined> {
+  try {
+    const { path, providerConfig } = webhookData
+    const { apiKey, organization, triggerId } = providerConfig || {}
+
+    if (!apiKey) {
+      calendlyLogger.warn(`[${requestId}] Missing apiKey for Calendly webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error(
+        'Personal Access Token is required to create Calendly webhook. Please provide your Calendly Personal Access Token.'
+      )
+    }
+
+    if (!organization) {
+      calendlyLogger.warn(
+        `[${requestId}] Missing organization URI for Calendly webhook creation.`,
+        {
+          webhookId: webhookData.id,
+        }
+      )
+      throw new Error(
+        'Organization URI is required to create Calendly webhook. Please provide your Organization URI from the "Get Current User" operation.'
+      )
+    }
+
+    if (!triggerId) {
+      calendlyLogger.warn(`[${requestId}] Missing triggerId for Calendly webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error('Trigger ID is required to create Calendly webhook')
+    }
+
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+
+    const eventTypeMap: Record<string, string[]> = {
+      calendly_invitee_created: ['invitee.created'],
+      calendly_invitee_canceled: ['invitee.canceled'],
+      calendly_routing_form_submitted: ['routing_form_submission.created'],
+      calendly_webhook: ['invitee.created', 'invitee.canceled', 'routing_form_submission.created'],
+    }
+
+    const events = eventTypeMap[triggerId] || ['invitee.created']
+
+    const calendlyApiUrl = 'https://api.calendly.com/webhook_subscriptions'
+
+    const requestBody = {
+      url: notificationUrl,
+      events,
+      organization,
+      scope: 'organization',
+    }
+
+    const calendlyResponse = await fetch(calendlyApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    if (!calendlyResponse.ok) {
+      const errorBody = await calendlyResponse.json().catch(() => ({}))
+      const errorMessage = errorBody.message || errorBody.title || 'Unknown Calendly API error'
+      calendlyLogger.error(
+        `[${requestId}] Failed to create webhook in Calendly for webhook ${webhookData.id}. Status: ${calendlyResponse.status}`,
+        { response: errorBody }
+      )
+
+      let userFriendlyMessage = 'Failed to create webhook subscription in Calendly'
+      if (calendlyResponse.status === 401) {
+        userFriendlyMessage =
+          'Calendly authentication failed. Please verify your Personal Access Token is correct.'
+      } else if (calendlyResponse.status === 403) {
+        userFriendlyMessage =
+          'Calendly access denied. Please ensure you have appropriate permissions and a paid Calendly subscription.'
+      } else if (calendlyResponse.status === 404) {
+        userFriendlyMessage =
+          'Calendly organization not found. Please verify the Organization URI is correct.'
+      } else if (errorMessage && errorMessage !== 'Unknown Calendly API error') {
+        userFriendlyMessage = `Calendly error: ${errorMessage}`
+      }
+
+      throw new Error(userFriendlyMessage)
+    }
+
+    const responseBody = await calendlyResponse.json()
+    const webhookUri = responseBody.resource?.uri
+
+    if (!webhookUri) {
+      calendlyLogger.error(
+        `[${requestId}] Calendly webhook created but no webhook URI returned for webhook ${webhookData.id}`,
+        { response: responseBody }
+      )
+      throw new Error('Calendly webhook creation succeeded but no webhook URI was returned')
+    }
+
+    const webhookId = webhookUri.split('/').pop()
+
+    if (!webhookId) {
+      calendlyLogger.error(
+        `[${requestId}] Could not extract webhook ID from Calendly URI: ${webhookUri}`,
+        {
+          response: responseBody,
+        }
+      )
+      throw new Error('Failed to extract webhook ID from Calendly response')
+    }
+
+    calendlyLogger.info(
+      `[${requestId}] Successfully created webhook in Calendly for webhook ${webhookData.id}.`,
+      {
+        calendlyWebhookUri: webhookUri,
+        calendlyWebhookId: webhookId,
+      }
+    )
+    return webhookId
+  } catch (error: any) {
+    calendlyLogger.error(
+      `[${requestId}] Exception during Calendly webhook creation for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+    throw error
+  }
+}
+
+export async function createWebflowWebhookSubscription(
+  userId: string,
+  webhookData: any,
+  requestId: string
+): Promise<string | undefined> {
+  try {
+    const { path, providerConfig } = webhookData
+    const { siteId, triggerId, collectionId, formId } = providerConfig || {}
+
+    if (!siteId) {
+      webflowLogger.warn(`[${requestId}] Missing siteId for Webflow webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error('Site ID is required to create Webflow webhook')
+    }
+
+    if (!triggerId) {
+      webflowLogger.warn(`[${requestId}] Missing triggerId for Webflow webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error('Trigger type is required to create Webflow webhook')
+    }
+
+    const accessToken = await getOAuthToken(userId, 'webflow')
+    if (!accessToken) {
+      webflowLogger.warn(
+        `[${requestId}] Could not retrieve Webflow access token for user ${userId}. Cannot create webhook in Webflow.`
+      )
+      throw new Error(
+        'Webflow account connection required. Please connect your Webflow account in the trigger configuration and try again.'
+      )
+    }
+
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+
+    const triggerTypeMap: Record<string, string> = {
+      webflow_collection_item_created: 'collection_item_created',
+      webflow_collection_item_changed: 'collection_item_changed',
+      webflow_collection_item_deleted: 'collection_item_deleted',
+      webflow_form_submission: 'form_submission',
+    }
+
+    const webflowTriggerType = triggerTypeMap[triggerId]
+    if (!webflowTriggerType) {
+      webflowLogger.warn(`[${requestId}] Invalid triggerId for Webflow: ${triggerId}`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error(`Invalid Webflow trigger type: ${triggerId}`)
+    }
+
+    const webflowApiUrl = `https://api.webflow.com/v2/sites/${siteId}/webhooks`
+
+    const requestBody: any = {
+      triggerType: webflowTriggerType,
+      url: notificationUrl,
+    }
+
+    if (collectionId && webflowTriggerType.startsWith('collection_item_')) {
+      requestBody.filter = {
+        resource_type: 'collection',
+        resource_id: collectionId,
+      }
+    }
+
+    if (formId && webflowTriggerType === 'form_submission') {
+      requestBody.filter = {
+        resource_type: 'form',
+        resource_id: formId,
+      }
+    }
+
+    const webflowResponse = await fetch(webflowApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    const responseBody = await webflowResponse.json()
+
+    if (!webflowResponse.ok || responseBody.error) {
+      const errorMessage = responseBody.message || responseBody.error || 'Unknown Webflow API error'
+      webflowLogger.error(
+        `[${requestId}] Failed to create webhook in Webflow for webhook ${webhookData.id}. Status: ${webflowResponse.status}`,
+        { message: errorMessage, response: responseBody }
+      )
+      throw new Error(errorMessage)
+    }
+
+    webflowLogger.info(
+      `[${requestId}] Successfully created webhook in Webflow for webhook ${webhookData.id}.`,
+      {
+        webflowWebhookId: responseBody.id || responseBody._id,
+      }
+    )
+
+    return responseBody.id || responseBody._id
+  } catch (error: any) {
+    webflowLogger.error(
+      `[${requestId}] Exception during Webflow webhook creation for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+    throw error
+  }
+}
+
+type ExternalSubscriptionResult = {
+  updatedProviderConfig: Record<string, unknown>
+  externalSubscriptionCreated: boolean
+}
+
+type RecreateCheckInput = {
+  previousProvider: string
+  nextProvider: string
+  previousConfig: Record<string, unknown>
+  nextConfig: Record<string, unknown>
+}
+
+/** Providers that create external webhook subscriptions */
+const PROVIDERS_WITH_EXTERNAL_SUBSCRIPTIONS = new Set([
+  'airtable',
+  'calendly',
+  'webflow',
+  'typeform',
+  'grain',
+  'lemlist',
+  'telegram',
+  'microsoft-teams',
+])
+
+/** System-managed fields that shouldn't trigger recreation */
+const SYSTEM_MANAGED_FIELDS = new Set([
+  'externalId',
+  'externalSubscriptionId',
+  'eventTypes',
+  'webhookTag',
+  'historyId',
+  'lastCheckedTimestamp',
+  'setupCompleted',
+  'userId',
+])
+
+export function shouldRecreateExternalWebhookSubscription({
+  previousProvider,
+  nextProvider,
+  previousConfig,
+  nextConfig,
+}: RecreateCheckInput): boolean {
+  if (previousProvider !== nextProvider) {
+    return (
+      PROVIDERS_WITH_EXTERNAL_SUBSCRIPTIONS.has(previousProvider) ||
+      PROVIDERS_WITH_EXTERNAL_SUBSCRIPTIONS.has(nextProvider)
+    )
+  }
+
+  if (!PROVIDERS_WITH_EXTERNAL_SUBSCRIPTIONS.has(nextProvider)) {
+    return false
+  }
+
+  const allKeys = new Set([...Object.keys(previousConfig), ...Object.keys(nextConfig)])
+
+  for (const key of allKeys) {
+    if (SYSTEM_MANAGED_FIELDS.has(key)) continue
+
+    const prevVal = previousConfig[key]
+    const nextVal = nextConfig[key]
+
+    const prevStr = typeof prevVal === 'object' ? JSON.stringify(prevVal ?? null) : prevVal
+    const nextStr = typeof nextVal === 'object' ? JSON.stringify(nextVal ?? null) : nextVal
+
+    if (prevStr !== nextStr) {
+      return true
+    }
+  }
+
+  return false
+}
+
+export async function createExternalWebhookSubscription(
+  request: NextRequest,
+  webhookData: any,
+  workflow: any,
+  userId: string,
+  requestId: string
+): Promise<ExternalSubscriptionResult> {
+  const provider = webhookData.provider as string
+  const providerConfig = (webhookData.providerConfig as Record<string, unknown>) || {}
+  let updatedProviderConfig = providerConfig
+  let externalSubscriptionCreated = false
+
+  if (provider === 'airtable') {
+    const externalId = await createAirtableWebhookSubscription(userId, webhookData, requestId)
+    if (externalId) {
+      updatedProviderConfig = { ...updatedProviderConfig, externalId }
+      externalSubscriptionCreated = true
+    }
+  } else if (provider === 'calendly') {
+    const externalId = await createCalendlyWebhookSubscription(webhookData, requestId)
+    if (externalId) {
+      updatedProviderConfig = { ...updatedProviderConfig, externalId }
+      externalSubscriptionCreated = true
+    }
+  } else if (provider === 'microsoft-teams') {
+    await createTeamsSubscription(request, webhookData, workflow, requestId)
+    externalSubscriptionCreated =
+      (providerConfig.triggerId as string | undefined) === 'microsoftteams_chat_subscription'
+  } else if (provider === 'telegram') {
+    await createTelegramWebhook(request, webhookData, requestId)
+    externalSubscriptionCreated = true
+  } else if (provider === 'webflow') {
+    const externalId = await createWebflowWebhookSubscription(userId, webhookData, requestId)
+    if (externalId) {
+      updatedProviderConfig = { ...updatedProviderConfig, externalId }
+      externalSubscriptionCreated = true
+    }
+  } else if (provider === 'typeform') {
+    const usedTag = await createTypeformWebhook(request, webhookData, requestId)
+    if (!updatedProviderConfig.webhookTag && usedTag) {
+      updatedProviderConfig = { ...updatedProviderConfig, webhookTag: usedTag }
+    }
+    externalSubscriptionCreated = true
+  } else if (provider === 'grain') {
+    const result = await createGrainWebhookSubscription(request, webhookData, requestId)
+    if (result) {
+      updatedProviderConfig = {
+        ...updatedProviderConfig,
+        externalId: result.id,
+        eventTypes: result.eventTypes,
+      }
+      externalSubscriptionCreated = true
+    }
+  } else if (provider === 'lemlist') {
+    const result = await createLemlistWebhookSubscription(webhookData, requestId)
+    if (result) {
+      updatedProviderConfig = { ...updatedProviderConfig, externalId: result.id }
+      externalSubscriptionCreated = true
+    }
+  }
+
+  return { updatedProviderConfig, externalSubscriptionCreated }
 }
 
 /**
@@ -780,6 +1606,8 @@ export async function cleanupExternalWebhook(
     await deleteTypeformWebhook(webhook, requestId)
   } else if (webhook.provider === 'calendly') {
     await deleteCalendlyWebhook(webhook, requestId)
+  } else if (webhook.provider === 'webflow') {
+    await deleteWebflowWebhook(webhook, workflow, requestId)
   } else if (webhook.provider === 'grain') {
     await deleteGrainWebhook(webhook, requestId)
   } else if (webhook.provider === 'lemlist') {

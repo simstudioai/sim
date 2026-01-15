@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { webhook, workflow } from '@sim/db/schema'
+import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -13,7 +13,6 @@ import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validat
 import { getWorkflowAccessContext } from '@/lib/workflows/utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { getTrigger } from '@/triggers'
 
 const logger = createLogger('WorkflowStateAPI')
 
@@ -203,8 +202,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    await syncWorkflowWebhooks(workflowId, workflowState.blocks)
-
     // Extract and persist custom tools to database
     try {
       const workspaceId = workflowData.workspaceId
@@ -288,215 +285,5 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
-
-function getSubBlockValue<T = unknown>(block: BlockState, subBlockId: string): T | undefined {
-  const value = block.subBlocks?.[subBlockId]?.value
-  if (value === undefined || value === null) {
-    return undefined
-  }
-  return value as T
-}
-
-async function syncWorkflowWebhooks(
-  workflowId: string,
-  blocks: Record<string, any>
-): Promise<void> {
-  await syncBlockResources(workflowId, blocks, {
-    resourceName: 'webhook',
-    subBlockId: 'webhookId',
-    buildMetadata: buildWebhookMetadata,
-    applyMetadata: upsertWebhookRecord,
-  })
-}
-
-interface WebhookMetadata {
-  triggerPath: string
-  provider: string | null
-  providerConfig: Record<string, any>
-}
-
-const CREDENTIAL_SET_PREFIX = 'credentialSet:'
-
-function buildWebhookMetadata(block: BlockState): WebhookMetadata | null {
-  const triggerId =
-    getSubBlockValue<string>(block, 'triggerId') ||
-    getSubBlockValue<string>(block, 'selectedTriggerId')
-  const triggerConfig = getSubBlockValue<Record<string, any>>(block, 'triggerConfig') || {}
-  const triggerCredentials = getSubBlockValue<string>(block, 'triggerCredentials')
-  const triggerPath = getSubBlockValue<string>(block, 'triggerPath') || block.id
-
-  const triggerDef = triggerId ? getTrigger(triggerId) : undefined
-  const provider = triggerDef?.provider || null
-
-  // Handle credential sets vs individual credentials
-  const isCredentialSet = triggerCredentials?.startsWith(CREDENTIAL_SET_PREFIX)
-  const credentialSetId = isCredentialSet
-    ? triggerCredentials!.slice(CREDENTIAL_SET_PREFIX.length)
-    : undefined
-  const credentialId = isCredentialSet ? undefined : triggerCredentials
-
-  const providerConfig = {
-    ...(typeof triggerConfig === 'object' ? triggerConfig : {}),
-    ...(credentialId ? { credentialId } : {}),
-    ...(credentialSetId ? { credentialSetId } : {}),
-    ...(triggerId ? { triggerId } : {}),
-  }
-
-  return {
-    triggerPath,
-    provider,
-    providerConfig,
-  }
-}
-
-async function upsertWebhookRecord(
-  workflowId: string,
-  block: BlockState,
-  webhookId: string,
-  metadata: WebhookMetadata
-): Promise<void> {
-  const providerConfig = metadata.providerConfig as Record<string, unknown>
-  const credentialSetId = providerConfig?.credentialSetId as string | undefined
-
-  // For credential sets, delegate to the sync function which handles fan-out
-  if (credentialSetId && metadata.provider) {
-    const { syncWebhooksForCredentialSet } = await import('@/lib/webhooks/utils.server')
-    const { getProviderIdFromServiceId } = await import('@/lib/oauth')
-
-    const oauthProviderId = getProviderIdFromServiceId(metadata.provider)
-    const requestId = crypto.randomUUID().slice(0, 8)
-
-    // Extract base config (without credential-specific fields)
-    const {
-      credentialId: _cId,
-      credentialSetId: _csId,
-      userId: _uId,
-      ...baseConfig
-    } = providerConfig
-
-    try {
-      await syncWebhooksForCredentialSet({
-        workflowId,
-        blockId: block.id,
-        provider: metadata.provider,
-        basePath: metadata.triggerPath,
-        credentialSetId,
-        oauthProviderId,
-        providerConfig: baseConfig as Record<string, any>,
-        requestId,
-      })
-
-      logger.info('Synced credential set webhooks during workflow save', {
-        workflowId,
-        blockId: block.id,
-        credentialSetId,
-      })
-    } catch (error) {
-      logger.error('Failed to sync credential set webhooks during workflow save', {
-        workflowId,
-        blockId: block.id,
-        credentialSetId,
-        error,
-      })
-    }
-    return
-  }
-
-  // For individual credentials, use the existing single webhook logic
-  const [existing] = await db.select().from(webhook).where(eq(webhook.id, webhookId)).limit(1)
-
-  if (existing) {
-    const needsUpdate =
-      existing.blockId !== block.id ||
-      existing.workflowId !== workflowId ||
-      existing.path !== metadata.triggerPath
-
-    if (needsUpdate) {
-      await db
-        .update(webhook)
-        .set({
-          workflowId,
-          blockId: block.id,
-          path: metadata.triggerPath,
-          provider: metadata.provider || existing.provider,
-          providerConfig: Object.keys(metadata.providerConfig).length
-            ? metadata.providerConfig
-            : existing.providerConfig,
-          isActive: true,
-          updatedAt: new Date(),
-        })
-        .where(eq(webhook.id, webhookId))
-    }
-    return
-  }
-
-  await db.insert(webhook).values({
-    id: webhookId,
-    workflowId,
-    blockId: block.id,
-    path: metadata.triggerPath,
-    provider: metadata.provider,
-    providerConfig: metadata.providerConfig,
-    credentialSetId: null,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  })
-
-  logger.info('Recreated missing webhook after workflow save', {
-    workflowId,
-    blockId: block.id,
-    webhookId,
-  })
-}
-
-interface BlockResourceSyncConfig<T> {
-  resourceName: string
-  subBlockId: string
-  buildMetadata: (block: BlockState, resourceId: string) => T | null
-  applyMetadata: (
-    workflowId: string,
-    block: BlockState,
-    resourceId: string,
-    metadata: T
-  ) => Promise<void>
-}
-
-async function syncBlockResources<T>(
-  workflowId: string,
-  blocks: Record<string, any>,
-  config: BlockResourceSyncConfig<T>
-): Promise<void> {
-  const blockEntries = Object.values(blocks || {}).filter(Boolean) as BlockState[]
-  if (blockEntries.length === 0) return
-
-  for (const block of blockEntries) {
-    const resourceId = getSubBlockValue<string>(block, config.subBlockId)
-    if (!resourceId) continue
-
-    const metadata = config.buildMetadata(block, resourceId)
-    if (!metadata) {
-      logger.warn(`Skipping ${config.resourceName} sync due to invalid configuration`, {
-        workflowId,
-        blockId: block.id,
-        resourceId,
-        resourceName: config.resourceName,
-      })
-      continue
-    }
-
-    try {
-      await config.applyMetadata(workflowId, block, resourceId, metadata)
-    } catch (error) {
-      logger.error(`Failed to sync ${config.resourceName}`, {
-        workflowId,
-        blockId: block.id,
-        resourceId,
-        resourceName: config.resourceName,
-        error,
-      })
-    }
   }
 }

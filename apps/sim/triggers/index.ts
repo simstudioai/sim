@@ -14,6 +14,9 @@ export function getTrigger(triggerId: string): TriggerConfig {
   }
 
   const clonedTrigger = { ...trigger, subBlocks: [...trigger.subBlocks] }
+  clonedTrigger.subBlocks = clonedTrigger.subBlocks.filter(
+    (subBlock) => subBlock.id !== 'triggerSave' && subBlock.type !== 'trigger-save'
+  )
 
   // Inject samplePayload for webhooks/pollers with condition
   if (trigger.webhook || trigger.id.includes('webhook') || trigger.id.includes('poller')) {
@@ -155,16 +158,6 @@ export function buildTriggerSubBlocks(options: BuildTriggerSubBlocksOptions): Su
   }
 
   // Save button
-  blocks.push({
-    id: 'triggerSave',
-    title: '',
-    type: 'trigger-save',
-    hideFromPreview: true,
-    mode: 'trigger',
-    triggerId: triggerId,
-    condition: { field: 'selectedTriggerId', value: triggerId },
-  })
-
   // Setup instructions
   blocks.push({
     id: 'triggerInstructions',
