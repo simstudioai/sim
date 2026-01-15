@@ -11,6 +11,7 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
+import { COPILOT_MODES } from '@/lib/copilot/models'
 
 const logger = createLogger('CopilotChatUpdateAPI')
 
@@ -45,7 +46,7 @@ const UpdateMessagesSchema = z.object({
   planArtifact: z.string().nullable().optional(),
   config: z
     .object({
-      mode: z.enum(['ask', 'build', 'plan']).optional(),
+      mode: z.enum(COPILOT_MODES).optional(),
       model: z.string().optional(),
     })
     .nullable()

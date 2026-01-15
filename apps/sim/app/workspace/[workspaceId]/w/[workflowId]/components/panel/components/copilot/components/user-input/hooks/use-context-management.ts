@@ -22,6 +22,9 @@ interface UseContextManagementProps {
 export function useContextManagement({ message, initialContexts }: UseContextManagementProps) {
   const [selectedContexts, setSelectedContexts] = useState<ChatContext[]>(initialContexts ?? [])
   const initializedRef = useRef(false)
+  const escapeRegex = useCallback((value: string) => {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  }, [])
 
   // Initialize with initial contexts when they're first provided (for edit mode)
   useEffect(() => {
@@ -78,10 +81,8 @@ export function useContextManagement({ message, initialContexts }: UseContextMan
         // Check for slash command tokens or mention tokens based on kind
         const isSlashCommand = c.kind === 'slash_command'
         const prefix = isSlashCommand ? '/' : '@'
-        const tokenWithSpaces = ` ${prefix}${c.label} `
-        const tokenAtStart = `${prefix}${c.label} `
-        // Token can appear with leading space OR at the start of the message
-        return message.includes(tokenWithSpaces) || message.startsWith(tokenAtStart)
+        const tokenPattern = new RegExp(`(^|\\s)${escapeRegex(prefix)}${escapeRegex(c.label)}(\\s|$)`)
+        return tokenPattern.test(message)
       })
       return filtered.length === prev.length ? prev : filtered
     })
