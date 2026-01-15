@@ -7,9 +7,7 @@
  * converting between workflow state (blocks, edges, loops) and serialized format
  * used by the executor.
  */
-import { loggerMock } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
-import { getProviderFromModel } from '@/providers/utils'
+
 import {
   createAgentWithToolsWorkflowState,
   createComplexWorkflowState,
@@ -19,227 +17,17 @@ import {
   createLoopWorkflowState,
   createMinimalWorkflowState,
   createMissingMetadataWorkflow,
-} from '@/serializer/__test-utils__/test-workflows'
+} from '@sim/testing/factories'
+import { blocksMock, loggerMock, toolsUtilsMock } from '@sim/testing/mocks'
+import { describe, expect, it, vi } from 'vitest'
 import { Serializer } from '@/serializer/index'
 import type { SerializedWorkflow } from '@/serializer/types'
 
-vi.mock('@/blocks', () => ({
-  getBlock: (type: string) => {
-    const mockConfigs: Record<string, any> = {
-      starter: {
-        name: 'Starter',
-        description: 'Start of the workflow',
-        category: 'flow',
-        bgColor: '#4CAF50',
-        tools: {
-          access: ['starter'],
-          config: {
-            tool: () => 'starter',
-          },
-        },
-        subBlocks: [{ id: 'description', type: 'long-input', label: 'Description' }],
-        inputs: {},
-      },
-      agent: {
-        name: 'Agent',
-        description: 'AI Agent',
-        category: 'ai',
-        bgColor: '#2196F3',
-        tools: {
-          access: ['anthropic_chat', 'openai_chat', 'google_chat'],
-          config: {
-            tool: (params: Record<string, any>) => getProviderFromModel(params.model || 'gpt-4o'),
-          },
-        },
-        subBlocks: [
-          { id: 'provider', type: 'dropdown', label: 'Provider' },
-          { id: 'model', type: 'dropdown', label: 'Model' },
-          { id: 'prompt', type: 'long-input', label: 'Prompt' },
-          { id: 'tools', type: 'tool-input', label: 'Tools' },
-          { id: 'system', type: 'long-input', label: 'System Message' },
-          { id: 'responseFormat', type: 'code', label: 'Response Format' },
-        ],
-        inputs: {
-          input: { type: 'string' },
-          tools: { type: 'array' },
-        },
-      },
-      condition: {
-        name: 'Condition',
-        description: 'Branch based on condition',
-        category: 'flow',
-        bgColor: '#FF9800',
-        tools: {
-          access: ['condition'],
-          config: {
-            tool: () => 'condition',
-          },
-        },
-        subBlocks: [{ id: 'condition', type: 'long-input', label: 'Condition' }],
-        inputs: {
-          input: { type: 'any' },
-        },
-      },
-      function: {
-        name: 'Function',
-        description: 'Execute custom code',
-        category: 'code',
-        bgColor: '#9C27B0',
-        tools: {
-          access: ['function'],
-          config: {
-            tool: () => 'function',
-          },
-        },
-        subBlocks: [
-          { id: 'code', type: 'code', label: 'Code' },
-          { id: 'language', type: 'dropdown', label: 'Language' },
-        ],
-        inputs: {
-          input: { type: 'any' },
-        },
-      },
-      api: {
-        name: 'API',
-        description: 'Make API request',
-        category: 'data',
-        bgColor: '#E91E63',
-        tools: {
-          access: ['api'],
-          config: {
-            tool: () => 'api',
-          },
-        },
-        subBlocks: [
-          { id: 'url', type: 'short-input', label: 'URL' },
-          { id: 'method', type: 'dropdown', label: 'Method' },
-          { id: 'headers', type: 'table', label: 'Headers' },
-          { id: 'body', type: 'long-input', label: 'Body' },
-        ],
-        inputs: {},
-      },
-      jina: {
-        name: 'Jina',
-        description: 'Convert website content into text',
-        category: 'tools',
-        bgColor: '#333333',
-        tools: {
-          access: ['jina_read_url'],
-          config: {
-            tool: () => 'jina_read_url',
-          },
-        },
-        subBlocks: [
-          { id: 'url', type: 'short-input', title: 'URL', required: true },
-          { id: 'apiKey', type: 'short-input', title: 'API Key', required: true },
-        ],
-        inputs: {
-          url: { type: 'string' },
-          apiKey: { type: 'string' },
-        },
-      },
-      reddit: {
-        name: 'Reddit',
-        description: 'Access Reddit data and content',
-        category: 'tools',
-        bgColor: '#FF5700',
-        tools: {
-          access: ['reddit_get_posts', 'reddit_get_comments'],
-          config: {
-            tool: () => 'reddit_get_posts',
-          },
-        },
-        subBlocks: [
-          { id: 'operation', type: 'dropdown', title: 'Operation', required: true },
-          { id: 'credential', type: 'oauth-input', title: 'Reddit Account', required: true },
-          { id: 'subreddit', type: 'short-input', title: 'Subreddit', required: true },
-        ],
-        inputs: {
-          operation: { type: 'string' },
-          credential: { type: 'string' },
-          subreddit: { type: 'string' },
-        },
-      },
-      slack: {
-        name: 'Slack',
-        description: 'Send messages to Slack',
-        category: 'tools',
-        bgColor: '#611f69',
-        tools: {
-          access: ['slack_send_message'],
-          config: {
-            tool: () => 'slack_send_message',
-          },
-        },
-        subBlocks: [
-          { id: 'channel', type: 'dropdown', title: 'Channel', mode: 'basic' },
-          { id: 'manualChannel', type: 'short-input', title: 'Channel ID', mode: 'advanced' },
-          { id: 'text', type: 'long-input', title: 'Message' },
-          { id: 'username', type: 'short-input', title: 'Username', mode: 'both' },
-        ],
-        inputs: {
-          channel: { type: 'string' },
-          manualChannel: { type: 'string' },
-          text: { type: 'string' },
-          username: { type: 'string' },
-        },
-      },
-      agentWithMemories: {
-        name: 'Agent with Memories',
-        description: 'AI Agent with memory support',
-        category: 'ai',
-        bgColor: '#2196F3',
-        tools: {
-          access: ['anthropic_chat'],
-          config: {
-            tool: () => 'anthropic_chat',
-          },
-        },
-        subBlocks: [
-          { id: 'systemPrompt', type: 'long-input', title: 'System Prompt' },
-          { id: 'userPrompt', type: 'long-input', title: 'User Prompt' },
-          { id: 'memories', type: 'short-input', title: 'Memories', mode: 'advanced' },
-          { id: 'model', type: 'dropdown', title: 'Model' },
-        ],
-        inputs: {
-          systemPrompt: { type: 'string' },
-          userPrompt: { type: 'string' },
-          memories: { type: 'array' },
-          model: { type: 'string' },
-        },
-      },
-    }
-
-    return mockConfigs[type] || null
-  },
-}))
-
-vi.mock('@/tools/utils', () => ({
-  getTool: (toolId: string) => {
-    const mockTools: Record<string, any> = {
-      jina_read_url: {
-        params: {
-          url: { visibility: 'user-or-llm', required: true },
-          apiKey: { visibility: 'user-only', required: true },
-        },
-      },
-      reddit_get_posts: {
-        params: {
-          subreddit: { visibility: 'user-or-llm', required: true },
-          credential: { visibility: 'user-only', required: true },
-        },
-      },
-    }
-    return mockTools[toolId] || null
-  },
-}))
-
+vi.mock('@/blocks', () => blocksMock)
+vi.mock('@/tools/utils', () => toolsUtilsMock)
 vi.mock('@sim/logger', () => loggerMock)
 
 describe('Serializer', () => {
-  /**
-   * Serialization tests
-   */
   describe('serializeWorkflow', () => {
     it.concurrent('should serialize a minimal workflow correctly', () => {
       const { blocks, edges, loops } = createMinimalWorkflowState()
@@ -361,7 +149,6 @@ describe('Serializer', () => {
       const toolsParam = agentBlock?.config.params.tools
       expect(toolsParam).toBeDefined()
 
-      // Parse tools to verify content
       const tools = JSON.parse(toolsParam as string)
       expect(tools).toHaveLength(2)
 
@@ -384,9 +171,6 @@ describe('Serializer', () => {
     })
   })
 
-  /**
-   * Deserialization tests
-   */
   describe('deserializeWorkflow', () => {
     it.concurrent('should deserialize a serialized workflow correctly', () => {
       const { blocks, edges, loops } = createMinimalWorkflowState()
@@ -465,9 +249,6 @@ describe('Serializer', () => {
     })
   })
 
-  /**
-   * End-to-end serialization/deserialization tests
-   */
   describe('round-trip serialization', () => {
     it.concurrent('should preserve all data through serialization and deserialization', () => {
       const { blocks, edges, loops } = createComplexWorkflowState()

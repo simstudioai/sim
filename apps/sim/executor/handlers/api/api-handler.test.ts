@@ -1,4 +1,4 @@
-import '@/executor/__test-utils__/mock-dependencies'
+import '@sim/testing/mocks/executor'
 
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'

@@ -32,7 +32,7 @@ export class BlockResolver implements Resolver {
       return false
     }
     const [type] = parts
-    return !SPECIAL_REFERENCE_PREFIXES.includes(type as any)
+    return !(SPECIAL_REFERENCE_PREFIXES as readonly string[]).includes(type)
   }
 
   resolve(reference: string, context: ResolutionContext): any {

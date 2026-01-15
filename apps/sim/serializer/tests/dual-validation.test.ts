@@ -7,52 +7,11 @@
  * 1. Early validation (serialization) - user-only required fields
  * 2. Late validation (tool execution) - user-or-llm required fields
  */
+import { blocksMock } from '@sim/testing/mocks'
 import { describe, expect, it, vi } from 'vitest'
 import { Serializer } from '@/serializer/index'
 
-vi.mock('@/blocks', () => ({
-  getBlock: (type: string) => {
-    const mockConfigs: Record<string, any> = {
-      jina: {
-        name: 'Jina',
-        description: 'Convert website content into text',
-        category: 'tools',
-        bgColor: '#333333',
-        tools: {
-          access: ['jina_read_url'],
-        },
-        subBlocks: [
-          { id: 'url', type: 'short-input', title: 'URL', required: true },
-          { id: 'apiKey', type: 'short-input', title: 'API Key', required: true },
-        ],
-        inputs: {
-          url: { type: 'string' },
-          apiKey: { type: 'string' },
-        },
-      },
-      reddit: {
-        name: 'Reddit',
-        description: 'Access Reddit data',
-        category: 'tools',
-        bgColor: '#FF5700',
-        tools: {
-          access: ['reddit_get_posts'],
-        },
-        subBlocks: [
-          { id: 'operation', type: 'dropdown', title: 'Operation', required: true },
-          { id: 'credential', type: 'oauth-input', title: 'Reddit Account', required: true },
-          { id: 'subreddit', type: 'short-input', title: 'Subreddit', required: true },
-        ],
-        inputs: {
-          operation: { type: 'string' },
-          credential: { type: 'string' },
-          subreddit: { type: 'string' },
-        },
-      },
-    }
-    return mockConfigs[type] || null
-  },
-}))
+vi.mock('@/blocks', () => blocksMock)
 
 /**
  * Validates required parameters after user and LLM parameter merge.

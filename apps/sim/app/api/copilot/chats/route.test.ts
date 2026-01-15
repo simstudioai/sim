@@ -3,8 +3,8 @@
  *
  * @vitest-environment node
  */
+import { mockCryptoUuid, setupCommonApiMocks } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mockCryptoUuid, setupCommonApiMocks } from '@/app/api/__test-utils__/utils'
 
 describe('Copilot Chats List API Route', () => {
   const mockSelect = vi.fn()

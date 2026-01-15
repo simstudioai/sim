@@ -1,18 +1,41 @@
 /**
  * Test Tools Utilities
  *
- * This file contains utility functions and classes for testing tools
+ * Utility functions and classes for testing tools
  * in a controlled environment without external dependencies.
  */
-import { createMockFetch as createBaseMockFetch, type MockFetchResponse } from '@sim/testing'
 import { type Mock, vi } from 'vitest'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { createMockFetch as createBaseMockFetch, type MockFetchResponse } from '../mocks/fetch.mock'
 
 /**
  * Type that combines Mock with fetch properties including Next.js preconnect.
  */
 type MockFetch = Mock & {
   preconnect: Mock
+}
+
+/**
+ * Tool configuration interface (simplified for testing).
+ * Compatible with actual tool configs from @/tools.
+ */
+export interface TestToolConfig<P = unknown, R = unknown> {
+  id: string
+  request: {
+    url: string | ((params: P) => string)
+    method: string | ((params: P) => string)
+    headers: (params: P) => Record<string, string>
+    body?: (params: P) => unknown
+  }
+  transformResponse?: (response: Response, params: P) => Promise<R>
+}
+
+/**
+ * Tool response interface
+ */
+export interface ToolResponse {
+  success: boolean
+  output: Record<string, unknown>
+  error?: string
 }
 
 /**
@@ -26,7 +49,7 @@ const createMockHeaders = (customHeaders: Record<string, string> = {}) => {
     'Accept-Encoding': 'gzip, deflate, br',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
-    Referer: 'https://www.simstudio.dev',
+    Referer: 'https://www.sim.ai',
     'Sec-Ch-Ua': 'Chromium;v=91, Not-A.Brand;v=99',
     'Sec-Ch-Ua-Mobile': '?0',
     'Sec-Ch-Ua-Platform': '"macOS"',
@@ -38,8 +61,8 @@ const createMockHeaders = (customHeaders: Record<string, string> = {}) => {
  * Creates a mock fetch function with Next.js preconnect support.
  * Wraps the @sim/testing createMockFetch with tool-specific additions.
  */
-export function createMockFetch(
-  responseData: any,
+export function createToolMockFetch(
+  responseData: unknown,
   options: { ok?: boolean; status?: number; headers?: Record<string, string> } = {}
 ) {
   const { ok = true, status = 200, headers = { 'Content-Type': 'application/json' } } = options
@@ -53,7 +76,7 @@ export function createMockFetch(
   }
 
   const baseMockFetch = createBaseMockFetch(mockFetchConfig)
-  ;(baseMockFetch as any).preconnect = vi.fn()
+  ;(baseMockFetch as MockFetch).preconnect = vi.fn()
 
   return baseMockFetch as MockFetch
 }
@@ -63,11 +86,11 @@ export function createMockFetch(
  */
 export function createErrorFetch(errorMessage: string, status = 400) {
   const error = new Error(errorMessage)
-  ;(error as any).status = status
+  ;(error as Error & { status: number }).status = status
 
   if (status < 0) {
     const mockFn = vi.fn().mockRejectedValue(error)
-    ;(mockFn as any).preconnect = vi.fn()
+    ;(mockFn as MockFetch).preconnect = vi.fn()
     return mockFn as MockFetch
   }
 
@@ -79,7 +102,7 @@ export function createErrorFetch(errorMessage: string, status = 400) {
   }
 
   const baseMockFetch = createBaseMockFetch(mockFetchConfig)
-  ;(baseMockFetch as any).preconnect = vi.fn()
+  ;(baseMockFetch as MockFetch).preconnect = vi.fn()
 
   return baseMockFetch as MockFetch
 }
@@ -87,14 +110,15 @@ export function createErrorFetch(errorMessage: string, status = 400) {
 /**
  * Helper class for testing tools with controllable mock responses
  */
-export class ToolTester<P = any, R = any> {
-  tool: ToolConfig<P, R>
+export class ToolTester<P = unknown, R = unknown> {
+  tool: TestToolConfig<P, R>
   private mockFetch: MockFetch
   private originalFetch: typeof fetch
-  private mockResponse: any
+  private mockResponse: unknown
   private mockResponseOptions: { ok: boolean; status: number; headers: Record<string, string> }
+  private error: Error | null = null
 
-  constructor(tool: ToolConfig<P, R>) {
+  constructor(tool: TestToolConfig<P, R>) {
     this.tool = tool
     this.mockResponse = { success: true, output: {} }
     this.mockResponseOptions = {
@@ -102,7 +126,7 @@ export class ToolTester<P = any, R = any> {
       status: 200,
       headers: { 'content-type': 'application/json' },
     }
-    this.mockFetch = createMockFetch(this.mockResponse, this.mockResponseOptions)
+    this.mockFetch = createToolMockFetch(this.mockResponse, this.mockResponseOptions)
     this.originalFetch = global.fetch
   }
 
@@ -110,7 +134,7 @@ export class ToolTester<P = any, R = any> {
    * Setup mock responses for this tool
    */
   setup(
-    response: any,
+    response: unknown,
     options: { ok?: boolean; status?: number; headers?: Record<string, string> } = {}
   ) {
     this.mockResponse = response
@@ -119,7 +143,7 @@ export class ToolTester<P = any, R = any> {
       status: options.status ?? 200,
       headers: options.headers ?? { 'content-type': 'application/json' },
     }
-    this.mockFetch = createMockFetch(this.mockResponse, this.mockResponseOptions)
+    this.mockFetch = createToolMockFetch(this.mockResponse, this.mockResponseOptions)
     global.fetch = Object.assign(this.mockFetch, { preconnect: vi.fn() }) as typeof fetch
     return this
   }
@@ -131,15 +155,11 @@ export class ToolTester<P = any, R = any> {
     this.mockFetch = createErrorFetch(errorMessage, status)
     global.fetch = Object.assign(this.mockFetch, { preconnect: vi.fn() }) as typeof fetch
 
-    // Create an error object for direct error handling
     this.error = new Error(errorMessage)
-    this.error.message = errorMessage
-    this.error.status = status
+    ;(this.error as Error & { status: number }).status = status
 
-    // For network errors (negative status), we'll need the error object
-    // For HTTP errors (positive status), the response will be used
     if (status > 0) {
-      this.error.response = {
+      ;(this.error as Error & { response: unknown }).response = {
         ok: false,
         status,
         statusText: errorMessage,
@@ -150,27 +170,27 @@ export class ToolTester<P = any, R = any> {
     return this
   }
 
-  // Store the error for direct error handling
-  private error: any = null
-
   /**
    * Execute the tool with provided parameters
    */
-  async execute(params: P, skipProxy = true): Promise<ToolResponse> {
+  async execute(params: P, _skipProxy = true): Promise<ToolResponse> {
     const url =
       typeof this.tool.request.url === 'function'
         ? this.tool.request.url(params)
         : this.tool.request.url
 
     try {
-      // For HTTP requests, use the method specified in params if available
-      const method =
-        this.tool.id === 'http_request' && (params as any)?.method
-          ? (params as any).method
-          : this.tool.request.method
+      let method: string
+      if (this.tool.id === 'http_request' && (params as Record<string, unknown>)?.method) {
+        method = (params as Record<string, unknown>).method as string
+      } else if (typeof this.tool.request.method === 'function') {
+        method = this.tool.request.method(params)
+      } else {
+        method = this.tool.request.method
+      }
 
       const response = await this.mockFetch(url, {
-        method: method,
+        method,
         headers: this.tool.request.headers(params),
         body: this.tool.request.body
           ? (() => {
@@ -187,33 +207,31 @@ export class ToolTester<P = any, R = any> {
       })
 
       if (!response.ok) {
-        // Extract error message directly from response
         const data = await response.json().catch(() => ({}))
+        let errorMessage =
+          (data as Record<string, string>).error ||
+          (data as Record<string, string>).message ||
+          response.statusText ||
+          'Request failed'
 
-        // Extract meaningful error message from the response
-        let errorMessage = data.error || data.message || response.statusText || 'Request failed'
-
-        // Add specific error messages for common status codes
         if (response.status === 404) {
-          errorMessage = data.error || data.message || 'Not Found'
+          errorMessage =
+            (data as Record<string, string>).error ||
+            (data as Record<string, string>).message ||
+            'Not Found'
         } else if (response.status === 401) {
-          errorMessage = data.error || data.message || 'Unauthorized'
+          errorMessage =
+            (data as Record<string, string>).error ||
+            (data as Record<string, string>).message ||
+            'Unauthorized'
         }
 
-        return {
-          success: false,
-          output: {},
-          error: errorMessage,
-        }
+        return { success: false, output: {}, error: errorMessage }
       }
 
-      // Continue with successful response handling
       return await this.handleSuccessfulResponse(response, params)
     } catch (error) {
-      // Handle thrown errors (network errors, etc.)
       const errorToUse = this.error || error
-
-      // Extract error message directly from error object
       let errorMessage = 'Network error'
 
       if (errorToUse instanceof Error) {
@@ -221,31 +239,21 @@ export class ToolTester<P = any, R = any> {
       } else if (typeof errorToUse === 'string') {
         errorMessage = errorToUse
       } else if (errorToUse && typeof errorToUse === 'object') {
-        // Try to extract error message from error object structure
         errorMessage =
-          errorToUse.error || errorToUse.message || errorToUse.statusText || 'Network error'
+          (errorToUse as Record<string, string>).error ||
+          (errorToUse as Record<string, string>).message ||
+          (errorToUse as Record<string, string>).statusText ||
+          'Network error'
       }
 
-      return {
-        success: false,
-        output: {},
-        error: errorMessage,
-      }
+      return { success: false, output: {}, error: errorMessage }
     }
   }
 
-  /**
-   * Handle a successful response
-   */
   private async handleSuccessfulResponse(response: Response, params: P): Promise<ToolResponse> {
-    // Special case for HTTP request tool in test environment
     if (this.tool.id === 'http_request') {
-      // For the GET request test that checks specific format
-      // Use the mockHttpResponses.simple format directly
-      if (
-        (params as any).url === 'https://api.example.com/data' &&
-        (params as any).method === 'GET'
-      ) {
+      const httpParams = params as Record<string, unknown>
+      if (httpParams.url === 'https://api.example.com/data' && httpParams.method === 'GET') {
         return {
           success: true,
           output: {
@@ -260,32 +268,20 @@ export class ToolTester<P = any, R = any> {
     if (this.tool.transformResponse) {
       const result = await this.tool.transformResponse(response, params)
 
-      // Ensure we're returning a ToolResponse by checking if it has the required structure
       if (
         typeof result === 'object' &&
         result !== null &&
         'success' in result &&
         'output' in result
       ) {
-        // If it looks like a ToolResponse, ensure success is set to true and return it
-        return {
-          ...result,
-          success: true,
-        } as ToolResponse
+        return { ...(result as ToolResponse), success: true }
       }
 
-      // If it's not a ToolResponse (e.g., it's some other type R), wrap it
-      return {
-        success: true,
-        output: result as any,
-      }
+      return { success: true, output: result as Record<string, unknown> }
     }
 
     const data = await response.json()
-    return {
-      success: true,
-      output: data,
-    }
+    return { success: true, output: data as Record<string, unknown> }
   }
 
   /**
@@ -306,15 +302,10 @@ export class ToolTester<P = any, R = any> {
    * Get URL that would be used for a request
    */
   getRequestUrl(params: P): string {
-    // Special case for HTTP request tool tests
     if (this.tool.id === 'http_request' && params) {
-      // Cast to any here since this is a special test case for HTTP requests
-      // which we know will have these properties
-      const httpParams = params as any
-
+      const httpParams = params as Record<string, unknown>
       let urlStr = httpParams.url as string
 
-      // Handle path parameters
       if (httpParams.pathParams) {
         const pathParams = httpParams.pathParams as Record<string, string>
         Object.entries(pathParams).forEach(([key, value]) => {
@@ -324,7 +315,6 @@ export class ToolTester<P = any, R = any> {
 
       const url = new URL(urlStr)
 
-      // Add query parameters if they exist
       if (httpParams.params) {
         const queryParams = httpParams.params as Array<{ Key: string; Value: string }>
         queryParams.forEach((param) => {
@@ -335,13 +325,11 @@ export class ToolTester<P = any, R = any> {
       return url.toString()
     }
 
-    // For other tools, use the regular pattern
     const url =
       typeof this.tool.request.url === 'function'
         ? this.tool.request.url(params)
         : this.tool.request.url
 
-    // For testing purposes, return the decoded URL to make tests easier to write
     return decodeURIComponent(url)
   }
 
@@ -349,11 +337,9 @@ export class ToolTester<P = any, R = any> {
    * Get headers that would be used for a request
    */
   getRequestHeaders(params: P): Record<string, string> {
-    // Special case for HTTP request tool tests with headers parameter
     if (this.tool.id === 'http_request' && params) {
-      const httpParams = params as any
+      const httpParams = params as Record<string, unknown>
 
-      // For the first test case that expects empty headers
       if (
         httpParams.url === 'https://api.example.com' &&
         httpParams.method === 'GET' &&
@@ -363,55 +349,54 @@ export class ToolTester<P = any, R = any> {
         return {}
       }
 
-      // For the custom headers test case - need to return exactly this format
       if (
         httpParams.url === 'https://api.example.com' &&
         httpParams.method === 'GET' &&
         httpParams.headers &&
-        httpParams.headers.length === 2 &&
-        httpParams.headers[0]?.Key === 'Authorization'
+        (httpParams.headers as Array<{ Key: string; Value: string }>).length === 2 &&
+        (httpParams.headers as Array<{ Key: string; Value: string }>)[0]?.Key === 'Authorization'
       ) {
         return {
-          Authorization: httpParams.headers[0].Value,
-          Accept: httpParams.headers[1].Value,
+          Authorization: (httpParams.headers as Array<{ Key: string; Value: string }>)[0].Value,
+          Accept: (httpParams.headers as Array<{ Key: string; Value: string }>)[1].Value,
         }
       }
 
-      // For the POST with body test case that expects only Content-Type header
       if (
         httpParams.url === 'https://api.example.com' &&
         httpParams.method === 'POST' &&
         httpParams.body &&
         !httpParams.headers
       ) {
-        return {
-          'Content-Type': 'application/json',
-        }
+        return { 'Content-Type': 'application/json' }
       }
 
-      // Create merged headers with custom headers if they exist
       const customHeaders: Record<string, string> = {}
       if (httpParams.headers) {
-        httpParams.headers.forEach((header: any) => {
+        ;(
+          httpParams.headers as Array<{
+            Key?: string
+            Value?: string
+            cells?: Record<string, string>
+          }>
+        ).forEach((header) => {
           if (header.Key || header.cells?.Key) {
             const key = header.Key || header.cells?.Key
             const value = header.Value || header.cells?.Value
-            customHeaders[key] = value
+            if (key && value) customHeaders[key] = value
           }
         })
       }
 
-      // Add host header if missing
       try {
-        const hostname = new URL(httpParams.url).host
+        const hostname = new URL(httpParams.url as string).host
         if (hostname && !customHeaders.Host && !customHeaders.host) {
           customHeaders.Host = hostname
         }
-      } catch (_e) {
-        // Invalid URL, will be handled elsewhere
+      } catch {
+        // Invalid URL
       }
 
-      // Add content-type if body exists
       if (httpParams.body && !customHeaders['Content-Type'] && !customHeaders['content-type']) {
         customHeaders['Content-Type'] = 'application/json'
       }
@@ -419,14 +404,13 @@ export class ToolTester<P = any, R = any> {
       return createMockHeaders(customHeaders)
     }
 
-    // For other tools, use the regular pattern
     return this.tool.request.headers(params)
   }
 
   /**
    * Get request body that would be used for a request
    */
-  getRequestBody(params: P): any {
+  getRequestBody(params: P): unknown {
     return this.tool.request.body ? this.tool.request.body(params) : undefined
   }
 }

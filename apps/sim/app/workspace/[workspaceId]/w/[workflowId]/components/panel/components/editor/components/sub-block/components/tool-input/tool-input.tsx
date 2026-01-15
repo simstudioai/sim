@@ -1,7 +1,6 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useQuery } from '@tanstack/react-query'
 import { Loader2, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -61,7 +60,7 @@ import {
   useCustomTools,
 } from '@/hooks/queries/custom-tools'
 import { useForceRefreshMcpTools, useMcpServers, useStoredMcpTools } from '@/hooks/queries/mcp'
-import { useWorkflows } from '@/hooks/queries/workflows'
+import { useWorkflowInputFields, useWorkflows } from '@/hooks/queries/workflows'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
 import { useSettingsModalStore } from '@/stores/modals/settings/store'
@@ -645,56 +644,7 @@ function WorkflowInputMapperSyncWrapper({
   disabled: boolean
   workflowId: string
 }) {
-  const { data: workflowData, isLoading } = useQuery({
-    queryKey: ['workflow-input-fields', workflowId],
-    queryFn: async () => {
-      const response = await fetch(`/api/workflows/${workflowId}`)
-      if (!response.ok) throw new Error('Failed to fetch workflow')
-      const { data } = await response.json()
-      return data
-    },
-    enabled: Boolean(workflowId),
-    staleTime: 60 * 1000,
-  })
-
-  const inputFields = useMemo(() => {
-    if (!workflowData?.state?.blocks) return []
-
-    const blocks = workflowData.state.blocks as Record<string, any>
-
-    const triggerEntry = Object.entries(blocks).find(
-      ([, block]) =>
-        block.type === 'start_trigger' || block.type === 'input_trigger' || block.type === 'starter'
-    )
-
-    if (!triggerEntry) return []
-
-    const triggerBlock = triggerEntry[1]
-
-    const inputFormat = triggerBlock.subBlocks?.inputFormat?.value
-
-    if (Array.isArray(inputFormat)) {
-      return inputFormat
-        .filter((field: any) => field.name && typeof field.name === 'string')
-        .map((field: any) => ({
-          name: field.name,
-          type: field.type || 'string',
-        }))
-    }
-
-    const legacyFormat = triggerBlock.config?.params?.inputFormat
-
-    if (Array.isArray(legacyFormat)) {
-      return legacyFormat
-        .filter((field: any) => field.name && typeof field.name === 'string')
-        .map((field: any) => ({
-          name: field.name,
-          type: field.type || 'string',
-        }))
-    }
-
-    return []
-  }, [workflowData])
+  const { data: inputFields = [], isLoading } = useWorkflowInputFields(workflowId)
 
   const parsedValue = useMemo(() => {
     try {

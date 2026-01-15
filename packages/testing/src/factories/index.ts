@@ -118,6 +118,19 @@ export {
   type SerializedConnection,
   type SerializedWorkflow,
 } from './serialized-block.factory'
+// Tool mock responses
+export {
+  mockDriveResponses,
+  mockGitHubResponses,
+  mockGmailResponses,
+  mockHttpResponses,
+  mockPineconeResponses,
+  mockSerperResponses,
+  mockSheetsResponses,
+  mockSlackResponses,
+  mockSupabaseResponses,
+  mockTavilyResponses,
+} from './tool-responses.factory'
 // Undo/redo operation factories
 export {
   type BaseOperation,
@@ -149,10 +162,19 @@ export {
   type WorkspaceFactoryOptions,
 } from './user.factory'
 export {
+  createAgentWithToolsWorkflowState,
   createBranchingWorkflow,
+  createComplexWorkflowState,
+  createConditionalWorkflowState,
+  createInvalidSerializedWorkflow,
+  createInvalidWorkflowState,
   createLinearWorkflow,
   createLoopWorkflow,
+  createLoopWorkflowState,
+  createMinimalWorkflowState,
+  createMissingMetadataWorkflow,
   createParallelWorkflow,
   createWorkflowState,
   type WorkflowFactoryOptions,
+  type WorkflowStateFixture,
 } from './workflow.factory'

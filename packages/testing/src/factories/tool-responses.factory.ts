@@ -27,9 +27,10 @@ export const mockHttpResponses = {
   },
 }
 
-// Gmail Mock Data
+/**
+ * Gmail Mock Data
+ */
 export const mockGmailResponses = {
-  // List messages response
   messageList: {
     messages: [
       { id: 'msg1', threadId: 'thread1' },
@@ -38,14 +39,10 @@ export const mockGmailResponses = {
     ],
     nextPageToken: 'token123',
   },
-
-  // Empty list response
   emptyList: {
     messages: [],
     resultSizeEstimate: 0,
   },
-
-  // Single message response
   singleMessage: {
     id: 'msg1',
     threadId: 'thread1',
@@ -79,9 +76,10 @@ export const mockGmailResponses = {
   },
 }
 
-// Google Drive Mock Data
+/**
+ * Google Drive Mock Data
+ */
 export const mockDriveResponses = {
-  // List files response
   fileList: {
     files: [
       { id: 'file1', name: 'Document1.docx', mimeType: 'application/vnd.google-apps.document' },
@@ -98,13 +96,9 @@ export const mockDriveResponses = {
     ],
     nextPageToken: 'drive-page-token',
   },
-
-  // Empty file list
   emptyFileList: {
     files: [],
   },
-
-  // Single file metadata
   fileMetadata: {
     id: 'file1',
     name: 'Document1.docx',
@@ -117,9 +111,10 @@ export const mockDriveResponses = {
   },
 }
 
-// Google Sheets Mock Data
+/**
+ * Google Sheets Mock Data
+ */
 export const mockSheetsResponses = {
-  // Read range response
   rangeData: {
     range: 'Sheet1!A1:D5',
     majorDimension: 'ROWS',
@@ -131,15 +126,11 @@ export const mockSheetsResponses = {
       ['Row4Col1', 'Row4Col2', 'Row4Col3', 'Row4Col4'],
     ],
   },
-
-  // Empty range
   emptyRange: {
     range: 'Sheet1!A1:D5',
     majorDimension: 'ROWS',
     values: [],
   },
-
-  // Update range response
   updateResponse: {
     spreadsheetId: 'spreadsheet123',
     updatedRange: 'Sheet1!A1:D5',
@@ -149,17 +140,16 @@ export const mockSheetsResponses = {
   },
 }
 
-// Pinecone Mock Data
+/**
+ * Pinecone Mock Data
+ */
 export const mockPineconeResponses = {
-  // Vector embedding
   embedding: {
     embedding: Array(1536)
       .fill(0)
       .map(() => Math.random() * 2 - 1),
     metadata: { text: 'Sample text for embedding', id: 'embed-123' },
   },
-
-  // Search results
   searchResults: {
     matches: [
       { id: 'doc1', score: 0.92, metadata: { text: 'Matching text 1' } },
@@ -167,16 +157,15 @@ export const mockPineconeResponses = {
       { id: 'doc3', score: 0.78, metadata: { text: 'Matching text 3' } },
     ],
   },
-
-  // Upsert response
   upsertResponse: {
     statusText: 'Created',
   },
 }
 
-// GitHub Mock Data
+/**
+ * GitHub Mock Data
+ */
 export const mockGitHubResponses = {
-  // Repository info
   repoInfo: {
     id: 12345,
     name: 'test-repo',
@@ -200,8 +189,6 @@ export const mockGitHubResponses = {
     stargazers_count: 15,
     language: 'TypeScript',
   },
-
-  // PR creation response
   prResponse: {
     id: 12345,
     number: 42,
@@ -209,24 +196,18 @@ export const mockGitHubResponses = {
     body: 'Test PR description',
     html_url: 'https://github.com/user/test-repo/pull/42',
     state: 'open',
-    user: {
-      login: 'user',
-      id: 54321,
-    },
+    user: { login: 'user', id: 54321 },
     created_at: '2025-03-15T10:00:00Z',
     updated_at: '2025-03-15T10:05:00Z',
   },
 }
 
-// Serper Search Mock Data
+/**
+ * Serper Search Mock Data
+ */
 export const mockSerperResponses = {
-  // Search results
   searchResults: {
-    searchParameters: {
-      q: 'test query',
-      gl: 'us',
-      hl: 'en',
-    },
+    searchParameters: { q: 'test query', gl: 'us', hl: 'en' },
     organic: [
       {
         title: 'Test Result 1',
@@ -255,9 +236,10 @@ export const mockSerperResponses = {
   },
 }
 
-// Slack Mock Data
+/**
+ * Slack Mock Data
+ */
 export const mockSlackResponses = {
-  // Message post response
   messageResponse: {
     ok: true,
     channel: 'C1234567890',
@@ -269,17 +251,16 @@ export const mockSlackResponses = {
       team: 'T1234567890',
     },
   },
-
-  // Error response
   errorResponse: {
     ok: false,
     error: 'channel_not_found',
   },
 }
 
-// Tavily Mock Data
+/**
+ * Tavily Mock Data
+ */
 export const mockTavilyResponses = {
-  // Search results
   searchResults: {
     results: [
       {
@@ -306,9 +287,10 @@ export const mockTavilyResponses = {
   },
 }
 
-// Supabase Mock Data
+/**
+ * Supabase Mock Data
+ */
 export const mockSupabaseResponses = {
-  // Query response
   queryResponse: {
     data: [
       { id: 1, name: 'Item 1', description: 'Description 1' },
@@ -317,20 +299,14 @@ export const mockSupabaseResponses = {
     ],
     error: null,
   },
-
-  // Insert response
   insertResponse: {
     data: [{ id: 4, name: 'Item 4', description: 'Description 4' }],
     error: null,
   },
-
-  // Update response
   updateResponse: {
     data: [{ id: 1, name: 'Updated Item 1', description: 'Updated Description 1' }],
     error: null,
   },
-
-  // Error response
   errorResponse: {
     data: null,
     error: {

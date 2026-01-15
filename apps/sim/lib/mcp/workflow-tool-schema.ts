@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isValidStartBlockType } from '@/lib/workflows/triggers/trigger-utils'
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { McpToolSchema } from './types'

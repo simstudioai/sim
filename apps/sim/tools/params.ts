@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import type { ParameterVisibility, ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 
@@ -502,34 +503,7 @@ async function fetchWorkflowInputFields(
     }
 
     const { data } = await response.json()
-    if (!data?.state?.blocks) {
-      return []
-    }
-
-    const blocks = data.state.blocks as Record<string, any>
-    const triggerEntry = Object.entries(blocks).find(
-      ([, block]) =>
-        block.type === 'start_trigger' || block.type === 'input_trigger' || block.type === 'starter'
-    )
-
-    if (!triggerEntry) {
-      return []
-    }
-
-    const triggerBlock = triggerEntry[1]
-    const inputFormat = triggerBlock.subBlocks?.inputFormat?.value
-
-    let fields: Array<{ name: string; type: string }> = []
-
-    if (Array.isArray(inputFormat)) {
-      fields = inputFormat
-        .filter((field: any) => field.name && typeof field.name === 'string')
-        .map((field: any) => ({
-          name: field.name,
-          type: field.type || 'string',
-        }))
-    }
-
+    const fields = extractInputFieldsFromBlocks(data?.state?.blocks)
     workflowInputFieldsCache.set(workflowId, { fields, timestamp: now })
 
     return fields

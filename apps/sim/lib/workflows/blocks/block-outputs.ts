@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import {
   classifyStartBlockType,
   StartBlockPath,

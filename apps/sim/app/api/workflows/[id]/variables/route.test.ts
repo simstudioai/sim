@@ -4,28 +4,28 @@
  *
  * @vitest-environment node
  */
-
-import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  createMockDatabase,
+  databaseMock,
+  defaultMockUser,
   mockAuth,
   mockCryptoUuid,
-  mockUser,
   setupCommonApiMocks,
-} from '@/app/api/__test-utils__/utils'
+} from '@sim/testing'
+import { NextRequest } from 'next/server'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('Workflow Variables API Route', () => {
   let authMocks: ReturnType<typeof mockAuth>
-  let databaseMocks: ReturnType<typeof createMockDatabase>
   const mockGetWorkflowAccessContext = vi.fn()
 
   beforeEach(() => {
     vi.resetModules()
     setupCommonApiMocks()
     mockCryptoUuid('mock-request-id-12345678')
-    authMocks = mockAuth(mockUser)
+    authMocks = mockAuth(defaultMockUser)
     mockGetWorkflowAccessContext.mockReset()
+
+    vi.doMock('@sim/db', () => databaseMock)
 
     vi.doMock('@/lib/workflows/utils', () => ({
       getWorkflowAccessContext: mockGetWorkflowAccessContext,
@@ -201,10 +201,6 @@ describe('Workflow Variables API Route', () => {
         workspacePermission: null,
         isOwner: true,
         isWorkspaceOwner: false,
-      })
-
-      databaseMocks = createMockDatabase({
-        update: { results: [{}] },
       })
 
       const variables = {
