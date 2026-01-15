@@ -20,6 +20,7 @@ import {
   ModalTabsContent,
   ModalTabsList,
   ModalTabsTrigger,
+  Switch,
 } from '@/components/emcn'
 import { Input as BaseInput, Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
@@ -666,9 +667,9 @@ export function AccessControl() {
                 Automatically add new organization members to this group
               </span>
             </div>
-            <Checkbox
+            <Switch
               checked={viewingGroup.autoAddNewMembers}
-              onCheckedChange={(checked) => handleToggleAutoAdd(checked === true)}
+              onCheckedChange={(checked) => handleToggleAutoAdd(checked)}
               disabled={updatePermissionGroup.isPending}
             />
           </div>
