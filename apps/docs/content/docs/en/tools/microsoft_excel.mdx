@@ -1,33 +1,18 @@
 ---
 title: Microsoft Excel
-description: Read, write, and update data
+description: Read and write data with sheet selection
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="microsoft_excel"
+  type="microsoft_excel_v2"
   color="#E0E0E0"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
-[Microsoft Teams](https://www.microsoft.com/en-us/microsoft-365/excel) is a powerful spreadsheet application that enables data management, analysis, and visualization. Through the Microsoft Excel integration in Sim, you can programmatically read, write, and manipulate spreadsheet data to support your workflow automation needs.
-
-With Microsoft Excel integration, you can:
-
-- **Read Spreadsheet Data**: Access data from specific ranges, sheets, and cells
-- **Write and Update Data**: Add new data or modify existing spreadsheet content
-- **Manage Tables**: Create and manipulate tabular data structures
-- **Handle Multiple Sheets**: Work with multiple worksheets in a workbook
-- **Process Data**: Import, export, and transform spreadsheet data
-
-In Sim, the Microsoft Excel integration provides seamless access to spreadsheet functionality through OAuth authentication. You can read data from specific ranges, write new information, update existing cells, and handle various data formats. The integration supports both reading and writing operations with flexible input and output options. This enables you to build workflows that can effectively manage spreadsheet data, whether you're extracting information for analysis, updating records automatically, or maintaining data consistency across your applications.
-{/* MANUAL-CONTENT-END */}
-
-
 ## Usage Instructions
 
-Integrate Microsoft Excel into the workflow. Can read, write, update, add to table, and create new worksheets.
+Integrate Microsoft Excel into the workflow with explicit sheet selection. Can read and write data in specific sheets.
 
 
 
@@ -77,52 +62,6 @@ Write data to a Microsoft Excel spreadsheet
 | `updatedRows` | number | Number of rows that were updated |
 | `updatedColumns` | number | Number of columns that were updated |
 | `updatedCells` | number | Number of cells that were updated |
-| `metadata` | object | Spreadsheet metadata |
-| ↳ `spreadsheetId` | string | The ID of the spreadsheet |
-| ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
-
-### `microsoft_excel_table_add`
-
-Add new rows to a Microsoft Excel table
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Yes | The ID of the spreadsheet containing the table |
-| `tableName` | string | Yes | The name of the table to add rows to |
-| `values` | array | Yes | The data to add to the table \(array of arrays or array of objects\) |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `index` | number | Index of the first row that was added |
-| `values` | array | Array of rows that were added to the table |
-| `metadata` | object | Spreadsheet metadata |
-| ↳ `spreadsheetId` | string | The ID of the spreadsheet |
-| ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
-
-### `microsoft_excel_worksheet_add`
-
-Create a new worksheet (sheet) in a Microsoft Excel workbook
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Yes | The ID of the Excel workbook to add the worksheet to |
-| `worksheetName` | string | Yes | The name of the new worksheet. Must be unique within the workbook and cannot exceed 31 characters |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `worksheet` | object | Details of the newly created worksheet |
-| ↳ `id` | string | The unique ID of the worksheet |
-| ↳ `name` | string | The name of the worksheet |
-| ↳ `position` | number | The zero-based position of the worksheet |
-| ↳ `visibility` | string | The visibility state of the worksheet \(Visible/Hidden/VeryHidden\) |
 | `metadata` | object | Spreadsheet metadata |
 | ↳ `spreadsheetId` | string | The ID of the spreadsheet |
 | ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |

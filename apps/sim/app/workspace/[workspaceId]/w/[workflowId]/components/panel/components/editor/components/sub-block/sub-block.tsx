@@ -30,6 +30,7 @@ import {
   ProjectSelectorInput,
   ResponseFormat,
   ScheduleInfo,
+  SheetSelectorInput,
   ShortInput,
   SlackSelectorInput,
   SliderInput,
@@ -675,6 +676,18 @@ function SubBlockComponent({
       case 'file-selector':
         return (
           <FileSelectorInput
+            blockId={blockId}
+            subBlock={config}
+            disabled={isDisabled}
+            isPreview={isPreview}
+            previewValue={previewValue}
+            previewContextValues={isPreview ? subBlockValues : undefined}
+          />
+        )
+
+      case 'sheet-selector':
+        return (
+          <SheetSelectorInput
             blockId={blockId}
             subBlock={config}
             disabled={isDisabled}

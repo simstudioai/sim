@@ -58,6 +58,7 @@ export type SubBlockType =
   | 'webhook-config' // Webhook configuration
   | 'schedule-info' // Schedule status display (next run, last ran, failure badge)
   | 'file-selector' // File selector for Google Drive, etc.
+  | 'sheet-selector' // Sheet/tab selector for Google Sheets, Microsoft Excel
   | 'project-selector' // Project selector for Jira, Discord, etc.
   | 'channel-selector' // Channel selector for Slack, Discord, etc.
   | 'user-selector' // User selector for Slack, etc.
@@ -90,6 +91,7 @@ export const SELECTOR_TYPES_HYDRATION_REQUIRED: SubBlockType[] = [
   'channel-selector',
   'user-selector',
   'file-selector',
+  'sheet-selector',
   'folder-selector',
   'project-selector',
   'knowledge-base-selector',
