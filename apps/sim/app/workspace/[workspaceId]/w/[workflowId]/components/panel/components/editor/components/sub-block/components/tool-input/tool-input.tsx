@@ -38,6 +38,7 @@ import {
   FileUpload,
   LongInput,
   ProjectSelectorInput,
+  SheetSelectorInput,
   ShortInput,
   SlackSelectorInput,
   SliderInput,
@@ -252,6 +253,43 @@ function FileSelectorSyncWrapper({
           title: paramId,
           serviceId: uiComponent.serviceId,
           mimeType: uiComponent.mimeType,
+          requiredScopes: uiComponent.requiredScopes || [],
+          placeholder: uiComponent.placeholder,
+          dependsOn: uiComponent.dependsOn,
+        }}
+        disabled={disabled}
+        previewContextValues={previewContextValues}
+      />
+    </GenericSyncWrapper>
+  )
+}
+
+function SheetSelectorSyncWrapper({
+  blockId,
+  paramId,
+  value,
+  onChange,
+  uiComponent,
+  disabled,
+  previewContextValues,
+}: {
+  blockId: string
+  paramId: string
+  value: string
+  onChange: (value: string) => void
+  uiComponent: any
+  disabled: boolean
+  previewContextValues?: Record<string, any>
+}) {
+  return (
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <SheetSelectorInput
+        blockId={blockId}
+        subBlock={{
+          id: paramId,
+          type: 'sheet-selector' as const,
+          title: paramId,
+          serviceId: uiComponent.serviceId,
           requiredScopes: uiComponent.requiredScopes || [],
           placeholder: uiComponent.placeholder,
           dependsOn: uiComponent.dependsOn,
@@ -2016,6 +2054,19 @@ export function ToolInput({
       case 'file-selector':
         return (
           <FileSelectorSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
+            value={value}
+            onChange={onChange}
+            uiComponent={uiComponent}
+            disabled={disabled}
+            previewContextValues={currentToolParams as any}
+          />
+        )
+
+      case 'sheet-selector':
+        return (
+          <SheetSelectorSyncWrapper
             blockId={blockId}
             paramId={param.id}
             value={value}
