@@ -613,7 +613,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const insertTriggerAndOpenMenu = useCallback(
       (trigger: '@' | '/') => {
-        if (disabled || isLoading) return
+        if (disabled) return
         const textarea = mentionMenu.textareaRef.current
         if (!textarea) return
 
@@ -642,7 +642,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         }
         mentionMenu.setSubmenuActiveIndex(0)
       },
-      [disabled, isLoading, mentionMenu, message, setMessage]
+      [disabled, mentionMenu, message, setMessage]
     )
 
     const handleOpenMentionMenuWithAt = useCallback(
@@ -735,10 +735,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     variant='outline'
                     onClick={handleOpenMentionMenuWithAt}
                     title='Insert @'
-                    className={cn(
-                      'cursor-pointer rounded-[6px] p-[4.5px]',
-                      (disabled || isLoading) && 'cursor-not-allowed'
-                    )}
+                    className={cn('cursor-pointer rounded-[6px] p-[4.5px]', disabled && 'cursor-not-allowed')}
                   >
                     <AtSign className='h-3 w-3' strokeWidth={1.75} />
                   </Badge>
@@ -747,10 +744,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     variant='outline'
                     onClick={handleOpenSlashMenu}
                     title='Insert /'
-                    className={cn(
-                      'cursor-pointer rounded-[6px] p-[4.5px]',
-                      (disabled || isLoading) && 'cursor-not-allowed'
-                    )}
+                    className={cn('cursor-pointer rounded-[6px] p-[4.5px]', disabled && 'cursor-not-allowed')}
                   >
                     <span className='flex h-3 w-3 items-center justify-center font-medium text-[11px] leading-none'>
                       /

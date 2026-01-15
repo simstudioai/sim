@@ -115,6 +115,8 @@ export interface CopilotState {
   isSaving: boolean
   isRevertingCheckpoint: boolean
   isAborting: boolean
+  /** Skip adding Continue option on abort for queued send-now */
+  suppressAbortContinueOption?: boolean
 
   error: string | null
   saveError: string | null
@@ -175,7 +177,7 @@ export interface CopilotActions {
       messageId?: string
     }
   ) => Promise<void>
-  abortMessage: () => void
+  abortMessage: (options?: { suppressContinueOption?: boolean }) => void
   sendImplicitFeedback: (
     implicitFeedback: string,
     toolCallState?: 'accepted' | 'rejected' | 'error'

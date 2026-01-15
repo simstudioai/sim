@@ -838,6 +838,7 @@ interface StreamingContext {
   doneEventCount: number
   streamComplete?: boolean
   wasAborted?: boolean
+  suppressContinueOption?: boolean
   /** Track active subagent sessions by parent tool call ID */
   subAgentParentToolCallId?: string
   /** Track subagent content per parent tool call */
@@ -2104,6 +2105,7 @@ const initialState = {
   suppressAutoSelect: false,
   autoAllowedTools: [] as string[],
   messageQueue: [] as import('./types').QueuedMessage[],
+  suppressAbortContinueOption: false,
 }
 
 export const useCopilotStore = create<CopilotStore>()(
@@ -2612,10 +2614,11 @@ export const useCopilotStore = create<CopilotStore>()(
     },
 
     // Abort streaming
-    abortMessage: () => {
+    abortMessage: (options?: { suppressContinueOption?: boolean }) => {
       const { abortController, isSendingMessage, messages } = get()
       if (!isSendingMessage || !abortController) return
-      set({ isAborting: true })
+      const suppressContinueOption = options?.suppressContinueOption === true
+      set({ isAborting: true, suppressAbortContinueOption: suppressContinueOption })
       try {
         abortController.abort()
         stopStreamingUpdates()
@@ -2626,15 +2629,17 @@ export const useCopilotStore = create<CopilotStore>()(
               ?.filter((b) => b.type === 'text')
               .map((b: any) => b.content)
               .join('') || ''
-          const nextContentBlocks = appendContinueOptionBlock(
-            lastMessage.contentBlocks ? [...lastMessage.contentBlocks] : []
-          )
+          const nextContentBlocks = suppressContinueOption
+            ? lastMessage.contentBlocks ?? []
+            : appendContinueOptionBlock(lastMessage.contentBlocks ? [...lastMessage.contentBlocks] : [])
           set((state) => ({
             messages: state.messages.map((msg) =>
               msg.id === lastMessage.id
                 ? {
                     ...msg,
-                    content: appendContinueOption(textContent.trim() || 'Message was aborted'),
+                    content: suppressContinueOption
+                      ? textContent.trim() || 'Message was aborted'
+                      : appendContinueOption(textContent.trim() || 'Message was aborted'),
                     contentBlocks: nextContentBlocks,
                   }
                 : msg
@@ -3042,6 +3047,11 @@ export const useCopilotStore = create<CopilotStore>()(
           const { abortController } = get()
           if (abortController?.signal.aborted) {
             context.wasAborted = true
+            const { suppressAbortContinueOption } = get()
+            context.suppressContinueOption = suppressAbortContinueOption === true
+            if (suppressAbortContinueOption) {
+              set({ suppressAbortContinueOption: false })
+            }
             context.pendingContent = ''
             finalizeThinkingBlock(context)
             stopStreamingUpdates()
@@ -3166,7 +3176,7 @@ export const useCopilotStore = create<CopilotStore>()(
               : block
           )
         }
-        if (context.wasAborted) {
+        if (context.wasAborted && !context.suppressContinueOption) {
           sanitizedContentBlocks = appendContinueOptionBlock(sanitizedContentBlocks)
         }
 
@@ -3179,7 +3189,7 @@ export const useCopilotStore = create<CopilotStore>()(
         }
 
         const finalContent = stripTodoTags(context.accumulatedContent.toString())
-        const finalContentWithOptions = context.wasAborted
+        const finalContentWithOptions = context.wasAborted && !context.suppressContinueOption
           ? appendContinueOption(finalContent)
           : finalContent
         set((state) => ({
@@ -3704,7 +3714,7 @@ export const useCopilotStore = create<CopilotStore>()(
       // If currently sending, abort and send this one
       const { isSendingMessage } = get()
       if (isSendingMessage) {
-        get().abortMessage()
+        get().abortMessage({ suppressContinueOption: true })
         // Wait a tick for abort to complete
         await new Promise((resolve) => setTimeout(resolve, 50))
       }
