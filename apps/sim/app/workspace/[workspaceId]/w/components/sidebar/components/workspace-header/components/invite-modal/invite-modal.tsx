@@ -194,6 +194,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         const matches = text.match(emailRegex) || []
         return [...new Set(matches.map((e) => e.toLowerCase()))]
       },
+      tooltip: 'Upload emails',
     }),
     [userPerms.canAdmin]
   )

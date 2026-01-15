@@ -1,5 +1,6 @@
 'use client'
 
+import type { RefObject } from 'react'
 import {
   Popover,
   PopoverAnchor,
@@ -7,14 +8,48 @@ import {
   PopoverDivider,
   PopoverItem,
 } from '@/components/emcn'
-import type { BlockContextMenuProps } from './types'
+
+/**
+ * Block information for context menu actions
+ */
+export interface BlockInfo {
+  id: string
+  type: string
+  enabled: boolean
+  horizontalHandles: boolean
+  parentId?: string
+  parentType?: string
+}
+
+/**
+ * Props for BlockMenu component
+ */
+export interface BlockMenuProps {
+  isOpen: boolean
+  position: { x: number; y: number }
+  menuRef: RefObject<HTMLDivElement | null>
+  onClose: () => void
+  selectedBlocks: BlockInfo[]
+  onCopy: () => void
+  onPaste: () => void
+  onDuplicate: () => void
+  onDelete: () => void
+  onToggleEnabled: () => void
+  onToggleHandles: () => void
+  onRemoveFromSubflow: () => void
+  onOpenEditor: () => void
+  onRename: () => void
+  hasClipboard?: boolean
+  showRemoveFromSubflow?: boolean
+  disableEdit?: boolean
+}
 
 /**
  * Context menu for workflow block(s).
  * Displays block-specific actions in a popover at right-click position.
  * Supports multi-selection - actions apply to all selected blocks.
  */
-export function BlockContextMenu({
+export function BlockMenu({
   isOpen,
   position,
   menuRef,
@@ -32,7 +67,7 @@ export function BlockContextMenu({
   hasClipboard = false,
   showRemoveFromSubflow = false,
   disableEdit = false,
-}: BlockContextMenuProps) {
+}: BlockMenuProps) {
   const isSingleBlock = selectedBlocks.length === 1
 
   const allEnabled = selectedBlocks.every((b) => b.enabled)

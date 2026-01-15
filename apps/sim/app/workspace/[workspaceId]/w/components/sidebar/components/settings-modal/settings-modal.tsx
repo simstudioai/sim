@@ -369,7 +369,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           autoConnect: data.autoConnect ?? true,
           showTrainingControls: data.showTrainingControls ?? false,
           superUserModeEnabled: data.superUserModeEnabled ?? true,
-          theme: data.theme || 'system',
+          theme: data.theme || 'dark',
           telemetryEnabled: data.telemetryEnabled ?? true,
           billingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,
         }

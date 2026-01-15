@@ -40,6 +40,7 @@
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Paperclip, Plus, X } from 'lucide-react'
+import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { cn } from '@/lib/core/utils/cn'
 
 /**
@@ -155,6 +156,8 @@ export interface FileInputOptions {
   icon?: React.ComponentType<{ className?: string; strokeWidth?: number }>
   /** Extract values from file content. Each extracted value will be passed to onAdd. */
   extractValues?: (text: string) => string[]
+  /** Tooltip text for the file input button */
+  tooltip?: string
 }
 
 /**
@@ -480,17 +483,24 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           )}
         </div>
         {fileInputEnabled && !disabled && (
-          <button
-            type='button'
-            onClick={(e) => {
-              e.stopPropagation()
-              fileInputRef.current?.click()
-            }}
-            className='absolute right-[8px] bottom-[9px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]'
-            aria-label='Upload file'
-          >
-            <FileIcon className='h-[14px] w-[14px]' strokeWidth={2} />
-          </button>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button
+                type='button'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  fileInputRef.current?.click()
+                }}
+                className='absolute right-[8px] bottom-[9px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]'
+                aria-label={fileInputOptions?.tooltip ?? 'Upload file'}
+              >
+                <FileIcon className='h-[14px] w-[14px]' strokeWidth={2} />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              {fileInputOptions?.tooltip ?? 'Upload file'}
+            </Tooltip.Content>
+          </Tooltip.Root>
         )}
       </div>
     )

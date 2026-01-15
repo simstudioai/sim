@@ -19,6 +19,7 @@ export type CommandId =
   | 'clear-terminal-console'
   | 'focus-toolbar-search'
   | 'clear-notifications'
+  | 'fit-to-view'
 
 /**
  * Static metadata for a global command.
@@ -102,6 +103,11 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
   'clear-notifications': {
     id: 'clear-notifications',
     shortcut: 'Mod+E',
+    allowInEditable: false,
+  },
+  'fit-to-view': {
+    id: 'fit-to-view',
+    shortcut: 'Mod+Shift+F',
     allowInEditable: false,
   },
 }

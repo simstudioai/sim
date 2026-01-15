@@ -59,6 +59,25 @@
 }
 
 /**
+ * Workflow canvas cursor styles
+ * Override React Flow's default selection cursor based on canvas mode
+ */
+.workflow-container.canvas-mode-cursor .react-flow__pane,
+.workflow-container.canvas-mode-cursor .react-flow__selectionpane {
+  cursor: default !important;
+}
+
+.workflow-container.canvas-mode-hand .react-flow__pane,
+.workflow-container.canvas-mode-hand .react-flow__selectionpane {
+  cursor: grab !important;
+}
+
+.workflow-container.canvas-mode-hand .react-flow__pane:active,
+.workflow-container.canvas-mode-hand .react-flow__selectionpane:active {
+  cursor: grabbing !important;
+}
+
+/**
  * Selected node ring indicator
  * Uses a pseudo-element overlay to match the original behavior (absolute inset-0 z-40)
  */
@@ -654,6 +673,20 @@ input[type="search"]::-ms-clear {
   html[data-panel-active-tab="editor"] .panel-container [data-tab-button="toolbar"] {
     background-color: transparent !important;
     color: var(--text-tertiary) !important;
+  }
+}
+
+/**
+ * Notification toast enter animation
+ */
+@keyframes notification-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(var(--stack-offset, 0px));
   }
 }
 

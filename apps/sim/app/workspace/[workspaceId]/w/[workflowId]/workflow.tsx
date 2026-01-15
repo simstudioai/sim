@@ -31,16 +31,15 @@ import {
   SubflowNodeComponent,
   Terminal,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
-import {
-  BlockContextMenu,
-  PaneContextMenu,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/context-menu'
+import { BlockMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/block-menu'
+import { CanvasMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/canvas-menu'
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
 import type { SubflowNodeData } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { TrainingModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-modal/training-modal'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
+import { WorkflowControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import {
   clearDragHighlights,
@@ -63,9 +62,11 @@ import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
+import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
+import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 import { useExecutionStore } from '@/stores/execution'
@@ -210,9 +211,9 @@ const WorkflowContent = React.memo(() => {
   const [isCanvasReady, setIsCanvasReady] = useState(false)
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
   const [selectedEdges, setSelectedEdges] = useState<SelectedEdgesMap>(new Map())
-  const [isShiftPressed, setIsShiftPressed] = useState(false)
-  const [isSelectionDragActive, setIsSelectionDragActive] = useState(false)
   const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
+  const canvasMode = useCanvasModeStore((state) => state.mode)
+  const isHandMode = canvasMode === 'hand'
   const [oauthModal, setOauthModal] = useState<{
     provider: OAuthProvider
     serviceId: string
@@ -223,7 +224,9 @@ const WorkflowContent = React.memo(() => {
 
   const params = useParams()
   const router = useRouter()
-  const { screenToFlowPosition, getNodes, setNodes, fitView, getIntersectingNodes } = useReactFlow()
+  const reactFlowInstance = useReactFlow()
+  const { screenToFlowPosition, getNodes, setNodes, getIntersectingNodes } = reactFlowInstance
+  const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
   const { emitCursorUpdate } = useSocket()
 
   const workspaceId = params.workspaceId as string
@@ -1512,10 +1515,10 @@ const WorkflowContent = React.memo(() => {
             foundNodes: changedNodes.length,
           })
           requestAnimationFrame(() => {
-            fitView({
+            fitViewToBounds({
               nodes: changedNodes,
               duration: 600,
-              padding: 0.3,
+              padding: 0.1,
               minZoom: 0.5,
               maxZoom: 1.0,
             })
@@ -1523,18 +1526,18 @@ const WorkflowContent = React.memo(() => {
         } else {
           logger.info('Diff ready - no changed nodes found, fitting all')
           requestAnimationFrame(() => {
-            fitView({ padding: 0.3, duration: 600 })
+            fitViewToBounds({ padding: 0.1, duration: 600 })
           })
         }
       } else {
         logger.info('Diff ready - no changed blocks, fitting all')
         requestAnimationFrame(() => {
-          fitView({ padding: 0.3, duration: 600 })
+          fitViewToBounds({ padding: 0.1, duration: 600 })
         })
       }
     }
     prevDiffReadyRef.current = isDiffReady
-  }, [isDiffReady, diffAnalysis, fitView, getNodes])
+  }, [isDiffReady, diffAnalysis, fitViewToBounds, getNodes])
 
   /** Displays trigger warning notifications. */
   useEffect(() => {
@@ -1925,47 +1928,6 @@ const WorkflowContent = React.memo(() => {
 
   // Local state for nodes - allows smooth drag without store updates on every frame
   const [displayNodes, setDisplayNodes] = useState<Node[]>([])
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') setIsShiftPressed(true)
-    }
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') setIsShiftPressed(false)
-    }
-    const handleFocusLoss = () => {
-      setIsShiftPressed(false)
-      setIsSelectionDragActive(false)
-    }
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        handleFocusLoss()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
-    window.addEventListener('blur', handleFocusLoss)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
-      window.removeEventListener('blur', handleFocusLoss)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (isShiftPressed) {
-      document.body.style.userSelect = 'none'
-    } else {
-      document.body.style.userSelect = ''
-    }
-    return () => {
-      document.body.style.userSelect = ''
-    }
-  }, [isShiftPressed])
 
   useEffect(() => {
     // Check for pending selection (from paste/duplicate), otherwise preserve existing selection
@@ -2867,19 +2829,19 @@ const WorkflowContent = React.memo(() => {
     ]
   )
 
-  // Lock selection mode when selection drag starts (captures Shift state at drag start)
-  const onSelectionStart = useCallback(() => {
-    if (isShiftPressed) {
-      setIsSelectionDragActive(true)
-    }
-  }, [isShiftPressed])
+  // // Lock selection mode when selection drag starts (captures Shift state at drag start)
+  // const onSelectionStart = useCallback(() => {
+  //   if (isShiftPressed) {
+  //     setIsSelectionDragActive(true)
+  //   }
+  // }, [isShiftPressed])
 
-  const onSelectionEnd = useCallback(() => {
-    requestAnimationFrame(() => {
-      setIsSelectionDragActive(false)
-      setDisplayNodes((nodes) => resolveParentChildSelectionConflicts(nodes, blocks))
-    })
-  }, [blocks])
+  // const onSelectionEnd = useCallback(() => {
+  //   requestAnimationFrame(() => {
+  //     setIsSelectionDragActive(false)
+  //     setDisplayNodes((nodes) => resolveParentChildSelectionConflicts(nodes, blocks))
+  //   })
+  // }, [blocks])
 
   /** Captures initial positions when selection drag starts (for marquee-selected nodes). */
   const onSelectionDragStart = useCallback(
@@ -3038,7 +3000,6 @@ const WorkflowContent = React.memo(() => {
 
   const onSelectionDragStop = useCallback(
     (_event: React.MouseEvent, nodes: any[]) => {
-      requestAnimationFrame(() => setIsSelectionDragActive(false))
       clearDragHighlights()
       if (nodes.length === 0) return
 
@@ -3367,11 +3328,9 @@ const WorkflowContent = React.memo(() => {
               onPointerMove={handleCanvasPointerMove}
               onPointerLeave={handleCanvasPointerLeave}
               elementsSelectable={true}
-              selectionOnDrag={isShiftPressed || isSelectionDragActive}
+              selectionOnDrag={!isHandMode}
               selectionMode={SelectionMode.Partial}
-              panOnDrag={isShiftPressed || isSelectionDragActive ? false : [0, 1]}
-              onSelectionStart={onSelectionStart}
-              onSelectionEnd={onSelectionEnd}
+              panOnDrag={isHandMode ? [0, 1] : false}
               multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
               nodesConnectable={effectivePermissions.canEdit}
               nodesDraggable={effectivePermissions.canEdit}
@@ -3379,7 +3338,7 @@ const WorkflowContent = React.memo(() => {
               noWheelClassName='allow-scroll'
               edgesFocusable={true}
               edgesUpdatable={effectivePermissions.canEdit}
-              className={`workflow-container h-full transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
+              className={`workflow-container h-full transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
               onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
               onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
               onSelectionDragStart={effectivePermissions.canEdit ? onSelectionDragStart : undefined}
@@ -3398,12 +3357,14 @@ const WorkflowContent = React.memo(() => {
 
             <Cursors />
 
+            <WorkflowControls />
+
             <Suspense fallback={null}>
               <LazyChat />
             </Suspense>
 
             {/* Context Menus */}
-            <BlockContextMenu
+            <BlockMenu
               isOpen={isBlockMenuOpen}
               position={contextMenuPosition}
               menuRef={contextMenuRef}
@@ -3425,7 +3386,7 @@ const WorkflowContent = React.memo(() => {
               disableEdit={!effectivePermissions.canEdit}
             />
 
-            <PaneContextMenu
+            <CanvasMenu
               isOpen={isPaneMenuOpen}
               position={contextMenuPosition}
               menuRef={contextMenuRef}
@@ -3435,6 +3396,7 @@ const WorkflowContent = React.memo(() => {
               onPaste={handleContextPaste}
               onAddBlock={handleContextAddBlock}
               onAutoLayout={handleAutoLayout}
+              onFitToView={() => fitViewToBounds({ padding: 0.1, duration: 300 })}
               onOpenLogs={handleContextOpenLogs}
               onToggleVariables={handleContextToggleVariables}
               onToggleChat={handleContextToggleChat}

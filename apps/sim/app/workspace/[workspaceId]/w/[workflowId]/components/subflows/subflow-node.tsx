@@ -148,7 +148,7 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
           ref={blockRef}
           onClick={() => setCurrentBlockId(id)}
           className={cn(
-            'relative cursor-pointer select-none rounded-[8px] border border-[var(--border-1)]',
+            'workflow-drag-handle relative cursor-grab select-none rounded-[8px] border border-[var(--border-1)] [&:active]:cursor-grabbing',
             'transition-block-bg transition-ring',
             'z-[20]'
           )}
@@ -166,11 +166,8 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
           {/* Header Section */}
           <div
             className={cn(
-              'workflow-drag-handle flex cursor-grab items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px] [&:active]:cursor-grabbing'
+              'flex items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px]'
             )}
-            onMouseDown={(e) => {
-              e.stopPropagation()
-            }}
           >
             <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
               <div

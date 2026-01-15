@@ -11,6 +11,16 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const DEFAULT_DUPLICATE_OFFSET = { x: 50, y: 50 }
 
+const ACTION_BUTTON_STYLES = [
+  'h-[23px] w-[23px] rounded-[8px] p-0',
+  'border border-[var(--border)] bg-[var(--surface-5)]',
+  'text-[var(--text-secondary)]',
+  'hover:border-transparent hover:bg-[var(--brand-secondary)] hover:!text-[var(--text-inverse)]',
+  'dark:border-transparent dark:bg-[var(--surface-7)] dark:hover:bg-[var(--brand-secondary)]',
+].join(' ')
+
+const ICON_SIZE = 'h-[11px] w-[11px]'
+
 /**
  * Props for the ActionBar component
  */
@@ -110,7 +120,9 @@ export const ActionBar = memo(
           '-top-[46px] absolute right-0',
           'flex flex-row items-center',
           'opacity-0 transition-opacity duration-200 group-hover:opacity-100',
-          'gap-[5px] rounded-[10px] bg-[var(--surface-4)] p-[5px]'
+          'gap-[5px] rounded-[10px] p-[5px]',
+          'border border-[var(--border)] bg-[var(--surface-2)]',
+          'dark:border-transparent dark:bg-[var(--surface-4)]'
         )}
       >
         {!isNoteBlock && (
@@ -124,14 +136,10 @@ export const ActionBar = memo(
                     collaborativeBatchToggleBlockEnabled([blockId])
                   }
                 }}
-                className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-7)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
+                className={ACTION_BUTTON_STYLES}
                 disabled={disabled}
               >
-                {isEnabled ? (
-                  <Circle className='h-[11px] w-[11px]' />
-                ) : (
-                  <CircleOff className='h-[11px] w-[11px]' />
-                )}
+                {isEnabled ? <Circle className={ICON_SIZE} /> : <CircleOff className={ICON_SIZE} />}
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
@@ -151,10 +159,10 @@ export const ActionBar = memo(
                     handleDuplicateBlock()
                   }
                 }}
-                className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-7)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
+                className={ACTION_BUTTON_STYLES}
                 disabled={disabled}
               >
-                <Copy className='h-[11px] w-[11px]' />
+                <Copy className={ICON_SIZE} />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>{getTooltipMessage('Duplicate Block')}</Tooltip.Content>
@@ -172,13 +180,13 @@ export const ActionBar = memo(
                     collaborativeBatchToggleBlockHandles([blockId])
                   }
                 }}
-                className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-7)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
+                className={ACTION_BUTTON_STYLES}
                 disabled={disabled}
               >
                 {horizontalHandles ? (
-                  <ArrowLeftRight className='h-[11px] w-[11px]' />
+                  <ArrowLeftRight className={ICON_SIZE} />
                 ) : (
-                  <ArrowUpDown className='h-[11px] w-[11px]' />
+                  <ArrowUpDown className={ICON_SIZE} />
                 )}
               </Button>
             </Tooltip.Trigger>
@@ -201,10 +209,10 @@ export const ActionBar = memo(
                     )
                   }
                 }}
-                className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-7)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
+                className={ACTION_BUTTON_STYLES}
                 disabled={disabled || !userPermissions.canEdit}
               >
-                <LogOut className='h-[11px] w-[11px]' />
+                <LogOut className={ICON_SIZE} />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>{getTooltipMessage('Remove from Subflow')}</Tooltip.Content>
@@ -221,10 +229,10 @@ export const ActionBar = memo(
                   collaborativeBatchRemoveBlocks([blockId])
                 }
               }}
-              className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-7)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
+              className={ACTION_BUTTON_STYLES}
               disabled={disabled}
             >
-              <Trash2 className='h-[11px] w-[11px]' />
+              <Trash2 className={ICON_SIZE} />
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>{getTooltipMessage('Delete Block')}</Tooltip.Content>
