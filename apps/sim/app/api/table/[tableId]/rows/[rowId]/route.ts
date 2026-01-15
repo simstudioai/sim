@@ -20,8 +20,7 @@ const logger = createLogger('TableRowAPI')
 /**
  * Zod schema for validating get row requests.
  *
- * The workspaceId is optional for backward compatibility but
- * is validated via table access checks when provided.
+ * The workspaceId is required and validated against the table.
  */
 const GetRowSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
@@ -102,16 +101,14 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Security check: If workspaceId is provided, verify it matches the table's workspace
-    const actualWorkspaceId = validated.workspaceId || accessCheck.table.workspaceId
-    if (validated.workspaceId) {
-      const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-      if (!isValidWorkspace) {
-        logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
-        )
-        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-      }
+    // Security check: verify workspaceId matches the table's workspace
+    const actualWorkspaceId = validated.workspaceId
+    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
+    if (!isValidWorkspace) {
+      logger.warn(
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+      )
+      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
     // Get row
@@ -199,16 +196,14 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
     const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
     if (accessResult instanceof NextResponse) return accessResult
 
-    // Security check: If workspaceId is provided, verify it matches the table's workspace
-    const actualWorkspaceId = validated.workspaceId || accessResult.table.workspaceId
-    if (validated.workspaceId) {
-      const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-      if (!isValidWorkspace) {
-        logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
-        )
-        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-      }
+    // Security check: verify workspaceId matches the table's workspace
+    const actualWorkspaceId = validated.workspaceId
+    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
+    if (!isValidWorkspace) {
+      logger.warn(
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
+      )
+      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
     // Get table definition
@@ -310,16 +305,14 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
     const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
     if (accessResult instanceof NextResponse) return accessResult
 
-    // Security check: If workspaceId is provided, verify it matches the table's workspace
-    const actualWorkspaceId = validated.workspaceId || accessResult.table.workspaceId
-    if (validated.workspaceId) {
-      const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-      if (!isValidWorkspace) {
-        logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
-        )
-        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-      }
+    // Security check: verify workspaceId matches the table's workspace
+    const actualWorkspaceId = validated.workspaceId
+    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
+    if (!isValidWorkspace) {
+      logger.warn(
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
+      )
+      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
     // Delete row

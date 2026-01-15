@@ -16,8 +16,7 @@ const logger = createLogger('TableDetailAPI')
 /**
  * Zod schema for validating get table requests.
  *
- * The workspaceId is optional for backward compatibility but
- * is validated via table access checks when provided.
+ * The workspaceId is required and validated against the table.
  */
 const GetTableSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
@@ -85,15 +84,12 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Security check: If workspaceId is provided, verify it matches the table's workspace
-    if (validated.workspaceId) {
-      const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-      if (!isValidWorkspace) {
-        logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
-        )
-        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-      }
+    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
+    if (!isValidWorkspace) {
+      logger.warn(
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+      )
+      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
     // Get table using service layer
@@ -167,6 +163,11 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
+    const { searchParams } = new URL(request.url)
+    const validated = GetTableSchema.parse({
+      workspaceId: searchParams.get('workspaceId'),
+    })
+
     // Check table write access (similar to knowledge base write access control)
     const accessCheck = await checkTableWriteAccess(tableId, authResult.userId)
 
@@ -179,6 +180,15 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
         `[${requestId}] User ${authResult.userId} attempted to delete unauthorized table ${tableId}`
       )
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // Security check: verify workspaceId matches the table's workspace
+    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
+    if (!isValidWorkspace) {
+      logger.warn(
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+      )
+      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
     // Soft delete table using service layer

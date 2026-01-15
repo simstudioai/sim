@@ -29,8 +29,7 @@ const logger = createLogger('TableRowsAPI')
 /**
  * Zod schema for inserting a single row into a table.
  *
- * The workspaceId is optional for backward compatibility but is validated
- * via table access checks when provided.
+ * The workspaceId is required and validated against the table.
  */
 const InsertRowSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
@@ -140,16 +139,15 @@ async function handleBatchInsert(
 
   const table = accessResult.table
 
-  // Security check: If workspaceId is provided, verify it matches the table's workspace
-  if (validated.workspaceId && validated.workspaceId !== table.workspaceId) {
+  // Security check: verify workspaceId matches the table's workspace
+  if (validated.workspaceId !== table.workspaceId) {
     logger.warn(
       `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
     )
     return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
   }
 
-  // Use the workspaceId from the table (more secure)
-  const workspaceId = table.workspaceId
+  const workspaceId = validated.workspaceId
 
   // Check row count limit
   const remainingCapacity = table.maxRows - table.rowCount
@@ -271,16 +269,15 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
 
     const table = accessResult.table
 
-    // Security check: If workspaceId is provided, verify it matches the table's workspace
-    if (validated.workspaceId && validated.workspaceId !== table.workspaceId) {
+    // Security check: verify workspaceId matches the table's workspace
+    if (validated.workspaceId !== table.workspaceId) {
       logger.warn(
         `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
       )
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Use the workspaceId from the table (more secure)
-    const workspaceId = table.workspaceId
+    const workspaceId = validated.workspaceId
     const rowData = validated.data as RowData
 
     // Validate row data (size, schema, unique constraints)
@@ -410,19 +407,15 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Security check: If workspaceId is provided, verify it matches the table's workspace
-    if (validated.workspaceId) {
-      const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-      if (!isValidWorkspace) {
-        logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
-        )
-        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-      }
+    // Security check: verify workspaceId matches the table's workspace
+    const actualWorkspaceId = validated.workspaceId
+    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
+    if (!isValidWorkspace) {
+      logger.warn(
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+      )
+      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
-
-    // Use the workspaceId from the access check (more secure)
-    const actualWorkspaceId = validated.workspaceId || accessCheck.table.workspaceId
 
     // Build base where conditions
     const baseConditions = [
@@ -543,16 +536,15 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
 
     const table = accessResult.table
 
-    // Security check: If workspaceId is provided, verify it matches the table's workspace
-    if (validated.workspaceId && validated.workspaceId !== table.workspaceId) {
+    // Security check: verify workspaceId matches the table's workspace
+    if (validated.workspaceId !== table.workspaceId) {
       logger.warn(
         `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
       )
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Use the workspaceId from the table (more secure)
-    const actualWorkspaceId = table.workspaceId
+    const actualWorkspaceId = validated.workspaceId
     const updateData = validated.data as RowData
 
     // Validate new data size
@@ -749,19 +741,15 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
     const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
     if (accessResult instanceof NextResponse) return accessResult
 
-    // Security check: If workspaceId is provided, verify it matches the table's workspace
-    if (validated.workspaceId) {
-      const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-      if (!isValidWorkspace) {
-        logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
-        )
-        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-      }
+    // Security check: verify workspaceId matches the table's workspace
+    const actualWorkspaceId = validated.workspaceId
+    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
+    if (!isValidWorkspace) {
+      logger.warn(
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
+      )
+      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
-
-    // Use the workspaceId from the access check (more secure)
-    const actualWorkspaceId = validated.workspaceId || accessResult.table.workspaceId
 
     // Build base where conditions
     const baseConditions = [

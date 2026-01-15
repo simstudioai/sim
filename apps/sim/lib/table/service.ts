@@ -409,7 +409,7 @@ export async function queryRows(
     .from(userTableRows)
     .where(whereClause ?? baseConditions)
 
-  const totalCount = countResult[0].count
+  const totalCount = Number(countResult[0].count)
 
   // Build ORDER BY clause
   let orderByClause
@@ -503,17 +503,14 @@ export async function updateRow(
     throw new Error('Row not found')
   }
 
-  // Merge data
-  const mergedData = { ...(existingRow.data as RowData), ...data.data }
-
   // Validate size
-  const sizeValidation = validateRowSize(mergedData)
+  const sizeValidation = validateRowSize(data.data)
   if (!sizeValidation.valid) {
     throw new Error(sizeValidation.errors.join(', '))
   }
 
   // Validate against schema
-  const schemaValidation = validateRowAgainstSchema(mergedData, table.schema)
+  const schemaValidation = validateRowAgainstSchema(data.data, table.schema)
   if (!schemaValidation.valid) {
     throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
   }
@@ -527,7 +524,7 @@ export async function updateRow(
       .where(eq(userTableRows.tableId, data.tableId))
 
     const uniqueValidation = validateUniqueConstraints(
-      mergedData,
+      data.data,
       table.schema,
       existingRows.map((r) => ({ id: r.id, data: r.data as RowData })),
       data.rowId // Exclude current row
@@ -541,14 +538,14 @@ export async function updateRow(
 
   await db
     .update(userTableRows)
-    .set({ data: mergedData, updatedAt: now })
+    .set({ data: data.data, updatedAt: now })
     .where(eq(userTableRows.id, data.rowId))
 
   logger.info(`[${requestId}] Updated row ${data.rowId} in table ${data.tableId}`)
 
   return {
     id: data.rowId,
-    data: mergedData,
+    data: data.data,
     createdAt: existingRow.createdAt,
     updatedAt: now,
   }

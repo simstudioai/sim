@@ -217,7 +217,7 @@ export interface UpdateRowData {
   tableId: string
   /** Row ID to update */
   rowId: string
-  /** Updated data (merged with existing) */
+  /** Full row data replacement */
   data: RowData
   /** Workspace ID */
   workspaceId: string
