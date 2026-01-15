@@ -28,6 +28,7 @@ interface WorkflowItemProps {
   workflow: WorkflowMetadata
   active: boolean
   level: number
+  dragDisabled?: boolean
   onWorkflowClick: (workflowId: string, shiftKey: boolean, metaKey: boolean) => void
   onDragStart?: () => void
   onDragEnd?: () => void
@@ -44,6 +45,7 @@ export function WorkflowItem({
   workflow,
   active,
   level,
+  dragDisabled = false,
   onWorkflowClick,
   onDragStart: onDragStartProp,
   onDragEnd: onDragEndProp,
@@ -307,7 +309,7 @@ export function WorkflowItem({
             : '',
           isDragging ? 'opacity-50' : ''
         )}
-        draggable={!isEditing}
+        draggable={!isEditing && !dragDisabled}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onClick={handleClick}

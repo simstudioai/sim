@@ -635,6 +635,7 @@ export function Sidebar() {
                   <WorkflowList
                     regularWorkflows={regularWorkflows}
                     isLoading={isLoading}
+                    canReorder={canEdit}
                     handleFileChange={handleImportFileChange}
                     fileInputRef={fileInputRef}
                     scrollContainerRef={scrollContainerRef}
