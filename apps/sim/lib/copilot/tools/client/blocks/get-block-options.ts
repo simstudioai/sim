@@ -25,14 +25,14 @@ export class GetBlockOptionsClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Getting block options', icon: Loader2 },
-      [ClientToolCallState.pending]: { text: 'Getting block options', icon: Loader2 },
-      [ClientToolCallState.executing]: { text: 'Getting block options', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Retrieved block options', icon: ListFilter },
-      [ClientToolCallState.error]: { text: 'Failed to get block options', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Aborted getting block options', icon: XCircle },
+      [ClientToolCallState.generating]: { text: 'Getting block operations', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Getting block operations', icon: Loader2 },
+      [ClientToolCallState.executing]: { text: 'Getting block operations', icon: Loader2 },
+      [ClientToolCallState.success]: { text: 'Retrieved block operations', icon: ListFilter },
+      [ClientToolCallState.error]: { text: 'Failed to get block operations', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted getting block operations', icon: XCircle },
       [ClientToolCallState.rejected]: {
-        text: 'Skipped getting block options',
+        text: 'Skipped getting block operations',
         icon: MinusCircle,
       },
     },
@@ -49,17 +49,17 @@ export class GetBlockOptionsClientTool extends BaseClientTool {
 
         switch (state) {
           case ClientToolCallState.success:
-            return `Retrieved ${blockName} options`
+            return `Retrieved ${blockName} operations`
           case ClientToolCallState.executing:
           case ClientToolCallState.generating:
           case ClientToolCallState.pending:
-            return `Retrieving ${blockName} options`
+            return `Retrieving ${blockName} operations`
           case ClientToolCallState.error:
-            return `Failed to retrieve ${blockName} options`
+            return `Failed to retrieve ${blockName} operations`
           case ClientToolCallState.aborted:
-            return `Aborted retrieving ${blockName} options`
+            return `Aborted retrieving ${blockName} operations`
           case ClientToolCallState.rejected:
-            return `Skipped retrieving ${blockName} options`
+            return `Skipped retrieving ${blockName} operations`
         }
       }
       return undefined
