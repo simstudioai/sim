@@ -4,7 +4,7 @@
  * @module tables/[tableId]/table-data-viewer/hooks/use-row-selection
  */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { TableRow } from '@/lib/table'
 
 interface UseRowSelectionReturn {
@@ -22,6 +22,22 @@ interface UseRowSelectionReturn {
  */
 export function useRowSelection(rows: TableRow[]): UseRowSelectionReturn {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
+
+  /**
+   * Filter out selected rows that are no longer in the current row set.
+   * This handles pagination, filtering, and data refresh scenarios.
+   */
+  useEffect(() => {
+    setSelectedRows((prev) => {
+      if (prev.size === 0) return prev
+
+      const currentRowIds = new Set(rows.map((r) => r.id))
+      const filtered = new Set([...prev].filter((id) => currentRowIds.has(id)))
+
+      // Only update state if something was actually filtered out
+      return filtered.size !== prev.size ? filtered : prev
+    })
+  }, [rows])
 
   /**
    * Toggles selection of all visible rows.

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Plus, Trash2 } from 'lucide-react'
+import { nanoid } from 'nanoid'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -44,10 +45,18 @@ const COLUMN_TYPE_OPTIONS: Array<{ value: ColumnDefinition['type']; label: strin
 ]
 
 /**
- * Creates an empty column definition with default values.
+ * Column definition with a stable ID for React key.
  */
-function createEmptyColumn(): ColumnDefinition {
-  return { name: '', type: 'string', required: true, unique: false }
+interface ColumnWithId extends ColumnDefinition {
+  /** Stable ID for React key */
+  id: string
+}
+
+/**
+ * Creates an empty column definition with default values and a stable ID.
+ */
+function createEmptyColumn(): ColumnWithId {
+  return { id: nanoid(), name: '', type: 'string', required: true, unique: false }
 }
 
 /**
@@ -73,7 +82,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
 
   const [tableName, setTableName] = useState('')
   const [description, setDescription] = useState('')
-  const [columns, setColumns] = useState<ColumnDefinition[]>([createEmptyColumn()])
+  const [columns, setColumns] = useState<ColumnWithId[]>([createEmptyColumn()])
   const [error, setError] = useState<string | null>(null)
 
   const createTable = useCreateTable(workspaceId)
@@ -86,31 +95,29 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
   }
 
   /**
-   * Removes a column from the schema by index.
+   * Removes a column from the schema by ID.
    *
-   * @param index - Index of the column to remove
+   * @param columnId - ID of the column to remove
    */
-  const handleRemoveColumn = (index: number) => {
+  const handleRemoveColumn = (columnId: string) => {
     if (columns.length > 1) {
-      setColumns(columns.filter((_, i) => i !== index))
+      setColumns(columns.filter((col) => col.id !== columnId))
     }
   }
 
   /**
-   * Updates a column field at the specified index.
+   * Updates a column field by ID.
    *
-   * @param index - Index of the column to update
+   * @param columnId - ID of the column to update
    * @param field - Field name to update
    * @param value - New value for the field
    */
   const handleColumnChange = (
-    index: number,
+    columnId: string,
     field: keyof ColumnDefinition,
     value: string | boolean
   ) => {
-    const newColumns = [...columns]
-    newColumns[index] = { ...newColumns[index], [field]: value }
-    setColumns(newColumns)
+    setColumns(columns.map((col) => (col.id === columnId ? { ...col, [field]: value } : col)))
   }
 
   /**
@@ -140,12 +147,15 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
       return
     }
 
+    // Strip internal IDs before sending to API
+    const columnsForApi = validColumns.map(({ id: _id, ...col }) => col)
+
     try {
       await createTable.mutateAsync({
         name: tableName,
         description: description || undefined,
         schema: {
-          columns: validColumns,
+          columns: columnsForApi,
         },
       })
 
@@ -257,11 +267,10 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
 
               {/* Column Rows */}
               <div className='flex flex-col gap-[10px]'>
-                {columns.map((column, index) => (
+                {columns.map((column) => (
                   <ColumnRow
-                    key={index}
+                    key={column.id}
                     column={column}
-                    index={index}
                     isRemovable={columns.length > 1}
                     onChange={handleColumnChange}
                     onRemove={handleRemoveColumn}
@@ -305,22 +314,20 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
  * Props for the ColumnRow component.
  */
 interface ColumnRowProps {
-  /** The column definition */
-  column: ColumnDefinition
-  /** Index of this column in the list */
-  index: number
+  /** The column definition with stable ID */
+  column: ColumnWithId
   /** Whether the remove button should be enabled */
   isRemovable: boolean
   /** Callback when a column field changes */
-  onChange: (index: number, field: keyof ColumnDefinition, value: string | boolean) => void
+  onChange: (columnId: string, field: keyof ColumnDefinition, value: string | boolean) => void
   /** Callback to remove this column */
-  onRemove: (index: number) => void
+  onRemove: (columnId: string) => void
 }
 
 /**
  * A single row in the column definition list.
  */
-function ColumnRow({ column, index, isRemovable, onChange, onRemove }: ColumnRowProps) {
+function ColumnRow({ column, isRemovable, onChange, onRemove }: ColumnRowProps) {
   return (
     <div className='flex items-center gap-[10px]'>
       {/* Column Name */}
@@ -328,7 +335,7 @@ function ColumnRow({ column, index, isRemovable, onChange, onRemove }: ColumnRow
         <Input
           value={column.name}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            onChange(index, 'name', e.target.value)
+            onChange(column.id, 'name', e.target.value)
           }
           placeholder='column_name'
           className='h-[36px]'
@@ -341,7 +348,7 @@ function ColumnRow({ column, index, isRemovable, onChange, onRemove }: ColumnRow
           options={COLUMN_TYPE_OPTIONS}
           value={column.type}
           selectedValue={column.type}
-          onChange={(value) => onChange(index, 'type', value as ColumnDefinition['type'])}
+          onChange={(value) => onChange(column.id, 'type', value as ColumnDefinition['type'])}
           placeholder='Type'
           editable={false}
           filterOptions={false}
@@ -353,7 +360,7 @@ function ColumnRow({ column, index, isRemovable, onChange, onRemove }: ColumnRow
       <div className='flex w-[70px] items-center justify-center'>
         <Checkbox
           checked={column.required}
-          onCheckedChange={(checked) => onChange(index, 'required', checked === true)}
+          onCheckedChange={(checked) => onChange(column.id, 'required', checked === true)}
         />
       </div>
 
@@ -361,7 +368,7 @@ function ColumnRow({ column, index, isRemovable, onChange, onRemove }: ColumnRow
       <div className='flex w-[70px] items-center justify-center'>
         <Checkbox
           checked={column.unique}
-          onCheckedChange={(checked) => onChange(index, 'unique', checked === true)}
+          onCheckedChange={(checked) => onChange(column.id, 'unique', checked === true)}
         />
       </div>
 
@@ -371,7 +378,7 @@ function ColumnRow({ column, index, isRemovable, onChange, onRemove }: ColumnRow
           type='button'
           size='sm'
           variant='ghost'
-          onClick={() => onRemove(index)}
+          onClick={() => onRemove(column.id)}
           disabled={!isRemovable}
           className='h-[36px] w-[36px] p-0 text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-error)] hover:text-[var(--text-error)]'
         >
