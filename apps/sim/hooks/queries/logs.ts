@@ -1,7 +1,14 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
+import type {
+  DashboardStatsResponse,
+  SegmentStats,
+  WorkflowStats,
+} from '@/app/api/logs/stats/route'
 import type { LogsResponse, TimeRange, WorkflowLog } from '@/stores/logs/filters/types'
+
+export type { DashboardStatsResponse, SegmentStats, WorkflowStats }
 
 export const logKeys = {
   all: ['logs'] as const,
@@ -10,8 +17,8 @@ export const logKeys = {
     [...logKeys.lists(), workspaceId ?? '', filters] as const,
   details: () => [...logKeys.all, 'detail'] as const,
   detail: (logId: string | undefined) => [...logKeys.details(), logId ?? ''] as const,
-  dashboard: (workspaceId: string | undefined, filters: Record<string, unknown>) =>
-    [...logKeys.all, 'dashboard', workspaceId ?? '', filters] as const,
+  stats: (workspaceId: string | undefined, filters: object) =>
+    [...logKeys.all, 'stats', workspaceId ?? '', filters] as const,
   executionSnapshots: () => [...logKeys.all, 'executionSnapshot'] as const,
   executionSnapshot: (executionId: string | undefined) =>
     [...logKeys.executionSnapshots(), executionId ?? ''] as const,
@@ -147,52 +154,96 @@ export function useLogDetail(logId: string | undefined) {
   })
 }
 
-const DASHBOARD_LOGS_LIMIT = 10000
+interface DashboardFilters {
+  timeRange: TimeRange
+  startDate?: string
+  endDate?: string
+  level: string
+  workflowIds: string[]
+  folderIds: string[]
+  triggers: string[]
+  searchQuery: string
+  segmentCount?: number
+}
 
 /**
- * Fetches all logs for dashboard metrics (non-paginated).
- * Uses same filters as the logs list but with a high limit to get all data.
+ * Fetches aggregated dashboard statistics from the server.
+ * Uses SQL aggregation for efficient computation without row limits.
  */
-async function fetchAllLogs(
+async function fetchDashboardStats(
   workspaceId: string,
-  filters: Omit<LogFilters, 'limit'>
-): Promise<WorkflowLog[]> {
+  filters: DashboardFilters
+): Promise<DashboardStatsResponse> {
   const params = new URLSearchParams()
 
   params.set('workspaceId', workspaceId)
-  params.set('limit', DASHBOARD_LOGS_LIMIT.toString())
-  params.set('offset', '0')
 
-  applyFilterParams(params, filters)
-
-  const response = await fetch(`/api/logs?${params.toString()}`)
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch logs for dashboard')
+  if (filters.segmentCount) {
+    params.set('segmentCount', filters.segmentCount.toString())
   }
 
-  const apiData: LogsResponse = await response.json()
-  return apiData.data || []
+  if (filters.level !== 'all') {
+    params.set('level', filters.level)
+  }
+
+  if (filters.triggers.length > 0) {
+    params.set('triggers', filters.triggers.join(','))
+  }
+
+  if (filters.workflowIds.length > 0) {
+    params.set('workflowIds', filters.workflowIds.join(','))
+  }
+
+  if (filters.folderIds.length > 0) {
+    params.set('folderIds', filters.folderIds.join(','))
+  }
+
+  const startDate = getStartDateFromTimeRange(filters.timeRange, filters.startDate)
+  if (startDate) {
+    params.set('startDate', startDate.toISOString())
+  }
+
+  const endDate = getEndDateFromTimeRange(filters.timeRange, filters.endDate)
+  if (endDate) {
+    params.set('endDate', endDate.toISOString())
+  }
+
+  if (filters.searchQuery.trim()) {
+    const parsedQuery = parseQuery(filters.searchQuery.trim())
+    const searchParams = queryToApiParams(parsedQuery)
+
+    for (const [key, value] of Object.entries(searchParams)) {
+      params.set(key, value)
+    }
+  }
+
+  const response = await fetch(`/api/logs/stats?${params.toString()}`)
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch dashboard stats')
+  }
+
+  return response.json()
 }
 
-interface UseDashboardLogsOptions {
+interface UseDashboardStatsOptions {
   enabled?: boolean
   refetchInterval?: number | false
 }
 
 /**
- * Hook for fetching all logs for dashboard metrics.
- * Unlike useLogsList, this fetches all logs in a single request
- * to ensure dashboard metrics are computed from complete data.
+ * Hook for fetching aggregated dashboard statistics.
+ * Uses server-side SQL aggregation for efficient computation
+ * without any row limits - all matching logs are included in the stats.
  */
-export function useDashboardLogs(
+export function useDashboardStats(
   workspaceId: string | undefined,
-  filters: Omit<LogFilters, 'limit'>,
-  options?: UseDashboardLogsOptions
+  filters: DashboardFilters,
+  options?: UseDashboardStatsOptions
 ) {
   return useQuery({
-    queryKey: logKeys.dashboard(workspaceId, filters),
-    queryFn: () => fetchAllLogs(workspaceId as string, filters),
+    queryKey: logKeys.stats(workspaceId, filters),
+    queryFn: () => fetchDashboardStats(workspaceId as string, filters),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
     staleTime: 0,
