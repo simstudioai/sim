@@ -18,6 +18,17 @@ const TREE_SPACING = {
   INDENT_PER_LEVEL: 20,
 } as const
 
+function compareByOrder<T extends { sortOrder: number; createdAt?: Date; id: string }>(
+  a: T,
+  b: T
+): number {
+  if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+  const timeA = a.createdAt?.getTime() ?? 0
+  const timeB = b.createdAt?.getTime() ?? 0
+  if (timeA !== timeB) return timeA - timeB
+  return a.id.localeCompare(b.id)
+}
+
 interface WorkflowListProps {
   regularWorkflows: WorkflowMetadata[]
   isLoading?: boolean
@@ -97,7 +108,7 @@ export function WorkflowList({
       {} as Record<string, WorkflowMetadata[]>
     )
     for (const folderId of Object.keys(grouped)) {
-      grouped[folderId].sort((a, b) => a.sortOrder - b.sortOrder)
+      grouped[folderId].sort(compareByOrder)
     }
     return grouped
   }, [regularWorkflows])
@@ -208,6 +219,7 @@ export function WorkflowList({
         type: 'folder' | 'workflow'
         id: string
         sortOrder: number
+        createdAt?: Date
         data: FolderTreeNode | WorkflowMetadata
       }> = []
       for (const childFolder of folder.children) {
@@ -215,6 +227,7 @@ export function WorkflowList({
           type: 'folder',
           id: childFolder.id,
           sortOrder: childFolder.sortOrder,
+          createdAt: childFolder.createdAt,
           data: childFolder,
         })
       }
@@ -223,10 +236,11 @@ export function WorkflowList({
           type: 'workflow',
           id: workflow.id,
           sortOrder: workflow.sortOrder,
+          createdAt: workflow.createdAt,
           data: workflow,
         })
       }
-      childItems.sort((a, b) => a.sortOrder - b.sortOrder)
+      childItems.sort(compareByOrder)
 
       return (
         <div key={folder.id} className='relative'>
@@ -294,20 +308,28 @@ export function WorkflowList({
       type: 'folder' | 'workflow'
       id: string
       sortOrder: number
+      createdAt?: Date
       data: FolderTreeNode | WorkflowMetadata
     }> = []
     for (const folder of folderTree) {
-      items.push({ type: 'folder', id: folder.id, sortOrder: folder.sortOrder, data: folder })
+      items.push({
+        type: 'folder',
+        id: folder.id,
+        sortOrder: folder.sortOrder,
+        createdAt: folder.createdAt,
+        data: folder,
+      })
     }
     for (const workflow of rootWorkflows) {
       items.push({
         type: 'workflow',
         id: workflow.id,
         sortOrder: workflow.sortOrder,
+        createdAt: workflow.createdAt,
         data: workflow,
       })
     }
-    return items.sort((a, b) => a.sortOrder - b.sortOrder)
+    return items.sort(compareByOrder)
   }, [folderTree, rootWorkflows])
 
   const hasRootItems = rootItems.length > 0
