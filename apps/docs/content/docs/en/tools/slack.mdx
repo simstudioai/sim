@@ -123,6 +123,51 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `messages` | array | Array of message objects from the channel |
+|   ↳ `type` | string | Message type |
+|   ↳ `ts` | string | Edit timestamp |
+|   ↳ `text` | string | Message text content |
+|   ↳ `user` | string | User ID who edited |
+|   ↳ `bot_id` | string | Bot ID if sent by a bot |
+|   ↳ `username` | string | Display username |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `team` | string | Team ID |
+|   ↳ `thread_ts` | string | Thread parent message timestamp |
+|   ↳ `parent_user_id` | string | User ID of thread parent |
+|   ↳ `reply_count` | number | Number of thread replies |
+|   ↳ `reply_users_count` | number | Number of users who replied |
+|   ↳ `latest_reply` | string | Timestamp of latest reply |
+|   ↳ `subscribed` | boolean | Whether user is subscribed to thread |
+|   ↳ `last_read` | string | Last read timestamp |
+|   ↳ `unread_count` | number | Number of unread messages |
+|   ↳ `subtype` | string | Message subtype |
+|   ↳ `reactions` | array | Array of reactions on this message |
+|   ↳ `name` | string | Emoji name |
+|   ↳ `count` | number | Number of reactions |
+|   ↳ `users` | array | Array of user IDs who reacted |
+|   ↳ `name` | string | File name |
+|   ↳ `count` | number | Number of reactions |
+|   ↳ `users` | array | Array of user IDs who reacted |
+|   ↳ `is_starred` | boolean | Whether message is starred |
+|   ↳ `pinned_to` | array | Array of channel IDs where message is pinned |
+|   ↳ `files` | array | Array of files attached to message |
+|   ↳ `id` | string | File ID |
+|   ↳ `name` | string | File name |
+|   ↳ `mimetype` | string | MIME type |
+|   ↳ `size` | number | File size in bytes |
+|   ↳ `url_private` | string | Private download URL |
+|   ↳ `permalink` | string | Permanent link to file |
+|   ↳ `mode` | string | File mode |
+|   ↳ `id` | string | File ID |
+|   ↳ `mimetype` | string | MIME type |
+|   ↳ `size` | number | File size in bytes |
+|   ↳ `url_private` | string | Private download URL |
+|   ↳ `permalink` | string | Permanent link to message |
+|   ↳ `mode` | string | File mode |
+|   ↳ `attachments` | array | Array of legacy attachments |
+|   ↳ `blocks` | array | Array of Block Kit blocks |
+|   ↳ `edited` | object | Edit information if message was edited |
+|   ↳ `user` | string | User ID who edited |
+|   ↳ `ts` | string | Edit timestamp |
 
 ### `slack_get_message`
 
@@ -142,6 +187,46 @@ Retrieve a specific message by its timestamp. Useful for getting a thread parent
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | object | The retrieved message object |
+| ↳ `type` | string | Message type |
+| ↳ `ts` | string | Edit timestamp |
+| ↳ `text` | string | Message text content |
+| ↳ `user` | string | User ID who edited |
+| ↳ `bot_id` | string | Bot ID if sent by a bot |
+| ↳ `username` | string | Display username |
+| ↳ `channel` | string | Channel ID |
+| ↳ `team` | string | Team ID |
+| ↳ `thread_ts` | string | Thread parent timestamp |
+| ↳ `parent_user_id` | string | User ID of thread parent |
+| ↳ `reply_count` | number | Number of thread replies |
+| ↳ `reply_users_count` | number | Number of users who replied |
+| ↳ `latest_reply` | string | Timestamp of latest reply |
+| ↳ `subtype` | string | Message subtype |
+| ↳ `reactions` | array | Array of reactions on this message |
+|   ↳ `name` | string | Emoji name |
+|   ↳ `count` | number | Number of reactions |
+|   ↳ `users` | array | User IDs who reacted |
+| ↳ `name` | string | File name |
+| ↳ `count` | number | Number of reactions |
+| ↳ `users` | array | User IDs who reacted |
+| ↳ `is_starred` | boolean | Whether message is starred |
+| ↳ `pinned_to` | array | Channel IDs where message is pinned |
+| ↳ `files` | array | Files attached to message |
+|   ↳ `id` | string | File ID |
+|   ↳ `name` | string | File name |
+|   ↳ `mimetype` | string | MIME type |
+|   ↳ `size` | number | File size in bytes |
+|   ↳ `url_private` | string | Private download URL |
+|   ↳ `permalink` | string | Permanent link to file |
+| ↳ `id` | string | File ID |
+| ↳ `mimetype` | string | MIME type |
+| ↳ `size` | number | File size in bytes |
+| ↳ `url_private` | string | Private download URL |
+| ↳ `permalink` | string | Permanent link to message |
+| ↳ `attachments` | array | Legacy attachments |
+| ↳ `blocks` | array | Block Kit blocks |
+| ↳ `edited` | object | Edit information if message was edited |
+|   ↳ `user` | string | User ID who edited |
+|   ↳ `ts` | string | Edit timestamp |
 
 ### `slack_get_thread`
 
@@ -162,6 +247,39 @@ Retrieve an entire thread including the parent message and all replies. Useful f
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `parentMessage` | object | The thread parent message |
+| ↳ `type` | string | Message type |
+| ↳ `ts` | string | Message timestamp |
+| ↳ `text` | string | Message text content |
+| ↳ `user` | string | User ID who sent the message |
+| ↳ `bot_id` | string | Bot ID if sent by a bot |
+| ↳ `username` | string | Display username |
+| ↳ `reply_count` | number | Total number of thread replies |
+| ↳ `reply_users_count` | number | Number of users who replied |
+| ↳ `latest_reply` | string | Timestamp of latest reply |
+| ↳ `reactions` | array | Array of reactions on the parent message |
+|   ↳ `name` | string | Emoji name |
+|   ↳ `count` | number | Number of reactions |
+|   ↳ `users` | array | User IDs who reacted |
+| ↳ `name` | string | File name |
+| ↳ `count` | number | Number of reactions |
+| ↳ `users` | array | User IDs who reacted |
+| ↳ `files` | array | Files attached to the parent message |
+|   ↳ `id` | string | File ID |
+|   ↳ `name` | string | File name |
+|   ↳ `mimetype` | string | MIME type |
+|   ↳ `size` | number | File size in bytes |
+| ↳ `id` | string | File ID |
+| ↳ `mimetype` | string | MIME type |
+| ↳ `size` | number | File size in bytes |
+| `replies` | array | Array of reply messages in the thread \(excluding the parent\) |
+|   ↳ `ts` | string | Message timestamp |
+|   ↳ `text` | string | Message text content |
+|   ↳ `user` | string | User ID who sent the reply |
+|   ↳ `reactions` | array | Reactions on the reply |
+|   ↳ `files` | array | Files attached to the reply |
+| `messages` | array | All messages in the thread \(parent + replies\) in chronological order |
+| `replyCount` | number | Number of replies returned in this response |
+| `hasMore` | boolean | Whether there are more messages in the thread \(pagination needed\) |
 
 ### `slack_list_channels`
 
@@ -182,6 +300,19 @@ List all channels in a Slack workspace. Returns public and private channels the 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `channels` | array | Array of channel objects from the workspace |
+|   ↳ `id` | string | Channel ID \(e.g., C1234567890\) |
+|   ↳ `name` | string | Channel name without # prefix |
+|   ↳ `is_private` | boolean | Whether the channel is private |
+|   ↳ `is_archived` | boolean | Whether the channel is archived |
+|   ↳ `is_member` | boolean | Whether the bot is a member of the channel |
+|   ↳ `num_members` | number | Number of members in the channel |
+|   ↳ `topic` | string | Channel topic |
+|   ↳ `purpose` | string | Channel purpose/description |
+|   ↳ `created` | number | Unix timestamp when channel was created |
+|   ↳ `creator` | string | User ID of channel creator |
+| `ids` | array | Array of channel IDs for easy access |
+| `names` | array | Array of channel names for easy access |
+| `count` | number | Total number of channels returned |
 
 ### `slack_list_members`
 
@@ -201,6 +332,7 @@ List all members (user IDs) in a Slack channel. Use with Get User Info to resolv
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `members` | array | Array of user IDs who are members of the channel \(e.g., U1234567890\) |
+| `count` | number | Total number of members returned |
 
 ### `slack_list_users`
 
@@ -220,6 +352,21 @@ List all users in a Slack workspace. Returns user profiles with names and avatar
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `users` | array | Array of user objects from the workspace |
+|   ↳ `id` | string | User ID \(e.g., U1234567890\) |
+|   ↳ `name` | string | Username \(handle\) |
+|   ↳ `real_name` | string | Full real name |
+|   ↳ `display_name` | string | Display name shown in Slack |
+|   ↳ `is_bot` | boolean | Whether the user is a bot |
+|   ↳ `is_admin` | boolean | Whether the user is a workspace admin |
+|   ↳ `is_owner` | boolean | Whether the user is the workspace owner |
+|   ↳ `deleted` | boolean | Whether the user is deactivated |
+|   ↳ `timezone` | string | User timezone identifier |
+|   ↳ `avatar` | string | URL to user avatar image |
+|   ↳ `status_text` | string | Custom status text |
+|   ↳ `status_emoji` | string | Custom status emoji |
+| `ids` | array | Array of user IDs for easy access |
+| `names` | array | Array of usernames for easy access |
+| `count` | number | Total number of users returned |
 
 ### `slack_get_user`
 
@@ -238,6 +385,34 @@ Get detailed information about a specific Slack user by their user ID.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `user` | object | Detailed user information |
+| ↳ `id` | string | User ID |
+| ↳ `name` | string | Username \(handle\) |
+| ↳ `real_name` | string | Full real name |
+| ↳ `display_name` | string | Display name shown in Slack |
+| ↳ `first_name` | string | First name |
+| ↳ `last_name` | string | Last name |
+| ↳ `title` | string | Job title |
+| ↳ `phone` | string | Phone number |
+| ↳ `skype` | string | Skype handle |
+| ↳ `is_bot` | boolean | Whether the user is a bot |
+| ↳ `is_admin` | boolean | Whether the user is a workspace admin |
+| ↳ `is_owner` | boolean | Whether the user is the workspace owner |
+| ↳ `is_primary_owner` | boolean | Whether the user is the primary owner |
+| ↳ `is_restricted` | boolean | Whether the user is a guest \(restricted\) |
+| ↳ `is_ultra_restricted` | boolean | Whether the user is a single-channel guest |
+| ↳ `deleted` | boolean | Whether the user is deactivated |
+| ↳ `timezone` | string | Timezone identifier \(e.g., America/Los_Angeles\) |
+| ↳ `timezone_label` | string | Human-readable timezone label |
+| ↳ `timezone_offset` | number | Timezone offset in seconds from UTC |
+| ↳ `avatar_24` | string | URL to 24px avatar |
+| ↳ `avatar_48` | string | URL to 48px avatar |
+| ↳ `avatar_72` | string | URL to 72px avatar |
+| ↳ `avatar_192` | string | URL to 192px avatar |
+| ↳ `avatar_512` | string | URL to 512px avatar |
+| ↳ `status_text` | string | Custom status text |
+| ↳ `status_emoji` | string | Custom status emoji |
+| ↳ `status_expiration` | number | Unix timestamp when status expires |
+| ↳ `updated` | number | Unix timestamp of last profile update |
 
 ### `slack_download`
 
@@ -279,6 +454,9 @@ Update a message previously sent by the bot in Slack
 | `message` | object | Complete updated message object with all properties returned by Slack |
 | `content` | string | Success message |
 | `metadata` | object | Updated message metadata |
+| ↳ `channel` | string | Channel ID |
+| ↳ `timestamp` | string | Message timestamp |
+| ↳ `text` | string | Updated message text |
 
 ### `slack_delete_message`
 
@@ -299,6 +477,8 @@ Delete a message previously sent by the bot in Slack
 | --------- | ---- | ----------- |
 | `content` | string | Success message |
 | `metadata` | object | Deleted message metadata |
+| ↳ `channel` | string | Channel ID |
+| ↳ `timestamp` | string | Message timestamp |
 
 ### `slack_add_reaction`
 
@@ -320,5 +500,8 @@ Add an emoji reaction to a Slack message
 | --------- | ---- | ----------- |
 | `content` | string | Success message |
 | `metadata` | object | Reaction metadata |
+| ↳ `channel` | string | Channel ID |
+| ↳ `timestamp` | string | Message timestamp |
+| ↳ `reaction` | string | Emoji reaction name |
 
 

@@ -704,13 +704,23 @@ function extractToolInfo(
     }
 
     let outputs: Record<string, any> = {}
-    const outputsFieldRegex =
-      /outputs\s*:\s*{([\s\S]*?)}\s*,?\s*(?:(?:oauth|params|request|directExecution|postProcess|transformResponse)\s*:|$|\})/
-    const outputsFieldMatch = toolContent.match(outputsFieldRegex)
-
-    if (outputsFieldMatch) {
-      const outputsContent = outputsFieldMatch[1]
-      outputs = parseToolOutputsField(outputsContent)
+    // Use word boundary to avoid matching 'run_outputs' or similar param names
+    const outputsStart = toolContent.search(/(?<![a-zA-Z_])outputs\s*:\s*{/)
+    if (outputsStart !== -1) {
+      const openBracePos = toolContent.indexOf('{', outputsStart)
+      if (openBracePos !== -1) {
+        let braceCount = 1
+        let pos = openBracePos + 1
+        while (pos < toolContent.length && braceCount > 0) {
+          if (toolContent[pos] === '{') braceCount++
+          else if (toolContent[pos] === '}') braceCount--
+          pos++
+        }
+        if (braceCount === 0) {
+          const outputsContent = toolContent.substring(openBracePos + 1, pos - 1).trim()
+          outputs = parseToolOutputsField(outputsContent)
+        }
+      }
     }
 
     return {

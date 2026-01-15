@@ -53,7 +53,7 @@ export const langsmithCreateRunTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Inputs payload',
     },
-    outputs: {
+    run_outputs: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
@@ -133,7 +133,7 @@ export const langsmithCreateRunTool: ToolConfig<
         ...payload,
         name: payload.name?.trim(),
         inputs: params.inputs,
-        outputs: params.outputs,
+        outputs: params.run_outputs,
         extra: params.extra,
         tags: params.tags,
         status: params.status,
@@ -144,22 +144,6 @@ export const langsmithCreateRunTool: ToolConfig<
       return Object.fromEntries(
         Object.entries(normalizedPayload).filter(([, value]) => value !== undefined)
       )
-    },
-  },
-  outputs: {
-    accepted: {
-      type: 'boolean',
-      description: 'Whether the run was accepted for ingestion',
-    },
-    runId: {
-      type: 'string',
-      description: 'Run identifier provided in the request',
-      optional: true,
-    },
-    message: {
-      type: 'string',
-      description: 'Response message from LangSmith',
-      optional: true,
     },
   },
   transformResponse: async (response, params) => {
@@ -184,5 +168,21 @@ export const langsmithCreateRunTool: ToolConfig<
         message: directMessage ?? nestedMessage ?? null,
       },
     }
+  },
+  outputs: {
+    accepted: {
+      type: 'boolean',
+      description: 'Whether the run was accepted for ingestion',
+    },
+    runId: {
+      type: 'string',
+      description: 'Run identifier provided in the request',
+      optional: true,
+    },
+    message: {
+      type: 'string',
+      description: 'Response message from LangSmith',
+      optional: true,
+    },
   },
 }

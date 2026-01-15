@@ -244,7 +244,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
           start_time: params.start_time,
           end_time: params.end_time,
           inputs: parseJsonValue(params.inputs, 'inputs'),
-          outputs: parseJsonValue(params.outputs, 'outputs'),
+          run_outputs: parseJsonValue(params.outputs, 'outputs'),
           extra: parseJsonValue(params.extra, 'metadata'),
           tags: parseJsonValue(params.tags, 'tags'),
           parent_run_id: params.parent_run_id,

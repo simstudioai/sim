@@ -49,6 +49,11 @@ Read data from a Microsoft Excel spreadsheet
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `data` | object | Range data from the spreadsheet |
+| ↳ `range` | string | The range that was read |
+| ↳ `values` | array | Array of rows containing cell values |
+| `metadata` | object | Spreadsheet metadata |
+| ↳ `spreadsheetId` | string | The ID of the spreadsheet |
+| ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
 ### `microsoft_excel_write`
 
@@ -73,6 +78,8 @@ Write data to a Microsoft Excel spreadsheet
 | `updatedColumns` | number | Number of columns that were updated |
 | `updatedCells` | number | Number of cells that were updated |
 | `metadata` | object | Spreadsheet metadata |
+| ↳ `spreadsheetId` | string | The ID of the spreadsheet |
+| ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
 ### `microsoft_excel_table_add`
 
@@ -93,6 +100,8 @@ Add new rows to a Microsoft Excel table
 | `index` | number | Index of the first row that was added |
 | `values` | array | Array of rows that were added to the table |
 | `metadata` | object | Spreadsheet metadata |
+| ↳ `spreadsheetId` | string | The ID of the spreadsheet |
+| ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
 ### `microsoft_excel_worksheet_add`
 
@@ -110,5 +119,12 @@ Create a new worksheet (sheet) in a Microsoft Excel workbook
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `worksheet` | object | Details of the newly created worksheet |
+| ↳ `id` | string | The unique ID of the worksheet |
+| ↳ `name` | string | The name of the worksheet |
+| ↳ `position` | number | The zero-based position of the worksheet |
+| ↳ `visibility` | string | The visibility state of the worksheet \(Visible/Hidden/VeryHidden\) |
+| `metadata` | object | Spreadsheet metadata |
+| ↳ `spreadsheetId` | string | The ID of the spreadsheet |
+| ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
 

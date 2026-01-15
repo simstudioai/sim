@@ -29,8 +29,9 @@ export interface LangsmithRunPayload {
   events?: Record<string, unknown>[]
 }
 
-export interface LangsmithCreateRunParams extends LangsmithRunPayload {
+export interface LangsmithCreateRunParams extends Omit<LangsmithRunPayload, 'outputs'> {
   apiKey: string
+  run_outputs?: Record<string, unknown>
 }
 
 export interface LangsmithCreateRunsBatchParams {

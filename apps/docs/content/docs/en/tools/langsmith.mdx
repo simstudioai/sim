@@ -32,10 +32,26 @@ Forward a single run to LangSmith for ingestion.
 | `run_type` | string | Yes | Run type \(tool, chain, llm, retriever, embedding, prompt, parser\) |
 | `start_time` | string | No | Run start time in ISO-8601 format |
 | `end_time` | string | No | Run end time in ISO-8601 format |
+| `inputs` | json | No | Inputs payload |
+| `run_outputs` | json | No | Outputs payload |
+| `extra` | json | No | Additional metadata \(extra\) |
+| `tags` | json | No | Array of tag strings |
+| `parent_run_id` | string | No | Parent run ID |
+| `trace_id` | string | No | Trace ID |
+| `session_id` | string | No | Session ID |
+| `session_name` | string | No | Session name |
+| `status` | string | No | Run status |
+| `error` | string | No | Error details |
+| `dotted_order` | string | No | Dotted order string |
+| `events` | json | No | Structured events array |
 
 #### Output
 
-This tool does not produce any outputs.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Whether the run was accepted for ingestion |
+| `runId` | string | Run identifier provided in the request |
+| `message` | string | Response message from LangSmith |
 
 ### `langsmith_create_runs_batch`
 
@@ -55,5 +71,7 @@ Forward multiple runs to LangSmith in a single batch.
 | --------- | ---- | ----------- |
 | `accepted` | boolean | Whether the batch was accepted for ingestion |
 | `runIds` | array | Run identifiers provided in the request |
+| `message` | string | Response message from LangSmith |
+| `messages` | array | Per-run response messages, when provided |
 
 

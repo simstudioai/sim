@@ -44,6 +44,18 @@ Retrieve a single task by GID or get multiple tasks with filters
 | `notes` | string | Task notes or description |
 | `completed` | boolean | Whether the task is completed |
 | `assignee` | object | Assignee details |
+| ↳ `gid` | string | Assignee GID |
+| ↳ `name` | string | Assignee name |
+| `created_by` | object | Creator details |
+| ↳ `gid` | string | Creator GID |
+| ↳ `name` | string | Creator name |
+| `due_on` | string | Due date \(YYYY-MM-DD\) |
+| `created_at` | string | Task creation timestamp |
+| `modified_at` | string | Task last modified timestamp |
+| `tasks` | array | Array of tasks \(when fetching multiple\) |
+|   ↳ `gid` | string | Task GID |
+|   ↳ `name` | string | Task name |
+|   ↳ `completed` | boolean | Completion status |
 
 ### `asana_create_task`
 
@@ -116,6 +128,9 @@ Retrieve all projects from an Asana workspace
 | `success` | boolean | Operation success status |
 | `ts` | string | Timestamp of the response |
 | `projects` | array | Array of projects |
+|   ↳ `gid` | string | Project GID |
+|   ↳ `name` | string | Project name |
+|   ↳ `resource_type` | string | Resource type \(project\) |
 
 ### `asana_search_tasks`
 
@@ -138,6 +153,22 @@ Search for tasks in an Asana workspace
 | `success` | boolean | Operation success status |
 | `ts` | string | Timestamp of the response |
 | `tasks` | array | Array of matching tasks |
+|   ↳ `gid` | string | Assignee GID |
+|   ↳ `resource_type` | string | Resource type |
+|   ↳ `resource_subtype` | string | Resource subtype |
+|   ↳ `name` | string | Assignee name |
+|   ↳ `notes` | string | Task notes |
+|   ↳ `completed` | boolean | Completion status |
+|   ↳ `assignee` | object | Assignee details |
+|   ↳ `gid` | string | Assignee GID |
+|   ↳ `name` | string | Assignee name |
+|   ↳ `due_on` | string | Due date |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `modified_at` | string | Modified timestamp |
+| `next_page` | object | Pagination info |
+| ↳ `offset` | string | Offset token |
+| ↳ `path` | string | API path |
+| ↳ `uri` | string | Full URI |
 
 ### `asana_add_comment`
 
@@ -160,5 +191,7 @@ Add a comment (story) to an Asana task
 | `text` | string | Comment text content |
 | `created_at` | string | Comment creation timestamp |
 | `created_by` | object | Comment author details |
+| ↳ `gid` | string | Author GID |
+| ↳ `name` | string | Author name |
 
 

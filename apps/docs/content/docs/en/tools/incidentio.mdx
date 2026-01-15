@@ -57,6 +57,35 @@ List incidents from incident.io. Returns a list of incidents with their details 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `incidents` | array | List of incidents |
+|   ↳ `id` | string | Type ID |
+|   ↳ `name` | string | Type name |
+|   ↳ `summary` | string | Brief summary of the incident |
+|   ↳ `description` | string | Detailed description of the incident |
+|   ↳ `mode` | string | Incident mode \(e.g., standard, retrospective\) |
+|   ↳ `call_url` | string | URL for the incident call/bridge |
+|   ↳ `severity` | object | Severity of the incident |
+|   ↳ `id` | string | Severity ID |
+|   ↳ `name` | string | Severity name |
+|   ↳ `rank` | number | Severity rank |
+|   ↳ `rank` | number | Severity rank |
+|   ↳ `status` | object | Current status of the incident |
+|   ↳ `id` | string | Status ID |
+|   ↳ `name` | string | Status name |
+|   ↳ `category` | string | Status category |
+|   ↳ `category` | string | Status category |
+|   ↳ `incident_type` | object | Type of the incident |
+|   ↳ `id` | string | Type ID |
+|   ↳ `name` | string | Type name |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `incident_url` | string | URL to the incident |
+|   ↳ `slack_channel_id` | string | Associated Slack channel ID |
+|   ↳ `slack_channel_name` | string | Associated Slack channel name |
+|   ↳ `visibility` | string | Incident visibility |
+| `pagination_meta` | object | Pagination metadata |
+| ↳ `after` | string | Cursor for the next page |
+| ↳ `page_size` | number | Number of items per page |
+| ↳ `total_record_count` | number | Total number of records available |
 
 ### `incidentio_incidents_create`
 
@@ -80,6 +109,31 @@ Create a new incident in incident.io. Requires idempotency_key, severity_id, and
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `incident` | object | The created incident object |
+| ↳ `id` | string | Type ID |
+| ↳ `name` | string | Type name |
+| ↳ `summary` | string | Brief summary of the incident |
+| ↳ `description` | string | Detailed description of the incident |
+| ↳ `mode` | string | Incident mode \(e.g., standard, retrospective\) |
+| ↳ `call_url` | string | URL for the incident call/bridge |
+| ↳ `severity` | object | Severity of the incident |
+|   ↳ `id` | string | Severity ID |
+|   ↳ `name` | string | Severity name |
+|   ↳ `rank` | number | Severity rank |
+| ↳ `rank` | number | Severity rank |
+| ↳ `status` | object | Current status of the incident |
+|   ↳ `id` | string | Status ID |
+|   ↳ `name` | string | Status name |
+|   ↳ `category` | string | Status category |
+| ↳ `category` | string | Status category |
+| ↳ `incident_type` | object | Type of the incident |
+|   ↳ `id` | string | Type ID |
+|   ↳ `name` | string | Type name |
+| ↳ `created_at` | string | Creation timestamp |
+| ↳ `updated_at` | string | Last update timestamp |
+| ↳ `incident_url` | string | URL to the incident |
+| ↳ `slack_channel_id` | string | Associated Slack channel ID |
+| ↳ `slack_channel_name` | string | Associated Slack channel name |
+| ↳ `visibility` | string | Incident visibility |
 
 ### `incidentio_incidents_show`
 
@@ -97,6 +151,34 @@ Retrieve detailed information about a specific incident from incident.io by its 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `incident` | object | Detailed incident information |
+| ↳ `id` | string | Type ID |
+| ↳ `name` | string | Type name |
+| ↳ `summary` | string | Brief summary of the incident |
+| ↳ `description` | string | Detailed description of the incident |
+| ↳ `mode` | string | Incident mode \(e.g., standard, retrospective\) |
+| ↳ `call_url` | string | URL for the incident call/bridge |
+| ↳ `permalink` | string | Permanent link to the incident |
+| ↳ `severity` | object | Severity of the incident |
+|   ↳ `id` | string | Severity ID |
+|   ↳ `name` | string | Severity name |
+|   ↳ `rank` | number | Severity rank |
+| ↳ `rank` | number | Severity rank |
+| ↳ `status` | object | Current status of the incident |
+|   ↳ `id` | string | Status ID |
+|   ↳ `name` | string | Status name |
+|   ↳ `category` | string | Status category |
+| ↳ `category` | string | Status category |
+| ↳ `incident_type` | object | Type of the incident |
+|   ↳ `id` | string | Type ID |
+|   ↳ `name` | string | Type name |
+| ↳ `created_at` | string | Creation timestamp |
+| ↳ `updated_at` | string | Last update timestamp |
+| ↳ `incident_url` | string | URL to the incident |
+| ↳ `slack_channel_id` | string | Associated Slack channel ID |
+| ↳ `slack_channel_name` | string | Associated Slack channel name |
+| ↳ `visibility` | string | Incident visibility |
+| ↳ `custom_field_entries` | array | Custom field values for the incident |
+| ↳ `incident_role_assignments` | array | Role assignments for the incident |
 
 ### `incidentio_incidents_update`
 
@@ -120,6 +202,31 @@ Update an existing incident in incident.io. Can update name, summary, severity, 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `incident` | object | The updated incident object |
+| ↳ `id` | string | Type ID |
+| ↳ `name` | string | Type name |
+| ↳ `summary` | string | Brief summary of the incident |
+| ↳ `description` | string | Detailed description of the incident |
+| ↳ `mode` | string | Incident mode \(e.g., standard, retrospective\) |
+| ↳ `call_url` | string | URL for the incident call/bridge |
+| ↳ `severity` | object | Severity of the incident |
+|   ↳ `id` | string | Severity ID |
+|   ↳ `name` | string | Severity name |
+|   ↳ `rank` | number | Severity rank |
+| ↳ `rank` | number | Severity rank |
+| ↳ `status` | object | Current status of the incident |
+|   ↳ `id` | string | Status ID |
+|   ↳ `name` | string | Status name |
+|   ↳ `category` | string | Status category |
+| ↳ `category` | string | Status category |
+| ↳ `incident_type` | object | Type of the incident |
+|   ↳ `id` | string | Type ID |
+|   ↳ `name` | string | Type name |
+| ↳ `created_at` | string | Creation timestamp |
+| ↳ `updated_at` | string | Last update timestamp |
+| ↳ `incident_url` | string | URL to the incident |
+| ↳ `slack_channel_id` | string | Associated Slack channel ID |
+| ↳ `slack_channel_name` | string | Associated Slack channel name |
+| ↳ `visibility` | string | Incident visibility |
 
 ### `incidentio_actions_list`
 
@@ -138,6 +245,31 @@ List actions from incident.io. Optionally filter by incident ID.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `actions` | array | List of actions |
+|   ↳ `id` | string | User ID |
+|   ↳ `description` | string | Action description |
+|   ↳ `assignee` | object | Assigned user |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+|   ↳ `status` | string | Action status |
+|   ↳ `due_at` | string | Due date/time |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `incident_id` | string | Associated incident ID |
+|   ↳ `creator` | object | User who created the action |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+|   ↳ `completed_at` | string | Completion timestamp |
+|   ↳ `external_issue_reference` | object | External issue tracking reference |
+|   ↳ `provider` | string | Issue tracking provider \(e.g., Jira, Linear\) |
+|   ↳ `issue_name` | string | Issue identifier |
+|   ↳ `issue_permalink` | string | URL to the external issue |
+|   ↳ `provider` | string | Issue tracking provider \(e.g., Jira, Linear\) |
+|   ↳ `issue_name` | string | Issue identifier |
+|   ↳ `issue_permalink` | string | URL to the external issue |
 
 ### `incidentio_actions_show`
 
@@ -155,6 +287,31 @@ Get detailed information about a specific action from incident.io.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | object | Action details |
+| ↳ `id` | string | User ID |
+| ↳ `description` | string | Action description |
+| ↳ `assignee` | object | Assigned user |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+| ↳ `name` | string | User name |
+| ↳ `email` | string | User email |
+| ↳ `status` | string | Action status |
+| ↳ `due_at` | string | Due date/time |
+| ↳ `created_at` | string | Creation timestamp |
+| ↳ `updated_at` | string | Last update timestamp |
+| ↳ `incident_id` | string | Associated incident ID |
+| ↳ `creator` | object | User who created the action |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+| ↳ `completed_at` | string | Completion timestamp |
+| ↳ `external_issue_reference` | object | External issue tracking reference |
+|   ↳ `provider` | string | Issue tracking provider \(e.g., Jira, Linear\) |
+|   ↳ `issue_name` | string | Issue identifier |
+|   ↳ `issue_permalink` | string | URL to the external issue |
+| ↳ `provider` | string | Issue tracking provider \(e.g., Jira, Linear\) |
+| ↳ `issue_name` | string | Issue identifier |
+| ↳ `issue_permalink` | string | URL to the external issue |
 
 ### `incidentio_follow_ups_list`
 
@@ -173,6 +330,38 @@ List follow-ups from incident.io. Optionally filter by incident ID.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `follow_ups` | array | List of follow-ups |
+|   ↳ `id` | string | User ID |
+|   ↳ `title` | string | Follow-up title |
+|   ↳ `description` | string | Priority description |
+|   ↳ `assignee` | object | Assigned user |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+|   ↳ `status` | string | Follow-up status |
+|   ↳ `priority` | object | Follow-up priority |
+|   ↳ `id` | string | Priority ID |
+|   ↳ `name` | string | Priority name |
+|   ↳ `description` | string | Priority description |
+|   ↳ `rank` | number | Priority rank |
+|   ↳ `rank` | number | Priority rank |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `incident_id` | string | Associated incident ID |
+|   ↳ `creator` | object | User who created the follow-up |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+|   ↳ `completed_at` | string | Completion timestamp |
+|   ↳ `labels` | array | Labels associated with the follow-up |
+|   ↳ `external_issue_reference` | object | External issue tracking reference |
+|   ↳ `provider` | string | External provider name |
+|   ↳ `issue_name` | string | External issue name or ID |
+|   ↳ `issue_permalink` | string | Permalink to external issue |
+|   ↳ `provider` | string | External provider name |
+|   ↳ `issue_name` | string | External issue name or ID |
+|   ↳ `issue_permalink` | string | Permalink to external issue |
 
 ### `incidentio_follow_ups_show`
 
@@ -190,6 +379,38 @@ Get detailed information about a specific follow-up from incident.io.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `follow_up` | object | Follow-up details |
+| ↳ `id` | string | User ID |
+| ↳ `title` | string | Follow-up title |
+| ↳ `description` | string | Priority description |
+| ↳ `assignee` | object | Assigned user |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+| ↳ `name` | string | User name |
+| ↳ `email` | string | User email |
+| ↳ `status` | string | Follow-up status |
+| ↳ `priority` | object | Follow-up priority |
+|   ↳ `id` | string | Priority ID |
+|   ↳ `name` | string | Priority name |
+|   ↳ `description` | string | Priority description |
+|   ↳ `rank` | number | Priority rank |
+| ↳ `rank` | number | Priority rank |
+| ↳ `created_at` | string | Creation timestamp |
+| ↳ `updated_at` | string | Last update timestamp |
+| ↳ `incident_id` | string | Associated incident ID |
+| ↳ `creator` | object | User who created the follow-up |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+| ↳ `completed_at` | string | Completion timestamp |
+| ↳ `labels` | array | Labels associated with the follow-up |
+| ↳ `external_issue_reference` | object | External issue tracking reference |
+|   ↳ `provider` | string | External provider name |
+|   ↳ `issue_name` | string | External issue name or ID |
+|   ↳ `issue_permalink` | string | Permalink to external issue |
+| ↳ `provider` | string | External provider name |
+| ↳ `issue_name` | string | External issue name or ID |
+| ↳ `issue_permalink` | string | Permalink to external issue |
 
 ### `incidentio_users_list`
 
@@ -207,6 +428,10 @@ List all users in your Incident.io workspace. Returns user details including id,
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `users` | array | List of users in the workspace |
+|   ↳ `id` | string | Unique identifier for the user |
+|   ↳ `name` | string | Full name of the user |
+|   ↳ `email` | string | Email address of the user |
+|   ↳ `role` | string | Role of the user in the workspace |
 
 ### `incidentio_users_show`
 
@@ -224,6 +449,10 @@ Get detailed information about a specific user in your Incident.io workspace by 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `user` | object | Details of the requested user |
+| ↳ `id` | string | Unique identifier for the user |
+| ↳ `name` | string | Full name of the user |
+| ↳ `email` | string | Email address of the user |
+| ↳ `role` | string | Role of the user in the workspace |
 
 ### `incidentio_workflows_list`
 
@@ -242,6 +471,15 @@ List all workflows in your incident.io workspace.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `workflows` | array | List of workflows |
+|   ↳ `id` | string | Unique identifier for the workflow |
+|   ↳ `name` | string | Name of the workflow |
+|   ↳ `state` | string | State of the workflow \(active, draft, or disabled\) |
+|   ↳ `folder` | string | Folder the workflow belongs to |
+|   ↳ `created_at` | string | When the workflow was created |
+|   ↳ `updated_at` | string | When the workflow was last updated |
+| `pagination_meta` | object | Pagination metadata |
+| ↳ `after` | string | Cursor for next page |
+| ↳ `page_size` | number | Number of results per page |
 
 ### `incidentio_workflows_show`
 
@@ -259,6 +497,12 @@ Get details of a specific workflow in incident.io.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `workflow` | object | The workflow details |
+| ↳ `id` | string | Unique identifier for the workflow |
+| ↳ `name` | string | Name of the workflow |
+| ↳ `state` | string | State of the workflow \(active, draft, or disabled\) |
+| ↳ `folder` | string | Folder the workflow belongs to |
+| ↳ `created_at` | string | When the workflow was created |
+| ↳ `updated_at` | string | When the workflow was last updated |
 
 ### `incidentio_workflows_update`
 
@@ -279,6 +523,12 @@ Update an existing workflow in incident.io.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `workflow` | object | The updated workflow |
+| ↳ `id` | string | Unique identifier for the workflow |
+| ↳ `name` | string | Name of the workflow |
+| ↳ `state` | string | State of the workflow \(active, draft, or disabled\) |
+| ↳ `folder` | string | Folder the workflow belongs to |
+| ↳ `created_at` | string | When the workflow was created |
+| ↳ `updated_at` | string | When the workflow was last updated |
 
 ### `incidentio_workflows_delete`
 
@@ -314,6 +564,14 @@ List all schedules in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `schedules` | array | List of schedules |
+|   ↳ `id` | string | The schedule ID |
+|   ↳ `name` | string | The schedule name |
+|   ↳ `timezone` | string | The schedule timezone |
+|   ↳ `created_at` | string | When the schedule was created |
+|   ↳ `updated_at` | string | When the schedule was last updated |
+| `pagination_meta` | object | Pagination metadata |
+| ↳ `after` | string | Cursor for next page |
+| ↳ `page_size` | number | Number of results per page |
 
 ### `incidentio_schedules_create`
 
@@ -334,6 +592,11 @@ Create a new schedule in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `schedule` | object | The created schedule |
+| ↳ `id` | string | The schedule ID |
+| ↳ `name` | string | The schedule name |
+| ↳ `timezone` | string | The schedule timezone |
+| ↳ `created_at` | string | When the schedule was created |
+| ↳ `updated_at` | string | When the schedule was last updated |
 
 ### `incidentio_schedules_show`
 
@@ -351,6 +614,11 @@ Get details of a specific schedule in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `schedule` | object | The schedule details |
+| ↳ `id` | string | The schedule ID |
+| ↳ `name` | string | The schedule name |
+| ↳ `timezone` | string | The schedule timezone |
+| ↳ `created_at` | string | When the schedule was created |
+| ↳ `updated_at` | string | When the schedule was last updated |
 
 ### `incidentio_schedules_update`
 
@@ -372,6 +640,11 @@ Update an existing schedule in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `schedule` | object | The updated schedule |
+| ↳ `id` | string | The schedule ID |
+| ↳ `name` | string | The schedule name |
+| ↳ `timezone` | string | The schedule timezone |
+| ↳ `created_at` | string | When the schedule was created |
+| ↳ `updated_at` | string | When the schedule was last updated |
 
 ### `incidentio_schedules_delete`
 
@@ -406,6 +679,10 @@ List all escalation policies in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `escalations` | array | List of escalation policies |
+|   ↳ `id` | string | The escalation policy ID |
+|   ↳ `name` | string | The escalation policy name |
+|   ↳ `created_at` | string | When the escalation policy was created |
+|   ↳ `updated_at` | string | When the escalation policy was last updated |
 
 ### `incidentio_escalations_create`
 
@@ -426,6 +703,10 @@ Create a new escalation policy in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `escalation` | object | The created escalation policy |
+| ↳ `id` | string | The escalation policy ID |
+| ↳ `name` | string | The escalation policy name |
+| ↳ `created_at` | string | When the escalation policy was created |
+| ↳ `updated_at` | string | When the escalation policy was last updated |
 
 ### `incidentio_escalations_show`
 
@@ -443,6 +724,10 @@ Get details of a specific escalation policy in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `escalation` | object | The escalation policy details |
+| ↳ `id` | string | The escalation policy ID |
+| ↳ `name` | string | The escalation policy name |
+| ↳ `created_at` | string | When the escalation policy was created |
+| ↳ `updated_at` | string | When the escalation policy was last updated |
 
 ### `incidentio_custom_fields_list`
 
@@ -459,6 +744,12 @@ List all custom fields from incident.io.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `custom_fields` | array | List of custom fields |
+|   ↳ `id` | string | Custom field ID |
+|   ↳ `name` | string | Custom field name |
+|   ↳ `description` | string | Custom field description |
+|   ↳ `field_type` | string | Custom field type |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
 
 ### `incidentio_custom_fields_create`
 
@@ -478,6 +769,12 @@ Create a new custom field in incident.io.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `custom_field` | object | Created custom field |
+| ↳ `id` | string | Custom field ID |
+| ↳ `name` | string | Custom field name |
+| ↳ `description` | string | Custom field description |
+| ↳ `field_type` | string | Custom field type |
+| ↳ `created_at` | string | Creation timestamp |
+| ↳ `updated_at` | string | Last update timestamp |
 
 ### `incidentio_custom_fields_show`
 
@@ -495,6 +792,12 @@ Get detailed information about a specific custom field from incident.io.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `custom_field` | object | Custom field details |
+| ↳ `id` | string | Custom field ID |
+| ↳ `name` | string | Custom field name |
+| ↳ `description` | string | Custom field description |
+| ↳ `field_type` | string | Custom field type |
+| ↳ `created_at` | string | Creation timestamp |
+| ↳ `updated_at` | string | Last update timestamp |
 
 ### `incidentio_custom_fields_update`
 
@@ -514,6 +817,12 @@ Update an existing custom field in incident.io.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `custom_field` | object | Updated custom field |
+| ↳ `id` | string | Custom field ID |
+| ↳ `name` | string | Custom field name |
+| ↳ `description` | string | Custom field description |
+| ↳ `field_type` | string | Custom field type |
+| ↳ `created_at` | string | Creation timestamp |
+| ↳ `updated_at` | string | Last update timestamp |
 
 ### `incidentio_custom_fields_delete`
 
@@ -547,6 +856,10 @@ List all severity levels configured in your Incident.io workspace. Returns sever
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `severities` | array | List of severity levels |
+|   ↳ `id` | string | Unique identifier for the severity level |
+|   ↳ `name` | string | Name of the severity level |
+|   ↳ `description` | string | Description of the severity level |
+|   ↳ `rank` | number | Rank/order of the severity level |
 
 ### `incidentio_incident_statuses_list`
 
@@ -563,6 +876,10 @@ List all incident statuses configured in your Incident.io workspace. Returns sta
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `incident_statuses` | array | List of incident statuses |
+|   ↳ `id` | string | Unique identifier for the incident status |
+|   ↳ `name` | string | Name of the incident status |
+|   ↳ `description` | string | Description of the incident status |
+|   ↳ `category` | string | Category of the incident status |
 
 ### `incidentio_incident_types_list`
 
@@ -579,6 +896,10 @@ List all incident types configured in your Incident.io workspace. Returns type d
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `incident_types` | array | List of incident types |
+|   ↳ `id` | string | Unique identifier for the incident type |
+|   ↳ `name` | string | Name of the incident type |
+|   ↳ `description` | string | Description of the incident type |
+|   ↳ `is_default` | boolean | Whether this is the default incident type |
 
 ### `incidentio_incident_roles_list`
 
@@ -595,6 +916,15 @@ List all incident roles in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `incident_roles` | array | List of incident roles |
+|   ↳ `id` | string | The incident role ID |
+|   ↳ `name` | string | The incident role name |
+|   ↳ `description` | string | The incident role description |
+|   ↳ `instructions` | string | Instructions for the role |
+|   ↳ `shortform` | string | Short form abbreviation of the role |
+|   ↳ `role_type` | string | The type of role |
+|   ↳ `required` | boolean | Whether the role is required |
+|   ↳ `created_at` | string | When the role was created |
+|   ↳ `updated_at` | string | When the role was last updated |
 
 ### `incidentio_incident_roles_create`
 
@@ -615,6 +945,15 @@ Create a new incident role in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `incident_role` | object | The created incident role |
+| ↳ `id` | string | The incident role ID |
+| ↳ `name` | string | The incident role name |
+| ↳ `description` | string | The incident role description |
+| ↳ `instructions` | string | Instructions for the role |
+| ↳ `shortform` | string | Short form abbreviation of the role |
+| ↳ `role_type` | string | The type of role |
+| ↳ `required` | boolean | Whether the role is required |
+| ↳ `created_at` | string | When the role was created |
+| ↳ `updated_at` | string | When the role was last updated |
 
 ### `incidentio_incident_roles_show`
 
@@ -632,6 +971,15 @@ Get details of a specific incident role in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `incident_role` | object | The incident role details |
+| ↳ `id` | string | The incident role ID |
+| ↳ `name` | string | The incident role name |
+| ↳ `description` | string | The incident role description |
+| ↳ `instructions` | string | Instructions for the role |
+| ↳ `shortform` | string | Short form abbreviation of the role |
+| ↳ `role_type` | string | The type of role |
+| ↳ `required` | boolean | Whether the role is required |
+| ↳ `created_at` | string | When the role was created |
+| ↳ `updated_at` | string | When the role was last updated |
 
 ### `incidentio_incident_roles_update`
 
@@ -653,6 +1001,15 @@ Update an existing incident role in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `incident_role` | object | The updated incident role |
+| ↳ `id` | string | The incident role ID |
+| ↳ `name` | string | The incident role name |
+| ↳ `description` | string | The incident role description |
+| ↳ `instructions` | string | Instructions for the role |
+| ↳ `shortform` | string | Short form abbreviation of the role |
+| ↳ `role_type` | string | The type of role |
+| ↳ `required` | boolean | Whether the role is required |
+| ↳ `created_at` | string | When the role was created |
+| ↳ `updated_at` | string | When the role was last updated |
 
 ### `incidentio_incident_roles_delete`
 
@@ -686,6 +1043,11 @@ List all incident timestamp definitions in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `incident_timestamps` | array | List of incident timestamp definitions |
+|   ↳ `id` | string | The timestamp ID |
+|   ↳ `name` | string | The timestamp name |
+|   ↳ `rank` | number | The rank/order of the timestamp |
+|   ↳ `created_at` | string | When the timestamp was created |
+|   ↳ `updated_at` | string | When the timestamp was last updated |
 
 ### `incidentio_incident_timestamps_show`
 
@@ -703,6 +1065,11 @@ Get details of a specific incident timestamp definition in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `incident_timestamp` | object | The incident timestamp details |
+| ↳ `id` | string | The timestamp ID |
+| ↳ `name` | string | The timestamp name |
+| ↳ `rank` | number | The rank/order of the timestamp |
+| ↳ `created_at` | string | When the timestamp was created |
+| ↳ `updated_at` | string | When the timestamp was last updated |
 
 ### `incidentio_incident_updates_list`
 
@@ -722,6 +1089,30 @@ List all updates for a specific incident in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `incident_updates` | array | List of incident updates |
+|   ↳ `id` | string | User ID |
+|   ↳ `incident_id` | string | The incident ID |
+|   ↳ `message` | string | The update message |
+|   ↳ `new_severity` | object | New severity if changed |
+|   ↳ `id` | string | Severity ID |
+|   ↳ `name` | string | Severity name |
+|   ↳ `rank` | number | Severity rank |
+|   ↳ `name` | string | User name |
+|   ↳ `rank` | number | Severity rank |
+|   ↳ `new_status` | object | New status if changed |
+|   ↳ `id` | string | Status ID |
+|   ↳ `name` | string | Status name |
+|   ↳ `category` | string | Status category |
+|   ↳ `category` | string | Status category |
+|   ↳ `updater` | object | User who created the update |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+|   ↳ `email` | string | User email |
+|   ↳ `created_at` | string | When the update was created |
+|   ↳ `updated_at` | string | When the update was last modified |
+| `pagination_meta` | object | Pagination information |
+| ↳ `after` | string | Cursor for next page |
+| ↳ `page_size` | number | Number of results per page |
 
 ### `incidentio_schedule_entries_list`
 
@@ -743,6 +1134,23 @@ List all entries for a specific schedule in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `schedule_entries` | array | List of schedule entries |
+|   ↳ `id` | string | User ID |
+|   ↳ `schedule_id` | string | The schedule ID |
+|   ↳ `user` | object | User assigned to this entry |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+|   ↳ `start_at` | string | When the entry starts |
+|   ↳ `end_at` | string | When the entry ends |
+|   ↳ `layer_id` | string | The schedule layer ID |
+|   ↳ `created_at` | string | When the entry was created |
+|   ↳ `updated_at` | string | When the entry was last updated |
+| `pagination_meta` | object | Pagination information |
+| ↳ `after` | string | Cursor for next page |
+| ↳ `after_url` | string | URL for next page |
+| ↳ `page_size` | number | Number of results per page |
 
 ### `incidentio_schedule_overrides_create`
 
@@ -766,6 +1174,19 @@ Create a new schedule override in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `override` | object | The created schedule override |
+| ↳ `id` | string | User ID |
+| ↳ `rotation_id` | string | The rotation ID |
+| ↳ `schedule_id` | string | The schedule ID |
+| ↳ `user` | object | User assigned to this override |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+| ↳ `name` | string | User name |
+| ↳ `email` | string | User email |
+| ↳ `start_at` | string | When the override starts |
+| ↳ `end_at` | string | When the override ends |
+| ↳ `created_at` | string | When the override was created |
+| ↳ `updated_at` | string | When the override was last updated |
 
 ### `incidentio_escalation_paths_create`
 
@@ -785,6 +1206,41 @@ Create a new escalation path in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `escalation_path` | object | The created escalation path |
+| ↳ `id` | string | Target ID |
+| ↳ `name` | string | The escalation path name |
+| ↳ `path` | array | Array of escalation levels |
+|   ↳ `targets` | array | Targets for this level |
+|   ↳ `id` | string | Target ID |
+|   ↳ `type` | string | Target type |
+|   ↳ `schedule_id` | string | Schedule ID if type is schedule |
+|   ↳ `user_id` | string | User ID if type is user |
+|   ↳ `urgency` | string | Urgency level |
+|   ↳ `id` | string | Target ID |
+|   ↳ `type` | string | Target type |
+|   ↳ `schedule_id` | string | Schedule ID if type is schedule |
+|   ↳ `user_id` | string | User ID if type is user |
+|   ↳ `urgency` | string | Urgency level |
+|   ↳ `time_to_ack_seconds` | number | Time to acknowledge in seconds |
+| ↳ `targets` | array | Targets for this level |
+|   ↳ `id` | string | Target ID |
+|   ↳ `type` | string | Target type |
+|   ↳ `schedule_id` | string | Schedule ID if type is schedule |
+|   ↳ `user_id` | string | User ID if type is user |
+|   ↳ `urgency` | string | Urgency level |
+| ↳ `type` | string | Target type |
+| ↳ `schedule_id` | string | Schedule ID if type is schedule |
+| ↳ `user_id` | string | User ID if type is user |
+| ↳ `urgency` | string | Urgency level |
+| ↳ `time_to_ack_seconds` | number | Time to acknowledge in seconds |
+| ↳ `working_hours` | array | Working hours configuration |
+|   ↳ `weekday` | string | Day of week |
+|   ↳ `start_time` | string | Start time |
+|   ↳ `end_time` | string | End time |
+| ↳ `weekday` | string | Day of week |
+| ↳ `start_time` | string | Start time |
+| ↳ `end_time` | string | End time |
+| ↳ `created_at` | string | When the path was created |
+| ↳ `updated_at` | string | When the path was last updated |
 
 ### `incidentio_escalation_paths_show`
 
@@ -802,6 +1258,41 @@ Get details of a specific escalation path in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `escalation_path` | object | The escalation path details |
+| ↳ `id` | string | Target ID |
+| ↳ `name` | string | The escalation path name |
+| ↳ `path` | array | Array of escalation levels |
+|   ↳ `targets` | array | Targets for this level |
+|   ↳ `id` | string | Target ID |
+|   ↳ `type` | string | Target type |
+|   ↳ `schedule_id` | string | Schedule ID if type is schedule |
+|   ↳ `user_id` | string | User ID if type is user |
+|   ↳ `urgency` | string | Urgency level |
+|   ↳ `id` | string | Target ID |
+|   ↳ `type` | string | Target type |
+|   ↳ `schedule_id` | string | Schedule ID if type is schedule |
+|   ↳ `user_id` | string | User ID if type is user |
+|   ↳ `urgency` | string | Urgency level |
+|   ↳ `time_to_ack_seconds` | number | Time to acknowledge in seconds |
+| ↳ `targets` | array | Targets for this level |
+|   ↳ `id` | string | Target ID |
+|   ↳ `type` | string | Target type |
+|   ↳ `schedule_id` | string | Schedule ID if type is schedule |
+|   ↳ `user_id` | string | User ID if type is user |
+|   ↳ `urgency` | string | Urgency level |
+| ↳ `type` | string | Target type |
+| ↳ `schedule_id` | string | Schedule ID if type is schedule |
+| ↳ `user_id` | string | User ID if type is user |
+| ↳ `urgency` | string | Urgency level |
+| ↳ `time_to_ack_seconds` | number | Time to acknowledge in seconds |
+| ↳ `working_hours` | array | Working hours configuration |
+|   ↳ `weekday` | string | Day of week |
+|   ↳ `start_time` | string | Start time |
+|   ↳ `end_time` | string | End time |
+| ↳ `weekday` | string | Day of week |
+| ↳ `start_time` | string | Start time |
+| ↳ `end_time` | string | End time |
+| ↳ `created_at` | string | When the path was created |
+| ↳ `updated_at` | string | When the path was last updated |
 
 ### `incidentio_escalation_paths_update`
 
@@ -822,6 +1313,41 @@ Update an existing escalation path in incident.io
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `escalation_path` | object | The updated escalation path |
+| ↳ `id` | string | Target ID |
+| ↳ `name` | string | The escalation path name |
+| ↳ `path` | array | Array of escalation levels |
+|   ↳ `targets` | array | Targets for this level |
+|   ↳ `id` | string | Target ID |
+|   ↳ `type` | string | Target type |
+|   ↳ `schedule_id` | string | Schedule ID if type is schedule |
+|   ↳ `user_id` | string | User ID if type is user |
+|   ↳ `urgency` | string | Urgency level |
+|   ↳ `id` | string | Target ID |
+|   ↳ `type` | string | Target type |
+|   ↳ `schedule_id` | string | Schedule ID if type is schedule |
+|   ↳ `user_id` | string | User ID if type is user |
+|   ↳ `urgency` | string | Urgency level |
+|   ↳ `time_to_ack_seconds` | number | Time to acknowledge in seconds |
+| ↳ `targets` | array | Targets for this level |
+|   ↳ `id` | string | Target ID |
+|   ↳ `type` | string | Target type |
+|   ↳ `schedule_id` | string | Schedule ID if type is schedule |
+|   ↳ `user_id` | string | User ID if type is user |
+|   ↳ `urgency` | string | Urgency level |
+| ↳ `type` | string | Target type |
+| ↳ `schedule_id` | string | Schedule ID if type is schedule |
+| ↳ `user_id` | string | User ID if type is user |
+| ↳ `urgency` | string | Urgency level |
+| ↳ `time_to_ack_seconds` | number | Time to acknowledge in seconds |
+| ↳ `working_hours` | array | Working hours configuration |
+|   ↳ `weekday` | string | Day of week |
+|   ↳ `start_time` | string | Start time |
+|   ↳ `end_time` | string | End time |
+| ↳ `weekday` | string | Day of week |
+| ↳ `start_time` | string | Start time |
+| ↳ `end_time` | string | End time |
+| ↳ `created_at` | string | When the path was created |
+| ↳ `updated_at` | string | When the path was last updated |
 
 ### `incidentio_escalation_paths_delete`
 

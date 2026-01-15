@@ -199,6 +199,14 @@ List files and directories in a remote directory
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `entries` | array | Array of file and directory entries |
+|   ↳ `name` | string | File or directory name |
+|   ↳ `type` | string | Entry type \(file, directory, symlink\) |
+|   ↳ `size` | number | File size in bytes |
+|   ↳ `permissions` | string | File permissions |
+|   ↳ `modified` | string | Last modified timestamp |
+| `totalFiles` | number | Total number of files |
+| `totalDirectories` | number | Total number of directories |
+| `message` | string | Operation status message |
 
 ### `ssh_check_file_exists`
 

@@ -37,6 +37,17 @@ Search for tracks, albums, artists, or playlists on Spotify. Returns matching re
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tracks` | array | List of matching tracks |
+|   ↳ `id` | string | Spotify track ID |
+|   ↳ `name` | string | Track name |
+|   ↳ `artists` | array | List of artist names |
+|   ↳ `album` | string | Album name |
+|   ↳ `duration_ms` | number | Track duration in milliseconds |
+|   ↳ `popularity` | number | Popularity score \(0-100\) |
+|   ↳ `preview_url` | string | URL to 30-second preview |
+|   ↳ `external_url` | string | Spotify URL |
+| `artists` | array | List of matching artists |
+| `albums` | array | List of matching albums |
+| `playlists` | array | List of matching playlists |
 
 ### `spotify_get_track`
 
@@ -80,6 +91,15 @@ Get detailed information about multiple tracks on Spotify by their IDs (up to 50
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tracks` | array | List of tracks |
+|   ↳ `id` | string | Spotify track ID |
+|   ↳ `name` | string | Track name |
+|   ↳ `artists` | array | List of artists |
+|   ↳ `album` | object | Album information |
+|   ↳ `duration_ms` | number | Track duration in milliseconds |
+|   ↳ `explicit` | boolean | Whether the track has explicit content |
+|   ↳ `popularity` | number | Popularity score \(0-100\) |
+|   ↳ `preview_url` | string | URL to 30-second preview |
+|   ↳ `external_url` | string | Spotify URL |
 
 ### `spotify_get_album`
 
@@ -271,6 +291,15 @@ Get albums by an artist on Spotify. Can filter by album type.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `albums` | array | Artist |
+|   ↳ `id` | string | Spotify album ID |
+|   ↳ `name` | string | Album name |
+|   ↳ `album_type` | string | Type \(album, single, compilation\) |
+|   ↳ `total_tracks` | number | Number of tracks |
+|   ↳ `release_date` | string | Release date |
+|   ↳ `image_url` | string | Album cover URL |
+|   ↳ `external_url` | string | Spotify URL |
+| `total` | number | Total number of albums available |
+| `next` | string | URL for next page of results |
 
 ### `spotify_get_artist_top_tracks`
 
@@ -288,6 +317,13 @@ Get the top 10 most popular tracks by an artist on Spotify.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tracks` | array | Artist |
+|   ↳ `id` | string | Spotify track ID |
+|   ↳ `name` | string | Track name |
+|   ↳ `album` | object | Album information |
+|   ↳ `duration_ms` | number | Track duration in milliseconds |
+|   ↳ `popularity` | number | Popularity score \(0-100\) |
+|   ↳ `preview_url` | string | URL to 30-second preview |
+|   ↳ `external_url` | string | Spotify URL |
 
 ### `spotify_follow_artists`
 
@@ -772,6 +808,11 @@ Get the tracks in a Spotify playlist.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tracks` | array | List of tracks in the playlist |
+|   ↳ `added_at` | string | When the track was added |
+|   ↳ `added_by` | string | User ID who added the track |
+|   ↳ `track` | object | Track information |
+| `total` | number | Total number of tracks in playlist |
+| `next` | string | URL for next page of results |
 
 ### `spotify_get_playlist_cover`
 
@@ -805,6 +846,17 @@ Get the current user
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `playlists` | array | User |
+|   ↳ `id` | string | Spotify playlist ID |
+|   ↳ `name` | string | Playlist name |
+|   ↳ `description` | string | Playlist description |
+|   ↳ `public` | boolean | Whether public |
+|   ↳ `collaborative` | boolean | Whether collaborative |
+|   ↳ `owner` | string | Owner display name |
+|   ↳ `total_tracks` | number | Number of tracks |
+|   ↳ `image_url` | string | Cover image URL |
+|   ↳ `external_url` | string | Spotify URL |
+| `total` | number | Total number of playlists |
+| `next` | string | URL for next page |
 
 ### `spotify_create_playlist`
 
@@ -1048,6 +1100,15 @@ Get the current user
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tracks` | array | User |
+|   ↳ `id` | string | Spotify track ID |
+|   ↳ `name` | string | Track name |
+|   ↳ `artists` | array | List of artists |
+|   ↳ `album` | object | Album information |
+|   ↳ `duration_ms` | number | Duration in milliseconds |
+|   ↳ `popularity` | number | Popularity score |
+|   ↳ `external_url` | string | Spotify URL |
+| `total` | number | Total number of top tracks |
+| `next` | string | URL for next page |
 
 ### `spotify_get_top_artists`
 
@@ -1066,6 +1127,15 @@ Get the current user
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `artists` | array | User |
+|   ↳ `id` | string | Spotify artist ID |
+|   ↳ `name` | string | Artist name |
+|   ↳ `genres` | array | List of genres |
+|   ↳ `popularity` | number | Popularity score |
+|   ↳ `followers` | number | Number of followers |
+|   ↳ `image_url` | string | Artist image URL |
+|   ↳ `external_url` | string | Spotify URL |
+| `total` | number | Total number of top artists |
+| `next` | string | URL for next page |
 
 ### `spotify_get_saved_tracks`
 
@@ -1084,6 +1154,10 @@ Get the current user
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tracks` | array | User |
+|   ↳ `added_at` | string | When the track was saved |
+|   ↳ `track` | object | Track information |
+| `total` | number | Total number of saved tracks |
+| `next` | string | URL for next page |
 
 ### `spotify_save_tracks`
 
@@ -1152,6 +1226,9 @@ Get the user
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Recently played tracks |
+|   ↳ `played_at` | string | When the track was played |
+|   ↳ `track` | object | Track information |
+| `next` | string | URL for next page |
 
 ### `spotify_get_new_releases`
 
@@ -1261,6 +1338,13 @@ Get the user
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `devices` | array | Available playback devices |
+|   ↳ `id` | string | Device ID |
+|   ↳ `is_active` | boolean | Whether device is active |
+|   ↳ `is_private_session` | boolean | Whether in private session |
+|   ↳ `is_restricted` | boolean | Whether device is restricted |
+|   ↳ `name` | string | Device name |
+|   ↳ `type` | string | Device type \(Computer, Smartphone, etc.\) |
+|   ↳ `volume_percent` | number | Current volume \(0-100\) |
 
 ### `spotify_get_queue`
 
