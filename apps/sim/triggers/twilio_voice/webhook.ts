@@ -129,7 +129,6 @@ Return ONLY the TwiML with square brackets - no explanations, no markdown, no ex
         'Scroll down to the "Voice Configuration" section.',
         'In the "A CALL COMES IN" field, select "Webhook" and paste the Webhook URL (from above).',
         'Ensure the HTTP method is set to POST.',
-        'Click "Deploy".',
         'How it works: When a call comes in, Twilio receives your TwiML response immediately and executes those instructions. Your workflow runs in the background with access to caller information, call status, and any recorded/transcribed data.',
       ]
         .map((instruction, index) => `${index + 1}. ${instruction}`)
