@@ -539,3 +539,40 @@ export async function saveTriggerWebhooksForDeploy({
 
   return { success: true }
 }
+
+/**
+ * Clean up all webhooks for a workflow during undeploy.
+ * Removes external subscriptions and deletes webhook records from the database.
+ */
+export async function cleanupWebhooksForWorkflow(
+  workflowId: string,
+  workflow: Record<string, unknown>,
+  requestId: string
+): Promise<void> {
+  const existingWebhooks = await db.select().from(webhook).where(eq(webhook.workflowId, workflowId))
+
+  if (existingWebhooks.length === 0) {
+    logger.debug(`[${requestId}] No webhooks to clean up for workflow ${workflowId}`)
+    return
+  }
+
+  logger.info(`[${requestId}] Cleaning up ${existingWebhooks.length} webhook(s) for undeploy`, {
+    workflowId,
+    webhookIds: existingWebhooks.map((wh) => wh.id),
+  })
+
+  // Clean up external subscriptions
+  for (const wh of existingWebhooks) {
+    try {
+      await cleanupExternalWebhook(wh, workflow, requestId)
+    } catch (cleanupError) {
+      logger.warn(`[${requestId}] Failed to cleanup external webhook ${wh.id}`, cleanupError)
+      // Continue with other webhooks even if one fails
+    }
+  }
+
+  // Delete all webhook records
+  await db.delete(webhook).where(eq(webhook.workflowId, workflowId))
+
+  logger.info(`[${requestId}] Cleaned up all webhooks for workflow ${workflowId}`)
+}
