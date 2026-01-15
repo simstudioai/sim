@@ -169,9 +169,16 @@ export async function GET(request: NextRequest) {
 
         const existing = wf.segments.get(segmentIndex)
         if (existing) {
-          existing.totalExecutions += Number(row.totalExecutions)
+          const oldTotal = existing.totalExecutions
+          const newTotal = oldTotal + Number(row.totalExecutions)
+          existing.totalExecutions = newTotal
           existing.successfulExecutions += Number(row.successfulExecutions)
-          existing.avgDurationMs = (existing.avgDurationMs + Number(row.avgDurationMs || 0)) / 2
+          existing.avgDurationMs =
+            newTotal > 0
+              ? (existing.avgDurationMs * oldTotal +
+                  Number(row.avgDurationMs || 0) * Number(row.totalExecutions)) /
+                newTotal
+              : 0
         } else {
           wf.segments.set(segmentIndex, {
             timestamp: new Date(startTime.getTime() + segmentIndex * segmentMs).toISOString(),
