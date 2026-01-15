@@ -1,7 +1,7 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -943,8 +943,9 @@ export function ToolInput({
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string
+  const queryClient = useQueryClient()
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
-  const [open, setOpen] = useState(false)
+  const [_, setOpen] = useState(false)
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -2428,7 +2429,14 @@ export function ToolInput({
                     })()}
                   {(tool.type === 'workflow' || tool.type === 'workflow_input') &&
                     tool.params?.workflowId && (
-                      <WorkflowToolDeployBadge workflowId={tool.params.workflowId} />
+                      <WorkflowToolDeployBadge
+                        workflowId={tool.params.workflowId}
+                        onDeploySuccess={() => {
+                          queryClient.invalidateQueries({
+                            queryKey: ['workflow-input-fields', tool.params?.workflowId],
+                          })
+                        }}
+                      />
                     )}
                 </div>
                 <div className='flex flex-shrink-0 items-center gap-[8px]'>

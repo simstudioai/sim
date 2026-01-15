@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge, Tooltip } from '@/components/emcn'
@@ -528,6 +529,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const params = useParams()
   const currentWorkflowId = params.workflowId as string
   const workspaceId = params.workspaceId as string
+  const queryClient = useQueryClient()
 
   const {
     currentWorkflow,
@@ -600,6 +602,10 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             responseData.apiKey || ''
           )
           refetchDeployment()
+          // Invalidate the workflow schema cache so new config is loaded immediately
+          queryClient.invalidateQueries({
+            queryKey: ['workflow-input-fields', workflowId],
+          })
         } else {
           logger.error('Failed to deploy workflow')
         }
@@ -609,7 +615,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         setIsDeploying(false)
       }
     },
-    [isDeploying, setDeploymentStatus, refetchDeployment]
+    [isDeploying, setDeploymentStatus, refetchDeployment, queryClient]
   )
 
   const currentStoreBlock = currentWorkflow.getBlockById(id)
