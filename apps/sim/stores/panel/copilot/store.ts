@@ -1001,14 +1001,23 @@ function beginThinkingBlock(context: StreamingContext) {
   context.currentTextBlock = null
 }
 
+/**
+ * Removes thinking tags from streamed content.
+ */
+function stripThinkingTags(text: string): string {
+  return text.replace(/<\/?thinking>/g, '')
+}
+
 function appendThinkingContent(context: StreamingContext, text: string) {
   if (!text) return
+  const cleanedText = stripThinkingTags(text)
+  if (!cleanedText) return
   if (context.currentThinkingBlock) {
-    context.currentThinkingBlock.content += text
+    context.currentThinkingBlock.content += cleanedText
   } else {
     context.currentThinkingBlock = contentBlockPool.get()
     context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
-    context.currentThinkingBlock.content = text
+    context.currentThinkingBlock.content = cleanedText
     context.currentThinkingBlock.timestamp = Date.now()
     context.currentThinkingBlock.startTime = Date.now()
     context.contentBlocks.push(context.currentThinkingBlock)
