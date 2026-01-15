@@ -33,7 +33,7 @@ const logger = createLogger('TableRowsAPI')
  * via table access checks when provided.
  */
 const InsertRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required').optional(),
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
   data: z.record(z.unknown(), { required_error: 'Row data is required' }),
 })
 
@@ -44,7 +44,7 @@ const InsertRowSchema = z.object({
  * Maximum 1000 rows per batch for performance and safety.
  */
 const BatchInsertRowsSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required').optional(),
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
   rows: z
     .array(z.record(z.unknown()), { required_error: 'Rows array is required' })
     .min(1, 'At least one row is required')
@@ -55,7 +55,7 @@ const BatchInsertRowsSchema = z.object({
  * Zod schema for querying rows with filtering, sorting, and pagination.
  */
 const QueryRowsSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required').optional(),
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: z.record(z.unknown()).optional(),
   sort: z.record(z.enum(['asc', 'desc'])).optional(),
   limit: z.coerce
@@ -80,7 +80,7 @@ const QueryRowsSchema = z.object({
  * Maximum 1000 rows can be updated per operation for safety.
  */
 const UpdateRowsByFilterSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required').optional(),
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: z.record(z.unknown(), { required_error: 'Filter criteria is required' }),
   data: z.record(z.unknown(), { required_error: 'Update data is required' }),
   limit: z.coerce
@@ -98,7 +98,7 @@ const UpdateRowsByFilterSchema = z.object({
  * Maximum 1000 rows can be deleted per operation for safety.
  */
 const DeleteRowsByFilterSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required').optional(),
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: z.record(z.unknown(), { required_error: 'Filter criteria is required' }),
   limit: z.coerce
     .number({ required_error: 'Limit must be a number' })

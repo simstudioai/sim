@@ -23,7 +23,7 @@ const logger = createLogger('TableUpsertAPI')
  * is validated via table access checks when provided.
  */
 const UpsertRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required').optional(),
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
   data: z.record(z.unknown(), { required_error: 'Row data is required' }),
 })
 

@@ -24,14 +24,14 @@ const logger = createLogger('TableRowAPI')
  * is validated via table access checks when provided.
  */
 const GetRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required').optional(),
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
 /**
  * Zod schema for validating update row requests.
  */
 const UpdateRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required').optional(),
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
   data: z.record(z.unknown(), { required_error: 'Row data is required' }),
 })
 
@@ -39,7 +39,7 @@ const UpdateRowSchema = z.object({
  * Zod schema for validating delete row requests.
  */
 const DeleteRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required').optional(),
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
 /**

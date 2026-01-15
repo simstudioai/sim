@@ -20,7 +20,7 @@ const logger = createLogger('TableDetailAPI')
  * is validated via table access checks when provided.
  */
 const GetTableSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required').optional(),
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
 /**
