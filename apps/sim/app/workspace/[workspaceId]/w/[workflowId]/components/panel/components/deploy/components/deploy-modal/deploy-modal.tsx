@@ -800,7 +800,7 @@ export function DeployModal({
                 {chatExists && (
                   <Button
                     type='button'
-                    variant='destructive'
+                    variant='default'
                     onClick={handleChatDelete}
                     disabled={chatSubmitting}
                   >
