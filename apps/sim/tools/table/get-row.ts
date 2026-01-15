@@ -12,7 +12,7 @@ export const tableGetRowTool: ToolConfig<TableRowGetParams, TableRowResponse> = 
       type: 'string',
       required: true,
       description: 'Table ID',
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
     },
     rowId: {
       type: 'string',

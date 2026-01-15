@@ -12,7 +12,7 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
       type: 'string',
       required: true,
       description: 'Table ID',
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
     },
     filter: {
       type: 'object',

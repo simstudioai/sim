@@ -22,7 +22,7 @@ export const tableUpsertRowTool: ToolConfig<TableRowInsertParams, TableUpsertRes
       type: 'string',
       required: true,
       description: 'Table ID',
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
     },
     data: {
       type: 'object',

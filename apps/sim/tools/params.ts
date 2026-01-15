@@ -136,6 +136,30 @@ function getBlockConfigurations(): Record<string, BlockConfig> {
 }
 
 /**
+ * Builds candidate operation identifiers for matching sub-block conditions.
+ */
+function getOperationCandidates(toolId: string, blockType?: string): string[] {
+  const candidates = new Set<string>()
+  const parts = toolId.split('_')
+
+  candidates.add(toolId)
+  if (parts.length >= 1) {
+    candidates.add(parts[parts.length - 1])
+  }
+  if (parts.length >= 3) {
+    const compoundOperation = parts.slice(2).join('_')
+    candidates.add(compoundOperation)
+  }
+
+  if (blockType && toolId.startsWith(`${blockType}_`)) {
+    const suffix = toolId.slice(blockType.length + 1)
+    candidates.add(suffix)
+  }
+
+  return Array.from(candidates)
+}
+
+/**
  * Gets all parameters for a tool, categorized by their usage
  * Also includes UI component information from block configurations
  */
@@ -224,26 +248,17 @@ export function getToolParametersConfig(
         if (blockConfig) {
           // For multi-operation tools, find the subblock that matches both the parameter ID
           // and the current tool operation
+          const operationCandidates = getOperationCandidates(toolId, blockType)
+          const paramIdToMatch = paramId
           let subBlock = blockConfig.subBlocks?.find((sb: SubBlockConfig) => {
-            if (sb.id !== paramId) return false
+            if (sb.id !== paramIdToMatch) return false
 
             // If there's a condition, check if it matches the current tool
             if (sb.condition && sb.condition.field === 'operation') {
-              // First try exact match with full tool ID
-              if (sb.condition.value === toolId) return true
-
-              // Then try extracting operation from tool ID
-              // For tools like 'google_calendar_quick_add', extract 'quick_add'
-              const parts = toolId.split('_')
-              if (parts.length >= 3) {
-                // Join everything after the provider prefix (e.g., 'google_calendar_')
-                const operation = parts.slice(2).join('_')
-                if (sb.condition.value === operation) return true
-              }
-
-              // Fallback to last part only
-              const operation = parts[parts.length - 1]
-              return sb.condition.value === operation
+              const conditionValues = Array.isArray(sb.condition.value)
+                ? sb.condition.value
+                : [sb.condition.value]
+              return conditionValues.some((value) => operationCandidates.includes(String(value)))
             }
 
             // If no condition, it's a global parameter (like apiKey)
@@ -252,7 +267,7 @@ export function getToolParametersConfig(
 
           // Fallback: if no operation-specific match, find any matching parameter
           if (!subBlock) {
-            subBlock = blockConfig.subBlocks?.find((sb: SubBlockConfig) => sb.id === paramId)
+            subBlock = blockConfig.subBlocks?.find((sb: SubBlockConfig) => sb.id === paramIdToMatch)
           }
 
           // Special case: Check if this boolean parameter is part of a checkbox-list

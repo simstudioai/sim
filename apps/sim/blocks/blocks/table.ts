@@ -19,18 +19,18 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        { label: 'Query Rows', id: 'queryRows' },
-        { label: 'Insert Row', id: 'insertRow' },
-        { label: 'Upsert Row', id: 'upsertRow' },
-        { label: 'Batch Insert Rows', id: 'batchInsertRows' },
-        { label: 'Update Rows by Filter', id: 'updateRowsByFilter' },
-        { label: 'Delete Rows by Filter', id: 'deleteRowsByFilter' },
-        { label: 'Update Row by ID', id: 'updateRow' },
-        { label: 'Delete Row by ID', id: 'deleteRow' },
-        { label: 'Get Row by ID', id: 'getRow' },
-        { label: 'Get Schema', id: 'getSchema' },
+        { label: 'Query Rows', id: 'query_rows' },
+        { label: 'Insert Row', id: 'insert_row' },
+        { label: 'Upsert Row', id: 'upsert_row' },
+        { label: 'Batch Insert Rows', id: 'batch_insert_rows' },
+        { label: 'Update Rows by Filter', id: 'update_rows_by_filter' },
+        { label: 'Delete Rows by Filter', id: 'delete_rows_by_filter' },
+        { label: 'Update Row by ID', id: 'update_row' },
+        { label: 'Delete Row by ID', id: 'delete_row' },
+        { label: 'Get Row by ID', id: 'get_row' },
+        { label: 'Get Schema', id: 'get_schema' },
       ],
-      value: () => 'queryRows',
+      value: () => 'query_rows',
     },
 
     // Table selector (for all operations)
@@ -48,19 +48,19 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
       title: 'Row ID',
       type: 'short-input',
       placeholder: 'row_xxxxx',
-      condition: { field: 'operation', value: ['getRow', 'updateRow', 'deleteRow'] },
+      condition: { field: 'operation', value: ['get_row', 'update_row', 'delete_row'] },
       required: true,
     },
 
     // Insert/Update/Upsert Row data (single row)
     {
-      id: 'rowData',
+      id: 'data',
       title: 'Row Data (JSON)',
       type: 'code',
       placeholder: '{"column_name": "value"}',
       condition: {
         field: 'operation',
-        value: ['insertRow', 'upsertRow', 'updateRow', 'updateRowsByFilter'],
+        value: ['insert_row', 'upsert_row', 'update_row', 'update_rows_by_filter'],
       },
       required: true,
       wandConfig: {
@@ -93,11 +93,11 @@ Return ONLY the data JSON:`,
 
     // Batch Insert - multiple rows
     {
-      id: 'batchRows',
+      id: 'rows',
       title: 'Rows Data (Array of JSON)',
       type: 'code',
       placeholder: '[{"col1": "val1"}, {"col1": "val2"}]',
-      condition: { field: 'operation', value: 'batchInsertRows' },
+      condition: { field: 'operation', value: 'batch_insert_rows' },
       required: true,
       wandConfig: {
         enabled: true,
@@ -140,7 +140,7 @@ Return ONLY the rows array:`,
       value: () => 'builder',
       condition: {
         field: 'operation',
-        value: ['updateRowsByFilter', 'deleteRowsByFilter'],
+        value: ['update_rows_by_filter', 'delete_rows_by_filter'],
       },
     },
 
@@ -151,35 +151,33 @@ Return ONLY the rows array:`,
       type: 'filter-format',
       required: {
         field: 'operation',
-        value: ['updateRowsByFilter', 'deleteRowsByFilter'],
+        value: ['update_rows_by_filter', 'delete_rows_by_filter'],
       },
       condition: {
         field: 'operation',
-        value: ['updateRowsByFilter', 'deleteRowsByFilter'],
+        value: ['update_rows_by_filter', 'delete_rows_by_filter'],
         and: { field: 'bulkFilterMode', value: 'builder' },
       },
     },
 
     // Filter for update/delete operations (JSON editor)
     {
-      id: 'filterCriteria',
-      title: 'Filter Criteria',
+      id: 'filter',
+      title: 'Filter',
       type: 'code',
       placeholder: '{"column_name": {"$eq": "value"}}',
       condition: {
         field: 'operation',
-        value: ['updateRowsByFilter', 'deleteRowsByFilter'],
-        and: { field: 'bulkFilterMode', value: 'json' },
+        value: ['query_rows', 'update_rows_by_filter', 'delete_rows_by_filter'],
       },
       required: {
         field: 'operation',
-        value: ['updateRowsByFilter', 'deleteRowsByFilter'],
-        and: { field: 'bulkFilterMode', value: 'json' },
+        value: ['update_rows_by_filter', 'delete_rows_by_filter'],
       },
       wandConfig: {
         enabled: true,
         maintainHistory: true,
-        prompt: `Generate filter criteria for selecting rows to update or delete.
+        prompt: `Generate filter criteria for selecting rows in a table.
 
 ### CONTEXT
 {context}
@@ -216,19 +214,7 @@ Return ONLY the filter JSON:`,
       },
     },
 
-    // Safety limit for bulk operations
-    {
-      id: 'bulkLimit',
-      title: 'Limit',
-      type: 'short-input',
-      placeholder: '100',
-      condition: {
-        field: 'operation',
-        value: ['updateRowsByFilter', 'deleteRowsByFilter'],
-      },
-    },
-
-    // Builder mode selector for queryRows (controls both filter and sort)
+    // Builder mode selector for query_rows (controls both filter and sort)
     {
       id: 'builderMode',
       title: 'Input Mode',
@@ -238,7 +224,7 @@ Return ONLY the filter JSON:`,
         { label: 'Editor', id: 'json' },
       ],
       value: () => 'builder',
-      condition: { field: 'operation', value: 'queryRows' },
+      condition: { field: 'operation', value: 'query_rows' },
     },
 
     // Filter builder (visual)
@@ -248,7 +234,7 @@ Return ONLY the filter JSON:`,
       type: 'filter-format',
       condition: {
         field: 'operation',
-        value: 'queryRows',
+        value: 'query_rows',
         and: { field: 'builderMode', value: 'builder' },
       },
     },
@@ -260,67 +246,8 @@ Return ONLY the filter JSON:`,
       type: 'sort-format',
       condition: {
         field: 'operation',
-        value: 'queryRows',
+        value: 'query_rows',
         and: { field: 'builderMode', value: 'builder' },
-      },
-    },
-
-    // Query filters (JSON editor)
-    {
-      id: 'filter',
-      title: 'Filter',
-      type: 'code',
-      placeholder: '{"column_name": {"$eq": "value"}}',
-      condition: {
-        field: 'operation',
-        value: 'queryRows',
-        and: { field: 'builderMode', value: 'json' },
-      },
-      wandConfig: {
-        enabled: true,
-        maintainHistory: true,
-        prompt: `Generate query filters for table data using MongoDB-style operators.
-
-### CONTEXT
-{context}
-
-### INSTRUCTION
-Return ONLY a valid JSON filter object based on the table's columns. No explanations or markdown.
-
-IMPORTANT: Reference the table schema to know which columns exist and their types (string, number, boolean, date, json).
-
-### OPERATORS
-- **$eq**: Equals - {"column": {"$eq": "value"}} or {"column": "value"}
-- **$ne**: Not equals - {"column": {"$ne": "value"}}
-- **$gt**: Greater than - {"column": {"$gt": 18}} (numbers/dates only)
-- **$gte**: Greater than or equal - {"column": {"$gte": 100}} (numbers/dates only)
-- **$lt**: Less than - {"column": {"$lt": 90}} (numbers/dates only)
-- **$lte**: Less than or equal - {"column": {"$lte": 5}} (numbers/dates only)
-- **$in**: In array - {"column": {"$in": ["value1", "value2"]}}
-- **$nin**: Not in array - {"column": {"$nin": ["value1", "value2"]}}
-- **$contains**: String contains (case-insensitive) - {"column": {"$contains": "text"}} (strings only)
-
-### EXAMPLES
-
-Table with columns: status (string), age (number), email (string), active (boolean)
-
-"active users"
-→ {"active": true}
-
-"users over 18 years old"
-→ {"age": {"$gte": 18}}
-
-"users with status active or pending"
-→ {"status": {"$in": ["active", "pending"]}}
-
-"users with age between 18 and 65 and active status"
-→ {"age": {"$gte": 18, "$lte": 65}, "active": true}
-
-"users with email containing 'example.com'"
-→ {"email": {"$contains": "example.com"}}
-
-Return ONLY the filter JSON:`,
-        generationType: 'table-schema',
       },
     },
 
@@ -332,8 +259,7 @@ Return ONLY the filter JSON:`,
       placeholder: '{"column_name": "desc"}',
       condition: {
         field: 'operation',
-        value: 'queryRows',
-        and: { field: 'builderMode', value: 'json' },
+        value: 'query_rows',
       },
       wandConfig: {
         enabled: true,
@@ -381,15 +307,17 @@ Return ONLY the sort JSON:`,
       title: 'Limit',
       type: 'short-input',
       placeholder: '100',
-      condition: { field: 'operation', value: 'queryRows' },
-      value: () => '100',
+      condition: {
+        field: 'operation',
+        value: ['query_rows', 'update_rows_by_filter', 'delete_rows_by_filter'],
+      },
     },
     {
       id: 'offset',
       title: 'Offset',
       type: 'short-input',
       placeholder: '0',
-      condition: { field: 'operation', value: 'queryRows' },
+      condition: { field: 'operation', value: 'query_rows' },
       value: () => '0',
     },
   ],
@@ -410,16 +338,16 @@ Return ONLY the sort JSON:`,
     config: {
       tool: (params) => {
         const toolMap: Record<string, string> = {
-          insertRow: 'table_insert_row',
-          batchInsertRows: 'table_batch_insert_rows',
-          upsertRow: 'table_upsert_row',
-          updateRow: 'table_update_row',
-          updateRowsByFilter: 'table_update_rows_by_filter',
-          deleteRow: 'table_delete_row',
-          deleteRowsByFilter: 'table_delete_rows_by_filter',
-          queryRows: 'table_query_rows',
-          getRow: 'table_get_row',
-          getSchema: 'table_get_schema',
+          insert_row: 'table_insert_row',
+          batch_insert_rows: 'table_batch_insert_rows',
+          upsert_row: 'table_upsert_row',
+          update_row: 'table_update_row',
+          update_rows_by_filter: 'table_update_rows_by_filter',
+          delete_row: 'table_delete_row',
+          delete_rows_by_filter: 'table_delete_rows_by_filter',
+          query_rows: 'table_query_rows',
+          get_row: 'table_get_row',
+          get_schema: 'table_get_schema',
         }
         return toolMap[params.operation] || 'table_query_rows'
       },
@@ -457,8 +385,8 @@ Return ONLY the sort JSON:`,
         }
 
         // Insert Row
-        if (operation === 'insertRow') {
-          const data = parseJSON(rest.rowData, 'Row Data')
+        if (operation === 'insert_row') {
+          const data = parseJSON(rest.data, 'Row Data')
           return {
             tableId: rest.tableId,
             data,
@@ -466,8 +394,8 @@ Return ONLY the sort JSON:`,
         }
 
         // Upsert Row
-        if (operation === 'upsertRow') {
-          const data = parseJSON(rest.rowData, 'Row Data')
+        if (operation === 'upsert_row') {
+          const data = parseJSON(rest.data, 'Row Data')
           return {
             tableId: rest.tableId,
             data,
@@ -475,8 +403,8 @@ Return ONLY the sort JSON:`,
         }
 
         // Batch Insert Rows
-        if (operation === 'batchInsertRows') {
-          const rows = parseJSON(rest.batchRows, 'Rows Data')
+        if (operation === 'batch_insert_rows') {
+          const rows = parseJSON(rest.rows, 'Rows Data')
           return {
             tableId: rest.tableId,
             rows,
@@ -484,8 +412,8 @@ Return ONLY the sort JSON:`,
         }
 
         // Update Row by ID
-        if (operation === 'updateRow') {
-          const data = parseJSON(rest.rowData, 'Row Data')
+        if (operation === 'update_row') {
+          const data = parseJSON(rest.data, 'Row Data')
           return {
             tableId: rest.tableId,
             rowId: rest.rowId,
@@ -494,24 +422,24 @@ Return ONLY the sort JSON:`,
         }
 
         // Update Rows by Filter
-        if (operation === 'updateRowsByFilter') {
+        if (operation === 'update_rows_by_filter') {
           let filter: any
           if (rest.bulkFilterMode === 'builder' && rest.bulkFilterBuilder) {
             filter = conditionsToFilter(rest.bulkFilterBuilder as any) || undefined
-          } else if (rest.filterCriteria) {
-            filter = parseJSON(rest.filterCriteria, 'Filter Criteria')
+          } else if (rest.filter) {
+            filter = parseJSON(rest.filter, 'Filter')
           }
-          const data = parseJSON(rest.rowData, 'Row Data')
+          const data = parseJSON(rest.data, 'Row Data')
           return {
             tableId: rest.tableId,
             filter,
             data,
-            limit: rest.bulkLimit ? Number.parseInt(rest.bulkLimit as string) : undefined,
+            limit: rest.limit ? Number.parseInt(rest.limit as string) : undefined,
           }
         }
 
         // Delete Row by ID
-        if (operation === 'deleteRow') {
+        if (operation === 'delete_row') {
           return {
             tableId: rest.tableId,
             rowId: rest.rowId,
@@ -519,22 +447,22 @@ Return ONLY the sort JSON:`,
         }
 
         // Delete Rows by Filter
-        if (operation === 'deleteRowsByFilter') {
+        if (operation === 'delete_rows_by_filter') {
           let filter: any
           if (rest.bulkFilterMode === 'builder' && rest.bulkFilterBuilder) {
             filter = conditionsToFilter(rest.bulkFilterBuilder as any) || undefined
-          } else if (rest.filterCriteria) {
-            filter = parseJSON(rest.filterCriteria, 'Filter Criteria')
+          } else if (rest.filter) {
+            filter = parseJSON(rest.filter, 'Filter')
           }
           return {
             tableId: rest.tableId,
             filter,
-            limit: rest.bulkLimit ? Number.parseInt(rest.bulkLimit as string) : undefined,
+            limit: rest.limit ? Number.parseInt(rest.limit as string) : undefined,
           }
         }
 
         // Get Row by ID
-        if (operation === 'getRow') {
+        if (operation === 'get_row') {
           return {
             tableId: rest.tableId,
             rowId: rest.rowId,
@@ -542,14 +470,14 @@ Return ONLY the sort JSON:`,
         }
 
         // Get Schema
-        if (operation === 'getSchema') {
+        if (operation === 'get_schema') {
           return {
             tableId: rest.tableId,
           }
         }
 
         // Query Rows
-        if (operation === 'queryRows') {
+        if (operation === 'query_rows') {
           let filter: any
           if (rest.builderMode === 'builder' && rest.filterBuilder) {
             // Convert builder conditions to filter object
@@ -583,8 +511,8 @@ Return ONLY the sort JSON:`,
   inputs: {
     operation: { type: 'string', description: 'Table operation to perform' },
     tableId: { type: 'string', description: 'Table identifier' },
-    rowData: { type: 'json', description: 'Row data for insert/update' },
-    batchRows: { type: 'array', description: 'Array of row data for batch insert' },
+    data: { type: 'json', description: 'Row data for insert/update' },
+    rows: { type: 'array', description: 'Array of row data for batch insert' },
     rowId: { type: 'string', description: 'Row identifier for ID-based operations' },
     bulkFilterMode: {
       type: 'string',
@@ -594,17 +522,15 @@ Return ONLY the sort JSON:`,
       type: 'json',
       description: 'Visual filter builder conditions for bulk operations',
     },
-    filterCriteria: { type: 'json', description: 'Filter criteria for bulk operations (JSON)' },
-    bulkLimit: { type: 'number', description: 'Safety limit for bulk operations' },
+    filter: { type: 'json', description: 'Filter criteria for query/update/delete operations' },
+    limit: { type: 'number', description: 'Query or bulk operation limit' },
     builderMode: {
       type: 'string',
       description: 'Input mode for filter and sort (builder or json)',
     },
     filterBuilder: { type: 'json', description: 'Visual filter builder conditions' },
-    filter: { type: 'json', description: 'Query filter conditions (JSON)' },
     sortBuilder: { type: 'json', description: 'Visual sort builder conditions' },
     sort: { type: 'json', description: 'Sort order (JSON)' },
-    limit: { type: 'number', description: 'Query result limit' },
     offset: { type: 'number', description: 'Query result offset' },
   },
 
@@ -613,62 +539,65 @@ Return ONLY the sort JSON:`,
     row: {
       type: 'json',
       description: 'Single row data',
-      condition: { field: 'operation', value: ['getRow', 'insertRow', 'upsertRow', 'updateRow'] },
+      condition: {
+        field: 'operation',
+        value: ['get_row', 'insert_row', 'upsert_row', 'update_row'],
+      },
     },
     operation: {
       type: 'string',
       description: 'Operation performed (insert or update)',
-      condition: { field: 'operation', value: 'upsertRow' },
+      condition: { field: 'operation', value: 'upsert_row' },
     },
     rows: {
       type: 'array',
       description: 'Array of rows',
-      condition: { field: 'operation', value: ['queryRows', 'batchInsertRows'] },
+      condition: { field: 'operation', value: ['query_rows', 'batch_insert_rows'] },
     },
     rowCount: {
       type: 'number',
       description: 'Number of rows returned',
-      condition: { field: 'operation', value: 'queryRows' },
+      condition: { field: 'operation', value: 'query_rows' },
     },
     totalCount: {
       type: 'number',
       description: 'Total rows matching filter',
-      condition: { field: 'operation', value: 'queryRows' },
+      condition: { field: 'operation', value: 'query_rows' },
     },
     insertedCount: {
       type: 'number',
       description: 'Number of rows inserted',
-      condition: { field: 'operation', value: 'batchInsertRows' },
+      condition: { field: 'operation', value: 'batch_insert_rows' },
     },
     updatedCount: {
       type: 'number',
       description: 'Number of rows updated',
-      condition: { field: 'operation', value: 'updateRowsByFilter' },
+      condition: { field: 'operation', value: 'update_rows_by_filter' },
     },
     updatedRowIds: {
       type: 'array',
       description: 'IDs of updated rows',
-      condition: { field: 'operation', value: 'updateRowsByFilter' },
+      condition: { field: 'operation', value: 'update_rows_by_filter' },
     },
     deletedCount: {
       type: 'number',
       description: 'Number of rows deleted',
-      condition: { field: 'operation', value: ['deleteRow', 'deleteRowsByFilter'] },
+      condition: { field: 'operation', value: ['delete_row', 'delete_rows_by_filter'] },
     },
     deletedRowIds: {
       type: 'array',
       description: 'IDs of deleted rows',
-      condition: { field: 'operation', value: 'deleteRowsByFilter' },
+      condition: { field: 'operation', value: 'delete_rows_by_filter' },
     },
     name: {
       type: 'string',
       description: 'Table name',
-      condition: { field: 'operation', value: 'getSchema' },
+      condition: { field: 'operation', value: 'get_schema' },
     },
     columns: {
       type: 'array',
       description: 'Column definitions',
-      condition: { field: 'operation', value: 'getSchema' },
+      condition: { field: 'operation', value: 'get_schema' },
     },
     message: { type: 'string', description: 'Operation status message' },
   },

@@ -12,7 +12,7 @@ export const tableGetSchemaTool: ToolConfig<TableGetSchemaParams, TableGetSchema
       type: 'string',
       required: true,
       description: 'Table ID',
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
     },
   },
 
