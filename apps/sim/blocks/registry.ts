@@ -41,6 +41,7 @@ import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
 import { GoogleFormsBlock } from '@/blocks/blocks/google_form'
 import { GoogleGroupsBlock } from '@/blocks/blocks/google_groups'
 import { GoogleSheetsBlock } from '@/blocks/blocks/google_sheets'
+import { GoogleSheetsV2Block } from '@/blocks/blocks/google_sheets_v2'
 import { GoogleSlidesBlock } from '@/blocks/blocks/google_slides'
 import { GoogleVaultBlock } from '@/blocks/blocks/google_vault'
 import { GrafanaBlock } from '@/blocks/blocks/grafana'
@@ -73,6 +74,7 @@ import { McpBlock } from '@/blocks/blocks/mcp'
 import { Mem0Block } from '@/blocks/blocks/mem0'
 import { MemoryBlock } from '@/blocks/blocks/memory'
 import { MicrosoftExcelBlock } from '@/blocks/blocks/microsoft_excel'
+import { MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel_v2'
 import { MicrosoftPlannerBlock } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock } from '@/blocks/blocks/microsoft_teams'
 import { MistralParseBlock } from '@/blocks/blocks/mistral_parse'
@@ -200,6 +202,7 @@ export const registry: Record<string, BlockConfig> = {
   google_forms: GoogleFormsBlock,
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
+  google_sheets_v2: GoogleSheetsV2Block,
   google_slides: GoogleSlidesBlock,
   google_vault: GoogleVaultBlock,
   google_groups: GoogleGroupsBlock,
@@ -230,6 +233,7 @@ export const registry: Record<string, BlockConfig> = {
   mem0: Mem0Block,
   memory: MemoryBlock,
   microsoft_excel: MicrosoftExcelBlock,
+  microsoft_excel_v2: MicrosoftExcelV2Block,
   microsoft_planner: MicrosoftPlannerBlock,
   microsoft_teams: MicrosoftTeamsBlock,
   mistral_parse: MistralParseBlock,

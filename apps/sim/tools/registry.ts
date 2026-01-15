@@ -416,9 +416,13 @@ import {
 } from '@/tools/google_groups'
 import {
   googleSheetsAppendTool,
+  googleSheetsAppendV2Tool,
   googleSheetsReadTool,
+  googleSheetsReadV2Tool,
   googleSheetsUpdateTool,
+  googleSheetsUpdateV2Tool,
   googleSheetsWriteTool,
+  googleSheetsWriteV2Tool,
 } from '@/tools/google_sheets'
 import {
   googleSlidesAddImageTool,
@@ -827,9 +831,11 @@ import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from '@/tools/memory'
 import {
   microsoftExcelReadTool,
+  microsoftExcelReadV2Tool,
   microsoftExcelTableAddTool,
   microsoftExcelWorksheetAddTool,
   microsoftExcelWriteTool,
+  microsoftExcelWriteV2Tool,
 } from '@/tools/microsoft_excel'
 import {
   microsoftPlannerCreateBucketTool,
@@ -2107,6 +2113,10 @@ export const tools: Record<string, ToolConfig> = {
   google_sheets_write: googleSheetsWriteTool,
   google_sheets_update: googleSheetsUpdateTool,
   google_sheets_append: googleSheetsAppendTool,
+  google_sheets_read_v2: googleSheetsReadV2Tool,
+  google_sheets_write_v2: googleSheetsWriteV2Tool,
+  google_sheets_update_v2: googleSheetsUpdateV2Tool,
+  google_sheets_append_v2: googleSheetsAppendV2Tool,
   google_slides_read: googleSlidesReadTool,
   google_slides_write: googleSlidesWriteTool,
   google_slides_create: googleSlidesCreateTool,
@@ -2478,6 +2488,8 @@ export const tools: Record<string, ToolConfig> = {
   microsoft_excel_write: microsoftExcelWriteTool,
   microsoft_excel_table_add: microsoftExcelTableAddTool,
   microsoft_excel_worksheet_add: microsoftExcelWorksheetAddTool,
+  microsoft_excel_read_v2: microsoftExcelReadV2Tool,
+  microsoft_excel_write_v2: microsoftExcelWriteV2Tool,
   microsoft_planner_create_task: microsoftPlannerCreateTaskTool,
   microsoft_planner_read_task: microsoftPlannerReadTaskTool,
   microsoft_planner_update_task: microsoftPlannerUpdateTaskTool,

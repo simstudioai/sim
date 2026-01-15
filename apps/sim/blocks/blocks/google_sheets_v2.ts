@@ -1,17 +1,16 @@
 import { GoogleSheetsIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
-import type { GoogleSheetsResponse } from '@/tools/google_sheets/types'
+import type { GoogleSheetsV2Response } from '@/tools/google_sheets/types'
 
-// Legacy block - hidden from toolbar
-export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
-  type: 'google_sheets',
-  name: 'Google Sheets (Legacy)',
-  description: 'Read, write, and update data',
+export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
+  type: 'google_sheets_v2',
+  name: 'Google Sheets',
+  description: 'Read, write, and update data with sheet selection',
   authMode: AuthMode.OAuth,
-  hideFromToolbar: true,
+  hideFromToolbar: false,
   longDescription:
-    'Integrate Google Sheets into the workflow. Can read, write, append, and update data.',
+    'Integrate Google Sheets into the workflow with explicit sheet selection. Can read, write, append, and update data in specific sheets.',
   docsLink: 'https://docs.sim.ai/tools/google_sheets',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -43,10 +42,10 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       ],
       placeholder: 'Select Google account',
     },
-    // Spreadsheet Selector
+    // Spreadsheet Selector (basic mode)
     {
       id: 'spreadsheetId',
-      title: 'Select Sheet',
+      title: 'Select Spreadsheet',
       type: 'file-selector',
       canonicalParamId: 'spreadsheetId',
       serviceId: 'google-sheets',
@@ -69,38 +68,61 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       dependsOn: ['credential'],
       mode: 'advanced',
     },
-    // Range
+    // Sheet Name Selector (basic mode)
     {
-      id: 'range',
-      title: 'Range',
+      id: 'sheetName',
+      title: 'Sheet (Tab)',
+      type: 'sheet-selector',
+      canonicalParamId: 'sheetName',
+      serviceId: 'google-sheets',
+      placeholder: 'Select a sheet',
+      required: true,
+      dependsOn: { all: ['credential'], any: ['spreadsheetId', 'manualSpreadsheetId'] },
+      mode: 'basic',
+    },
+    // Manual Sheet Name (advanced mode)
+    {
+      id: 'manualSheetName',
+      title: 'Sheet Name',
       type: 'short-input',
-      placeholder: 'Sheet name and cell range (e.g., Sheet1!A1:D10)',
+      canonicalParamId: 'sheetName',
+      placeholder: 'Name of the sheet/tab (e.g., Sheet1)',
+      required: true,
+      dependsOn: ['credential'],
+      mode: 'advanced',
+    },
+    // Cell Range (optional for read/write/update)
+    {
+      id: 'cellRange',
+      title: 'Cell Range',
+      type: 'short-input',
+      placeholder: 'Cell range (e.g., A1:D10). Defaults to A1 for write.',
+      condition: { field: 'operation', value: ['read', 'write', 'update'] },
       wandConfig: {
         enabled: true,
-        prompt: `Generate a valid Google Sheets range based on the user's description.
+        prompt: `Generate a valid cell range based on the user's description.
 
 ### VALID FORMATS
-1. Sheet name only (for appending to end): Sheet1
-2. Full range (for reading/writing specific cells): Sheet1!A1:D10
+- Single cell: A1
+- Range: A1:D10
+- Entire column: A:A
+- Entire row: 1:1
+- Multiple columns: A:D
+- Multiple rows: 1:10
 
 ### RANGE RULES
-- Sheet names with spaces must be quoted: 'My Sheet'!A1:B10
 - Column letters are uppercase: A, B, C, ... Z, AA, AB, etc.
 - Row numbers start at 1 (not 0)
-- Range format: SheetName!StartCell:EndCell (e.g., Sheet1!A2:C10)
-- For a single column: Sheet1!A:A
-- For a single row: Sheet1!1:1
 
 ### EXAMPLES
-- "the first sheet" -> Sheet1
-- "data sheet from A1 to E100" -> 'Data Sheet'!A1:E100
-- "append to orders sheet" -> Orders
-- "cells A1 through C50 on Sheet2" -> Sheet2!A1:C50
-- "column A of inventory" -> Inventory!A:A
-- "just the headers row" -> Sheet1!1:1
+- "first 100 rows" -> A1:Z100
+- "cells A1 through C50" -> A1:C50
+- "column A" -> A:A
+- "just the headers row" -> 1:1
+- "first cell" -> A1
 
-Return ONLY the range string - no explanations, no quotes around the entire output, no extra text.`,
-        placeholder: 'Describe the range (e.g., "all data from Sheet1" or "A1 to D50")...',
+Return ONLY the range string - no sheet name, no explanations, no quotes.`,
+        placeholder: 'Describe the range (e.g., "first 50 rows" or "column A")...',
       },
     },
     // Write-specific Fields
@@ -109,7 +131,7 @@ Return ONLY the range string - no explanations, no quotes around the entire outp
       title: 'Values',
       type: 'long-input',
       placeholder:
-        'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
+        'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}])',
       condition: { field: 'operation', value: 'write' },
       required: true,
       wandConfig: {
@@ -145,7 +167,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       title: 'Values',
       type: 'long-input',
       placeholder:
-        'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
+        'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects',
       condition: { field: 'operation', value: 'update' },
       required: true,
       wandConfig: {
@@ -181,7 +203,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       title: 'Values',
       type: 'long-input',
       placeholder:
-        'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
+        'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects',
       condition: { field: 'operation', value: 'append' },
       required: true,
       wandConfig: {
@@ -224,40 +246,56 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
   ],
   tools: {
     access: [
-      'google_sheets_read',
-      'google_sheets_write',
-      'google_sheets_update',
-      'google_sheets_append',
+      'google_sheets_read_v2',
+      'google_sheets_write_v2',
+      'google_sheets_update_v2',
+      'google_sheets_append_v2',
     ],
     config: {
       tool: (params) => {
         switch (params.operation) {
           case 'read':
-            return 'google_sheets_read'
+            return 'google_sheets_read_v2'
           case 'write':
-            return 'google_sheets_write'
+            return 'google_sheets_write_v2'
           case 'update':
-            return 'google_sheets_update'
+            return 'google_sheets_update_v2'
           case 'append':
-            return 'google_sheets_append'
+            return 'google_sheets_append_v2'
           default:
-            throw new Error(`Invalid Google Sheets operation: ${params.operation}`)
+            throw new Error(`Invalid Google Sheets V2 operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { credential, values, spreadsheetId, manualSpreadsheetId, ...rest } = params
+        const {
+          credential,
+          values,
+          spreadsheetId,
+          manualSpreadsheetId,
+          sheetName,
+          manualSheetName,
+          cellRange,
+          ...rest
+        } = params
 
         const parsedValues = values ? JSON.parse(values as string) : undefined
 
         const effectiveSpreadsheetId = (spreadsheetId || manualSpreadsheetId || '').trim()
+        const effectiveSheetName = ((sheetName || manualSheetName || '') as string).trim()
 
         if (!effectiveSpreadsheetId) {
           throw new Error('Spreadsheet ID is required.')
         }
 
+        if (!effectiveSheetName) {
+          throw new Error('Sheet name is required. Please select or enter a sheet name.')
+        }
+
         return {
           ...rest,
           spreadsheetId: effectiveSpreadsheetId,
+          sheetName: effectiveSheetName,
+          cellRange: cellRange ? (cellRange as string).trim() : undefined,
           values: parsedValues,
           credential,
         }
@@ -269,18 +307,54 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     credential: { type: 'string', description: 'Google Sheets access token' },
     spreadsheetId: { type: 'string', description: 'Spreadsheet identifier' },
     manualSpreadsheetId: { type: 'string', description: 'Manual spreadsheet identifier' },
-    range: { type: 'string', description: 'Cell range' },
+    sheetName: { type: 'string', description: 'Name of the sheet/tab' },
+    manualSheetName: { type: 'string', description: 'Manual sheet name entry' },
+    cellRange: { type: 'string', description: 'Cell range (e.g., A1:D10)' },
     values: { type: 'string', description: 'Cell values data' },
     valueInputOption: { type: 'string', description: 'Value input option' },
     insertDataOption: { type: 'string', description: 'Data insertion option' },
   },
   outputs: {
-    data: { type: 'json', description: 'Sheet data' },
-    metadata: { type: 'json', description: 'Operation metadata' },
-    updatedRange: { type: 'string', description: 'Updated range' },
-    updatedRows: { type: 'number', description: 'Updated rows count' },
-    updatedColumns: { type: 'number', description: 'Updated columns count' },
-    updatedCells: { type: 'number', description: 'Updated cells count' },
-    tableRange: { type: 'string', description: 'Table range' },
+    sheetName: {
+      type: 'string',
+      description: 'Name of the sheet',
+      condition: { field: 'operation', value: 'read' },
+    },
+    range: {
+      type: 'string',
+      description: 'Range that was read',
+      condition: { field: 'operation', value: 'read' },
+    },
+    values: {
+      type: 'json',
+      description: 'Cell values as 2D array',
+      condition: { field: 'operation', value: 'read' },
+    },
+    updatedRange: {
+      type: 'string',
+      description: 'Updated range',
+      condition: { field: 'operation', value: ['write', 'update', 'append'] },
+    },
+    updatedRows: {
+      type: 'number',
+      description: 'Updated rows count',
+      condition: { field: 'operation', value: ['write', 'update', 'append'] },
+    },
+    updatedColumns: {
+      type: 'number',
+      description: 'Updated columns count',
+      condition: { field: 'operation', value: ['write', 'update', 'append'] },
+    },
+    updatedCells: {
+      type: 'number',
+      description: 'Updated cells count',
+      condition: { field: 'operation', value: ['write', 'update', 'append'] },
+    },
+    tableRange: {
+      type: 'string',
+      description: 'Table range',
+      condition: { field: 'operation', value: 'append' },
+    },
+    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
   },
 }

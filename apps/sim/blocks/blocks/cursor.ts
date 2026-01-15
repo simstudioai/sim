@@ -176,6 +176,9 @@ export const CursorV2Block: BlockConfig<CursorResponse> = {
   ...CursorBlock,
   type: 'cursor_v2',
   name: 'Cursor',
+  description: 'Launch and manage Cursor cloud agents to work on GitHub repositories',
+  longDescription:
+    'Interact with Cursor Cloud Agents API to launch AI agents that can work on your GitHub repositories. Supports launching agents, adding follow-up instructions, checking status, viewing conversations, and managing agent lifecycle.',
   hideFromToolbar: false,
   tools: {
     ...CursorBlock.tools,
