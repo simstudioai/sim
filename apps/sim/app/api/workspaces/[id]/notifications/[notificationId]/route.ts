@@ -80,6 +80,7 @@ const updateNotificationSchema = z
     levelFilter: levelFilterSchema.optional(),
     triggerFilter: triggerFilterSchema.optional(),
     includeFinalOutput: z.boolean().optional(),
+    includeTraceSpans: z.boolean().optional(),
     includeRateLimits: z.boolean().optional(),
     includeUsageData: z.boolean().optional(),
     alertConfig: alertConfigSchema.optional(),
@@ -146,6 +147,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         levelFilter: subscription.levelFilter,
         triggerFilter: subscription.triggerFilter,
         includeFinalOutput: subscription.includeFinalOutput,
+        includeTraceSpans: subscription.includeTraceSpans,
         includeRateLimits: subscription.includeRateLimits,
         includeUsageData: subscription.includeUsageData,
         webhookConfig: subscription.webhookConfig,
@@ -220,6 +222,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (data.triggerFilter !== undefined) updateData.triggerFilter = data.triggerFilter
     if (data.includeFinalOutput !== undefined)
       updateData.includeFinalOutput = data.includeFinalOutput
+    if (data.includeTraceSpans !== undefined) updateData.includeTraceSpans = data.includeTraceSpans
     if (data.includeRateLimits !== undefined) updateData.includeRateLimits = data.includeRateLimits
     if (data.includeUsageData !== undefined) updateData.includeUsageData = data.includeUsageData
     if (data.alertConfig !== undefined) updateData.alertConfig = data.alertConfig
@@ -257,6 +260,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         levelFilter: subscription.levelFilter,
         triggerFilter: subscription.triggerFilter,
         includeFinalOutput: subscription.includeFinalOutput,
+        includeTraceSpans: subscription.includeTraceSpans,
         includeRateLimits: subscription.includeRateLimits,
         includeUsageData: subscription.includeUsageData,
         webhookConfig: subscription.webhookConfig,

@@ -20,7 +20,7 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import type { WorkflowExecutionLog } from '@/lib/logs/types'
+import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import type { AlertConfig } from '@/lib/notifications/alert-rules'
 
@@ -50,6 +50,7 @@ interface NotificationPayload {
     totalDurationMs: number
     cost?: Record<string, unknown>
     finalOutput?: unknown
+    traceSpans?: TraceSpan[]
     rateLimits?: EmailRateLimitsData
     usage?: EmailUsageData
   }
@@ -96,6 +97,15 @@ async function buildPayload(
 
   if (subscription.includeFinalOutput && executionData.finalOutput) {
     payload.data.finalOutput = executionData.finalOutput
+  }
+
+  // Trace spans only included for webhooks (too large for email/Slack)
+  if (
+    subscription.includeTraceSpans &&
+    subscription.notificationType === 'webhook' &&
+    executionData.traceSpans
+  ) {
+    payload.data.traceSpans = executionData.traceSpans as TraceSpan[]
   }
 
   if (subscription.includeRateLimits && userId) {
