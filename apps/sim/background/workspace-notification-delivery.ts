@@ -10,12 +10,17 @@ import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import {
+  type EmailRateLimitsData,
+  type EmailUsageData,
+  renderWorkflowNotificationEmail,
+} from '@/components/emails'
 import { checkUsageStatus } from '@/lib/billing/calculations/usage-monitor'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
+import type { WorkflowExecutionLog } from '@/lib/logs/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import type { AlertConfig } from '@/lib/notifications/alert-rules'
 
@@ -45,9 +50,8 @@ interface NotificationPayload {
     totalDurationMs: number
     cost?: Record<string, unknown>
     finalOutput?: unknown
-    traceSpans?: unknown[]
-    rateLimits?: Record<string, unknown>
-    usage?: Record<string, unknown>
+    rateLimits?: EmailRateLimitsData
+    usage?: EmailUsageData
   }
 }
 
@@ -92,10 +96,6 @@ async function buildPayload(
 
   if (subscription.includeFinalOutput && executionData.finalOutput) {
     payload.data.finalOutput = executionData.finalOutput
-  }
-
-  if (subscription.includeTraceSpans && executionData.traceSpans) {
-    payload.data.traceSpans = executionData.traceSpans as unknown[]
   }
 
   if (subscription.includeRateLimits && userId) {
@@ -251,18 +251,6 @@ function formatAlertReason(alertConfig: AlertConfig): string {
   }
 }
 
-function formatJsonForEmail(data: unknown, label: string): string {
-  if (!data) return ''
-  const json = JSON.stringify(data, null, 2)
-  const escapedJson = json.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  return `
-    <div style="margin-top: 20px;">
-      <h3 style="color: #1a1a1a; font-size: 14px; margin-bottom: 8px;">${label}</h3>
-      <pre style="background: #f5f5f5; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px; color: #333; white-space: pre-wrap; word-wrap: break-word;">${escapedJson}</pre>
-    </div>
-  `
-}
-
 async function deliverEmail(
   subscription: typeof workspaceNotificationSubscription.$inferSelect,
   payload: NotificationPayload,
@@ -275,8 +263,7 @@ async function deliverEmail(
   const isError = payload.data.status !== 'success'
   const statusText = isError ? 'Error' : 'Success'
   const logUrl = buildLogUrl(subscription.workspaceId, payload.data.executionId)
-  const baseUrl = getBaseUrl()
-  const alertReason = alertConfig ? formatAlertReason(alertConfig) : null
+  const alertReason = alertConfig ? formatAlertReason(alertConfig) : undefined
 
   // Build subject line
   const subject = alertReason
@@ -285,113 +272,36 @@ async function deliverEmail(
       ? `Error Alert: ${payload.data.workflowName}`
       : `Workflow Completed: ${payload.data.workflowName}`
 
-  let includedDataHtml = ''
+  // Build plain text for fallback
   let includedDataText = ''
-
   if (payload.data.finalOutput) {
-    includedDataHtml += formatJsonForEmail(payload.data.finalOutput, 'Final Output')
     includedDataText += `\n\nFinal Output:\n${JSON.stringify(payload.data.finalOutput, null, 2)}`
   }
-
-  if (
-    payload.data.traceSpans &&
-    Array.isArray(payload.data.traceSpans) &&
-    payload.data.traceSpans.length > 0
-  ) {
-    includedDataHtml += formatJsonForEmail(payload.data.traceSpans, 'Trace Spans')
-    includedDataText += `\n\nTrace Spans:\n${JSON.stringify(payload.data.traceSpans, null, 2)}`
-  }
-
   if (payload.data.rateLimits) {
-    includedDataHtml += formatJsonForEmail(payload.data.rateLimits, 'Rate Limits')
     includedDataText += `\n\nRate Limits:\n${JSON.stringify(payload.data.rateLimits, null, 2)}`
   }
-
   if (payload.data.usage) {
-    includedDataHtml += formatJsonForEmail(payload.data.usage, 'Usage Data')
     includedDataText += `\n\nUsage Data:\n${JSON.stringify(payload.data.usage, null, 2)}`
   }
+
+  // Render the email using the shared template
+  const html = await renderWorkflowNotificationEmail({
+    workflowName: payload.data.workflowName || 'Unknown Workflow',
+    status: payload.data.status,
+    trigger: payload.data.trigger,
+    duration: formatDuration(payload.data.totalDurationMs),
+    cost: formatCost(payload.data.cost),
+    logUrl,
+    alertReason,
+    finalOutput: payload.data.finalOutput,
+    rateLimits: payload.data.rateLimits,
+    usageData: payload.data.usage,
+  })
 
   const result = await sendEmail({
     to: subscription.emailRecipients,
     subject,
-    html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="background-color: #f5f5f7; font-family: HelveticaNeue, Helvetica, Arial, sans-serif; margin: 0; padding: 0;">
-          <div style="max-width: 580px; margin: 30px auto; background-color: #ffffff; border-radius: 5px; overflow: hidden;">
-            <!-- Header with Logo -->
-            <div style="padding: 30px 0; text-align: center;">
-              <img src="${baseUrl}/logo/reverse/text/medium.png" width="114" alt="Sim Studio" style="margin: 0 auto;" />
-            </div>
-            
-            <!-- Section Border -->
-            <div style="display: flex; width: 100%;">
-              <div style="border-bottom: 1px solid #eeeeee; width: 249px;"></div>
-              <div style="border-bottom: 1px solid #6F3DFA; width: 102px;"></div>
-              <div style="border-bottom: 1px solid #eeeeee; width: 249px;"></div>
-            </div>
-            
-            <!-- Content -->
-            <div style="padding: 5px 30px 20px 30px;">
-              <h2 style="font-size: 20px; color: #333333; margin: 20px 0;">
-                ${alertReason ? 'Alert Triggered' : isError ? 'Workflow Execution Failed' : 'Workflow Execution Completed'}
-              </h2>
-              ${alertReason ? `<p style="color: #d97706; background: #fef3c7; padding: 12px; border-radius: 6px; margin-bottom: 20px; font-size: 14px;"><strong>Reason:</strong> ${alertReason}</p>` : ''}
-              
-              <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-                <tr style="border-bottom: 1px solid #eee;">
-                  <td style="padding: 12px 0; color: #666; width: 140px;">Workflow</td>
-                  <td style="padding: 12px 0; color: #333; font-weight: 500;">${payload.data.workflowName}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #eee;">
-                  <td style="padding: 12px 0; color: #666;">Status</td>
-                  <td style="padding: 12px 0; color: ${isError ? '#ef4444' : '#22c55e'}; font-weight: 500;">${statusText}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #eee;">
-                  <td style="padding: 12px 0; color: #666;">Trigger</td>
-                  <td style="padding: 12px 0; color: #333;">${payload.data.trigger}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #eee;">
-                  <td style="padding: 12px 0; color: #666;">Duration</td>
-                  <td style="padding: 12px 0; color: #333;">${formatDuration(payload.data.totalDurationMs)}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #eee;">
-                  <td style="padding: 12px 0; color: #666;">Cost</td>
-                  <td style="padding: 12px 0; color: #333;">${formatCost(payload.data.cost)}</td>
-                </tr>
-              </table>
-              
-              <a href="${logUrl}" style="display: inline-block; background-color: #6F3DFA; color: #ffffff; font-weight: bold; font-size: 16px; padding: 12px 30px; border-radius: 5px; text-decoration: none; text-align: center; margin: 20px 0;">
-                View Execution Log →
-              </a>
-              
-              ${includedDataHtml}
-              
-              <p style="font-size: 16px; line-height: 1.5; color: #333333; margin-top: 30px;">
-                Best regards,<br />
-                The Sim Team
-              </p>
-            </div>
-          </div>
-          
-          <!-- Footer -->
-          <div style="max-width: 580px; margin: 0 auto; padding: 20px 0; text-align: center;">
-            <p style="font-size: 12px; color: #706a7b; margin: 8px 0 0 0;">
-              © ${new Date().getFullYear()} Sim Studio, All Rights Reserved
-            </p>
-            <p style="font-size: 12px; color: #706a7b; margin: 8px 0 0 0;">
-              <a href="${baseUrl}/privacy" style="color: #706a7b; text-decoration: underline;">Privacy Policy</a> • 
-              <a href="${baseUrl}/terms" style="color: #706a7b; text-decoration: underline;">Terms of Service</a>
-            </p>
-          </div>
-        </body>
-      </html>
-    `,
+    html,
     text: `${subject}\n${alertReason ? `\nReason: ${alertReason}\n` : ''}\nWorkflow: ${payload.data.workflowName}\nStatus: ${statusText}\nTrigger: ${payload.data.trigger}\nDuration: ${formatDuration(payload.data.totalDurationMs)}\nCost: ${formatCost(payload.data.cost)}\n\nView Log: ${logUrl}${includedDataText}`,
     emailType: 'notifications',
   })
@@ -475,26 +385,6 @@ async function deliverSlack(
       text: {
         type: 'mrkdwn',
         text: `*Final Output:*\n\`\`\`${truncated}\`\`\``,
-      },
-    })
-  }
-
-  if (
-    payload.data.traceSpans &&
-    Array.isArray(payload.data.traceSpans) &&
-    payload.data.traceSpans.length > 0
-  ) {
-    const spansSummary = (payload.data.traceSpans as TraceSpan[])
-      .map((span) => {
-        const status = span.status === 'success' ? '✓' : '✗'
-        return `${status} ${span.name || 'Unknown'} (${formatDuration(span.duration || 0)})`
-      })
-      .join('\n')
-    blocks.push({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `*Trace Spans:*\n\`\`\`${spansSummary}\`\`\``,
       },
     })
   }

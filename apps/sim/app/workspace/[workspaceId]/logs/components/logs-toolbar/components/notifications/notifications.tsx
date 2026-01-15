@@ -136,7 +136,6 @@ export function NotificationSettings({
     levelFilter: ['info', 'error'] as LogLevel[],
     triggerFilter: [...CORE_TRIGGER_TYPES] as CoreTriggerType[],
     includeFinalOutput: false,
-    includeTraceSpans: false,
     includeRateLimits: false,
     includeUsageData: false,
     webhookUrl: '',
@@ -203,7 +202,6 @@ export function NotificationSettings({
       levelFilter: ['info', 'error'],
       triggerFilter: [...CORE_TRIGGER_TYPES],
       includeFinalOutput: false,
-      includeTraceSpans: false,
       includeRateLimits: false,
       includeUsageData: false,
       webhookUrl: '',
@@ -422,7 +420,6 @@ export function NotificationSettings({
       levelFilter: formData.levelFilter,
       triggerFilter: formData.triggerFilter,
       includeFinalOutput: formData.includeFinalOutput,
-      includeTraceSpans: formData.includeTraceSpans,
       includeRateLimits: formData.includeRateLimits,
       includeUsageData: formData.includeUsageData,
       alertConfig,
@@ -474,7 +471,6 @@ export function NotificationSettings({
       levelFilter: subscription.levelFilter as LogLevel[],
       triggerFilter: subscription.triggerFilter as CoreTriggerType[],
       includeFinalOutput: subscription.includeFinalOutput,
-      includeTraceSpans: subscription.includeTraceSpans,
       includeRateLimits: subscription.includeRateLimits,
       includeUsageData: subscription.includeUsageData,
       webhookUrl: subscription.webhookConfig?.url || '',
@@ -830,7 +826,6 @@ export function NotificationSettings({
             <Combobox
               options={[
                 { label: 'Final Output', value: 'includeFinalOutput' },
-                { label: 'Trace Spans', value: 'includeTraceSpans' },
                 { label: 'Rate Limits', value: 'includeRateLimits' },
                 { label: 'Usage Data', value: 'includeUsageData' },
               ]}
@@ -838,7 +833,6 @@ export function NotificationSettings({
               multiSelectValues={
                 [
                   formData.includeFinalOutput && 'includeFinalOutput',
-                  formData.includeTraceSpans && 'includeTraceSpans',
                   formData.includeRateLimits && 'includeRateLimits',
                   formData.includeUsageData && 'includeUsageData',
                 ].filter(Boolean) as string[]
@@ -847,7 +841,6 @@ export function NotificationSettings({
                 setFormData({
                   ...formData,
                   includeFinalOutput: values.includes('includeFinalOutput'),
-                  includeTraceSpans: values.includes('includeTraceSpans'),
                   includeRateLimits: values.includes('includeRateLimits'),
                   includeUsageData: values.includes('includeUsageData'),
                 })
@@ -856,13 +849,11 @@ export function NotificationSettings({
               overlayContent={(() => {
                 const labels: Record<string, string> = {
                   includeFinalOutput: 'Final Output',
-                  includeTraceSpans: 'Trace Spans',
                   includeRateLimits: 'Rate Limits',
                   includeUsageData: 'Usage Data',
                 }
                 const selected = [
                   formData.includeFinalOutput && 'includeFinalOutput',
-                  formData.includeTraceSpans && 'includeTraceSpans',
                   formData.includeRateLimits && 'includeRateLimits',
                   formData.includeUsageData && 'includeUsageData',
                 ].filter(Boolean) as string[]
