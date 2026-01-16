@@ -1,5 +1,5 @@
 import { TableIcon } from '@/components/icons'
-import { conditionsToFilter, sortConditionsToSort } from '@/lib/table/filters/utils'
+import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/filters/utils'
 import type { BlockConfig } from '@/blocks/types'
 import type { TableQueryResponse } from '@/tools/table/types'
 
@@ -96,8 +96,9 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
     let filter: unknown
     if (params.bulkFilterMode === 'builder' && params.bulkFilterBuilder) {
       filter =
-        conditionsToFilter(params.bulkFilterBuilder as Parameters<typeof conditionsToFilter>[0]) ||
-        undefined
+        filterRulesToFilter(
+          params.bulkFilterBuilder as Parameters<typeof filterRulesToFilter>[0]
+        ) || undefined
     } else if (params.filter) {
       filter = parseJSON(params.filter, 'Filter')
     }
@@ -119,8 +120,9 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
     let filter: unknown
     if (params.bulkFilterMode === 'builder' && params.bulkFilterBuilder) {
       filter =
-        conditionsToFilter(params.bulkFilterBuilder as Parameters<typeof conditionsToFilter>[0]) ||
-        undefined
+        filterRulesToFilter(
+          params.bulkFilterBuilder as Parameters<typeof filterRulesToFilter>[0]
+        ) || undefined
     } else if (params.filter) {
       filter = parseJSON(params.filter, 'Filter')
     }
@@ -145,7 +147,7 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
     let filter: unknown
     if (params.builderMode === 'builder' && params.filterBuilder) {
       filter =
-        conditionsToFilter(params.filterBuilder as Parameters<typeof conditionsToFilter>[0]) ||
+        filterRulesToFilter(params.filterBuilder as Parameters<typeof filterRulesToFilter>[0]) ||
         undefined
     } else if (params.filter) {
       filter = parseJSON(params.filter, 'Filter')
@@ -154,8 +156,7 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
     let sort: unknown
     if (params.builderMode === 'builder' && params.sortBuilder) {
       sort =
-        sortConditionsToSort(params.sortBuilder as Parameters<typeof sortConditionsToSort>[0]) ||
-        undefined
+        sortRulesToSort(params.sortBuilder as Parameters<typeof sortRulesToSort>[0]) || undefined
     } else if (params.sort) {
       sort = parseJSON(params.sort, 'Sort')
     }

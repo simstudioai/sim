@@ -3,26 +3,24 @@
 import { useMemo } from 'react'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/emcn'
-import type { FilterCondition } from '@/lib/table/filters/constants'
+import type { FilterRule } from '@/lib/table/filters/constants'
 import { useFilterBuilder } from '@/lib/table/filters/use-builder'
 import { useTableColumns } from '@/lib/table/hooks'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { EmptyState } from './components/empty-state'
-import { FilterConditionRow } from './components/filter-condition-row'
+import { FilterRuleRow } from './components/filter-rule-row'
 
 interface FilterFormatProps {
   blockId: string
   subBlockId: string
   isPreview?: boolean
-  previewValue?: FilterCondition[] | null
+  previewValue?: FilterRule[] | null
   disabled?: boolean
   columns?: Array<{ value: string; label: string }>
   tableIdSubBlockId?: string
 }
 
-/**
- * Visual builder for filter conditions.
- */
+/** Visual builder for table filter rules in workflow blocks. */
 export function FilterFormat({
   blockId,
   subBlockId,
@@ -32,7 +30,7 @@ export function FilterFormat({
   columns: propColumns,
   tableIdSubBlockId = 'tableId',
 }: FilterFormatProps) {
-  const [storeValue, setStoreValue] = useSubBlockValue<FilterCondition[]>(blockId, subBlockId)
+  const [storeValue, setStoreValue] = useSubBlockValue<FilterRule[]>(blockId, subBlockId)
   const [tableIdValue] = useSubBlockValue<string>(blockId, tableIdSubBlockId)
 
   const dynamicColumns = useTableColumns({ tableId: tableIdValue })
@@ -42,29 +40,28 @@ export function FilterFormat({
   }, [propColumns, dynamicColumns])
 
   const value = isPreview ? previewValue : storeValue
-  const conditions: FilterCondition[] = Array.isArray(value) && value.length > 0 ? value : []
+  const rules: FilterRule[] = Array.isArray(value) && value.length > 0 ? value : []
   const isReadOnly = isPreview || disabled
 
-  const { comparisonOptions, logicalOptions, addCondition, removeCondition, updateCondition } =
-    useFilterBuilder({
-      columns,
-      conditions,
-      setConditions: setStoreValue,
-      isReadOnly,
-    })
+  const { comparisonOptions, logicalOptions, addRule, removeRule, updateRule } = useFilterBuilder({
+    columns,
+    rules,
+    setRules: setStoreValue,
+    isReadOnly,
+  })
 
   return (
     <div className='flex flex-col gap-[8px]'>
-      {conditions.length === 0 ? (
-        <EmptyState onAdd={addCondition} disabled={isReadOnly} label='Add filter condition' />
+      {rules.length === 0 ? (
+        <EmptyState onAdd={addRule} disabled={isReadOnly} label='Add filter rule' />
       ) : (
         <>
-          {conditions.map((condition, index) => (
-            <FilterConditionRow
-              key={condition.id}
+          {rules.map((rule, index) => (
+            <FilterRuleRow
+              key={rule.id}
               blockId={blockId}
               subBlockId={subBlockId}
-              condition={condition}
+              rule={rule}
               index={index}
               columns={columns}
               comparisonOptions={comparisonOptions}
@@ -72,19 +69,19 @@ export function FilterFormat({
               isReadOnly={isReadOnly}
               isPreview={isPreview}
               disabled={disabled}
-              onRemove={removeCondition}
-              onUpdate={updateCondition}
+              onRemove={removeRule}
+              onUpdate={updateRule}
             />
           ))}
           <Button
             variant='ghost'
             size='sm'
-            onClick={addCondition}
+            onClick={addRule}
             disabled={isReadOnly}
             className='self-start'
           >
             <Plus className='mr-[4px] h-[12px] w-[12px]' />
-            Add condition
+            Add rule
           </Button>
         </>
       )}

@@ -4,80 +4,56 @@ import { useCallback, useMemo, useState } from 'react'
 import { ArrowDownAZ, ArrowUpAZ, Loader2, Plus, X } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { Button, Combobox, Input } from '@/components/emcn'
-import type { FilterCondition, SortCondition } from '@/lib/table/filters/constants'
+import type { FilterRule, SortRule } from '@/lib/table/filters/constants'
 import { useFilterBuilder } from '@/lib/table/filters/use-builder'
-import { conditionsToFilter, sortConditionToSort } from '@/lib/table/filters/utils'
+import { filterRulesToFilter, sortRuleToSort } from '@/lib/table/filters/utils'
 import type { ColumnDefinition, Filter, Sort } from '@/lib/table/types'
 
-/**
- * Result of applying query builder filters and sorts.
- * Contains the converted API-ready filter and sort objects.
- */
+/** Query result containing API-ready filter and sort objects. */
 export interface BuilderQueryResult {
-  /** MongoDB-style filter object for API queries */
   filter: Filter | null
-  /** Sort specification for API queries */
   sort: Sort | null
 }
 
-/**
- * Column definition for filter building (subset of ColumnDefinition).
- */
 type Column = Pick<ColumnDefinition, 'name' | 'type'>
 
-/**
- * Props for the TableQueryBuilder component.
- */
 interface TableQueryBuilderProps {
-  /** Available columns for filtering */
   columns: Column[]
-  /** Callback when query options should be applied */
   onApply: (options: BuilderQueryResult) => void
-  /** Callback to add a new row */
   onAddRow: () => void
-  /** Whether a query is currently loading */
   isLoading?: boolean
 }
 
-/**
- * Component for building filter and sort queries for table data.
- *
- * Provides a visual interface for:
- * - Adding multiple filter conditions with AND/OR logic
- * - Configuring sort column and direction
- * - Applying or clearing the query
- * ```
- */
+/** Visual query builder for filtering and sorting table data. */
 export function TableQueryBuilder({
   columns,
   onApply,
   onAddRow,
   isLoading = false,
 }: TableQueryBuilderProps) {
-  const [conditions, setConditions] = useState<FilterCondition[]>([])
-  const [sortCondition, setSortCondition] = useState<SortCondition | null>(null)
+  const [rules, setRules] = useState<FilterRule[]>([])
+  const [sortRule, setSortRule] = useState<SortRule | null>(null)
 
   const columnOptions = useMemo(
     () => columns.map((col) => ({ value: col.name, label: col.name })),
     [columns]
   )
 
-  // Use the shared filter builder hook
   const {
     comparisonOptions,
     logicalOptions,
     sortDirectionOptions,
-    addCondition: handleAddCondition,
-    removeCondition: handleRemoveCondition,
-    updateCondition: handleUpdateCondition,
+    addRule: handleAddRule,
+    removeRule: handleRemoveRule,
+    updateRule: handleUpdateRule,
   } = useFilterBuilder({
     columns: columnOptions,
-    conditions,
-    setConditions,
+    rules,
+    setRules,
   })
 
   const handleAddSort = useCallback(() => {
-    setSortCondition({
+    setSortRule({
       id: nanoid(),
       column: columns[0]?.name || '',
       direction: 'asc',
@@ -85,67 +61,64 @@ export function TableQueryBuilder({
   }, [columns])
 
   const handleRemoveSort = useCallback(() => {
-    setSortCondition(null)
+    setSortRule(null)
   }, [])
 
   const handleApply = useCallback(() => {
-    const filter = conditionsToFilter(conditions)
-    const sort = sortConditionToSort(sortCondition)
+    const filter = filterRulesToFilter(rules)
+    const sort = sortRuleToSort(sortRule)
     onApply({ filter, sort })
-  }, [conditions, sortCondition, onApply])
+  }, [rules, sortRule, onApply])
 
   const handleClear = useCallback(() => {
-    setConditions([])
-    setSortCondition(null)
+    setRules([])
+    setSortRule(null)
     onApply({
       filter: null,
       sort: null,
     })
   }, [onApply])
 
-  const hasChanges = conditions.length > 0 || sortCondition !== null
+  const hasChanges = rules.length > 0 || sortRule !== null
 
   return (
     <div className='flex flex-col gap-[8px]'>
-      {/* Filter Conditions */}
-      {conditions.map((condition, index) => (
-        <FilterConditionRow
-          key={condition.id}
-          condition={condition}
+      {rules.map((rule, index) => (
+        <FilterRuleRow
+          key={rule.id}
+          rule={rule}
           index={index}
           columnOptions={columnOptions}
           comparisonOptions={comparisonOptions}
           logicalOptions={logicalOptions}
-          onUpdate={handleUpdateCondition}
-          onRemove={handleRemoveCondition}
+          onUpdate={handleUpdateRule}
+          onRemove={handleRemoveRule}
           onApply={handleApply}
         />
       ))}
 
-      {/* Sort Row */}
-      {sortCondition && (
-        <SortConditionRow
-          sortCondition={sortCondition}
+      {sortRule && (
+        <SortRuleRow
+          sortRule={sortRule}
           columnOptions={columnOptions}
           sortDirectionOptions={sortDirectionOptions}
-          onChange={setSortCondition}
+          onChange={setSortRule}
           onRemove={handleRemoveSort}
         />
       )}
 
-      {/* Action Buttons */}
       <div className='flex items-center gap-[8px]'>
         <Button variant='default' size='sm' onClick={onAddRow}>
           <Plus className='mr-[4px] h-[12px] w-[12px]' />
           Add row
         </Button>
 
-        <Button variant='default' size='sm' onClick={handleAddCondition}>
+        <Button variant='default' size='sm' onClick={handleAddRule}>
           <Plus className='mr-[4px] h-[12px] w-[12px]' />
           Add filter
         </Button>
 
-        {!sortCondition && (
+        {!sortRule && (
           <Button variant='default' size='sm' onClick={handleAddSort}>
             <ArrowUpAZ className='mr-[4px] h-[12px] w-[12px]' />
             Add sort
@@ -172,33 +145,19 @@ export function TableQueryBuilder({
   )
 }
 
-/**
- * Props for the FilterConditionRow component.
- */
-interface FilterConditionRowProps {
-  /** The filter condition */
-  condition: FilterCondition
-  /** Index in the conditions array */
+interface FilterRuleRowProps {
+  rule: FilterRule
   index: number
-  /** Available column options */
   columnOptions: Array<{ value: string; label: string }>
-  /** Available comparison operator options */
   comparisonOptions: Array<{ value: string; label: string }>
-  /** Available logical operator options */
   logicalOptions: Array<{ value: string; label: string }>
-  /** Callback to update a condition field */
-  onUpdate: (id: string, field: keyof FilterCondition, value: string) => void
-  /** Callback to remove the condition */
+  onUpdate: (id: string, field: keyof FilterRule, value: string) => void
   onRemove: (id: string) => void
-  /** Callback to apply filters */
   onApply: () => void
 }
 
-/**
- * A single filter condition row.
- */
-function FilterConditionRow({
-  condition,
+function FilterRuleRow({
+  rule,
   index,
   columnOptions,
   comparisonOptions,
@@ -206,13 +165,13 @@ function FilterConditionRow({
   onUpdate,
   onRemove,
   onApply,
-}: FilterConditionRowProps) {
+}: FilterRuleRowProps) {
   return (
     <div className='flex items-center gap-[8px]'>
       <Button
         variant='ghost'
         size='sm'
-        onClick={() => onRemove(condition.id)}
+        onClick={() => onRemove(rule.id)}
         className='h-[28px] w-[28px] shrink-0 p-0 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
       >
         <X className='h-[12px] w-[12px]' />
@@ -230,8 +189,8 @@ function FilterConditionRow({
           <Combobox
             size='sm'
             options={logicalOptions}
-            value={condition.logicalOperator}
-            onChange={(value) => onUpdate(condition.id, 'logicalOperator', value as 'and' | 'or')}
+            value={rule.logicalOperator}
+            onChange={(value) => onUpdate(rule.id, 'logicalOperator', value as 'and' | 'or')}
           />
         )}
       </div>
@@ -240,8 +199,8 @@ function FilterConditionRow({
         <Combobox
           size='sm'
           options={columnOptions}
-          value={condition.column}
-          onChange={(value) => onUpdate(condition.id, 'column', value)}
+          value={rule.column}
+          onChange={(value) => onUpdate(rule.id, 'column', value)}
           placeholder='Column'
         />
       </div>
@@ -250,15 +209,15 @@ function FilterConditionRow({
         <Combobox
           size='sm'
           options={comparisonOptions}
-          value={condition.operator}
-          onChange={(value) => onUpdate(condition.id, 'operator', value)}
+          value={rule.operator}
+          onChange={(value) => onUpdate(rule.id, 'operator', value)}
         />
       </div>
 
       <Input
         className='h-[28px] min-w-[200px] flex-1 text-[12px]'
-        value={condition.value}
-        onChange={(e) => onUpdate(condition.id, 'value', e.target.value)}
+        value={rule.value}
+        onChange={(e) => onUpdate(rule.id, 'value', e.target.value)}
         placeholder='Value'
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
@@ -270,32 +229,21 @@ function FilterConditionRow({
   )
 }
 
-/**
- * Props for the SortConditionRow component.
- */
-interface SortConditionRowProps {
-  /** The sort condition */
-  sortCondition: SortCondition
-  /** Available column options */
+interface SortRuleRowProps {
+  sortRule: SortRule
   columnOptions: Array<{ value: string; label: string }>
-  /** Available sort direction options */
   sortDirectionOptions: Array<{ value: string; label: string }>
-  /** Callback to update the sort condition */
-  onChange: (condition: SortCondition | null) => void
-  /** Callback to remove the sort */
+  onChange: (rule: SortRule | null) => void
   onRemove: () => void
 }
 
-/**
- * Sort condition row component.
- */
-function SortConditionRow({
-  sortCondition,
+function SortRuleRow({
+  sortRule,
   columnOptions,
   sortDirectionOptions,
   onChange,
   onRemove,
-}: SortConditionRowProps) {
+}: SortRuleRowProps) {
   return (
     <div className='flex items-center gap-[8px]'>
       <Button
@@ -315,8 +263,8 @@ function SortConditionRow({
         <Combobox
           size='sm'
           options={columnOptions}
-          value={sortCondition.column}
-          onChange={(value) => onChange({ ...sortCondition, column: value })}
+          value={sortRule.column}
+          onChange={(value) => onChange({ ...sortRule, column: value })}
           placeholder='Column'
         />
       </div>
@@ -325,13 +273,13 @@ function SortConditionRow({
         <Combobox
           size='sm'
           options={sortDirectionOptions}
-          value={sortCondition.direction}
-          onChange={(value) => onChange({ ...sortCondition, direction: value as 'asc' | 'desc' })}
+          value={sortRule.direction}
+          onChange={(value) => onChange({ ...sortRule, direction: value as 'asc' | 'desc' })}
         />
       </div>
 
       <div className='flex items-center text-[12px] text-[var(--text-tertiary)]'>
-        {sortCondition.direction === 'asc' ? (
+        {sortRule.direction === 'asc' ? (
           <ArrowUpAZ className='h-[14px] w-[14px]' />
         ) : (
           <ArrowDownAZ className='h-[14px] w-[14px]' />

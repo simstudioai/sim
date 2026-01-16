@@ -1,32 +1,32 @@
 import { X } from 'lucide-react'
 import { Button, Combobox, type ComboboxOption } from '@/components/emcn'
-import type { SortCondition } from '@/lib/table/filters/constants'
+import type { SortRule } from '@/lib/table/filters/constants'
 
-interface SortConditionRowProps {
-  condition: SortCondition
+interface SortRuleRowProps {
+  rule: SortRule
   index: number
   columns: ComboboxOption[]
   directionOptions: ComboboxOption[]
   isReadOnly: boolean
   onRemove: (id: string) => void
-  onUpdate: (id: string, field: keyof SortCondition, value: string) => void
+  onUpdate: (id: string, field: keyof SortRule, value: string) => void
 }
 
-export function SortConditionRow({
-  condition,
+export function SortRuleRow({
+  rule,
   index,
   columns,
   directionOptions,
   isReadOnly,
   onRemove,
   onUpdate,
-}: SortConditionRowProps) {
+}: SortRuleRowProps) {
   return (
     <div className='flex items-center gap-[6px]'>
       <Button
         variant='ghost'
         size='sm'
-        onClick={() => onRemove(condition.id)}
+        onClick={() => onRemove(rule.id)}
         disabled={isReadOnly}
         className='h-[24px] w-[24px] shrink-0 p-0 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
       >
@@ -46,8 +46,8 @@ export function SortConditionRow({
         <Combobox
           size='sm'
           options={columns}
-          value={condition.column}
-          onChange={(v) => onUpdate(condition.id, 'column', v)}
+          value={rule.column}
+          onChange={(v) => onUpdate(rule.id, 'column', v)}
           placeholder='Column'
           disabled={isReadOnly}
         />
@@ -57,8 +57,8 @@ export function SortConditionRow({
         <Combobox
           size='sm'
           options={directionOptions}
-          value={condition.direction}
-          onChange={(v) => onUpdate(condition.id, 'direction', v as 'asc' | 'desc')}
+          value={rule.direction}
+          onChange={(v) => onUpdate(rule.id, 'direction', v as 'asc' | 'desc')}
           disabled={isReadOnly}
         />
       </div>

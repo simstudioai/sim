@@ -3,7 +3,7 @@ import { AlertTriangle, Wand2 } from 'lucide-react'
 import { Label, Tooltip } from '@/components/emcn/components'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
-import type { FilterCondition, SortCondition } from '@/lib/table/filters/constants'
+import type { FilterRule, SortRule } from '@/lib/table/filters/constants'
 import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
 import {
   CheckboxList,
@@ -820,7 +820,7 @@ function SubBlockComponent({
             blockId={blockId}
             subBlockId={config.id}
             isPreview={isPreview}
-            previewValue={previewValue as FilterCondition[] | null | undefined}
+            previewValue={previewValue as FilterRule[] | null | undefined}
             disabled={isDisabled}
           />
         )
@@ -831,7 +831,7 @@ function SubBlockComponent({
             blockId={blockId}
             subBlockId={config.id}
             isPreview={isPreview}
-            previewValue={previewValue as SortCondition[] | null | undefined}
+            previewValue={previewValue as SortRule[] | null | undefined}
             disabled={isDisabled}
           />
         )

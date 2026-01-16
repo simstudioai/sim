@@ -6,10 +6,7 @@ interface UseTableColumnsOptions {
   includeBuiltIn?: boolean
 }
 
-/**
- * Fetches table schema columns from the API.
- * Returns columns as options for use in dropdowns.
- */
+/** Fetches table schema columns as dropdown options. */
 export function useTableColumns({ tableId, includeBuiltIn = false }: UseTableColumnsOptions) {
   const [columns, setColumns] = useState<ColumnOption[]>([])
   const fetchedTableIdRef = useRef<string | null>(null)
@@ -45,7 +42,7 @@ export function useTableColumns({ tableId, includeBuiltIn = false }: UseTableCol
 
         fetchedTableIdRef.current = tableId
       } catch {
-        // Silently fail - columns will be empty
+        // Silently fail
       }
     }
 

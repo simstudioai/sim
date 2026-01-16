@@ -1,15 +1,15 @@
 import { X } from 'lucide-react'
 import { Button, Combobox, type ComboboxOption, Input } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import type { FilterCondition } from '@/lib/table/filters/constants'
+import type { FilterRule } from '@/lib/table/filters/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 
-interface FilterConditionRowProps {
+interface FilterRuleRowProps {
   blockId: string
   subBlockId: string
-  condition: FilterCondition
+  rule: FilterRule
   index: number
   columns: ComboboxOption[]
   comparisonOptions: ComboboxOption[]
@@ -18,13 +18,13 @@ interface FilterConditionRowProps {
   isPreview: boolean
   disabled: boolean
   onRemove: (id: string) => void
-  onUpdate: (id: string, field: keyof FilterCondition, value: string) => void
+  onUpdate: (id: string, field: keyof FilterRule, value: string) => void
 }
 
-export function FilterConditionRow({
+export function FilterRuleRow({
   blockId,
   subBlockId,
-  condition,
+  rule,
   index,
   columns,
   comparisonOptions,
@@ -34,7 +34,7 @@ export function FilterConditionRow({
   disabled,
   onRemove,
   onUpdate,
-}: FilterConditionRowProps) {
+}: FilterRuleRowProps) {
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   return (
@@ -42,7 +42,7 @@ export function FilterConditionRow({
       <Button
         variant='ghost'
         size='sm'
-        onClick={() => onRemove(condition.id)}
+        onClick={() => onRemove(rule.id)}
         disabled={isReadOnly}
         className='h-[24px] w-[24px] shrink-0 p-0 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
       >
@@ -61,8 +61,8 @@ export function FilterConditionRow({
           <Combobox
             size='sm'
             options={logicalOptions}
-            value={condition.logicalOperator}
-            onChange={(v) => onUpdate(condition.id, 'logicalOperator', v as 'and' | 'or')}
+            value={rule.logicalOperator}
+            onChange={(v) => onUpdate(rule.id, 'logicalOperator', v as 'and' | 'or')}
             disabled={isReadOnly}
           />
         )}
@@ -72,8 +72,8 @@ export function FilterConditionRow({
         <Combobox
           size='sm'
           options={columns}
-          value={condition.column}
-          onChange={(v) => onUpdate(condition.id, 'column', v)}
+          value={rule.column}
+          onChange={(v) => onUpdate(rule.id, 'column', v)}
           placeholder='Column'
           disabled={isReadOnly}
         />
@@ -83,8 +83,8 @@ export function FilterConditionRow({
         <Combobox
           size='sm'
           options={comparisonOptions}
-          value={condition.operator}
-          onChange={(v) => onUpdate(condition.id, 'operator', v)}
+          value={rule.operator}
+          onChange={(v) => onUpdate(rule.id, 'operator', v)}
           disabled={isReadOnly}
         />
       </div>
@@ -92,10 +92,10 @@ export function FilterConditionRow({
       <div className='relative min-w-[80px] flex-1'>
         <SubBlockInputController
           blockId={blockId}
-          subBlockId={`${subBlockId}_filter_${condition.id}`}
-          config={{ id: `filter_value_${condition.id}`, type: 'short-input' }}
-          value={condition.value}
-          onChange={(newValue) => onUpdate(condition.id, 'value', newValue)}
+          subBlockId={`${subBlockId}_filter_${rule.id}`}
+          config={{ id: `filter_value_${rule.id}`, type: 'short-input' }}
+          value={rule.value}
+          onChange={(newValue) => onUpdate(rule.id, 'value', newValue)}
           isPreview={isPreview}
           disabled={disabled}
         >

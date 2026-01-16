@@ -28,15 +28,7 @@ import {
 import { useContextMenu, useRowSelection, useTableData } from './hooks'
 import type { CellViewerData } from './types'
 
-/**
- * Main component for viewing and managing table data.
- *
- * Provides functionality for:
- * - Viewing rows with pagination
- * - Filtering and sorting
- * - Adding, editing, and deleting rows
- * - Viewing cell details for long/complex values
- */
+/** Table data viewer with filtering, sorting, pagination, and CRUD operations. */
 export function TableDataViewer() {
   const params = useParams()
   const router = useRouter()

@@ -4,31 +4,29 @@ import { useCallback, useMemo } from 'react'
 import { Plus } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { Button, type ComboboxOption } from '@/components/emcn'
-import { SORT_DIRECTIONS, type SortCondition } from '@/lib/table/filters/constants'
+import { SORT_DIRECTIONS, type SortRule } from '@/lib/table/filters/constants'
 import { useTableColumns } from '@/lib/table/hooks'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { EmptyState } from './components/empty-state'
-import { SortConditionRow } from './components/sort-condition-row'
+import { SortRuleRow } from './components/sort-rule-row'
 
 interface SortFormatProps {
   blockId: string
   subBlockId: string
   isPreview?: boolean
-  previewValue?: SortCondition[] | null
+  previewValue?: SortRule[] | null
   disabled?: boolean
   columns?: Array<{ value: string; label: string }>
   tableIdSubBlockId?: string
 }
 
-const createDefaultCondition = (columns: ComboboxOption[]): SortCondition => ({
+const createDefaultRule = (columns: ComboboxOption[]): SortRule => ({
   id: nanoid(),
   column: columns[0]?.value || '',
   direction: 'asc',
 })
 
-/**
- * Visual builder for sort conditions.
- */
+/** Visual builder for table sort rules in workflow blocks. */
 export function SortFormat({
   blockId,
   subBlockId,
@@ -38,7 +36,7 @@ export function SortFormat({
   columns: propColumns,
   tableIdSubBlockId = 'tableId',
 }: SortFormatProps) {
-  const [storeValue, setStoreValue] = useSubBlockValue<SortCondition[]>(blockId, subBlockId)
+  const [storeValue, setStoreValue] = useSubBlockValue<SortRule[]>(blockId, subBlockId)
   const [tableIdValue] = useSubBlockValue<string>(blockId, tableIdSubBlockId)
 
   const dynamicColumns = useTableColumns({ tableId: tableIdValue, includeBuiltIn: true })
@@ -53,52 +51,52 @@ export function SortFormat({
   )
 
   const value = isPreview ? previewValue : storeValue
-  const conditions: SortCondition[] = Array.isArray(value) && value.length > 0 ? value : []
+  const rules: SortRule[] = Array.isArray(value) && value.length > 0 ? value : []
   const isReadOnly = isPreview || disabled
 
-  const addCondition = useCallback(() => {
+  const addRule = useCallback(() => {
     if (isReadOnly) return
-    setStoreValue([...conditions, createDefaultCondition(columns)])
-  }, [isReadOnly, conditions, columns, setStoreValue])
+    setStoreValue([...rules, createDefaultRule(columns)])
+  }, [isReadOnly, rules, columns, setStoreValue])
 
-  const removeCondition = useCallback(
+  const removeRule = useCallback(
     (id: string) => {
       if (isReadOnly) return
-      setStoreValue(conditions.filter((c) => c.id !== id))
+      setStoreValue(rules.filter((r) => r.id !== id))
     },
-    [isReadOnly, conditions, setStoreValue]
+    [isReadOnly, rules, setStoreValue]
   )
 
-  const updateCondition = useCallback(
-    (id: string, field: keyof SortCondition, newValue: string) => {
+  const updateRule = useCallback(
+    (id: string, field: keyof SortRule, newValue: string) => {
       if (isReadOnly) return
-      setStoreValue(conditions.map((c) => (c.id === id ? { ...c, [field]: newValue } : c)))
+      setStoreValue(rules.map((r) => (r.id === id ? { ...r, [field]: newValue } : r)))
     },
-    [isReadOnly, conditions, setStoreValue]
+    [isReadOnly, rules, setStoreValue]
   )
 
   return (
     <div className='flex flex-col gap-[8px]'>
-      {conditions.length === 0 ? (
-        <EmptyState onAdd={addCondition} disabled={isReadOnly} label='Add sort condition' />
+      {rules.length === 0 ? (
+        <EmptyState onAdd={addRule} disabled={isReadOnly} label='Add sort rule' />
       ) : (
         <>
-          {conditions.map((condition, index) => (
-            <SortConditionRow
-              key={condition.id}
-              condition={condition}
+          {rules.map((rule, index) => (
+            <SortRuleRow
+              key={rule.id}
+              rule={rule}
               index={index}
               columns={columns}
               directionOptions={directionOptions}
               isReadOnly={isReadOnly}
-              onRemove={removeCondition}
-              onUpdate={updateCondition}
+              onRemove={removeRule}
+              onUpdate={updateRule}
             />
           ))}
           <Button
             variant='ghost'
             size='sm'
-            onClick={addCondition}
+            onClick={addRule}
             disabled={isReadOnly}
             className='self-start'
           >

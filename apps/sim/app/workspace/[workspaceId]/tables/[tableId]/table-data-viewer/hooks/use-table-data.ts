@@ -1,7 +1,3 @@
-/**
- * Hook for fetching table data and rows.
- */
-
 import { useQuery } from '@tanstack/react-query'
 import type { TableDefinition, TableRow } from '@/lib/table'
 import type { BuilderQueryResult } from '../../components/table-query-builder'
@@ -24,12 +20,7 @@ interface UseTableDataReturn {
   refetchRows: () => void
 }
 
-/**
- * Fetches table metadata and rows with filtering/sorting support.
- *
- * @param params - The parameters for fetching table data
- * @returns Table data, rows, and loading states
- */
+/** Fetches table metadata and rows with filtering/sorting/pagination. */
 export function useTableData({
   workspaceId,
   tableId,
@@ -65,7 +56,6 @@ export function useTableData({
       }
 
       if (queryOptions.sort) {
-        // sort is already in the correct format: { column: direction }
         searchParams.set('sort', JSON.stringify(queryOptions.sort))
       }
 

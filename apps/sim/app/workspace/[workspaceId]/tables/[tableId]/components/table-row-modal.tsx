@@ -30,9 +30,6 @@ export interface TableRowModalProps {
   onSuccess: () => void
 }
 
-/**
- * Creates initial form data for columns.
- */
 function createInitialRowData(columns: ColumnDefinition[]): Record<string, unknown> {
   const initial: Record<string, unknown> = {}
   columns.forEach((col) => {
@@ -166,9 +163,6 @@ export function TableRowModal({
     }
   }
 
-  /**
-   * Handles delete operation.
-   */
   const handleDelete = async () => {
     setError(null)
     setIsSubmitting(true)
@@ -324,9 +318,6 @@ export function TableRowModal({
   )
 }
 
-/**
- * Error message display component.
- */
 function ErrorMessage({ error }: { error: string | null }) {
   if (!error) return null
 
