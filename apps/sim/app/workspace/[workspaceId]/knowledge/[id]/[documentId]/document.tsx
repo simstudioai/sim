@@ -48,7 +48,7 @@ import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/componen
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/kb/use-knowledge'
-import { knowledgeKeys } from '@/hooks/queries/knowledge'
+import { knowledgeKeys, useDocumentChunkSearchQuery } from '@/hooks/queries/knowledge'
 
 const logger = createLogger('Document')
 
@@ -313,69 +313,22 @@ export function Document({
     isFetching: isFetchingChunks,
   } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL)
 
-  const [searchResults, setSearchResults] = useState<ChunkData[]>([])
-  const [isLoadingSearch, setIsLoadingSearch] = useState(false)
-  const [searchError, setSearchError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!debouncedSearchQuery.trim()) {
-      setSearchResults([])
-      setSearchError(null)
-      return
+  const {
+    data: searchResults = [],
+    isLoading: isLoadingSearch,
+    error: searchQueryError,
+  } = useDocumentChunkSearchQuery(
+    {
+      knowledgeBaseId,
+      documentId,
+      search: debouncedSearchQuery,
+    },
+    {
+      enabled: Boolean(debouncedSearchQuery.trim()),
     }
+  )
 
-    let isMounted = true
-
-    const searchAllChunks = async () => {
-      try {
-        setIsLoadingSearch(true)
-        setSearchError(null)
-
-        const allResults: ChunkData[] = []
-        let hasMore = true
-        let offset = 0
-        const limit = 100
-
-        while (hasMore && isMounted) {
-          const response = await fetch(
-            `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks?search=${encodeURIComponent(debouncedSearchQuery)}&limit=${limit}&offset=${offset}`
-          )
-
-          if (!response.ok) {
-            throw new Error('Search failed')
-          }
-
-          const result = await response.json()
-
-          if (result.success && result.data) {
-            allResults.push(...result.data)
-            hasMore = result.pagination?.hasMore || false
-            offset += limit
-          } else {
-            hasMore = false
-          }
-        }
-
-        if (isMounted) {
-          setSearchResults(allResults)
-        }
-      } catch (err) {
-        if (isMounted) {
-          setSearchError(err instanceof Error ? err.message : 'Search failed')
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingSearch(false)
-        }
-      }
-    }
-
-    searchAllChunks()
-
-    return () => {
-      isMounted = false
-    }
-  }, [debouncedSearchQuery, knowledgeBaseId, documentId])
+  const searchError = searchQueryError instanceof Error ? searchQueryError.message : null
 
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
   const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)

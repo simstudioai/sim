@@ -43,7 +43,6 @@ interface McpDeployProps {
   onAddedToServer?: () => void
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
-  onHasServersChange?: (hasServers: boolean) => void
 }
 
 /**
@@ -92,7 +91,6 @@ export function McpDeploy({
   onAddedToServer,
   onSubmittingChange,
   onCanSaveChange,
-  onHasServersChange,
 }: McpDeployProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -256,10 +254,6 @@ export function McpDeploy({
   useEffect(() => {
     onCanSaveChange?.(hasChanges && hasDeployedTools && !!toolName.trim())
   }, [hasChanges, hasDeployedTools, toolName, onCanSaveChange])
-
-  useEffect(() => {
-    onHasServersChange?.(servers.length > 0)
-  }, [servers.length, onHasServersChange])
 
   /**
    * Save tool configuration to all deployed servers

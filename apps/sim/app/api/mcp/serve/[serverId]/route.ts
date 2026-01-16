@@ -20,6 +20,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { generateInternalToken } from '@/lib/auth/internal'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('WorkflowMcpServeAPI')
@@ -52,6 +53,8 @@ async function getServer(serverId: string) {
       id: workflowMcpServer.id,
       name: workflowMcpServer.name,
       workspaceId: workflowMcpServer.workspaceId,
+      isPublic: workflowMcpServer.isPublic,
+      createdBy: workflowMcpServer.createdBy,
     })
     .from(workflowMcpServer)
     .where(eq(workflowMcpServer.id, serverId))
@@ -90,9 +93,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
       return NextResponse.json({ error: 'Server not found' }, { status: 404 })
     }
 
-    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
-    if (!auth.success || !auth.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!server.isPublic) {
+      const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+      if (!auth.success || !auth.userId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
     }
 
     const body = await request.json()
@@ -138,7 +143,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
           id,
           serverId,
           rpcParams as { name: string; arguments?: Record<string, unknown> },
-          apiKey
+          apiKey,
+          server.isPublic ? server.createdBy : undefined
         )
 
       default:
@@ -200,7 +206,8 @@ async function handleToolsCall(
   id: RequestId,
   serverId: string,
   params: { name: string; arguments?: Record<string, unknown> } | undefined,
-  apiKey?: string | null
+  apiKey?: string | null,
+  publicServerOwnerId?: string
 ): Promise<NextResponse> {
   try {
     if (!params?.name) {
@@ -243,7 +250,13 @@ async function handleToolsCall(
 
     const executeUrl = `${getBaseUrl()}/api/workflows/${tool.workflowId}/execute`
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (apiKey) headers['X-API-Key'] = apiKey
+
+    if (publicServerOwnerId) {
+      const internalToken = await generateInternalToken(publicServerOwnerId)
+      headers.Authorization = `Bearer ${internalToken}`
+    } else if (apiKey) {
+      headers['X-API-Key'] = apiKey
+    }
 
     logger.info(`Executing workflow ${tool.workflowId} via MCP tool ${params.name}`)
 

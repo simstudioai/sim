@@ -90,7 +90,6 @@ function generateMockValue(type: string, _description?: string, fieldName?: stri
  * Recursively processes nested output structures
  */
 function processOutputField(key: string, field: unknown, depth = 0, maxDepth = 10): unknown {
-  // Prevent infinite recursion
   if (depth > maxDepth) {
     return null
   }

@@ -11,10 +11,8 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
     "content/docs/execution/index.mdx",
-    "content/docs/connections/index.mdx",
-    ".next/dev/types/**/*.ts"
+    "content/docs/connections/index.mdx"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", ".next"]
 }
