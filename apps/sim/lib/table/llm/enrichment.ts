@@ -5,7 +5,91 @@
  * with table-specific information so LLMs can construct proper queries.
  */
 
+import { createLogger } from '@sim/logger'
 import type { TableSummary } from '../types'
+
+const logger = createLogger('TableLLMEnrichment')
+
+export interface TableEnrichmentContext {
+  workspaceId: string
+  workflowId: string
+  executeTool: (toolId: string, params: Record<string, any>) => Promise<any>
+}
+
+export interface TableEnrichmentResult {
+  description: string
+  parameters: {
+    properties: Record<string, any>
+    required: string[]
+  }
+}
+
+/**
+ * Enriches a table tool for LLM consumption by fetching its schema
+ * and injecting column information into the description and parameters.
+ *
+ * @param toolId - The table tool ID (e.g., 'table_query_rows')
+ * @param originalDescription - The tool's original description
+ * @param llmSchema - The original LLM schema
+ * @param userProvidedParams - Parameters provided by the user (must include tableId)
+ * @param context - Execution context with workspaceId, workflowId, and executeTool
+ * @returns Enriched description and parameters, or null if enrichment not applicable
+ */
+export async function enrichTableToolForLLM(
+  toolId: string,
+  originalDescription: string,
+  llmSchema: { properties?: Record<string, any>; required?: string[] },
+  userProvidedParams: Record<string, any>,
+  context: TableEnrichmentContext
+): Promise<TableEnrichmentResult | null> {
+  const { tableId } = userProvidedParams
+
+  // Need a tableId to fetch schema
+  if (!tableId) {
+    return null
+  }
+
+  try {
+    logger.info(`Fetching schema for table ${tableId}`)
+
+    const schemaResult = await context.executeTool('table_get_schema', {
+      tableId,
+      _context: {
+        workspaceId: context.workspaceId,
+        workflowId: context.workflowId,
+      },
+    })
+
+    if (!schemaResult.success || !schemaResult.output) {
+      logger.warn(`Failed to fetch table schema: ${schemaResult.error}`)
+      return null
+    }
+
+    const tableSchema: TableSummary = {
+      name: schemaResult.output.name,
+      columns: schemaResult.output.columns || [],
+    }
+
+    // Apply enrichment using the existing utility functions
+    const enrichedDescription = enrichTableToolDescription(originalDescription, tableSchema, toolId)
+
+    const enrichedParams = enrichTableToolParameters(llmSchema, tableSchema, toolId)
+
+    logger.info(`Enriched ${toolId} with ${tableSchema.columns.length} columns`)
+
+    return {
+      description: enrichedDescription,
+      parameters: {
+        properties: enrichedParams.properties,
+        required:
+          enrichedParams.required.length > 0 ? enrichedParams.required : llmSchema.required || [],
+      },
+    }
+  } catch (error) {
+    logger.warn(`Error fetching table schema:`, error)
+    return null
+  }
+}
 
 /**
  * Operations that use filters and need filter-specific enrichment.
