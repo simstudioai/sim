@@ -50,6 +50,16 @@ export interface UseSubBlockInputOptions {
     cursor: number
     event: 'change' | 'focus' | 'deleteAll'
   }) => { show: boolean; searchTerm?: string } | undefined
+  /**
+   * Optional callback to force/show the tag dropdown (e.g., empty inputs).
+   * Return { show: true } to override defaults.
+   * Called on 'focus' event.
+   */
+  shouldForceTagDropdown?: (args: {
+    value: string
+    cursor: number
+    event: 'focus'
+  }) => { show: boolean } | undefined
 }
 
 /**
@@ -89,7 +99,7 @@ export interface UseSubBlockInputResult {
     onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => void
     onDrop: (e: React.DragEvent<HTMLTextAreaElement | HTMLInputElement>) => void
     onDragOver: (e: React.DragEvent<HTMLTextAreaElement | HTMLInputElement>) => void
-    onFocus: () => void
+    onFocus: (e: React.FocusEvent<HTMLTextAreaElement | HTMLInputElement>) => void
     onScroll?: (e: React.UIEvent<HTMLTextAreaElement>) => void
   }
   /** Workspace id for env var dropdown scoping. */
@@ -114,6 +124,7 @@ export interface UseSubBlockInputResult {
       onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => void
       onDrop: (e: React.DragEvent<HTMLTextAreaElement | HTMLInputElement>) => void
       onDragOver: (e: React.DragEvent<HTMLTextAreaElement | HTMLInputElement>) => void
+      onFocus: (e: React.FocusEvent<HTMLTextAreaElement | HTMLInputElement>) => void
     }
     /** Hide dropdowns for a specific field */
     hideFieldDropdowns: (fieldId: string) => void
@@ -153,6 +164,7 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
     previewValue,
     workspaceId: workspaceIdProp,
     shouldForceEnvDropdown,
+    shouldForceTagDropdown,
   } = options
 
   const params = useParams()
@@ -338,22 +350,42 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
     [config?.connectionDroppable, valueString, onChange, isPreview, setStoreValue]
   )
 
-  const handleFocus = useCallback(() => {
-    if (shouldForceEnvDropdown) {
-      // Use a slight delay to ensure the input ref is populated
-      setTimeout(() => {
-        const forced = shouldForceEnvDropdown({
-          value: (inputRef.current as any)?.value ?? valueString,
-          cursor: (inputRef.current as any)?.selectionStart ?? valueString.length,
+  const handleFocus = useCallback(
+    (e: React.FocusEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+      // Get values directly from the event target - no setTimeout needed
+      const target = e.target as HTMLInputElement | HTMLTextAreaElement
+      const currentValue = target.value ?? valueString
+      const currentCursor = target.selectionStart ?? currentValue.length
+
+      // Check if tag dropdown should be forced (takes priority as it's more commonly used)
+      if (shouldForceTagDropdown) {
+        const forcedTag = shouldForceTagDropdown({
+          value: currentValue,
+          cursor: currentCursor,
           event: 'focus',
         })
-        if (forced?.show) {
-          setShowEnvVars(true)
-          setSearchTerm(forced.searchTerm ?? '')
+        if (forcedTag?.show) {
+          setCursorPosition(currentCursor)
+          setShowTags(true)
+          return // Exit early if tag dropdown is shown
         }
-      }, 0)
-    }
-  }, [shouldForceEnvDropdown, valueString])
+      }
+
+      // Check if env var dropdown should be forced
+      if (shouldForceEnvDropdown) {
+        const forcedEnv = shouldForceEnvDropdown({
+          value: currentValue,
+          cursor: currentCursor,
+          event: 'focus',
+        })
+        if (forcedEnv?.show) {
+          setShowEnvVars(true)
+          setSearchTerm(forcedEnv.searchTerm ?? '')
+        }
+      }
+    },
+    [shouldForceEnvDropdown, shouldForceTagDropdown, valueString]
+  )
 
   const onScroll = useCallback((_: React.UIEvent<HTMLTextAreaElement>) => {
     // Intentionally empty; consumers may mirror scroll to overlays if needed
@@ -468,6 +500,17 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
         onDragOver: (e: React.DragEvent<HTMLTextAreaElement | HTMLInputElement>) => {
           if (config?.connectionDroppable === false) return
           e.preventDefault()
+        },
+        onFocus: (e: React.FocusEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+          // Show tag dropdown on focus when field value is empty
+          const target = e.target as HTMLInputElement | HTMLTextAreaElement
+          const currentValue = target.value ?? fieldValue
+          if (!isDisabled && !isStreaming && currentValue.trim() === '') {
+            updateFieldState(fieldId, {
+              showTags: true,
+              cursorPosition: target.selectionStart ?? 0,
+            })
+          }
         },
       }
     },

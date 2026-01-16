@@ -192,6 +192,24 @@ export function ShortInput({
     [isApiKeyField, isPreview, disabled, readOnly]
   )
 
+  const shouldForceTagDropdown = useCallback(
+    ({
+      value,
+    }: {
+      value: string
+      cursor: number
+      event: 'focus'
+    }): { show: boolean } | undefined => {
+      if (isPreview || disabled || readOnly) return { show: false }
+      // Show tag dropdown on focus when input is empty (unless it's an API key field)
+      if (!isApiKeyField && value.trim() === '') {
+        return { show: true }
+      }
+      return { show: false }
+    },
+    [isPreview, disabled, readOnly, isApiKeyField]
+  )
+
   const baseValue = isPreview ? previewValue : propValue !== undefined ? propValue : undefined
 
   const effectiveValue =
@@ -316,6 +334,7 @@ export function ShortInput({
           isStreaming={wandHook.isStreaming}
           previewValue={previewValue}
           shouldForceEnvDropdown={shouldForceEnvDropdown}
+          shouldForceTagDropdown={shouldForceTagDropdown}
         >
           {({
             ref,
@@ -356,9 +375,9 @@ export function ShortInput({
                   type='text'
                   value={displayValue}
                   onChange={handleChange as (e: React.ChangeEvent<HTMLInputElement>) => void}
-                  onFocus={() => {
+                  onFocus={(e) => {
                     setIsFocused(true)
-                    onFocus()
+                    onFocus(e)
                   }}
                   onBlur={handleBlur}
                   onDrop={onDrop as (e: React.DragEvent<HTMLInputElement>) => void}

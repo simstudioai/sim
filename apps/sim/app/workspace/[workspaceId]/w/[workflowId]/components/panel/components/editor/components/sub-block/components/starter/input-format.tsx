@@ -211,6 +211,7 @@ export function FieldFormat({
           onKeyDown={handlers.onKeyDown}
           onDrop={handlers.onDrop}
           onDragOver={handlers.onDragOver}
+          onFocus={handlers.onFocus}
           onScroll={(e) => syncNameOverlayScroll(field.id, e.currentTarget.scrollLeft)}
           onPaste={() =>
             setTimeout(() => {
@@ -464,6 +465,7 @@ export function FieldFormat({
           onKeyDown={handlers.onKeyDown}
           onDrop={handlers.onDrop}
           onDragOver={handlers.onDragOver}
+          onFocus={handlers.onFocus}
           onScroll={(e) => syncOverlayScroll(field.id, e.currentTarget.scrollLeft)}
           onPaste={() =>
             setTimeout(() => {

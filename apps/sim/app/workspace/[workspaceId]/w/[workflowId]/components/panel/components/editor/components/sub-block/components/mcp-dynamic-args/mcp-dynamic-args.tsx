@@ -1,3 +1,4 @@
+import type { RefObject } from 'react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
@@ -111,7 +112,14 @@ function McpInputWithTags({
           data-lpignore='true'
           data-1p-ignore
           readOnly
-          onFocus={(e) => e.currentTarget.removeAttribute('readOnly')}
+          onFocus={(e) => {
+            e.currentTarget.removeAttribute('readOnly')
+            // Show tag dropdown on focus when input is empty
+            if (!disabled && (value?.trim() === '' || !value)) {
+              setShowTags(true)
+              setCursorPosition(0)
+            }
+          }}
           className={cn(!isPassword && 'text-transparent caret-foreground')}
         />
         {!isPassword && (
@@ -136,6 +144,7 @@ function McpInputWithTags({
           setShowTags(false)
           setActiveSourceBlockId(null)
         }}
+        inputRef={inputRef as RefObject<HTMLInputElement>}
       />
     </div>
   )
@@ -225,6 +234,13 @@ function McpTextareaWithTags({
         onChange={handleChange}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
+        onFocus={() => {
+          // Show tag dropdown on focus when input is empty
+          if (!disabled && (value?.trim() === '' || !value)) {
+            setShowTags(true)
+            setCursorPosition(0)
+          }
+        }}
         placeholder={placeholder}
         disabled={disabled}
         rows={rows}
@@ -254,6 +270,7 @@ function McpTextareaWithTags({
           setShowTags(false)
           setActiveSourceBlockId(null)
         }}
+        inputRef={textareaRef as RefObject<HTMLTextAreaElement>}
       />
     </div>
   )

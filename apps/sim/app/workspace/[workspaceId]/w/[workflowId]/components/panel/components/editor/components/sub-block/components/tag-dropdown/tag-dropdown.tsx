@@ -1210,7 +1210,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const textAfterCursor = liveValue.slice(liveCursor)
 
       const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
-      if (lastOpenBracket === -1) return
 
       let processedTag = tag
 
@@ -1256,17 +1255,25 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         }
       }
 
-      const nextCloseBracket = textAfterCursor.indexOf('>')
-      let remainingTextAfterCursor = textAfterCursor
+      let newValue: string
 
-      if (nextCloseBracket !== -1) {
-        const textBetween = textAfterCursor.slice(0, nextCloseBracket)
-        if (/^[a-zA-Z0-9._]*$/.test(textBetween)) {
-          remainingTextAfterCursor = textAfterCursor.slice(nextCloseBracket + 1)
+      if (lastOpenBracket === -1) {
+        // No '<' found - insert the full tag at cursor position
+        newValue = `${textBeforeCursor}<${processedTag}>${textAfterCursor}`
+      } else {
+        // '<' found - replace from '<' to cursor (and consume trailing '>' if present)
+        const nextCloseBracket = textAfterCursor.indexOf('>')
+        let remainingTextAfterCursor = textAfterCursor
+
+        if (nextCloseBracket !== -1) {
+          const textBetween = textAfterCursor.slice(0, nextCloseBracket)
+          if (/^[a-zA-Z0-9._]*$/.test(textBetween)) {
+            remainingTextAfterCursor = textAfterCursor.slice(nextCloseBracket + 1)
+          }
         }
-      }
 
-      const newValue = `${textBeforeCursor.slice(0, lastOpenBracket)}<${processedTag}>${remainingTextAfterCursor}`
+        newValue = `${textBeforeCursor.slice(0, lastOpenBracket)}<${processedTag}>${remainingTextAfterCursor}`
+      }
 
       onSelect(newValue)
       onClose?.()
