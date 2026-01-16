@@ -1,9 +1,5 @@
 import { createLogger } from '@sim/logger'
-import type {
-  CopilotMode,
-  CopilotModelId,
-  CopilotTransportMode,
-} from '@/lib/copilot/models'
+import type { CopilotMode, CopilotModelId, CopilotTransportMode } from '@/lib/copilot/models'
 
 const logger = createLogger('CopilotAPI')
 

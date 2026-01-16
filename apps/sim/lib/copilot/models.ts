@@ -33,4 +33,3 @@ export type CopilotTransportMode = (typeof COPILOT_TRANSPORT_MODES)[number]
 
 export const COPILOT_REQUEST_MODES = ['ask', 'build', 'plan', 'agent'] as const
 export type CopilotRequestMode = (typeof COPILOT_REQUEST_MODES)[number]
-

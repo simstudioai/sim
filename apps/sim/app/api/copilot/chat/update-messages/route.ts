@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { COPILOT_MODES } from '@/lib/copilot/models'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -11,7 +12,6 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
-import { COPILOT_MODES } from '@/lib/copilot/models'
 
 const logger = createLogger('CopilotChatUpdateAPI')
 

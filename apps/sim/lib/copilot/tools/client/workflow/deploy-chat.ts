@@ -281,18 +281,18 @@ export class DeployChatClientTool extends BaseClientTool {
       if (!res.ok) {
         if (json.error === 'Identifier already in use') {
           this.setState(ClientToolCallState.error)
-        await this.markToolComplete(
-          400,
-          `The identifier "${identifier}" is already in use. Please choose a different one.`,
-          {
-            success: false,
-            action: 'deploy',
-            isDeployed: false,
-            identifier,
-            error: `Identifier "${identifier}" is already taken`,
-            errorCode: 'IDENTIFIER_TAKEN',
-          }
-        )
+          await this.markToolComplete(
+            400,
+            `The identifier "${identifier}" is already in use. Please choose a different one.`,
+            {
+              success: false,
+              action: 'deploy',
+              isDeployed: false,
+              identifier,
+              error: `Identifier "${identifier}" is already taken`,
+              errorCode: 'IDENTIFIER_TAKEN',
+            }
+          )
           return
         }
 

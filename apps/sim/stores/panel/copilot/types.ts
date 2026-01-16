@@ -1,5 +1,7 @@
 import type { CopilotMode, CopilotModelId } from '@/lib/copilot/models'
+
 export type { CopilotMode, CopilotModelId } from '@/lib/copilot/models'
+
 import type { ClientToolCallState, ClientToolDisplay } from '@/lib/copilot/tools/client/base-tool'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 

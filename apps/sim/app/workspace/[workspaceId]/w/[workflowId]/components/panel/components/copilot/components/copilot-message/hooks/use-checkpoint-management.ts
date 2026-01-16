@@ -183,14 +183,7 @@ export function useCheckpointManagement(
     } finally {
       setIsProcessingDiscard(false)
     }
-  }, [
-    messageCheckpoints,
-    revertToCheckpoint,
-    message,
-    messages,
-    onEditModeChange,
-    onCancelEdit,
-  ])
+  }, [messageCheckpoints, revertToCheckpoint, message, messages, onEditModeChange, onCancelEdit])
 
   /**
    * Cancels checkpoint discard and clears pending edit

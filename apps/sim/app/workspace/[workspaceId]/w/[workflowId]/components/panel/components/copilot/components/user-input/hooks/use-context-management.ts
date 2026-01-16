@@ -81,7 +81,9 @@ export function useContextManagement({ message, initialContexts }: UseContextMan
         // Check for slash command tokens or mention tokens based on kind
         const isSlashCommand = c.kind === 'slash_command'
         const prefix = isSlashCommand ? '/' : '@'
-        const tokenPattern = new RegExp(`(^|\\s)${escapeRegex(prefix)}${escapeRegex(c.label)}(\\s|$)`)
+        const tokenPattern = new RegExp(
+          `(^|\\s)${escapeRegex(prefix)}${escapeRegex(c.label)}(\\s|$)`
+        )
         return tokenPattern.test(message)
       })
       return filtered.length === prev.length ? prev : filtered

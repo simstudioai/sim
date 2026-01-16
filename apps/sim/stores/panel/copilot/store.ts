@@ -978,7 +978,10 @@ function appendContinueOption(content: string): string {
 function appendContinueOptionBlock(blocks: any[]): any[] {
   if (!Array.isArray(blocks)) return blocks
   const hasOptions = blocks.some(
-    (block) => block?.type === TEXT_BLOCK_TYPE && typeof block.content === 'string' && /<options>/i.test(block.content)
+    (block) =>
+      block?.type === TEXT_BLOCK_TYPE &&
+      typeof block.content === 'string' &&
+      /<options>/i.test(block.content)
   )
   if (hasOptions) return blocks
   return [
@@ -1008,9 +1011,7 @@ function beginThinkingBlock(context: StreamingContext) {
  * Removes thinking tags (raw or escaped) from streamed content.
  */
 function stripThinkingTags(text: string): string {
-  return text
-    .replace(/<\/?thinking[^>]*>/gi, '')
-    .replace(/&lt;\/?thinking[^&]*&gt;/gi, '')
+  return text.replace(/<\/?thinking[^>]*>/gi, '').replace(/&lt;\/?thinking[^&]*&gt;/gi, '')
 }
 
 function appendThinkingContent(context: StreamingContext, text: string) {
@@ -1306,7 +1307,6 @@ const sseHandlers: Record<string, SSEHandler> = {
     upsertToolCallBlock(context, next)
     updateStreamingMessage(set, context)
 
-
     // Do not execute on partial tool_call frames
     if (isPartial) {
       return
@@ -1558,7 +1558,9 @@ const sseHandlers: Record<string, SSEHandler> = {
           hasProcessedContent = true
         } else {
           // Still in design_workflow block, accumulate content
-          const { text, remaining } = splitTrailingPartialTag(contentToProcess, ['</design_workflow>'])
+          const { text, remaining } = splitTrailingPartialTag(contentToProcess, [
+            '</design_workflow>',
+          ])
           context.designWorkflowContent += text
 
           // Update store with partial content for streaming effect (available in all modes)
@@ -1670,14 +1672,14 @@ const sseHandlers: Record<string, SSEHandler> = {
         const endMatch = thinkingEndRegex.exec(contentToProcess)
         if (endMatch) {
           const thinkingContent = contentToProcess.substring(0, endMatch.index)
-            appendThinkingContent(context, thinkingContent)
-            finalizeThinkingBlock(context)
+          appendThinkingContent(context, thinkingContent)
+          finalizeThinkingBlock(context)
           contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
           hasProcessedContent = true
         } else {
           const { text, remaining } = splitTrailingPartialTag(contentToProcess, ['</thinking>'])
           if (text) {
-              appendThinkingContent(context, text)
+            appendThinkingContent(context, text)
             hasProcessedContent = true
           }
           contentToProcess = remaining
@@ -1690,7 +1692,7 @@ const sseHandlers: Record<string, SSEHandler> = {
         if (startMatch) {
           const textBeforeThinking = contentToProcess.substring(0, startMatch.index)
           if (textBeforeThinking) {
-              appendTextBlock(context, textBeforeThinking)
+            appendTextBlock(context, textBeforeThinking)
             hasProcessedContent = true
           }
           context.isInThinkingBlock = true
@@ -2772,8 +2774,10 @@ export const useCopilotStore = create<CopilotStore>()(
               .map((b: any) => b.content)
               .join('') || ''
           const nextContentBlocks = suppressContinueOption
-            ? lastMessage.contentBlocks ?? []
-            : appendContinueOptionBlock(lastMessage.contentBlocks ? [...lastMessage.contentBlocks] : [])
+            ? (lastMessage.contentBlocks ?? [])
+            : appendContinueOptionBlock(
+                lastMessage.contentBlocks ? [...lastMessage.contentBlocks] : []
+              )
           set((state) => ({
             messages: state.messages.map((msg) =>
               msg.id === lastMessage.id
@@ -3344,9 +3348,10 @@ export const useCopilotStore = create<CopilotStore>()(
         }
 
         const finalContent = stripTodoTags(context.accumulatedContent.toString())
-        const finalContentWithOptions = context.wasAborted && !context.suppressContinueOption
-          ? appendContinueOption(finalContent)
-          : finalContent
+        const finalContentWithOptions =
+          context.wasAborted && !context.suppressContinueOption
+            ? appendContinueOption(finalContent)
+            : finalContent
         set((state) => {
           const snapshotId = state.currentUserMessageId
           const nextSnapshots =

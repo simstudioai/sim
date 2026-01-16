@@ -493,8 +493,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             {/* Content blocks in chronological order */}
             {memoizedContentBlocks}
 
-            {/* Streaming indicator always at bottom during streaming */}
-            {isStreaming && <StreamingIndicator />}
+            {isStreaming && (
+              <StreamingIndicator className={!hasVisibleContent ? 'mt-1' : undefined} />
+            )}
 
             {message.errorType === 'usage_limit' && (
               <div className='flex gap-1.5'>

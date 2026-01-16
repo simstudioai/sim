@@ -26,13 +26,15 @@ const diffEngine = new WorkflowDiffEngine()
 /**
  * Detects when a diff contains no meaningful changes.
  */
-function isEmptyDiffAnalysis(diffAnalysis?: { 
-  new_blocks?: string[]
-  edited_blocks?: string[]
-  deleted_blocks?: string[]
-  field_diffs?: Record<string, { changed_fields: string[] }>
-  edge_diff?: { new_edges?: string[]; deleted_edges?: string[] }
-} | null): boolean {
+function isEmptyDiffAnalysis(
+  diffAnalysis?: {
+    new_blocks?: string[]
+    edited_blocks?: string[]
+    deleted_blocks?: string[]
+    field_diffs?: Record<string, { changed_fields: string[] }>
+    edge_diff?: { new_edges?: string[]; deleted_edges?: string[] }
+  } | null
+): boolean {
   if (!diffAnalysis) return false
   const hasBlockChanges =
     (diffAnalysis.new_blocks?.length || 0) > 0 ||
@@ -41,10 +43,9 @@ function isEmptyDiffAnalysis(diffAnalysis?: {
   const hasEdgeChanges =
     (diffAnalysis.edge_diff?.new_edges?.length || 0) > 0 ||
     (diffAnalysis.edge_diff?.deleted_edges?.length || 0) > 0
-  const hasFieldChanges =
-    Object.values(diffAnalysis.field_diffs || {}).some(
-      (diff) => (diff?.changed_fields?.length || 0) > 0
-    )
+  const hasFieldChanges = Object.values(diffAnalysis.field_diffs || {}).some(
+    (diff) => (diff?.changed_fields?.length || 0) > 0
+  )
   return !hasBlockChanges && !hasEdgeChanges && !hasFieldChanges
 }
 

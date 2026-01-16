@@ -387,7 +387,10 @@ export function ThinkingBlock({
             isExpanded ? 'mt-1.5 max-h-[150px] opacity-100' : 'max-h-0 opacity-0'
           )}
         >
-          <SmoothThinkingText content={cleanContent} isStreaming={isStreaming && !hasFollowingContent} />
+          <SmoothThinkingText
+            content={cleanContent}
+            isStreaming={isStreaming && !hasFollowingContent}
+          />
         </div>
       </div>
     )

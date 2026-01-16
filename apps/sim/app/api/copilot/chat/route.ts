@@ -7,8 +7,8 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateChatTitle } from '@/lib/copilot/chat-title'
 import { getCopilotModel } from '@/lib/copilot/config'
-import { COPILOT_MODEL_IDS, COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { SIM_AGENT_API_URL_DEFAULT, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
+import { COPILOT_MODEL_IDS, COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
