@@ -44,58 +44,6 @@ function normalizeToolId(toolId: string): string {
 const MAX_REQUEST_BODY_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
 
 /**
- * Parameter aliases that LLMs commonly use as synonyms.
- * Maps alternative parameter names to their canonical names.
- * Key: toolId, Value: map of alias -> canonical parameter name
- */
-const PARAMETER_ALIASES: Record<string, Record<string, string>> = {
-  table_update_row: {
-    values: 'data',
-    row: 'data',
-    fields: 'data',
-    update: 'data',
-    updates: 'data',
-    changes: 'data',
-    newData: 'data',
-    rowData: 'data',
-  },
-  table_insert_row: {
-    values: 'data',
-    row: 'data',
-    fields: 'data',
-    rowData: 'data',
-  },
-  table_upsert_row: {
-    values: 'data',
-    row: 'data',
-    fields: 'data',
-    rowData: 'data',
-  },
-}
-
-/**
- * Applies parameter aliases to normalize LLM-provided parameters.
- * If the LLM uses an alias (e.g., "values" instead of "data"),
- * this function maps it to the canonical parameter name.
- */
-function applyParameterAliases(toolId: string, params: Record<string, any>): Record<string, any> {
-  const aliases = PARAMETER_ALIASES[toolId]
-  if (!aliases) return params
-
-  const normalizedParams = { ...params }
-
-  for (const [alias, canonical] of Object.entries(aliases)) {
-    // If the alias is present and the canonical name is not, copy the value
-    if (alias in normalizedParams && !(canonical in normalizedParams)) {
-      normalizedParams[canonical] = normalizedParams[alias]
-      delete normalizedParams[alias]
-    }
-  }
-
-  return normalizedParams
-}
-
-/**
  * User-friendly error message for body size limit exceeded
  */
 const BODY_SIZE_LIMIT_ERROR_MESSAGE =
@@ -287,8 +235,7 @@ export async function executeTool(
     }
 
     // Ensure context is preserved if it exists
-    // Apply parameter aliases to handle common LLM synonym usage (e.g., "values" -> "data")
-    const contextParams = applyParameterAliases(normalizedToolId, { ...params })
+    const contextParams = { ...params }
 
     // Validate the tool and its parameters
     validateRequiredParametersAfterMerge(toolId, tool, contextParams)

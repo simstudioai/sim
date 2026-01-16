@@ -14,7 +14,7 @@ export const tableUpsertRowTool: ToolConfig<TableRowInsertParams, TableUpsertRes
   id: 'table_upsert_row',
   name: 'Upsert Row',
   description:
-    'Insert or update a row based on unique column constraints. If a row with matching unique field exists, update it; otherwise insert a new row.',
+    'Insert or update a row based on unique column constraints. If a row with matching unique field exists, update it; otherwise insert a new row. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.',
   version: '1.0.0',
 
   params: {

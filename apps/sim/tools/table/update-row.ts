@@ -5,7 +5,7 @@ export const tableUpdateRowTool: ToolConfig<TableRowUpdateParams, TableRowRespon
   id: 'table_update_row',
   name: 'Update Row',
   description:
-    'Update an existing row in a table. Supports partial updates - only include the fields you want to change.',
+    'Update an existing row in a table. Supports partial updates - only include the fields you want to change. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the fields to update.',
   version: '1.0.0',
 
   params: {

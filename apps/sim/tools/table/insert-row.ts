@@ -4,7 +4,8 @@ import type { TableRowInsertParams, TableRowResponse } from './types'
 export const tableInsertRowTool: ToolConfig<TableRowInsertParams, TableRowResponse> = {
   id: 'table_insert_row',
   name: 'Insert Row',
-  description: 'Insert a new row into a table',
+  description:
+    'Insert a new row into a table. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.',
   version: '1.0.0',
 
   params: {
