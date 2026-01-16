@@ -403,11 +403,25 @@ export async function saveTriggerWebhooksForDeploy({
   const currentBlockIds = new Set(triggerBlocks.map((b) => b.id))
 
   // 1. Get all existing webhooks for this workflow
-  const existingWebhooks = await db.select().from(webhook).where(eq(webhook.workflowId, workflowId))
+  const existingWebhooks = await db
+    .select()
+    .from(webhook)
+    .where(
+      deploymentVersionId
+        ? and(
+            eq(webhook.workflowId, workflowId),
+            eq(webhook.deploymentVersionId, deploymentVersionId)
+          )
+        : eq(webhook.workflowId, workflowId)
+    )
 
-  const webhooksByBlockId = new Map(
-    existingWebhooks.filter((wh) => wh.blockId).map((wh) => [wh.blockId!, wh])
-  )
+  const webhooksByBlockId = new Map<string, typeof existingWebhooks>()
+  for (const wh of existingWebhooks) {
+    if (!wh.blockId) continue
+    const existingForBlock = webhooksByBlockId.get(wh.blockId) ?? []
+    existingForBlock.push(wh)
+    webhooksByBlockId.set(wh.blockId, existingForBlock)
+  }
 
   logger.info(`[${requestId}] Starting webhook sync`, {
     workflowId,
@@ -418,6 +432,7 @@ export async function saveTriggerWebhooksForDeploy({
   // 2. Determine which webhooks to delete (orphaned or config changed)
   const webhooksToDelete: typeof existingWebhooks = []
   const blocksNeedingWebhook: BlockState[] = []
+  const blocksNeedingCredentialSetSync: BlockState[] = []
 
   for (const block of triggerBlocks) {
     const triggerId = resolveTriggerId(block)
@@ -444,11 +459,24 @@ export async function saveTriggerWebhooksForDeploy({
 
     ;(block as any)._webhookConfig = { provider, providerConfig, triggerPath, triggerDef }
 
-    const existingWh = webhooksByBlockId.get(block.id)
-    if (!existingWh) {
+    if (providerConfig.credentialSetId) {
+      blocksNeedingCredentialSetSync.push(block)
+      continue
+    }
+
+    const existingForBlock = webhooksByBlockId.get(block.id) ?? []
+    if (existingForBlock.length === 0) {
       // No existing webhook - needs creation
       blocksNeedingWebhook.push(block)
     } else {
+      const [existingWh, ...extraWebhooks] = existingForBlock
+      if (extraWebhooks.length > 0) {
+        webhooksToDelete.push(...extraWebhooks)
+        logger.info(
+          `[${requestId}] Found ${extraWebhooks.length} extra webhook(s) for block ${block.id}`
+        )
+      }
+
       // Check if config changed
       const existingConfig = (existingWh.providerConfig as Record<string, unknown>) || {}
       if (
@@ -494,15 +522,14 @@ export async function saveTriggerWebhooksForDeploy({
     await db.delete(webhook).where(inArray(webhook.id, idsToDelete))
   }
 
-  // 4. Create webhooks for blocks that need them
-  for (const block of blocksNeedingWebhook) {
+  // 4. Sync credential set webhooks
+  for (const block of blocksNeedingCredentialSetSync) {
     const config = (block as any)._webhookConfig
     if (!config) continue
 
     const { provider, providerConfig, triggerPath } = config
 
     try {
-      // Handle credential sets
       const credentialSetError = await syncCredentialSetWebhooks({
         workflowId,
         blockId: block.id,
@@ -516,11 +543,26 @@ export async function saveTriggerWebhooksForDeploy({
       if (credentialSetError) {
         return { success: false, error: credentialSetError }
       }
-
-      if (providerConfig.credentialSetId) {
-        continue
+    } catch (error: any) {
+      logger.error(`[${requestId}] Failed to create webhook for ${block.id}`, error)
+      return {
+        success: false,
+        error: {
+          message: error?.message || 'Failed to save trigger configuration',
+          status: 500,
+        },
       }
+    }
+  }
 
+  // 5. Create webhooks for blocks that need them
+  for (const block of blocksNeedingWebhook) {
+    const config = (block as any)._webhookConfig
+    if (!config) continue
+
+    const { provider, providerConfig, triggerPath } = config
+
+    try {
       const createError = await createWebhookForBlock({
         request,
         workflowId,
@@ -552,13 +594,6 @@ export async function saveTriggerWebhooksForDeploy({
   // Clean up temp config
   for (const block of triggerBlocks) {
     ;(block as any)._webhookConfig = undefined
-  }
-
-  if (deploymentVersionId) {
-    await db
-      .update(webhook)
-      .set({ deploymentVersionId, updatedAt: new Date() })
-      .where(eq(webhook.workflowId, workflowId))
   }
 
   return { success: true }

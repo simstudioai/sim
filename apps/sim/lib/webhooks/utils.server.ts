@@ -2209,6 +2209,7 @@ export async function syncAllWebhooksForCredentialSet(
         providerConfig: baseConfig,
         requestId,
         tx: dbCtx,
+        deploymentVersionId: representativeWebhook.deploymentVersionId || undefined,
       })
 
       workflowsUpdated++
