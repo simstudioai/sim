@@ -245,10 +245,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
                 ? 'Your subscription is set to cancel at the end of the billing period. Would you like to keep your subscription active?'
                 : `You'll be redirected to Stripe to manage your subscription. You'll keep access until ${formatDate(
                     periodEndDate
-                  )}, then downgrade to free plan.`}{' '}
-              {!isCancelAtPeriodEnd && (
-                <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-              )}
+                  )}, then downgrade to free plan. You can restore your subscription at any time.`}
             </p>
 
             {!isCancelAtPeriodEnd && (
