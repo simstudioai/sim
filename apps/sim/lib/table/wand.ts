@@ -5,23 +5,14 @@
  */
 
 import { createLogger } from '@sim/logger'
-import type { TableSchema } from './types'
+import type { TableInfo } from './types'
 
 const logger = createLogger('TableWandContext')
 
-interface TableSchemaResponse {
-  data?: {
-    table?: {
-      id: string
-      name?: string | null
-      schema?: TableSchema
-    }
-  }
-  table?: {
-    id: string
-    name?: string | null
-    schema?: TableSchema
-  }
+/** API response wrapper for table info. Handles both direct and nested response formats. */
+interface TableInfoResponse {
+  data?: { table?: TableInfo }
+  table?: TableInfo
 }
 
 /**
@@ -44,7 +35,7 @@ export async function fetchTableSchemaContext({
       return null
     }
 
-    const result = (await response.json()) as TableSchemaResponse
+    const result = (await response.json()) as TableInfoResponse
     const table = result.data?.table ?? result.table
     const schema = table?.schema
 

@@ -48,6 +48,12 @@ export interface TableDefinition {
 /** Minimal table info for UI components. */
 export type TableInfo = Pick<TableDefinition, 'id' | 'name' | 'schema'>
 
+/** Simplified table summary for LLM enrichment and display contexts. */
+export interface TableSummary {
+  name: string
+  columns: Array<Pick<ColumnDefinition, 'name' | 'type'>>
+}
+
 export interface TableRow {
   id: string
   data: RowData

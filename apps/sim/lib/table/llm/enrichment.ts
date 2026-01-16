@@ -5,13 +5,7 @@
  * with table-specific information so LLMs can construct proper queries.
  */
 
-/**
- * Table schema information used for LLM enrichment.
- */
-export interface TableSchemaInfo {
-  name: string
-  columns: Array<{ name: string; type: string }>
-}
+import type { TableSummary } from '../types'
 
 /**
  * Operations that use filters and need filter-specific enrichment.
@@ -33,28 +27,28 @@ export const DATA_OPERATIONS = new Set([
 ])
 
 /**
- * Enriches a table tool description with schema information based on the operation type.
+ * Enriches a table tool description with table information based on the operation type.
  *
  * @param originalDescription - The original tool description
- * @param tableSchema - The table schema with name and columns
+ * @param table - The table summary with name and columns
  * @param toolId - The tool identifier to determine operation type
  * @returns Enriched description with table-specific instructions
  */
 export function enrichTableToolDescription(
   originalDescription: string,
-  tableSchema: TableSchemaInfo,
+  table: TableSummary,
   toolId: string
 ): string {
-  if (!tableSchema.columns || tableSchema.columns.length === 0) {
+  if (!table.columns || table.columns.length === 0) {
     return originalDescription
   }
 
-  const columnList = tableSchema.columns.map((col) => `  - ${col.name} (${col.type})`).join('\n')
+  const columnList = table.columns.map((col) => `  - ${col.name} (${col.type})`).join('\n')
 
   // Filter-based operations: emphasize filter usage
   if (FILTER_OPERATIONS.has(toolId)) {
-    const stringCols = tableSchema.columns.filter((c) => c.type === 'string')
-    const numberCols = tableSchema.columns.filter((c) => c.type === 'number')
+    const stringCols = table.columns.filter((c) => c.type === 'string')
+    const numberCols = table.columns.filter((c) => c.type === 'number')
 
     let filterExample = ''
     if (stringCols.length > 0 && numberCols.length > 0) {
@@ -96,14 +90,14 @@ INSTRUCTIONS:
     return `${originalDescription}
 ${queryInstructions}
 
-Table "${tableSchema.name}" columns:
+Table "${table.name}" columns:
 ${columnList}
 ${filterExample}${sortExample}`
   }
 
   // Data operations: show columns for data construction
   if (DATA_OPERATIONS.has(toolId)) {
-    const exampleCols = tableSchema.columns.slice(0, 3)
+    const exampleCols = table.columns.slice(0, 3)
     const dataExample = exampleCols.reduce(
       (obj, col) => {
         obj[col.name] = col.type === 'number' ? 123 : col.type === 'boolean' ? true : 'example'
@@ -114,7 +108,7 @@ ${filterExample}${sortExample}`
 
     return `${originalDescription}
 
-Table "${tableSchema.name}" available columns:
+Table "${table.name}" available columns:
 ${columnList}
 
 Pass the "data" parameter with an object like: ${JSON.stringify(dataExample)}`
@@ -123,7 +117,7 @@ Pass the "data" parameter with an object like: ${JSON.stringify(dataExample)}`
   // Default: just show columns
   return `${originalDescription}
 
-Table "${tableSchema.name}" columns:
+Table "${table.name}" columns:
 ${columnList}`
 }
 
@@ -131,23 +125,23 @@ ${columnList}`
  * Enriches LLM tool parameters with table-specific information.
  *
  * @param llmSchema - The original LLM schema with properties and required fields
- * @param tableSchema - The table schema with name and columns
+ * @param table - The table summary with name and columns
  * @param toolId - The tool identifier to determine operation type
  * @returns Enriched schema with updated property descriptions and required fields
  */
 export function enrichTableToolParameters(
   llmSchema: { properties?: Record<string, any>; required?: string[] },
-  tableSchema: TableSchemaInfo,
+  table: TableSummary,
   toolId: string
 ): { properties: Record<string, any>; required: string[] } {
-  if (!tableSchema.columns || tableSchema.columns.length === 0) {
+  if (!table.columns || table.columns.length === 0) {
     return {
       properties: llmSchema.properties || {},
       required: llmSchema.required || [],
     }
   }
 
-  const columnNames = tableSchema.columns.map((c) => c.name).join(', ')
+  const columnNames = table.columns.map((c) => c.name).join(', ')
   const enrichedProperties = { ...llmSchema.properties }
   const enrichedRequired = llmSchema.required ? [...llmSchema.required] : []
 
@@ -182,7 +176,7 @@ export function enrichTableToolParameters(
 
   // Enrich data parameter for insert/update operations
   if (enrichedProperties.data && DATA_OPERATIONS.has(toolId)) {
-    const exampleCols = tableSchema.columns.slice(0, 2)
+    const exampleCols = table.columns.slice(0, 2)
     const exampleData = exampleCols.reduce(
       (obj: Record<string, unknown>, col: { name: string; type: string }) => {
         obj[col.name] = col.type === 'number' ? 123 : col.type === 'boolean' ? true : 'value'
