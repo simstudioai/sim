@@ -63,7 +63,6 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
         throw new Error('Missing or invalid API key: A valid Reducto API key is required')
       }
 
-      // Check if we have a file upload instead of direct URL
       if (
         params.fileUpload &&
         (!params.filePath || params.filePath === 'null' || params.filePath === '')
@@ -110,13 +109,6 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
         if (!['http:', 'https:'].includes(url.protocol)) {
           throw new Error(`Invalid protocol: ${url.protocol}. URL must use HTTP or HTTPS protocol`)
         }
-
-        if (url.hostname.includes('drive.google.com') || url.hostname.includes('docs.google.com')) {
-          throw new Error(
-            'Google Drive links are not supported by the Reducto API. ' +
-              'Please upload your PDF to a public web server or provide a direct download link.'
-          )
-        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         throw new Error(
@@ -129,7 +121,6 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
         filePath: url.toString(),
       }
 
-      // Check if this is an internal workspace file path
       if (params.fileUpload?.path?.startsWith('/api/files/serve/')) {
         requestBody.filePath = params.fileUpload.path
       }
@@ -138,7 +129,6 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
         requestBody.tableOutputFormat = params.tableOutputFormat
       }
 
-      // Page selection
       if (params.pages !== undefined && params.pages !== null) {
         if (Array.isArray(params.pages) && params.pages.length > 0) {
           const validPages = params.pages.filter(
@@ -162,7 +152,6 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
       throw new Error('Invalid response format from Reducto API')
     }
 
-    // Pass through the native Reducto response
     const reductoData = data.output ?? data
 
     return {
