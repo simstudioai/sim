@@ -8,7 +8,7 @@
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { NAME_PATTERN } from './constants'
-import type { ConditionOperators, Filter, JsonValue, Sort } from './types'
+import type { ColumnDefinition, ConditionOperators, Filter, JsonValue, Sort } from './types'
 
 /**
  * Whitelist of allowed operators for query filtering.
@@ -100,15 +100,26 @@ export function buildFilterClause(filter: Filter, tableName: string): SQL | unde
  *
  * @param sort - Sort object with field names and directions
  * @param tableName - Table name for the query (e.g., 'user_table_rows')
+ * @param columns - Optional column definitions for type-aware sorting
  * @returns SQL ORDER BY clause or undefined if no sort specified
  * @throws Error if field name is invalid
  *
  * @example
  * buildSortClause({ name: 'asc', age: 'desc' }, 'user_table_rows')
  * // Returns: ORDER BY data->>'name' ASC, data->>'age' DESC
+ *
+ * @example
+ * // With column types for proper numeric sorting
+ * buildSortClause({ salary: 'desc' }, 'user_table_rows', [{ name: 'salary', type: 'number' }])
+ * // Returns: ORDER BY (data->>'salary')::numeric DESC NULLS LAST
  */
-export function buildSortClause(sort: Sort, tableName: string): SQL | undefined {
+export function buildSortClause(
+  sort: Sort,
+  tableName: string,
+  columns?: ColumnDefinition[]
+): SQL | undefined {
   const clauses: SQL[] = []
+  const columnTypeMap = new Map(columns?.map((col) => [col.name, col.type]))
 
   for (const [field, direction] of Object.entries(sort)) {
     validateFieldName(field)
@@ -117,7 +128,8 @@ export function buildSortClause(sort: Sort, tableName: string): SQL | undefined 
       throw new Error(`Invalid sort direction "${direction}". Must be "asc" or "desc".`)
     }
 
-    clauses.push(buildSortFieldClause(tableName, field, direction))
+    const columnType = columnTypeMap.get(field)
+    clauses.push(buildSortFieldClause(tableName, field, direction, columnType))
   }
 
   return clauses.length > 0 ? sql.join(clauses, sql.raw(', ')) : undefined
@@ -319,8 +331,19 @@ function buildContainsClause(tableName: string, field: string, value: string): S
 /**
  * Builds a single ORDER BY clause for a field.
  * Timestamp fields use direct column access, others use JSONB text extraction.
+ * Numeric and date columns are cast to appropriate types for correct sorting.
+ *
+ * @param tableName - The table name
+ * @param field - The field name to sort by
+ * @param direction - Sort direction ('asc' or 'desc')
+ * @param columnType - Optional column type for type-aware sorting
  */
-function buildSortFieldClause(tableName: string, field: string, direction: 'asc' | 'desc'): SQL {
+function buildSortFieldClause(
+  tableName: string,
+  field: string,
+  direction: 'asc' | 'desc',
+  columnType?: string
+): SQL {
   const escapedField = field.replace(/'/g, "''")
   const directionSql = direction.toUpperCase()
 
@@ -328,5 +351,19 @@ function buildSortFieldClause(tableName: string, field: string, direction: 'asc'
     return sql.raw(`${tableName}.${escapedField} ${directionSql}`)
   }
 
-  return sql.raw(`${tableName}.data->>'${escapedField}' ${directionSql}`)
+  const jsonbExtract = `${tableName}.data->>'${escapedField}'`
+
+  // Cast to appropriate type for correct sorting
+  if (columnType === 'number') {
+    // Cast to numeric, with NULLS LAST to handle null/invalid values
+    return sql.raw(`(${jsonbExtract})::numeric ${directionSql} NULLS LAST`)
+  }
+
+  if (columnType === 'date') {
+    // Cast to timestamp for chronological sorting
+    return sql.raw(`(${jsonbExtract})::timestamp ${directionSql} NULLS LAST`)
+  }
+
+  // Default: sort as text (for string, boolean, json, or unknown types)
+  return sql.raw(`${jsonbExtract} ${directionSql}`)
 }

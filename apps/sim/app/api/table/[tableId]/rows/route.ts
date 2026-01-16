@@ -17,12 +17,7 @@ import {
   validateUniqueConstraints,
 } from '@/lib/table'
 import { buildFilterClause, buildSortClause } from '@/lib/table/query-builder'
-import {
-  checkAccessOrRespond,
-  checkAccessWithFullTable,
-  checkTableAccess,
-  verifyTableWorkspace,
-} from '../../utils'
+import { checkAccessOrRespond, checkAccessWithFullTable, verifyTableWorkspace } from '../../utils'
 
 const logger = createLogger('TableRowsAPI')
 
@@ -378,25 +373,22 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
       offset,
     })
 
-    // Check table access (centralized access control)
-    const accessCheck = await checkTableAccess(tableId, authResult.userId)
+    // Check table access with full table data (includes schema for type-aware sorting)
+    const accessResult = await checkAccessWithFullTable(
+      tableId,
+      authResult.userId,
+      requestId,
+      'read'
+    )
+    if (accessResult instanceof NextResponse) return accessResult
 
-    if (!accessCheck.hasAccess) {
-      if ('notFound' in accessCheck && accessCheck.notFound) {
-        logger.warn(`[${requestId}] Table not found: ${tableId}`)
-        return NextResponse.json({ error: 'Table not found' }, { status: 404 })
-      }
-      logger.warn(
-        `[${requestId}] User ${authResult.userId} attempted to query rows from unauthorized table ${tableId}`
-      )
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
+    const { table } = accessResult
 
     // Security check: verify workspaceId matches the table's workspace
     const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
     if (!isValidWorkspace) {
       logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
       )
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
@@ -426,9 +418,10 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
       .from(userTableRows)
       .where(and(...baseConditions))
 
-    // Apply sorting
+    // Apply sorting with type-aware column handling
     if (validated.sort) {
-      const sortClause = buildSortClause(validated.sort, 'user_table_rows')
+      const schema = table.schema as TableSchema
+      const sortClause = buildSortClause(validated.sort, 'user_table_rows', schema.columns)
       if (sortClause) {
         query = query.orderBy(sortClause) as typeof query
       }

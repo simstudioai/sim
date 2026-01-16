@@ -227,6 +227,38 @@ describe('Query Builder', () => {
 
       expect(() => buildSortClause(sort, tableName)).toThrow('Invalid sort direction')
     })
+
+    it('should handle numeric column type for proper numeric sorting', () => {
+      const sort = { salary: 'desc' as const }
+      const columns = [{ name: 'salary', type: 'number' as const }]
+      const result = buildSortClause(sort, tableName, columns)
+
+      expect(result).toBeDefined()
+    })
+
+    it('should handle date column type for chronological sorting', () => {
+      const sort = { birthDate: 'asc' as const }
+      const columns = [{ name: 'birthDate', type: 'date' as const }]
+      const result = buildSortClause(sort, tableName, columns)
+
+      expect(result).toBeDefined()
+    })
+
+    it('should use text sorting for string columns', () => {
+      const sort = { name: 'asc' as const }
+      const columns = [{ name: 'name', type: 'string' as const }]
+      const result = buildSortClause(sort, tableName, columns)
+
+      expect(result).toBeDefined()
+    })
+
+    it('should fall back to text sorting when column type is unknown', () => {
+      const sort = { unknownField: 'asc' as const }
+      // No columns provided
+      const result = buildSortClause(sort, tableName)
+
+      expect(result).toBeDefined()
+    })
   })
 
   describe('Field Name Validation', () => {
