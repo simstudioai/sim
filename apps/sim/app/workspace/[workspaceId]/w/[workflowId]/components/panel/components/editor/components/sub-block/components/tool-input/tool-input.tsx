@@ -52,7 +52,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tool-credential-selector'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import { useChildDeployment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks/use-child-deployment'
 import { getAllBlocks } from '@/blocks'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import {
@@ -60,7 +59,12 @@ import {
   useCustomTools,
 } from '@/hooks/queries/custom-tools'
 import { useForceRefreshMcpTools, useMcpServers, useStoredMcpTools } from '@/hooks/queries/mcp'
-import { useWorkflowInputFields, useWorkflows } from '@/hooks/queries/workflows'
+import {
+  useChildDeploymentStatus,
+  useDeployChildWorkflow,
+  useWorkflowInputFields,
+  useWorkflows,
+} from '@/hooks/queries/workflows'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
 import { useSettingsModalStore } from '@/stores/modals/settings/store'
@@ -756,37 +760,26 @@ function WorkflowToolDeployBadge({
   workflowId: string
   onDeploySuccess?: () => void
 }) {
-  const { isDeployed, needsRedeploy, isLoading, refetch } = useChildDeployment(workflowId)
-  const [isDeploying, setIsDeploying] = useState(false)
+  const { data, isLoading } = useChildDeploymentStatus(workflowId)
+  const deployMutation = useDeployChildWorkflow()
   const userPermissions = useUserPermissionsContext()
 
-  const deployWorkflow = useCallback(async () => {
+  const isDeployed = data?.isDeployed ?? null
+  const needsRedeploy = data?.needsRedeploy ?? false
+  const isDeploying = deployMutation.isPending
+
+  const deployWorkflow = useCallback(() => {
     if (isDeploying || !workflowId || !userPermissions.canAdmin) return
 
-    try {
-      setIsDeploying(true)
-      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+    deployMutation.mutate(
+      { workflowId },
+      {
+        onSuccess: () => {
+          onDeploySuccess?.()
         },
-        body: JSON.stringify({
-          deployChatEnabled: false,
-        }),
-      })
-
-      if (response.ok) {
-        refetch()
-        onDeploySuccess?.()
-      } else {
-        logger.error('Failed to deploy workflow')
       }
-    } catch (error) {
-      logger.error('Error deploying workflow:', error)
-    } finally {
-      setIsDeploying(false)
-    }
-  }, [isDeploying, workflowId, refetch, onDeploySuccess, userPermissions.canAdmin])
+    )
+  }, [isDeploying, workflowId, userPermissions.canAdmin, deployMutation, onDeploySuccess])
 
   if (isLoading || (isDeployed && !needsRedeploy)) {
     return null
