@@ -124,6 +124,28 @@ export function Editor() {
     currentWorkflow.isSnapshotView
   )
 
+  /**
+   * Partitions subBlocks into regular fields and standalone advanced-only fields.
+   * Standalone advanced fields have mode 'advanced' and are not part of a canonical swap pair.
+   */
+  const { regularSubBlocks, advancedOnlySubBlocks } = useMemo(() => {
+    const regular: typeof subBlocks = []
+    const advancedOnly: typeof subBlocks = []
+
+    for (const subBlock of subBlocks) {
+      const isStandaloneAdvanced =
+        subBlock.mode === 'advanced' && !canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
+
+      if (isStandaloneAdvanced) {
+        advancedOnly.push(subBlock)
+      } else {
+        regular.push(subBlock)
+      }
+    }
+
+    return { regularSubBlocks: regular, advancedOnlySubBlocks: advancedOnly }
+  }, [subBlocks, canonicalIndex.canonicalIdBySubBlockId])
+
   // Get block connections
   const { incomingConnections, hasIncomingConnections } = useBlockConnections(currentBlockId || '')
 
@@ -346,14 +368,14 @@ export function Editor() {
             ref={subBlocksRef}
             className='subblocks-section flex flex-1 flex-col overflow-hidden'
           >
-            <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px] pt-[12px] pb-[8px]'>
+            <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px] pt-[12px] pb-[8px] [overflow-anchor:none]'>
               {subBlocks.length === 0 ? (
                 <div className='flex h-full items-center justify-center text-center text-[#8D8D8D] text-[13px]'>
                   This block has no subblocks
                 </div>
               ) : (
                 <div className='flex flex-col'>
-                  {subBlocks.map((subBlock, index) => {
+                  {regularSubBlocks.map((subBlock, index) => {
                     const stableKey = getSubBlockStableKey(
                       currentBlockId || '',
                       subBlock,
@@ -372,6 +394,10 @@ export function Editor() {
                             canonicalModeOverrides
                           )
                         : undefined
+
+                    const showDivider =
+                      index < regularSubBlocks.length - 1 ||
+                      (!hasAdvancedOnlyFields && index < subBlocks.length - 1)
 
                     return (
                       <div key={stableKey} className='subblock-row'>
@@ -402,7 +428,7 @@ export function Editor() {
                               : undefined
                           }
                         />
-                        {index < subBlocks.length - 1 && (
+                        {showDivider && (
                           <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
                             <div
                               className='h-[1.25px]'
@@ -416,30 +442,68 @@ export function Editor() {
                       </div>
                     )
                   })}
-                </div>
-              )}
 
-              {/* Advanced Mode Toggle - Only show when block has standalone advanced-only fields */}
-              {hasAdvancedOnlyFields && userPermissions.canEdit && (
-                <div className='flex items-center justify-center pt-[8px] pb-[4px]'>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    onClick={handleToggleAdvancedMode}
-                    className='h-[28px] gap-[6px] px-[10px] text-[12px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                  >
-                    {displayAdvancedOptions ? (
-                      <>
-                        <ChevronUp className='h-[14px] w-[14px]' />
-                        Hide advanced fields
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className='h-[14px] w-[14px]' />
-                        Show advanced fields
-                      </>
-                    )}
-                  </Button>
+                  {hasAdvancedOnlyFields && userPermissions.canEdit && (
+                    <div className='flex items-center gap-[10px] px-[2px] pt-[14px] pb-[12px]'>
+                      <div
+                        className='h-[1.25px] flex-1'
+                        style={{
+                          backgroundImage:
+                            'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
+                        }}
+                      />
+                      <button
+                        type='button'
+                        onClick={handleToggleAdvancedMode}
+                        className='flex items-center gap-[6px] whitespace-nowrap font-medium text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                      >
+                        {displayAdvancedOptions ? 'Hide advanced fields' : 'Show advanced fields'}
+                        <ChevronDown
+                          className={`h-[14px] w-[14px] transition-transform duration-200 ${displayAdvancedOptions ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+                      <div
+                        className='h-[1.25px] flex-1'
+                        style={{
+                          backgroundImage:
+                            'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {advancedOnlySubBlocks.map((subBlock, index) => {
+                    const stableKey = getSubBlockStableKey(
+                      currentBlockId || '',
+                      subBlock,
+                      subBlockState
+                    )
+
+                    return (
+                      <div key={stableKey} className='subblock-row'>
+                        <SubBlock
+                          blockId={currentBlockId}
+                          config={subBlock}
+                          isPreview={false}
+                          subBlockValues={subBlockState}
+                          disabled={!userPermissions.canEdit}
+                          fieldDiffStatus={undefined}
+                          allowExpandInPreview={false}
+                        />
+                        {index < advancedOnlySubBlocks.length - 1 && (
+                          <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
+                            <div
+                              className='h-[1.25px]'
+                              style={{
+                                backgroundImage:
+                                  'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
