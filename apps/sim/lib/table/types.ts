@@ -66,10 +66,20 @@ export interface TableRow {
 }
 
 /**
- * Filter operator conditions for query filtering.
+ * Operators that form a condition for a field.
  * Supports MongoDB-style query operators.
+ *
+ * @example
+ * // Single operator
+ * { $eq: 'John' }           // field equals 'John'
+ * { $gt: 18 }               // field greater than 18
+ * { $in: ['active', 'pending'] }  // field in array
+ * { $contains: 'search' }   // field contains 'search' (case-insensitive)
+ *
+ * // Multiple operators (all must match)
+ * { $gte: 18, $lt: 65 }    // field >= 18 AND field < 65
  */
-export interface FilterOperator {
+export interface ConditionOperators {
   $eq?: ColumnValue
   $ne?: ColumnValue
   $gt?: number
@@ -83,12 +93,42 @@ export interface FilterOperator {
 
 /**
  * Filter for querying table rows.
- * Keys are column names, values are either direct values or filter operators.
+ * Keys are column names, values are either direct values (shorthand for equality)
+ * or ConditionOperators objects for complex conditions.
+ *
+ * @example
+ * // Simple equality (shorthand - equivalent to { name: { $eq: 'John' } })
+ * { name: 'John' }
+ *
+ * // Using ConditionOperators for a single field
+ * { age: { $gt: 18 } }
+ * { status: { $in: ['active', 'pending'] } }
+ *
+ * // Multiple fields (AND logic)
+ * { name: 'John', age: { $gte: 18 } }  // name = 'John' AND age >= 18
+ *
+ * // Logical OR
+ * { $or: [
+ *   { status: 'active' },
+ *   { status: 'pending' }
+ * ]}
+ *
+ * // Logical AND
+ * { $and: [
+ *   { age: { $gte: 18 } },
+ *   { verified: true }
+ * ]}
+ *
+ * // Nested logical operators
+ * { $or: [
+ *   { $and: [{ status: 'active' }, { age: { $gte: 18 } }] },
+ *   { role: 'admin' }
+ * ]}
  */
 export interface Filter {
   $or?: Filter[]
   $and?: Filter[]
-  [key: string]: ColumnValue | FilterOperator | Filter[] | undefined
+  [key: string]: ColumnValue | ConditionOperators | Filter[] | undefined
 }
 
 /**

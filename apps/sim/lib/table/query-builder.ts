@@ -8,7 +8,7 @@
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { NAME_PATTERN } from './constants'
-import type { Filter, FilterOperator, JsonValue } from './types'
+import type { ConditionOperators, Filter, JsonValue, Sort } from './types'
 
 /**
  * Whitelist of allowed operators for query filtering.
@@ -25,6 +25,103 @@ const ALLOWED_OPERATORS = new Set([
   '$nin',
   '$contains',
 ])
+
+/**
+ * Builds a WHERE clause from a filter object.
+ * Recursively processes logical operators ($or, $and) and field conditions.
+ *
+ * @param filter - Filter object with field conditions and logical operators
+ * @param tableName - Table name for the query (e.g., 'user_table_rows')
+ * @returns SQL WHERE clause or undefined if no filter specified
+ * @throws Error if field name is invalid or operator is not allowed
+ *
+ * @example
+ * // Simple equality
+ * buildFilterClause({ name: 'John' }, 'user_table_rows')
+ *
+ * // Complex filter with operators
+ * buildFilterClause({ age: { $gte: 18 }, status: { $in: ['active', 'pending'] } }, 'user_table_rows')
+ *
+ * // Logical operators
+ * buildFilterClause({ $or: [{ status: 'active' }, { verified: true }] }, 'user_table_rows')
+ */
+export function buildFilterClause(filter: Filter, tableName: string): SQL | undefined {
+  const conditions: SQL[] = []
+
+  for (const [field, condition] of Object.entries(filter)) {
+    if (condition === undefined) {
+      continue
+    }
+
+    // This represents a case where the filter is a logical OR of multiple filters
+    // e.g. { $or: [{ status: 'active' }, { status: 'pending' }] }
+    if (field === '$or' && Array.isArray(condition)) {
+      const orClause = buildLogicalClause(condition as Filter[], tableName, 'OR')
+      if (orClause) {
+        conditions.push(orClause)
+      }
+      continue
+    }
+
+    // This represents a case where the filter is a logical AND of multiple filters
+    // e.g. { $and: [{ status: 'active' }, { status: 'pending' }] }
+    if (field === '$and' && Array.isArray(condition)) {
+      const andClause = buildLogicalClause(condition as Filter[], tableName, 'AND')
+      if (andClause) {
+        conditions.push(andClause)
+      }
+      continue
+    }
+
+    // Skip arrays for regular fields - arrays are only valid for $or and $and.
+    // If we encounter an array here, it's likely malformed input (e.g., { name: [filter1, filter2] })
+    // which doesn't have a clear semantic meaning, so we skip it.
+    if (Array.isArray(condition)) {
+      continue
+    }
+
+    // Build SQL conditions for this field. Returns array of SQL fragments for each operator.
+    const fieldConditions = buildFieldCondition(
+      tableName,
+      field,
+      condition as JsonValue | ConditionOperators
+    )
+    conditions.push(...fieldConditions)
+  }
+
+  if (conditions.length === 0) return undefined
+  if (conditions.length === 1) return conditions[0]
+
+  return sql.join(conditions, sql.raw(' AND '))
+}
+
+/**
+ * Builds an ORDER BY clause from a sort object.
+ *
+ * @param sort - Sort object with field names and directions
+ * @param tableName - Table name for the query (e.g., 'user_table_rows')
+ * @returns SQL ORDER BY clause or undefined if no sort specified
+ * @throws Error if field name is invalid
+ *
+ * @example
+ * buildSortClause({ name: 'asc', age: 'desc' }, 'user_table_rows')
+ * // Returns: ORDER BY data->>'name' ASC, data->>'age' DESC
+ */
+export function buildSortClause(sort: Sort, tableName: string): SQL | undefined {
+  const clauses: SQL[] = []
+
+  for (const [field, direction] of Object.entries(sort)) {
+    validateFieldName(field)
+
+    if (direction !== 'asc' && direction !== 'desc') {
+      throw new Error(`Invalid sort direction "${direction}". Must be "asc" or "desc".`)
+    }
+
+    clauses.push(buildSortFieldClause(tableName, field, direction))
+  }
+
+  return clauses.length > 0 ? sql.join(clauses, sql.raw(', ')) : undefined
+}
 
 /**
  * Validates a field name to prevent SQL injection.
@@ -59,29 +156,6 @@ function validateOperator(operator: string): void {
   }
 }
 
-/** Builds JSONB containment clause: `data @> '{"field": value}'::jsonb` (uses GIN index) */
-function buildContainmentClause(tableName: string, field: string, value: JsonValue): SQL {
-  const jsonObj = JSON.stringify({ [field]: value })
-  return sql`${sql.raw(`${tableName}.data`)} @> ${jsonObj}::jsonb`
-}
-
-/** Builds numeric comparison: `(data->>'field')::numeric <op> value` (cannot use GIN index) */
-function buildComparisonClause(
-  tableName: string,
-  field: string,
-  operator: '>' | '>=' | '<' | '<=',
-  value: number
-): SQL {
-  const escapedField = field.replace(/'/g, "''")
-  return sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric ${sql.raw(operator)} ${value}`
-}
-
-/** Builds case-insensitive pattern match: `data->>'field' ILIKE '%value%'` */
-function buildContainsClause(tableName: string, field: string, value: string): SQL {
-  const escapedField = field.replace(/'/g, "''")
-  return sql`${sql.raw(`${tableName}.data->>'${escapedField}'`)} ILIKE ${`%${value}%`}`
-}
-
 /**
  * Builds SQL conditions for a single field based on the provided condition.
  *
@@ -92,7 +166,7 @@ function buildContainsClause(tableName: string, field: string, value: string): S
  *
  * @param tableName - The name of the table to query (used for SQL table reference)
  * @param field - The field name to filter on (must match NAME_PATTERN)
- * @param condition - Either a simple value (for equality) or a FilterOperator
+ * @param condition - Either a simple value (for equality) or a ConditionOperators
  *                    object with operators like $eq, $gt, $in, etc.
  * @returns Array of SQL condition fragments. Multiple conditions are returned
  *          when the condition object contains multiple operators.
@@ -101,7 +175,7 @@ function buildContainsClause(tableName: string, field: string, value: string): S
 function buildFieldCondition(
   tableName: string,
   field: string,
-  condition: JsonValue | FilterOperator
+  condition: JsonValue | ConditionOperators
 ): SQL[] {
   validateFieldName(field)
 
@@ -171,6 +245,8 @@ function buildFieldCondition(
       }
     }
   } else {
+    // Simple value (primitive or null) - shorthand for equality.
+    // Example: { name: 'John' } is equivalent to { name: { $eq: 'John' } }
     conditions.push(buildContainmentClause(tableName, field, condition))
   }
 
@@ -179,6 +255,24 @@ function buildFieldCondition(
 
 /**
  * Builds SQL clauses from nested filters and joins them with the specified operator.
+ *
+ * @example
+ * // OR operator
+ * buildLogicalClause(
+ *   [{ status: 'active' }, { status: 'pending' }],
+ *   'user_table_rows',
+ *   'OR'
+ * )
+ * // Returns: (data @> '{"status":"active"}'::jsonb OR data @> '{"status":"pending"}'::jsonb)
+ *
+ * @example
+ * // AND operator
+ * buildLogicalClause(
+ *   [{ age: { $gte: 18 } }, { verified: true }],
+ *   'user_table_rows',
+ *   'AND'
+ * )
+ * // Returns: ((data->>'age')::numeric >= 18 AND data @> '{"verified":true}'::jsonb)
  */
 function buildLogicalClause(
   subFilters: Filter[],
@@ -199,50 +293,27 @@ function buildLogicalClause(
   return sql`(${sql.join(clauses, sql.raw(` ${operator} `))})`
 }
 
-/**
- * Builds a WHERE clause from a filter object.
- * Recursively processes logical operators ($or, $and) and field conditions.
- */
-export function buildFilterClause(filter: Filter, tableName: string): SQL | undefined {
-  const conditions: SQL[] = []
+/** Builds JSONB containment clause: `data @> '{"field": value}'::jsonb` (uses GIN index) */
+function buildContainmentClause(tableName: string, field: string, value: JsonValue): SQL {
+  const jsonObj = JSON.stringify({ [field]: value })
+  return sql`${sql.raw(`${tableName}.data`)} @> ${jsonObj}::jsonb`
+}
 
-  for (const [field, condition] of Object.entries(filter)) {
-    if (condition === undefined) {
-      continue
-    }
+/** Builds numeric comparison: `(data->>'field')::numeric <op> value` (cannot use GIN index) */
+function buildComparisonClause(
+  tableName: string,
+  field: string,
+  operator: '>' | '>=' | '<' | '<=',
+  value: number
+): SQL {
+  const escapedField = field.replace(/'/g, "''")
+  return sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric ${sql.raw(operator)} ${value}`
+}
 
-    if (field === '$or' && Array.isArray(condition)) {
-      const orClause = buildLogicalClause(condition as Filter[], tableName, 'OR')
-      if (orClause) {
-        conditions.push(orClause)
-      }
-      continue
-    }
-
-    if (field === '$and' && Array.isArray(condition)) {
-      const andClause = buildLogicalClause(condition as Filter[], tableName, 'AND')
-      if (andClause) {
-        conditions.push(andClause)
-      }
-      continue
-    }
-
-    if (Array.isArray(condition)) {
-      continue
-    }
-
-    const fieldConditions = buildFieldCondition(
-      tableName,
-      field,
-      condition as JsonValue | FilterOperator
-    )
-    conditions.push(...fieldConditions)
-  }
-
-  if (conditions.length === 0) return undefined
-  if (conditions.length === 1) return conditions[0]
-
-  return sql.join(conditions, sql.raw(' AND '))
+/** Builds case-insensitive pattern match: `data->>'field' ILIKE '%value%'` */
+function buildContainsClause(tableName: string, field: string, value: string): SQL {
+  const escapedField = field.replace(/'/g, "''")
+  return sql`${sql.raw(`${tableName}.data->>'${escapedField}'`)} ILIKE ${`%${value}%`}`
 }
 
 /**
@@ -258,32 +329,4 @@ function buildSortFieldClause(tableName: string, field: string, direction: 'asc'
   }
 
   return sql.raw(`${tableName}.data->>'${escapedField}' ${directionSql}`)
-}
-
-/**
- * Builds an ORDER BY clause from a sort object.
- * Note: JSONB fields use text extraction, so numeric sorting may not work as expected.
- *
- * @param sort - Sort object with field names and directions
- * @param tableName - Table name for the query
- * @returns SQL ORDER BY clause or undefined if no sort specified
- * @throws Error if field name is invalid
- */
-export function buildSortClause(
-  sort: Record<string, 'asc' | 'desc'>,
-  tableName: string
-): SQL | undefined {
-  const clauses: SQL[] = []
-
-  for (const [field, direction] of Object.entries(sort)) {
-    validateFieldName(field)
-
-    if (direction !== 'asc' && direction !== 'desc') {
-      throw new Error(`Invalid sort direction "${direction}". Must be "asc" or "desc".`)
-    }
-
-    clauses.push(buildSortFieldClause(tableName, field, direction))
-  }
-
-  return clauses.length > 0 ? sql.join(clauses, sql.raw(', ')) : undefined
 }

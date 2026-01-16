@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import type { Filter, RowData, TableSchema } from '@/lib/table'
+import type { Filter, RowData, Sort, TableSchema } from '@/lib/table'
 import {
   getUniqueColumns,
   TABLE_LIMITS,
@@ -357,14 +357,14 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
     const offset = searchParams.get('offset')
 
     let filter: Record<string, unknown> | undefined
-    let sort: Record<string, 'asc' | 'desc'> | undefined
+    let sort: Sort | undefined
 
     try {
       if (filterParam) {
         filter = JSON.parse(filterParam) as Record<string, unknown>
       }
       if (sortParam) {
-        sort = JSON.parse(sortParam) as Record<string, 'asc' | 'desc'>
+        sort = JSON.parse(sortParam) as Sort
       }
     } catch {
       return NextResponse.json({ error: 'Invalid filter or sort JSON' }, { status: 400 })

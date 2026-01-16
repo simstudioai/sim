@@ -2,6 +2,7 @@ import type {
   ColumnDefinition,
   Filter,
   RowData,
+  Sort,
   TableDefinition,
   TableRow,
   TableSchema,
@@ -41,7 +42,7 @@ export interface TableRowDeleteParams {
 export interface TableRowQueryParams {
   tableId: string
   filter?: Filter
-  sort?: Record<string, 'asc' | 'desc'>
+  sort?: Sort
   limit?: number
   offset?: number
   _context?: ToolExecutionContext
