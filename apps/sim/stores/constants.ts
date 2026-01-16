@@ -28,7 +28,7 @@ export const SIDEBAR_WIDTH = {
 
 /** Right panel width constraints */
 export const PANEL_WIDTH = {
-  DEFAULT: 290,
+  DEFAULT: 320,
   MIN: 290,
   /** Maximum is 40% of viewport, enforced dynamically */
   MAX_PERCENTAGE: 0.4,

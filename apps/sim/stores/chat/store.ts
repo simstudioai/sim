@@ -26,7 +26,6 @@ export const useChatStore = create<ChatState>()(
   devtools(
     persist(
       (set, get) => ({
-        // UI State
         isChatOpen: false,
         chatPosition: null,
         chatWidth: DEFAULT_WIDTH,
@@ -51,7 +50,6 @@ export const useChatStore = create<ChatState>()(
           set({ chatPosition: null })
         },
 
-        // Message State
         messages: [],
         selectedWorkflowOutputs: {},
         conversationIds: {},
@@ -60,12 +58,10 @@ export const useChatStore = create<ChatState>()(
           set((state) => {
             const newMessage: ChatMessage = {
               ...message,
-              // Preserve provided id and timestamp if they exist; otherwise generate new ones
               id: (message as any).id ?? crypto.randomUUID(),
               timestamp: (message as any).timestamp ?? new Date().toISOString(),
             }
 
-            // Keep only the last MAX_MESSAGES
             const newMessages = [newMessage, ...state.messages].slice(0, MAX_MESSAGES)
 
             return { messages: newMessages }
@@ -80,7 +76,6 @@ export const useChatStore = create<ChatState>()(
               ),
             }
 
-            // Generate a new conversationId when clearing chat for a specific workflow
             if (workflowId) {
               const newConversationIds = { ...state.conversationIds }
               newConversationIds[workflowId] = uuidv4()
@@ -89,7 +84,6 @@ export const useChatStore = create<ChatState>()(
                 conversationIds: newConversationIds,
               }
             }
-            // When clearing all chats (workflowId is null), also clear all conversationIds
             return {
               ...newState,
               conversationIds: {},
@@ -131,15 +125,12 @@ export const useChatStore = create<ChatState>()(
             return stringValue
           }
 
-          // CSV Headers
           const headers = ['timestamp', 'type', 'content']
 
-          // Sort messages by timestamp (oldest first)
           const sortedMessages = messages.sort(
             (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
           )
 
-          // Generate CSV rows
           const csvRows = [
             headers.join(','),
             ...sortedMessages.map((message) =>
@@ -151,15 +142,12 @@ export const useChatStore = create<ChatState>()(
             ),
           ]
 
-          // Create CSV content
           const csvContent = csvRows.join('\n')
 
-          // Generate filename with timestamp
           const now = new Date()
           const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
           const filename = `chat-${workflowId}-${timestamp}.csv`
 
-          // Create and trigger download
           const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
           const link = document.createElement('a')
 
@@ -177,15 +165,11 @@ export const useChatStore = create<ChatState>()(
 
         setSelectedWorkflowOutput: (workflowId, outputIds) => {
           set((state) => {
-            // Create a new copy of the selections state
             const newSelections = { ...state.selectedWorkflowOutputs }
 
-            // If empty array, explicitly remove the key to prevent empty arrays from persisting
             if (outputIds.length === 0) {
-              // Delete the key entirely instead of setting to empty array
               delete newSelections[workflowId]
             } else {
-              // Ensure no duplicates in the selection by using Set
               newSelections[workflowId] = [...new Set(outputIds)]
             }
 
@@ -200,7 +184,6 @@ export const useChatStore = create<ChatState>()(
         getConversationId: (workflowId) => {
           const state = get()
           if (!state.conversationIds[workflowId]) {
-            // Generate a new conversation ID if one doesn't exist
             return get().generateNewConversationId(workflowId)
           }
           return state.conversationIds[workflowId]
@@ -270,6 +253,16 @@ export const useChatStore = create<ChatState>()(
       }),
       {
         name: 'chat-store',
+        partialize: (state) => ({
+          ...state,
+          messages: state.messages.map((msg) => ({
+            ...msg,
+            attachments: msg.attachments?.map((att) => ({
+              ...att,
+              dataUrl: '',
+            })),
+          })),
+        }),
       }
     )
   )

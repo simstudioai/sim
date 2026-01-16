@@ -346,7 +346,7 @@ export function Editor() {
             ref={subBlocksRef}
             className='subblocks-section flex flex-1 flex-col overflow-hidden'
           >
-            <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px] pt-[8px] pb-[8px]'>
+            <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px] pt-[12px] pb-[8px]'>
               {subBlocks.length === 0 ? (
                 <div className='flex h-full items-center justify-center text-center text-[#8D8D8D] text-[13px]'>
                   This block has no subblocks

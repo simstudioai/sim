@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { validateAirtableId, validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -358,6 +359,15 @@ export async function deleteAirtableWebhook(
       return
     }
 
+    const baseIdValidation = validateAirtableId(baseId, 'app', 'baseId')
+    if (!baseIdValidation.isValid) {
+      airtableLogger.warn(`[${requestId}] Invalid Airtable base ID format, skipping deletion`, {
+        webhookId: webhook.id,
+        baseId: baseId.substring(0, 20),
+      })
+      return
+    }
+
     const userIdForToken = workflow.userId
     const accessToken = await getOAuthToken(userIdForToken, 'airtable')
     if (!accessToken) {
@@ -425,6 +435,15 @@ export async function deleteAirtableWebhook(
         `[${requestId}] Airtable externalId not found; skipping remote deletion`,
         { baseId }
       )
+      return
+    }
+
+    const webhookIdValidation = validateAirtableId(resolvedExternalId, 'ach', 'webhookId')
+    if (!webhookIdValidation.isValid) {
+      airtableLogger.warn(`[${requestId}] Invalid Airtable webhook ID format, skipping deletion`, {
+        webhookId: webhook.id,
+        externalId: resolvedExternalId.substring(0, 20),
+      })
       return
     }
 
@@ -732,6 +751,14 @@ export async function deleteLemlistWebhook(webhook: any, requestId: string): Pro
     const authString = Buffer.from(`:${apiKey}`).toString('base64')
 
     const deleteById = async (id: string) => {
+      const validation = validateAlphanumericId(id, 'Lemlist hook ID', 50)
+      if (!validation.isValid) {
+        lemlistLogger.warn(`[${requestId}] Invalid Lemlist hook ID format, skipping deletion`, {
+          id: id.substring(0, 30),
+        })
+        return
+      }
+
       const lemlistApiUrl = `https://api.lemlist.com/api/hooks/${id}`
       const lemlistResponse = await fetch(lemlistApiUrl, {
         method: 'DELETE',
@@ -820,6 +847,24 @@ export async function deleteWebflowWebhook(
       webflowLogger.warn(
         `[${requestId}] Missing externalId for Webflow webhook deletion ${webhook.id}, skipping cleanup`
       )
+      return
+    }
+
+    const siteIdValidation = validateAlphanumericId(siteId, 'siteId', 100)
+    if (!siteIdValidation.isValid) {
+      webflowLogger.warn(`[${requestId}] Invalid Webflow site ID format, skipping deletion`, {
+        webhookId: webhook.id,
+        siteId: siteId.substring(0, 30),
+      })
+      return
+    }
+
+    const webhookIdValidation = validateAlphanumericId(externalId, 'webhookId', 100)
+    if (!webhookIdValidation.isValid) {
+      webflowLogger.warn(`[${requestId}] Invalid Webflow webhook ID format, skipping deletion`, {
+        webhookId: webhook.id,
+        externalId: externalId.substring(0, 30),
+      })
       return
     }
 
@@ -1122,6 +1167,16 @@ export async function createAirtableWebhookSubscription(
       )
     }
 
+    const baseIdValidation = validateAirtableId(baseId, 'app', 'baseId')
+    if (!baseIdValidation.isValid) {
+      throw new Error(baseIdValidation.error)
+    }
+
+    const tableIdValidation = validateAirtableId(tableId, 'tbl', 'tableId')
+    if (!tableIdValidation.isValid) {
+      throw new Error(tableIdValidation.error)
+    }
+
     const accessToken = await getOAuthToken(userId, 'airtable')
     if (!accessToken) {
       airtableLogger.warn(
@@ -1352,6 +1407,11 @@ export async function createWebflowWebhookSubscription(
         webhookId: webhookData.id,
       })
       throw new Error('Site ID is required to create Webflow webhook')
+    }
+
+    const siteIdValidation = validateAlphanumericId(siteId, 'siteId', 100)
+    if (!siteIdValidation.isValid) {
+      throw new Error(siteIdValidation.error)
     }
 
     if (!triggerId) {

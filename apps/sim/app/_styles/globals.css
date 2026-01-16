@@ -11,7 +11,7 @@
  */
 :root {
   --sidebar-width: 232px; /* SIDEBAR_WIDTH.DEFAULT */
-  --panel-width: 290px; /* PANEL_WIDTH.DEFAULT */
+  --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
   --toolbar-triggers-height: 300px; /* TOOLBAR_TRIGGERS_HEIGHT.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 155px; /* TERMINAL_HEIGHT.DEFAULT */
@@ -75,24 +75,6 @@
 .workflow-container.canvas-mode-hand .react-flow__pane:active,
 .workflow-container.canvas-mode-hand .react-flow__selectionpane:active {
   cursor: grabbing !important;
-}
-
-/**
- * Selected node ring indicator
- * Uses a pseudo-element overlay to match the original behavior (absolute inset-0 z-40)
- */
-.react-flow__node.selected > div > div {
-  position: relative;
-}
-
-.react-flow__node.selected > div > div::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 40;
-  border-radius: 8px;
-  box-shadow: 0 0 0 1.75px var(--brand-secondary);
-  pointer-events: none;
 }
 
 /**
@@ -574,32 +556,6 @@ input[type="search"]::-ms-clear {
     transition-property: box-shadow, transform;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 300ms;
-  }
-
-  .streaming-effect {
-    @apply relative overflow-hidden;
-  }
-
-  .streaming-effect::after {
-    content: "";
-    @apply pointer-events-none absolute left-0 top-0 h-full w-full;
-    background: linear-gradient(
-      90deg,
-      rgba(128, 128, 128, 0) 0%,
-      rgba(128, 128, 128, 0.1) 50%,
-      rgba(128, 128, 128, 0) 100%
-    );
-    animation: code-shimmer 1.5s infinite;
-    z-index: 10;
-  }
-
-  .dark .streaming-effect::after {
-    background: linear-gradient(
-      90deg,
-      rgba(180, 180, 180, 0) 0%,
-      rgba(180, 180, 180, 0.1) 50%,
-      rgba(180, 180, 180, 0) 100%
-    );
   }
 
   .loading-placeholder::placeholder {

@@ -3,9 +3,11 @@
 import { memo, useCallback, useEffect, useMemo } from 'react'
 import clsx from 'clsx'
 import { useParams, usePathname } from 'next/navigation'
+import { EmptyAreaContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/empty-area-context-menu'
 import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/folder-item/folder-item'
 import { WorkflowItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/workflow-item'
 import {
+  useContextMenu,
   useDragDrop,
   useWorkflowSelection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -36,6 +38,9 @@ interface WorkflowListProps {
   handleFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
+  onCreateWorkflow?: () => void
+  onCreateFolder?: () => void
+  disableCreate?: boolean
 }
 
 const DropIndicatorLine = memo(function DropIndicatorLine({
@@ -63,6 +68,9 @@ export function WorkflowList({
   handleFileChange,
   fileInputRef,
   scrollContainerRef,
+  onCreateWorkflow,
+  onCreateFolder,
+  disableCreate = false,
 }: WorkflowListProps) {
   const pathname = usePathname()
   const params = useParams()
@@ -71,6 +79,14 @@ export function WorkflowList({
 
   const { isLoading: foldersLoading } = useFolders(workspaceId)
   const { getFolderTree, expandedFolders, getFolderPath, setExpanded } = useFolderStore()
+
+  const {
+    isOpen: isEmptyAreaMenuOpen,
+    position: emptyAreaMenuPosition,
+    menuRef: emptyAreaMenuRef,
+    handleContextMenu: handleEmptyAreaContextMenu,
+    closeMenu: closeEmptyAreaMenu,
+  } = useContextMenu()
 
   const {
     dropIndicator,
@@ -351,36 +367,71 @@ export function WorkflowList({
     [workflowId]
   )
 
+  const handleContainerContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const target = e.target as HTMLElement
+      const isOnEmptyArea =
+        target === e.currentTarget ||
+        target.classList.contains('space-y-[2px]') ||
+        target.closest('[data-empty-area]')
+      if (!isOnEmptyArea) return
+      if (!onCreateWorkflow && !onCreateFolder) return
+      handleEmptyAreaContextMenu(e)
+    },
+    [handleEmptyAreaContextMenu, onCreateWorkflow, onCreateFolder]
+  )
+
   return (
-    <div className='flex min-h-full flex-col pb-[8px]' onClick={handleContainerClick}>
+    <>
       <div
-        className={clsx('relative flex-1 rounded-[4px]', !hasRootItems && 'min-h-[26px]')}
-        {...rootDropZoneHandlers}
+        className='flex min-h-full flex-col pb-[8px]'
+        onClick={handleContainerClick}
+        onContextMenu={handleContainerContextMenu}
+        data-empty-area
       >
-        {/* Root drop target highlight overlay */}
         <div
-          className={clsx(
-            'pointer-events-none absolute inset-0 z-10 rounded-[4px] transition-opacity duration-75',
-            showRootInside && isDragging ? 'bg-[#33b4ff1a] opacity-100' : 'opacity-0'
-          )}
-        />
-        <div className='space-y-[2px]'>
-          {rootItems.map((item) =>
-            item.type === 'folder'
-              ? renderFolderSection(item.data as FolderTreeNode, 0, null)
-              : renderWorkflowItem(item.data as WorkflowMetadata, 0, null)
-          )}
+          className={clsx('relative flex-1 rounded-[4px]', !hasRootItems && 'min-h-[26px]')}
+          {...rootDropZoneHandlers}
+          data-empty-area
+        >
+          {/* Root drop target highlight overlay */}
+          <div
+            className={clsx(
+              'pointer-events-none absolute inset-0 z-10 rounded-[4px] transition-opacity duration-75',
+              showRootInside && isDragging ? 'bg-[#33b4ff1a] opacity-100' : 'opacity-0'
+            )}
+          />
+          <div className='space-y-[2px]' data-empty-area>
+            {rootItems.map((item) =>
+              item.type === 'folder'
+                ? renderFolderSection(item.data as FolderTreeNode, 0, null)
+                : renderWorkflowItem(item.data as WorkflowMetadata, 0, null)
+            )}
+          </div>
         </div>
+
+        <input
+          ref={fileInputRef}
+          type='file'
+          accept='.json,.zip'
+          multiple
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
       </div>
 
-      <input
-        ref={fileInputRef}
-        type='file'
-        accept='.json,.zip'
-        multiple
-        style={{ display: 'none' }}
-        onChange={handleFileChange}
-      />
-    </div>
+      {onCreateWorkflow && onCreateFolder && (
+        <EmptyAreaContextMenu
+          isOpen={isEmptyAreaMenuOpen}
+          position={emptyAreaMenuPosition}
+          menuRef={emptyAreaMenuRef}
+          onClose={closeEmptyAreaMenu}
+          onCreateWorkflow={onCreateWorkflow}
+          onCreateFolder={onCreateFolder}
+          disableCreateWorkflow={disableCreate}
+          disableCreateFolder={disableCreate}
+        />
+      )}
+    </>
   )
 }

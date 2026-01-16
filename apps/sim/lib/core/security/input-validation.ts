@@ -897,6 +897,57 @@ export function createPinnedUrl(originalUrl: string, resolvedIP: string): string
 }
 
 /**
+ * Validates an Airtable ID (base, table, or webhook ID)
+ *
+ * Airtable IDs have specific prefixes:
+ * - Base IDs: "app" + 14 alphanumeric characters (e.g., appXXXXXXXXXXXXXX)
+ * - Table IDs: "tbl" + 14 alphanumeric characters
+ * - Webhook IDs: "ach" + 14 alphanumeric characters
+ *
+ * @param value - The ID to validate
+ * @param expectedPrefix - The expected prefix ('app', 'tbl', or 'ach')
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ *
+ * @example
+ * ```typescript
+ * const result = validateAirtableId(baseId, 'app', 'baseId')
+ * if (!result.isValid) {
+ *   throw new Error(result.error)
+ * }
+ * ```
+ */
+export function validateAirtableId(
+  value: string | null | undefined,
+  expectedPrefix: 'app' | 'tbl' | 'ach',
+  paramName = 'ID'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return {
+      isValid: false,
+      error: `${paramName} is required`,
+    }
+  }
+
+  // Airtable IDs: prefix (3 chars) + 14 alphanumeric characters = 17 chars total
+  const airtableIdPattern = new RegExp(`^${expectedPrefix}[a-zA-Z0-9]{14}$`)
+
+  if (!airtableIdPattern.test(value)) {
+    logger.warn('Invalid Airtable ID format', {
+      paramName,
+      expectedPrefix,
+      value: value.substring(0, 20),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be a valid Airtable ID starting with "${expectedPrefix}"`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
+
+/**
  * Validates a Google Calendar ID
  *
  * Google Calendar IDs can be:

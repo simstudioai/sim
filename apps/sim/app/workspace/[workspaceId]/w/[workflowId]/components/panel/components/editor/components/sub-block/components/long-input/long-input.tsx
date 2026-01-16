@@ -1,3 +1,4 @@
+import type React from 'react'
 import {
   useCallback,
   useEffect,
@@ -159,6 +160,27 @@ export function LongInput({
 
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
+  /**
+   * Callback to show tag dropdown when input is empty and focused
+   */
+  const shouldForceTagDropdown = useCallback(
+    ({
+      value,
+    }: {
+      value: string
+      cursor: number
+      event: 'focus'
+    }): { show: boolean } | undefined => {
+      if (isPreview || disabled) return { show: false }
+      // Show tag dropdown on focus when input is empty
+      if (value.trim() === '') {
+        return { show: true }
+      }
+      return { show: false }
+    },
+    [isPreview, disabled]
+  )
+
   // During streaming, use local content; otherwise use the controller value
   const value = useMemo(() => {
     if (wandHook.isStreaming) return localContent
@@ -294,6 +316,7 @@ export function LongInput({
         disabled={disabled}
         isStreaming={wandHook.isStreaming}
         previewValue={previewValue}
+        shouldForceTagDropdown={shouldForceTagDropdown}
       >
         {({ ref, onChange: handleChange, onKeyDown, onDrop, onDragOver, onFocus }) => {
           const setRefs = (el: HTMLTextAreaElement | null) => {
@@ -303,7 +326,7 @@ export function LongInput({
           return (
             <div
               ref={containerRef}
-              className={cn('group relative w-full', wandHook.isStreaming && 'streaming-effect')}
+              className='group relative w-full'
               style={{ height: `${height}px` }}
             >
               <Textarea

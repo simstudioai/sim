@@ -336,6 +336,10 @@ export function Code({
       setCode('')
     }
 
+    handleStreamChunkRef.current = (chunk: string) => {
+      setCode((prev) => prev + chunk)
+    }
+
     handleGeneratedContentRef.current = (generatedCode: string) => {
       setCode(generatedCode)
       if (!isPreview && !disabled) {
@@ -691,11 +695,7 @@ export function Code({
         />
       )}
 
-      <CodeEditor.Container
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={handleDrop}
-        isStreaming={isAiStreaming}
-      >
+      <CodeEditor.Container onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
         <div className='absolute top-2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
           {wandConfig?.enabled &&
             !isAiStreaming &&
@@ -761,6 +761,11 @@ export function Code({
             }}
             onFocus={() => {
               hasEditedSinceFocusRef.current = false
+              // Show tag dropdown on focus when code is empty
+              if (!isPreview && !disabled && !readOnly && code.trim() === '') {
+                setShowTags(true)
+                setCursorPosition(0)
+              }
             }}
             highlight={createHighlightFunction(effectiveLanguage, shouldHighlightReference)}
             {...getCodeEditorProps({ isStreaming: isAiStreaming, isPreview, disabled })}

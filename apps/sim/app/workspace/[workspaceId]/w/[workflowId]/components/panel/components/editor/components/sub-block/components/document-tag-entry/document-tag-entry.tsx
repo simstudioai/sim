@@ -288,6 +288,7 @@ export function DocumentTagEntry({
           onKeyDown={handlers.onKeyDown}
           onDrop={handlers.onDrop}
           onDragOver={handlers.onDragOver}
+          onFocus={handlers.onFocus}
           onScroll={(e) => syncOverlayScroll(cellKey, e.currentTarget.scrollLeft)}
           onPaste={() =>
             setTimeout(() => {

@@ -334,7 +334,6 @@ export function GeneralDeploy({
                     }}
                     onPaneClick={() => setExpandedSelectedBlockId(null)}
                     selectedBlockId={expandedSelectedBlockId}
-                    lightweight
                   />
                 </div>
                 {expandedSelectedBlockId && workflowToShow.blocks?.[expandedSelectedBlockId] && (
