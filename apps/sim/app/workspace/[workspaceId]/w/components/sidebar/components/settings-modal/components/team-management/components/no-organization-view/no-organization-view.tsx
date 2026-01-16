@@ -104,7 +104,7 @@ export function NoOrganizationView({
 
             <div className='flex flex-col gap-[8px]'>
               {error && (
-                <p className='text-[11px] text-[var(--text-error)] leading-tight'>{error}</p>
+                <p className='text-[12px] text-[var(--text-error)] leading-tight'>{error}</p>
               )}
               <div className='flex justify-end'>
                 <Button
@@ -179,7 +179,7 @@ export function NoOrganizationView({
               </div>
             </div>
 
-            {error && <p className='text-[11px] text-[var(--text-error)] leading-tight'>{error}</p>}
+            {error && <p className='text-[12px] text-[var(--text-error)] leading-tight'>{error}</p>}
 
             <ModalFooter>
               <Button

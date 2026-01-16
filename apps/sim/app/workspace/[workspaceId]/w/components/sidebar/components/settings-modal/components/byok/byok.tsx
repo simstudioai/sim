@@ -276,7 +276,7 @@ export function BYOK() {
                 </Button>
               </div>
               {error && (
-                <p className='text-[11px] text-[var(--text-error)] leading-tight'>{error}</p>
+                <p className='text-[12px] text-[var(--text-error)] leading-tight'>{error}</p>
               )}
             </div>
           </ModalBody>

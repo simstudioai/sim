@@ -399,7 +399,7 @@ export function FormDeploy({
             </div>
           </div>
           {(identifierError || errors.identifier) && (
-            <p className='mt-[6.5px] text-[11px] text-[var(--text-error)]'>
+            <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>
               {identifierError || errors.identifier}
             </p>
           )}
@@ -483,7 +483,7 @@ export function FormDeploy({
               </button>
             </div>
             {errors.password && (
-              <p className='mt-[6.5px] text-[11px] text-[var(--text-error)]'>{errors.password}</p>
+              <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>{errors.password}</p>
             )}
             <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
               {existingForm?.hasPassword
@@ -520,7 +520,7 @@ export function FormDeploy({
               placeholderWithTags='Add another'
             />
             {errors.emails && (
-              <p className='mt-[6.5px] text-[11px] text-[var(--text-error)]'>{errors.emails}</p>
+              <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>{errors.emails}</p>
             )}
             <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
               Add specific emails or entire domains (@example.com)
@@ -551,7 +551,7 @@ export function FormDeploy({
         )}
 
         {errors.general && (
-          <p className='mt-[6.5px] text-[11px] text-[var(--text-error)]'>{errors.general}</p>
+          <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>{errors.general}</p>
         )}
 
         <button type='button' data-delete-trigger onClick={handleDelete} className='hidden' />

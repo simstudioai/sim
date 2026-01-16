@@ -995,7 +995,7 @@ export function Chat() {
                 <div className='flex items-start gap-2'>
                   <AlertCircle className='mt-0.5 h-3 w-3 shrink-0 text-[var(--text-error)]' />
                   <div className='flex-1'>
-                    <div className='mb-1 font-medium text-[11px] text-[var(--text-error)]'>
+                    <div className='mb-1 font-medium text-[12px] text-[var(--text-error)]'>
                       File upload error
                     </div>
                     <div className='space-y-1'>

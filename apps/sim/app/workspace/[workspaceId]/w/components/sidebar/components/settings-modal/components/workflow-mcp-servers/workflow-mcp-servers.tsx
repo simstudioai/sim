@@ -745,7 +745,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                 }
               />
               {addToolMutation.isError && (
-                <p className='text-[11px] text-[var(--text-error)] leading-tight'>
+                <p className='text-[12px] text-[var(--text-error)] leading-tight'>
                   {addToolMutation.error?.message || 'Failed to add workflow'}
                 </p>
               )}

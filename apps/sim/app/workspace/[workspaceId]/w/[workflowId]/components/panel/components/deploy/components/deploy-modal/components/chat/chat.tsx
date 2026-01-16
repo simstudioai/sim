@@ -557,7 +557,7 @@ function IdentifierInput({
           )}
         </div>
       </div>
-      {error && <p className='mt-[6.5px] text-[11px] text-[var(--text-error)]'>{error}</p>}
+      {error && <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>{error}</p>}
       <p className='mt-[6.5px] truncate text-[11px] text-[var(--text-secondary)]'>
         {isEditingExisting && value ? (
           <>
@@ -777,7 +777,7 @@ function AuthSelector({
             disabled={disabled}
           />
           {emailError && (
-            <p className='mt-[6.5px] text-[11px] text-[var(--text-error)]'>{emailError}</p>
+            <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>{emailError}</p>
           )}
           <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
             {authType === 'email'
@@ -787,7 +787,7 @@ function AuthSelector({
         </div>
       )}
 
-      {error && <p className='mt-[6.5px] text-[11px] text-[var(--text-error)]'>{error}</p>}
+      {error && <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>{error}</p>}
     </div>
   )
 }

@@ -639,7 +639,7 @@ export function DocumentTagsModal({
                       />
                     )}
                     {tagNameConflict && (
-                      <span className='text-[11px] text-[var(--text-error)]'>
+                      <span className='text-[12px] text-[var(--text-error)]'>
                         A tag with this name already exists
                       </span>
                     )}

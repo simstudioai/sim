@@ -70,7 +70,7 @@ export function RemoveMemberDialog({
 
           {error && (
             <div className='mt-[8px]'>
-              <p className='text-[11px] text-[var(--text-error)] leading-tight'>
+              <p className='text-[12px] text-[var(--text-error)] leading-tight'>
                 {error instanceof Error && error.message ? error.message : String(error)}
               </p>
             </div>

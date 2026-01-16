@@ -183,7 +183,7 @@ export function MemberInvitationCard({
               aria-autocomplete='none'
             />
             {emailError && (
-              <p className='mt-1 text-[11px] text-[var(--text-error)] leading-tight'>
+              <p className='mt-1 text-[12px] text-[var(--text-error)] leading-tight'>
                 {emailError}
               </p>
             )}
@@ -295,7 +295,7 @@ export function MemberInvitationCard({
 
         {/* Invitation error - inline */}
         {invitationError && (
-          <p className='text-[11px] text-[var(--text-error)] leading-tight'>
+          <p className='text-[12px] text-[var(--text-error)] leading-tight'>
             {invitationError instanceof Error && invitationError.message
               ? invitationError.message
               : String(invitationError)}

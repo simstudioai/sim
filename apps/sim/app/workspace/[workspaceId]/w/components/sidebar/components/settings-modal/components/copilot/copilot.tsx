@@ -234,7 +234,7 @@ export function Copilot() {
                 autoFocus
               />
               {createError && (
-                <p className='text-[11px] text-[var(--text-error)] leading-tight'>{createError}</p>
+                <p className='text-[12px] text-[var(--text-error)] leading-tight'>{createError}</p>
               )}
             </div>
           </ModalBody>
