@@ -42,7 +42,7 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
         field: 'selectedTriggerId',
         value: 'webflow_form_submission',
       },
-      fetchOptions: async (blockId: string) => {
+      fetchOptions: async (blockId: string, _subBlockId: string) => {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null

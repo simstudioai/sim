@@ -56,7 +56,7 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
         field: 'selectedTriggerId',
         value: 'webflow_collection_item_created',
       },
-      fetchOptions: async (blockId: string) => {
+      fetchOptions: async (blockId: string, _subBlockId: string) => {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null
@@ -122,7 +122,7 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
         field: 'selectedTriggerId',
         value: 'webflow_collection_item_created',
       },
-      fetchOptions: async (blockId: string) => {
+      fetchOptions: async (blockId: string, _subBlockId: string) => {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null
