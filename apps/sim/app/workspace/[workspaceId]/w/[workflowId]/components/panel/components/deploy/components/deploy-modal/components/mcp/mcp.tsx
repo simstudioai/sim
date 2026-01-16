@@ -98,11 +98,7 @@ export function McpDeploy({
   const workspaceId = params.workspaceId as string
   const openSettingsModal = useSettingsModalStore((state) => state.openModal)
 
-  const {
-    data: servers = [],
-    isLoading: isLoadingServers,
-    refetch: refetchServers,
-  } = useWorkflowMcpServers(workspaceId)
+  const { data: servers = [], isLoading: isLoadingServers } = useWorkflowMcpServers(workspaceId)
   const addToolMutation = useAddWorkflowMcpTool()
   const deleteToolMutation = useDeleteWorkflowMcpTool()
   const updateToolMutation = useUpdateWorkflowMcpTool()
@@ -346,7 +342,6 @@ export function McpDeploy({
             toolDescription: toolDescription.trim() || undefined,
             parameterSchema,
           })
-          refetchServers()
           onAddedToServer?.()
           logger.info(`Added workflow ${workflowId} as tool to server ${serverId}`)
         } catch (error) {
@@ -375,7 +370,6 @@ export function McpDeploy({
               delete next[serverId]
               return next
             })
-            refetchServers()
           } catch (error) {
             logger.error('Failed to remove tool:', error)
           } finally {
@@ -398,7 +392,6 @@ export function McpDeploy({
       parameterSchema,
       addToolMutation,
       deleteToolMutation,
-      refetchServers,
       onAddedToServer,
     ]
   )
