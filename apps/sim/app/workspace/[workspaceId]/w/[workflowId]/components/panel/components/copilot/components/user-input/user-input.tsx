@@ -613,7 +613,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const insertTriggerAndOpenMenu = useCallback(
       (trigger: '@' | '/') => {
-        if (disabled || isLoading) return
+        if (disabled) return
         const textarea = mentionMenu.textareaRef.current
         if (!textarea) return
 
@@ -642,7 +642,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         }
         mentionMenu.setSubmenuActiveIndex(0)
       },
-      [disabled, isLoading, mentionMenu, message, setMessage]
+      [disabled, mentionMenu, message, setMessage]
     )
 
     const handleOpenMentionMenuWithAt = useCallback(
@@ -737,7 +737,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     title='Insert @'
                     className={cn(
                       'cursor-pointer rounded-[6px] p-[4.5px]',
-                      (disabled || isLoading) && 'cursor-not-allowed'
+                      disabled && 'cursor-not-allowed'
                     )}
                   >
                     <AtSign className='h-3 w-3' strokeWidth={1.75} />
@@ -749,7 +749,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     title='Insert /'
                     className={cn(
                       'cursor-pointer rounded-[6px] p-[4.5px]',
-                      (disabled || isLoading) && 'cursor-not-allowed'
+                      disabled && 'cursor-not-allowed'
                     )}
                   >
                     <span className='flex h-3 w-3 items-center justify-center font-medium text-[11px] leading-none'>
@@ -816,7 +816,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               placeholder={fileAttachments.isDragging ? 'Drop files here...' : effectivePlaceholder}
               disabled={disabled}
               rows={2}
-              className='relative z-[2] m-0 box-border h-auto min-h-[48px] w-full resize-none overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent px-[2px] py-1 font-medium font-sans text-sm text-transparent leading-[1.25rem] caret-foreground outline-none [-ms-overflow-style:none] [scrollbar-width:none] [text-rendering:auto] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 dark:placeholder:text-[var(--text-muted)] [&::-webkit-scrollbar]:hidden'
+              className='relative z-[2] m-0 box-border h-auto max-h-[120px] min-h-[48px] w-full resize-none overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent px-[2px] py-1 font-medium font-sans text-sm text-transparent leading-[1.25rem] caret-foreground outline-none [-ms-overflow-style:none] [scrollbar-width:none] [text-rendering:auto] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 dark:placeholder:text-[var(--text-muted)] [&::-webkit-scrollbar]:hidden'
             />
 
             {/* Mention Menu Portal */}

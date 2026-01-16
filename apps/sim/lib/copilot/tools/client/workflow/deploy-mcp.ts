@@ -128,7 +128,6 @@ export class DeployMcpClientTool extends BaseClientTool {
 
       this.setState(ClientToolCallState.executing)
 
-      // Build parameter schema with descriptions if provided
       let parameterSchema: Record<string, unknown> | undefined
       if (args?.parameterDescriptions && args.parameterDescriptions.length > 0) {
         const properties: Record<string, { description: string }> = {}
@@ -155,9 +154,49 @@ export class DeployMcpClientTool extends BaseClientTool {
       const data = await res.json()
 
       if (!res.ok) {
-        // Handle specific error cases
         if (data.error?.includes('already added')) {
-          throw new Error('This workflow is already deployed to this MCP server')
+          const toolsRes = await fetch(
+            `/api/mcp/workflow-servers/${args.serverId}/tools?workspaceId=${workspaceId}`
+          )
+          const toolsJson = toolsRes.ok ? await toolsRes.json() : null
+          const tools = toolsJson?.data?.tools || []
+          const existingTool = tools.find((tool: any) => tool.workflowId === workflowId)
+          if (!existingTool?.id) {
+            throw new Error('This workflow is already deployed to this MCP server')
+          }
+          const patchRes = await fetch(
+            `/api/mcp/workflow-servers/${args.serverId}/tools/${existingTool.id}?workspaceId=${workspaceId}`,
+            {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                toolName: args.toolName?.trim(),
+                toolDescription: args.toolDescription?.trim(),
+                parameterSchema,
+              }),
+            }
+          )
+          const patchJson = patchRes.ok ? await patchRes.json() : null
+          if (!patchRes.ok) {
+            const patchError = patchJson?.error || `Failed to update MCP tool (${patchRes.status})`
+            throw new Error(patchError)
+          }
+          const updatedTool = patchJson?.data?.tool
+          this.setState(ClientToolCallState.success)
+          await this.markToolComplete(
+            200,
+            `Workflow MCP tool updated to "${updatedTool?.toolName || existingTool.toolName}".`,
+            {
+              success: true,
+              toolId: updatedTool?.id || existingTool.id,
+              toolName: updatedTool?.toolName || existingTool.toolName,
+              toolDescription: updatedTool?.toolDescription || existingTool.toolDescription,
+              serverId: args.serverId,
+              updated: true,
+            }
+          )
+          logger.info('Updated workflow MCP tool', { toolId: existingTool.id })
+          return
         }
         if (data.error?.includes('not deployed')) {
           throw new Error('Workflow must be deployed before adding as an MCP tool')

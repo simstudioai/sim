@@ -22,7 +22,8 @@ export function useCheckpointManagement(
   messages: CopilotMessage[],
   messageCheckpoints: any[],
   onRevertModeChange?: (isReverting: boolean) => void,
-  onEditModeChange?: (isEditing: boolean) => void
+  onEditModeChange?: (isEditing: boolean) => void,
+  onCancelEdit?: () => void
 ) {
   const [showRestoreConfirmation, setShowRestoreConfirmation] = useState(false)
   const [showCheckpointDiscardModal, setShowCheckpointDiscardModal] = useState(false)
@@ -57,7 +58,7 @@ export function useCheckpointManagement(
         const { messageCheckpoints: currentCheckpoints } = useCopilotStore.getState()
         const updatedCheckpoints = {
           ...currentCheckpoints,
-          [message.id]: messageCheckpoints.slice(1),
+          [message.id]: [],
         }
         useCopilotStore.setState({ messageCheckpoints: updatedCheckpoints })
 
@@ -140,7 +141,7 @@ export function useCheckpointManagement(
           const { messageCheckpoints: currentCheckpoints } = useCopilotStore.getState()
           const updatedCheckpoints = {
             ...currentCheckpoints,
-            [message.id]: messageCheckpoints.slice(1),
+            [message.id]: [],
           }
           useCopilotStore.setState({ messageCheckpoints: updatedCheckpoints })
 
@@ -154,6 +155,8 @@ export function useCheckpointManagement(
       }
 
       setShowCheckpointDiscardModal(false)
+      onEditModeChange?.(false)
+      onCancelEdit?.()
 
       const { sendMessage } = useCopilotStore.getState()
       if (pendingEditRef.current) {
@@ -180,15 +183,17 @@ export function useCheckpointManagement(
     } finally {
       setIsProcessingDiscard(false)
     }
-  }, [messageCheckpoints, revertToCheckpoint, message, messages])
+  }, [messageCheckpoints, revertToCheckpoint, message, messages, onEditModeChange, onCancelEdit])
 
   /**
    * Cancels checkpoint discard and clears pending edit
    */
   const handleCancelCheckpointDiscard = useCallback(() => {
     setShowCheckpointDiscardModal(false)
+    onEditModeChange?.(false)
+    onCancelEdit?.()
     pendingEditRef.current = null
-  }, [])
+  }, [onEditModeChange, onCancelEdit])
 
   /**
    * Continues with edit WITHOUT reverting checkpoint
@@ -218,7 +223,7 @@ export function useCheckpointManagement(
       }
       pendingEditRef.current = null
     }
-  }, [message, messages])
+  }, [message, messages, onEditModeChange, onCancelEdit])
 
   /**
    * Handles keyboard events for restore confirmation (Escape/Enter)

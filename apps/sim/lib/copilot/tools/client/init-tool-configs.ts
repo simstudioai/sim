@@ -28,6 +28,7 @@ import './workflow/deploy-api'
 import './workflow/deploy-chat'
 import './workflow/deploy-mcp'
 import './workflow/edit-workflow'
+import './workflow/redeploy'
 import './workflow/run-workflow'
 import './workflow/set-global-workflow-variables'
 
