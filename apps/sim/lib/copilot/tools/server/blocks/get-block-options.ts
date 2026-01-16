@@ -29,7 +29,11 @@ export const getBlockOptionsServerTool: BaseServerTool<
           { id: 'for', name: 'For', description: 'Run a fixed number of iterations.' },
           { id: 'forEach', name: 'For each', description: 'Iterate over a collection.' },
           { id: 'while', name: 'While', description: 'Repeat while a condition is true.' },
-          { id: 'doWhile', name: 'Do while', description: 'Run once, then repeat while a condition is true.' },
+          {
+            id: 'doWhile',
+            name: 'Do while',
+            description: 'Run once, then repeat while a condition is true.',
+          },
         ],
       }
       return GetBlockOptionsResult.parse(result)
@@ -41,7 +45,11 @@ export const getBlockOptionsServerTool: BaseServerTool<
         blockName: 'Parallel',
         operations: [
           { id: 'count', name: 'Count', description: 'Run a fixed number of parallel branches.' },
-          { id: 'collection', name: 'Collection', description: 'Run one branch per collection item.' },
+          {
+            id: 'collection',
+            name: 'Collection',
+            description: 'Run one branch per collection item.',
+          },
         ],
       }
       return GetBlockOptionsResult.parse(result)
