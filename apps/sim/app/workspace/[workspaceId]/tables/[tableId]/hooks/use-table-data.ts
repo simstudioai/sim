@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import type { TableDefinition, TableRow } from '@/lib/table'
-import type { BuilderQueryResult } from '../../components/table-query-builder'
-import { ROWS_PER_PAGE } from '../constants'
+import { ROWS_PER_PAGE } from '../lib/constants'
+import type { QueryOptions } from '../lib/types'
 
 interface UseTableDataParams {
   workspaceId: string
   tableId: string
-  queryOptions: BuilderQueryResult
+  queryOptions: QueryOptions
   currentPage: number
 }
 

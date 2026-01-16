@@ -1,5 +1,5 @@
-import { TableDataViewer } from './table-data-viewer'
+import { TableViewer } from './components'
 
 export default function TablePage() {
-  return <TableDataViewer />
+  return <TableViewer />
 }

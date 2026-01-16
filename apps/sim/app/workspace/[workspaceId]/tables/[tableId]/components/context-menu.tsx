@@ -6,16 +6,16 @@ import {
   PopoverDivider,
   PopoverItem,
 } from '@/components/emcn'
-import type { ContextMenuState } from '../types'
+import type { ContextMenuState } from '../lib/types'
 
-interface RowContextMenuProps {
+interface ContextMenuProps {
   contextMenu: ContextMenuState
   onClose: () => void
   onEdit: () => void
   onDelete: () => void
 }
 
-export function RowContextMenu({ contextMenu, onClose, onEdit, onDelete }: RowContextMenuProps) {
+export function ContextMenu({ contextMenu, onClose, onEdit, onDelete }: ContextMenuProps) {
   return (
     <Popover
       open={contextMenu.isOpen}

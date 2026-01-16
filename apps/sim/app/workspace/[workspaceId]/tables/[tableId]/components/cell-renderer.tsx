@@ -1,14 +1,14 @@
 import type { ColumnDefinition } from '@/lib/table'
-import { STRING_TRUNCATE_LENGTH } from '../constants'
-import type { CellViewerData } from '../types'
+import { STRING_TRUNCATE_LENGTH } from '../lib/constants'
+import type { CellViewerData } from '../lib/types'
 
-interface TableCellRendererProps {
+interface CellRendererProps {
   value: unknown
   column: ColumnDefinition
   onCellClick: (columnName: string, value: unknown, type: CellViewerData['type']) => void
 }
 
-export function TableCellRenderer({ value, column, onCellClick }: TableCellRendererProps) {
+export function CellRenderer({ value, column, onCellClick }: CellRendererProps) {
   const isNull = value === null || value === undefined
 
   if (isNull) {

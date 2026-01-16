@@ -18,9 +18,9 @@ import {
 import { Input } from '@/components/ui/input'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 
-const logger = createLogger('TableRowModal')
+const logger = createLogger('RowModal')
 
-export interface TableRowModalProps {
+export interface RowModalProps {
   mode: 'add' | 'edit' | 'delete'
   isOpen: boolean
   onClose: () => void
@@ -92,15 +92,7 @@ function formatValueForInput(value: unknown, type: string): string {
   return String(value)
 }
 
-export function TableRowModal({
-  mode,
-  isOpen,
-  onClose,
-  table,
-  row,
-  rowIds,
-  onSuccess,
-}: TableRowModalProps) {
+export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess }: RowModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 

@@ -1,6 +1,6 @@
 import { Button } from '@/components/emcn'
 
-interface TablePaginationProps {
+interface PaginationProps {
   currentPage: number
   totalPages: number
   totalCount: number
@@ -8,13 +8,13 @@ interface TablePaginationProps {
   onNextPage: () => void
 }
 
-export function TablePagination({
+export function Pagination({
   currentPage,
   totalPages,
   totalCount,
   onPreviousPage,
   onNextPage,
-}: TablePaginationProps) {
+}: PaginationProps) {
   if (totalPages <= 1) return null
 
   return (

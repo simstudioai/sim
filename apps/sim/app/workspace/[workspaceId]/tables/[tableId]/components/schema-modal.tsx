@@ -13,15 +13,15 @@ import {
   TableRow,
 } from '@/components/emcn'
 import type { ColumnDefinition } from '@/lib/table'
-import { getTypeBadgeVariant } from '../utils'
+import { getTypeBadgeVariant } from '../lib/utils'
 
-interface SchemaViewerModalProps {
+interface SchemaModalProps {
   isOpen: boolean
   onClose: () => void
   columns: ColumnDefinition[]
 }
 
-export function SchemaViewerModal({ isOpen, onClose, columns }: SchemaViewerModalProps) {
+export function SchemaModal({ isOpen, onClose, columns }: SchemaModalProps) {
   return (
     <Modal open={isOpen} onOpenChange={onClose}>
       <ModalContent className='w-[500px] duration-100'>

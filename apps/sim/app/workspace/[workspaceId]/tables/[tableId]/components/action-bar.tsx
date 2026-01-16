@@ -3,13 +3,13 @@
 import { Trash2, X } from 'lucide-react'
 import { Button } from '@/components/emcn'
 
-interface TableActionBarProps {
+interface ActionBarProps {
   selectedCount: number
   onDelete: () => void
   onClearSelection: () => void
 }
 
-export function TableActionBar({ selectedCount, onDelete, onClearSelection }: TableActionBarProps) {
+export function ActionBar({ selectedCount, onDelete, onClearSelection }: ActionBarProps) {
   return (
     <div className='flex h-[36px] shrink-0 items-center justify-between border-[var(--border)] border-b bg-[var(--surface-4)] px-[16px]'>
       <div className='flex items-center gap-[12px]'>

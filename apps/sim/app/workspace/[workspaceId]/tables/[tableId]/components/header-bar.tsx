@@ -2,7 +2,7 @@ import { Info, RefreshCw } from 'lucide-react'
 import { Badge, Button, Tooltip } from '@/components/emcn'
 import { Skeleton } from '@/components/ui/skeleton'
 
-interface TableHeaderBarProps {
+interface HeaderBarProps {
   tableName: string
   totalCount: number
   isLoading: boolean
@@ -11,14 +11,14 @@ interface TableHeaderBarProps {
   onRefresh: () => void
 }
 
-export function TableHeaderBar({
+export function HeaderBar({
   tableName,
   totalCount,
   isLoading,
   onNavigateBack,
   onShowSchema,
   onRefresh,
-}: TableHeaderBarProps) {
+}: HeaderBarProps) {
   return (
     <div className='flex h-[48px] shrink-0 items-center justify-between border-[var(--border)] border-b px-[16px]'>
       <div className='flex items-center gap-[8px]'>

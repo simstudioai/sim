@@ -1,6 +1,9 @@
-export function getTypeBadgeVariant(
-  type: string
-): 'green' | 'blue' | 'purple' | 'orange' | 'teal' | 'gray' {
+type BadgeVariant = 'green' | 'blue' | 'purple' | 'orange' | 'teal' | 'gray'
+
+/**
+ * Returns the appropriate badge color variant for a column type
+ */
+export function getTypeBadgeVariant(type: string): BadgeVariant {
   switch (type) {
     case 'string':
       return 'green'

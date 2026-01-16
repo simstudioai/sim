@@ -14,21 +14,20 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { TableRow as TableRowType } from '@/lib/table'
-import { type QueryOptions, TableActionBar, TableQueryBuilder, TableRowModal } from '../components'
-import {
-  CellViewerModal,
-  RowContextMenu,
-  SchemaViewerModal,
-  TableCellRenderer,
-  TableEmptyRows,
-  TableHeaderBar,
-  TableLoadingRows,
-  TablePagination,
-} from './components'
-import { useContextMenu, useRowSelection, useTableData } from './hooks'
-import type { CellViewerData } from './types'
+import { useContextMenu, useRowSelection, useTableData } from '../hooks'
+import type { CellViewerData, QueryOptions } from '../lib/types'
+import { ActionBar } from './action-bar'
+import { EmptyRows, LoadingRows } from './body-states'
+import { CellRenderer } from './cell-renderer'
+import { CellViewerModal } from './cell-viewer-modal'
+import { ContextMenu } from './context-menu'
+import { HeaderBar } from './header-bar'
+import { Pagination } from './pagination'
+import { QueryBuilder } from './query-builder'
+import { RowModal } from './row-modal'
+import { SchemaModal } from './schema-modal'
 
-export function TableDataViewer() {
+export function TableViewer() {
   const params = useParams()
   const router = useRouter()
 
@@ -146,7 +145,7 @@ export function TableDataViewer() {
 
   return (
     <div className='flex h-full flex-col'>
-      <TableHeaderBar
+      <HeaderBar
         tableName={tableData.name}
         totalCount={totalCount}
         isLoading={isLoadingRows}
@@ -156,7 +155,7 @@ export function TableDataViewer() {
       />
 
       <div className='flex shrink-0 flex-col gap-[8px] border-[var(--border)] border-b px-[16px] py-[10px]'>
-        <TableQueryBuilder
+        <QueryBuilder
           columns={columns}
           onApply={handleApplyQueryOptions}
           onAddRow={handleAddRow}
@@ -168,7 +167,7 @@ export function TableDataViewer() {
       </div>
 
       {hasSelection && (
-        <TableActionBar
+        <ActionBar
           selectedCount={selectedCount}
           onDelete={handleDeleteSelected}
           onClearSelection={clearSelection}
@@ -199,9 +198,9 @@ export function TableDataViewer() {
           </TableHeader>
           <TableBody>
             {isLoadingRows ? (
-              <TableLoadingRows columns={columns} />
+              <LoadingRows columns={columns} />
             ) : rows.length === 0 ? (
-              <TableEmptyRows
+              <EmptyRows
                 columnCount={columns.length}
                 hasFilter={!!queryOptions.filter}
                 onAddRow={handleAddRow}
@@ -226,7 +225,7 @@ export function TableDataViewer() {
                   {columns.map((column) => (
                     <TableCell key={column.name}>
                       <div className='max-w-[300px] truncate text-[13px]'>
-                        <TableCellRenderer
+                        <CellRenderer
                           value={row.data[column.name]}
                           column={column}
                           onCellClick={handleCellClick}
@@ -241,7 +240,7 @@ export function TableDataViewer() {
         </Table>
       </div>
 
-      <TablePagination
+      <Pagination
         currentPage={currentPage}
         totalPages={totalPages}
         totalCount={totalCount}
@@ -249,7 +248,7 @@ export function TableDataViewer() {
         onNextPage={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
       />
 
-      <TableRowModal
+      <RowModal
         mode='add'
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
@@ -261,7 +260,7 @@ export function TableDataViewer() {
       />
 
       {editingRow && (
-        <TableRowModal
+        <RowModal
           mode='edit'
           isOpen={true}
           onClose={() => setEditingRow(null)}
@@ -275,7 +274,7 @@ export function TableDataViewer() {
       )}
 
       {deletingRows.length > 0 && (
-        <TableRowModal
+        <RowModal
           mode='delete'
           isOpen={true}
           onClose={() => setDeletingRows([])}
@@ -289,7 +288,7 @@ export function TableDataViewer() {
         />
       )}
 
-      <SchemaViewerModal
+      <SchemaModal
         isOpen={showSchemaModal}
         onClose={() => setShowSchemaModal(false)}
         columns={columns}
@@ -302,7 +301,7 @@ export function TableDataViewer() {
         copied={copied}
       />
 
-      <RowContextMenu
+      <ContextMenu
         contextMenu={contextMenu}
         onClose={closeContextMenu}
         onEdit={handleContextMenuEdit}

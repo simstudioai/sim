@@ -3,11 +3,11 @@ import { Button, TableCell, TableRow } from '@/components/emcn'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ColumnDefinition } from '@/lib/table'
 
-interface TableLoadingRowsProps {
+interface LoadingRowsProps {
   columns: ColumnDefinition[]
 }
 
-export function TableLoadingRows({ columns }: TableLoadingRowsProps) {
+export function LoadingRows({ columns }: LoadingRowsProps) {
   return (
     <>
       {Array.from({ length: 25 }).map((_, rowIndex) => (
@@ -43,13 +43,13 @@ export function TableLoadingRows({ columns }: TableLoadingRowsProps) {
   )
 }
 
-interface TableEmptyRowsProps {
+interface EmptyRowsProps {
   columnCount: number
   hasFilter: boolean
   onAddRow: () => void
 }
 
-export function TableEmptyRows({ columnCount, hasFilter, onAddRow }: TableEmptyRowsProps) {
+export function EmptyRows({ columnCount, hasFilter, onAddRow }: EmptyRowsProps) {
   return (
     <TableRow>
       <TableCell colSpan={columnCount + 1} className='h-[160px]'>
