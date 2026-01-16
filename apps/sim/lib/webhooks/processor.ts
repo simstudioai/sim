@@ -24,7 +24,6 @@ export interface WebhookProcessorOptions {
   requestId: string
   path?: string
   webhookId?: string
-  executionTarget?: 'deployed' | 'live'
 }
 
 function getExternalUrl(request: NextRequest): string {
@@ -942,7 +941,6 @@ export async function queueWebhookExecution(
       headers,
       path: options.path || foundWebhook.path,
       blockId: foundWebhook.blockId,
-      executionTarget: options.executionTarget,
       ...(credentialId ? { credentialId } : {}),
     }
 
