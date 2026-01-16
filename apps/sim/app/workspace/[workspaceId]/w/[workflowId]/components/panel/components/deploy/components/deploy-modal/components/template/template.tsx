@@ -54,19 +54,11 @@ interface CreatorOption {
   referenceId: string
 }
 
-interface TemplateStatus {
-  status: 'pending' | 'approved' | 'rejected' | null
-  views?: number
-  stars?: number
-}
-
 interface TemplateDeployProps {
   workflowId: string
   onDeploymentComplete?: () => void
   onValidationChange?: (isValid: boolean) => void
   onSubmittingChange?: (isSubmitting: boolean) => void
-  onExistingTemplateChange?: (exists: boolean) => void
-  onTemplateStatusChange?: (status: TemplateStatus | null) => void
 }
 
 export function TemplateDeploy({
@@ -74,8 +66,6 @@ export function TemplateDeploy({
   onDeploymentComplete,
   onValidationChange,
   onSubmittingChange,
-  onExistingTemplateChange,
-  onTemplateStatusChange,
 }: TemplateDeployProps) {
   const { data: session } = useSession()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -110,22 +100,6 @@ export function TemplateDeploy({
   useEffect(() => {
     onSubmittingChange?.(isSubmitting)
   }, [isSubmitting, onSubmittingChange])
-
-  useEffect(() => {
-    onExistingTemplateChange?.(!!existingTemplate)
-  }, [existingTemplate, onExistingTemplateChange])
-
-  useEffect(() => {
-    if (existingTemplate) {
-      onTemplateStatusChange?.({
-        status: existingTemplate.status as 'pending' | 'approved' | 'rejected',
-        views: existingTemplate.views,
-        stars: existingTemplate.stars,
-      })
-    } else {
-      onTemplateStatusChange?.(null)
-    }
-  }, [existingTemplate, onTemplateStatusChange])
 
   const fetchCreatorOptions = async () => {
     if (!session?.user?.id) return

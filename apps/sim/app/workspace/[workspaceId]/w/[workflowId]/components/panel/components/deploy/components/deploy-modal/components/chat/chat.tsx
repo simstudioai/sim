@@ -29,9 +29,11 @@ import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/compo
 import {
   type AuthType,
   type ChatFormData,
-  useChatDeployment,
-  useIdentifierValidation,
-} from './hooks'
+  useCreateChat,
+  useDeleteChat,
+  useUpdateChat,
+} from '@/hooks/queries/chats'
+import { useIdentifierValidation } from './hooks'
 
 const logger = createLogger('ChatDeploy')
 
@@ -45,7 +47,6 @@ interface ChatDeployProps {
   existingChat: ExistingChat | null
   isLoadingChat: boolean
   onRefetchChat: () => Promise<void>
-  onChatExistsChange?: (exists: boolean) => void
   chatSubmitting: boolean
   setChatSubmitting: (submitting: boolean) => void
   onValidationChange?: (isValid: boolean) => void
@@ -97,7 +98,6 @@ export function ChatDeploy({
   existingChat,
   isLoadingChat,
   onRefetchChat,
-  onChatExistsChange,
   chatSubmitting,
   setChatSubmitting,
   onValidationChange,
@@ -121,8 +121,12 @@ export function ChatDeploy({
 
   const [formData, setFormData] = useState<ChatFormData>(initialFormData)
   const [errors, setErrors] = useState<FormErrors>({})
-  const { deployChat } = useChatDeployment()
   const formRef = useRef<HTMLFormElement>(null)
+
+  // React Query mutations for chat operations
+  const createChatMutation = useCreateChat()
+  const updateChatMutation = useUpdateChat()
+  const deleteChatMutation = useDeleteChat()
   const [isIdentifierValid, setIsIdentifierValid] = useState(false)
   const [hasInitializedForm, setHasInitializedForm] = useState(false)
 
@@ -231,15 +235,29 @@ export function ChatDeploy({
         return
       }
 
-      const chatUrl = await deployChat(
-        workflowId,
-        formData,
-        deploymentInfo,
-        existingChat?.id,
-        imageUrl
-      )
+      let chatUrl: string
 
-      onChatExistsChange?.(true)
+      if (existingChat?.id) {
+        // Update existing chat
+        const result = await updateChatMutation.mutateAsync({
+          chatId: existingChat.id,
+          workflowId,
+          formData,
+          imageUrl,
+        })
+        chatUrl = result.chatUrl
+      } else {
+        // Create new chat
+        const result = await createChatMutation.mutateAsync({
+          workflowId,
+          formData,
+          apiKey: deploymentInfo?.apiKey,
+          imageUrl,
+        })
+        chatUrl = result.chatUrl
+      }
+
+      // Mutations handle cache invalidation, no need for onChatExistsChange
       onDeployed?.()
       onVersionActivated?.()
 
@@ -266,18 +284,14 @@ export function ChatDeploy({
     try {
       setIsDeleting(true)
 
-      const response = await fetch(`/api/chat/manage/${existingChat.id}`, {
-        method: 'DELETE',
+      await deleteChatMutation.mutateAsync({
+        chatId: existingChat.id,
+        workflowId,
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to delete chat')
-      }
 
       setImageUrl(null)
       setHasInitializedForm(false)
-      onChatExistsChange?.(false)
+      // Mutation handles cache invalidation, no need for onChatExistsChange
       await onRefetchChat()
 
       onDeploymentComplete?.()

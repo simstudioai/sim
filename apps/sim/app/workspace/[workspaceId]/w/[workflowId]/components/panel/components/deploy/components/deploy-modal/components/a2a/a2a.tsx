@@ -83,8 +83,7 @@ interface A2aDeployProps {
   workflowNeedsRedeployment?: boolean
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
-  onAgentExistsChange?: (exists: boolean) => void
-  onPublishedChange?: (published: boolean) => void
+  /** Callback for when republish status changes - depends on local form state */
   onNeedsRepublishChange?: (needsRepublish: boolean) => void
   onDeployWorkflow?: () => Promise<void>
 }
@@ -99,8 +98,6 @@ export function A2aDeploy({
   workflowNeedsRedeployment,
   onSubmittingChange,
   onCanSaveChange,
-  onAgentExistsChange,
-  onPublishedChange,
   onNeedsRepublishChange,
   onDeployWorkflow,
 }: A2aDeployProps) {
@@ -236,14 +233,6 @@ export function A2aDeploy({
     }
   }, [existingAgent, workflowName, workflowDescription])
 
-  useEffect(() => {
-    onAgentExistsChange?.(!!existingAgent)
-  }, [existingAgent, onAgentExistsChange])
-
-  useEffect(() => {
-    onPublishedChange?.(existingAgent?.isPublished ?? false)
-  }, [existingAgent?.isPublished, onPublishedChange])
-
   const hasFormChanges = useMemo(() => {
     if (!existingAgent) return false
     const savedSchemes = existingAgent.authentication?.schemes || []
@@ -278,6 +267,7 @@ export function A2aDeploy({
 
   const needsRepublish = existingAgent && (hasFormChanges || hasWorkflowChanges)
 
+  // Notify parent of republish status changes (depends on local form state)
   useEffect(() => {
     onNeedsRepublishChange?.(!!needsRepublish)
   }, [needsRepublish, onNeedsRepublishChange])

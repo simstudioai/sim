@@ -264,3 +264,71 @@ export function useKnowledgeChunksQuery(
     placeholderData: keepPreviousData,
   })
 }
+
+export interface DocumentChunkSearchParams {
+  knowledgeBaseId: string
+  documentId: string
+  search: string
+}
+
+/**
+ * Fetches all chunks matching a search query by paginating through results.
+ * This is used for search functionality where we need all matching chunks.
+ */
+export async function fetchAllDocumentChunks({
+  knowledgeBaseId,
+  documentId,
+  search,
+}: DocumentChunkSearchParams): Promise<ChunkData[]> {
+  const allResults: ChunkData[] = []
+  let hasMore = true
+  let offset = 0
+  const limit = 100
+
+  while (hasMore) {
+    const response = await fetchKnowledgeChunks({
+      knowledgeBaseId,
+      documentId,
+      search,
+      limit,
+      offset,
+    })
+
+    allResults.push(...response.chunks)
+    hasMore = response.pagination.hasMore
+    offset += limit
+  }
+
+  return allResults
+}
+
+export const serializeSearchParams = (params: DocumentChunkSearchParams) =>
+  JSON.stringify({
+    search: params.search,
+  })
+
+/**
+ * Hook to search for chunks in a document.
+ * Fetches all matching chunks and returns them for client-side pagination.
+ */
+export function useDocumentChunkSearchQuery(
+  params: DocumentChunkSearchParams,
+  options?: {
+    enabled?: boolean
+  }
+) {
+  const searchKey = serializeSearchParams(params)
+  return useQuery({
+    queryKey: [
+      ...knowledgeKeys.document(params.knowledgeBaseId, params.documentId),
+      'search',
+      searchKey,
+    ],
+    queryFn: () => fetchAllDocumentChunks(params),
+    enabled:
+      (options?.enabled ?? true) &&
+      Boolean(params.knowledgeBaseId && params.documentId && params.search.trim()),
+    staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
+  })
+}

@@ -4,6 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
+import { deploymentKeys } from '@/hooks/queries/deployments'
 import {
   createOptimisticMutationHandlers,
   generateTempId,
@@ -634,6 +635,13 @@ export function useDeployChildWorkflow() {
 
       queryClient.invalidateQueries({
         queryKey: workflowKeys.deploymentStatus(variables.workflowId),
+      })
+      // Also invalidate deployment queries
+      queryClient.invalidateQueries({
+        queryKey: deploymentKeys.info(variables.workflowId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: deploymentKeys.versions(variables.workflowId),
       })
     },
     onError: (error) => {

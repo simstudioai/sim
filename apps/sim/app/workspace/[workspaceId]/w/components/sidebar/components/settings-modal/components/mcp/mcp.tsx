@@ -79,7 +79,7 @@ interface EnvVarDropdownConfig {
 
 interface McpToolSchema {
   type: 'object'
-  properties?: Record<string, { type?: string; description?: string; items?: unknown }>
+  properties?: Record<string, unknown>
   required?: string[]
 }
 
