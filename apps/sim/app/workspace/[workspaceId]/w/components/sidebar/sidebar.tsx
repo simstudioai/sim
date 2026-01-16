@@ -639,6 +639,9 @@ export function Sidebar() {
                     handleFileChange={handleImportFileChange}
                     fileInputRef={fileInputRef}
                     scrollContainerRef={scrollContainerRef}
+                    onCreateWorkflow={handleCreateWorkflow}
+                    onCreateFolder={handleCreateFolder}
+                    disableCreate={!canEdit || isCreatingWorkflow || isCreatingFolder}
                   />
                 </div>
               </div>
