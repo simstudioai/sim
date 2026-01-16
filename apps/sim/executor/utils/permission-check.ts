@@ -136,6 +136,10 @@ export async function validateBlockType(
   blockType: string,
   ctx?: ExecutionContext
 ): Promise<void> {
+  if (blockType === 'start_trigger') {
+    return
+  }
+
   if (!userId) {
     return
   }
