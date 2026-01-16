@@ -1,12 +1,8 @@
 /**
  * @vitest-environment node
- *
- * Validation Schema Unit Tests
- *
- * Tests for table schema validation utilities.
  */
 import { describe, expect, it } from 'vitest'
-import { TABLE_LIMITS } from '../constants'
+import { TABLE_LIMITS } from './constants'
 import {
   type ColumnDefinition,
   getUniqueColumns,
@@ -17,9 +13,9 @@ import {
   validateTableName,
   validateTableSchema,
   validateUniqueConstraints,
-} from './schema'
+} from './validation'
 
-describe('Validation Schema', () => {
+describe('Validation', () => {
   describe('validateTableName', () => {
     it('should accept valid table names', () => {
       const validNames = ['users', 'user_data', '_private', 'Users123', 'a']
