@@ -16,9 +16,12 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         ui_host: 'https://us.posthog.com',
         defaults: '2025-05-24',
         person_profiles: 'identified_only',
-        capture_pageview: true,
+        autocapture: false,
+        capture_pageview: false,
         capture_pageleave: false,
         capture_performance: false,
+        capture_dead_clicks: false,
+        enable_heatmaps: false,
         session_recording: {
           maskAllInputs: false,
           maskInputOptions: {
@@ -29,13 +32,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
           recordHeaders: false,
           recordBody: false,
         },
-        autocapture: {
-          dom_event_allowlist: ['click', 'submit', 'change'],
-          element_allowlist: ['button', 'a', 'input'],
-        },
-        capture_dead_clicks: false,
         persistence: 'localStorage+cookie',
-        enable_heatmaps: false,
       })
     }
   }, [])
