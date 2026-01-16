@@ -1,7 +1,3 @@
-/**
- * Cell value renderer for different column types.
- */
-
 import type { ColumnDefinition } from '@/lib/table'
 import { STRING_TRUNCATE_LENGTH } from '../constants'
 import type { CellViewerData } from '../types'
@@ -12,12 +8,6 @@ interface TableCellRendererProps {
   onCellClick: (columnName: string, value: unknown, type: CellViewerData['type']) => void
 }
 
-/**
- * Renders a cell value with appropriate formatting based on column type.
- *
- * @param props - Component props
- * @returns Formatted cell content
- */
 export function TableCellRenderer({ value, column, onCellClick }: TableCellRendererProps) {
   const isNull = value === null || value === undefined
 

@@ -21,17 +21,11 @@ import { checkAccessOrRespond, checkAccessWithFullTable, verifyTableWorkspace } 
 
 const logger = createLogger('TableRowsAPI')
 
-/**
- * Zod schema for inserting a single row into a table.
- *
- * The workspaceId is required and validated against the table.
- */
 const InsertRowSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   data: z.record(z.unknown(), { required_error: 'Row data is required' }),
 })
 
-/** Zod schema for batch inserting multiple rows (max 1000 per batch) */
 const BatchInsertRowsSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   rows: z
@@ -40,9 +34,6 @@ const BatchInsertRowsSchema = z.object({
     .max(1000, 'Cannot insert more than 1000 rows per batch'),
 })
 
-/**
- * Zod schema for querying rows with filtering, sorting, and pagination.
- */
 const QueryRowsSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: z.record(z.unknown()).optional(),
@@ -62,7 +53,6 @@ const QueryRowsSchema = z.object({
     .default(0),
 })
 
-/** Zod schema for updating multiple rows by filter (max 1000 per operation) */
 const UpdateRowsByFilterSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: z.record(z.unknown(), { required_error: 'Filter criteria is required' }),
@@ -75,7 +65,6 @@ const UpdateRowsByFilterSchema = z.object({
     .optional(),
 })
 
-/** Zod schema for deleting multiple rows by filter (max 1000 per operation) */
 const DeleteRowsByFilterSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: z.record(z.unknown(), { required_error: 'Filter criteria is required' }),
@@ -87,24 +76,10 @@ const DeleteRowsByFilterSchema = z.object({
     .optional(),
 })
 
-/**
- * Route params for table row endpoints.
- */
 interface TableRowsRouteParams {
   params: Promise<{ tableId: string }>
 }
 
-/**
- * Handles batch insertion of multiple rows into a table.
- *
- * @param requestId - Request tracking ID for logging
- * @param tableId - ID of the target table
- * @param body - Validated batch insert request body
- * @param userId - ID of the authenticated user
- * @returns NextResponse with inserted rows or error
- *
- * @internal
- */
 async function handleBatchInsert(
   requestId: string,
   tableId: string,
@@ -113,13 +88,11 @@ async function handleBatchInsert(
 ): Promise<NextResponse> {
   const validated = BatchInsertRowsSchema.parse(body)
 
-  // Check table write access and get full table data in one query
   const accessResult = await checkAccessWithFullTable(tableId, userId, requestId, 'write')
   if (accessResult instanceof NextResponse) return accessResult
 
   const table = accessResult.table
 
-  // Security check: verify workspaceId matches the table's workspace
   if (validated.workspaceId !== table.workspaceId) {
     logger.warn(
       `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
@@ -129,7 +102,6 @@ async function handleBatchInsert(
 
   const workspaceId = validated.workspaceId
 
-  // Check row count limit
   const remainingCapacity = table.maxRows - table.rowCount
   if (remainingCapacity < validated.rows.length) {
     return NextResponse.json(
@@ -140,7 +112,6 @@ async function handleBatchInsert(
     )
   }
 
-  // Validate all rows (size, schema, unique constraints)
   const validation = await validateBatchRows({
     rows: validated.rows as RowData[],
     schema: table.schema as TableSchema,
@@ -148,7 +119,6 @@ async function handleBatchInsert(
   })
   if (!validation.valid) return validation.response
 
-  // Insert all rows
   const now = new Date()
   const rowsToInsert = validated.rows.map((data) => ({
     id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
@@ -179,35 +149,7 @@ async function handleBatchInsert(
   })
 }
 
-/**
- * POST /api/table/[tableId]/rows
- *
- * Inserts a new row into the table.
- * Supports both single row and batch insert (when `rows` array is provided).
- *
- * @param request - The incoming HTTP request
- * @param context - Route context containing tableId param
- * @returns JSON response with inserted row(s) or error
- *
- * @example Single row insert:
- * ```json
- * {
- *   "workspaceId": "ws_123",
- *   "data": { "name": "John", "email": "john@example.com" }
- * }
- * ```
- *
- * @example Batch insert:
- * ```json
- * {
- *   "workspaceId": "ws_123",
- *   "rows": [
- *     { "name": "John", "email": "john@example.com" },
- *     { "name": "Jane", "email": "jane@example.com" }
- *   ]
- * }
- * ```
- */
+/** POST /api/table/[tableId]/rows - Inserts row(s). Supports single or batch insert. */
 export async function POST(request: NextRequest, { params }: TableRowsRouteParams) {
   const requestId = generateRequestId()
   const { tableId } = await params
@@ -220,7 +162,6 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
 
     const body: unknown = await request.json()
 
-    // Check if this is a batch insert
     if (
       typeof body === 'object' &&
       body !== null &&
@@ -235,10 +176,8 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
       )
     }
 
-    // Single row insert
     const validated = InsertRowSchema.parse(body)
 
-    // Check table write access and get full table data in one query
     const accessResult = await checkAccessWithFullTable(
       tableId,
       authResult.userId,
@@ -249,7 +188,6 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
 
     const table = accessResult.table
 
-    // Security check: verify workspaceId matches the table's workspace
     if (validated.workspaceId !== table.workspaceId) {
       logger.warn(
         `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
@@ -260,7 +198,6 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
     const workspaceId = validated.workspaceId
     const rowData = validated.data as RowData
 
-    // Validate row data (size, schema, unique constraints)
     const validation = await validateRowData({
       rowData,
       schema: table.schema as TableSchema,
@@ -268,7 +205,6 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
     })
     if (!validation.valid) return validation.response
 
-    // Check row count limit
     if (table.rowCount >= table.maxRows) {
       return NextResponse.json(
         { error: `Table row limit reached (${table.maxRows} rows max)` },
@@ -276,7 +212,6 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
       )
     }
 
-    // Insert row
     const rowId = `row_${crypto.randomUUID().replace(/-/g, '')}`
     const now = new Date()
 
@@ -320,20 +255,7 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
   }
 }
 
-/**
- * GET /api/table/[tableId]/rows?workspaceId=xxx&filter=...&sort=...&limit=100&offset=0
- *
- * Queries rows from the table with filtering, sorting, and pagination.
- *
- * @param request - The incoming HTTP request with query params
- * @param context - Route context containing tableId param
- * @returns JSON response with matching rows and pagination info
- *
- * @example Query with filter:
- * ```
- * GET /api/table/tbl_123/rows?filter={"status":{"eq":"active"}}&limit=50&offset=0
- * ```
- */
+/** GET /api/table/[tableId]/rows - Queries rows with filtering, sorting, and pagination. */
 export async function GET(request: NextRequest, { params }: TableRowsRouteParams) {
   const requestId = generateRequestId()
   const { tableId } = await params
@@ -373,7 +295,6 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
       offset,
     })
 
-    // Check table access with full table data (includes schema for type-aware sorting)
     const accessResult = await checkAccessWithFullTable(
       tableId,
       authResult.userId,
@@ -384,7 +305,6 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
 
     const { table } = accessResult
 
-    // Security check: verify workspaceId matches the table's workspace
     const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
     if (!isValidWorkspace) {
       logger.warn(
@@ -393,13 +313,11 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Build base where conditions
     const baseConditions = [
       eq(userTableRows.tableId, tableId),
       eq(userTableRows.workspaceId, validated.workspaceId),
     ]
 
-    // Add filter conditions if provided
     if (validated.filter) {
       const filterClause = buildFilterClause(validated.filter as Filter, 'user_table_rows')
       if (filterClause) {
@@ -407,7 +325,6 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
       }
     }
 
-    // Build query with combined conditions
     let query = db
       .select({
         id: userTableRows.id,
@@ -418,7 +335,6 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
       .from(userTableRows)
       .where(and(...baseConditions))
 
-    // Apply sorting with type-aware column handling
     if (validated.sort) {
       const schema = table.schema as TableSchema
       const sortClause = buildSortClause(validated.sort, 'user_table_rows', schema.columns)
@@ -429,7 +345,6 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
       query = query.orderBy(userTableRows.createdAt) as typeof query
     }
 
-    // Get total count with same filters (without pagination)
     const countQuery = db
       .select({ count: sql<number>`count(*)` })
       .from(userTableRows)
@@ -437,7 +352,6 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
 
     const [{ count: totalCount }] = await countQuery
 
-    // Apply pagination
     const rows = await query.limit(validated.limit).offset(validated.offset)
 
     logger.info(
@@ -472,23 +386,7 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
   }
 }
 
-/**
- * PUT /api/table/[tableId]/rows
- *
- * Updates multiple rows matching filter criteria.
- *
- * @param request - The incoming HTTP request with filter and update data
- * @param context - Route context containing tableId param
- * @returns JSON response with count of updated rows
- *
- * @example Update all rows where status is "pending":
- * ```json
- * {
- *   "filter": { "status": { "eq": "pending" } },
- *   "data": { "status": "processed" }
- * }
- * ```
- */
+/** PUT /api/table/[tableId]/rows - Updates rows matching filter criteria. */
 export async function PUT(request: NextRequest, { params }: TableRowsRouteParams) {
   const requestId = generateRequestId()
   const { tableId } = await params
@@ -502,7 +400,6 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
     const body: unknown = await request.json()
     const validated = UpdateRowsByFilterSchema.parse(body)
 
-    // Check table write access and get full table data in one query
     const accessResult = await checkAccessWithFullTable(
       tableId,
       authResult.userId,
@@ -513,7 +410,6 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
 
     const table = accessResult.table
 
-    // Security check: verify workspaceId matches the table's workspace
     if (validated.workspaceId !== table.workspaceId) {
       logger.warn(
         `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
@@ -523,7 +419,6 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
 
     const updateData = validated.data as RowData
 
-    // Validate new data size
     const sizeValidation = validateRowSize(updateData)
     if (!sizeValidation.valid) {
       return NextResponse.json(
@@ -532,19 +427,16 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
       )
     }
 
-    // Build base where conditions
     const baseConditions = [
       eq(userTableRows.tableId, tableId),
       eq(userTableRows.workspaceId, validated.workspaceId),
     ]
 
-    // Add filter conditions
     const filterClause = buildFilterClause(validated.filter as Filter, 'user_table_rows')
     if (filterClause) {
       baseConditions.push(filterClause)
     }
 
-    // First, get the rows that match the filter to validate against schema
     let matchingRowsQuery = db
       .select({
         id: userTableRows.id,
@@ -572,12 +464,10 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
       )
     }
 
-    // Log warning for large operations but allow them
     if (matchingRows.length > TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
       logger.warn(`[${requestId}] Updating ${matchingRows.length} rows. This may take some time.`)
     }
 
-    // Validate that merged data matches schema for each row
     for (const row of matchingRows) {
       const existingData = row.data as RowData
       const mergedData = { ...existingData, ...updateData }
@@ -594,10 +484,8 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
       }
     }
 
-    // Check unique constraints if any unique columns exist
     const uniqueColumns = getUniqueColumns(table.schema as TableSchema)
     if (uniqueColumns.length > 0) {
-      // Fetch all rows (not just matching ones) to check for uniqueness
       const allRows = await db
         .select({
           id: userTableRows.id,
@@ -606,7 +494,6 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
         .from(userTableRows)
         .where(eq(userTableRows.tableId, tableId))
 
-      // Validate each updated row for unique constraints
       for (const row of matchingRows) {
         const existingData = row.data as RowData
         const mergedData = { ...existingData, ...updateData }
@@ -614,7 +501,7 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
           mergedData,
           table.schema as TableSchema,
           allRows.map((r) => ({ id: r.id, data: r.data as RowData })),
-          row.id // Exclude the current row being updated
+          row.id
         )
 
         if (!uniqueValidation.valid) {
@@ -630,13 +517,11 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
       }
     }
 
-    // Update rows by merging existing data with new data in a transaction
     const now = new Date()
 
     await db.transaction(async (trx) => {
       let totalUpdated = 0
 
-      // Process updates in batches
       for (let i = 0; i < matchingRows.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
         const batch = matchingRows.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
         const updatePromises = batch.map((row) => {
@@ -684,22 +569,7 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
   }
 }
 
-/**
- * DELETE /api/table/[tableId]/rows
- *
- * Deletes multiple rows matching filter criteria.
- *
- * @param request - The incoming HTTP request with filter criteria
- * @param context - Route context containing tableId param
- * @returns JSON response with count of deleted rows
- *
- * @example Delete all rows where seen is false:
- * ```json
- * {
- *   "filter": { "seen": { "eq": false } }
- * }
- * ```
- */
+/** DELETE /api/table/[tableId]/rows - Deletes rows matching filter criteria. */
 export async function DELETE(request: NextRequest, { params }: TableRowsRouteParams) {
   const requestId = generateRequestId()
   const { tableId } = await params
@@ -713,11 +583,9 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
     const body: unknown = await request.json()
     const validated = DeleteRowsByFilterSchema.parse(body)
 
-    // Check table write access
     const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
     if (accessResult instanceof NextResponse) return accessResult
 
-    // Security check: verify workspaceId matches the table's workspace
     const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
     if (!isValidWorkspace) {
       logger.warn(
@@ -726,19 +594,16 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Build base where conditions
     const baseConditions = [
       eq(userTableRows.tableId, tableId),
       eq(userTableRows.workspaceId, validated.workspaceId),
     ]
 
-    // Add filter conditions
     const filterClause = buildFilterClause(validated.filter as Filter, 'user_table_rows')
     if (filterClause) {
       baseConditions.push(filterClause)
     }
 
-    // Get matching rows first (for reporting and limit enforcement)
     let matchingRowsQuery = db
       .select({ id: userTableRows.id })
       .from(userTableRows)
@@ -763,18 +628,15 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
       )
     }
 
-    // Log warning for large operations but allow them
     if (matchingRows.length > TABLE_LIMITS.DELETE_BATCH_SIZE) {
       logger.warn(`[${requestId}] Deleting ${matchingRows.length} rows. This may take some time.`)
     }
 
-    // Delete the matching rows in a transaction to ensure atomicity
     const rowIds = matchingRows.map((r) => r.id)
 
     await db.transaction(async (trx) => {
       let totalDeleted = 0
 
-      // Delete rows in batches to avoid stack overflow
       for (let i = 0; i < rowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
         const batch = rowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
         await trx.delete(userTableRows).where(

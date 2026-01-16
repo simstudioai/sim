@@ -12,25 +12,16 @@ import { checkAccessOrRespond, getTableById, verifyTableWorkspace } from '../../
 
 const logger = createLogger('TableUpsertAPI')
 
-/** Zod schema for upsert requests - inserts new row or updates if unique fields match */
 const UpsertRowSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   data: z.record(z.unknown(), { required_error: 'Row data is required' }),
 })
 
-/**
- * Route params for upsert endpoint.
- */
 interface UpsertRouteParams {
   params: Promise<{ tableId: string }>
 }
 
-/**
- * POST /api/table/[tableId]/rows/upsert
- *
- * Inserts or updates a row based on unique column constraints.
- * Requires at least one unique column in the table schema.
- */
+/** POST /api/table/[tableId]/rows/upsert - Inserts or updates based on unique columns. */
 export async function POST(request: NextRequest, { params }: UpsertRouteParams) {
   const requestId = generateRequestId()
   const { tableId } = await params
@@ -44,11 +35,9 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
     const body: unknown = await request.json()
     const validated = UpsertRowSchema.parse(body)
 
-    // Check table write access
     const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
     if (accessResult instanceof NextResponse) return accessResult
 
-    // Security check: If workspaceId is provided, verify it matches the table's workspace
     const actualWorkspaceId = validated.workspaceId || accessResult.table.workspaceId
     if (validated.workspaceId) {
       const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
@@ -60,7 +49,6 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
       }
     }
 
-    // Get table definition
     const table = await getTableById(tableId)
     if (!table) {
       return NextResponse.json({ error: 'Table not found' }, { status: 404 })
@@ -69,16 +57,14 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
     const schema = table.schema as TableSchema
     const rowData = validated.data as RowData
 
-    // Validate row data (size and schema only - unique constraints handled by upsert logic)
     const validation = await validateRowData({
       rowData,
       schema,
       tableId,
-      checkUnique: false, // Upsert uses unique columns differently - to find existing rows
+      checkUnique: false,
     })
     if (!validation.valid) return validation.response
 
-    // Get unique columns for upsert matching
     const uniqueColumns = getUniqueColumns(schema)
 
     if (uniqueColumns.length === 0) {
@@ -91,7 +77,6 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
       )
     }
 
-    // Build filter to find existing row by unique fields
     const uniqueFilters = uniqueColumns.map((col) => {
       const value = rowData[col.name]
       if (value === undefined || value === null) {
@@ -100,7 +85,6 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
       return sql`${userTableRows.data}->>${col.name} = ${String(value)}`
     })
 
-    // Filter out null conditions (for optional unique fields that weren't provided)
     const validUniqueFilters = uniqueFilters.filter((f): f is Exclude<typeof f, null> => f !== null)
 
     if (validUniqueFilters.length === 0) {
@@ -112,7 +96,6 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
       )
     }
 
-    // Find existing row with matching unique field(s)
     const [existingRow] = await db
       .select()
       .from(userTableRows)
@@ -127,10 +110,8 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
 
     const now = new Date()
 
-    // Perform upsert in a transaction to ensure atomicity
     const result = await db.transaction(async (trx) => {
       if (existingRow) {
-        // Update existing row
         const [updatedRow] = await trx
           .update(userTableRows)
           .set({
@@ -146,7 +127,6 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
         }
       }
 
-      // Insert new row
       const [insertedRow] = await trx
         .insert(userTableRows)
         .values({

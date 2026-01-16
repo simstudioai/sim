@@ -36,12 +36,6 @@ interface TableCardProps {
   workspaceId: string
 }
 
-/**
- * Card component for displaying a table summary.
- *
- * Shows table name, column/row counts, description, and provides
- * actions for viewing schema and deleting the table.
- */
 export function TableCard({ table, workspaceId }: TableCardProps) {
   const router = useRouter()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)

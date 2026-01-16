@@ -1,7 +1,3 @@
-/**
- * Pagination controls for the table.
- */
-
 import { Button } from '@/components/emcn'
 
 interface TablePaginationProps {
@@ -12,12 +8,6 @@ interface TablePaginationProps {
   onNextPage: () => void
 }
 
-/**
- * Renders pagination controls for navigating table pages.
- *
- * @param props - Component props
- * @returns Table pagination controls or null if only one page
- */
 export function TablePagination({
   currentPage,
   totalPages,

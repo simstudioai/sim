@@ -11,11 +11,6 @@ import { normalizeColumn } from './utils'
 
 const logger = createLogger('TableAPI')
 
-/**
- * Zod schema for validating a table column definition.
- *
- * Columns must have a name, type, and optional required/unique flags.
- */
 const ColumnSchema = z.object({
   name: z
     .string()
@@ -37,11 +32,6 @@ const ColumnSchema = z.object({
   unique: z.boolean().optional().default(false),
 })
 
-/**
- * Zod schema for validating create table requests.
- *
- * Requires a name, schema with columns, and workspace ID.
- */
 const CreateTableSchema = z.object({
   name: z
     .string()
@@ -73,30 +63,15 @@ const CreateTableSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
-/**
- * Zod schema for validating list tables requests.
- */
 const ListTablesSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
-/**
- * Result of a workspace access check.
- */
 interface WorkspaceAccessResult {
-  /** Whether the user has any access to the workspace */
   hasAccess: boolean
-  /** Whether the user can write (modify tables) in the workspace */
   canWrite: boolean
 }
 
-/**
- * Checks if a user has access to a workspace and determines their permission level.
- *
- * @param workspaceId - The workspace to check access for
- * @param userId - The user requesting access
- * @returns Access result with read and write permissions
- */
 async function checkWorkspaceAccess(
   workspaceId: string,
   userId: string
@@ -114,12 +89,10 @@ async function checkWorkspaceAccess(
     return { hasAccess: false, canWrite: false }
   }
 
-  // Owner has full access
   if (workspaceData.ownerId === userId) {
     return { hasAccess: true, canWrite: true }
   }
 
-  // Check permissions
   const [permission] = await db
     .select({
       permissionType: permissions.permissionType,
@@ -146,29 +119,7 @@ async function checkWorkspaceAccess(
   }
 }
 
-/**
- * POST /api/table
- *
- * Creates a new user-defined table in a workspace.
- *
- * @param request - The incoming HTTP request containing table definition
- * @returns JSON response with the created table or error
- *
- * @example Request body:
- * ```json
- * {
- *   "name": "customers",
- *   "description": "Customer records",
- *   "workspaceId": "ws_123",
- *   "schema": {
- *     "columns": [
- *       { "name": "email", "type": "string", "required": true, "unique": true },
- *       { "name": "name", "type": "string", "required": true }
- *     ]
- *   }
- * }
- * ```
- */
+/** POST /api/table - Creates a new user-defined table. */
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
@@ -181,7 +132,6 @@ export async function POST(request: NextRequest) {
     const body: unknown = await request.json()
     const params = CreateTableSchema.parse(body)
 
-    // Check workspace access
     const { hasAccess, canWrite } = await checkWorkspaceAccess(
       params.workspaceId,
       authResult.userId
@@ -191,12 +141,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Normalize schema to ensure all fields have explicit defaults
     const normalizedSchema: TableSchema = {
       columns: params.schema.columns.map(normalizeColumn),
     }
 
-    // Create table using service layer
     const table = await createTable(
       {
         name: params.name,
@@ -238,7 +186,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Handle service layer errors with specific messages
     if (error instanceof Error) {
       if (
         error.message.includes('Invalid table name') ||
@@ -255,14 +202,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * GET /api/table?workspaceId=xxx
- *
- * Lists all tables in a workspace.
- *
- * @param request - The incoming HTTP request with workspaceId query param
- * @returns JSON response with array of tables or error
- */
+/** GET /api/table - Lists all tables in a workspace. */
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
 
@@ -285,14 +225,12 @@ export async function GET(request: NextRequest) {
 
     const params = validation.data
 
-    // Check workspace access
     const { hasAccess } = await checkWorkspaceAccess(params.workspaceId, authResult.userId)
 
     if (!hasAccess) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Get tables using service layer
     const tables = await listTables(params.workspaceId)
 
     logger.info(`[${requestId}] Listed ${tables.length} tables in workspace ${params.workspaceId}`)

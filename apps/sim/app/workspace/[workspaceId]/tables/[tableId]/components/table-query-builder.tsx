@@ -9,7 +9,6 @@ import { useFilterBuilder } from '@/lib/table/filters/use-builder'
 import { filterRulesToFilter, sortRuleToSort } from '@/lib/table/filters/utils'
 import type { ColumnDefinition, Filter, Sort } from '@/lib/table/types'
 
-/** Query result containing API-ready filter and sort objects. */
 export interface BuilderQueryResult {
   filter: Filter | null
   sort: Sort | null
@@ -24,7 +23,6 @@ interface TableQueryBuilderProps {
   isLoading?: boolean
 }
 
-/** Visual query builder for filtering and sorting table data. */
 export function TableQueryBuilder({
   columns,
   onApply,

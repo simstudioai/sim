@@ -10,9 +10,7 @@ const logger = createLogger('TableUtils')
 
 type PermissionLevel = 'read' | 'write' | 'admin'
 
-/**
- * @deprecated Use TableDefinition from '@/lib/table' instead
- */
+/** @deprecated Use TableDefinition from '@/lib/table' instead */
 export type TableData = TableDefinition
 
 export interface TableAccessResult {

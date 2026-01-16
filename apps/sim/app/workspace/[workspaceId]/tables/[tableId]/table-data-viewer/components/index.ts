@@ -1,7 +1,3 @@
-/**
- * Table data viewer sub-components.
- */
-
 export * from './cell-viewer-modal'
 export * from './row-context-menu'
 export * from './schema-viewer-modal'

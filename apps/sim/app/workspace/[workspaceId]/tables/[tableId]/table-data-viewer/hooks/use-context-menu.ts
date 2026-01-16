@@ -8,11 +8,6 @@ interface UseContextMenuReturn {
   closeContextMenu: () => void
 }
 
-/**
- * Manages context menu state for row interactions.
- *
- * @returns Context menu state and handlers
- */
 export function useContextMenu(): UseContextMenuReturn {
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     isOpen: false,

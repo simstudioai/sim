@@ -17,61 +17,24 @@ import {
 
 const logger = createLogger('TableRowAPI')
 
-/**
- * Zod schema for validating get row requests.
- *
- * The workspaceId is required and validated against the table.
- */
 const GetRowSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
-/**
- * Zod schema for validating update row requests.
- */
 const UpdateRowSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   data: z.record(z.unknown(), { required_error: 'Row data is required' }),
 })
 
-/**
- * Zod schema for validating delete row requests.
- */
 const DeleteRowSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
-/**
- * Route params for single row endpoints.
- */
 interface RowRouteParams {
   params: Promise<{ tableId: string; rowId: string }>
 }
 
-/**
- * GET /api/table/[tableId]/rows/[rowId]?workspaceId=xxx
- *
- * Retrieves a single row by its ID.
- *
- * @param request - The incoming HTTP request
- * @param context - Route context containing tableId and rowId params
- * @returns JSON response with row data or error
- *
- * @example Response:
- * ```json
- * {
- *   "success": true,
- *   "data": {
- *     "row": {
- *       "id": "row_abc123",
- *       "data": { "name": "John", "email": "john@example.com" },
- *       "createdAt": "2024-01-01T00:00:00.000Z",
- *       "updatedAt": "2024-01-01T00:00:00.000Z"
- *     }
- *   }
- * }
- * ```
- */
+/** GET /api/table/[tableId]/rows/[rowId] - Retrieves a single row. */
 export async function GET(request: NextRequest, { params }: RowRouteParams) {
   const requestId = generateRequestId()
   const { tableId, rowId } = await params
@@ -87,7 +50,6 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
       workspaceId: searchParams.get('workspaceId'),
     })
 
-    // Check table access (centralized access control)
     const accessCheck = await checkTableAccess(tableId, authResult.userId)
 
     if (!accessCheck.hasAccess) {
@@ -101,7 +63,6 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Security check: verify workspaceId matches the table's workspace
     const actualWorkspaceId = validated.workspaceId
     const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
     if (!isValidWorkspace) {
@@ -111,7 +72,6 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Get row
     const [row] = await db
       .select({
         id: userTableRows.id,
@@ -159,11 +119,7 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
   }
 }
 
-/**
- * PATCH /api/table/[tableId]/rows/[rowId]
- *
- * Updates an existing row with new data (full replacement, not partial).
- */
+/** PATCH /api/table/[tableId]/rows/[rowId] - Updates a single row. */
 export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
   const requestId = generateRequestId()
   const { tableId, rowId } = await params
@@ -177,11 +133,9 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
     const body: unknown = await request.json()
     const validated = UpdateRowSchema.parse(body)
 
-    // Check table write access
     const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
     if (accessResult instanceof NextResponse) return accessResult
 
-    // Security check: verify workspaceId matches the table's workspace
     const actualWorkspaceId = validated.workspaceId
     const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
     if (!isValidWorkspace) {
@@ -191,7 +145,6 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Get table definition
     const table = await getTableById(tableId)
     if (!table) {
       return NextResponse.json({ error: 'Table not found' }, { status: 404 })
@@ -199,7 +152,6 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
 
     const rowData = validated.data as RowData
 
-    // Validate row data (size, schema, unique constraints)
     const validation = await validateRowData({
       rowData,
       schema: table.schema as TableSchema,
@@ -208,7 +160,6 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
     })
     if (!validation.valid) return validation.response
 
-    // Update row
     const now = new Date()
 
     const [updatedRow] = await db
@@ -257,22 +208,7 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
   }
 }
 
-/**
- * DELETE /api/table/[tableId]/rows/[rowId]
- *
- * Permanently deletes a single row.
- *
- * @param request - The incoming HTTP request
- * @param context - Route context containing tableId and rowId params
- * @returns JSON response confirming deletion or error
- *
- * @example Request body:
- * ```json
- * {
- *   "workspaceId": "ws_123"
- * }
- * ```
- */
+/** DELETE /api/table/[tableId]/rows/[rowId] - Deletes a single row. */
 export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
   const requestId = generateRequestId()
   const { tableId, rowId } = await params
@@ -286,11 +222,9 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
     const body: unknown = await request.json()
     const validated = DeleteRowSchema.parse(body)
 
-    // Check table write access
     const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
     if (accessResult instanceof NextResponse) return accessResult
 
-    // Security check: verify workspaceId matches the table's workspace
     const actualWorkspaceId = validated.workspaceId
     const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
     if (!isValidWorkspace) {
@@ -300,7 +234,6 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Delete row
     const [deletedRow] = await db
       .delete(userTableRows)
       .where(

@@ -11,20 +11,6 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { CreateTableModal } from './components/create-table-modal'
 import { TableCard } from './components/table-card'
 
-/**
- * Tables page component that displays a list of all tables in a workspace.
- *
- * @remarks
- * This component provides functionality to:
- * - View all tables in the workspace
- * - Search tables by name or description
- * - Create new tables (with write permission)
- *
- * @example
- * ```tsx
- * <Tables />
- * ```
- */
 export function Tables() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -118,9 +104,6 @@ export function Tables() {
   )
 }
 
-/**
- * Loading skeleton component for table cards.
- */
 function LoadingSkeletons() {
   return (
     <>
@@ -153,12 +136,6 @@ function LoadingSkeletons() {
   )
 }
 
-/**
- * Error state component displayed when table loading fails.
- *
- * @param props - Component props
- * @param props.error - The error that occurred
- */
 function ErrorState({ error }: { error: unknown }) {
   return (
     <div className='col-span-full flex h-64 items-center justify-center rounded-[4px] bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>
@@ -172,12 +149,6 @@ function ErrorState({ error }: { error: unknown }) {
   )
 }
 
-/**
- * Empty state component displayed when no tables exist or match the search.
- *
- * @param props - Component props
- * @param props.hasSearchQuery - Whether a search query is active
- */
 function EmptyState({ hasSearchQuery }: { hasSearchQuery: boolean }) {
   return (
     <div className='col-span-full flex h-64 items-center justify-center rounded-[4px] bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>

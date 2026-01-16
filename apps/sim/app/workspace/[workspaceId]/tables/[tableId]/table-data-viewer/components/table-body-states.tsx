@@ -1,7 +1,3 @@
-/**
- * Table body placeholder states (loading and empty).
- */
-
 import { Plus } from 'lucide-react'
 import { Button, TableCell, TableRow } from '@/components/emcn'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -11,9 +7,6 @@ interface TableLoadingRowsProps {
   columns: ColumnDefinition[]
 }
 
-/**
- * Renders skeleton rows while table data is loading.
- */
 export function TableLoadingRows({ columns }: TableLoadingRowsProps) {
   return (
     <>
@@ -56,9 +49,6 @@ interface TableEmptyRowsProps {
   onAddRow: () => void
 }
 
-/**
- * Renders an empty state when no rows are present.
- */
 export function TableEmptyRows({ columnCount, hasFilter, onAddRow }: TableEmptyRowsProps) {
   return (
     <TableRow>

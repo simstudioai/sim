@@ -9,13 +9,6 @@ interface TableActionBarProps {
   onClearSelection: () => void
 }
 
-/**
- * Action bar displayed when rows are selected in the table.
- *
- * Shows the count of selected rows and provides actions for
- * bulk operations like deletion.
- *
- */
 export function TableActionBar({ selectedCount, onDelete, onClearSelection }: TableActionBarProps) {
   return (
     <div className='flex h-[36px] shrink-0 items-center justify-between border-[var(--border)] border-b bg-[var(--surface-4)] px-[16px]'>

@@ -1,7 +1,3 @@
-/**
- * Header bar for the table data viewer.
- */
-
 import { Info, RefreshCw } from 'lucide-react'
 import { Badge, Button, Tooltip } from '@/components/emcn'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -15,12 +11,6 @@ interface TableHeaderBarProps {
   onRefresh: () => void
 }
 
-/**
- * Renders the header bar with navigation, title, and actions.
- *
- * @param props - Component props
- * @returns Table header bar
- */
 export function TableHeaderBar({
   tableName,
   totalCount,

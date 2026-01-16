@@ -13,47 +13,15 @@ import {
 
 const logger = createLogger('TableDetailAPI')
 
-/**
- * Zod schema for validating get table requests.
- *
- * The workspaceId is required and validated against the table.
- */
 const GetTableSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
-/**
- * Route params for table detail endpoints.
- */
 interface TableRouteParams {
   params: Promise<{ tableId: string }>
 }
 
-/**
- * GET /api/table/[tableId]?workspaceId=xxx
- *
- * Retrieves details for a specific table.
- *
- * @param request - The incoming HTTP request
- * @param context - Route context containing tableId param
- * @returns JSON response with table details or error
- *
- * @example Response:
- * ```json
- * {
- *   "success": true,
- *   "data": {
- *     "table": {
- *       "id": "tbl_abc123",
- *       "name": "customers",
- *       "schema": { "columns": [...] },
- *       "rowCount": 150,
- *       "maxRows": 10000
- *     }
- *   }
- * }
- * ```
- */
+/** GET /api/table/[tableId] - Retrieves a single table's details. */
 export async function GET(request: NextRequest, { params }: TableRouteParams) {
   const requestId = generateRequestId()
   const { tableId } = await params
@@ -70,7 +38,6 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
       workspaceId: searchParams.get('workspaceId'),
     })
 
-    // Check table access (similar to knowledge base access control)
     const accessCheck = await checkTableAccess(tableId, authResult.userId)
 
     if (!accessCheck.hasAccess) {
@@ -92,7 +59,6 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Get table using service layer
     const table = await getTableById(tableId)
 
     if (!table) {
@@ -139,11 +105,7 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
   }
 }
 
-/**
- * DELETE /api/table/[tableId]?workspaceId=xxx
- *
- * Deletes a table and all its rows (hard delete, requires write access).
- */
+/** DELETE /api/table/[tableId] - Deletes a table and all its rows. */
 export async function DELETE(request: NextRequest, { params }: TableRouteParams) {
   const requestId = generateRequestId()
   const { tableId } = await params
@@ -160,7 +122,6 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
       workspaceId: searchParams.get('workspaceId'),
     })
 
-    // Check table write access (similar to knowledge base write access control)
     const accessCheck = await checkTableWriteAccess(tableId, authResult.userId)
 
     if (!accessCheck.hasAccess) {
@@ -174,7 +135,6 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Security check: verify workspaceId matches the table's workspace
     const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
     if (!isValidWorkspace) {
       logger.warn(
@@ -183,7 +143,6 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Soft delete table using service layer
     await deleteTable(tableId, requestId)
 
     return NextResponse.json({

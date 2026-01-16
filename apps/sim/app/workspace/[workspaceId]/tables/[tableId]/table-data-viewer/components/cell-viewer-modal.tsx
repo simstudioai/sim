@@ -1,7 +1,3 @@
-/**
- * Modal for viewing cell details.
- */
-
 import { Copy, X } from 'lucide-react'
 import { Badge, Button, Modal, ModalBody, ModalContent } from '@/components/emcn'
 import type { CellViewerData } from '../types'
@@ -13,12 +9,6 @@ interface CellViewerModalProps {
   copied: boolean
 }
 
-/**
- * Displays cell value details in a modal.
- *
- * @param props - Component props
- * @returns Cell viewer modal or null if no cell is selected
- */
 export function CellViewerModal({ cellViewer, onClose, onCopy, copied }: CellViewerModalProps) {
   if (!cellViewer) return null
 

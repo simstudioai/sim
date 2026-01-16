@@ -1,7 +1,3 @@
-/**
- * Modal for viewing table schema.
- */
-
 import { Info, X } from 'lucide-react'
 import {
   Badge,
@@ -25,12 +21,6 @@ interface SchemaViewerModalProps {
   columns: ColumnDefinition[]
 }
 
-/**
- * Displays the table schema in a modal.
- *
- * @param props - Component props
- * @returns Schema viewer modal
- */
 export function SchemaViewerModal({ isOpen, onClose, columns }: SchemaViewerModalProps) {
   return (
     <Modal open={isOpen} onOpenChange={onClose}>

@@ -1,7 +1,3 @@
-/**
- * Context menu for row actions.
- */
-
 import { Edit, Trash2 } from 'lucide-react'
 import {
   Popover,
@@ -19,12 +15,6 @@ interface RowContextMenuProps {
   onDelete: () => void
 }
 
-/**
- * Renders a context menu for row actions.
- *
- * @param props - Component props
- * @returns Row context menu popover
- */
 export function RowContextMenu({ contextMenu, onClose, onEdit, onDelete }: RowContextMenuProps) {
   return (
     <Popover

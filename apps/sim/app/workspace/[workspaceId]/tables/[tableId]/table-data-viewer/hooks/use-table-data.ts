@@ -20,7 +20,6 @@ interface UseTableDataReturn {
   refetchRows: () => void
 }
 
-/** Fetches table metadata and rows with filtering/sorting/pagination. */
 export function useTableData({
   workspaceId,
   tableId,

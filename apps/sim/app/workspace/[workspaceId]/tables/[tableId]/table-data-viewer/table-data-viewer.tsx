@@ -28,7 +28,6 @@ import {
 import { useContextMenu, useRowSelection, useTableData } from './hooks'
 import type { CellViewerData } from './types'
 
-/** Table data viewer with filtering, sorting, pagination, and CRUD operations. */
 export function TableDataViewer() {
   const params = useParams()
   const router = useRouter()
@@ -67,30 +66,18 @@ export function TableDataViewer() {
   const hasSelection = selectedCount > 0
   const isAllSelected = rows.length > 0 && selectedCount === rows.length
 
-  /**
-   * Navigates back to the tables list.
-   */
   const handleNavigateBack = useCallback(() => {
     router.push(`/workspace/${workspaceId}/tables`)
   }, [router, workspaceId])
 
-  /**
-   * Opens the schema viewer modal.
-   */
   const handleShowSchema = useCallback(() => {
     setShowSchemaModal(true)
   }, [])
 
-  /**
-   * Opens the add row modal.
-   */
   const handleAddRow = useCallback(() => {
     setShowAddModal(true)
   }, [])
 
-  /**
-   * Applies new query options and resets pagination.
-   */
   const handleApplyQueryOptions = useCallback(
     (options: QueryOptions) => {
       setQueryOptions(options)
@@ -100,16 +87,10 @@ export function TableDataViewer() {
     [refetchRows]
   )
 
-  /**
-   * Opens the delete modal for selected rows.
-   */
   const handleDeleteSelected = useCallback(() => {
     setDeletingRows(Array.from(selectedRows))
   }, [selectedRows])
 
-  /**
-   * Handles edit action from context menu.
-   */
   const handleContextMenuEdit = useCallback(() => {
     if (contextMenu.row) {
       setEditingRow(contextMenu.row)
@@ -117,9 +98,6 @@ export function TableDataViewer() {
     closeContextMenu()
   }, [contextMenu.row, closeContextMenu])
 
-  /**
-   * Handles delete action from context menu.
-   */
   const handleContextMenuDelete = useCallback(() => {
     if (contextMenu.row) {
       setDeletingRows([contextMenu.row.id])
@@ -127,9 +105,6 @@ export function TableDataViewer() {
     closeContextMenu()
   }, [contextMenu.row, closeContextMenu])
 
-  /**
-   * Copies the current cell value to clipboard.
-   */
   const handleCopyCellValue = useCallback(async () => {
     if (cellViewer) {
       let text: string
@@ -146,9 +121,6 @@ export function TableDataViewer() {
     }
   }, [cellViewer])
 
-  /**
-   * Opens the cell viewer modal.
-   */
   const handleCellClick = useCallback(
     (columnName: string, value: unknown, type: CellViewerData['type']) => {
       setCellViewer({ columnName, value, type })

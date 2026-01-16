@@ -1,9 +1,3 @@
-/**
- * Gets the badge variant for a column type.
- *
- * @param type - The column type
- * @returns Badge variant name
- */
 export function getTypeBadgeVariant(
   type: string
 ): 'green' | 'blue' | 'purple' | 'orange' | 'teal' | 'gray' {

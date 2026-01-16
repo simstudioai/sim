@@ -37,13 +37,9 @@ const COLUMN_TYPE_OPTIONS: Array<{ value: ColumnDefinition['type']; label: strin
 ]
 
 interface ColumnWithId extends ColumnDefinition {
-  /** Stable ID for React key */
   id: string
 }
 
-/**
- * Creates an empty column definition with default values and a stable ID.
- */
 function createEmptyColumn(): ColumnWithId {
   return { id: nanoid(), name: '', type: 'string', required: true, unique: false }
 }
@@ -59,31 +55,16 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
 
   const createTable = useCreateTable(workspaceId)
 
-  /**
-   * Adds a new empty column to the schema.
-   */
   const handleAddColumn = () => {
     setColumns([...columns, createEmptyColumn()])
   }
 
-  /**
-   * Removes a column from the schema by ID.
-   *
-   * @param columnId - ID of the column to remove
-   */
   const handleRemoveColumn = (columnId: string) => {
     if (columns.length > 1) {
       setColumns(columns.filter((col) => col.id !== columnId))
     }
   }
 
-  /**
-   * Updates a column field by ID.
-   *
-   * @param columnId - ID of the column to update
-   * @param field - Field name to update
-   * @param value - New value for the field
-   */
   const handleColumnChange = (
     columnId: string,
     field: keyof ColumnDefinition,
@@ -92,9 +73,6 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
     setColumns(columns.map((col) => (col.id === columnId ? { ...col, [field]: value } : col)))
   }
 
-  /**
-   * Validates and submits the form to create the table.
-   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -140,9 +118,6 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
     }
   }
 
-  /**
-   * Resets all form fields to their initial state.
-   */
   const resetForm = () => {
     setTableName('')
     setDescription('')
@@ -150,9 +125,6 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
     setError(null)
   }
 
-  /**
-   * Handles modal close and resets form state.
-   */
   const handleClose = () => {
     resetForm()
     onClose()
@@ -282,23 +254,13 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
   )
 }
 
-/**
- * Props for the ColumnRow component.
- */
 interface ColumnRowProps {
-  /** The column definition with stable ID */
   column: ColumnWithId
-  /** Whether the remove button should be enabled */
   isRemovable: boolean
-  /** Callback when a column field changes */
   onChange: (columnId: string, field: keyof ColumnDefinition, value: string | boolean) => void
-  /** Callback to remove this column */
   onRemove: (columnId: string) => void
 }
 
-/**
- * A single row in the column definition list.
- */
 function ColumnRow({ column, isRemovable, onChange, onRemove }: ColumnRowProps) {
   return (
     <div className='flex items-center gap-[10px]'>
