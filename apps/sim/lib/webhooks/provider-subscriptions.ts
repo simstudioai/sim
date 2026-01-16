@@ -1400,7 +1400,7 @@ export async function createWebflowWebhookSubscription(
 ): Promise<string | undefined> {
   try {
     const { path, providerConfig } = webhookData
-    const { siteId, triggerId, collectionId, formId } = providerConfig || {}
+    const { siteId, triggerId, collectionId, formName } = providerConfig || {}
 
     if (!siteId) {
       webflowLogger.warn(`[${requestId}] Missing siteId for Webflow webhook creation.`, {
@@ -1455,17 +1455,10 @@ export async function createWebflowWebhookSubscription(
       url: notificationUrl,
     }
 
-    if (collectionId && webflowTriggerType.startsWith('collection_item_')) {
+    // Note: Webflow API only supports 'filter' for form_submission triggers.
+    if (formName && webflowTriggerType === 'form_submission') {
       requestBody.filter = {
-        resource_type: 'collection',
-        resource_id: collectionId,
-      }
-    }
-
-    if (formId && webflowTriggerType === 'form_submission') {
-      requestBody.filter = {
-        resource_type: 'form',
-        resource_id: formId,
+        name: formName,
       }
     }
 

@@ -800,15 +800,39 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'webflow') {
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const triggerId = providerConfig.triggerId as string | undefined
+
+    // Form submission trigger
+    if (triggerId === 'webflow_form_submission') {
+      return {
+        siteId: body?.siteId || '',
+        formId: body?.formId || '',
+        name: body?.name || '',
+        id: body?.id || '',
+        submittedAt: body?.submittedAt || '',
+        data: body?.data || {},
+        schema: body?.schema || {},
+        formElementId: body?.formElementId || '',
+      }
+    }
+
+    // Collection item triggers (created, changed, deleted)
+    // Webflow uses _cid for collection ID and _id for item ID
+    const { _cid, _id, ...itemFields } = body || {}
     return {
       siteId: body?.siteId || '',
-      formId: body?.formId || '',
-      name: body?.name || '',
-      id: body?.id || '',
-      submittedAt: body?.submittedAt || '',
-      data: body?.data || {},
-      schema: body?.schema || {},
-      formElementId: body?.formElementId || '',
+      collectionId: _cid || body?.collectionId || '',
+      payload: {
+        id: _id || '',
+        cmsLocaleId: itemFields?.cmsLocaleId || '',
+        lastPublished: itemFields?.lastPublished || itemFields?.['last-published'] || '',
+        lastUpdated: itemFields?.lastUpdated || itemFields?.['last-updated'] || '',
+        createdOn: itemFields?.createdOn || itemFields?.['created-on'] || '',
+        isArchived: itemFields?.isArchived || itemFields?._archived || false,
+        isDraft: itemFields?.isDraft || itemFields?._draft || false,
+        fieldData: itemFields,
+      },
     }
   }
 

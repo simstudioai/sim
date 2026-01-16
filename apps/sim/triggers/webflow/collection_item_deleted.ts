@@ -1,5 +1,9 @@
+import { createLogger } from '@sim/logger'
 import { WebflowIcon } from '@/components/icons'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '../types'
+
+const logger = createLogger('webflow-collection-item-deleted-trigger')
 
 export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
   id: 'webflow_collection_item_deleted',
@@ -38,6 +42,58 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
         field: 'selectedTriggerId',
         value: 'webflow_collection_item_deleted',
       },
+      fetchOptions: async (blockId: string, _subBlockId: string) => {
+        const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
+          | string
+          | null
+        if (!credentialId) {
+          throw new Error('No Webflow credential selected')
+        }
+        try {
+          const response = await fetch('/api/tools/webflow/sites', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential: credentialId }),
+          })
+          if (!response.ok) {
+            throw new Error('Failed to fetch Webflow sites')
+          }
+          const data = await response.json()
+          if (data.sites && Array.isArray(data.sites)) {
+            return data.sites.map((site: { id: string; name: string }) => ({
+              id: site.id,
+              label: site.name,
+            }))
+          }
+          return []
+        } catch (error) {
+          logger.error('Error fetching Webflow sites:', error)
+          throw error
+        }
+      },
+      fetchOptionById: async (blockId: string, _subBlockId: string, optionId: string) => {
+        const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
+          | string
+          | null
+        if (!credentialId) return null
+        try {
+          const response = await fetch('/api/tools/webflow/sites', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential: credentialId, siteId: optionId }),
+          })
+          if (!response.ok) return null
+          const data = await response.json()
+          const site = data.sites?.find((s: { id: string }) => s.id === optionId)
+          if (site) {
+            return { id: site.id, label: site.name }
+          }
+          return null
+        } catch {
+          return null
+        }
+      },
+      dependsOn: ['triggerCredentials'],
     },
     {
       id: 'collectionId',
@@ -52,6 +108,60 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
         field: 'selectedTriggerId',
         value: 'webflow_collection_item_deleted',
       },
+      fetchOptions: async (blockId: string, _subBlockId: string) => {
+        const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
+          | string
+          | null
+        const siteId = useSubBlockStore.getState().getValue(blockId, 'siteId') as string | null
+        if (!credentialId || !siteId) {
+          return []
+        }
+        try {
+          const response = await fetch('/api/tools/webflow/collections', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential: credentialId, siteId }),
+          })
+          if (!response.ok) {
+            throw new Error('Failed to fetch Webflow collections')
+          }
+          const data = await response.json()
+          if (data.collections && Array.isArray(data.collections)) {
+            return data.collections.map((collection: { id: string; name: string }) => ({
+              id: collection.id,
+              label: collection.name,
+            }))
+          }
+          return []
+        } catch (error) {
+          logger.error('Error fetching Webflow collections:', error)
+          throw error
+        }
+      },
+      fetchOptionById: async (blockId: string, _subBlockId: string, optionId: string) => {
+        const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
+          | string
+          | null
+        const siteId = useSubBlockStore.getState().getValue(blockId, 'siteId') as string | null
+        if (!credentialId || !siteId) return null
+        try {
+          const response = await fetch('/api/tools/webflow/collections', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential: credentialId, siteId }),
+          })
+          if (!response.ok) return null
+          const data = await response.json()
+          const collection = data.collections?.find((c: { id: string }) => c.id === optionId)
+          if (collection) {
+            return { id: collection.id, label: collection.name }
+          }
+          return null
+        } catch {
+          return null
+        }
+      },
+      dependsOn: ['triggerCredentials', 'siteId'],
     },
     {
       id: 'triggerSave',
@@ -72,9 +182,9 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
       type: 'text',
       defaultValue: [
         'Connect your Webflow account using the "Select Webflow credential" button above.',
-        'Enter your Webflow Site ID (found in the site URL or site settings).',
-        'Optionally enter a Collection ID to monitor only specific collections.',
-        'If no Collection ID is provided, the trigger will fire for items deleted in any collection on the site.',
+        'Select your Webflow site from the dropdown.',
+        'Optionally select a collection to monitor only specific collections.',
+        'If no collection is selected, the trigger will fire for items deleted in any collection on the site.',
         'The webhook will trigger whenever an item is deleted from the specified collection(s).',
         'Note: Once an item is deleted, only minimal information (ID, collection, site) is available.',
         'Make sure your Webflow account has appropriate permissions for the specified site.',
