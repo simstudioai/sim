@@ -4,9 +4,9 @@ import { useCallback, useMemo, useState } from 'react'
 import { ArrowDownAZ, ArrowUpAZ, Plus, X } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { Button, Combobox, Input } from '@/components/emcn'
-import { conditionsToFilter } from '@/lib/table/filters/builder-utils'
 import type { FilterCondition, SortCondition } from '@/lib/table/filters/constants'
 import { useFilterBuilder } from '@/lib/table/filters/use-builder'
+import { conditionsToFilter } from '@/lib/table/filters/utils'
 import type { JsonValue } from '@/lib/table/types'
 
 /**

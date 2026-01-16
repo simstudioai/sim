@@ -15,28 +15,6 @@ import {
   type SortCondition,
 } from './constants'
 
-export interface ColumnOption {
-  value: string
-  label: string
-}
-
-export interface UseFilterBuilderProps {
-  columns: ColumnOption[]
-  conditions: FilterCondition[]
-  setConditions: (conditions: FilterCondition[]) => void
-  isReadOnly?: boolean
-}
-
-export interface UseFilterBuilderReturn {
-  comparisonOptions: ColumnOption[]
-  logicalOptions: ColumnOption[]
-  sortDirectionOptions: ColumnOption[]
-  addCondition: () => void
-  removeCondition: (id: string) => void
-  updateCondition: (id: string, field: keyof FilterCondition, value: string) => void
-  createDefaultCondition: () => FilterCondition
-}
-
 /**
  * Hook that provides filter builder logic for managing filter conditions.
  *
@@ -132,20 +110,6 @@ export function useFilterBuilder({
   }
 }
 
-export interface UseSortBuilderProps {
-  columns: ColumnOption[]
-  sortCondition: SortCondition | null
-  setSortCondition: (sort: SortCondition | null) => void
-}
-
-export interface UseSortBuilderReturn {
-  sortDirectionOptions: ColumnOption[]
-  addSort: () => void
-  removeSort: () => void
-  updateSortColumn: (column: string) => void
-  updateSortDirection: (direction: 'asc' | 'desc') => void
-}
-
 /**
  * Hook that provides sort builder logic.
  *
@@ -207,4 +171,40 @@ export function useSortBuilder({
     updateSortColumn,
     updateSortDirection,
   }
+}
+
+export interface ColumnOption {
+  value: string
+  label: string
+}
+
+export interface UseFilterBuilderProps {
+  columns: ColumnOption[]
+  conditions: FilterCondition[]
+  setConditions: (conditions: FilterCondition[]) => void
+  isReadOnly?: boolean
+}
+
+export interface UseFilterBuilderReturn {
+  comparisonOptions: ColumnOption[]
+  logicalOptions: ColumnOption[]
+  sortDirectionOptions: ColumnOption[]
+  addCondition: () => void
+  removeCondition: (id: string) => void
+  updateCondition: (id: string, field: keyof FilterCondition, value: string) => void
+  createDefaultCondition: () => FilterCondition
+}
+
+export interface UseSortBuilderProps {
+  columns: ColumnOption[]
+  sortCondition: SortCondition | null
+  setSortCondition: (sort: SortCondition | null) => void
+}
+
+export interface UseSortBuilderReturn {
+  sortDirectionOptions: ColumnOption[]
+  addSort: () => void
+  removeSort: () => void
+  updateSortColumn: (column: string) => void
+  updateSortDirection: (direction: 'asc' | 'desc') => void
 }

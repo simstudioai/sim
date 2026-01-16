@@ -245,7 +245,7 @@ Reusable hooks for filter/sort builders:
 - `useFilterBuilder()` - Manage filter conditions
 - `useSortBuilder()` - Manage sort settings
 
-#### `builder-utils.ts`
+#### `utils.ts`
 Utilities for converting visual builder state to query format:
 - `conditionsToFilter()` - Convert FilterCondition[] to QueryFilter
 - `sortConditionsToSort()` - Convert SortCondition[] to SortSpec
