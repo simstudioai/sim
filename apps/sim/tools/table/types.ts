@@ -7,36 +7,36 @@ import type {
   TableRow,
   TableSchema,
 } from '@/lib/table/types'
-import type { ToolExecutionContext, ToolResponse } from '@/tools/types'
+import type { ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
 
 export interface TableCreateParams {
   name: string
   description?: string
   schema: TableSchema
-  _context?: ToolExecutionContext
+  _context?: WorkflowToolExecutionContext
 }
 
 export interface TableListParams {
-  _context?: ToolExecutionContext
+  _context?: WorkflowToolExecutionContext
 }
 
 export interface TableRowInsertParams {
   tableId: string
   data: RowData
-  _context?: ToolExecutionContext
+  _context?: WorkflowToolExecutionContext
 }
 
 export interface TableRowUpdateParams {
   tableId: string
   rowId: string
   data: RowData
-  _context?: ToolExecutionContext
+  _context?: WorkflowToolExecutionContext
 }
 
 export interface TableRowDeleteParams {
   tableId: string
   rowId: string
-  _context?: ToolExecutionContext
+  _context?: WorkflowToolExecutionContext
 }
 
 export interface TableRowQueryParams {
@@ -45,13 +45,13 @@ export interface TableRowQueryParams {
   sort?: Sort
   limit?: number
   offset?: number
-  _context?: ToolExecutionContext
+  _context?: WorkflowToolExecutionContext
 }
 
 export interface TableRowGetParams {
   tableId: string
   rowId: string
-  _context?: ToolExecutionContext
+  _context?: WorkflowToolExecutionContext
 }
 
 export interface TableCreateResponse extends ToolResponse {
@@ -95,7 +95,7 @@ export interface TableDeleteResponse extends ToolResponse {
 export interface TableBatchInsertParams {
   tableId: string
   rows: RowData[]
-  _context?: ToolExecutionContext
+  _context?: WorkflowToolExecutionContext
 }
 
 export interface TableBatchInsertResponse extends ToolResponse {
@@ -111,14 +111,14 @@ export interface TableUpdateByFilterParams {
   filter: Filter
   data: RowData
   limit?: number
-  _context?: ToolExecutionContext
+  _context?: WorkflowToolExecutionContext
 }
 
 export interface TableDeleteByFilterParams {
   tableId: string
   filter: Filter
   limit?: number
-  _context?: ToolExecutionContext
+  _context?: WorkflowToolExecutionContext
 }
 
 export interface TableBulkOperationResponse extends ToolResponse {
@@ -133,7 +133,7 @@ export interface TableBulkOperationResponse extends ToolResponse {
 
 export interface TableGetSchemaParams {
   tableId: string
-  _context?: ToolExecutionContext
+  _context?: WorkflowToolExecutionContext
 }
 
 export interface TableGetSchemaResponse extends ToolResponse {

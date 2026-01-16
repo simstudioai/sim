@@ -6,7 +6,7 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
  * Minimal execution context injected into tool params at runtime.
  * This is a subset of the full ExecutionContext from executor/types.ts.
  */
-export type ToolExecutionContext = {
+export type WorkflowToolExecutionContext = {
   workspaceId?: string
   workflowId?: string
   executionId?: string
