@@ -10,6 +10,85 @@ import type { TableSummary } from '../types'
 
 const logger = createLogger('TableLLMEnrichment')
 
+/**
+ * Cache for in-flight and recently fetched table schemas.
+ * Key: tableId, Value: { promise, timestamp }
+ * This deduplicates concurrent requests for the same table schema.
+ */
+const schemaCache = new Map<
+  string,
+  {
+    promise: Promise<TableSummary | null>
+    timestamp: number
+  }
+>()
+
+/** Schema cache TTL in milliseconds (5 seconds) */
+const SCHEMA_CACHE_TTL_MS = 5000
+
+/**
+ * Clears expired entries from the schema cache.
+ */
+function cleanupSchemaCache(): void {
+  const now = Date.now()
+  for (const [key, entry] of schemaCache.entries()) {
+    if (now - entry.timestamp > SCHEMA_CACHE_TTL_MS) {
+      schemaCache.delete(key)
+    }
+  }
+}
+
+/**
+ * Fetches table schema with caching and request deduplication.
+ * If a request for the same table is already in flight, returns the same promise.
+ */
+async function fetchTableSchemaWithCache(
+  tableId: string,
+  context: TableEnrichmentContext
+): Promise<TableSummary | null> {
+  // Clean up old entries periodically
+  if (schemaCache.size > 50) {
+    cleanupSchemaCache()
+  }
+
+  const cacheKey = `${context.workspaceId}:${tableId}`
+  const cached = schemaCache.get(cacheKey)
+
+  // If we have a cached entry that's still valid, return it
+  if (cached && Date.now() - cached.timestamp < SCHEMA_CACHE_TTL_MS) {
+    return cached.promise
+  }
+
+  // Create a new fetch promise
+  const fetchPromise = (async (): Promise<TableSummary | null> => {
+    const schemaResult = await context.executeTool('table_get_schema', {
+      tableId,
+      _context: {
+        workspaceId: context.workspaceId,
+        workflowId: context.workflowId,
+      },
+    })
+
+    if (!schemaResult.success || !schemaResult.output) {
+      logger.warn(`Failed to fetch table schema: ${schemaResult.error}`)
+      return null
+    }
+
+    return {
+      name: schemaResult.output.name,
+      columns: schemaResult.output.columns || [],
+    }
+  })()
+
+  // Cache the promise immediately to deduplicate concurrent requests
+  schemaCache.set(cacheKey, {
+    promise: fetchPromise,
+    timestamp: Date.now(),
+  })
+
+  return fetchPromise
+}
+
 export interface TableEnrichmentContext {
   workspaceId: string
   workflowId: string
@@ -50,32 +129,16 @@ export async function enrichTableToolForLLM(
   }
 
   try {
-    logger.info(`Fetching schema for table ${tableId}`)
+    // Use cached schema fetch to deduplicate concurrent requests for the same table
+    const tableSchema = await fetchTableSchemaWithCache(tableId, context)
 
-    const schemaResult = await context.executeTool('table_get_schema', {
-      tableId,
-      _context: {
-        workspaceId: context.workspaceId,
-        workflowId: context.workflowId,
-      },
-    })
-
-    if (!schemaResult.success || !schemaResult.output) {
-      logger.warn(`Failed to fetch table schema: ${schemaResult.error}`)
+    if (!tableSchema) {
       return null
-    }
-
-    const tableSchema: TableSummary = {
-      name: schemaResult.output.name,
-      columns: schemaResult.output.columns || [],
     }
 
     // Apply enrichment using the existing utility functions
     const enrichedDescription = enrichTableToolDescription(originalDescription, tableSchema, toolId)
-
     const enrichedParams = enrichTableToolParameters(llmSchema, tableSchema, toolId)
-
-    logger.info(`Enriched ${toolId} with ${tableSchema.columns.length} columns`)
 
     return {
       description: enrichedDescription,
@@ -86,7 +149,7 @@ export async function enrichTableToolForLLM(
       },
     }
   } catch (error) {
-    logger.warn(`Error fetching table schema:`, error)
+    logger.warn('Error fetching table schema:', error)
     return null
   }
 }
@@ -190,6 +253,16 @@ ${filterExample}${sortExample}`
       {} as Record<string, unknown>
     )
 
+    // Update operations support partial updates
+    if (toolId === 'table_update_row') {
+      return `${originalDescription}
+
+Table "${table.name}" available columns:
+${columnList}
+
+For updates, only include the fields you want to change. Example: {"${exampleCols[0]?.name || 'field'}": "new_value"}`
+    }
+
     return `${originalDescription}
 
 Table "${table.name}" available columns:
@@ -268,9 +341,18 @@ export function enrichTableToolParameters(
       },
       {} as Record<string, unknown>
     )
-    enrichedProperties.data = {
-      ...enrichedProperties.data,
-      description: `REQUIRED object containing row values. Use columns: ${columnNames}. Example value: ${JSON.stringify(exampleData)}`,
+
+    // Update operations support partial updates - only include fields to change
+    if (toolId === 'table_update_row') {
+      enrichedProperties.data = {
+        ...enrichedProperties.data,
+        description: `Object containing fields to update. Only include fields you want to change. Available columns: ${columnNames}`,
+      }
+    } else {
+      enrichedProperties.data = {
+        ...enrichedProperties.data,
+        description: `REQUIRED object containing row values. Use columns: ${columnNames}. Example value: ${JSON.stringify(exampleData)}`,
+      }
     }
   }
 

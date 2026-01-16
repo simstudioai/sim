@@ -105,7 +105,7 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
   }
 }
 
-/** PATCH /api/table/[tableId]/rows/[rowId] - Updates a single row. */
+/** PATCH /api/table/[tableId]/rows/[rowId] - Updates a single row (supports partial updates). */
 export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
   const requestId = generateRequestId()
   const { tableId, rowId } = await params
@@ -132,10 +132,31 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const rowData = validated.data as RowData
+    // Fetch existing row to support partial updates
+    const [existingRow] = await db
+      .select({ data: userTableRows.data })
+      .from(userTableRows)
+      .where(
+        and(
+          eq(userTableRows.id, rowId),
+          eq(userTableRows.tableId, tableId),
+          eq(userTableRows.workspaceId, validated.workspaceId)
+        )
+      )
+      .limit(1)
+
+    if (!existingRow) {
+      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
+    }
+
+    // Merge existing data with incoming partial data (incoming takes precedence)
+    const mergedData = {
+      ...(existingRow.data as RowData),
+      ...(validated.data as RowData),
+    }
 
     const validation = await validateRowData({
-      rowData,
+      rowData: mergedData,
       schema: table.schema as TableSchema,
       tableId,
       excludeRowId: rowId,
@@ -147,7 +168,7 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
     const [updatedRow] = await db
       .update(userTableRows)
       .set({
-        data: validated.data,
+        data: mergedData,
         updatedAt: now,
       })
       .where(

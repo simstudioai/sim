@@ -4,7 +4,8 @@ import type { TableRowResponse, TableRowUpdateParams } from './types'
 export const tableUpdateRowTool: ToolConfig<TableRowUpdateParams, TableRowResponse> = {
   id: 'table_update_row',
   name: 'Update Row',
-  description: 'Update an existing row in a table',
+  description:
+    'Update an existing row in a table. Supports partial updates - only include the fields you want to change.',
   version: '1.0.0',
 
   params: {
