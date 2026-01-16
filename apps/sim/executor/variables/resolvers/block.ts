@@ -108,11 +108,7 @@ export class BlockResolver implements Resolver {
       }
     }
 
-    // If still undefined, throw error with original path
-    const availableKeys = output && typeof output === 'object' ? Object.keys(output) : []
-    throw new Error(
-      `No value found at path "${pathParts.join('.')}" in block "${blockName}". Available fields: ${availableKeys.join(', ')}`
-    )
+    return undefined
   }
 
   private getBlockOutput(blockId: string, context: ResolutionContext): any {
