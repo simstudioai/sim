@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import type { NextRequest } from 'next/server'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
@@ -41,6 +41,7 @@ interface SaveTriggerWebhooksInput {
   userId: string
   blocks: Record<string, BlockState>
   requestId: string
+  deploymentVersionId?: string
 }
 
 function getSubBlockValue(block: BlockState, subBlockId: string): unknown {
@@ -246,8 +247,17 @@ async function syncCredentialSetWebhooks(params: {
   triggerPath: string
   providerConfig: Record<string, unknown>
   requestId: string
+  deploymentVersionId?: string
 }): Promise<TriggerSaveError | null> {
-  const { workflowId, blockId, provider, triggerPath, providerConfig, requestId } = params
+  const {
+    workflowId,
+    blockId,
+    provider,
+    triggerPath,
+    providerConfig,
+    requestId,
+    deploymentVersionId,
+  } = params
 
   const credentialSetId = providerConfig.credentialSetId as string | undefined
   if (!credentialSetId) {
@@ -267,6 +277,7 @@ async function syncCredentialSetWebhooks(params: {
     oauthProviderId,
     providerConfig: baseConfig as Record<string, any>,
     requestId,
+    deploymentVersionId,
   })
 
   if (syncResult.webhooks.length === 0) {
@@ -308,6 +319,7 @@ async function createWebhookForBlock(params: {
   providerConfig: Record<string, unknown>
   triggerPath: string
   requestId: string
+  deploymentVersionId?: string
 }): Promise<TriggerSaveError | null> {
   const {
     request,
@@ -319,6 +331,7 @@ async function createWebhookForBlock(params: {
     providerConfig,
     triggerPath,
     requestId,
+    deploymentVersionId,
   } = params
 
   const webhookId = nanoid()
@@ -346,6 +359,7 @@ async function createWebhookForBlock(params: {
       .values({
         id: webhookId,
         workflowId,
+        deploymentVersionId: deploymentVersionId || null,
         blockId: block.id,
         path: triggerPath,
         provider,
@@ -383,16 +397,31 @@ export async function saveTriggerWebhooksForDeploy({
   userId,
   blocks,
   requestId,
+  deploymentVersionId,
 }: SaveTriggerWebhooksInput): Promise<TriggerSaveResult> {
   const triggerBlocks = Object.values(blocks || {}).filter(Boolean)
   const currentBlockIds = new Set(triggerBlocks.map((b) => b.id))
 
   // 1. Get all existing webhooks for this workflow
-  const existingWebhooks = await db.select().from(webhook).where(eq(webhook.workflowId, workflowId))
+  const existingWebhooks = await db
+    .select()
+    .from(webhook)
+    .where(
+      deploymentVersionId
+        ? and(
+            eq(webhook.workflowId, workflowId),
+            eq(webhook.deploymentVersionId, deploymentVersionId)
+          )
+        : eq(webhook.workflowId, workflowId)
+    )
 
-  const webhooksByBlockId = new Map(
-    existingWebhooks.filter((wh) => wh.blockId).map((wh) => [wh.blockId!, wh])
-  )
+  const webhooksByBlockId = new Map<string, typeof existingWebhooks>()
+  for (const wh of existingWebhooks) {
+    if (!wh.blockId) continue
+    const existingForBlock = webhooksByBlockId.get(wh.blockId) ?? []
+    existingForBlock.push(wh)
+    webhooksByBlockId.set(wh.blockId, existingForBlock)
+  }
 
   logger.info(`[${requestId}] Starting webhook sync`, {
     workflowId,
@@ -403,6 +432,7 @@ export async function saveTriggerWebhooksForDeploy({
   // 2. Determine which webhooks to delete (orphaned or config changed)
   const webhooksToDelete: typeof existingWebhooks = []
   const blocksNeedingWebhook: BlockState[] = []
+  const blocksNeedingCredentialSetSync: BlockState[] = []
 
   for (const block of triggerBlocks) {
     const triggerId = resolveTriggerId(block)
@@ -429,11 +459,24 @@ export async function saveTriggerWebhooksForDeploy({
 
     ;(block as any)._webhookConfig = { provider, providerConfig, triggerPath, triggerDef }
 
-    const existingWh = webhooksByBlockId.get(block.id)
-    if (!existingWh) {
+    if (providerConfig.credentialSetId) {
+      blocksNeedingCredentialSetSync.push(block)
+      continue
+    }
+
+    const existingForBlock = webhooksByBlockId.get(block.id) ?? []
+    if (existingForBlock.length === 0) {
       // No existing webhook - needs creation
       blocksNeedingWebhook.push(block)
     } else {
+      const [existingWh, ...extraWebhooks] = existingForBlock
+      if (extraWebhooks.length > 0) {
+        webhooksToDelete.push(...extraWebhooks)
+        logger.info(
+          `[${requestId}] Found ${extraWebhooks.length} extra webhook(s) for block ${block.id}`
+        )
+      }
+
       // Check if config changed
       const existingConfig = (existingWh.providerConfig as Record<string, unknown>) || {}
       if (
@@ -479,15 +522,14 @@ export async function saveTriggerWebhooksForDeploy({
     await db.delete(webhook).where(inArray(webhook.id, idsToDelete))
   }
 
-  // 4. Create webhooks for blocks that need them
-  for (const block of blocksNeedingWebhook) {
+  // 4. Sync credential set webhooks
+  for (const block of blocksNeedingCredentialSetSync) {
     const config = (block as any)._webhookConfig
     if (!config) continue
 
     const { provider, providerConfig, triggerPath } = config
 
     try {
-      // Handle credential sets
       const credentialSetError = await syncCredentialSetWebhooks({
         workflowId,
         blockId: block.id,
@@ -495,16 +537,32 @@ export async function saveTriggerWebhooksForDeploy({
         triggerPath,
         providerConfig,
         requestId,
+        deploymentVersionId,
       })
 
       if (credentialSetError) {
         return { success: false, error: credentialSetError }
       }
-
-      if (providerConfig.credentialSetId) {
-        continue
+    } catch (error: any) {
+      logger.error(`[${requestId}] Failed to create webhook for ${block.id}`, error)
+      return {
+        success: false,
+        error: {
+          message: error?.message || 'Failed to save trigger configuration',
+          status: 500,
+        },
       }
+    }
+  }
 
+  // 5. Create webhooks for blocks that need them
+  for (const block of blocksNeedingWebhook) {
+    const config = (block as any)._webhookConfig
+    if (!config) continue
+
+    const { provider, providerConfig, triggerPath } = config
+
+    try {
       const createError = await createWebhookForBlock({
         request,
         workflowId,
@@ -515,6 +573,7 @@ export async function saveTriggerWebhooksForDeploy({
         providerConfig,
         triggerPath,
         requestId,
+        deploymentVersionId,
       })
 
       if (createError) {
@@ -547,9 +606,20 @@ export async function saveTriggerWebhooksForDeploy({
 export async function cleanupWebhooksForWorkflow(
   workflowId: string,
   workflow: Record<string, unknown>,
-  requestId: string
+  requestId: string,
+  deploymentVersionId?: string
 ): Promise<void> {
-  const existingWebhooks = await db.select().from(webhook).where(eq(webhook.workflowId, workflowId))
+  const existingWebhooks = await db
+    .select()
+    .from(webhook)
+    .where(
+      deploymentVersionId
+        ? and(
+            eq(webhook.workflowId, workflowId),
+            eq(webhook.deploymentVersionId, deploymentVersionId)
+          )
+        : eq(webhook.workflowId, workflowId)
+    )
 
   if (existingWebhooks.length === 0) {
     logger.debug(`[${requestId}] No webhooks to clean up for workflow ${workflowId}`)
@@ -558,6 +628,7 @@ export async function cleanupWebhooksForWorkflow(
 
   logger.info(`[${requestId}] Cleaning up ${existingWebhooks.length} webhook(s) for undeploy`, {
     workflowId,
+    deploymentVersionId,
     webhookIds: existingWebhooks.map((wh) => wh.id),
   })
 
@@ -572,7 +643,20 @@ export async function cleanupWebhooksForWorkflow(
   }
 
   // Delete all webhook records
-  await db.delete(webhook).where(eq(webhook.workflowId, workflowId))
+  await db
+    .delete(webhook)
+    .where(
+      deploymentVersionId
+        ? and(
+            eq(webhook.workflowId, workflowId),
+            eq(webhook.deploymentVersionId, deploymentVersionId)
+          )
+        : eq(webhook.workflowId, workflowId)
+    )
 
-  logger.info(`[${requestId}] Cleaned up all webhooks for workflow ${workflowId}`)
+  logger.info(
+    deploymentVersionId
+      ? `[${requestId}] Cleaned up webhooks for workflow ${workflowId} deployment ${deploymentVersionId}`
+      : `[${requestId}] Cleaned up all webhooks for workflow ${workflowId}`
+  )
 }

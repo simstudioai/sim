@@ -152,7 +152,6 @@ export async function POST(
     const response = await queueWebhookExecution(foundWebhook, foundWorkflow, body, request, {
       requestId,
       path,
-      executionTarget: 'deployed',
     })
     responses.push(response)
   }

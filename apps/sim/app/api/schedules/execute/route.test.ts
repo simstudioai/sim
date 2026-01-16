@@ -57,6 +57,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       not: vi.fn((condition) => ({ type: 'not', condition })),
       isNull: vi.fn((field) => ({ type: 'isNull', field })),
       or: vi.fn((...conditions) => ({ type: 'or', conditions })),
+      sql: vi.fn((strings, ...values) => ({ type: 'sql', strings, values })),
     }))
 
     vi.doMock('@sim/db', () => {
@@ -92,6 +93,17 @@ describe('Scheduled Workflow Execution API Route', () => {
           status: 'status',
           nextRunAt: 'nextRunAt',
           lastQueuedAt: 'lastQueuedAt',
+          deploymentVersionId: 'deploymentVersionId',
+        },
+        workflowDeploymentVersion: {
+          id: 'id',
+          workflowId: 'workflowId',
+          isActive: 'isActive',
+        },
+        workflow: {
+          id: 'id',
+          userId: 'userId',
+          workspaceId: 'workspaceId',
         },
       }
     })
@@ -134,6 +146,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       not: vi.fn((condition) => ({ type: 'not', condition })),
       isNull: vi.fn((field) => ({ type: 'isNull', field })),
       or: vi.fn((...conditions) => ({ type: 'or', conditions })),
+      sql: vi.fn((strings, ...values) => ({ type: 'sql', strings, values })),
     }))
 
     vi.doMock('@sim/db', () => {
@@ -169,6 +182,17 @@ describe('Scheduled Workflow Execution API Route', () => {
           status: 'status',
           nextRunAt: 'nextRunAt',
           lastQueuedAt: 'lastQueuedAt',
+          deploymentVersionId: 'deploymentVersionId',
+        },
+        workflowDeploymentVersion: {
+          id: 'id',
+          workflowId: 'workflowId',
+          isActive: 'isActive',
+        },
+        workflow: {
+          id: 'id',
+          userId: 'userId',
+          workspaceId: 'workspaceId',
         },
       }
     })
@@ -206,6 +230,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       not: vi.fn((condition) => ({ type: 'not', condition })),
       isNull: vi.fn((field) => ({ type: 'isNull', field })),
       or: vi.fn((...conditions) => ({ type: 'or', conditions })),
+      sql: vi.fn((strings, ...values) => ({ type: 'sql', strings, values })),
     }))
 
     vi.doMock('@sim/db', () => {
@@ -228,6 +253,17 @@ describe('Scheduled Workflow Execution API Route', () => {
           status: 'status',
           nextRunAt: 'nextRunAt',
           lastQueuedAt: 'lastQueuedAt',
+          deploymentVersionId: 'deploymentVersionId',
+        },
+        workflowDeploymentVersion: {
+          id: 'id',
+          workflowId: 'workflowId',
+          isActive: 'isActive',
+        },
+        workflow: {
+          id: 'id',
+          userId: 'userId',
+          workspaceId: 'workspaceId',
         },
       }
     })
@@ -265,6 +301,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       not: vi.fn((condition) => ({ type: 'not', condition })),
       isNull: vi.fn((field) => ({ type: 'isNull', field })),
       or: vi.fn((...conditions) => ({ type: 'or', conditions })),
+      sql: vi.fn((strings, ...values) => ({ type: 'sql', strings, values })),
     }))
 
     vi.doMock('@sim/db', () => {
@@ -310,6 +347,17 @@ describe('Scheduled Workflow Execution API Route', () => {
           status: 'status',
           nextRunAt: 'nextRunAt',
           lastQueuedAt: 'lastQueuedAt',
+          deploymentVersionId: 'deploymentVersionId',
+        },
+        workflowDeploymentVersion: {
+          id: 'id',
+          workflowId: 'workflowId',
+          isActive: 'isActive',
+        },
+        workflow: {
+          id: 'id',
+          userId: 'userId',
+          workspaceId: 'workspaceId',
         },
       }
     })

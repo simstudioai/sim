@@ -10,7 +10,11 @@ import {
   loadWorkflowFromNormalizedTables,
   undeployWorkflow,
 } from '@/lib/workflows/persistence/utils'
-import { createSchedulesForDeploy, validateWorkflowSchedules } from '@/lib/workflows/schedules'
+import {
+  cleanupDeploymentVersion,
+  createSchedulesForDeploy,
+  validateWorkflowSchedules,
+} from '@/lib/workflows/schedules'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -131,22 +135,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse(`Invalid schedule configuration: ${scheduleValidation.error}`, 400)
     }
 
-    const triggerSaveResult = await saveTriggerWebhooksForDeploy({
-      request,
-      workflowId: id,
-      workflow: workflowData,
-      userId: actorUserId,
-      blocks: normalizedData.blocks,
-      requestId,
-    })
-
-    if (!triggerSaveResult.success) {
-      return createErrorResponse(
-        triggerSaveResult.error?.message || 'Failed to save trigger configuration',
-        triggerSaveResult.error?.status || 500
-      )
-    }
-
     const deployResult = await deployWorkflow({
       workflowId: id,
       deployedBy: actorUserId,
@@ -158,14 +146,58 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const deployedAt = deployResult.deployedAt!
+    const deploymentVersionId = deployResult.deploymentVersionId
+
+    if (!deploymentVersionId) {
+      await undeployWorkflow({ workflowId: id })
+      return createErrorResponse('Failed to resolve deployment version', 500)
+    }
+
+    const triggerSaveResult = await saveTriggerWebhooksForDeploy({
+      request,
+      workflowId: id,
+      workflow: workflowData,
+      userId: actorUserId,
+      blocks: normalizedData.blocks,
+      requestId,
+      deploymentVersionId,
+    })
+
+    if (!triggerSaveResult.success) {
+      await cleanupDeploymentVersion({
+        workflowId: id,
+        workflow: workflowData as Record<string, unknown>,
+        requestId,
+        deploymentVersionId,
+      })
+      await undeployWorkflow({ workflowId: id })
+      return createErrorResponse(
+        triggerSaveResult.error?.message || 'Failed to save trigger configuration',
+        triggerSaveResult.error?.status || 500
+      )
+    }
 
     let scheduleInfo: { scheduleId?: string; cronExpression?: string; nextRunAt?: Date } = {}
-    const scheduleResult = await createSchedulesForDeploy(id, normalizedData.blocks, db)
+    const scheduleResult = await createSchedulesForDeploy(
+      id,
+      normalizedData.blocks,
+      db,
+      deploymentVersionId
+    )
     if (!scheduleResult.success) {
       logger.error(
         `[${requestId}] Failed to create schedule for workflow ${id}: ${scheduleResult.error}`
       )
-    } else if (scheduleResult.scheduleId) {
+      await cleanupDeploymentVersion({
+        workflowId: id,
+        workflow: workflowData as Record<string, unknown>,
+        requestId,
+        deploymentVersionId,
+      })
+      await undeployWorkflow({ workflowId: id })
+      return createErrorResponse(scheduleResult.error || 'Failed to create schedule', 500)
+    }
+    if (scheduleResult.scheduleId) {
       scheduleInfo = {
         scheduleId: scheduleResult.scheduleId,
         cronExpression: scheduleResult.cronExpression,

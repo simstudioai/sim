@@ -1,7 +1,13 @@
 import { db } from '@sim/db'
-import { account, credentialSet, webhook, workflow } from '@sim/db/schema'
+import {
+  account,
+  credentialSet,
+  webhook,
+  workflow,
+  workflowDeploymentVersion,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import { htmlToText } from 'html-to-text'
 import { nanoid } from 'nanoid'
 import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing'
@@ -161,11 +167,22 @@ export async function pollOutlookWebhooks() {
       .select({ webhook })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+      .leftJoin(
+        workflowDeploymentVersion,
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflow.id),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
       .where(
         and(
           eq(webhook.provider, 'outlook'),
           eq(webhook.isActive, true),
-          eq(workflow.isDeployed, true)
+          eq(workflow.isDeployed, true),
+          or(
+            eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
+            and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
+          )
         )
       )
 

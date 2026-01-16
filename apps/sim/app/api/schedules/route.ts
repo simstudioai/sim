@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { workflow, workflowSchedule } from '@sim/db/schema'
+import { workflow, workflowDeploymentVersion, workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -62,9 +62,24 @@ export async function GET(req: NextRequest) {
     }
 
     const schedule = await db
-      .select()
+      .select({ schedule: workflowSchedule })
       .from(workflowSchedule)
-      .where(conditions.length > 1 ? and(...conditions) : conditions[0])
+      .leftJoin(
+        workflowDeploymentVersion,
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflowSchedule.workflowId),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+      .where(
+        and(
+          ...conditions,
+          or(
+            eq(workflowSchedule.deploymentVersionId, workflowDeploymentVersion.id),
+            and(isNull(workflowDeploymentVersion.id), isNull(workflowSchedule.deploymentVersionId))
+          )
+        )
+      )
       .limit(1)
 
     const headers = new Headers()
@@ -74,7 +89,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ schedule: null }, { headers })
     }
 
-    const scheduleData = schedule[0]
+    const scheduleData = schedule[0].schedule
     const isDisabled = scheduleData.status === 'disabled'
     const hasFailures = scheduleData.failedCount > 0
 

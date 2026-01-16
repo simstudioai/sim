@@ -12,16 +12,11 @@ import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
 import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
-import {
-  loadDeployedWorkflowState,
-  loadWorkflowFromNormalizedTables,
-} from '@/lib/workflows/persistence/utils'
+import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
-import { Serializer } from '@/serializer'
-import { mergeSubblockState } from '@/stores/workflows/server-utils'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('TriggerWebhookExecution')
@@ -92,7 +87,6 @@ export type WebhookExecutionPayload = {
   headers: Record<string, string>
   path: string
   blockId?: string
-  executionTarget?: 'deployed' | 'live'
   credentialId?: string
   credentialAccountUserId?: string
 }
@@ -143,20 +137,16 @@ async function executeWebhookJobInternal(
   let deploymentVersionId: string | undefined
 
   try {
-    const useDraftState = payload.executionTarget === 'live'
-    const workflowData = useDraftState
-      ? await loadWorkflowFromNormalizedTables(payload.workflowId)
-      : await loadDeployedWorkflowState(payload.workflowId)
+    const workflowData = await loadDeployedWorkflowState(payload.workflowId)
     if (!workflowData) {
       throw new Error(
-        `Workflow state not found. The workflow may not be ${useDraftState ? 'saved' : 'deployed'} or the deployment data may be corrupted.`
+        'Workflow state not found. The workflow may not be deployed or the deployment data may be corrupted.'
       )
     }
 
     const { blocks, edges, loops, parallels } = workflowData
-    // Only deployed executions have a deployment version ID
     deploymentVersionId =
-      !useDraftState && 'deploymentVersionId' in workflowData
+      'deploymentVersionId' in workflowData
         ? (workflowData.deploymentVersionId as string)
         : undefined
 
@@ -170,19 +160,6 @@ async function executeWebhookJobInternal(
       throw new Error(`Workflow ${payload.workflowId} has no associated workspace`)
     }
     const workflowVariables = (wfRows[0]?.variables as Record<string, any>) || {}
-
-    // Merge subblock states (matching workflow-execution pattern)
-    const mergedStates = mergeSubblockState(blocks)
-
-    // Create serialized workflow
-    const serializer = new Serializer()
-    const serializedWorkflow = serializer.serializeWorkflow(
-      mergedStates,
-      edges,
-      loops || {},
-      parallels || {},
-      true // Enable validation during execution
-    )
 
     // Handle special Airtable case
     if (payload.provider === 'airtable') {
@@ -318,7 +295,6 @@ async function executeWebhookJobInternal(
         variables: {},
         triggerData: {
           isTest: false,
-          executionTarget: payload.executionTarget || 'deployed',
         },
         deploymentVersionId,
       })
@@ -376,7 +352,6 @@ async function executeWebhookJobInternal(
         variables: {},
         triggerData: {
           isTest: false,
-          executionTarget: payload.executionTarget || 'deployed',
         },
         deploymentVersionId,
       })
@@ -595,7 +570,6 @@ async function executeWebhookJobInternal(
         variables: {},
         triggerData: {
           isTest: false,
-          executionTarget: payload.executionTarget || 'deployed',
         },
         deploymentVersionId,
       })

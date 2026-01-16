@@ -14,8 +14,7 @@ import {
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { REFERENCE } from '@/executor/constants'
-import { createEnvVarPattern } from '@/executor/utils/reference-validation'
+import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { executeTool } from '@/tools'
 import { getTool, resolveToolId } from '@/tools/utils'
 
@@ -27,45 +26,6 @@ const ExecuteToolSchema = z.object({
   arguments: z.record(z.any()).optional().default({}),
   workflowId: z.string().optional(),
 })
-
-/**
- * Resolves all {{ENV_VAR}} references in a value recursively
- * Works with strings, arrays, and objects
- */
-function resolveEnvVarReferences(value: any, envVars: Record<string, string>): any {
-  if (typeof value === 'string') {
-    // Check for exact match: entire string is "{{VAR_NAME}}"
-    const exactMatchPattern = new RegExp(
-      `^\\${REFERENCE.ENV_VAR_START}([^}]+)\\${REFERENCE.ENV_VAR_END}$`
-    )
-    const exactMatch = exactMatchPattern.exec(value)
-    if (exactMatch) {
-      const envVarName = exactMatch[1].trim()
-      return envVars[envVarName] ?? value
-    }
-
-    // Check for embedded references: "prefix {{VAR}} suffix"
-    const envVarPattern = createEnvVarPattern()
-    return value.replace(envVarPattern, (match, varName) => {
-      const trimmedName = varName.trim()
-      return envVars[trimmedName] ?? match
-    })
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => resolveEnvVarReferences(item, envVars))
-  }
-
-  if (value !== null && typeof value === 'object') {
-    const resolved: Record<string, any> = {}
-    for (const [key, val] of Object.entries(value)) {
-      resolved[key] = resolveEnvVarReferences(val, envVars)
-    }
-    return resolved
-  }
-
-  return value
-}
 
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()
@@ -145,7 +105,17 @@ export async function POST(req: NextRequest) {
 
     // Build execution params starting with LLM-provided arguments
     // Resolve all {{ENV_VAR}} references in the arguments
-    const executionParams: Record<string, any> = resolveEnvVarReferences(toolArgs, decryptedEnvVars)
+    const executionParams: Record<string, any> = resolveEnvVarReferences(
+      toolArgs,
+      decryptedEnvVars,
+      {
+        resolveExactMatch: true,
+        allowEmbedded: true,
+        trimKeys: true,
+        onMissing: 'keep',
+        deep: true,
+      }
+    ) as Record<string, any>
 
     logger.info(`[${tracker.requestId}] Resolved env var references in arguments`, {
       toolName,

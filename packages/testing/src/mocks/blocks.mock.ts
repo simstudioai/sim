@@ -169,8 +169,20 @@ export const mockBlockConfigs: Record<string, any> = {
       config: { tool: () => 'slack_send_message' },
     },
     subBlocks: [
-      { id: 'channel', type: 'dropdown', title: 'Channel', mode: 'basic' },
-      { id: 'manualChannel', type: 'short-input', title: 'Channel ID', mode: 'advanced' },
+      {
+        id: 'channel',
+        type: 'dropdown',
+        title: 'Channel',
+        mode: 'basic',
+        canonicalParamId: 'channel',
+      },
+      {
+        id: 'manualChannel',
+        type: 'short-input',
+        title: 'Channel ID',
+        mode: 'advanced',
+        canonicalParamId: 'channel',
+      },
       { id: 'text', type: 'long-input', title: 'Message' },
       { id: 'username', type: 'short-input', title: 'Username', mode: 'both' },
     ],

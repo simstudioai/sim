@@ -1,5 +1,5 @@
 import { type JSX, type MouseEvent, memo, useRef, useState } from 'react'
-import { AlertTriangle, ArrowUp } from 'lucide-react'
+import { AlertTriangle, ArrowLeftRight, ArrowUp } from 'lucide-react'
 import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'
 import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
@@ -67,6 +67,11 @@ interface SubBlockProps {
   disabled?: boolean
   fieldDiffStatus?: FieldDiffStatus
   allowExpandInPreview?: boolean
+  canonicalToggle?: {
+    mode: 'basic' | 'advanced'
+    disabled?: boolean
+    onToggle?: () => void
+  }
 }
 
 /**
@@ -182,6 +187,11 @@ const renderLabel = (
     onSearchSubmit: () => void
     onSearchCancel: () => void
     searchInputRef: React.RefObject<HTMLInputElement | null>
+  },
+  canonicalToggle?: {
+    mode: 'basic' | 'advanced'
+    disabled?: boolean
+    onToggle?: () => void
   }
 ): JSX.Element | null => {
   if (config.type === 'switch') return null
@@ -189,13 +199,12 @@ const renderLabel = (
 
   const required = isFieldRequired(config, subBlockValues)
   const showWand = wandState?.isWandEnabled && !wandState.isPreview && !wandState.disabled
+  const showCanonicalToggle = !!canonicalToggle && !wandState?.isPreview
+  const canonicalToggleDisabled = wandState?.disabled || canonicalToggle?.disabled
 
   return (
-    <Label
-      className='flex items-center justify-between gap-[6px] pl-[2px]'
-      onClick={(e) => e.preventDefault()}
-    >
-      <div className='flex items-center gap-[6px] whitespace-nowrap'>
+    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
+      <Label className='flex items-center gap-[6px] whitespace-nowrap'>
         {config.title}
         {required && <span className='ml-0.5'>*</span>}
         {config.type === 'code' && config.language === 'json' && (
@@ -213,58 +222,82 @@ const renderLabel = (
             </Tooltip.Content>
           </Tooltip.Root>
         )}
-      </div>
-      {showWand && (
-        <>
-          {!wandState.isSearchActive ? (
-            <Button
-              variant='active'
-              className='-my-1 h-5 px-2 py-0 text-[11px]'
-              onClick={wandState.onSearchClick}
-            >
-              Generate
-            </Button>
-          ) : (
-            <div className='-my-1 flex items-center gap-[4px]'>
-              <Input
-                ref={wandState.searchInputRef}
-                value={wandState.isStreaming ? 'Generating...' : wandState.searchQuery}
-                onChange={(e) => wandState.onSearchChange(e.target.value)}
-                onBlur={wandState.onSearchBlur}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && wandState.searchQuery.trim() && !wandState.isStreaming) {
-                    wandState.onSearchSubmit()
-                  } else if (e.key === 'Escape') {
-                    wandState.onSearchCancel()
-                  }
-                }}
-                disabled={wandState.isStreaming}
-                className={cn(
-                  'h-5 max-w-[200px] flex-1 text-[11px]',
-                  wandState.isStreaming && 'text-muted-foreground'
-                )}
-                placeholder='Generate...'
-              />
+      </Label>
+      <div className='flex items-center gap-[6px]'>
+        {showWand && (
+          <>
+            {!wandState.isSearchActive ? (
               <Button
-                variant='tertiary'
-                disabled={!wandState.searchQuery.trim() || wandState.isStreaming}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  wandState.onSearchSubmit()
-                }}
-                className='h-[20px] w-[20px] flex-shrink-0 p-0'
+                variant='active'
+                className='-my-1 h-5 px-2 py-0 text-[11px]'
+                onClick={wandState.onSearchClick}
               >
-                <ArrowUp className='h-[12px] w-[12px]' />
+                Generate
               </Button>
-            </div>
-          )}
-        </>
-      )}
-    </Label>
+            ) : (
+              <div className='-my-1 flex items-center gap-[4px]'>
+                <Input
+                  ref={wandState.searchInputRef}
+                  value={wandState.isStreaming ? 'Generating...' : wandState.searchQuery}
+                  onChange={(e) => wandState.onSearchChange(e.target.value)}
+                  onBlur={wandState.onSearchBlur}
+                  onKeyDown={(e) => {
+                    if (
+                      e.key === 'Enter' &&
+                      wandState.searchQuery.trim() &&
+                      !wandState.isStreaming
+                    ) {
+                      wandState.onSearchSubmit()
+                    } else if (e.key === 'Escape') {
+                      wandState.onSearchCancel()
+                    }
+                  }}
+                  disabled={wandState.isStreaming}
+                  className={cn(
+                    'h-5 max-w-[200px] flex-1 text-[11px]',
+                    wandState.isStreaming && 'text-muted-foreground'
+                  )}
+                  placeholder='Generate with AI...'
+                />
+                <Button
+                  variant='tertiary'
+                  disabled={!wandState.searchQuery.trim() || wandState.isStreaming}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    wandState.onSearchSubmit()
+                  }}
+                  className='h-[20px] w-[20px] flex-shrink-0 p-0'
+                >
+                  <ArrowUp className='h-[12px] w-[12px]' />
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+        {showCanonicalToggle && (
+          <button
+            type='button'
+            className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
+            onClick={canonicalToggle?.onToggle}
+            disabled={canonicalToggleDisabled}
+            aria-label={canonicalToggle?.mode === 'advanced' ? 'Use selector' : 'Enter manual ID'}
+          >
+            <ArrowLeftRight
+              className={cn(
+                '!h-[12px] !w-[12px]',
+                canonicalToggle?.mode === 'advanced'
+                  ? 'text-[var(--text-primary)]'
+                  : 'text-[var(--text-secondary)]'
+              )}
+            />
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -287,7 +320,9 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
     prevProps.subBlockValues === nextProps.subBlockValues &&
     prevProps.disabled === nextProps.disabled &&
     prevProps.fieldDiffStatus === nextProps.fieldDiffStatus &&
-    prevProps.allowExpandInPreview === nextProps.allowExpandInPreview
+    prevProps.allowExpandInPreview === nextProps.allowExpandInPreview &&
+    prevProps.canonicalToggle?.mode === nextProps.canonicalToggle?.mode &&
+    prevProps.canonicalToggle?.disabled === nextProps.canonicalToggle?.disabled
   )
 }
 
@@ -316,6 +351,7 @@ function SubBlockComponent({
   disabled = false,
   fieldDiffStatus,
   allowExpandInPreview,
+  canonicalToggle,
 }: SubBlockProps): JSX.Element {
   const [isValidJson, setIsValidJson] = useState(true)
   const [isSearchActive, setIsSearchActive] = useState(false)
@@ -887,20 +923,26 @@ function SubBlockComponent({
 
   return (
     <div onMouseDown={handleMouseDown} className='subblock-content flex flex-col gap-[10px]'>
-      {renderLabel(config, isValidJson, subBlockValues, {
-        isSearchActive,
-        searchQuery,
-        isWandEnabled,
-        isPreview,
-        isStreaming: wandControlRef.current?.isWandStreaming ?? false,
-        disabled: isDisabled,
-        onSearchClick: handleSearchClick,
-        onSearchBlur: handleSearchBlur,
-        onSearchChange: handleSearchChange,
-        onSearchSubmit: handleSearchSubmit,
-        onSearchCancel: handleSearchCancel,
-        searchInputRef,
-      })}
+      {renderLabel(
+        config,
+        isValidJson,
+        subBlockValues,
+        {
+          isSearchActive,
+          searchQuery,
+          isWandEnabled,
+          isPreview,
+          isStreaming: wandControlRef.current?.isWandStreaming ?? false,
+          disabled: isDisabled,
+          onSearchClick: handleSearchClick,
+          onSearchBlur: handleSearchBlur,
+          onSearchChange: handleSearchChange,
+          onSearchSubmit: handleSearchSubmit,
+          onSearchCancel: handleSearchCancel,
+          searchInputRef,
+        },
+        canonicalToggle
+      )}
       {renderInput()}
     </div>
   )
