@@ -94,6 +94,9 @@ interface ProcessedAttachment {
   dataUrl: string
 }
 
+/** Timeout for FileReader operations in milliseconds */
+const FILE_READ_TIMEOUT_MS = 60000
+
 /**
  * Reads files and converts them to data URLs for image display
  * @param chatFiles - Array of chat files to process
@@ -107,8 +110,37 @@ const processFileAttachments = async (chatFiles: ChatFile[]): Promise<ProcessedA
         try {
           dataUrl = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader()
-            reader.onload = () => resolve(reader.result as string)
-            reader.onerror = reject
+            let settled = false
+
+            const timeoutId = setTimeout(() => {
+              if (!settled) {
+                settled = true
+                reader.abort()
+                reject(new Error(`File read timed out after ${FILE_READ_TIMEOUT_MS}ms`))
+              }
+            }, FILE_READ_TIMEOUT_MS)
+
+            reader.onload = () => {
+              if (!settled) {
+                settled = true
+                clearTimeout(timeoutId)
+                resolve(reader.result as string)
+              }
+            }
+            reader.onerror = () => {
+              if (!settled) {
+                settled = true
+                clearTimeout(timeoutId)
+                reject(reader.error)
+              }
+            }
+            reader.onabort = () => {
+              if (!settled) {
+                settled = true
+                clearTimeout(timeoutId)
+                reject(new Error('File read aborted'))
+              }
+            }
             reader.readAsDataURL(file.file)
           })
         } catch (error) {
@@ -202,7 +234,6 @@ export function Chat() {
   const triggerWorkflowUpdate = useWorkflowStore((state) => state.triggerUpdate)
   const setSubBlockValue = useSubBlockStore((state) => state.setValue)
 
-  // Chat state (UI and messages from unified store)
   const {
     isChatOpen,
     chatPosition,
@@ -230,19 +261,16 @@ export function Chat() {
   const { data: session } = useSession()
   const { addToQueue } = useOperationQueue()
 
-  // Local state
   const [chatMessage, setChatMessage] = useState('')
   const [promptHistory, setPromptHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
 
-  // Refs
   const inputRef = useRef<HTMLInputElement>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const preventZoomRef = usePreventZoom()
 
-  // File upload hook
   const {
     chatFiles,
     uploadErrors,
@@ -256,6 +284,38 @@ export function Chat() {
     handleDragLeave,
     handleDrop,
   } = useChatFileUpload()
+
+  const filePreviewUrls = useRef<Map<string, string>>(new Map())
+
+  const getFilePreviewUrl = useCallback((file: ChatFile): string | null => {
+    if (!file.type.startsWith('image/')) return null
+
+    const existing = filePreviewUrls.current.get(file.id)
+    if (existing) return existing
+
+    const url = URL.createObjectURL(file.file)
+    filePreviewUrls.current.set(file.id, url)
+    return url
+  }, [])
+
+  useEffect(() => {
+    const currentFileIds = new Set(chatFiles.map((f) => f.id))
+    const urlMap = filePreviewUrls.current
+
+    for (const [fileId, url] of urlMap.entries()) {
+      if (!currentFileIds.has(fileId)) {
+        URL.revokeObjectURL(url)
+        urlMap.delete(fileId)
+      }
+    }
+
+    return () => {
+      for (const url of urlMap.values()) {
+        URL.revokeObjectURL(url)
+      }
+      urlMap.clear()
+    }
+  }, [chatFiles])
 
   /**
    * Resolves the unified start block for chat execution, if available.
@@ -322,13 +382,11 @@ export function Chat() {
   const shouldShowConfigureStartInputsButton =
     Boolean(startBlockId) && missingStartReservedFields.length > 0
 
-  // Get actual position (default if not set)
   const actualPosition = useMemo(
     () => getChatPosition(chatPosition, chatWidth, chatHeight),
     [chatPosition, chatWidth, chatHeight]
   )
 
-  // Drag hook
   const { handleMouseDown } = useFloatDrag({
     position: actualPosition,
     width: chatWidth,
@@ -336,7 +394,6 @@ export function Chat() {
     onPositionChange: setChatPosition,
   })
 
-  // Boundary sync hook - keeps chat within bounds when layout changes
   useFloatBoundarySync({
     isOpen: isChatOpen,
     position: actualPosition,
@@ -345,7 +402,6 @@ export function Chat() {
     onPositionChange: setChatPosition,
   })
 
-  // Resize hook - enables resizing from all edges and corners
   const {
     cursor: resizeCursor,
     handleMouseMove: handleResizeMouseMove,
@@ -359,13 +415,11 @@ export function Chat() {
     onDimensionsChange: setChatDimensions,
   })
 
-  // Get output entries from console
   const outputEntries = useMemo(() => {
     if (!activeWorkflowId) return []
     return entries.filter((entry) => entry.workflowId === activeWorkflowId && entry.output)
   }, [entries, activeWorkflowId])
 
-  // Get filtered messages for current workflow
   const workflowMessages = useMemo(() => {
     if (!activeWorkflowId) return []
     return messages
@@ -373,14 +427,11 @@ export function Chat() {
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
   }, [messages, activeWorkflowId])
 
-  // Check if any message is currently streaming
   const isStreaming = useMemo(() => {
-    // Match copilot semantics: only treat as streaming if the LAST message is streaming
     const lastMessage = workflowMessages[workflowMessages.length - 1]
     return Boolean(lastMessage?.isStreaming)
   }, [workflowMessages])
 
-  // Map chat messages to copilot message format (type -> role) for scroll hook
   const messagesForScrollHook = useMemo(() => {
     return workflowMessages.map((msg) => ({
       ...msg,
@@ -388,8 +439,6 @@ export function Chat() {
     }))
   }, [workflowMessages])
 
-  // Scroll management hook - reuse copilot's implementation
-  // Use immediate scroll behavior to keep the view pinned to the bottom during streaming
   const { scrollAreaRef, scrollToBottom } = useScrollManagement(
     messagesForScrollHook,
     isStreaming,
@@ -398,7 +447,6 @@ export function Chat() {
     }
   )
 
-  // Memoize user messages for performance
   const userMessages = useMemo(() => {
     return workflowMessages
       .filter((msg) => msg.type === 'user')
@@ -406,7 +454,6 @@ export function Chat() {
       .filter((content): content is string => typeof content === 'string')
   }, [workflowMessages])
 
-  // Update prompt history when workflow changes
   useEffect(() => {
     if (!activeWorkflowId) {
       setPromptHistory([])
@@ -419,7 +466,7 @@ export function Chat() {
   }, [activeWorkflowId, userMessages])
 
   /**
-   * Auto-scroll to bottom when messages load
+   * Auto-scroll to bottom when messages load and chat is open
    */
   useEffect(() => {
     if (workflowMessages.length > 0 && isChatOpen) {
@@ -427,7 +474,6 @@ export function Chat() {
     }
   }, [workflowMessages.length, scrollToBottom, isChatOpen])
 
-  // Get selected workflow outputs (deduplicated)
   const selectedOutputs = useMemo(() => {
     if (!activeWorkflowId) return []
     const selected = selectedWorkflowOutputs[activeWorkflowId]
@@ -448,7 +494,6 @@ export function Chat() {
     }, delay)
   }, [])
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       timeoutRef.current && clearTimeout(timeoutRef.current)
@@ -456,7 +501,6 @@ export function Chat() {
     }
   }, [])
 
-  // React to execution cancellation from run button
   useEffect(() => {
     if (!isExecuting && isStreaming) {
       const lastMessage = workflowMessages[workflowMessages.length - 1]
@@ -500,7 +544,6 @@ export function Chat() {
           const chunk = decoder.decode(value, { stream: true })
           buffer += chunk
 
-          // Process only complete SSE messages; keep any partial trailing data in buffer
           const separatorIndex = buffer.lastIndexOf('\n\n')
           if (separatorIndex === -1) {
             continue
@@ -550,7 +593,6 @@ export function Chat() {
         }
         finalizeMessageStream(responseMessageId)
       } finally {
-        // Only clear ref if it's still our reader (prevents clobbering a new stream)
         if (streamReaderRef.current === reader) {
           streamReaderRef.current = null
         }
@@ -979,8 +1021,7 @@ export function Chat() {
             {chatFiles.length > 0 && (
               <div className='mt-[4px] flex gap-[6px] overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
                 {chatFiles.map((file) => {
-                  const isImage = file.type.startsWith('image/')
-                  const previewUrl = isImage ? URL.createObjectURL(file.file) : null
+                  const previewUrl = getFilePreviewUrl(file)
 
                   return (
                     <div
@@ -997,7 +1038,6 @@ export function Chat() {
                           src={previewUrl}
                           alt={file.name}
                           className='h-full w-full object-cover'
-                          onLoad={() => URL.revokeObjectURL(previewUrl)}
                         />
                       ) : (
                         <div className='min-w-0 flex-1'>

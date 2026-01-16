@@ -24,10 +24,11 @@ export function useChatFileUpload() {
 
   /**
    * Validate and add files
+   * Uses functional state update to avoid stale closure issues with rapid file additions
    */
-  const addFiles = useCallback(
-    (files: File[]) => {
-      const remainingSlots = Math.max(0, MAX_FILES - chatFiles.length)
+  const addFiles = useCallback((files: File[]) => {
+    setChatFiles((currentFiles) => {
+      const remainingSlots = Math.max(0, MAX_FILES - currentFiles.length)
       const candidateFiles = files.slice(0, remainingSlots)
       const errors: string[] = []
       const validNewFiles: ChatFile[] = []
@@ -39,11 +40,14 @@ export function useChatFileUpload() {
           continue
         }
 
-        // Check for duplicates
-        const isDuplicate = chatFiles.some(
+        // Check for duplicates against current files and newly added valid files
+        const isDuplicateInCurrent = currentFiles.some(
           (existingFile) => existingFile.name === file.name && existingFile.size === file.size
         )
-        if (isDuplicate) {
+        const isDuplicateInNew = validNewFiles.some(
+          (newFile) => newFile.name === file.name && newFile.size === file.size
+        )
+        if (isDuplicateInCurrent || isDuplicateInNew) {
           errors.push(`${file.name} already added`)
           continue
         }
@@ -57,20 +61,20 @@ export function useChatFileUpload() {
         })
       }
 
+      // Update errors outside the state setter to avoid nested state updates
       if (errors.length > 0) {
-        setUploadErrors(errors)
+        // Use setTimeout to avoid state update during render
+        setTimeout(() => setUploadErrors(errors), 0)
+      } else if (validNewFiles.length > 0) {
+        setTimeout(() => setUploadErrors([]), 0)
       }
 
       if (validNewFiles.length > 0) {
-        setChatFiles([...chatFiles, ...validNewFiles])
-        // Clear errors when files are successfully added
-        if (errors.length === 0) {
-          setUploadErrors([])
-        }
+        return [...currentFiles, ...validNewFiles]
       }
-    },
-    [chatFiles]
-  )
+      return currentFiles
+    })
+  }, [])
 
   /**
    * Remove a file
