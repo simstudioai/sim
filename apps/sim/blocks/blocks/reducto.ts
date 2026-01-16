@@ -47,7 +47,7 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
       id: 'pages',
       title: 'Specific Pages',
       type: 'short-input',
-      placeholder: 'e.g. 0,1,2 (leave empty for all pages)',
+      placeholder: 'e.g. 1,2,3 (1-indexed, leave empty for all)',
     },
     {
       id: 'tableOutputFormat',

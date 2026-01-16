@@ -28,7 +28,7 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
       type: 'array',
       required: false,
       visibility: 'user-only',
-      description: 'Specific pages to process (array of page numbers, starting from 0)',
+      description: 'Specific pages to process (1-indexed page numbers)',
     },
     tableOutputFormat: {
       type: 'string',

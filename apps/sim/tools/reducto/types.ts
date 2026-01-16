@@ -16,7 +16,7 @@ export interface ReductoParserInput {
   /** Reducto API key for authentication */
   apiKey: string
 
-  /** Specific pages to process (zero-indexed) */
+  /** Specific pages to process (1-indexed) */
   pages?: number[]
 
   /** Table output format (html or md) */

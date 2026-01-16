@@ -101,10 +101,7 @@ export async function POST(request: NextRequest) {
 
     if (validatedData.pages && validatedData.pages.length > 0) {
       reductoBody.settings = {
-        page_range: {
-          start: Math.min(...validatedData.pages),
-          end: Math.max(...validatedData.pages),
-        },
+        page_range: validatedData.pages,
       }
     }
 
