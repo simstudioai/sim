@@ -658,7 +658,7 @@ export function DeployModal({
                   onClick={handleMcpToolFormSubmit}
                   disabled={mcpToolSubmitting || !mcpToolCanSave}
                 >
-                  {mcpToolSubmitting ? 'Saving...' : 'Save Tool Schema'}
+                  {mcpToolSubmitting ? 'Saving...' : 'Save Tool'}
                 </Button>
               </div>
             </ModalFooter>

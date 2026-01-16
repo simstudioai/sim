@@ -189,6 +189,10 @@ export function useCreateForm() {
       const data = await response.json()
 
       if (!response.ok) {
+        // Handle specific error cases
+        if (data.error === 'Identifier already in use') {
+          throw new Error('This identifier is already in use')
+        }
         throw new Error(data.error || 'Failed to create form')
       }
 
@@ -233,6 +237,9 @@ export function useUpdateForm() {
       const result = await response.json()
 
       if (!response.ok) {
+        if (result.error === 'Identifier already in use') {
+          throw new Error('This identifier is already in use')
+        }
         throw new Error(result.error || 'Failed to update form')
       }
 
