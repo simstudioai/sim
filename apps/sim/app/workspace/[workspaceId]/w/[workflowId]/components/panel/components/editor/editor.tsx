@@ -97,12 +97,7 @@ export function Editor() {
     )
   )
 
-  const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
-  )
-  const canonicalModeOverrides = currentBlock?.data?.canonicalModes
-  const subBlocksForAdvancedCheck = useMemo(() => {
+  const subBlocksForCanonical = useMemo(() => {
     const subBlocks = blockConfig?.subBlocks || []
     if (!triggerMode) return subBlocks
     return subBlocks.filter(
@@ -111,16 +106,21 @@ export function Editor() {
     )
   }, [blockConfig?.subBlocks, triggerMode])
 
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(subBlocksForCanonical),
+    [subBlocksForCanonical]
+  )
+  const canonicalModeOverrides = currentBlock?.data?.canonicalModes
   const advancedValuesPresent = hasAdvancedValues(
-    subBlocksForAdvancedCheck,
+    subBlocksForCanonical,
     blockSubBlockValues,
     canonicalIndex
   )
   const displayAdvancedOptions = advancedMode || advancedValuesPresent
 
   const hasAdvancedOnlyFields = useMemo(
-    () => hasStandaloneAdvancedFields(subBlocksForAdvancedCheck, canonicalIndex),
-    [subBlocksForAdvancedCheck, canonicalIndex]
+    () => hasStandaloneAdvancedFields(subBlocksForCanonical, canonicalIndex),
+    [subBlocksForCanonical, canonicalIndex]
   )
 
   // Get subblock layout using custom hook

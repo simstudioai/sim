@@ -87,7 +87,13 @@ export function useEditorSubblockLayout(
       {}
     )
 
-    const canonicalIndex = buildCanonicalIndex(config.subBlocks || [])
+    const subBlocksForCanonical = displayTriggerMode
+      ? (config.subBlocks || []).filter(
+          (subBlock) =>
+            subBlock.mode === 'trigger' || subBlock.type === ('trigger-config' as SubBlockType)
+        )
+      : config.subBlocks || []
+    const canonicalIndex = buildCanonicalIndex(subBlocksForCanonical)
     const effectiveAdvanced = displayAdvancedMode
     const canonicalModeOverrides = blockData?.canonicalModes
 
