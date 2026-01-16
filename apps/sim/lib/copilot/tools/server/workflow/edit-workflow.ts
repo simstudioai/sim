@@ -627,12 +627,9 @@ function createBlockFromParams(
 
       let sanitizedValue = value
 
-      // Special handling for inputFormat - ensure it's an array
-      if (key === 'inputFormat' && value !== null && value !== undefined) {
-        if (!Array.isArray(value)) {
-          // Invalid format, default to empty array
-          sanitizedValue = []
-        }
+      // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
+      if (shouldNormalizeArrayIds(key)) {
+        sanitizedValue = normalizeArrayWithIds(value)
       }
 
       // Special handling for tools - normalize and filter disallowed
@@ -718,6 +715,55 @@ function normalizeTools(tools: any[]): any[] {
       isExpanded: tool.isExpanded ?? true,
     }
   })
+}
+
+/** UUID v4 regex pattern for validation */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Subblock types that store arrays of objects with `id` fields.
+ * The LLM may generate arbitrary IDs which need to be converted to proper UUIDs.
+ */
+const ARRAY_WITH_ID_SUBBLOCK_TYPES = new Set([
+  'inputFormat', // input-format: Fields with id, name, type, value, collapsed
+  'headers', // table: Rows with id, cells (used for HTTP headers)
+  'params', // table: Rows with id, cells (used for query params)
+  'variables', // table or variables-input: Rows/assignments with id
+  'tagFilters', // knowledge-tag-filters: Filters with id, tagName, etc.
+  'documentTags', // document-tag-entry: Tags with id, tagName, etc.
+  'metrics', // eval-input: Metrics with id, name, description, range
+])
+
+/**
+ * Normalizes array subblock values by ensuring each item has a valid UUID.
+ * The LLM may generate arbitrary IDs like "input-desc-001" or "row-1" which need
+ * to be converted to proper UUIDs for consistency with UI-created items.
+ */
+function normalizeArrayWithIds(value: unknown): any[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.map((item: any) => {
+    if (!item || typeof item !== 'object') {
+      return item
+    }
+
+    // Check if id is missing or not a valid UUID
+    const hasValidUUID = typeof item.id === 'string' && UUID_REGEX.test(item.id)
+    if (!hasValidUUID) {
+      return { ...item, id: crypto.randomUUID() }
+    }
+
+    return item
+  })
+}
+
+/**
+ * Checks if a subblock key should have its array items normalized with UUIDs.
+ */
+function shouldNormalizeArrayIds(key: string): boolean {
+  return ARRAY_WITH_ID_SUBBLOCK_TYPES.has(key)
 }
 
 /**
@@ -1360,12 +1406,9 @@ function applyOperationsToWorkflowState(
             }
             let sanitizedValue = value
 
-            // Special handling for inputFormat - ensure it's an array
-            if (key === 'inputFormat' && value !== null && value !== undefined) {
-              if (!Array.isArray(value)) {
-                // Invalid format, default to empty array
-                sanitizedValue = []
-              }
+            // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
+            if (shouldNormalizeArrayIds(key)) {
+              sanitizedValue = normalizeArrayWithIds(value)
             }
 
             // Special handling for tools - normalize and filter disallowed
@@ -2011,10 +2054,9 @@ function applyOperationsToWorkflowState(
 
               let sanitizedValue = value
 
-              if (key === 'inputFormat' && value !== null && value !== undefined) {
-                if (!Array.isArray(value)) {
-                  sanitizedValue = []
-                }
+              // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
+              if (shouldNormalizeArrayIds(key)) {
+                sanitizedValue = normalizeArrayWithIds(value)
               }
 
               // Special handling for tools - normalize and filter disallowed
