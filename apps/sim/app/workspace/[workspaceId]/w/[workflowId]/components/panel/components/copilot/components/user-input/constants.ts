@@ -241,6 +241,7 @@ export const MODEL_OPTIONS = [
   { value: 'gpt-5.2-codex', label: 'GPT 5.2 Codex' },
   { value: 'gpt-5.2-pro', label: 'GPT 5.2 Pro' },
   { value: 'gemini-3-pro', label: 'Gemini 3 Pro' },
+  { value: 'litellm', label: 'LiteLLM' },
 ] as const
 
 /**

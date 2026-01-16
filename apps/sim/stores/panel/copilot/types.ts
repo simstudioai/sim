@@ -118,6 +118,7 @@ export interface CopilotState {
     | 'claude-4.5-opus'
     | 'claude-4.1-opus'
     | 'gemini-3-pro'
+    | 'litellm'
   agentPrefetch: boolean
   enabledModels: string[] | null // Null means not loaded yet, array of model IDs when loaded
   isCollapsed: boolean

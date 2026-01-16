@@ -64,6 +64,7 @@ const ChatMessageSchema = z.object({
       'claude-4.5-opus',
       'claude-4.1-opus',
       'gemini-3-pro',
+      'litellm',
     ])
     .optional()
     .default('claude-4.5-opus'),

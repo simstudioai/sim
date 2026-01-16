@@ -170,7 +170,10 @@ export function getProviderFromModel(model: string): ProviderId {
 
   let providerId: ProviderId | null = null
 
-  if (normalizedModel in getAllModelProviders()) {
+  // Check if the model is actually a provider ID (e.g., "litellm" from copilot selector)
+  if (normalizedModel in providers) {
+    providerId = normalizedModel as ProviderId
+  } else if (normalizedModel in getAllModelProviders()) {
     providerId = getAllModelProviders()[normalizedModel]
   } else {
     for (const [id, config] of Object.entries(providers)) {
