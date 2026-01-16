@@ -24,6 +24,10 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       requiredScopes: [],
       required: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_form_submission',
+      },
     },
     {
       id: 'siteId',
@@ -34,6 +38,10 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       required: true,
       options: [],
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_form_submission',
+      },
       fetchOptions: async (blockId: string) => {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
@@ -95,6 +103,10 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       description: 'The ID of the specific form to monitor (optional - leave empty for all forms)',
       required: false,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_form_submission',
+      },
     },
     {
       id: 'triggerSave',
@@ -103,6 +115,10 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'webflow_form_submission',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_form_submission',
+      },
     },
     {
       id: 'triggerInstructions',
@@ -124,6 +140,10 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_form_submission',
+      },
     },
   ],
 

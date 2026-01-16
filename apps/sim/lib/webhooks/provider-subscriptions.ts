@@ -1455,13 +1455,7 @@ export async function createWebflowWebhookSubscription(
       url: notificationUrl,
     }
 
-    if (collectionId && webflowTriggerType.startsWith('collection_item_')) {
-      requestBody.filter = {
-        resource_type: 'collection',
-        resource_id: collectionId,
-      }
-    }
-
+    // Note: Webflow API only supports 'filter' for form_submission triggers.
     if (formId && webflowTriggerType === 'form_submission') {
       requestBody.filter = {
         resource_type: 'form',

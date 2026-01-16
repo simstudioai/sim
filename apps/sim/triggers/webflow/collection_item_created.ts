@@ -24,6 +24,7 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
         { label: 'Collection Item Created', id: 'webflow_collection_item_created' },
         { label: 'Collection Item Changed', id: 'webflow_collection_item_changed' },
         { label: 'Collection Item Deleted', id: 'webflow_collection_item_deleted' },
+        { label: 'Form Submission', id: 'webflow_form_submission' },
       ],
       value: () => 'webflow_collection_item_created',
       required: true,
