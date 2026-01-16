@@ -157,6 +157,7 @@ export function Sidebar() {
     isCreatingWorkspace,
     updateWorkspaceName,
     confirmDeleteWorkspace,
+    handleLeaveWorkspace,
   } = useWorkspaceManagement({
     workspaceId,
     sessionUserId: sessionData?.user?.id,
@@ -378,6 +379,17 @@ export function Sidebar() {
     [workspaces, confirmDeleteWorkspace]
   )
 
+  /** Leaves a workspace */
+  const handleLeaveWorkspaceWrapper = useCallback(
+    async (workspaceIdToLeave: string) => {
+      const workspaceToLeave = workspaces.find((w) => w.id === workspaceIdToLeave)
+      if (workspaceToLeave) {
+        await handleLeaveWorkspace(workspaceToLeave)
+      }
+    },
+    [workspaces, handleLeaveWorkspace]
+  )
+
   /** Duplicates a workspace */
   const handleDuplicateWorkspace = useCallback(
     async (_workspaceIdToDuplicate: string, workspaceName: string) => {
@@ -509,6 +521,8 @@ export function Sidebar() {
             onImportWorkspace={handleImportWorkspace}
             isImportingWorkspace={isImportingWorkspace}
             showCollapseButton={isOnWorkflowPage}
+            onLeaveWorkspace={handleLeaveWorkspaceWrapper}
+            sessionUserId={sessionData?.user?.id}
           />
         </div>
       ) : (
@@ -542,6 +556,8 @@ export function Sidebar() {
                   onImportWorkspace={handleImportWorkspace}
                   isImportingWorkspace={isImportingWorkspace}
                   showCollapseButton={isOnWorkflowPage}
+                  onLeaveWorkspace={handleLeaveWorkspaceWrapper}
+                  sessionUserId={sessionData?.user?.id}
                 />
               </div>
 
