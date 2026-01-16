@@ -307,12 +307,14 @@ function convertConditionHandleToSemantic(
     if (condition.id === conditionId) {
       if (title === 'if') {
         return `condition-${blockId}-if`
-      } else if (title === 'else if') {
+      }
+      if (title === 'else if') {
         elseIfCount++
         return elseIfCount === 1
           ? `condition-${blockId}-else-if`
           : `condition-${blockId}-else-if-${elseIfCount}`
-      } else if (title === 'else') {
+      }
+      if (title === 'else') {
         return `condition-${blockId}-else`
       }
     }
@@ -329,11 +331,7 @@ function convertConditionHandleToSemantic(
 /**
  * Convert internal router handle (router-{uuid}) to semantic format (router-{blockId}-route-N)
  */
-function convertRouterHandleToSemantic(
-  handle: string,
-  blockId: string,
-  block: BlockState
-): string {
+function convertRouterHandleToSemantic(handle: string, blockId: string, block: BlockState): string {
   if (!handle.startsWith('router-')) {
     return handle
   }

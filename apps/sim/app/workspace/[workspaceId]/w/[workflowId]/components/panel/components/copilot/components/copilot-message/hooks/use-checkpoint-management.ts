@@ -107,7 +107,14 @@ export function useCheckpointManagement(
         setIsReverting(false)
       }
     }
-  }, [messageCheckpoints, revertToCheckpoint, message.id, messages, currentChat, onRevertModeChange])
+  }, [
+    messageCheckpoints,
+    revertToCheckpoint,
+    message.id,
+    messages,
+    currentChat,
+    onRevertModeChange,
+  ])
 
   /**
    * Cancels checkpoint revert
