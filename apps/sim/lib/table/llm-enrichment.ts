@@ -69,17 +69,38 @@ Example filter: {"${stringCols[0].name}": {"$eq": "value"}, "${numberCols[0].nam
 Example filter: {"${stringCols[0].name}": {"$eq": "value"}}`
     }
 
-    return `${originalDescription}
+    // Add sort example for query operations with numeric columns
+    let sortExample = ''
+    if (toolId === 'table_query_rows' && numberCols.length > 0) {
+      sortExample = `
+Example sort: {"${numberCols[0].name}": "desc"} for highest first, {"${numberCols[0].name}": "asc"} for lowest first`
+    }
 
+    // Query-specific instructions with sort/limit guidance
+    const queryInstructions =
+      toolId === 'table_query_rows'
+        ? `
 INSTRUCTIONS:
 1. ALWAYS include a filter based on the user's question - queries without filters will fail
 2. Construct the filter yourself from the user's question - do NOT ask for confirmation
 3. Use exact match ($eq) by default unless the user specifies otherwise
-4. Use limit=1000 to fetch matching rows, then count or process them as needed
+4. For ranking queries (highest, lowest, Nth, top N):
+   - ALWAYS use sort with the relevant column (e.g., {"salary": "desc"} for highest salary)
+   - Use limit to get only the needed rows (e.g., limit=1 for highest, limit=2 for second highest)
+   - For "second highest X", use sort: {"X": "desc"} with limit: 2, then take the second result
+5. Only use limit=1000 when you need ALL matching rows`
+        : `
+INSTRUCTIONS:
+1. ALWAYS include a filter based on the user's question - queries without filters will fail
+2. Construct the filter yourself from the user's question - do NOT ask for confirmation
+3. Use exact match ($eq) by default unless the user specifies otherwise`
+
+    return `${originalDescription}
+${queryInstructions}
 
 Table "${tableSchema.name}" columns:
 ${columnList}
-${filterExample}`
+${filterExample}${sortExample}`
   }
 
   // Data operations: show columns for data construction
@@ -145,11 +166,19 @@ export function enrichTableToolParameters(
     enrichedRequired.push('filter')
   }
 
+  // Enrich sort parameter for query operations
+  if (enrichedProperties.sort && toolId === 'table_query_rows') {
+    enrichedProperties.sort = {
+      ...enrichedProperties.sort,
+      description: `Sort order as {field: "asc"|"desc"}. REQUIRED for ranking queries (highest, lowest, Nth). Example: {"salary": "desc"} for highest salary first.`,
+    }
+  }
+
   // Enrich limit parameter for query operations
   if (enrichedProperties.limit && toolId === 'table_query_rows') {
     enrichedProperties.limit = {
       ...enrichedProperties.limit,
-      description: `Maximum rows to return (min: 1, max: 1000, default: 100). Use limit=1000 to fetch all matching rows.`,
+      description: `Maximum rows to return (min: 1, max: 1000, default: 100). For ranking queries: use limit=1 for highest/lowest, limit=2 for second highest, etc.`,
     }
   }
 
