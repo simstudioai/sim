@@ -1,7 +1,13 @@
-import { createLogger } from '@sim/logger'
-import type { TableSchema } from '@/lib/table/types'
+/**
+ * Wand context utilities for table schema fetching.
+ *
+ * Provides functions to fetch table schema information for wand/AI generation features.
+ */
 
-const logger = createLogger('TableSchemaContext')
+import { createLogger } from '@sim/logger'
+import type { TableSchema } from './types'
+
+const logger = createLogger('TableWandContext')
 
 interface TableSchemaResponse {
   data?: {

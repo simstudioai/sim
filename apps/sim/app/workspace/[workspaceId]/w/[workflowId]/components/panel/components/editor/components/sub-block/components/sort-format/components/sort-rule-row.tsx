@@ -1,6 +1,6 @@
 import { X } from 'lucide-react'
 import { Button, Combobox, type ComboboxOption } from '@/components/emcn'
-import type { SortRule } from '@/lib/table/filters/constants'
+import type { SortRule } from '@/lib/table/query-builder/constants'
 
 interface SortRuleRowProps {
   rule: SortRule

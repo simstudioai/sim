@@ -12,7 +12,7 @@ import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, sql } from 'drizzle-orm'
 import { TABLE_LIMITS } from './constants'
-import { buildFilterClause, buildSortClause } from './query-builder'
+import { buildFilterClause, buildSortClause } from './sql'
 import type {
   BatchInsertData,
   BulkDeleteData,

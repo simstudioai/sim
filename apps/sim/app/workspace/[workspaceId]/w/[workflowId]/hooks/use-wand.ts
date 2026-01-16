@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { fetchTableSchemaContext } from '@/lib/table/schema-context'
+import { fetchTableSchemaContext } from '@/lib/table/wand'
 import type { GenerationType } from '@/blocks/types'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'

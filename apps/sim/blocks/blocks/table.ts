@@ -1,5 +1,5 @@
 import { TableIcon } from '@/components/icons'
-import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/filters/utils'
+import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/converters'
 import type { BlockConfig } from '@/blocks/types'
 import type { TableQueryResponse } from '@/tools/table/types'
 

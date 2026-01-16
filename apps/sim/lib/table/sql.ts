@@ -1,5 +1,5 @@
 /**
- * Query builder utilities for user-defined tables.
+ * SQL query builder utilities for user-defined tables.
  *
  * Uses JSONB containment operator (@>) for equality to leverage GIN index.
  * Uses text extraction (->>) for comparisons and pattern matching.

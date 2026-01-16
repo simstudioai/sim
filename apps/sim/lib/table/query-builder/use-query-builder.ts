@@ -1,5 +1,5 @@
 /**
- * Hooks for filter and sort builder UI state management.
+ * Hooks for query builder UI state management (filters and sorting).
  */
 
 import { useCallback, useMemo } from 'react'

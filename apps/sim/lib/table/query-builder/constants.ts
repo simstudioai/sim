@@ -1,5 +1,5 @@
 /**
- * Constants for table filtering and sorting UI.
+ * Constants for table query builder UI (filtering and sorting).
  */
 
 export type { FilterRule, SortRule } from '../types'

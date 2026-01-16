@@ -3,7 +3,7 @@ import { AlertTriangle, Wand2 } from 'lucide-react'
 import { Label, Tooltip } from '@/components/emcn/components'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
-import type { FilterRule, SortRule } from '@/lib/table/filters/constants'
+import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
 import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
 import {
   CheckboxList,

@@ -2,7 +2,7 @@
 
 import { ArrowDownAZ, ArrowUpAZ, X } from 'lucide-react'
 import { Button, Combobox } from '@/components/emcn'
-import type { SortRule } from '@/lib/table/filters/constants'
+import type { SortRule } from '@/lib/table/query-builder/constants'
 
 interface SortRowProps {
   sortRule: SortRule

@@ -2,7 +2,7 @@
 
 import { X } from 'lucide-react'
 import { Button, Combobox, Input } from '@/components/emcn'
-import type { FilterRule } from '@/lib/table/filters/constants'
+import type { FilterRule } from '@/lib/table/query-builder/constants'
 
 interface FilterRowProps {
   rule: FilterRule

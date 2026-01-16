@@ -1,15 +1,15 @@
 /**
  * @vitest-environment node
  *
- * Query Builder Unit Tests
+ * SQL Builder Unit Tests
  *
- * Tests for the table query builder utilities including filter and sort clause generation.
+ * Tests for the table SQL query builder utilities including filter and sort clause generation.
  */
 import { describe, expect, it } from 'vitest'
-import { buildFilterClause, buildSortClause } from './query-builder'
-import type { Filter } from './types'
+import { buildFilterClause, buildSortClause } from '../sql'
+import type { Filter } from '../types'
 
-describe('Query Builder', () => {
+describe('SQL Builder', () => {
   describe('buildFilterClause', () => {
     const tableName = 'user_table_rows'
 

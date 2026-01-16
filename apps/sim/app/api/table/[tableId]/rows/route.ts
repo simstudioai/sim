@@ -16,7 +16,7 @@ import {
   validateRowSize,
   validateUniqueConstraints,
 } from '@/lib/table'
-import { buildFilterClause, buildSortClause } from '@/lib/table/query-builder'
+import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
 import { accessError, checkAccess, verifyTableWorkspace } from '../../utils'
 
 const logger = createLogger('TableRowsAPI')

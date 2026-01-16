@@ -3,7 +3,7 @@ import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { enrichTableToolDescription, enrichTableToolParameters } from '@/lib/table/llm-enrichment'
+import { enrichTableToolDescription, enrichTableToolParameters } from '@/lib/table/llm'
 import { isCustomTool } from '@/executor/constants'
 import {
   getComputerUseModels,

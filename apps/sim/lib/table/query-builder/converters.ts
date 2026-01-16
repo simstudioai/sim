@@ -1,5 +1,5 @@
 /**
- * Utilities for converting between UI builder state and API filter/sort objects.
+ * Converters for transforming between UI builder state and API filter/sort objects.
  */
 
 import { nanoid } from 'nanoid'

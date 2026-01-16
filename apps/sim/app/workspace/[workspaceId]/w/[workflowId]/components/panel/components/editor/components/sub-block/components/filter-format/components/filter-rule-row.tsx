@@ -1,7 +1,7 @@
 import { X } from 'lucide-react'
 import { Button, Combobox, type ComboboxOption, Input } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import type { FilterRule } from '@/lib/table/filters/constants'
+import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
