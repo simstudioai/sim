@@ -237,6 +237,7 @@ function InputMappingField({
                 onKeyDown={handlers.onKeyDown}
                 onDrop={handlers.onDrop}
                 onDragOver={handlers.onDragOver}
+                onFocus={handlers.onFocus}
                 onScroll={(e) => handleScroll(e)}
                 onPaste={() =>
                   setTimeout(() => {
