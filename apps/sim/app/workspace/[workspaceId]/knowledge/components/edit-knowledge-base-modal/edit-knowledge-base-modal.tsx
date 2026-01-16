@@ -98,7 +98,7 @@ export function EditKnowledgeBaseModal({
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent>
+      <ModalContent size='sm'>
         <ModalHeader>Edit Knowledge Base</ModalHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
@@ -118,7 +118,7 @@ export function EditKnowledgeBaseModal({
                   data-form-type='other'
                 />
                 {errors.name && (
-                  <p className='text-[11px] text-[var(--text-error)]'>{errors.name.message}</p>
+                  <p className='text-[12px] text-[var(--text-error)]'>{errors.name.message}</p>
                 )}
               </div>
 
@@ -132,7 +132,7 @@ export function EditKnowledgeBaseModal({
                   className={cn(errors.description && 'border-[var(--text-error)]')}
                 />
                 {errors.description && (
-                  <p className='text-[11px] text-[var(--text-error)]'>
+                  <p className='text-[12px] text-[var(--text-error)]'>
                     {errors.description.message}
                   </p>
                 )}
@@ -143,7 +143,7 @@ export function EditKnowledgeBaseModal({
           <ModalFooter>
             <div className='flex w-full items-center justify-between gap-[12px]'>
               {error ? (
-                <p className='min-w-0 flex-1 truncate text-[11px] text-[var(--text-error)] leading-tight'>
+                <p className='min-w-0 flex-1 truncate text-[12px] text-[var(--text-error)] leading-tight'>
                   {error}
                 </p>
               ) : (

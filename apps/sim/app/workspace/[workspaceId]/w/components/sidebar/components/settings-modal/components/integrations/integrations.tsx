@@ -390,7 +390,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
       </div>
 
       <Modal open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Disconnect Service</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>

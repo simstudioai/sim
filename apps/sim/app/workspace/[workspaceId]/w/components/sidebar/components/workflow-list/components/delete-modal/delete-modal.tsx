@@ -102,7 +102,7 @@ export function DeleteModal({
 
   return (
     <Modal open={isOpen} onOpenChange={onClose}>
-      <ModalContent className='w-[400px]'>
+      <ModalContent size='sm'>
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
           <p className='text-[12px] text-[var(--text-secondary)]'>

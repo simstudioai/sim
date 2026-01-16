@@ -112,7 +112,7 @@ export function CreateApiKeyModal({
     <>
       {/* Create API Key Dialog */}
       <Modal open={open} onOpenChange={onOpenChange}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Create new API key</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>
@@ -176,7 +176,7 @@ export function CreateApiKeyModal({
                   data-form-type='other'
                 />
                 {createError && (
-                  <p className='text-[11px] text-[var(--text-error)] leading-tight'>
+                  <p className='text-[12px] text-[var(--text-error)] leading-tight'>
                     {createError}
                   </p>
                 )}
@@ -215,7 +215,7 @@ export function CreateApiKeyModal({
           }
         }}
       >
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Your API key has been created</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>

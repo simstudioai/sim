@@ -33,7 +33,7 @@ export function RemoveMemberDialog({
 }: RemoveMemberDialogProps) {
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent className='w-[400px]'>
+      <ModalContent size='sm'>
         <ModalHeader>{isSelfRemoval ? 'Leave Organization' : 'Remove Team Member'}</ModalHeader>
         <ModalBody>
           <p className='text-[12px] text-[var(--text-secondary)]'>

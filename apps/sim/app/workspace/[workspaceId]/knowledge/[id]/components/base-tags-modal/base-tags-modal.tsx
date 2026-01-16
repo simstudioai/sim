@@ -306,7 +306,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
   return (
     <>
       <Modal open={open} onOpenChange={handleClose}>
-        <ModalContent>
+        <ModalContent size='sm'>
           <ModalHeader>
             <div className='flex items-center justify-between'>
               <span>Tags</span>
@@ -400,7 +400,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         }}
                       />
                       {tagNameConflict && (
-                        <span className='text-[11px] text-[var(--text-error)]'>
+                        <span className='text-[12px] text-[var(--text-error)]'>
                           A tag with this name already exists
                         </span>
                       )}
@@ -417,7 +417,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         placeholder='Select type'
                       />
                       {!hasAvailableSlots(createTagForm.fieldType) && (
-                        <span className='text-[11px] text-[var(--text-error)]'>
+                        <span className='text-[12px] text-[var(--text-error)]'>
                           No available slots for this type. Choose a different type.
                         </span>
                       )}

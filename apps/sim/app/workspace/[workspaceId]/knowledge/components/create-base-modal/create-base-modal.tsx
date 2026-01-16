@@ -332,7 +332,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
 
   return (
     <Modal open={open} onOpenChange={handleClose}>
-      <ModalContent>
+      <ModalContent size='lg'>
         <ModalHeader>Create Knowledge Base</ModalHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
@@ -528,7 +528,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                 )}
 
                 {fileError && (
-                  <p className='text-[11px] text-[var(--text-error)] leading-tight'>{fileError}</p>
+                  <p className='text-[12px] text-[var(--text-error)] leading-tight'>{fileError}</p>
                 )}
               </div>
             </div>
@@ -537,7 +537,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
           <ModalFooter>
             <div className='flex w-full items-center justify-between gap-[12px]'>
               {submitStatus?.type === 'error' || uploadError ? (
-                <p className='min-w-0 flex-1 truncate text-[11px] text-[var(--text-error)] leading-tight'>
+                <p className='min-w-0 flex-1 truncate text-[12px] text-[var(--text-error)] leading-tight'>
                   {uploadError?.message || submitStatus?.message}
                 </p>
               ) : (

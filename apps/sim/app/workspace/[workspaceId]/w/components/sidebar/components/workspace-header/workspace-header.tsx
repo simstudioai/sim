@@ -605,7 +605,7 @@ export function WorkspaceHeader({
       />
       {/* Leave Confirmation Modal */}
       <Modal open={isLeaveModalOpen} onOpenChange={() => setIsLeaveModalOpen(false)}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Leave Workspace</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
