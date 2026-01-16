@@ -1,5 +1,9 @@
+import { createLogger } from '@sim/logger'
 import { WebflowIcon } from '@/components/icons'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '../types'
+
+const logger = createLogger('webflow-form-submission-trigger')
 
 export const webflowFormSubmissionTrigger: TriggerConfig = {
   id: 'webflow_form_submission',
@@ -30,6 +34,58 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       required: true,
       options: [],
       mode: 'trigger',
+      fetchOptions: async (blockId: string) => {
+        const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
+          | string
+          | null
+        if (!credentialId) {
+          throw new Error('No Webflow credential selected')
+        }
+        try {
+          const response = await fetch('/api/tools/webflow/sites', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential: credentialId }),
+          })
+          if (!response.ok) {
+            throw new Error('Failed to fetch Webflow sites')
+          }
+          const data = await response.json()
+          if (data.sites && Array.isArray(data.sites)) {
+            return data.sites.map((site: { id: string; name: string }) => ({
+              id: site.id,
+              label: site.name,
+            }))
+          }
+          return []
+        } catch (error) {
+          logger.error('Error fetching Webflow sites:', error)
+          throw error
+        }
+      },
+      fetchOptionById: async (blockId: string, _subBlockId: string, optionId: string) => {
+        const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
+          | string
+          | null
+        if (!credentialId) return null
+        try {
+          const response = await fetch('/api/tools/webflow/sites', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential: credentialId, siteId: optionId }),
+          })
+          if (!response.ok) return null
+          const data = await response.json()
+          const site = data.sites?.find((s: { id: string }) => s.id === optionId)
+          if (site) {
+            return { id: site.id, label: site.name }
+          }
+          return null
+        } catch {
+          return null
+        }
+      },
+      dependsOn: ['triggerCredentials'],
     },
     {
       id: 'formId',
@@ -55,7 +111,7 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       type: 'text',
       defaultValue: [
         'Connect your Webflow account using the "Select Webflow credential" button above.',
-        'Enter your Webflow Site ID (found in the site URL or site settings).',
+        'Select your Webflow site from the dropdown.',
         'Optionally enter a Form ID to monitor only a specific form.',
         'If no Form ID is provided, the trigger will fire for any form submission on the site.',
         'The webhook will trigger whenever a form is submitted on the specified site.',
