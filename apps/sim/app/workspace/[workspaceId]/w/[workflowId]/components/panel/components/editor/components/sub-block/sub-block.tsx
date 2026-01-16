@@ -1,7 +1,6 @@
 import { type JSX, type MouseEvent, memo, useRef, useState } from 'react'
 import { AlertTriangle, ArrowLeftRight, Wand2 } from 'lucide-react'
 import { Label, Tooltip } from '@/components/emcn/components'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
 import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
 import {
@@ -216,69 +215,33 @@ const renderLabel = (
   const required = isFieldRequired(config, subBlockValues)
   const showCanonicalToggle = !!canonicalToggle && !isPreview
   const canonicalToggleDisabled = disabled || canonicalToggle?.disabled
+  const showWand = isWandEnabled && !isPreview && !disabled
 
   return (
-    <Label className='flex items-center justify-between gap-[6px] pl-[2px]'>
-      <div className='flex items-center gap-[6px] whitespace-nowrap'>
-        {config.title}
-        {required && <span className='ml-0.5'>*</span>}
-        {showCanonicalToggle && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                className='h-[12px] w-[12px] flex-shrink-0 p-0 hover:bg-transparent'
-                onClick={canonicalToggle?.onToggle}
-                disabled={canonicalToggleDisabled}
-                aria-label={
-                  canonicalToggle?.mode === 'advanced' ? 'Use selector' : 'Enter manual ID'
-                }
-              >
-                <ArrowLeftRight
+    <Label asChild className='flex items-center justify-between gap-[6px] pl-[2px]'>
+      <div>
+        <div className='flex items-center gap-[6px] whitespace-nowrap'>
+          {config.title}
+          {required && <span className='ml-0.5'>*</span>}
+          {config.type === 'code' && config.language === 'json' && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <AlertTriangle
                   className={cn(
-                    '!h-[12px] !w-[12px]',
-                    canonicalToggle?.mode === 'advanced'
-                      ? 'text-[var(--text-primary)]'
-                      : 'text-[var(--text-secondary)]'
+                    'h-4 w-4 cursor-pointer text-destructive',
+                    !isValidJson ? 'opacity-100' : 'opacity-0'
                   )}
                 />
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              <p>{canonicalToggle?.mode === 'advanced' ? 'Use selector' : 'Enter manual ID'}</p>
-            </Tooltip.Content>
-          </Tooltip.Root>
-        )}
-        {config.type === 'code' && config.language === 'json' && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <AlertTriangle
-                className={cn(
-                  'h-4 w-4 cursor-pointer text-destructive',
-                  !isValidJson ? 'opacity-100' : 'opacity-0'
-                )}
-              />
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              <p>Invalid JSON</p>
-            </Tooltip.Content>
-          </Tooltip.Root>
-        )}
-      </div>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
+                <p>Invalid JSON</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          )}
+        </div>
 
-      {/* Wand inline prompt */}
-      {isWandEnabled && !isPreview && !disabled && (
-        <div className='flex min-w-0 flex-1 items-center justify-end pr-[4px]'>
-          {!isSearchActive ? (
-            <Button
-              variant='ghost'
-              className='h-[12px] w-[12px] flex-shrink-0 p-0 hover:bg-transparent'
-              aria-label='Generate with AI'
-              onClick={onSearchClick}
-            >
-              <Wand2 className='!h-[12px] !w-[12px] bg-transparent text-[var(--text-secondary)]' />
-            </Button>
-          ) : (
+        <div className='flex min-w-0 flex-1 items-center justify-end gap-[6px] pr-[4px]'>
+          {isSearchActive && showWand ? (
             <input
               ref={searchInputRef}
               type='text'
@@ -294,14 +257,47 @@ const renderLabel = (
               }}
               disabled={isStreaming}
               className={cn(
-                'h-[12px] w-full min-w-[100px] border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[var(--text-muted)] focus:outline-none',
+                'h-[12px] w-full min-w-[100px] border-none bg-transparent py-0 text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[var(--text-muted)] focus:outline-none',
                 isStreaming && 'text-muted-foreground'
               )}
               placeholder='Describe...'
             />
+          ) : (
+            <>
+              {showWand && (
+                <button
+                  type='button'
+                  className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0'
+                  aria-label='Generate with AI'
+                  onClick={onSearchClick}
+                >
+                  <Wand2 className='!h-[12px] !w-[12px] text-[var(--text-secondary)]' />
+                </button>
+              )}
+              {showCanonicalToggle && (
+                <button
+                  type='button'
+                  className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:opacity-50'
+                  onClick={canonicalToggle?.onToggle}
+                  disabled={canonicalToggleDisabled}
+                  aria-label={
+                    canonicalToggle?.mode === 'advanced' ? 'Use selector' : 'Enter manual ID'
+                  }
+                >
+                  <ArrowLeftRight
+                    className={cn(
+                      '!h-[12px] !w-[12px]',
+                      canonicalToggle?.mode === 'advanced'
+                        ? 'text-[var(--text-primary)]'
+                        : 'text-[var(--text-secondary)]'
+                    )}
+                  />
+                </button>
+              )}
+            </>
           )}
         </div>
-      )}
+      </div>
     </Label>
   )
 }
