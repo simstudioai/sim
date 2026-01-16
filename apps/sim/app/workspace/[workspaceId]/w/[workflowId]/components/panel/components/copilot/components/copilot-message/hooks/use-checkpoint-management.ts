@@ -193,7 +193,7 @@ export function useCheckpointManagement(
     onEditModeChange?.(false)
     onCancelEdit?.()
     pendingEditRef.current = null
-  }, [])
+  }, [onEditModeChange, onCancelEdit])
 
   /**
    * Continues with edit WITHOUT reverting checkpoint
