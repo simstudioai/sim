@@ -68,14 +68,20 @@ export function isCanonicalPair(group?: CanonicalGroup): boolean {
  */
 export function resolveCanonicalMode(
   group: CanonicalGroup,
-  displayAdvancedOptions: boolean,
+  values: Record<string, unknown>,
   overrides?: CanonicalModeOverrides
 ): CanonicalMode {
   const override = overrides?.[group.canonicalId]
   if (override === 'advanced' && group.advancedIds.length > 0) return 'advanced'
   if (override === 'basic' && group.basicId) return 'basic'
-  if (displayAdvancedOptions && group.advancedIds.length > 0) return 'advanced'
-  return group.basicId ? 'basic' : 'advanced'
+
+  const { basicValue, advancedValue } = getCanonicalValues(group, values)
+  const hasBasic = isNonEmptyValue(basicValue)
+  const hasAdvanced = isNonEmptyValue(advancedValue)
+
+  if (!group.basicId) return 'advanced'
+  if (!hasBasic && hasAdvanced) return 'advanced'
+  return 'basic'
 }
 
 /**
@@ -184,13 +190,14 @@ export function isSubBlockVisibleForMode(
   subBlock: SubBlockConfig,
   displayAdvancedOptions: boolean,
   canonicalIndex: CanonicalIndex,
+  values: Record<string, unknown>,
   overrides?: CanonicalModeOverrides
 ): boolean {
   const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
   const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
 
   if (group && isCanonicalPair(group)) {
-    const mode = resolveCanonicalMode(group, displayAdvancedOptions, overrides)
+    const mode = resolveCanonicalMode(group, values, overrides)
     if (mode === 'advanced') return group.advancedIds.includes(subBlock.id)
     return group.basicId === subBlock.id
   }
@@ -206,7 +213,6 @@ export function isSubBlockVisibleForMode(
 export function resolveDependencyValue(
   dependencyKey: string,
   values: Record<string, unknown>,
-  displayAdvancedOptions: boolean,
   canonicalIndex: CanonicalIndex,
   overrides?: CanonicalModeOverrides
 ): unknown {
@@ -222,7 +228,7 @@ export function resolveDependencyValue(
   if (!group) return values[dependencyKey]
 
   const { basicValue, advancedValue } = getCanonicalValues(group, values)
-  const mode = resolveCanonicalMode(group, displayAdvancedOptions, overrides)
+  const mode = resolveCanonicalMode(group, values, overrides)
   if (mode === 'advanced') return advancedValue ?? basicValue
   return basicValue ?? advancedValue
 }

@@ -382,7 +382,6 @@ const SubBlockRow = ({
       const dependencyValue = resolveDependencyValue(
         dependency,
         rawValues,
-        displayAdvancedOptions ?? false,
         canonicalIndex || buildCanonicalIndex([]),
         canonicalModeOverrides
       )
@@ -610,6 +609,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const [isDeploying, setIsDeploying] = useState(false)
   const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
+  const userPermissions = useUserPermissionsContext()
 
   const deployWorkflow = useCallback(
     async (workflowId: string) => {
@@ -702,8 +702,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       {}
     )
 
-    const effectiveAdvanced =
-      displayAdvancedMode || hasAdvancedValues(config.subBlocks, rawValues, canonicalIndex)
+    const effectiveAdvanced = userPermissions.canEdit
+      ? displayAdvancedMode
+      : displayAdvancedMode || hasAdvancedValues(config.subBlocks, rawValues, canonicalIndex)
     const effectiveTrigger = displayTriggerMode
 
     const visibleSubBlocks = config.subBlocks.filter((block) => {
@@ -728,7 +729,13 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       }
 
       if (
-        !isSubBlockVisibleForMode(block, effectiveAdvanced, canonicalIndex, canonicalModeOverrides)
+        !isSubBlockVisibleForMode(
+          block,
+          effectiveAdvanced,
+          canonicalIndex,
+          rawValues,
+          canonicalModeOverrides
+        )
       ) {
         return false
       }
@@ -768,6 +775,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     currentWorkflow.isDiffMode,
     currentBlock,
     canonicalModeOverrides,
+    userPermissions.canEdit,
     canonicalIndex,
     blockSubBlockValues,
     activeWorkflowId,
@@ -783,8 +791,16 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       },
       {}
     )
-    return displayAdvancedMode || hasAdvancedValues(config.subBlocks, rawValues, canonicalIndex)
-  }, [subBlockState, displayAdvancedMode, config.subBlocks, canonicalIndex])
+    return userPermissions.canEdit
+      ? displayAdvancedMode
+      : displayAdvancedMode || hasAdvancedValues(config.subBlocks, rawValues, canonicalIndex)
+  }, [
+    subBlockState,
+    displayAdvancedMode,
+    config.subBlocks,
+    canonicalIndex,
+    userPermissions.canEdit,
+  ])
 
   /**
    * Determine if block has content below the header (subblocks or error row).
@@ -947,7 +963,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const showWebhookIndicator = (isStarterBlock || isWebhookTriggerBlock) && isWebhookConfigured
   const shouldShowScheduleBadge =
     type === 'schedule' && !isLoadingScheduleInfo && scheduleInfo !== null
-  const userPermissions = useUserPermissionsContext()
   const isWorkflowSelector = type === 'workflow' || type === 'workflow_input'
 
   return (

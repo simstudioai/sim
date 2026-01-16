@@ -59,6 +59,7 @@ function shouldSerializeSubBlock(
     subBlockConfig,
     displayAdvancedOptions,
     canonicalIndex,
+    values,
     canonicalModeOverrides
   )
 
@@ -455,12 +456,7 @@ export class Serializer {
       const hasAdvanced = isNonEmptyValue(advancedValue)
       const basicRaw = group.basicId ? params[group.basicId] : undefined
       const advancedRawValues = group.advancedIds.map((id) => params[id])
-      const hasOverride = canonicalModeOverrides?.[group.canonicalId]
-      const preferredMode = hasOverride
-        ? resolveCanonicalMode(group, displayAdvancedOptions, canonicalModeOverrides)
-        : hasAdvanced
-          ? 'advanced'
-          : 'basic'
+      const preferredMode = resolveCanonicalMode(group, params, canonicalModeOverrides)
 
       let chosen: unknown
       if (hasAdvanced && hasBasic) {

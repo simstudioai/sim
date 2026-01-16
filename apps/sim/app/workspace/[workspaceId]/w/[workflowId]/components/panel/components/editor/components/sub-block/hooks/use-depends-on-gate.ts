@@ -1,11 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import {
-  buildCanonicalIndex,
-  hasAdvancedValues,
-  resolveDependencyValue,
-} from '@/lib/workflows/subblocks/visibility'
+import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -103,17 +99,11 @@ export function useDependsOnGate(
 
     // If previewContextValues are provided (e.g., tool parameters), use those first
     if (previewContextValues) {
-      const displayAdvancedOptions = hasAdvancedValues(
-        blockConfig?.subBlocks || [],
-        previewContextValues,
-        canonicalIndex
-      )
       const map: Record<string, unknown> = {}
       for (const key of allDependsOnFields) {
         const resolvedValue = resolveDependencyValue(
           key,
           previewContextValues,
-          displayAdvancedOptions,
           canonicalIndex,
           canonicalModeOverrides
         )
@@ -132,15 +122,11 @@ export function useDependsOnGate(
 
     const workflowValues = state.workflowValues[activeWorkflowId] || {}
     const blockValues = (workflowValues as any)[blockId] || {}
-    const displayAdvancedOptions =
-      (blockState?.advancedMode ?? false) ||
-      hasAdvancedValues(blockConfig?.subBlocks || [], blockValues, canonicalIndex)
     const map: Record<string, unknown> = {}
     for (const key of allDependsOnFields) {
       const resolvedValue = resolveDependencyValue(
         key,
         blockValues,
-        displayAdvancedOptions,
         canonicalIndex,
         canonicalModeOverrides
       )
@@ -148,12 +134,6 @@ export function useDependsOnGate(
     }
     return map
   })
-
-  // For backward compatibility, also provide array of values
-  const dependencyValues = useMemo(
-    () => allDependsOnFields.map((key) => dependencyValuesMap[key]),
-    [allDependsOnFields, dependencyValuesMap]
-  ) as any[]
 
   const isValueSatisfied = (value: unknown): boolean => {
     if (value === null || value === undefined) return false
@@ -182,7 +162,6 @@ export function useDependsOnGate(
 
   return {
     dependsOn,
-    dependencyValues,
     depsSatisfied,
     blocked,
     finalDisabled,

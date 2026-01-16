@@ -2,7 +2,6 @@ import { useCallback, useMemo } from 'react'
 import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
-  hasAdvancedValues,
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
 } from '@/lib/workflows/subblocks/visibility'
@@ -89,8 +88,7 @@ export function useEditorSubblockLayout(
     )
 
     const canonicalIndex = buildCanonicalIndex(config.subBlocks || [])
-    const effectiveAdvanced =
-      displayAdvancedMode || hasAdvancedValues(config.subBlocks || [], rawValues, canonicalIndex)
+    const effectiveAdvanced = displayAdvancedMode
     const canonicalModeOverrides = blockData?.canonicalModes
 
     const visibleSubBlocks = (config.subBlocks || []).filter((block) => {
@@ -116,7 +114,13 @@ export function useEditorSubblockLayout(
       }
 
       if (
-        !isSubBlockVisibleForMode(block, effectiveAdvanced, canonicalIndex, canonicalModeOverrides)
+        !isSubBlockVisibleForMode(
+          block,
+          effectiveAdvanced,
+          canonicalIndex,
+          rawValues,
+          canonicalModeOverrides
+        )
       ) {
         return false
       }

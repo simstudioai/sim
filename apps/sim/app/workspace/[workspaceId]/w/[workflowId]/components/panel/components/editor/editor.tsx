@@ -106,7 +106,9 @@ export function Editor() {
     blockSubBlockValues,
     canonicalIndex
   )
-  const effectiveAdvanced = advancedMode || advancedValuesPresent
+  const displayAdvancedOptions = userPermissions.canEdit
+    ? advancedMode
+    : advancedMode || advancedValuesPresent
   const hasAdvancedOnlyFields = useMemo(() => {
     if (!blockConfig?.subBlocks) return false
     return blockConfig.subBlocks.some((subBlock) => {
@@ -121,7 +123,7 @@ export function Editor() {
   const { subBlocks, stateToUse: subBlockState } = useEditorSubblockLayout(
     blockConfig || ({} as any),
     currentBlockId || '',
-    advancedMode,
+    displayAdvancedOptions,
     triggerMode,
     activeWorkflowId,
     blockSubBlockValues,
@@ -215,6 +217,24 @@ export function Editor() {
   }
 
   const hasAdvancedMode = hasAdvancedOnlyFields
+
+  const autoExpandedBlocksRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!currentBlockId || !userPermissions.canEdit) return
+    if (!advancedValuesPresent) return
+    if (advancedMode) return
+    if (autoExpandedBlocksRef.current.has(currentBlockId)) return
+
+    autoExpandedBlocksRef.current.add(currentBlockId)
+    collaborativeToggleBlockAdvancedMode(currentBlockId)
+  }, [
+    advancedMode,
+    advancedValuesPresent,
+    collaborativeToggleBlockAdvancedMode,
+    currentBlockId,
+    userPermissions.canEdit,
+  ])
 
   // Determine if connections are at minimum height (collapsed state)
   const isConnectionsAtMinHeight = connectionsHeight <= 35
@@ -375,7 +395,7 @@ export function Editor() {
                       canonicalGroup && isCanonicalSwap
                         ? resolveCanonicalMode(
                             canonicalGroup,
-                            effectiveAdvanced,
+                            blockSubBlockValues,
                             canonicalModeOverrides
                           )
                         : undefined
@@ -439,7 +459,7 @@ export function Editor() {
               >
                 <div className='flex items-center gap-[6px]'>
                   <span className='text-[var(--text-primary)]'>
-                    {effectiveAdvanced ? 'Hide advanced options' : 'Show advanced options'}
+                    {displayAdvancedOptions ? 'Hide advanced options' : 'Show advanced options'}
                   </span>
                   {advancedValuesPresent && (
                     <span className='h-[6px] w-[6px] rounded-full bg-[var(--brand-9)]' />
@@ -448,7 +468,7 @@ export function Editor() {
                 <ChevronDown
                   className={cn(
                     'h-[14px] w-[14px] transition-transform',
-                    effectiveAdvanced && 'rotate-180'
+                    displayAdvancedOptions && 'rotate-180'
                   )}
                 />
               </Button>

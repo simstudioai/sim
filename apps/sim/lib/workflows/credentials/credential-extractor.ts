@@ -148,6 +148,7 @@ export function extractRequiredCredentials(
         subBlockConfig,
         effectiveAdvanced,
         canonicalIndex,
+        values,
         canonicalModeOverrides
       )
     ) {

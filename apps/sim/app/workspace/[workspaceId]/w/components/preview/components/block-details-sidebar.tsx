@@ -1106,7 +1106,13 @@ function BlockDetailsSidebarContent({
     if (subBlock.mode === 'trigger' && blockConfig.category !== 'triggers') return false
     if (!isSubBlockFeatureEnabled(subBlock)) return false
     if (
-      !isSubBlockVisibleForMode(subBlock, effectiveAdvanced, canonicalIndex, canonicalModeOverrides)
+      !isSubBlockVisibleForMode(
+        subBlock,
+        effectiveAdvanced,
+        canonicalIndex,
+        rawValues,
+        canonicalModeOverrides
+      )
     ) {
       return false
     }

@@ -2,11 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useReactFlow } from 'reactflow'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'
-import {
-  buildCanonicalIndex,
-  hasAdvancedValues,
-  resolveDependencyValue,
-} from '@/lib/workflows/subblocks/visibility'
+import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -111,28 +107,11 @@ export function ComboBox({
         if (dependsOnFields.length === 0 || !activeWorkflowId) return []
         const workflowValues = state.workflowValues[activeWorkflowId] || {}
         const blockValues = workflowValues[blockId] || {}
-        const displayAdvancedOptions =
-          (blockState?.advancedMode ?? false) ||
-          hasAdvancedValues(blockConfig?.subBlocks || [], blockValues, canonicalIndex)
         return dependsOnFields.map((depKey) =>
-          resolveDependencyValue(
-            depKey,
-            blockValues,
-            displayAdvancedOptions,
-            canonicalIndex,
-            canonicalModeOverrides
-          )
+          resolveDependencyValue(depKey, blockValues, canonicalIndex, canonicalModeOverrides)
         )
       },
-      [
-        dependsOnFields,
-        activeWorkflowId,
-        blockId,
-        blockState?.advancedMode,
-        blockConfig?.subBlocks,
-        canonicalIndex,
-        canonicalModeOverrides,
-      ]
+      [dependsOnFields, activeWorkflowId, blockId, canonicalIndex, canonicalModeOverrides]
     )
   )
 
