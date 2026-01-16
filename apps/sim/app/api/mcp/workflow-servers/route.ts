@@ -131,12 +131,10 @@ export const POST = withMcpAuth('write')(
         })
         .returning()
 
-      // If workflowIds are provided, create tools for each workflow
       const workflowIds: string[] = body.workflowIds || []
       const addedTools: Array<{ workflowId: string; toolName: string }> = []
 
       if (workflowIds.length > 0) {
-        // Fetch all workflows in one query
         const workflows = await db
           .select({
             id: workflow.id,
@@ -148,9 +146,7 @@ export const POST = withMcpAuth('write')(
           .from(workflow)
           .where(inArray(workflow.id, workflowIds))
 
-        // Create tools for each valid workflow
         for (const workflowRecord of workflows) {
-          // Skip if workflow doesn't belong to this workspace
           if (workflowRecord.workspaceId !== workspaceId) {
             logger.warn(
               `[${requestId}] Skipping workflow ${workflowRecord.id} - does not belong to workspace`
@@ -158,13 +154,11 @@ export const POST = withMcpAuth('write')(
             continue
           }
 
-          // Skip if workflow is not deployed
           if (!workflowRecord.isDeployed) {
             logger.warn(`[${requestId}] Skipping workflow ${workflowRecord.id} - not deployed`)
             continue
           }
 
-          // Skip if workflow doesn't have a start block
           const hasStartBlock = await hasValidStartBlock(workflowRecord.id)
           if (!hasStartBlock) {
             logger.warn(`[${requestId}] Skipping workflow ${workflowRecord.id} - no start block`)

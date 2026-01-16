@@ -59,7 +59,7 @@ interface ServerDetailViewProps {
 type McpClientType = 'cursor' | 'claude-code' | 'claude-desktop' | 'vscode'
 
 function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewProps) {
-  const { data, isLoading, error, refetch } = useWorkflowMcpServer(workspaceId, serverId)
+  const { data, isLoading, error } = useWorkflowMcpServer(workspaceId, serverId)
   const { data: deployedWorkflows = [], isLoading: isLoadingWorkflows } =
     useDeployedWorkflows(workspaceId)
   const deleteToolMutation = useDeleteWorkflowMcpTool()
@@ -146,7 +146,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
       setShowAddWorkflow(false)
       setSelectedWorkflowId(null)
       setActiveServerTab('workflows')
-      refetch()
     } catch (err) {
       logger.error('Failed to add workflow:', err)
     }
@@ -253,7 +252,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         isPublic: editServerIsPublic,
       })
       setShowEditServer(false)
-      refetch()
     } catch (err) {
       logger.error('Failed to update server:', err)
     }
@@ -676,7 +674,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                     toolDescription: editingDescription.trim() || undefined,
                     parameterSchema: updatedSchema,
                   })
-                  refetch()
                   setToolToView(null)
                   setEditingDescription('')
                   setEditingParameterDescriptions({})
