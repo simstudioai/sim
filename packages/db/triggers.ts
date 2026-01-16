@@ -81,12 +81,12 @@ export async function verifyRowCountTriggers(): Promise<{
   incrementTrigger: boolean
   decrementTrigger: boolean
 }> {
-  const result = await db.execute<{ tgname: string }[]>(`
+  const result = (await db.execute(`
     SELECT tgname 
     FROM pg_trigger 
     WHERE tgname IN ('trg_increment_row_count', 'trg_decrement_row_count')
       AND NOT tgisinternal
-  `)
+  `)) as { tgname: string }[]
 
   const triggers = Array.isArray(result) ? result.map((r) => r.tgname) : []
 

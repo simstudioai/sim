@@ -5,7 +5,7 @@
  *   cd packages/db && bun run scripts/seed-stress-test-users.ts
  */
 
-import { eq } from 'drizzle-orm'
+import { eq, type InferInsertModel } from 'drizzle-orm'
 import { db, userTableDefinitions, userTableRows } from '../index'
 
 const WORKSPACE_ID = '098d71e1-6a36-47e3-874d-818faee0bfe8'
@@ -124,7 +124,7 @@ async function main() {
   console.log(`Seeding ${TABLE_NAME} table for workspace ${WORKSPACE_ID}...`)
 
   // Get user ID for created_by
-  const userResult = await db.execute<{ id: string }[]>(`SELECT id FROM "user" LIMIT 1`)
+  const userResult = (await db.execute(`SELECT id FROM "user" LIMIT 1`)) as { id: string }[]
   const userId = Array.isArray(userResult) && userResult[0] ? userResult[0].id : 'system'
   console.log(`Using user ID: ${userId}`)
 
@@ -189,7 +189,7 @@ async function main() {
   console.log(`Inserting ${NUM_ROWS} rows in batches of ${batchSize}...`)
 
   for (let i = 0; i < NUM_ROWS; i += batchSize) {
-    const batch = []
+    const batch: InferInsertModel<typeof userTableRows>[] = []
     const endIdx = Math.min(i + batchSize, NUM_ROWS)
 
     for (let j = i; j < endIdx; j++) {
