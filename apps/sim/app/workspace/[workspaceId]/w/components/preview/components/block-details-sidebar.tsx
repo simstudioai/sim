@@ -14,6 +14,13 @@ import { ReactFlowProvider } from 'reactflow'
 import { Badge, Button, ChevronDown, Code, Combobox, Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
+import {
+  buildCanonicalIndex,
+  evaluateSubBlockCondition,
+  hasAdvancedValues,
+  isSubBlockFeatureEnabled,
+  isSubBlockVisibleForMode,
+} from '@/lib/workflows/subblocks/visibility'
 import { SnapshotContextMenu } from '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/components'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -23,56 +30,6 @@ import { normalizeName } from '@/executor/constants'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
-
-/**
- * Evaluate whether a subblock's condition is met based on current values.
- */
-function evaluateCondition(
-  condition: SubBlockConfig['condition'],
-  subBlockValues: Record<string, { value: unknown } | unknown>
-): boolean {
-  if (!condition) return true
-
-  const actualCondition = typeof condition === 'function' ? condition() : condition
-
-  const fieldValueObj = subBlockValues[actualCondition.field]
-  const fieldValue =
-    fieldValueObj && typeof fieldValueObj === 'object' && 'value' in fieldValueObj
-      ? (fieldValueObj as { value: unknown }).value
-      : fieldValueObj
-
-  const conditionValues = Array.isArray(actualCondition.value)
-    ? actualCondition.value
-    : [actualCondition.value]
-
-  let isMatch = conditionValues.some((v) => v === fieldValue)
-
-  if (actualCondition.not) {
-    isMatch = !isMatch
-  }
-
-  if (actualCondition.and && isMatch) {
-    const andFieldValueObj = subBlockValues[actualCondition.and.field]
-    const andFieldValue =
-      andFieldValueObj && typeof andFieldValueObj === 'object' && 'value' in andFieldValueObj
-        ? (andFieldValueObj as { value: unknown }).value
-        : andFieldValueObj
-
-    const andConditionValues = Array.isArray(actualCondition.and.value)
-      ? actualCondition.and.value
-      : [actualCondition.and.value]
-
-    let andMatch = andConditionValues.some((v) => v === andFieldValue)
-
-    if (actualCondition.and.not) {
-      andMatch = !andMatch
-    }
-
-    isMatch = isMatch && andMatch
-  }
-
-  return isMatch
-}
 
 /**
  * Format a value for display as JSON string
@@ -1122,15 +1079,38 @@ function BlockDetailsSidebarContent({
     )
   }
 
+  const rawValues = useMemo(() => {
+    return Object.entries(subBlockValues).reduce<Record<string, unknown>>((acc, [key, entry]) => {
+      if (entry && typeof entry === 'object' && 'value' in entry) {
+        acc[key] = (entry as { value: unknown }).value
+      } else {
+        acc[key] = entry
+      }
+      return acc
+    }, {})
+  }, [subBlockValues])
+
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(blockConfig.subBlocks),
+    [blockConfig.subBlocks]
+  )
+  const canonicalModeOverrides = block.data?.canonicalModes
+  const effectiveAdvanced =
+    (block.advancedMode ?? false) ||
+    hasAdvancedValues(blockConfig.subBlocks, rawValues, canonicalIndex)
+
   const visibleSubBlocks = blockConfig.subBlocks.filter((subBlock) => {
     if (subBlock.hidden || subBlock.hideFromPreview) return false
     // Only filter out trigger-mode subblocks for non-trigger blocks
     // Trigger-only blocks (category 'triggers') should display their trigger subblocks
     if (subBlock.mode === 'trigger' && blockConfig.category !== 'triggers') return false
-    if (subBlock.condition) {
-      return evaluateCondition(subBlock.condition, subBlockValues)
+    if (!isSubBlockFeatureEnabled(subBlock)) return false
+    if (
+      !isSubBlockVisibleForMode(subBlock, effectiveAdvanced, canonicalIndex, canonicalModeOverrides)
+    ) {
+      return false
     }
-    return true
+    return evaluateSubBlockCondition(subBlock.condition, rawValues)
   })
 
   const statusVariant =

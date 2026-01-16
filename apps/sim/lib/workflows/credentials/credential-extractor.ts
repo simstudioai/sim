@@ -1,3 +1,10 @@
+import {
+  buildCanonicalIndex,
+  evaluateSubBlockCondition,
+  hasAdvancedValues,
+  isSubBlockFeatureEnabled,
+  isSubBlockVisibleForMode,
+} from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
@@ -117,36 +124,37 @@ export function extractRequiredCredentials(
 
   /** Helper to check visibility, respecting mode and conditions */
   function isSubBlockVisible(block: BlockState, subBlockConfig: SubBlockConfig): boolean {
-    const mode = subBlockConfig.mode ?? 'both'
-    if (mode === 'trigger' && !block?.triggerMode) return false
-    if (mode === 'basic' && block?.advancedMode) return false
-    if (mode === 'advanced' && !block?.advancedMode) return false
+    if (!isSubBlockFeatureEnabled(subBlockConfig)) return false
 
-    if (!subBlockConfig.condition) return true
+    const values = Object.entries(block?.subBlocks || {}).reduce<Record<string, unknown>>(
+      (acc, [key, subBlock]) => {
+        acc[key] = subBlock?.value
+        return acc
+      },
+      {}
+    )
+    const blockConfig = getBlock(block.type)
+    const blockSubBlocks = blockConfig?.subBlocks || []
+    const canonicalIndex = buildCanonicalIndex(blockSubBlocks)
+    const effectiveAdvanced =
+      (block?.advancedMode ?? false) || hasAdvancedValues(blockSubBlocks, values, canonicalIndex)
+    const canonicalModeOverrides = block.data?.canonicalModes
 
-    const condition =
-      typeof subBlockConfig.condition === 'function'
-        ? subBlockConfig.condition()
-        : subBlockConfig.condition
+    if (subBlockConfig.mode === 'trigger' && !block?.triggerMode) return false
+    if (block?.triggerMode && subBlockConfig.mode && subBlockConfig.mode !== 'trigger') return false
 
-    const evaluate = (cond: SubBlockCondition): boolean => {
-      const currentValue = block?.subBlocks?.[cond.field]?.value
-      const expected = cond.value
-
-      let match =
-        expected === undefined
-          ? true
-          : Array.isArray(expected)
-            ? expected.includes(currentValue as string)
-            : currentValue === expected
-
-      if (cond.not) match = !match
-      if (cond.and) match = match && evaluate(cond.and)
-
-      return match
+    if (
+      !isSubBlockVisibleForMode(
+        subBlockConfig,
+        effectiveAdvanced,
+        canonicalIndex,
+        canonicalModeOverrides
+      )
+    ) {
+      return false
     }
 
-    return evaluate(condition)
+    return evaluateSubBlockCondition(subBlockConfig.condition as SubBlockCondition, values)
   }
 
   // Sort: OAuth first, then secrets, alphabetically within each type

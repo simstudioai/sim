@@ -1,5 +1,5 @@
 import { type JSX, type MouseEvent, memo, useRef, useState } from 'react'
-import { AlertTriangle, Wand2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeftRight, Wand2 } from 'lucide-react'
 import { Label, Tooltip } from '@/components/emcn/components'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
@@ -68,6 +68,11 @@ interface SubBlockProps {
   disabled?: boolean
   fieldDiffStatus?: FieldDiffStatus
   allowExpandInPreview?: boolean
+  canonicalToggle?: {
+    mode: 'basic' | 'advanced'
+    disabled?: boolean
+    onToggle?: () => void
+  }
 }
 
 /**
@@ -183,7 +188,12 @@ const renderLabel = (
     onSearchCancel: () => void
     searchInputRef: React.RefObject<HTMLInputElement | null>
   },
-  subBlockValues?: Record<string, any>
+  subBlockValues?: Record<string, any>,
+  canonicalToggle?: {
+    mode: 'basic' | 'advanced'
+    disabled?: boolean
+    onToggle?: () => void
+  }
 ): JSX.Element | null => {
   if (config.type === 'switch') return null
   if (!config.title) return null
@@ -204,12 +214,41 @@ const renderLabel = (
   } = wandState
 
   const required = isFieldRequired(config, subBlockValues)
+  const showCanonicalToggle = !!canonicalToggle && !isPreview
+  const canonicalToggleDisabled = disabled || canonicalToggle?.disabled
 
   return (
     <Label className='flex items-center justify-between gap-[6px] pl-[2px]'>
       <div className='flex items-center gap-[6px] whitespace-nowrap'>
         {config.title}
         {required && <span className='ml-0.5'>*</span>}
+        {showCanonicalToggle && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='ghost'
+                className='h-[12px] w-[12px] flex-shrink-0 p-0 hover:bg-transparent'
+                onClick={canonicalToggle?.onToggle}
+                disabled={canonicalToggleDisabled}
+                aria-label={
+                  canonicalToggle?.mode === 'advanced' ? 'Use selector' : 'Enter manual ID'
+                }
+              >
+                <ArrowLeftRight
+                  className={cn(
+                    '!h-[12px] !w-[12px]',
+                    canonicalToggle?.mode === 'advanced'
+                      ? 'text-[var(--text-primary)]'
+                      : 'text-[var(--text-secondary)]'
+                  )}
+                />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              <p>{canonicalToggle?.mode === 'advanced' ? 'Use selector' : 'Enter manual ID'}</p>
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
         {config.type === 'code' && config.language === 'json' && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
@@ -286,7 +325,9 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
     prevProps.subBlockValues === nextProps.subBlockValues &&
     prevProps.disabled === nextProps.disabled &&
     prevProps.fieldDiffStatus === nextProps.fieldDiffStatus &&
-    prevProps.allowExpandInPreview === nextProps.allowExpandInPreview
+    prevProps.allowExpandInPreview === nextProps.allowExpandInPreview &&
+    prevProps.canonicalToggle?.mode === nextProps.canonicalToggle?.mode &&
+    prevProps.canonicalToggle?.disabled === nextProps.canonicalToggle?.disabled
   )
 }
 
@@ -315,6 +356,7 @@ function SubBlockComponent({
   disabled = false,
   fieldDiffStatus,
   allowExpandInPreview,
+  canonicalToggle,
 }: SubBlockProps): JSX.Element {
   const [isValidJson, setIsValidJson] = useState(true)
   const [isSearchActive, setIsSearchActive] = useState(false)
@@ -902,7 +944,8 @@ function SubBlockComponent({
           onSearchCancel: handleSearchCancel,
           searchInputRef,
         },
-        subBlockValues
+        subBlockValues,
+        canonicalToggle
       )}
       {renderInput()}
     </div>

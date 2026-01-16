@@ -519,7 +519,7 @@ describe('Serializer', () => {
    * Advanced mode field filtering tests
    */
   describe('advanced mode field filtering', () => {
-    it.concurrent('should include all fields when block is in advanced mode', () => {
+    it.concurrent('should prefer advanced canonical values when present', () => {
       const serializer = new Serializer()
 
       const advancedModeBlock: any = {
@@ -543,13 +543,13 @@ describe('Serializer', () => {
       const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
       expect(slackBlock).toBeDefined()
 
-      expect(slackBlock?.config.params.channel).toBe('general')
-      expect(slackBlock?.config.params.manualChannel).toBe('C1234567890')
+      expect(slackBlock?.config.params.channel).toBe('C1234567890')
+      expect(slackBlock?.config.params.manualChannel).toBeUndefined()
       expect(slackBlock?.config.params.text).toBe('Hello world')
       expect(slackBlock?.config.params.username).toBe('bot')
     })
 
-    it.concurrent('should exclude advanced-only fields when block is in basic mode', () => {
+    it.concurrent('should persist advanced canonical values even in basic mode', () => {
       const serializer = new Serializer()
 
       const basicModeBlock: any = {
@@ -573,45 +573,42 @@ describe('Serializer', () => {
       const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
       expect(slackBlock).toBeDefined()
 
-      expect(slackBlock?.config.params.channel).toBe('general')
+      expect(slackBlock?.config.params.channel).toBe('C1234567890')
       expect(slackBlock?.config.params.manualChannel).toBeUndefined()
       expect(slackBlock?.config.params.text).toBe('Hello world')
       expect(slackBlock?.config.params.username).toBe('bot')
     })
 
-    it.concurrent(
-      'should exclude advanced-only fields when advancedMode is undefined (defaults to basic mode)',
-      () => {
-        const serializer = new Serializer()
+    it.concurrent('should keep advanced canonical values when mode is undefined', () => {
+      const serializer = new Serializer()
 
-        const defaultModeBlock: any = {
-          id: 'slack-1',
-          type: 'slack',
-          name: 'Test Slack Block',
-          position: { x: 0, y: 0 },
-          subBlocks: {
-            channel: { value: 'general' },
-            manualChannel: { value: 'C1234567890' },
-            text: { value: 'Hello world' },
-            username: { value: 'bot' },
-          },
-          outputs: {},
-          enabled: true,
-        }
-
-        const serialized = serializer.serializeWorkflow({ 'slack-1': defaultModeBlock }, [], {})
-
-        const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
-        expect(slackBlock).toBeDefined()
-
-        expect(slackBlock?.config.params.channel).toBe('general')
-        expect(slackBlock?.config.params.manualChannel).toBeUndefined()
-        expect(slackBlock?.config.params.text).toBe('Hello world')
-        expect(slackBlock?.config.params.username).toBe('bot')
+      const defaultModeBlock: any = {
+        id: 'slack-1',
+        type: 'slack',
+        name: 'Test Slack Block',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          channel: { value: 'general' },
+          manualChannel: { value: 'C1234567890' },
+          text: { value: 'Hello world' },
+          username: { value: 'bot' },
+        },
+        outputs: {},
+        enabled: true,
       }
-    )
 
-    it.concurrent('should filter memories field correctly in agent blocks', () => {
+      const serialized = serializer.serializeWorkflow({ 'slack-1': defaultModeBlock }, [], {})
+
+      const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
+      expect(slackBlock).toBeDefined()
+
+      expect(slackBlock?.config.params.channel).toBe('C1234567890')
+      expect(slackBlock?.config.params.manualChannel).toBeUndefined()
+      expect(slackBlock?.config.params.text).toBe('Hello world')
+      expect(slackBlock?.config.params.username).toBe('bot')
+    })
+
+    it.concurrent('should preserve advanced-only values when present in basic mode', () => {
       const serializer = new Serializer()
 
       const agentInBasicMode: any = {
@@ -637,7 +634,9 @@ describe('Serializer', () => {
 
       expect(agentBlock?.config.params.systemPrompt).toBe('You are helpful')
       expect(agentBlock?.config.params.userPrompt).toBe('Hello')
-      expect(agentBlock?.config.params.memories).toBeUndefined()
+      expect(agentBlock?.config.params.memories).toEqual([
+        { role: 'user', content: 'My name is John' },
+      ])
       expect(agentBlock?.config.params.model).toBe('claude-3-sonnet')
     })
 

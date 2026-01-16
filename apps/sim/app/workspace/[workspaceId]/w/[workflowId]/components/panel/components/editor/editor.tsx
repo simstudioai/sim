@@ -1,8 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { BookOpen, Check, ChevronUp, Pencil, Settings } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { BookOpen, Check, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
+import {
+  buildCanonicalIndex,
+  hasAdvancedValues,
+  isCanonicalPair,
+  resolveCanonicalMode,
+} from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ConnectionBlocks,
@@ -89,6 +96,27 @@ export function Editor() {
     )
   )
 
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks]
+  )
+  const canonicalModeOverrides = currentBlock?.data?.canonicalModes
+  const advancedValuesPresent = hasAdvancedValues(
+    blockConfig?.subBlocks || [],
+    blockSubBlockValues,
+    canonicalIndex
+  )
+  const effectiveAdvanced = advancedMode || advancedValuesPresent
+  const hasAdvancedOnlyFields = useMemo(() => {
+    if (!blockConfig?.subBlocks) return false
+    return blockConfig.subBlocks.some((subBlock) => {
+      if (subBlock.mode !== 'advanced') return false
+      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
+      const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+      return !isCanonicalPair(group)
+    })
+  }, [blockConfig?.subBlocks, canonicalIndex])
+
   // Get subblock layout using custom hook
   const { subBlocks, stateToUse: subBlockState } = useEditorSubblockLayout(
     blockConfig || ({} as any),
@@ -109,8 +137,11 @@ export function Editor() {
   })
 
   // Collaborative actions
-  const { collaborativeToggleBlockAdvancedMode, collaborativeUpdateBlockName } =
-    useCollaborativeWorkflow()
+  const {
+    collaborativeToggleBlockAdvancedMode,
+    collaborativeSetBlockCanonicalMode,
+    collaborativeUpdateBlockName,
+  } = useCollaborativeWorkflow()
 
   // Rename state
   const [isRenaming, setIsRenaming] = useState(false)
@@ -183,8 +214,7 @@ export function Editor() {
     }
   }
 
-  // Check if block has advanced mode or trigger mode available
-  const hasAdvancedMode = blockConfig?.subBlocks?.some((sb) => sb.mode === 'advanced')
+  const hasAdvancedMode = hasAdvancedOnlyFields
 
   // Determine if connections are at minimum height (collapsed state)
   const isConnectionsAtMinHeight = connectionsHeight <= 35
@@ -278,25 +308,6 @@ export function Editor() {
               </Tooltip.Content>
             </Tooltip.Root>
           )} */}
-          {/* Mode toggles - Only show for regular blocks, not subflows */}
-          {currentBlock && !isSubflow && hasAdvancedMode && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  className='p-0'
-                  onClick={handleToggleAdvancedMode}
-                  disabled={!userPermissions.canEdit}
-                  aria-label='Toggle advanced mode'
-                >
-                  <Settings className='h-[14px] w-[14px]' />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                <p>Advanced mode</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          )}
           {currentBlock && (isSubflow ? subflowConfig?.docsLink : blockConfig?.docsLink) && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
@@ -355,6 +366,19 @@ export function Editor() {
                       subBlock,
                       subBlockState
                     )
+                    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
+                    const canonicalGroup = canonicalId
+                      ? canonicalIndex.groupsById[canonicalId]
+                      : undefined
+                    const isCanonicalSwap = isCanonicalPair(canonicalGroup)
+                    const canonicalMode =
+                      canonicalGroup && isCanonicalSwap
+                        ? resolveCanonicalMode(
+                            canonicalGroup,
+                            effectiveAdvanced,
+                            canonicalModeOverrides
+                          )
+                        : undefined
 
                     return (
                       <div key={stableKey} className='subblock-row'>
@@ -366,6 +390,24 @@ export function Editor() {
                           disabled={!userPermissions.canEdit}
                           fieldDiffStatus={undefined}
                           allowExpandInPreview={false}
+                          canonicalToggle={
+                            isCanonicalSwap && canonicalMode && canonicalId
+                              ? {
+                                  mode: canonicalMode,
+                                  disabled: !userPermissions.canEdit,
+                                  onToggle: () => {
+                                    if (!currentBlockId) return
+                                    const nextMode =
+                                      canonicalMode === 'advanced' ? 'basic' : 'advanced'
+                                    collaborativeSetBlockCanonicalMode(
+                                      currentBlockId,
+                                      canonicalId,
+                                      nextMode
+                                    )
+                                  },
+                                }
+                              : undefined
+                          }
                         />
                         {index < subBlocks.length - 1 && (
                           <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
@@ -385,6 +427,33 @@ export function Editor() {
               )}
             </div>
           </div>
+
+          {hasAdvancedMode && (
+            <div className='flex flex-shrink-0 items-center border-[var(--border)] border-t px-[8px] py-[6px]'>
+              <Button
+                variant='ghost'
+                className='flex h-[24px] w-full items-center justify-between px-[6px] text-[13px]'
+                onClick={handleToggleAdvancedMode}
+                disabled={!userPermissions.canEdit}
+                aria-label='Toggle advanced options'
+              >
+                <div className='flex items-center gap-[6px]'>
+                  <span className='text-[var(--text-primary)]'>
+                    {effectiveAdvanced ? 'Hide advanced options' : 'Show advanced options'}
+                  </span>
+                  {advancedValuesPresent && (
+                    <span className='h-[6px] w-[6px] rounded-full bg-[var(--brand-9)]' />
+                  )}
+                </div>
+                <ChevronDown
+                  className={cn(
+                    'h-[14px] w-[14px] transition-transform',
+                    effectiveAdvanced && 'rotate-180'
+                  )}
+                />
+              </Button>
+            </div>
+          )}
 
           {/* Connections Section - Only show when there are connections */}
           {hasIncomingConnections && (

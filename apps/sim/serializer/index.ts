@@ -1,6 +1,15 @@
 import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
+import {
+  buildCanonicalIndex,
+  evaluateSubBlockCondition,
+  getCanonicalValues,
+  isNonEmptyValue,
+  isSubBlockFeatureEnabled,
+  isSubBlockVisibleForMode,
+  resolveCanonicalMode,
+} from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import { REFERENCE } from '@/executor/constants'
@@ -27,67 +36,40 @@ export class WorkflowValidationError extends Error {
 }
 
 /**
- * Helper function to check if a subblock should be included in serialization based on current mode
+ * Helper function to check if a subblock should be serialized.
  */
-function shouldIncludeField(subBlockConfig: SubBlockConfig, isAdvancedMode: boolean): boolean {
-  const fieldMode = subBlockConfig.mode
+function shouldSerializeSubBlock(
+  subBlockConfig: SubBlockConfig,
+  values: Record<string, unknown>,
+  displayAdvancedOptions: boolean,
+  isTriggerContext: boolean,
+  isTriggerCategory: boolean,
+  canonicalIndex: ReturnType<typeof buildCanonicalIndex>,
+  canonicalModeOverrides?: Record<string, 'basic' | 'advanced'>
+): boolean {
+  if (!isSubBlockFeatureEnabled(subBlockConfig)) return false
 
-  if (fieldMode === 'advanced' && !isAdvancedMode) {
-    return false // Skip advanced-only fields when in basic mode
+  if (subBlockConfig.mode === 'trigger') {
+    if (!isTriggerContext && !isTriggerCategory) return false
+  } else if (isTriggerContext && !isTriggerCategory) {
+    return false
   }
 
-  return true
-}
+  const visibleByMode = isSubBlockVisibleForMode(
+    subBlockConfig,
+    displayAdvancedOptions,
+    canonicalIndex,
+    canonicalModeOverrides
+  )
 
-/**
- * Evaluates a condition object against current field values.
- * Used to determine if a conditionally-visible field should be included in params.
- */
-function evaluateCondition(
-  condition:
-    | {
-        field: string
-        value: any
-        not?: boolean
-        and?: { field: string; value: any; not?: boolean }
-      }
-    | (() => {
-        field: string
-        value: any
-        not?: boolean
-        and?: { field: string; value: any; not?: boolean }
-      })
-    | undefined,
-  values: Record<string, any>
-): boolean {
-  if (!condition) return true
+  if (!visibleByMode) {
+    if (subBlockConfig.mode === 'advanced' && isNonEmptyValue(values[subBlockConfig.id])) {
+      return true
+    }
+    return false
+  }
 
-  const actual = typeof condition === 'function' ? condition() : condition
-  const fieldValue = values[actual.field]
-
-  const valueMatch = Array.isArray(actual.value)
-    ? fieldValue != null &&
-      (actual.not ? !actual.value.includes(fieldValue) : actual.value.includes(fieldValue))
-    : actual.not
-      ? fieldValue !== actual.value
-      : fieldValue === actual.value
-
-  const andMatch = !actual.and
-    ? true
-    : (() => {
-        const andFieldValue = values[actual.and!.field]
-        const andValueMatch = Array.isArray(actual.and!.value)
-          ? andFieldValue != null &&
-            (actual.and!.not
-              ? !actual.and!.value.includes(andFieldValue)
-              : actual.and!.value.includes(andFieldValue))
-          : actual.and!.not
-            ? andFieldValue !== actual.and!.value
-            : andFieldValue === actual.and!.value
-        return andValueMatch
-      })()
-
-  return valueMatch && andMatch
+  return evaluateSubBlockCondition(subBlockConfig.condition, values)
 }
 
 /**
@@ -391,9 +373,13 @@ export class Serializer {
     }
 
     const params: Record<string, any> = {}
-    const isAdvancedMode = block.advancedMode ?? false
+    const displayAdvancedOptions = block.advancedMode ?? false
     const isStarterBlock = block.type === 'starter'
     const isAgentBlock = block.type === 'agent'
+    const isTriggerContext = block.triggerMode ?? false
+    const isTriggerCategory = blockConfig.category === 'triggers'
+    const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+    const canonicalModeOverrides = block.data?.canonicalModes
 
     // First pass: collect ALL raw values for condition evaluation
     const allValues: Record<string, any> = {}
@@ -420,10 +406,16 @@ export class Serializer {
       const anyConditionMet =
         matchingConfigs.length === 0
           ? true
-          : matchingConfigs.some(
-              (config) =>
-                shouldIncludeField(config, isAdvancedMode) &&
-                evaluateCondition(config.condition, allValues)
+          : matchingConfigs.some((config) =>
+              shouldSerializeSubBlock(
+                config,
+                allValues,
+                displayAdvancedOptions,
+                isTriggerContext,
+                isTriggerCategory,
+                canonicalIndex,
+                canonicalModeOverrides
+              )
             )
 
       if (
@@ -441,7 +433,15 @@ export class Serializer {
       if (
         (params[id] === null || params[id] === undefined) &&
         subBlockConfig.value &&
-        shouldIncludeField(subBlockConfig, isAdvancedMode)
+        shouldSerializeSubBlock(
+          subBlockConfig,
+          allValues,
+          displayAdvancedOptions,
+          isTriggerContext,
+          isTriggerCategory,
+          canonicalIndex,
+          canonicalModeOverrides
+        )
       ) {
         // If the value is absent and there's a default value function, use it
         params[id] = subBlockConfig.value(params)
@@ -449,42 +449,39 @@ export class Serializer {
     })
 
     // Finally, consolidate canonical parameters (e.g., selector and manual ID into a single param)
-    const canonicalGroups: Record<string, { basic?: string; advanced: string[] }> = {}
-    blockConfig.subBlocks.forEach((sb) => {
-      if (!sb.canonicalParamId) return
-      const key = sb.canonicalParamId
-      if (!canonicalGroups[key]) canonicalGroups[key] = { basic: undefined, advanced: [] }
-      if (sb.mode === 'advanced') canonicalGroups[key].advanced.push(sb.id)
-      else canonicalGroups[key].basic = sb.id
-    })
+    Object.values(canonicalIndex.groupsById).forEach((group) => {
+      const { basicValue, advancedValue } = getCanonicalValues(group, params)
+      const hasBasic = isNonEmptyValue(basicValue)
+      const hasAdvanced = isNonEmptyValue(advancedValue)
+      const basicRaw = group.basicId ? params[group.basicId] : undefined
+      const advancedRawValues = group.advancedIds.map((id) => params[id])
+      const hasOverride = canonicalModeOverrides?.[group.canonicalId]
+      const preferredMode = hasOverride
+        ? resolveCanonicalMode(group, displayAdvancedOptions, canonicalModeOverrides)
+        : hasAdvanced
+          ? 'advanced'
+          : 'basic'
 
-    Object.entries(canonicalGroups).forEach(([canonicalKey, group]) => {
-      const basicId = group.basic
-      const advancedIds = group.advanced
-      const basicVal = basicId ? params[basicId] : undefined
-      const advancedVal = advancedIds
-        .map((id) => params[id])
-        .find(
-          (v) => v !== undefined && v !== null && (typeof v !== 'string' || v.trim().length > 0)
-        )
-
-      let chosen: any
-      if (advancedVal !== undefined && basicVal !== undefined) {
-        chosen = isAdvancedMode ? advancedVal : basicVal
-      } else if (advancedVal !== undefined) {
-        chosen = advancedVal
-      } else if (basicVal !== undefined) {
-        chosen = isAdvancedMode ? undefined : basicVal
-      } else {
-        chosen = undefined
+      let chosen: unknown
+      if (hasAdvanced && hasBasic) {
+        chosen = preferredMode === 'advanced' ? advancedValue : basicValue
+      } else if (hasAdvanced) {
+        chosen = advancedValue
+      } else if (hasBasic) {
+        chosen = basicValue
+      } else if (
+        basicRaw === null &&
+        advancedRawValues.every((value) => value === null || value === undefined)
+      ) {
+        chosen = null
       }
 
-      const sourceIds = [basicId, ...advancedIds].filter(Boolean) as string[]
+      const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]
       sourceIds.forEach((id) => {
-        if (id !== canonicalKey) delete params[id]
+        if (id !== group.canonicalId) delete params[id]
       })
-      if (chosen !== undefined) params[canonicalKey] = chosen
-      else delete params[canonicalKey]
+      if (chosen !== undefined) params[group.canonicalId] = chosen
+      else delete params[group.canonicalId]
     })
 
     return params
@@ -540,6 +537,11 @@ export class Serializer {
 
     // Check required user-only parameters for the current tool
     const missingFields: string[] = []
+    const displayAdvancedOptions = block.advancedMode ?? false
+    const isTriggerContext = block.triggerMode ?? false
+    const isTriggerCategory = blockConfig.category === 'triggers'
+    const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks || [])
+    const canonicalModeOverrides = block.data?.canonicalModes
 
     // Iterate through the tool's parameters, not the block's subBlocks
     Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]) => {
@@ -549,20 +551,24 @@ export class Serializer {
         let shouldValidateParam = true
 
         if (matchingConfigs.length > 0) {
-          const isAdvancedMode = block.advancedMode ?? false
-
           shouldValidateParam = matchingConfigs.some((subBlockConfig: any) => {
-            const includedByMode = shouldIncludeField(subBlockConfig, isAdvancedMode)
-
-            const includedByCondition = evaluateCondition(subBlockConfig.condition, params)
+            const includedByMode = shouldSerializeSubBlock(
+              subBlockConfig,
+              params,
+              displayAdvancedOptions,
+              isTriggerContext,
+              isTriggerCategory,
+              canonicalIndex,
+              canonicalModeOverrides
+            )
 
             const isRequired = (() => {
               if (!subBlockConfig.required) return false
               if (typeof subBlockConfig.required === 'boolean') return subBlockConfig.required
-              return evaluateCondition(subBlockConfig.required, params)
+              return evaluateSubBlockCondition(subBlockConfig.required, params)
             })()
 
-            return includedByMode && includedByCondition && isRequired
+            return includedByMode && isRequired
           })
         }
 
@@ -572,10 +578,16 @@ export class Serializer {
 
         const fieldValue = params[paramId]
         if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
-          const activeConfig = matchingConfigs.find(
-            (config: any) =>
-              shouldIncludeField(config, block.advancedMode ?? false) &&
-              evaluateCondition(config.condition, params)
+          const activeConfig = matchingConfigs.find((config: any) =>
+            shouldSerializeSubBlock(
+              config,
+              params,
+              displayAdvancedOptions,
+              isTriggerContext,
+              isTriggerCategory,
+              canonicalIndex,
+              canonicalModeOverrides
+            )
           )
           const displayName = activeConfig?.title || paramId
           missingFields.push(displayName)

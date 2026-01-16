@@ -2,16 +2,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useReactFlow } from 'reactflow'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'
+import {
+  buildCanonicalIndex,
+  hasAdvancedValues,
+  resolveDependencyValue,
+} from '@/lib/workflows/subblocks/visibility'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { getProviderFromModel } from '@/providers/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
  * Constants for ComboBox component behavior
@@ -91,15 +98,41 @@ export function ComboBox({
   // Dependency tracking for fetchOptions
   const dependsOnFields = useMemo(() => getDependsOnFields(dependsOn), [dependsOn])
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const blockState = useWorkflowStore((state) => state.blocks[blockId])
+  const blockConfig = blockState?.type ? getBlock(blockState.type) : null
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks]
+  )
+  const canonicalModeOverrides = blockState?.data?.canonicalModes
   const dependencyValues = useSubBlockStore(
     useCallback(
       (state) => {
         if (dependsOnFields.length === 0 || !activeWorkflowId) return []
         const workflowValues = state.workflowValues[activeWorkflowId] || {}
         const blockValues = workflowValues[blockId] || {}
-        return dependsOnFields.map((depKey) => blockValues[depKey] ?? null)
+        const displayAdvancedOptions =
+          (blockState?.advancedMode ?? false) ||
+          hasAdvancedValues(blockConfig?.subBlocks || [], blockValues, canonicalIndex)
+        return dependsOnFields.map((depKey) =>
+          resolveDependencyValue(
+            depKey,
+            blockValues,
+            displayAdvancedOptions,
+            canonicalIndex,
+            canonicalModeOverrides
+          )
+        )
       },
-      [dependsOnFields, activeWorkflowId, blockId]
+      [
+        dependsOnFields,
+        activeWorkflowId,
+        blockId,
+        blockState?.advancedMode,
+        blockConfig?.subBlocks,
+        canonicalIndex,
+        canonicalModeOverrides,
+      ]
     )
   )
 

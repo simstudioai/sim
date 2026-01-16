@@ -1,5 +1,11 @@
-import { useMemo } from 'react'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { useCallback, useMemo } from 'react'
+import {
+  buildCanonicalIndex,
+  evaluateSubBlockCondition,
+  hasAdvancedValues,
+  isSubBlockFeatureEnabled,
+  isSubBlockVisibleForMode,
+} from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -27,6 +33,10 @@ export function useEditorSubblockLayout(
   blockSubBlockValues: Record<string, any>,
   isSnapshotView: boolean
 ) {
+  const blockDataFromStore = useWorkflowStore(
+    useCallback((state) => state.blocks?.[blockId]?.data, [blockId])
+  )
+
   return useMemo(() => {
     // Guard against missing config or block selection
     if (!config || !Array.isArray((config as any).subBlocks) || !blockId) {
@@ -46,6 +56,7 @@ export function useEditorSubblockLayout(
 
     const mergedState = mergedMap ? mergedMap[blockId] : undefined
     const mergedSubBlocks = mergedState?.subBlocks || {}
+    const blockData = isSnapshotView ? mergedState?.data || {} : blockDataFromStore || {}
 
     const stateToUse = Object.keys(mergedSubBlocks).reduce(
       (acc, key) => {
@@ -69,13 +80,24 @@ export function useEditorSubblockLayout(
     }
 
     // Filter visible blocks and those that meet their conditions
+    const rawValues = Object.entries(stateToUse).reduce<Record<string, unknown>>(
+      (acc, [key, entry]) => {
+        acc[key] = entry?.value
+        return acc
+      },
+      {}
+    )
+
+    const canonicalIndex = buildCanonicalIndex(config.subBlocks || [])
+    const effectiveAdvanced =
+      displayAdvancedMode || hasAdvancedValues(config.subBlocks || [], rawValues, canonicalIndex)
+    const canonicalModeOverrides = blockData?.canonicalModes
+
     const visibleSubBlocks = (config.subBlocks || []).filter((block) => {
       if (block.hidden) return false
 
       // Check required feature if specified - declarative feature gating
-      if (block.requiresFeature && !isTruthy(getEnv(block.requiresFeature))) {
-        return false
-      }
+      if (!isSubBlockFeatureEnabled(block)) return false
 
       // Special handling for trigger-config type (legacy trigger configuration UI)
       if (block.type === ('trigger-config' as SubBlockType)) {
@@ -84,13 +106,8 @@ export function useEditorSubblockLayout(
       }
 
       // Filter by mode if specified
-      if (block.mode) {
-        if (block.mode === 'basic' && displayAdvancedMode) return false
-        if (block.mode === 'advanced' && !displayAdvancedMode) return false
-        if (block.mode === 'trigger') {
-          // Show trigger mode blocks only when in trigger mode
-          if (!displayTriggerMode) return false
-        }
+      if (block.mode === 'trigger') {
+        if (!displayTriggerMode) return false
       }
 
       // When in trigger mode, hide blocks that don't have mode: 'trigger'
@@ -98,42 +115,16 @@ export function useEditorSubblockLayout(
         return false
       }
 
+      if (
+        !isSubBlockVisibleForMode(block, effectiveAdvanced, canonicalIndex, canonicalModeOverrides)
+      ) {
+        return false
+      }
+
       // If there's no condition, the block should be shown
       if (!block.condition) return true
 
-      // If condition is a function, call it to get the actual condition object
-      const actualCondition =
-        typeof block.condition === 'function' ? block.condition() : block.condition
-
-      // Get the values of the fields this block depends on from the appropriate state
-      const fieldValue = stateToUse[actualCondition.field]?.value
-      const andFieldValue = actualCondition.and
-        ? stateToUse[actualCondition.and.field]?.value
-        : undefined
-
-      // Check if the condition value is an array
-      const isValueMatch = Array.isArray(actualCondition.value)
-        ? fieldValue != null &&
-          (actualCondition.not
-            ? !actualCondition.value.includes(fieldValue as string | number | boolean)
-            : actualCondition.value.includes(fieldValue as string | number | boolean))
-        : actualCondition.not
-          ? fieldValue !== actualCondition.value
-          : fieldValue === actualCondition.value
-
-      // Check both conditions if 'and' is present
-      const isAndValueMatch =
-        !actualCondition.and ||
-        (Array.isArray(actualCondition.and.value)
-          ? andFieldValue != null &&
-            (actualCondition.and.not
-              ? !actualCondition.and.value.includes(andFieldValue as string | number | boolean)
-              : actualCondition.and.value.includes(andFieldValue as string | number | boolean))
-          : actualCondition.and.not
-            ? andFieldValue !== actualCondition.and.value
-            : andFieldValue === actualCondition.and.value)
-
-      return isValueMatch && isAndValueMatch
+      return evaluateSubBlockCondition(block.condition, rawValues)
     })
 
     return { subBlocks: visibleSubBlocks, stateToUse }
@@ -147,5 +138,6 @@ export function useEditorSubblockLayout(
     blockSubBlockValues,
     activeWorkflowId,
     isSnapshotView,
+    blockDataFromStore,
   ])
 }

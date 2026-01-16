@@ -3,11 +3,18 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge, Tooltip } from '@/components/emcn'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import {
+  buildCanonicalIndex,
+  evaluateSubBlockCondition,
+  hasAdvancedValues,
+  isSubBlockFeatureEnabled,
+  isSubBlockVisibleForMode,
+  resolveDependencyValue,
+} from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ActionBar,
@@ -332,6 +339,9 @@ const SubBlockRow = ({
   workflowId,
   blockId,
   allSubBlockValues,
+  displayAdvancedOptions,
+  canonicalIndex,
+  canonicalModeOverrides,
 }: {
   title: string
   value?: string
@@ -341,6 +351,9 @@ const SubBlockRow = ({
   workflowId?: string
   blockId?: string
   allSubBlockValues?: Record<string, { value: unknown }>
+  displayAdvancedOptions?: boolean
+  canonicalIndex?: ReturnType<typeof buildCanonicalIndex>
+  canonicalModeOverrides?: Record<string, 'basic' | 'advanced'>
 }) => {
   const getStringValue = useCallback(
     (key?: string): string | undefined => {
@@ -351,17 +364,44 @@ const SubBlockRow = ({
     [allSubBlockValues]
   )
 
+  const rawValues = useMemo(() => {
+    if (!allSubBlockValues) return {}
+    return Object.entries(allSubBlockValues).reduce<Record<string, unknown>>(
+      (acc, [key, entry]) => {
+        acc[key] = entry?.value
+        return acc
+      },
+      {}
+    )
+  }, [allSubBlockValues])
+
   const dependencyValues = useMemo(() => {
     const fields = getDependsOnFields(subBlock?.dependsOn)
     if (!fields.length) return {}
     return fields.reduce<Record<string, string>>((accumulator, dependency) => {
-      const dependencyValue = getStringValue(dependency)
-      if (dependencyValue) {
-        accumulator[dependency] = dependencyValue
+      const dependencyValue = resolveDependencyValue(
+        dependency,
+        rawValues,
+        displayAdvancedOptions ?? false,
+        canonicalIndex || buildCanonicalIndex([]),
+        canonicalModeOverrides
+      )
+      const dependencyString =
+        typeof dependencyValue === 'string' && dependencyValue.length > 0
+          ? dependencyValue
+          : undefined
+      if (dependencyString) {
+        accumulator[dependency] = dependencyString
       }
       return accumulator
     }, {})
-  }, [getStringValue, subBlock?.dependsOn])
+  }, [
+    canonicalIndex,
+    canonicalModeOverrides,
+    displayAdvancedOptions,
+    rawValues,
+    subBlock?.dependsOn,
+  ])
 
   const credentialSourceId =
     subBlock?.type === 'oauth-input' && typeof rawValue === 'string' ? rawValue : undefined
@@ -630,6 +670,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       [activeWorkflowId, id]
     )
   )
+  const canonicalIndex = useMemo(() => buildCanonicalIndex(config.subBlocks), [config.subBlocks])
+  const canonicalModeOverrides = currentStoreBlock?.data?.canonicalModes
 
   const subBlockRowsData = useMemo(() => {
     const rows: SubBlockConfig[][] = []
@@ -652,16 +694,22 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             {} as Record<string, { value: unknown }>
           )
 
-    const effectiveAdvanced = displayAdvancedMode
+    const rawValues = Object.entries(stateToUse).reduce<Record<string, unknown>>(
+      (acc, [key, entry]) => {
+        acc[key] = entry?.value
+        return acc
+      },
+      {}
+    )
+
+    const effectiveAdvanced =
+      displayAdvancedMode || hasAdvancedValues(config.subBlocks, rawValues, canonicalIndex)
     const effectiveTrigger = displayTriggerMode
 
     const visibleSubBlocks = config.subBlocks.filter((block) => {
       if (block.hidden) return false
       if (block.hideFromPreview) return false
-
-      if (block.requiresFeature && !isTruthy(getEnv(block.requiresFeature))) {
-        return false
-      }
+      if (!isSubBlockFeatureEnabled(block)) return false
 
       const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'
 
@@ -679,40 +727,15 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         }
       }
 
-      if (block.mode === 'basic' && effectiveAdvanced) return false
-      if (block.mode === 'advanced' && !effectiveAdvanced) return false
+      if (
+        !isSubBlockVisibleForMode(block, effectiveAdvanced, canonicalIndex, canonicalModeOverrides)
+      ) {
+        return false
+      }
 
       if (!block.condition) return true
 
-      const actualCondition =
-        typeof block.condition === 'function' ? block.condition() : block.condition
-
-      const fieldValue = stateToUse[actualCondition.field]?.value
-      const andFieldValue = actualCondition.and
-        ? stateToUse[actualCondition.and.field]?.value
-        : undefined
-
-      const isValueMatch = Array.isArray(actualCondition.value)
-        ? fieldValue != null &&
-          (actualCondition.not
-            ? !actualCondition.value.includes(fieldValue as string | number | boolean)
-            : actualCondition.value.includes(fieldValue as string | number | boolean))
-        : actualCondition.not
-          ? fieldValue !== actualCondition.value
-          : fieldValue === actualCondition.value
-
-      const isAndValueMatch =
-        !actualCondition.and ||
-        (Array.isArray(actualCondition.and.value)
-          ? andFieldValue != null &&
-            (actualCondition.and.not
-              ? !actualCondition.and.value.includes(andFieldValue as string | number | boolean)
-              : actualCondition.and.value.includes(andFieldValue as string | number | boolean))
-          : actualCondition.and.not
-            ? andFieldValue !== actualCondition.and.value
-            : andFieldValue === actualCondition.and.value)
-
-      return isValueMatch && isAndValueMatch
+      return evaluateSubBlockCondition(block.condition, rawValues)
     })
 
     visibleSubBlocks.forEach((block) => {
@@ -744,12 +767,24 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     data.subBlockValues,
     currentWorkflow.isDiffMode,
     currentBlock,
+    canonicalModeOverrides,
+    canonicalIndex,
     blockSubBlockValues,
     activeWorkflowId,
   ])
 
   const subBlockRows = subBlockRowsData.rows
   const subBlockState = subBlockRowsData.stateToUse
+  const effectiveAdvanced = useMemo(() => {
+    const rawValues = Object.entries(subBlockState).reduce<Record<string, unknown>>(
+      (acc, [key, entry]) => {
+        acc[key] = entry?.value
+        return acc
+      },
+      {}
+    )
+    return displayAdvancedMode || hasAdvancedValues(config.subBlocks, rawValues, canonicalIndex)
+  }, [subBlockState, displayAdvancedMode, config.subBlocks, canonicalIndex])
 
   /**
    * Determine if block has content below the header (subblocks or error row).
@@ -1126,6 +1161,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                       workflowId={currentWorkflowId}
                       blockId={id}
                       allSubBlockValues={subBlockState}
+                      displayAdvancedOptions={effectiveAdvanced}
+                      canonicalIndex={canonicalIndex}
+                      canonicalModeOverrides={canonicalModeOverrides}
                     />
                   )
                 })

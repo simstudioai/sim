@@ -1,9 +1,16 @@
 'use client'
 
 import { useMemo } from 'react'
+import {
+  buildCanonicalIndex,
+  hasAdvancedValues,
+  resolveDependencyValue,
+} from '@/lib/workflows/subblocks/visibility'
+import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 type DependsOnConfig = string[] | { all?: string[]; any?: string[] }
 
@@ -50,6 +57,13 @@ export function useDependsOnGate(
   const previewContextValues = opts?.previewContextValues
 
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const blockState = useWorkflowStore((state) => state.blocks[blockId])
+  const blockConfig = blockState?.type ? getBlock(blockState.type) : null
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks]
+  )
+  const canonicalModeOverrides = blockState?.data?.canonicalModes
 
   // Parse dependsOn config to get all/any field lists
   const { allFields, anyFields, allDependsOnFields } = useMemo(
@@ -89,9 +103,21 @@ export function useDependsOnGate(
 
     // If previewContextValues are provided (e.g., tool parameters), use those first
     if (previewContextValues) {
+      const displayAdvancedOptions = hasAdvancedValues(
+        blockConfig?.subBlocks || [],
+        previewContextValues,
+        canonicalIndex
+      )
       const map: Record<string, unknown> = {}
       for (const key of allDependsOnFields) {
-        map[key] = normalizeDependencyValue(previewContextValues[key])
+        const resolvedValue = resolveDependencyValue(
+          key,
+          previewContextValues,
+          displayAdvancedOptions,
+          canonicalIndex,
+          canonicalModeOverrides
+        )
+        map[key] = normalizeDependencyValue(resolvedValue)
       }
       return map
     }
@@ -106,9 +132,19 @@ export function useDependsOnGate(
 
     const workflowValues = state.workflowValues[activeWorkflowId] || {}
     const blockValues = (workflowValues as any)[blockId] || {}
+    const displayAdvancedOptions =
+      (blockState?.advancedMode ?? false) ||
+      hasAdvancedValues(blockConfig?.subBlocks || [], blockValues, canonicalIndex)
     const map: Record<string, unknown> = {}
     for (const key of allDependsOnFields) {
-      map[key] = normalizeDependencyValue((blockValues as any)[key])
+      const resolvedValue = resolveDependencyValue(
+        key,
+        blockValues,
+        displayAdvancedOptions,
+        canonicalIndex,
+        canonicalModeOverrides
+      )
+      map[key] = normalizeDependencyValue(resolvedValue)
     }
     return map
   })

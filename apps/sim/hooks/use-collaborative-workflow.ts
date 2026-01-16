@@ -203,6 +203,13 @@ export function useCollaborativeWorkflow() {
             case BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE:
               workflowStore.setBlockAdvancedMode(payload.id, payload.advancedMode)
               break
+            case BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE:
+              workflowStore.setBlockCanonicalMode(
+                payload.id,
+                payload.canonicalId,
+                payload.canonicalMode
+              )
+              break
           }
         } else if (target === OPERATION_TARGETS.BLOCKS) {
           switch (operation) {
@@ -933,6 +940,18 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation, workflowStore]
   )
 
+  const collaborativeSetBlockCanonicalMode = useCallback(
+    (id: string, canonicalId: string, canonicalMode: 'basic' | 'advanced') => {
+      executeQueuedOperation(
+        BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE,
+        OPERATION_TARGETS.BLOCK,
+        { id, canonicalId, canonicalMode },
+        () => workflowStore.setBlockCanonicalMode(id, canonicalId, canonicalMode)
+      )
+    },
+    [executeQueuedOperation, workflowStore]
+  )
+
   const collaborativeBatchToggleBlockHandles = useCallback(
     (ids: string[]) => {
       if (ids.length === 0) return
@@ -1607,6 +1626,7 @@ export function useCollaborativeWorkflow() {
     collaborativeBatchToggleBlockEnabled,
     collaborativeBatchUpdateParent,
     collaborativeToggleBlockAdvancedMode,
+    collaborativeSetBlockCanonicalMode,
     collaborativeBatchToggleBlockHandles,
     collaborativeBatchAddBlocks,
     collaborativeBatchRemoveBlocks,
