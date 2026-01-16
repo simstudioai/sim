@@ -327,7 +327,7 @@ Return ONLY the rows array:`,
       },
     },
 
-    // Filter for update/delete operations (JSON editor)
+    // Filter for update/delete operations (JSON editor - bulk ops)
     {
       id: 'filter',
       title: 'Filter',
@@ -335,12 +335,10 @@ Return ONLY the rows array:`,
       placeholder: '{"column_name": {"$eq": "value"}}',
       condition: {
         field: 'operation',
-        value: ['query_rows', 'update_rows_by_filter', 'delete_rows_by_filter'],
-      },
-      required: {
-        field: 'operation',
         value: ['update_rows_by_filter', 'delete_rows_by_filter'],
+        and: { field: 'bulkFilterMode', value: 'json' },
       },
+      required: true,
       wandConfig: {
         enabled: true,
         maintainHistory: true,
@@ -418,7 +416,58 @@ Return ONLY the filter JSON:`,
       },
     },
 
-    // Sort (JSON editor)
+    // Filter for query_rows (JSON editor mode or tool call context)
+    {
+      id: 'filter',
+      title: 'Filter',
+      type: 'code',
+      placeholder: '{"column_name": {"$eq": "value"}}',
+      condition: {
+        field: 'operation',
+        value: 'query_rows',
+        and: { field: 'builderMode', value: 'builder', not: true },
+      },
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `Generate filter criteria for selecting rows in a table.
+
+### CONTEXT
+{context}
+
+### INSTRUCTION
+Return ONLY a valid JSON filter object. No explanations or markdown.
+
+IMPORTANT: Reference the table schema to know which columns exist and their types.
+
+### OPERATORS
+- **$eq**: Equals - {"column": {"$eq": "value"}} or {"column": "value"}
+- **$ne**: Not equals - {"column": {"$ne": "value"}}
+- **$gt**: Greater than - {"column": {"$gt": 18}}
+- **$gte**: Greater than or equal - {"column": {"$gte": 100}}
+- **$lt**: Less than - {"column": {"$lt": 90}}
+- **$lte**: Less than or equal - {"column": {"$lte": 5}}
+- **$in**: In array - {"column": {"$in": ["value1", "value2"]}}
+- **$nin**: Not in array - {"column": {"$nin": ["value1", "value2"]}}
+- **$contains**: String contains - {"column": {"$contains": "text"}}
+
+### EXAMPLES
+
+"rows where status is active"
+→ {"status": "active"}
+
+"rows where age is over 18 and status is pending"
+→ {"age": {"$gte": 18}, "status": "pending"}
+
+"rows where email contains gmail.com"
+→ {"email": {"$contains": "gmail.com"}}
+
+Return ONLY the filter JSON:`,
+        generationType: 'table-schema',
+      },
+    },
+
+    // Sort (JSON editor or tool call context)
     {
       id: 'sort',
       title: 'Sort',
@@ -427,6 +476,7 @@ Return ONLY the filter JSON:`,
       condition: {
         field: 'operation',
         value: 'query_rows',
+        and: { field: 'builderMode', value: 'builder', not: true },
       },
       wandConfig: {
         enabled: true,
