@@ -86,7 +86,6 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
         throw new Error('Missing or invalid API key: A valid Pulse API key is required')
       }
 
-      // Check if we have a file upload instead of direct URL
       if (
         params.fileUpload &&
         (!params.filePath || params.filePath === 'null' || params.filePath === '')
@@ -137,13 +136,6 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
         if (!['http:', 'https:'].includes(url.protocol)) {
           throw new Error(`Invalid protocol: ${url.protocol}. URL must use HTTP or HTTPS protocol`)
         }
-
-        if (url.hostname.includes('drive.google.com') || url.hostname.includes('docs.google.com')) {
-          throw new Error(
-            'Google Drive links are not supported. ' +
-              'Please upload your document or provide a direct download link.'
-          )
-        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         throw new Error(
@@ -156,12 +148,10 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
         filePath: url.toString(),
       }
 
-      // Check if this is an internal workspace file path
       if (params.fileUpload?.path?.startsWith('/api/files/serve/')) {
         requestBody.filePath = params.fileUpload.path
       }
 
-      // Add optional parameters
       if (params.pages && typeof params.pages === 'string' && params.pages.trim() !== '') {
         requestBody.pages = params.pages.trim()
       }
@@ -204,7 +194,6 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
       throw new Error('Invalid response format from Pulse API')
     }
 
-    // Pass through the native Pulse API response
     const pulseData =
       parseResult.output && typeof parseResult.output === 'object'
         ? parseResult.output
