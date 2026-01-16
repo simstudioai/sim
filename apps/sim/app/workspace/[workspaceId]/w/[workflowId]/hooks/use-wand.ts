@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { fetchTableSchemaContext } from '@/lib/table/wand'
 import type { GenerationType } from '@/blocks/types'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -16,19 +15,16 @@ interface ChatMessage {
 interface BuildWandContextInfoOptions {
   currentValue?: string
   generationType?: string
-  tableId?: string | null
-  workspaceId?: string | null
 }
 
 /**
  * Builds rich context information based on current content and generation type.
+ * Note: Table schema context is now fetched server-side in /api/wand for simplicity.
  */
-async function buildWandContextInfo({
+function buildWandContextInfo({
   currentValue,
   generationType,
-  tableId,
-  workspaceId,
-}: BuildWandContextInfoOptions): Promise<string> {
+}: BuildWandContextInfoOptions): string {
   const hasContent = Boolean(currentValue && currentValue.trim() !== '')
   const contentLength = currentValue?.length ?? 0
   const lineCount = currentValue ? currentValue.split('\n').length : 0
@@ -59,13 +55,6 @@ async function buildWandContextInfo({
           contextInfo += `\n\nJSON analysis: Invalid JSON - needs fixing`
         }
         break
-    }
-  }
-
-  if (generationType === 'table-schema') {
-    const tableSchemaContext = await fetchTableSchemaContext({ tableId, workspaceId })
-    if (tableSchemaContext) {
-      contextInfo += `\n\n${tableSchemaContext}`
     }
   }
 
@@ -102,7 +91,7 @@ export function useWand({
   onGenerationComplete,
 }: UseWandProps) {
   const queryClient = useQueryClient()
-  const workspaceId = useWorkflowRegistry((state) => state.hydration.workspaceId)
+  const workflowId = useWorkflowRegistry((state) => state.hydration.workflowId)
   const [isLoading, setIsLoading] = useState(false)
   const [isPromptVisible, setIsPromptVisible] = useState(false)
   const [promptInputValue, setPromptInputValue] = useState('')
@@ -173,11 +162,9 @@ export function useWand({
       }
 
       try {
-        const contextInfo = await buildWandContextInfo({
+        const contextInfo = buildWandContextInfo({
           currentValue,
           generationType: wandConfig?.generationType,
-          tableId: contextParams?.tableId,
-          workspaceId,
         })
 
         let systemPrompt = wandConfig?.prompt || ''
@@ -201,6 +188,8 @@ export function useWand({
             stream: true,
             history: wandConfig?.maintainHistory ? conversationHistory : [],
             generationType: wandConfig?.generationType,
+            workflowId,
+            wandContext: contextParams?.tableId ? { tableId: contextParams.tableId } : undefined,
           }),
           signal: abortControllerRef.current.signal,
           cache: 'no-store',
@@ -308,7 +297,7 @@ export function useWand({
       onGenerationComplete,
       queryClient,
       contextParams?.tableId,
-      workspaceId,
+      workflowId,
     ]
   )
 
