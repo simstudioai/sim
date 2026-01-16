@@ -2562,16 +2562,18 @@ export const useCopilotStore = create<CopilotStore>()(
         fileAttachments,
         contexts,
         messageId,
+        queueIfBusy = true,
       } = options as {
         stream?: boolean
         fileAttachments?: MessageFileAttachment[]
         contexts?: ChatContext[]
         messageId?: string
+        queueIfBusy?: boolean
       }
 
       if (!workflowId) return
 
-      // If already sending a message, queue this one instead
+      // If already sending a message, queue this one instead unless bypassing queue
       if (isSendingMessage && !activeAbortController) {
         logger.warn('[Copilot] sendMessage: stale sending state detected, clearing', {
           originalMessageId: messageId,
@@ -2583,12 +2585,15 @@ export const useCopilotStore = create<CopilotStore>()(
         })
         set({ isSendingMessage: false, abortController: null })
       } else if (isSendingMessage) {
-        get().addToQueue(message, { fileAttachments, contexts, messageId })
-        logger.info('[Copilot] Message queued (already sending)', {
-          queueLength: get().messageQueue.length + 1,
-          originalMessageId: messageId,
-        })
-        return
+        if (queueIfBusy) {
+          get().addToQueue(message, { fileAttachments, contexts, messageId })
+          logger.info('[Copilot] Message queued (already sending)', {
+            queueLength: get().messageQueue.length + 1,
+            originalMessageId: messageId,
+          })
+          return
+        }
+        get().abortMessage({ suppressContinueOption: true })
       }
 
       const nextAbortController = new AbortController()

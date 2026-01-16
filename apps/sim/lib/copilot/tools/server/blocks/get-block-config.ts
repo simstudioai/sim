@@ -356,6 +356,64 @@ export const getBlockConfigServerTool: BaseServerTool<
     const logger = createLogger('GetBlockConfigServerTool')
     logger.debug('Executing get_block_config', { blockType, operation, trigger })
 
+    if (blockType === 'loop') {
+      const result = {
+        blockType,
+        blockName: 'Loop',
+        operation,
+        trigger,
+        inputs: {
+          loopType: {
+            type: 'string',
+            description: 'Loop type',
+            options: ['for', 'forEach', 'while', 'doWhile'],
+            default: 'for',
+          },
+          iterations: {
+            type: 'number',
+            description: 'Number of iterations (for loop type "for")',
+          },
+          collection: {
+            type: 'string',
+            description: 'Collection to iterate (for loop type "forEach")',
+          },
+          condition: {
+            type: 'string',
+            description: 'Loop condition (for loop types "while" and "doWhile")',
+          },
+        },
+        outputs: {},
+      }
+      return GetBlockConfigResult.parse(result)
+    }
+
+    if (blockType === 'parallel') {
+      const result = {
+        blockType,
+        blockName: 'Parallel',
+        operation,
+        trigger,
+        inputs: {
+          parallelType: {
+            type: 'string',
+            description: 'Parallel type',
+            options: ['count', 'collection'],
+            default: 'count',
+          },
+          count: {
+            type: 'number',
+            description: 'Number of parallel branches (for parallel type "count")',
+          },
+          collection: {
+            type: 'string',
+            description: 'Collection to branch over (for parallel type "collection")',
+          },
+        },
+        outputs: {},
+      }
+      return GetBlockConfigResult.parse(result)
+    }
+
     const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
     const allowedIntegrations = permissionConfig?.allowedIntegrations
 
