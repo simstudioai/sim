@@ -267,7 +267,6 @@ export function A2aDeploy({
 
   const needsRepublish = existingAgent && (hasFormChanges || hasWorkflowChanges)
 
-  // Notify parent of republish status changes (depends on local form state)
   useEffect(() => {
     onNeedsRepublishChange?.(!!needsRepublish)
   }, [needsRepublish, onNeedsRepublishChange])

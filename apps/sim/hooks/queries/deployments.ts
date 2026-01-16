@@ -17,6 +17,10 @@ export const deploymentKeys = {
     [...deploymentKeys.all, 'chatStatus', workflowId ?? ''] as const,
   chatDetail: (chatId: string | null) =>
     [...deploymentKeys.all, 'chatDetail', chatId ?? ''] as const,
+  formStatus: (workflowId: string | null) =>
+    [...deploymentKeys.all, 'formStatus', workflowId ?? ''] as const,
+  formDetail: (formId: string | null) =>
+    [...deploymentKeys.all, 'formDetail', formId ?? ''] as const,
 }
 
 /**
@@ -273,7 +277,6 @@ export function useDeployWorkflow() {
     onSuccess: (data, variables) => {
       logger.info('Workflow deployed successfully', { workflowId: variables.workflowId })
 
-      // Update the registry
       setDeploymentStatus(
         variables.workflowId,
         data.isDeployed,
@@ -281,10 +284,8 @@ export function useDeployWorkflow() {
         data.apiKey
       )
 
-      // Clear the needs redeployment flag
       useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(variables.workflowId, false)
 
-      // Invalidate related queries
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.info(variables.workflowId),
       })
@@ -327,10 +328,8 @@ export function useUndeployWorkflow() {
     onSuccess: (_, variables) => {
       logger.info('Workflow undeployed successfully', { workflowId: variables.workflowId })
 
-      // Update the registry
       setDeploymentStatus(variables.workflowId, false)
 
-      // Invalidate related queries
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.info(variables.workflowId),
       })
@@ -391,15 +390,12 @@ export function useActivateDeploymentVersion() {
       return response.json()
     },
     onMutate: async ({ workflowId, version }) => {
-      // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: deploymentKeys.versions(workflowId) })
 
-      // Snapshot the previous value
       const previousVersions = queryClient.getQueryData<DeploymentVersionsResponse>(
         deploymentKeys.versions(workflowId)
       )
 
-      // Optimistically update the versions
       if (previousVersions) {
         queryClient.setQueryData<DeploymentVersionsResponse>(deploymentKeys.versions(workflowId), {
           versions: previousVersions.versions.map((v) => ({
@@ -414,7 +410,6 @@ export function useActivateDeploymentVersion() {
     onError: (_, variables, context) => {
       logger.error('Failed to activate deployment version')
 
-      // Rollback on error
       if (context?.previousVersions) {
         queryClient.setQueryData(
           deploymentKeys.versions(variables.workflowId),
@@ -428,7 +423,6 @@ export function useActivateDeploymentVersion() {
         version: variables.version,
       })
 
-      // Update the registry
       setDeploymentStatus(
         variables.workflowId,
         true,
@@ -436,7 +430,6 @@ export function useActivateDeploymentVersion() {
         data.apiKey
       )
 
-      // Invalidate to get fresh data
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.info(variables.workflowId),
       })

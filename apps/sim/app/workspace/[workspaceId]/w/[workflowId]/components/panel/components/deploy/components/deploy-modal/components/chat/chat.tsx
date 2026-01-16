@@ -123,7 +123,6 @@ export function ChatDeploy({
   const [errors, setErrors] = useState<FormErrors>({})
   const formRef = useRef<HTMLFormElement>(null)
 
-  // React Query mutations for chat operations
   const createChatMutation = useCreateChat()
   const updateChatMutation = useUpdateChat()
   const deleteChatMutation = useDeleteChat()
@@ -238,7 +237,6 @@ export function ChatDeploy({
       let chatUrl: string
 
       if (existingChat?.id) {
-        // Update existing chat
         const result = await updateChatMutation.mutateAsync({
           chatId: existingChat.id,
           workflowId,
@@ -247,7 +245,6 @@ export function ChatDeploy({
         })
         chatUrl = result.chatUrl
       } else {
-        // Create new chat
         const result = await createChatMutation.mutateAsync({
           workflowId,
           formData,
@@ -257,7 +254,6 @@ export function ChatDeploy({
         chatUrl = result.chatUrl
       }
 
-      // Mutations handle cache invalidation, no need for onChatExistsChange
       onDeployed?.()
       onVersionActivated?.()
 
@@ -291,7 +287,6 @@ export function ChatDeploy({
 
       setImageUrl(null)
       setHasInitializedForm(false)
-      // Mutation handles cache invalidation, no need for onChatExistsChange
       await onRefetchChat()
 
       onDeploymentComplete?.()

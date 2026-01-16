@@ -10,7 +10,6 @@ const logger = createLogger('ChatMutations')
  */
 export const chatKeys = {
   all: ['chats'] as const,
-  // Reuse deployment keys for chat status/detail since they're already established
   status: deploymentKeys.chatStatus,
   detail: deploymentKeys.chatDetail,
 }
@@ -160,11 +159,9 @@ export function useCreateChat() {
       return { chatUrl: result.chatUrl, chatId: result.chatId }
     },
     onSuccess: (_, variables) => {
-      // Invalidate chat status for the workflow
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.chatStatus(variables.workflowId),
       })
-      // Invalidate deployment info since chat deployment may affect it
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.info(variables.workflowId),
       })
@@ -217,11 +214,9 @@ export function useUpdateChat() {
       return { chatUrl: result.chatUrl, chatId }
     },
     onSuccess: (_, variables) => {
-      // Invalidate chat status for the workflow
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.chatStatus(variables.workflowId),
       })
-      // Invalidate chat detail for the specific chat
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.chatDetail(variables.chatId),
       })
@@ -253,11 +248,9 @@ export function useDeleteChat() {
       logger.info('Chat deleted successfully')
     },
     onSuccess: (_, variables) => {
-      // Invalidate chat status for the workflow
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.chatStatus(variables.workflowId),
       })
-      // Remove chat detail from cache
       queryClient.removeQueries({
         queryKey: deploymentKeys.chatDetail(variables.chatId),
       })

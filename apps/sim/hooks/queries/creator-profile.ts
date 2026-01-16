@@ -64,6 +64,32 @@ export function useOrganizations() {
 }
 
 /**
+ * Fetch all creator profiles for the current user
+ */
+async function fetchCreatorProfiles(): Promise<CreatorProfile[]> {
+  const response = await fetch('/api/creators')
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch creator profiles')
+  }
+
+  const data = await response.json()
+  return data.profiles || []
+}
+
+/**
+ * Hook to fetch all creator profiles for the current user
+ */
+export function useCreatorProfiles() {
+  return useQuery({
+    queryKey: [...creatorProfileKeys.all, 'list'] as const,
+    queryFn: fetchCreatorProfiles,
+    staleTime: 60 * 1000, // 1 minute
+    placeholderData: keepPreviousData,
+  })
+}
+
+/**
  * Fetch creator profile for a user
  */
 async function fetchCreatorProfile(userId: string): Promise<CreatorProfile | null> {
@@ -154,6 +180,9 @@ export function useSaveCreatorProfile() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
         queryKey: creatorProfileKeys.profile(variables.referenceId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: [...creatorProfileKeys.all, 'list'],
       })
 
       if (typeof window !== 'undefined') {
