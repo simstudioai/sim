@@ -39,15 +39,6 @@ import {
 
 const logger = createLogger('TableService')
 
-async function getTableRowCount(tableId: string): Promise<number> {
-  const [result] = await db
-    .select({ count: count() })
-    .from(userTableRows)
-    .where(eq(userTableRows.tableId, tableId))
-
-  return Number(result?.count ?? 0)
-}
-
 /**
  * Gets a table by ID with full details.
  *
@@ -64,15 +55,15 @@ export async function getTableById(tableId: string): Promise<TableDefinition | n
   if (results.length === 0) return null
 
   const table = results[0]
-  const rowCount = await getTableRowCount(tableId)
   return {
     id: table.id,
     name: table.name,
     description: table.description,
     schema: table.schema as TableSchema,
-    rowCount,
+    rowCount: table.rowCount,
     maxRows: table.maxRows,
     workspaceId: table.workspaceId,
+    createdBy: table.createdBy,
     createdAt: table.createdAt,
     updatedAt: table.updatedAt,
   }
@@ -91,25 +82,15 @@ export async function listTables(workspaceId: string): Promise<TableDefinition[]
     .where(eq(userTableDefinitions.workspaceId, workspaceId))
     .orderBy(userTableDefinitions.createdAt)
 
-  const rowCounts = await db
-    .select({
-      tableId: userTableRows.tableId,
-      rowCount: count(),
-    })
-    .from(userTableRows)
-    .where(eq(userTableRows.workspaceId, workspaceId))
-    .groupBy(userTableRows.tableId)
-
-  const rowCountByTable = new Map(rowCounts.map((row) => [row.tableId, Number(row.rowCount ?? 0)]))
-
   return tables.map((t) => ({
     id: t.id,
     name: t.name,
     description: t.description,
     schema: t.schema as TableSchema,
-    rowCount: rowCountByTable.get(t.id) ?? 0,
+    rowCount: t.rowCount,
     maxRows: t.maxRows,
     workspaceId: t.workspaceId,
+    createdBy: t.createdBy,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }))
@@ -194,6 +175,7 @@ export async function createTable(
     rowCount: 0,
     maxRows: newTable.maxRows,
     workspaceId: newTable.workspaceId,
+    createdBy: newTable.createdBy,
     createdAt: newTable.createdAt,
     updatedAt: newTable.updatedAt,
   }
@@ -228,10 +210,8 @@ export async function insertRow(
   table: TableDefinition,
   requestId: string
 ): Promise<TableRow> {
-  const rowCount = await getTableRowCount(data.tableId)
-
-  // Check capacity
-  if (rowCount >= table.maxRows) {
+  // Check capacity using stored rowCount (maintained by database triggers)
+  if (table.rowCount >= table.maxRows) {
     throw new Error(`Table has reached maximum row limit (${table.maxRows})`)
   }
 
@@ -303,13 +283,11 @@ export async function batchInsertRows(
   table: TableDefinition,
   requestId: string
 ): Promise<TableRow[]> {
-  const currentRowCount = await getTableRowCount(data.tableId)
-
-  // Check capacity
-  const remainingCapacity = table.maxRows - currentRowCount
+  // Check capacity using stored rowCount (maintained by database triggers)
+  const remainingCapacity = table.maxRows - table.rowCount
   if (remainingCapacity < data.rows.length) {
     throw new Error(
-      `Insufficient capacity. Can only insert ${remainingCapacity} more rows (table has ${currentRowCount}/${table.maxRows} rows)`
+      `Insufficient capacity. Can only insert ${remainingCapacity} more rows (table has ${table.rowCount}/${table.maxRows} rows)`
     )
   }
 

@@ -2126,6 +2126,7 @@ export const userTableDefinitions = pgTable(
      */
     schema: jsonb('schema').notNull(),
     maxRows: integer('max_rows').notNull().default(10000),
+    rowCount: integer('row_count').notNull().default(0),
     createdBy: text('created_by')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
