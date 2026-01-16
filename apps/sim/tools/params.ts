@@ -248,17 +248,26 @@ export function getToolParametersConfig(
         if (blockConfig) {
           // For multi-operation tools, find the subblock that matches both the parameter ID
           // and the current tool operation
-          const operationCandidates = getOperationCandidates(toolId, blockType)
-          const paramIdToMatch = paramId
           let subBlock = blockConfig.subBlocks?.find((sb: SubBlockConfig) => {
-            if (sb.id !== paramIdToMatch) return false
+            if (sb.id !== paramId) return false
 
             // If there's a condition, check if it matches the current tool
             if (sb.condition && sb.condition.field === 'operation') {
-              const conditionValues = Array.isArray(sb.condition.value)
-                ? sb.condition.value
-                : [sb.condition.value]
-              return conditionValues.some((value) => operationCandidates.includes(String(value)))
+              // First try exact match with full tool ID
+              if (sb.condition.value === toolId) return true
+
+              // Then try extracting operation from tool ID
+              // For tools like 'google_calendar_quick_add', extract 'quick_add'
+              const parts = toolId.split('_')
+              if (parts.length >= 3) {
+                // Join everything after the provider prefix (e.g., 'google_calendar_')
+                const operation = parts.slice(2).join('_')
+                if (sb.condition.value === operation) return true
+              }
+
+              // Fallback to last part only
+              const operation = parts[parts.length - 1]
+              return sb.condition.value === operation
             }
 
             // If no condition, it's a global parameter (like apiKey)
@@ -267,7 +276,7 @@ export function getToolParametersConfig(
 
           // Fallback: if no operation-specific match, find any matching parameter
           if (!subBlock) {
-            subBlock = blockConfig.subBlocks?.find((sb: SubBlockConfig) => sb.id === paramIdToMatch)
+            subBlock = blockConfig.subBlocks?.find((sb: SubBlockConfig) => sb.id === paramId)
           }
 
           // Special case: Check if this boolean parameter is part of a checkbox-list
