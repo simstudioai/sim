@@ -80,10 +80,9 @@ export async function GET(request: NextRequest) {
 
           if (!workflowRecord?.userId || !workflowRecord.workspaceId) {
             logger.warn(
-              `[${requestId}] Missing workflow metadata for preflight. Skipping Trigger.dev enqueue.`,
+              `[${requestId}] Missing workflow metadata for preflight. Skipping execution.`,
               { workflowId: schedule.workflowId }
             )
-            await executeScheduleJob({ ...payload, preflighted: false })
             return null
           }
 
@@ -96,11 +95,10 @@ export async function GET(request: NextRequest) {
               useDraftState: false,
             })
           } catch (error) {
-            logger.warn(
-              `[${requestId}] Env preflight failed. Skipping Trigger.dev enqueue for workflow ${schedule.workflowId}`,
+            logger.error(
+              `[${requestId}] Env preflight failed for workflow ${schedule.workflowId}. Skipping execution.`,
               { error: error instanceof Error ? error.message : String(error) }
             )
-            await executeScheduleJob({ ...payload, preflighted: false })
             return null
           }
 
