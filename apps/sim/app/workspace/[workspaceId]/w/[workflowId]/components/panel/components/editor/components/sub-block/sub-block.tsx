@@ -203,11 +203,8 @@ const renderLabel = (
   const canonicalToggleDisabled = wandState?.disabled || canonicalToggle?.disabled
 
   return (
-    <Label
-      className='flex items-center justify-between gap-[6px] pl-[2px]'
-      onClick={(e) => e.preventDefault()}
-    >
-      <div className='flex items-center gap-[6px] whitespace-nowrap'>
+    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
+      <Label className='flex items-center gap-[6px] whitespace-nowrap'>
         {config.title}
         {required && <span className='ml-0.5'>*</span>}
         {config.type === 'code' && config.language === 'json' && (
@@ -225,7 +222,7 @@ const renderLabel = (
             </Tooltip.Content>
           </Tooltip.Root>
         )}
-      </div>
+      </Label>
       <div className='flex items-center gap-[6px]'>
         {showWand && (
           <>
@@ -260,7 +257,7 @@ const renderLabel = (
                     'h-5 max-w-[200px] flex-1 text-[11px]',
                     wandState.isStreaming && 'text-muted-foreground'
                   )}
-                  placeholder='Generate...'
+                  placeholder='Generate with AI...'
                 />
                 <Button
                   variant='tertiary'
@@ -284,7 +281,7 @@ const renderLabel = (
         {showCanonicalToggle && (
           <button
             type='button'
-            className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:opacity-50'
+            className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
             onClick={canonicalToggle?.onToggle}
             disabled={canonicalToggleDisabled}
             aria-label={canonicalToggle?.mode === 'advanced' ? 'Use selector' : 'Enter manual ID'}
@@ -300,7 +297,7 @@ const renderLabel = (
           </button>
         )}
       </div>
-    </Label>
+    </div>
   )
 }
 
