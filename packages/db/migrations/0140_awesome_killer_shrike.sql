@@ -8,8 +8,7 @@ CREATE TABLE IF NOT EXISTS "user_table_definitions" (
 	"row_count" integer DEFAULT 0 NOT NULL,
 	"created_by" text NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	"deleted_at" timestamp
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "user_table_rows" (
@@ -62,8 +61,6 @@ CREATE INDEX IF NOT EXISTS "user_table_def_workspace_id_idx" ON "user_table_defi
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "user_table_def_workspace_name_unique" ON "user_table_definitions" USING btree ("workspace_id","name");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "user_table_def_deleted_at_idx" ON "user_table_definitions" USING btree ("deleted_at");
---> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "user_table_rows_table_id_idx" ON "user_table_rows" USING btree ("table_id");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "user_table_rows_workspace_id_idx" ON "user_table_rows" USING btree ("workspace_id");
@@ -71,3 +68,39 @@ CREATE INDEX IF NOT EXISTS "user_table_rows_workspace_id_idx" ON "user_table_row
 CREATE INDEX IF NOT EXISTS "user_table_rows_data_gin_idx" ON "user_table_rows" USING gin ("data");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "user_table_rows_workspace_table_idx" ON "user_table_rows" USING btree ("workspace_id","table_id");
+--> statement-breakpoint
+-- Create function to increment row count on insert
+CREATE OR REPLACE FUNCTION increment_table_row_count()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE user_table_definitions
+  SET row_count = row_count + 1
+  WHERE id = NEW.table_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+--> statement-breakpoint
+-- Create trigger for insert (drop first if exists to ensure clean state)
+DROP TRIGGER IF EXISTS trg_increment_row_count ON user_table_rows;
+CREATE TRIGGER trg_increment_row_count
+AFTER INSERT ON user_table_rows
+FOR EACH ROW
+EXECUTE FUNCTION increment_table_row_count();
+--> statement-breakpoint
+-- Create function to decrement row count on delete
+CREATE OR REPLACE FUNCTION decrement_table_row_count()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE user_table_definitions
+  SET row_count = GREATEST(0, row_count - 1)
+  WHERE id = OLD.table_id;
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+--> statement-breakpoint
+-- Create trigger for delete (drop first if exists to ensure clean state)
+DROP TRIGGER IF EXISTS trg_decrement_row_count ON user_table_rows;
+CREATE TRIGGER trg_decrement_row_count
+AFTER DELETE ON user_table_rows
+FOR EACH ROW
+EXECUTE FUNCTION decrement_table_row_count();
