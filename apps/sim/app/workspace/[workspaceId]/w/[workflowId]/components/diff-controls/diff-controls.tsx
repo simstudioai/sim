@@ -8,6 +8,7 @@ import { useNotificationStore } from '@/stores/notifications'
 import { useCopilotStore, usePanelStore } from '@/stores/panel'
 import { useTerminalStore } from '@/stores/terminal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('DiffControls')
 const NOTIFICATION_WIDTH = 240
@@ -37,8 +38,15 @@ export const DiffControls = memo(function DiffControls() {
     )
   )
 
+  const { activeWorkflowId } = useWorkflowRegistry(
+    useCallback((state) => ({ activeWorkflowId: state.activeWorkflowId }), [])
+  )
+
   const allNotifications = useNotificationStore((state) => state.notifications)
-  const hasVisibleNotifications = allNotifications.length > 0
+  const hasVisibleNotifications = useMemo(() => {
+    if (!activeWorkflowId) return false
+    return allNotifications.some((n) => !n.workflowId || n.workflowId === activeWorkflowId)
+  }, [allNotifications, activeWorkflowId])
 
   const handleAccept = useCallback(() => {
     logger.info('Accepting proposed changes with backup protection')
