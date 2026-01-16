@@ -3,6 +3,7 @@ import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
+import { enrichTableToolDescription, enrichTableToolParameters } from '@/lib/table/llm-enrichment'
 import { isCustomTool } from '@/executor/constants'
 import {
   getComputerUseModels,
@@ -420,9 +421,20 @@ export async function transformBlockTool(
     getAllBlocks: () => any[]
     getTool: (toolId: string) => any
     getToolAsync?: (toolId: string) => Promise<any>
+    workspaceId?: string
+    workflowId?: string
+    executeTool?: (toolId: string, params: Record<string, any>) => Promise<any>
   }
 ): Promise<ProviderToolConfig | null> {
-  const { selectedOperation, getAllBlocks, getTool, getToolAsync } = options
+  const {
+    selectedOperation,
+    getAllBlocks,
+    getTool,
+    getToolAsync,
+    workspaceId,
+    workflowId,
+    executeTool,
+  } = options
 
   const blockDef = getAllBlocks().find((b: any) => b.type === block.type)
   if (!blockDef) {
@@ -485,12 +497,60 @@ export async function transformBlockTool(
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.knowledgeBaseId}`
   }
 
+  // Enrich table tool descriptions with schema information
+  let enrichedDescription = toolConfig.description
+  let enrichedLlmSchema = llmSchema
+  if (
+    toolId.startsWith('table_') &&
+    userProvidedParams.tableId &&
+    workspaceId &&
+    workflowId &&
+    executeTool
+  ) {
+    try {
+      logger.info(`[transformBlockTool] Fetching schema for table ${userProvidedParams.tableId}`)
+      const schemaResult = await executeTool('table_get_schema', {
+        tableId: userProvidedParams.tableId,
+        _context: { workspaceId, workflowId },
+      })
+
+      if (schemaResult.success && schemaResult.output) {
+        const tableSchema = {
+          name: schemaResult.output.name,
+          columns: schemaResult.output.columns || [],
+        }
+
+        // Enrich description and parameters using lib/table utilities
+        enrichedDescription = enrichTableToolDescription(
+          toolConfig.description,
+          tableSchema,
+          toolId
+        )
+        const enrichedParams = enrichTableToolParameters(llmSchema, tableSchema, toolId)
+        enrichedLlmSchema = {
+          ...llmSchema,
+          properties: enrichedParams.properties,
+          required:
+            enrichedParams.required.length > 0 ? enrichedParams.required : llmSchema.required,
+        }
+
+        logger.info(
+          `[transformBlockTool] Enriched ${toolId} with ${tableSchema.columns.length} columns`
+        )
+      } else {
+        logger.warn(`[transformBlockTool] Failed to fetch table schema: ${schemaResult.error}`)
+      }
+    } catch (error) {
+      logger.warn(`[transformBlockTool] Error fetching table schema:`, error)
+    }
+  }
+
   return {
     id: uniqueToolId,
     name: toolConfig.name,
-    description: toolConfig.description,
+    description: enrichedDescription,
     params: userProvidedParams,
-    parameters: llmSchema,
+    parameters: enrichedLlmSchema,
   }
 }
 

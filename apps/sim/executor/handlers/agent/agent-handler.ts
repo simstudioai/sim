@@ -711,6 +711,9 @@ export class AgentBlockHandler implements BlockHandler {
       getAllBlocks,
       getToolAsync: (toolId: string) => getToolAsync(toolId, ctx.workflowId),
       getTool,
+      workspaceId: ctx.workspaceId,
+      workflowId: ctx.workflowId,
+      executeTool,
     })
 
     if (transformedTool) {

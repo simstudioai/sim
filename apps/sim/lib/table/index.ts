@@ -12,6 +12,7 @@
 
 export * from './constants'
 export * from './filters'
+export * from './llm-enrichment'
 export * from './query-builder'
 export * from './service'
 export * from './types'
