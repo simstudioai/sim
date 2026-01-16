@@ -266,7 +266,21 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
 
         socketInstance.on('presence-update', (users: PresenceUser[]) => {
-          setPresenceUsers(users)
+          setPresenceUsers((prev) => {
+            const prevMap = new Map(prev.map((u) => [u.socketId, u]))
+
+            return users.map((user) => {
+              const existing = prevMap.get(user.socketId)
+              if (existing) {
+                return {
+                  ...user,
+                  cursor: user.cursor ?? existing.cursor,
+                  selection: user.selection ?? existing.selection,
+                }
+              }
+              return user
+            })
+          })
         })
 
         socketInstance.on('workflow-operation', (data) => {
