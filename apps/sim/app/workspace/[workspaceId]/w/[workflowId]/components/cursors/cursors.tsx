@@ -2,7 +2,6 @@
 
 import { memo, useMemo } from 'react'
 import { useViewport } from 'reactflow'
-import { useSession } from '@/lib/auth/auth-client'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
@@ -20,30 +19,31 @@ interface CursorRenderData {
 }
 
 const CursorsComponent = () => {
-  const { presenceUsers } = useSocket()
+  const { presenceUsers, currentSocketId } = useSocket()
   const viewport = useViewport()
-  const session = useSession()
-  const currentUserId = session.data?.user?.id
   const preventZoomRef = usePreventZoom()
 
   const cursors = useMemo<CursorRenderData[]>(() => {
     return presenceUsers
       .filter((user): user is typeof user & { cursor: CursorPoint } => Boolean(user.cursor))
-      .filter((user) => user.userId !== currentUserId)
+      .filter((user) => user.socketId !== currentSocketId)
       .map((user) => ({
         id: user.socketId,
         name: user.userName?.trim() || 'Collaborator',
         cursor: user.cursor,
         color: getUserColor(user.userId),
       }))
-  }, [currentUserId, presenceUsers])
+  }, [currentSocketId, presenceUsers])
 
   if (!cursors.length) {
     return null
   }
 
   return (
-    <div ref={preventZoomRef} className='pointer-events-none absolute inset-0 z-30 select-none'>
+    <div
+      ref={preventZoomRef}
+      className='pointer-events-none absolute inset-0 z-[5] select-none overflow-hidden'
+    >
       {cursors.map(({ id, name, cursor, color }) => {
         const x = cursor.x * viewport.zoom + viewport.x
         const y = cursor.y * viewport.zoom + viewport.y

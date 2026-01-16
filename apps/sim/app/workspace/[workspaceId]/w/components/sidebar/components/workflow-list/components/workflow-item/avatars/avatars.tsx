@@ -2,7 +2,6 @@
 
 import { type CSSProperties, useMemo } from 'react'
 import { Avatar, AvatarFallback, AvatarImage, Tooltip } from '@/components/emcn'
-import { useSession } from '@/lib/auth/auth-client'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
@@ -81,9 +80,7 @@ function UserAvatar({ user, index }: UserAvatarProps) {
  * @returns Avatar stack for workflow presence
  */
 export function Avatars({ workflowId }: AvatarsProps) {
-  const { presenceUsers, currentWorkflowId } = useSocket()
-  const { data: session } = useSession()
-  const currentUserId = session?.user?.id
+  const { presenceUsers, currentWorkflowId, currentSocketId } = useSocket()
   const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
 
   /**
@@ -99,14 +96,14 @@ export function Avatars({ workflowId }: AvatarsProps) {
 
   /**
    * Only show presence for the currently active workflow.
-   * Filter out the current user from the list.
+   * Filter out the current socket connection (allows same user's other tabs to appear).
    */
   const workflowUsers = useMemo(() => {
     if (currentWorkflowId !== workflowId) {
       return []
     }
-    return presenceUsers.filter((user) => user.userId !== currentUserId)
-  }, [presenceUsers, currentWorkflowId, workflowId, currentUserId])
+    return presenceUsers.filter((user) => user.socketId !== currentSocketId)
+  }, [presenceUsers, currentWorkflowId, workflowId, currentSocketId])
 
   /**
    * Calculate visible users and overflow count
