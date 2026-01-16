@@ -1,3 +1,6 @@
+/**
+ * Formats a date as relative time (e.g., "5m ago", "2d ago")
+ */
 export function formatRelativeTime(dateValue: string | Date): string {
   const dateString = typeof dateValue === 'string' ? dateValue : dateValue.toISOString()
   const date = new Date(dateString)
@@ -13,6 +16,9 @@ export function formatRelativeTime(dateValue: string | Date): string {
   return `${Math.floor(diffInSeconds / 31536000)}y ago`
 }
 
+/**
+ * Formats a date as absolute date string (e.g., "Jan 15, 2024, 10:30 AM")
+ */
 export function formatAbsoluteDate(dateValue: string | Date): string {
   const dateString = typeof dateValue === 'string' ? dateValue : dateValue.toISOString()
   const date = new Date(dateString)

@@ -8,10 +8,13 @@ import { Input } from '@/components/ui/input'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useTablesList } from '@/hooks/queries/use-tables'
 import { useDebounce } from '@/hooks/use-debounce'
-import { CreateTableModal } from './components/create-table-modal'
-import { TableCard } from './components/table-card'
+import { CreateModal } from './create-modal'
+import { EmptyState } from './empty-state'
+import { ErrorState } from './error-state'
+import { LoadingState } from './loading-state'
+import { TableCard } from './table-card'
 
-export function Tables() {
+export function TablesView() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const userPermissions = useUserPermissionsContext()
@@ -84,7 +87,7 @@ export function Tables() {
             {/* Content */}
             <div className='mt-[24px] grid grid-cols-1 gap-[20px] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
               {isLoading ? (
-                <LoadingSkeletons />
+                <LoadingState />
               ) : error ? (
                 <ErrorState error={error} />
               ) : filteredTables.length === 0 ? (
@@ -99,69 +102,7 @@ export function Tables() {
         </div>
       </div>
 
-      <CreateTableModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
+      <CreateModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
     </>
-  )
-}
-
-function LoadingSkeletons() {
-  return (
-    <>
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div
-          key={i}
-          className='flex h-full flex-col gap-[12px] rounded-[4px] bg-[var(--surface-3)] px-[8px] py-[6px] dark:bg-[var(--surface-4)]'
-        >
-          <div className='flex items-center justify-between gap-[8px]'>
-            <div className='h-[17px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-            <div className='h-[22px] w-[90px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-          </div>
-          <div className='flex flex-1 flex-col gap-[8px]'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-[12px]'>
-                <div className='h-[15px] w-[50px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-                <div className='h-[15px] w-[50px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-              </div>
-              <div className='h-[15px] w-[60px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-            </div>
-            <div className='h-0 w-full border-[var(--divider)] border-t' />
-            <div className='flex h-[36px] flex-col gap-[6px]'>
-              <div className='h-[15px] w-full animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-              <div className='h-[15px] w-[75%] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-            </div>
-          </div>
-        </div>
-      ))}
-    </>
-  )
-}
-
-function ErrorState({ error }: { error: unknown }) {
-  return (
-    <div className='col-span-full flex h-64 items-center justify-center rounded-[4px] bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>
-      <div className='text-center'>
-        <p className='font-medium text-[var(--text-secondary)] text-sm'>Error loading tables</p>
-        <p className='mt-1 text-[var(--text-muted)] text-xs'>
-          {error instanceof Error ? error.message : 'An error occurred'}
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function EmptyState({ hasSearchQuery }: { hasSearchQuery: boolean }) {
-  return (
-    <div className='col-span-full flex h-64 items-center justify-center rounded-[4px] bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>
-      <div className='text-center'>
-        <p className='font-medium text-[var(--text-secondary)] text-sm'>
-          {hasSearchQuery ? 'No tables found' : 'No tables yet'}
-        </p>
-        <p className='mt-1 text-[var(--text-muted)] text-xs'>
-          {hasSearchQuery
-            ? 'Try adjusting your search query'
-            : 'Create your first table to store structured data for your workflows'}
-        </p>
-      </div>
-    </div>
   )
 }

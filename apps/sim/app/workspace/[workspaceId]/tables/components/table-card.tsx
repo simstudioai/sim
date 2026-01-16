@@ -26,8 +26,8 @@ import {
 } from '@/components/emcn'
 import type { TableDefinition } from '@/lib/table'
 import { useDeleteTable } from '@/hooks/queries/use-tables'
-import { getTypeBadgeVariant } from '../[tableId]/table-data-viewer/utils'
-import { formatAbsoluteDate, formatRelativeTime } from './utils'
+import { getTypeBadgeVariant } from '../[tableId]/lib/utils'
+import { formatAbsoluteDate, formatRelativeTime } from '../lib/utils'
 
 const logger = createLogger('TableCard')
 

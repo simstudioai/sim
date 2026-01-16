@@ -21,9 +21,9 @@ import {
 import type { ColumnDefinition } from '@/lib/table'
 import { useCreateTable } from '@/hooks/queries/use-tables'
 
-const logger = createLogger('CreateTableModal')
+const logger = createLogger('CreateModal')
 
-interface CreateTableModalProps {
+interface CreateModalProps {
   isOpen: boolean
   onClose: () => void
 }
@@ -44,7 +44,7 @@ function createEmptyColumn(): ColumnWithId {
   return { id: nanoid(), name: '', type: 'string', required: true, unique: false }
 }
 
-export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
+export function CreateModal({ isOpen, onClose }: CreateModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 

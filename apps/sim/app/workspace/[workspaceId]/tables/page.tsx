@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
-import { Tables } from './tables'
+import { TablesView } from './components'
 
 interface TablesPageProps {
   params: Promise<{
@@ -22,5 +22,5 @@ export default async function TablesPage({ params }: TablesPageProps) {
     redirect('/')
   }
 
-  return <Tables />
+  return <TablesView />
 }
