@@ -7,6 +7,11 @@ import {
   Badge,
   Button,
   ChevronDown,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
   PanelLeft,
   Popover,
   PopoverContent,
@@ -143,6 +148,9 @@ export function WorkspaceHeader({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
+  const [isLeaving, setIsLeaving] = useState(false)
+  const [leaveTarget, setLeaveTarget] = useState<Workspace | null>(null)
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
   const [isListRenaming, setIsListRenaming] = useState(false)
@@ -278,13 +286,35 @@ export function WorkspaceHeader({
   }
 
   /**
-   * Handles leave action from context menu
+   * Handles leave action from context menu - shows confirmation modal
    */
-  const handleLeaveAction = async () => {
-    if (!capturedWorkspaceRef.current || !onLeaveWorkspace) return
+  const handleLeaveAction = () => {
+    if (!capturedWorkspaceRef.current) return
 
-    await onLeaveWorkspace(capturedWorkspaceRef.current.id)
-    setIsWorkspaceMenuOpen(false)
+    const workspace = workspaces.find((w) => w.id === capturedWorkspaceRef.current?.id)
+    if (workspace) {
+      setLeaveTarget(workspace)
+      setIsLeaveModalOpen(true)
+      setIsWorkspaceMenuOpen(false)
+    }
+  }
+
+  /**
+   * Handle leave workspace after confirmation
+   */
+  const handleLeaveWorkspace = async () => {
+    if (!leaveTarget || !onLeaveWorkspace) return
+
+    setIsLeaving(true)
+    try {
+      await onLeaveWorkspace(leaveTarget.id)
+      setIsLeaveModalOpen(false)
+      setLeaveTarget(null)
+    } catch (error) {
+      logger.error('Error leaving workspace:', error)
+    } finally {
+      setIsLeaving(false)
+    }
   }
 
   /**
@@ -573,6 +603,32 @@ export function WorkspaceHeader({
         itemType='workspace'
         itemName={deleteTarget?.name || activeWorkspaceFull?.name || activeWorkspace?.name}
       />
+      {/* Leave Confirmation Modal */}
+      <Modal open={isLeaveModalOpen} onOpenChange={() => setIsLeaveModalOpen(false)}>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Leave Workspace</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
+              Are you sure you want to leave{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{leaveTarget?.name}</span>?
+              You will lose access to all workflows and data in this workspace.{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant='default'
+              onClick={() => setIsLeaveModalOpen(false)}
+              disabled={isLeaving}
+            >
+              Cancel
+            </Button>
+            <Button variant='destructive' onClick={handleLeaveWorkspace} disabled={isLeaving}>
+              {isLeaving ? 'Leaving...' : 'Leave Workspace'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   )
 }

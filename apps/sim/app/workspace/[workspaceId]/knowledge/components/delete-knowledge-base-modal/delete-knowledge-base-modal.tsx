@@ -55,7 +55,7 @@ export function DeleteKnowledgeBaseModal({
           </p>
         </ModalBody>
         <ModalFooter>
-          <Button variant='active' onClick={onClose} disabled={isDeleting}>
+          <Button variant='default' onClick={onClose} disabled={isDeleting}>
             Cancel
           </Button>
           <Button variant='destructive' onClick={onConfirm} disabled={isDeleting}>

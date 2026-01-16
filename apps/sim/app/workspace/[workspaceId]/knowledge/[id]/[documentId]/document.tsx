@@ -1161,15 +1161,19 @@ export function Document({
           <ModalHeader>Delete Document</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete "{effectiveDocumentName}"? This will permanently
-              delete the document and all {documentData?.chunkCount ?? 0} chunk
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {effectiveDocumentName}
+              </span>
+              ? This will permanently delete the document and all {documentData?.chunkCount ?? 0}{' '}
+              chunk
               {documentData?.chunkCount === 1 ? '' : 's'} within it.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>
             <Button
-              variant='active'
+              variant='default'
               onClick={() => setShowDeleteDocumentDialog(false)}
               disabled={isDeletingDocument}
             >

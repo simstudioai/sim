@@ -266,7 +266,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
           </ModalBody>
           <ModalFooter>
             <Button
-              variant='active'
+              variant='default'
               onClick={isCancelAtPeriodEnd ? () => setIsDialogOpen(false) : handleKeep}
               disabled={isLoading}
             >

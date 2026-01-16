@@ -740,7 +740,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
 
       {/* Remove Member Confirmation Dialog */}
       <Modal open={!!memberToRemove} onOpenChange={handleRemoveMemberCancel}>
-        <ModalContent>
+        <ModalContent className='w-[400px]'>
           <ModalHeader>Remove Member</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>

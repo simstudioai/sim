@@ -556,14 +556,17 @@ export function Panel() {
           <ModalHeader>Delete Workflow</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Deleting this workflow will permanently remove all associated blocks, executions, and
-              configuration.{' '}
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {currentWorkflow?.name ?? 'this workflow'}
+              </span>
+              ? This will permanently remove all associated blocks, executions, and configuration.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>
             <Button
-              variant='active'
+              variant='default'
               onClick={() => setIsDeleteModalOpen(false)}
               disabled={isDeleting}
             >
