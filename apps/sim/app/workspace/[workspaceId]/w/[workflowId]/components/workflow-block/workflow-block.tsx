@@ -9,7 +9,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components'
+import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
 import {
   useBlockProperties,
   useChildWorkflow,

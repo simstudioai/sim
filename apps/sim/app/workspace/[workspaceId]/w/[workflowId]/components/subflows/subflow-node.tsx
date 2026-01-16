@@ -1,12 +1,12 @@
 import { memo, useMemo, useRef } from 'react'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, type NodeProps, Position, useReactFlow } from 'reactflow'
-import { Button, Trash } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePanelEditorStore } from '@/stores/panel'
 
 /**
@@ -18,9 +18,14 @@ import { usePanelEditorStore } from '@/stores/panel'
 const SubflowNodeStyles: React.FC = () => {
   return (
     <style jsx global>{`
-      /* Z-index management for subflow nodes */
+      /* Z-index management for subflow nodes - default behind blocks */
       .workflow-container .react-flow__node-subflowNode {
         z-index: -1 !important;
+      }
+
+      /* Selected subflows appear above other subflows but below blocks (z-21) */
+      .workflow-container .react-flow__node-subflowNode:has([data-subflow-selected='true']) {
+        z-index: 10 !important;
       }
 
       /* Drag-over states */
@@ -63,8 +68,8 @@ export interface SubflowNodeData {
  */
 export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeData>) => {
   const { getNodes } = useReactFlow()
-  const { collaborativeBatchRemoveBlocks } = useCollaborativeWorkflow()
   const blockRef = useRef<HTMLDivElement>(null)
+  const userPermissions = useUserPermissionsContext()
 
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentWorkflow.getBlockById(id)
@@ -79,6 +84,8 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
   const isFocused = currentBlockId === id
+
+  const isPreviewSelected = data?.isPreviewSelected || false
 
   /**
    * Calculate the nesting level of this subflow node based on its parent hierarchy.
@@ -125,8 +132,6 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
     return { top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px`, transform: 'translateY(-50%)' }
   }
 
-  const isPreviewSelected = data?.isPreviewSelected || false
-
   /**
    * Determine the ring styling based on subflow state priority:
    * 1. Focused (selected in editor) or preview selected - blue ring
@@ -162,7 +167,12 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
           data-node-id={id}
           data-type='subflowNode'
           data-nesting-level={nestingLevel}
+          data-subflow-selected={isFocused || isPreviewSelected}
         >
+          {!isPreview && (
+            <ActionBar blockId={id} blockType={data.kind} disabled={!userPermissions.canEdit} />
+          )}
+
           {/* Header Section */}
           <div
             className={cn(
@@ -180,18 +190,6 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
                 {blockName}
               </span>
             </div>
-            {!isPreview && (
-              <Button
-                variant='ghost'
-                onClick={(e) => {
-                  e.stopPropagation()
-                  collaborativeBatchRemoveBlocks([id])
-                }}
-                className='h-[14px] w-[14px] p-0 opacity-0 transition-opacity duration-100 group-hover:opacity-100'
-              >
-                <Trash className='h-[14px] w-[14px]' />
-              </Button>
-            )}
           </div>
 
           {!isPreview && (

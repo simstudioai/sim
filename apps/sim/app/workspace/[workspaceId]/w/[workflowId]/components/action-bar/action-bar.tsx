@@ -100,6 +100,7 @@ export const ActionBar = memo(
     const isStartBlock = blockType === 'starter' || blockType === 'start_trigger'
     const isResponseBlock = blockType === 'response'
     const isNoteBlock = blockType === 'note'
+    const isSubflowBlock = blockType === 'loop' || blockType === 'parallel'
 
     /**
      * Get appropriate tooltip message based on disabled state
@@ -125,7 +126,7 @@ export const ActionBar = memo(
           'dark:border-transparent dark:bg-[var(--surface-4)]'
         )}
       >
-        {!isNoteBlock && (
+        {!isNoteBlock && !isSubflowBlock && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
@@ -148,7 +149,7 @@ export const ActionBar = memo(
           </Tooltip.Root>
         )}
 
-        {!isStartBlock && !isResponseBlock && (
+        {!isStartBlock && !isResponseBlock && !isSubflowBlock && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
@@ -169,7 +170,7 @@ export const ActionBar = memo(
           </Tooltip.Root>
         )}
 
-        {!isNoteBlock && (
+        {!isNoteBlock && !isSubflowBlock && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
