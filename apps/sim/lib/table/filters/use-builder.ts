@@ -7,6 +7,7 @@
 
 import { useCallback, useMemo } from 'react'
 import { nanoid } from 'nanoid'
+import type { ColumnOption } from '../types'
 import {
   COMPARISON_OPERATORS,
   type FilterCondition,
@@ -14,6 +15,9 @@ import {
   SORT_DIRECTIONS,
   type SortCondition,
 } from './constants'
+
+// Re-export ColumnOption for consumers of this module
+export type { ColumnOption }
 
 /**
  * Hook that provides filter builder logic for managing filter conditions.
@@ -171,11 +175,6 @@ export function useSortBuilder({
     updateSortColumn,
     updateSortDirection,
   }
-}
-
-export interface ColumnOption {
-  value: string
-  label: string
 }
 
 export interface UseFilterBuilderProps {

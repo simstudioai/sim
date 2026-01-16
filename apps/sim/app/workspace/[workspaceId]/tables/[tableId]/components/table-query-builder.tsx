@@ -6,23 +6,24 @@ import { nanoid } from 'nanoid'
 import { Button, Combobox, Input } from '@/components/emcn'
 import type { FilterCondition, SortCondition } from '@/lib/table/filters/constants'
 import { useFilterBuilder } from '@/lib/table/filters/use-builder'
-import { conditionsToFilter } from '@/lib/table/filters/utils'
-import type { JsonValue } from '@/lib/table/types'
+import { conditionsToFilter, sortConditionToSort } from '@/lib/table/filters/utils'
+import type { ColumnDefinition, Filter, Sort } from '@/lib/table/types'
 
-export interface QueryOptions {
-  filter: Record<string, JsonValue> | null
-  sort: SortCondition | null
+/**
+ * Result of applying query builder filters and sorts.
+ * Contains the converted API-ready filter and sort objects.
+ */
+export interface BuilderQueryResult {
+  /** MongoDB-style filter object for API queries */
+  filter: Filter | null
+  /** Sort specification for API queries */
+  sort: Sort | null
 }
 
 /**
- * Column definition for filter building.
+ * Column definition for filter building (subset of ColumnDefinition).
  */
-interface Column {
-  /** Column name */
-  name: string
-  /** Column data type */
-  type: 'string' | 'number' | 'boolean' | 'json' | 'date'
-}
+type Column = Pick<ColumnDefinition, 'name' | 'type'>
 
 /**
  * Props for the TableQueryBuilder component.
@@ -31,7 +32,7 @@ interface TableQueryBuilderProps {
   /** Available columns for filtering */
   columns: Column[]
   /** Callback when query options should be applied */
-  onApply: (options: QueryOptions) => void
+  onApply: (options: BuilderQueryResult) => void
   /** Callback to add a new row */
   onAddRow: () => void
   /** Whether a query is currently loading */
@@ -89,10 +90,8 @@ export function TableQueryBuilder({
 
   const handleApply = useCallback(() => {
     const filter = conditionsToFilter(conditions)
-    onApply({
-      filter,
-      sort: sortCondition,
-    })
+    const sort = sortConditionToSort(sortCondition)
+    onApply({ filter, sort })
   }, [conditions, sortCondition, onApply])
 
   const handleClear = useCallback(() => {

@@ -4,13 +4,13 @@
 
 import { useQuery } from '@tanstack/react-query'
 import type { TableDefinition, TableRow } from '@/lib/table'
-import type { QueryOptions } from '../../components/table-query-builder'
+import type { BuilderQueryResult } from '../../components/table-query-builder'
 import { ROWS_PER_PAGE } from '../constants'
 
 interface UseTableDataParams {
   workspaceId: string
   tableId: string
-  queryOptions: QueryOptions
+  queryOptions: BuilderQueryResult
   currentPage: number
 }
 
@@ -65,8 +65,8 @@ export function useTableData({
       }
 
       if (queryOptions.sort) {
-        const sortParam = { [queryOptions.sort.column]: queryOptions.sort.direction }
-        searchParams.set('sort', JSON.stringify(sortParam))
+        // sort is already in the correct format: { column: direction }
+        searchParams.set('sort', JSON.stringify(queryOptions.sort))
       }
 
       const res = await fetch(`/api/table/${tableId}/rows?${searchParams}`)

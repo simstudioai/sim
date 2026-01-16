@@ -1,8 +1,14 @@
 /**
- * Shared constants and types for table filtering and sorting.
+ * Shared constants for table filtering and sorting UI.
+ *
+ * Types (FilterCondition, SortCondition) are defined in ../types.ts
+ * and re-exported here for convenience.
  */
 
-/** Comparison operators for filter conditions (maps to query-builder.ts) */
+// Re-export UI builder types from central types file
+export type { FilterCondition, SortCondition } from '../types'
+
+/** Comparison operators for filter conditions (maps to ConditionOperators in types.ts) */
 export const COMPARISON_OPERATORS = [
   { value: 'eq', label: 'equals' },
   { value: 'ne', label: 'not equals' },
@@ -23,35 +29,9 @@ export const LOGICAL_OPERATORS = [
 ] as const
 
 /**
- * Sort direction options.
+ * Sort direction options for UI dropdowns.
  */
 export const SORT_DIRECTIONS = [
   { value: 'asc', label: 'ascending' },
   { value: 'desc', label: 'descending' },
 ] as const
-
-/** Single filter condition used by filter builder UI */
-export interface FilterCondition {
-  /** Unique identifier for the condition (used as React key) */
-  id: string
-  /** How this condition combines with the previous one */
-  logicalOperator: 'and' | 'or'
-  /** Column to filter on */
-  column: string
-  /** Comparison operator */
-  operator: string
-  /** Value to compare against */
-  value: string
-}
-
-/**
- * Represents a sort configuration.
- */
-export interface SortCondition {
-  /** Unique identifier for the condition (used as React key) */
-  id: string
-  /** Column to sort by */
-  column: string
-  /** Sort direction */
-  direction: 'asc' | 'desc'
-}

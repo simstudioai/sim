@@ -16,15 +16,9 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
-import type { ColumnDefinition, TableRow, TableSchema } from '@/lib/table'
+import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 
 const logger = createLogger('TableRowModal')
-
-export interface TableInfo {
-  id: string
-  name: string
-  schema: TableSchema
-}
 
 export interface TableRowModalProps {
   mode: 'add' | 'edit' | 'delete'

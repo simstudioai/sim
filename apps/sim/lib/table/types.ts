@@ -22,6 +22,15 @@ export type SortDirection = 'asc' | 'desc'
 export type Sort = Record<string, SortDirection>
 
 /**
+ * Option for column/dropdown selection in UI components.
+ * Used by filter builders, sort builders, and column selectors.
+ */
+export interface ColumnOption {
+  value: string
+  label: string
+}
+
+/**
  * Column definition within a table schema.
  */
 export interface ColumnDefinition {
@@ -49,9 +58,15 @@ export interface TableDefinition {
   rowCount: number
   maxRows: number
   workspaceId: string
+  createdBy: string
   createdAt: Date | string
   updatedAt: Date | string
 }
+
+/**
+ * Subset of TableDefinition for UI components that only need basic info.
+ */
+export type TableInfo = Pick<TableDefinition, 'id' | 'name' | 'schema'>
 
 /**
  * Row stored in a user-defined table.
@@ -135,6 +150,43 @@ export interface Filter {
 export interface ValidationResult {
   valid: boolean
   errors: string[]
+}
+
+// ============================================================================
+// UI Builder Types
+// These types represent the state of filter/sort builder UI components.
+// They have `id` fields for React keys and string values for form inputs.
+// Use the conversion utilities in filters/utils.ts to convert to API types.
+// ============================================================================
+
+/**
+ * Single filter condition in the UI builder.
+ * This is the UI representation - use `Filter` for API queries.
+ */
+export interface FilterCondition {
+  /** Unique identifier for the condition (used as React key) */
+  id: string
+  /** How this condition combines with the previous one */
+  logicalOperator: 'and' | 'or'
+  /** Column to filter on */
+  column: string
+  /** Comparison operator (eq, ne, gt, gte, lt, lte, contains, in) */
+  operator: string
+  /** Value to compare against (as string for form input) */
+  value: string
+}
+
+/**
+ * Single sort condition in the UI builder.
+ * This is the UI representation - use `Sort` for API queries.
+ */
+export interface SortCondition {
+  /** Unique identifier for the condition (used as React key) */
+  id: string
+  /** Column to sort by */
+  column: string
+  /** Sort direction */
+  direction: SortDirection
 }
 
 /**

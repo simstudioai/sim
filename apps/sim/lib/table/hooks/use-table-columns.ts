@@ -1,9 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-
-interface ColumnOption {
-  value: string
-  label: string
-}
+import type { ColumnOption } from '../types'
 
 interface UseTableColumnsOptions {
   tableId: string | null | undefined

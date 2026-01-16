@@ -2,7 +2,6 @@
 
 import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -74,9 +73,7 @@ const DialogContent = React.forwardRef<
         }}
         {...props}
       >
-        <VisuallyHidden.Root>
-          <DialogPrimitive.Title>Dialog</DialogPrimitive.Title>
-        </VisuallyHidden.Root>
+        <DialogPrimitive.Title>Dialog</DialogPrimitive.Title>
         {children}
         {!hideCloseButton && (
           <DialogPrimitive.Close

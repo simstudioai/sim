@@ -1,10 +1,19 @@
 /**
  * Shared utilities for filter builder UI components.
+ *
+ * These utilities convert between UI builder types (FilterCondition, SortCondition)
+ * and API types (Filter, Sort).
  */
 
 import { nanoid } from 'nanoid'
-import type { JsonValue } from '../types'
-import type { FilterCondition, SortCondition } from './constants'
+import type {
+  Filter,
+  FilterCondition,
+  JsonValue,
+  Sort,
+  SortCondition,
+  SortDirection,
+} from '../types'
 
 /**
  * Converts builder filter conditions to MongoDB-style filter object.
@@ -12,9 +21,7 @@ import type { FilterCondition, SortCondition } from './constants'
  * @param conditions - Array of filter conditions from the builder UI
  * @returns Filter object or null if no conditions
  */
-export function conditionsToFilter(
-  conditions: FilterCondition[]
-): Record<string, JsonValue> | null {
+export function conditionsToFilter(conditions: FilterCondition[]): Filter | null {
   if (conditions.length === 0) return null
 
   const orGroups: Record<string, JsonValue>[] = []
@@ -45,12 +52,12 @@ export function conditionsToFilter(
  * @param filter - Filter object to convert
  * @returns Array of filter conditions for the builder UI
  */
-export function filterToConditions(filter: Record<string, JsonValue> | null): FilterCondition[] {
+export function filterToConditions(filter: Filter | null): FilterCondition[] {
   if (!filter) return []
 
   if (filter.$or && Array.isArray(filter.$or)) {
     const groups = filter.$or
-      .map((orGroup) => parseFilterGroup(orGroup as Record<string, JsonValue>))
+      .map((orGroup) => parseFilterGroup(orGroup as Filter))
       .filter((group) => group.length > 0)
     return applyLogicalOperators(groups)
   }
@@ -59,15 +66,26 @@ export function filterToConditions(filter: Record<string, JsonValue> | null): Fi
 }
 
 /**
- * Converts builder sort conditions to sort object.
+ * Converts a single builder sort condition to Sort object.
+ *
+ * @param condition - Single sort condition from the builder UI
+ * @returns Sort object or null if no condition
+ */
+export function sortConditionToSort(condition: SortCondition | null): Sort | null {
+  if (!condition || !condition.column) return null
+  return { [condition.column]: condition.direction }
+}
+
+/**
+ * Converts builder sort conditions (array) to Sort object.
  *
  * @param conditions - Array of sort conditions from the builder UI
  * @returns Sort object or null if no conditions
  */
-export function sortConditionsToSort(conditions: SortCondition[]): Record<string, string> | null {
+export function sortConditionsToSort(conditions: SortCondition[]): Sort | null {
   if (conditions.length === 0) return null
 
-  const sort: Record<string, string> = {}
+  const sort: Sort = {}
   for (const condition of conditions) {
     if (condition.column) {
       sort[condition.column] = condition.direction
@@ -78,12 +96,12 @@ export function sortConditionsToSort(conditions: SortCondition[]): Record<string
 }
 
 /**
- * Converts sort object to builder conditions.
+ * Converts Sort object to builder conditions.
  *
  * @param sort - Sort object to convert
  * @returns Array of sort conditions for the builder UI
  */
-export function sortToConditions(sort: Record<string, string> | null): SortCondition[] {
+export function sortToConditions(sort: Sort | null): SortCondition[] {
   if (!sort) return []
 
   return Object.entries(sort).map(([column, direction]) => ({
@@ -137,7 +155,7 @@ function parseScalar(value: string): JsonValue {
   return value
 }
 
-function parseFilterGroup(group: Record<string, JsonValue>): FilterCondition[] {
+function parseFilterGroup(group: Filter): FilterCondition[] {
   if (!group || typeof group !== 'object' || Array.isArray(group)) return []
 
   const conditions: FilterCondition[] = []
@@ -153,7 +171,7 @@ function parseFilterGroup(group: Record<string, JsonValue>): FilterCondition[] {
             logicalOperator: 'and',
             column,
             operator: op.substring(1),
-            value: formatValueForBuilder(opValue),
+            value: formatValueForBuilder(opValue as JsonValue),
           })
         }
       }
@@ -165,7 +183,7 @@ function parseFilterGroup(group: Record<string, JsonValue>): FilterCondition[] {
       logicalOperator: 'and',
       column,
       operator: 'eq',
-      value: formatValueForBuilder(value),
+      value: formatValueForBuilder(value as JsonValue),
     })
   }
 
@@ -179,6 +197,6 @@ function formatValueForBuilder(value: JsonValue): string {
   return String(value)
 }
 
-function normalizeSortDirection(direction: string): 'asc' | 'desc' {
+function normalizeSortDirection(direction: string): SortDirection {
   return direction === 'desc' ? 'desc' : 'asc'
 }
