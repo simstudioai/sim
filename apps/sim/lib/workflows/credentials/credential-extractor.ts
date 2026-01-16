@@ -1,22 +1,16 @@
 import {
   buildCanonicalIndex,
+  buildSubBlockValues,
   evaluateSubBlockCondition,
   hasAdvancedValues,
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
+  type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { BlockState, SubBlockState, WorkflowState } from '@/stores/workflows/workflow/types'
-
-/** Condition type for SubBlock visibility - mirrors the inline type from blocks/types.ts */
-interface SubBlockCondition {
-  field: string
-  value: string | number | boolean | Array<string | number | boolean> | undefined
-  not?: boolean
-  and?: SubBlockCondition
-}
 
 // Credential types based on actual patterns in the codebase
 export enum CredentialType {
@@ -126,13 +120,7 @@ export function extractRequiredCredentials(
   function isSubBlockVisible(block: BlockState, subBlockConfig: SubBlockConfig): boolean {
     if (!isSubBlockFeatureEnabled(subBlockConfig)) return false
 
-    const values = Object.entries(block?.subBlocks || {}).reduce<Record<string, unknown>>(
-      (acc, [key, subBlock]) => {
-        acc[key] = subBlock?.value
-        return acc
-      },
-      {}
-    )
+    const values = buildSubBlockValues(block?.subBlocks || {})
     const blockConfig = getBlock(block.type)
     const blockSubBlocks = blockConfig?.subBlocks || []
     const canonicalIndex = buildCanonicalIndex(blockSubBlocks)

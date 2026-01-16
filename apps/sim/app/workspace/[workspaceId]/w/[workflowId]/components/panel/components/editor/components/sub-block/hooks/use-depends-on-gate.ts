@@ -1,7 +1,11 @@
 'use client'
 
 import { useMemo } from 'react'
-import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
+import {
+  buildCanonicalIndex,
+  isNonEmptyValue,
+  resolveDependencyValue,
+} from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -135,21 +139,14 @@ export function useDependsOnGate(
     return map
   })
 
-  const isValueSatisfied = (value: unknown): boolean => {
-    if (value === null || value === undefined) return false
-    if (typeof value === 'string') return value.trim().length > 0
-    if (Array.isArray(value)) return value.length > 0
-    return value !== ''
-  }
-
   const depsSatisfied = useMemo(() => {
     // Check all fields (AND logic) - all must be satisfied
     const allSatisfied =
-      allFields.length === 0 || allFields.every((key) => isValueSatisfied(dependencyValuesMap[key]))
+      allFields.length === 0 || allFields.every((key) => isNonEmptyValue(dependencyValuesMap[key]))
 
     // Check any fields (OR logic) - at least one must be satisfied
     const anySatisfied =
-      anyFields.length === 0 || anyFields.some((key) => isValueSatisfied(dependencyValuesMap[key]))
+      anyFields.length === 0 || anyFields.some((key) => isNonEmptyValue(dependencyValuesMap[key]))
 
     return allSatisfied && anySatisfied
   }, [allFields, anyFields, dependencyValuesMap])

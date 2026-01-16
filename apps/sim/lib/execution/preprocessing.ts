@@ -6,6 +6,7 @@ import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-mon
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { preflightWorkflowEnvVars } from '@/lib/workflows/executor/preflight'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -117,11 +118,14 @@ export interface PreprocessExecutionOptions {
   checkRateLimit?: boolean // Default: false for manual/chat, true for others
   checkDeployment?: boolean // Default: true for non-manual triggers
   skipUsageLimits?: boolean // Default: false (only use for test mode)
+  preflightEnvVars?: boolean // Default: false
 
   // Context information
   workspaceId?: string // If known, used for billing resolution
   loggingSession?: LoggingSession // If provided, will be used for error logging
   isResumeContext?: boolean // If true, allows fallback billing on resolution failure (for paused workflow resumes)
+  useDraftState?: boolean // If true, use draft workflow state for preflight
+  envUserId?: string // Optional override for env var resolution user
 }
 
 /**
@@ -159,9 +163,12 @@ export async function preprocessExecution(
     checkRateLimit = triggerType !== 'manual' && triggerType !== 'chat',
     checkDeployment = triggerType !== 'manual',
     skipUsageLimits = false,
+    preflightEnvVars = false,
     workspaceId: providedWorkspaceId,
     loggingSession: providedLoggingSession,
     isResumeContext = false,
+    useDraftState = false,
+    envUserId,
   } = options
 
   logger.info(`[${requestId}] Starting execution preprocessing`, {
@@ -476,6 +483,45 @@ export async function preprocessExecution(
   }
 
   // ========== SUCCESS: All Checks Passed ==========
+  if (preflightEnvVars) {
+    try {
+      const resolvedEnvUserId = envUserId || workflowRecord.userId || userId
+      await preflightWorkflowEnvVars({
+        workflowId,
+        workspaceId,
+        envUserId: resolvedEnvUserId,
+        requestId,
+        useDraftState,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Env var preflight failed'
+      logger.warn(`[${requestId}] Env var preflight failed`, {
+        workflowId,
+        message,
+      })
+
+      await logPreprocessingError({
+        workflowId,
+        executionId,
+        triggerType,
+        requestId,
+        userId: actorUserId,
+        workspaceId,
+        errorMessage: message,
+        loggingSession: providedLoggingSession,
+      })
+
+      return {
+        success: false,
+        error: {
+          message,
+          statusCode: 400,
+          logCreated: true,
+        },
+      }
+    }
+  }
+
   logger.info(`[${requestId}] All preprocessing checks passed`, {
     workflowId,
     actorUserId,

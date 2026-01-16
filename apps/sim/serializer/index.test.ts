@@ -515,79 +515,21 @@ describe('Serializer', () => {
     })
   })
 
-  /**
-   * Advanced mode field filtering tests
-   */
-  describe('advanced mode field filtering', () => {
-    it.concurrent('should prefer advanced canonical values when present', () => {
+  describe('canonical mode field selection', () => {
+    it.concurrent('should use advanced value when canonicalModes specifies advanced', () => {
       const serializer = new Serializer()
 
-      const advancedModeBlock: any = {
+      const block: any = {
         id: 'slack-1',
         type: 'slack',
         name: 'Test Slack Block',
         position: { x: 0, y: 0 },
-        advancedMode: true, // Advanced mode enabled
-        subBlocks: {
-          channel: { value: 'general' }, // basic mode field
-          manualChannel: { value: 'C1234567890' }, // advanced mode field
-          text: { value: 'Hello world' }, // both mode field
-          username: { value: 'bot' }, // both mode field
+        data: {
+          canonicalModes: { channel: 'advanced' },
         },
-        outputs: {},
-        enabled: true,
-      }
-
-      const serialized = serializer.serializeWorkflow({ 'slack-1': advancedModeBlock }, [], {})
-
-      const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
-      expect(slackBlock).toBeDefined()
-
-      expect(slackBlock?.config.params.channel).toBe('C1234567890')
-      expect(slackBlock?.config.params.manualChannel).toBeUndefined()
-      expect(slackBlock?.config.params.text).toBe('Hello world')
-      expect(slackBlock?.config.params.username).toBe('bot')
-    })
-
-    it.concurrent('should persist advanced canonical values even in basic mode', () => {
-      const serializer = new Serializer()
-
-      const basicModeBlock: any = {
-        id: 'slack-1',
-        type: 'slack',
-        name: 'Test Slack Block',
-        position: { x: 0, y: 0 },
-        advancedMode: false, // Basic mode enabled
         subBlocks: {
-          channel: { value: 'general' }, // basic mode field
-          manualChannel: { value: 'C1234567890' }, // advanced mode field
-          text: { value: 'Hello world' }, // both mode field
-          username: { value: 'bot' }, // both mode field
-        },
-        outputs: {},
-        enabled: true,
-      }
-
-      const serialized = serializer.serializeWorkflow({ 'slack-1': basicModeBlock }, [], {})
-
-      const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
-      expect(slackBlock).toBeDefined()
-
-      expect(slackBlock?.config.params.channel).toBe('C1234567890')
-      expect(slackBlock?.config.params.manualChannel).toBeUndefined()
-      expect(slackBlock?.config.params.text).toBe('Hello world')
-      expect(slackBlock?.config.params.username).toBe('bot')
-    })
-
-    it.concurrent('should keep advanced canonical values when mode is undefined', () => {
-      const serializer = new Serializer()
-
-      const defaultModeBlock: any = {
-        id: 'slack-1',
-        type: 'slack',
-        name: 'Test Slack Block',
-        position: { x: 0, y: 0 },
-        subBlocks: {
+          operation: { value: 'send' },
+          destinationType: { value: 'channel' },
           channel: { value: 'general' },
           manualChannel: { value: 'C1234567890' },
           text: { value: 'Hello world' },
@@ -597,15 +539,104 @@ describe('Serializer', () => {
         enabled: true,
       }
 
-      const serialized = serializer.serializeWorkflow({ 'slack-1': defaultModeBlock }, [], {})
-
+      const serialized = serializer.serializeWorkflow({ 'slack-1': block }, [], {})
       const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
-      expect(slackBlock).toBeDefined()
 
+      expect(slackBlock).toBeDefined()
       expect(slackBlock?.config.params.channel).toBe('C1234567890')
       expect(slackBlock?.config.params.manualChannel).toBeUndefined()
       expect(slackBlock?.config.params.text).toBe('Hello world')
       expect(slackBlock?.config.params.username).toBe('bot')
+    })
+
+    it.concurrent('should use basic value when canonicalModes specifies basic', () => {
+      const serializer = new Serializer()
+
+      const block: any = {
+        id: 'slack-1',
+        type: 'slack',
+        name: 'Test Slack Block',
+        position: { x: 0, y: 0 },
+        data: {
+          canonicalModes: { channel: 'basic' },
+        },
+        subBlocks: {
+          operation: { value: 'send' },
+          destinationType: { value: 'channel' },
+          channel: { value: 'general' },
+          manualChannel: { value: 'C1234567890' },
+          text: { value: 'Hello world' },
+          username: { value: 'bot' },
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const serialized = serializer.serializeWorkflow({ 'slack-1': block }, [], {})
+      const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
+
+      expect(slackBlock).toBeDefined()
+      expect(slackBlock?.config.params.channel).toBe('general')
+      expect(slackBlock?.config.params.manualChannel).toBeUndefined()
+      expect(slackBlock?.config.params.text).toBe('Hello world')
+      expect(slackBlock?.config.params.username).toBe('bot')
+    })
+
+    it.concurrent('should fall back to legacy advancedMode when canonicalModes not set', () => {
+      const serializer = new Serializer()
+
+      const block: any = {
+        id: 'slack-1',
+        type: 'slack',
+        name: 'Test Slack Block',
+        position: { x: 0, y: 0 },
+        advancedMode: true,
+        subBlocks: {
+          operation: { value: 'send' },
+          destinationType: { value: 'channel' },
+          channel: { value: 'general' },
+          manualChannel: { value: 'C1234567890' },
+          text: { value: 'Hello world' },
+          username: { value: 'bot' },
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const serialized = serializer.serializeWorkflow({ 'slack-1': block }, [], {})
+      const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
+
+      expect(slackBlock).toBeDefined()
+      expect(slackBlock?.config.params.channel).toBe('C1234567890')
+      expect(slackBlock?.config.params.manualChannel).toBeUndefined()
+    })
+
+    it.concurrent('should use basic value by default when no mode specified', () => {
+      const serializer = new Serializer()
+
+      const block: any = {
+        id: 'slack-1',
+        type: 'slack',
+        name: 'Test Slack Block',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          operation: { value: 'send' },
+          destinationType: { value: 'channel' },
+          channel: { value: 'general' },
+          manualChannel: { value: 'C1234567890' },
+          text: { value: 'Hello world' },
+          username: { value: 'bot' },
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const serialized = serializer.serializeWorkflow({ 'slack-1': block }, [], {})
+      const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
+
+      expect(slackBlock).toBeDefined()
+      expect(slackBlock?.config.params.channel).toBe('general')
+      expect(slackBlock?.config.params.manualChannel).toBeUndefined()
     })
 
     it.concurrent('should preserve advanced-only values when present in basic mode', () => {

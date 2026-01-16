@@ -20,8 +20,6 @@ import { getWorkflowById } from '@/lib/workflows/utils'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
-import { Serializer } from '@/serializer'
-import { mergeSubblockState } from '@/stores/workflows/server-utils'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('TriggerWebhookExecution')
@@ -170,19 +168,6 @@ async function executeWebhookJobInternal(
       throw new Error(`Workflow ${payload.workflowId} has no associated workspace`)
     }
     const workflowVariables = (wfRows[0]?.variables as Record<string, any>) || {}
-
-    // Merge subblock states (matching workflow-execution pattern)
-    const mergedStates = mergeSubblockState(blocks)
-
-    // Create serialized workflow
-    const serializer = new Serializer()
-    const serializedWorkflow = serializer.serializeWorkflow(
-      mergedStates,
-      edges,
-      loops || {},
-      parallels || {},
-      true // Enable validation during execution
-    )
 
     // Handle special Airtable case
     if (payload.provider === 'airtable') {

@@ -3,6 +3,9 @@ import { environment, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { REFERENCE } from '@/executor/constants'
+import { createEnvVarPattern } from '@/executor/utils/reference-validation'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('EnvironmentUtils')
 
@@ -106,4 +109,87 @@ export async function getEffectiveDecryptedEnv(
     workspaceId
   )
   return { ...personalDecrypted, ...workspaceDecrypted }
+}
+
+/**
+ * Ensure all environment variables can be decrypted.
+ */
+export async function ensureEnvVarsDecryptable(
+  variables: Record<string, string>,
+  options: { requestId?: string } = {}
+): Promise<void> {
+  const requestId = options.requestId
+  for (const [key, encryptedValue] of Object.entries(variables)) {
+    try {
+      await decryptSecret(encryptedValue)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      if (requestId) {
+        logger.error(`[${requestId}] Failed to decrypt environment variable "${key}"`, error)
+      } else {
+        logger.error(`Failed to decrypt environment variable "${key}"`, error)
+      }
+      throw new Error(`Failed to decrypt environment variable "${key}": ${message}`)
+    }
+  }
+}
+
+/**
+ * Ensure all {{ENV_VAR}} references in block subblocks resolve to decryptable values.
+ */
+export async function ensureBlockEnvVarsResolvable(
+  blocks: Record<string, BlockState>,
+  variables: Record<string, string>,
+  options: { requestId?: string } = {}
+): Promise<void> {
+  const requestId = options.requestId
+  await Promise.all(
+    Object.values(blocks).map(async (block) => {
+      const subBlocks = block.subBlocks ?? {}
+      await Promise.all(
+        Object.values(subBlocks).map(async (subBlock) => {
+          const value = subBlock.value
+          if (
+            typeof value !== 'string' ||
+            !value.includes(REFERENCE.ENV_VAR_START) ||
+            !value.includes(REFERENCE.ENV_VAR_END)
+          ) {
+            return
+          }
+
+          const envVarPattern = createEnvVarPattern()
+          const matches = value.match(envVarPattern)
+          if (!matches) {
+            return
+          }
+
+          for (const match of matches) {
+            const varName = match.slice(
+              REFERENCE.ENV_VAR_START.length,
+              -REFERENCE.ENV_VAR_END.length
+            )
+            const encryptedValue = variables[varName]
+            if (!encryptedValue) {
+              throw new Error(`Environment variable "${varName}" was not found`)
+            }
+
+            try {
+              await decryptSecret(encryptedValue)
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'Unknown error'
+              if (requestId) {
+                logger.error(
+                  `[${requestId}] Error decrypting value for variable "${varName}"`,
+                  error
+                )
+              } else {
+                logger.error(`Error decrypting value for variable "${varName}"`, error)
+              }
+              throw new Error(`Failed to decrypt environment variable "${varName}": ${message}`)
+            }
+          }
+        })
+      )
+    })
+  )
 }

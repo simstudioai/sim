@@ -6,6 +6,11 @@
 import type { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+// Mock the preflight module before any imports to avoid cascade of db/schema imports
+vi.mock('@/lib/workflows/executor/preflight', () => ({
+  preflightWorkflowEnvVars: vi.fn().mockResolvedValue(undefined),
+}))
+
 function createMockRequest(): NextRequest {
   const mockHeaders = new Map([
     ['authorization', 'Bearer test-cron-secret'],
@@ -93,6 +98,11 @@ describe('Scheduled Workflow Execution API Route', () => {
           nextRunAt: 'nextRunAt',
           lastQueuedAt: 'lastQueuedAt',
         },
+        workflow: {
+          id: 'id',
+          userId: 'userId',
+          workspaceId: 'workspaceId',
+        },
       }
     })
 
@@ -170,6 +180,11 @@ describe('Scheduled Workflow Execution API Route', () => {
           nextRunAt: 'nextRunAt',
           lastQueuedAt: 'lastQueuedAt',
         },
+        workflow: {
+          id: 'id',
+          userId: 'userId',
+          workspaceId: 'workspaceId',
+        },
       }
     })
 
@@ -228,6 +243,11 @@ describe('Scheduled Workflow Execution API Route', () => {
           status: 'status',
           nextRunAt: 'nextRunAt',
           lastQueuedAt: 'lastQueuedAt',
+        },
+        workflow: {
+          id: 'id',
+          userId: 'userId',
+          workspaceId: 'workspaceId',
         },
       }
     })
@@ -310,6 +330,11 @@ describe('Scheduled Workflow Execution API Route', () => {
           status: 'status',
           nextRunAt: 'nextRunAt',
           lastQueuedAt: 'lastQueuedAt',
+        },
+        workflow: {
+          id: 'id',
+          userId: 'userId',
+          workspaceId: 'workspaceId',
         },
       }
     })

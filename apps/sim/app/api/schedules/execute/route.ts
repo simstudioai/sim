@@ -1,4 +1,4 @@
-import { db, workflowSchedule } from '@sim/db'
+import { db, workflow, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
 import { and, eq, isNull, lt, lte, not, or } from 'drizzle-orm'
@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { preflightWorkflowEnvVars } from '@/lib/workflows/executor/preflight'
 import { executeScheduleJob } from '@/background/schedule-execution'
 
 export const dynamic = 'force-dynamic'
@@ -68,6 +69,39 @@ export async function GET(request: NextRequest) {
             failedCount: schedule.failedCount || 0,
             now: queueTime.toISOString(),
             scheduledFor: schedule.nextRunAt?.toISOString(),
+            preflighted: true,
+          }
+
+          const [workflowRecord] = await db
+            .select({ userId: workflow.userId, workspaceId: workflow.workspaceId })
+            .from(workflow)
+            .where(eq(workflow.id, schedule.workflowId))
+            .limit(1)
+
+          if (!workflowRecord?.userId || !workflowRecord.workspaceId) {
+            logger.warn(
+              `[${requestId}] Missing workflow metadata for preflight. Skipping Trigger.dev enqueue.`,
+              { workflowId: schedule.workflowId }
+            )
+            await executeScheduleJob({ ...payload, preflighted: false })
+            return null
+          }
+
+          try {
+            await preflightWorkflowEnvVars({
+              workflowId: schedule.workflowId,
+              workspaceId: workflowRecord.workspaceId,
+              envUserId: workflowRecord.userId,
+              requestId,
+              useDraftState: false,
+            })
+          } catch (error) {
+            logger.warn(
+              `[${requestId}] Env preflight failed. Skipping Trigger.dev enqueue for workflow ${schedule.workflowId}`,
+              { error: error instanceof Error ? error.message : String(error) }
+            )
+            await executeScheduleJob({ ...payload, preflighted: false })
+            return null
           }
 
           const handle = await tasks.trigger('schedule-execution', payload)

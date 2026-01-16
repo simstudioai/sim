@@ -147,20 +147,19 @@ const { mockBlockConfigs, createMockGetBlock, slackWithCanonicalParam } = vi.hoi
         config: { tool: () => 'slack_send_message' },
       },
       subBlocks: [
-        { id: 'channel', type: 'dropdown', label: 'Channel', mode: 'basic' },
+        {
+          id: 'channel',
+          type: 'dropdown',
+          label: 'Channel',
+          mode: 'basic',
+          canonicalParamId: 'channel',
+        },
         {
           id: 'manualChannel',
           type: 'short-input',
           label: 'Channel ID',
           mode: 'advanced',
-          canonicalParamId: 'targetChannel',
-        },
-        {
-          id: 'channelSelector',
-          type: 'dropdown',
-          label: 'Channel Selector',
-          mode: 'basic',
-          canonicalParamId: 'targetChannel',
+          canonicalParamId: 'channel',
         },
         { id: 'text', type: 'long-input', label: 'Message' },
         { id: 'username', type: 'short-input', label: 'Username', mode: 'both' },
@@ -656,16 +655,18 @@ describe('Serializer Extended Tests', () => {
   })
 
   describe('canonical parameter handling', () => {
-    it('should consolidate basic/advanced mode fields into canonical param in advanced mode', () => {
+    it('should use advanced value when canonicalModes specifies advanced', () => {
       const serializer = new Serializer()
       const block: BlockState = {
         id: 'slack-1',
         type: 'slack',
         name: 'Slack',
         position: { x: 0, y: 0 },
-        advancedMode: true,
+        data: {
+          canonicalModes: { channel: 'advanced' },
+        },
         subBlocks: {
-          channelSelector: { id: 'channelSelector', type: 'dropdown', value: 'general' },
+          channel: { id: 'channel', type: 'channel-selector', value: 'general' },
           manualChannel: { id: 'manualChannel', type: 'short-input', value: 'C12345' },
           text: { id: 'text', type: 'long-input', value: 'Hello' },
         },
@@ -676,22 +677,23 @@ describe('Serializer Extended Tests', () => {
       const serialized = serializer.serializeWorkflow({ 'slack-1': block }, [], {})
       const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
 
-      expect(slackBlock?.config.params.targetChannel).toBe('C12345')
-      expect(slackBlock?.config.params.channelSelector).toBeUndefined()
+      expect(slackBlock?.config.params.channel).toBe('C12345')
       expect(slackBlock?.config.params.manualChannel).toBeUndefined()
     })
 
-    it('should consolidate to basic value when in basic mode', () => {
+    it('should use basic value when canonicalModes specifies basic', () => {
       const serializer = new Serializer()
       const block: BlockState = {
         id: 'slack-1',
         type: 'slack',
         name: 'Slack',
         position: { x: 0, y: 0 },
-        advancedMode: false,
+        data: {
+          canonicalModes: { channel: 'basic' },
+        },
         subBlocks: {
-          channelSelector: { id: 'channelSelector', type: 'dropdown', value: 'general' },
-          manualChannel: { id: 'manualChannel', type: 'short-input', value: '' },
+          channel: { id: 'channel', type: 'channel-selector', value: 'general' },
+          manualChannel: { id: 'manualChannel', type: 'short-input', value: 'C12345' },
           text: { id: 'text', type: 'long-input', value: 'Hello' },
         },
         outputs: {},
@@ -701,7 +703,7 @@ describe('Serializer Extended Tests', () => {
       const serialized = serializer.serializeWorkflow({ 'slack-1': block }, [], {})
       const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
 
-      expect(slackBlock?.config.params.targetChannel).toBe('general')
+      expect(slackBlock?.config.params.channel).toBe('general')
     })
 
     it('should handle missing canonical param values', () => {
@@ -711,9 +713,8 @@ describe('Serializer Extended Tests', () => {
         type: 'slack',
         name: 'Slack',
         position: { x: 0, y: 0 },
-        advancedMode: false,
         subBlocks: {
-          channelSelector: { id: 'channelSelector', type: 'dropdown', value: null },
+          channel: { id: 'channel', type: 'channel-selector', value: null },
           manualChannel: { id: 'manualChannel', type: 'short-input', value: null },
           text: { id: 'text', type: 'long-input', value: 'Hello' },
         },
@@ -724,8 +725,7 @@ describe('Serializer Extended Tests', () => {
       const serialized = serializer.serializeWorkflow({ 'slack-1': block }, [], {})
       const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
 
-      // When both values are null, the canonical param is set to null (preserving the null value)
-      expect(slackBlock?.config.params.targetChannel).toBeNull()
+      expect(slackBlock?.config.params.channel).toBeNull()
     })
   })
 

@@ -32,6 +32,18 @@ export interface CanonicalValueSelection {
 }
 
 /**
+ * Build a flat map of subblock values keyed by subblock id.
+ */
+export function buildSubBlockValues(
+  subBlocks: Record<string, { value?: unknown } | null | undefined>
+): Record<string, unknown> {
+  return Object.entries(subBlocks).reduce<Record<string, unknown>>((acc, [key, subBlock]) => {
+    acc[key] = subBlock?.value
+    return acc
+  }, {})
+}
+
+/**
  * Build canonical group indices for a block's subblocks.
  */
 export function buildCanonicalIndex(subBlocks: SubBlockConfig[]): CanonicalIndex {
