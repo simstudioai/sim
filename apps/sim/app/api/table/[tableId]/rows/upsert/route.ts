@@ -8,7 +8,7 @@ import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { RowData, TableSchema } from '@/lib/table'
 import { getUniqueColumns, validateRowData } from '@/lib/table'
-import { checkAccessOrRespond, getTableById, verifyTableWorkspace } from '../../../utils'
+import { accessError, checkAccess, verifyTableWorkspace } from '../../../utils'
 
 const logger = createLogger('TableUpsertAPI')
 
@@ -35,23 +35,17 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
     const body: unknown = await request.json()
     const validated = UpsertRowSchema.parse(body)
 
-    const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
-    if (accessResult instanceof NextResponse) return accessResult
+    const result = await checkAccess(tableId, authResult.userId, 'write')
+    if (!result.ok) return accessError(result, requestId, tableId)
 
-    const actualWorkspaceId = validated.workspaceId || accessResult.table.workspaceId
-    if (validated.workspaceId) {
-      const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-      if (!isValidWorkspace) {
-        logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
-        )
-        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-      }
-    }
+    const { table } = result
 
-    const table = await getTableById(tableId)
-    if (!table) {
-      return NextResponse.json({ error: 'Table not found' }, { status: 404 })
+    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
+    if (!isValidWorkspace) {
+      logger.warn(
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
+      )
+      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
     const schema = table.schema as TableSchema
@@ -102,7 +96,7 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
       .where(
         and(
           eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, actualWorkspaceId),
+          eq(userTableRows.workspaceId, validated.workspaceId),
           ...validUniqueFilters
         )
       )
@@ -110,7 +104,7 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
 
     const now = new Date()
 
-    const result = await db.transaction(async (trx) => {
+    const upsertResult = await db.transaction(async (trx) => {
       if (existingRow) {
         const [updatedRow] = await trx
           .update(userTableRows)
@@ -132,7 +126,7 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
         .values({
           id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
           tableId,
-          workspaceId: actualWorkspaceId,
+          workspaceId: validated.workspaceId,
           data: validated.data,
           createdAt: now,
           updatedAt: now,
@@ -147,20 +141,20 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
     })
 
     logger.info(
-      `[${requestId}] Upserted (${result.operation}) row ${result.row.id} in table ${tableId}`
+      `[${requestId}] Upserted (${upsertResult.operation}) row ${upsertResult.row.id} in table ${tableId}`
     )
 
     return NextResponse.json({
       success: true,
       data: {
         row: {
-          id: result.row.id,
-          data: result.row.data,
-          createdAt: result.row.createdAt.toISOString(),
-          updatedAt: result.row.updatedAt.toISOString(),
+          id: upsertResult.row.id,
+          data: upsertResult.row.data,
+          createdAt: upsertResult.row.createdAt.toISOString(),
+          updatedAt: upsertResult.row.updatedAt.toISOString(),
         },
-        operation: result.operation,
-        message: `Row ${result.operation === 'update' ? 'updated' : 'inserted'} successfully`,
+        operation: upsertResult.operation,
+        message: `Row ${upsertResult.operation === 'update' ? 'updated' : 'inserted'} successfully`,
       },
     })
   } catch (error) {

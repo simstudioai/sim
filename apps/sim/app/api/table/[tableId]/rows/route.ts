@@ -17,7 +17,7 @@ import {
   validateUniqueConstraints,
 } from '@/lib/table'
 import { buildFilterClause, buildSortClause } from '@/lib/table/query-builder'
-import { checkAccessOrRespond, checkAccessWithFullTable, verifyTableWorkspace } from '../../utils'
+import { accessError, checkAccess, verifyTableWorkspace } from '../../utils'
 
 const logger = createLogger('TableRowsAPI')
 
@@ -88,10 +88,10 @@ async function handleBatchInsert(
 ): Promise<NextResponse> {
   const validated = BatchInsertRowsSchema.parse(body)
 
-  const accessResult = await checkAccessWithFullTable(tableId, userId, requestId, 'write')
-  if (accessResult instanceof NextResponse) return accessResult
+  const accessResult = await checkAccess(tableId, userId, 'write')
+  if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
-  const table = accessResult.table
+  const { table } = accessResult
 
   if (validated.workspaceId !== table.workspaceId) {
     logger.warn(
@@ -178,15 +178,10 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
 
     const validated = InsertRowSchema.parse(body)
 
-    const accessResult = await checkAccessWithFullTable(
-      tableId,
-      authResult.userId,
-      requestId,
-      'write'
-    )
-    if (accessResult instanceof NextResponse) return accessResult
+    const accessResult = await checkAccess(tableId, authResult.userId, 'write')
+    if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
-    const table = accessResult.table
+    const { table } = accessResult
 
     if (validated.workspaceId !== table.workspaceId) {
       logger.warn(
@@ -295,13 +290,8 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
       offset,
     })
 
-    const accessResult = await checkAccessWithFullTable(
-      tableId,
-      authResult.userId,
-      requestId,
-      'read'
-    )
-    if (accessResult instanceof NextResponse) return accessResult
+    const accessResult = await checkAccess(tableId, authResult.userId, 'read')
+    if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
     const { table } = accessResult
 
@@ -400,15 +390,10 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
     const body: unknown = await request.json()
     const validated = UpdateRowsByFilterSchema.parse(body)
 
-    const accessResult = await checkAccessWithFullTable(
-      tableId,
-      authResult.userId,
-      requestId,
-      'write'
-    )
-    if (accessResult instanceof NextResponse) return accessResult
+    const accessResult = await checkAccess(tableId, authResult.userId, 'write')
+    if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
-    const table = accessResult.table
+    const { table } = accessResult
 
     if (validated.workspaceId !== table.workspaceId) {
       logger.warn(
@@ -583,13 +568,15 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
     const body: unknown = await request.json()
     const validated = DeleteRowsByFilterSchema.parse(body)
 
-    const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
-    if (accessResult instanceof NextResponse) return accessResult
+    const accessResult = await checkAccess(tableId, authResult.userId, 'write')
+    if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
+
+    const { table } = accessResult
 
     const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
     if (!isValidWorkspace) {
       logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
       )
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }

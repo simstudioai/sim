@@ -8,12 +8,7 @@ import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { RowData, TableSchema } from '@/lib/table'
 import { validateRowData } from '@/lib/table'
-import {
-  checkAccessOrRespond,
-  checkTableAccess,
-  getTableById,
-  verifyTableWorkspace,
-} from '../../../utils'
+import { accessError, checkAccess, verifyTableWorkspace } from '../../../utils'
 
 const logger = createLogger('TableRowAPI')
 
@@ -50,24 +45,15 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
       workspaceId: searchParams.get('workspaceId'),
     })
 
-    const accessCheck = await checkTableAccess(tableId, authResult.userId)
+    const result = await checkAccess(tableId, authResult.userId, 'read')
+    if (!result.ok) return accessError(result, requestId, tableId)
 
-    if (!accessCheck.hasAccess) {
-      if ('notFound' in accessCheck && accessCheck.notFound) {
-        logger.warn(`[${requestId}] Table not found: ${tableId}`)
-        return NextResponse.json({ error: 'Table not found' }, { status: 404 })
-      }
-      logger.warn(
-        `[${requestId}] User ${authResult.userId} attempted to access row from unauthorized table ${tableId}`
-      )
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
+    const { table } = result
 
-    const actualWorkspaceId = validated.workspaceId
     const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
     if (!isValidWorkspace) {
       logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
       )
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
@@ -84,7 +70,7 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
         and(
           eq(userTableRows.id, rowId),
           eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, actualWorkspaceId)
+          eq(userTableRows.workspaceId, validated.workspaceId)
         )
       )
       .limit(1)
@@ -133,21 +119,17 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
     const body: unknown = await request.json()
     const validated = UpdateRowSchema.parse(body)
 
-    const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
-    if (accessResult instanceof NextResponse) return accessResult
+    const result = await checkAccess(tableId, authResult.userId, 'write')
+    if (!result.ok) return accessError(result, requestId, tableId)
 
-    const actualWorkspaceId = validated.workspaceId
+    const { table } = result
+
     const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
     if (!isValidWorkspace) {
       logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
       )
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-    }
-
-    const table = await getTableById(tableId)
-    if (!table) {
-      return NextResponse.json({ error: 'Table not found' }, { status: 404 })
     }
 
     const rowData = validated.data as RowData
@@ -172,7 +154,7 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
         and(
           eq(userTableRows.id, rowId),
           eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, actualWorkspaceId)
+          eq(userTableRows.workspaceId, validated.workspaceId)
         )
       )
       .returning()
@@ -222,14 +204,15 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
     const body: unknown = await request.json()
     const validated = DeleteRowSchema.parse(body)
 
-    const accessResult = await checkAccessOrRespond(tableId, authResult.userId, requestId, 'write')
-    if (accessResult instanceof NextResponse) return accessResult
+    const result = await checkAccess(tableId, authResult.userId, 'write')
+    if (!result.ok) return accessError(result, requestId, tableId)
 
-    const actualWorkspaceId = validated.workspaceId
+    const { table } = result
+
     const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
     if (!isValidWorkspace) {
       logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessResult.table.workspaceId}`
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
       )
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
@@ -240,7 +223,7 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
         and(
           eq(userTableRows.id, rowId),
           eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, actualWorkspaceId)
+          eq(userTableRows.workspaceId, validated.workspaceId)
         )
       )
       .returning()

@@ -3,13 +3,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { deleteTable, getTableById, type TableSchema } from '@/lib/table'
-import {
-  checkTableAccess,
-  checkTableWriteAccess,
-  normalizeColumn,
-  verifyTableWorkspace,
-} from '../utils'
+import { deleteTable, type TableSchema } from '@/lib/table'
+import { accessError, checkAccess, normalizeColumn, verifyTableWorkspace } from '../utils'
 
 const logger = createLogger('TableDetailAPI')
 
@@ -38,31 +33,17 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
       workspaceId: searchParams.get('workspaceId'),
     })
 
-    const accessCheck = await checkTableAccess(tableId, authResult.userId)
+    const result = await checkAccess(tableId, authResult.userId, 'read')
+    if (!result.ok) return accessError(result, requestId, tableId)
 
-    if (!accessCheck.hasAccess) {
-      if ('notFound' in accessCheck && accessCheck.notFound) {
-        logger.warn(`[${requestId}] Table not found: ${tableId}`)
-        return NextResponse.json({ error: 'Table not found' }, { status: 404 })
-      }
-      logger.warn(
-        `[${requestId}] User ${authResult.userId} attempted to access unauthorized table ${tableId}`
-      )
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
+    const { table } = result
 
     const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
     if (!isValidWorkspace) {
       logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
       )
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-    }
-
-    const table = await getTableById(tableId)
-
-    if (!table) {
-      return NextResponse.json({ error: 'Table not found' }, { status: 404 })
     }
 
     logger.info(`[${requestId}] Retrieved table ${tableId} for user ${authResult.userId}`)
@@ -122,23 +103,15 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
       workspaceId: searchParams.get('workspaceId'),
     })
 
-    const accessCheck = await checkTableWriteAccess(tableId, authResult.userId)
+    const result = await checkAccess(tableId, authResult.userId, 'write')
+    if (!result.ok) return accessError(result, requestId, tableId)
 
-    if (!accessCheck.hasAccess) {
-      if ('notFound' in accessCheck && accessCheck.notFound) {
-        logger.warn(`[${requestId}] Table not found: ${tableId}`)
-        return NextResponse.json({ error: 'Table not found' }, { status: 404 })
-      }
-      logger.warn(
-        `[${requestId}] User ${authResult.userId} attempted to delete unauthorized table ${tableId}`
-      )
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
+    const { table } = result
 
     const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
     if (!isValidWorkspace) {
       logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${accessCheck.table.workspaceId}`
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
       )
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }

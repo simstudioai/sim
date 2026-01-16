@@ -1,196 +1,56 @@
-import { db } from '@sim/db'
-import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { count, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table'
+import { getTableById } from '@/lib/table'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TableUtils')
 
-type PermissionLevel = 'read' | 'write' | 'admin'
-
-/** @deprecated Use TableDefinition from '@/lib/table' instead */
-export type TableData = TableDefinition
-
-export interface TableAccessResult {
-  hasAccess: true
-  table: Pick<TableDefinition, 'id' | 'workspaceId' | 'createdBy'>
-}
-
-export interface TableAccessResultFull {
-  hasAccess: true
-  table: TableDefinition
-}
-
-export interface TableAccessDenied {
-  hasAccess: false
-  notFound?: boolean
-  reason?: string
-}
+export type AccessResult = { ok: true; table: TableDefinition } | { ok: false; status: 404 | 403 }
 
 export interface ApiErrorResponse {
   error: string
   details?: unknown
 }
 
-export async function checkTableAccess(
-  tableId: string,
-  userId: string
-): Promise<TableAccessResult | TableAccessDenied> {
-  return checkTableAccessInternal(tableId, userId, 'read')
-}
-
-export async function checkTableWriteAccess(
-  tableId: string,
-  userId: string
-): Promise<TableAccessResult | TableAccessDenied> {
-  return checkTableAccessInternal(tableId, userId, 'write')
-}
-
-export async function checkAccessOrRespond(
+export async function checkAccess(
   tableId: string,
   userId: string,
-  requestId: string,
-  level: 'read' | 'write' | 'admin' = 'write'
-): Promise<TableAccessResult | NextResponse> {
-  const checkFn = level === 'read' ? checkTableAccess : checkTableWriteAccess
-  const accessCheck = await checkFn(tableId, userId)
-
-  if (!accessCheck.hasAccess) {
-    if ('notFound' in accessCheck && accessCheck.notFound) {
-      logger.warn(`[${requestId}] Table not found: ${tableId}`)
-      return NextResponse.json({ error: 'Table not found' }, { status: 404 })
-    }
-    logger.warn(`[${requestId}] User ${userId} denied ${level} access to table ${tableId}`)
-    return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-  }
-
-  return accessCheck
-}
-
-export async function checkAccessWithFullTable(
-  tableId: string,
-  userId: string,
-  requestId: string,
-  level: 'read' | 'write' | 'admin' = 'write'
-): Promise<TableAccessResultFull | NextResponse> {
-  const [tableData] = await db
-    .select()
-    .from(userTableDefinitions)
-    .where(eq(userTableDefinitions.id, tableId))
-    .limit(1)
-
-  if (!tableData) {
-    logger.warn(`[${requestId}] Table not found: ${tableId}`)
-    return NextResponse.json({ error: 'Table not found' }, { status: 404 })
-  }
-
-  const rowCount = await getTableRowCount(tableId)
-  const table = { ...tableData, rowCount } as unknown as TableDefinition
-
-  if (table.createdBy === userId) {
-    return { hasAccess: true, table }
-  }
-
-  const userPermission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
-
-  if (!hasPermissionLevel(userPermission, level)) {
-    logger.warn(`[${requestId}] User ${userId} denied ${level} access to table ${tableId}`)
-    return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-  }
-
-  return { hasAccess: true, table }
-}
-
-export async function getTableById(tableId: string): Promise<TableDefinition | null> {
-  const [table] = await db
-    .select()
-    .from(userTableDefinitions)
-    .where(eq(userTableDefinitions.id, tableId))
-    .limit(1)
+  level: 'read' | 'write' | 'admin' = 'read'
+): Promise<AccessResult> {
+  const table = await getTableById(tableId)
 
   if (!table) {
-    return null
+    return { ok: false, status: 404 }
   }
 
-  const rowCount = await getTableRowCount(tableId)
-  return { ...table, rowCount } as unknown as TableDefinition
+  if (table.createdBy === userId) {
+    return { ok: true, table }
+  }
+
+  const permission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
+  const hasAccess =
+    permission !== null &&
+    (level === 'read' ||
+      (level === 'write' && (permission === 'write' || permission === 'admin')) ||
+      (level === 'admin' && permission === 'admin'))
+
+  return hasAccess ? { ok: true, table } : { ok: false, status: 403 }
+}
+
+export function accessError(
+  result: { ok: false; status: 404 | 403 },
+  requestId: string,
+  context?: string
+): NextResponse {
+  const message = result.status === 404 ? 'Table not found' : 'Access denied'
+  logger.warn(`[${requestId}] ${message}${context ? `: ${context}` : ''}`)
+  return NextResponse.json({ error: message }, { status: result.status })
 }
 
 export async function verifyTableWorkspace(tableId: string, workspaceId: string): Promise<boolean> {
-  const table = await db
-    .select({ workspaceId: userTableDefinitions.workspaceId })
-    .from(userTableDefinitions)
-    .where(eq(userTableDefinitions.id, tableId))
-    .limit(1)
-
-  if (table.length === 0) {
-    return false
-  }
-
-  return table[0].workspaceId === workspaceId
-}
-
-async function checkTableAccessInternal(
-  tableId: string,
-  userId: string,
-  requiredLevel: 'read' | 'write' | 'admin'
-): Promise<TableAccessResult | TableAccessDenied> {
-  const table = await db
-    .select({
-      id: userTableDefinitions.id,
-      createdBy: userTableDefinitions.createdBy,
-      workspaceId: userTableDefinitions.workspaceId,
-    })
-    .from(userTableDefinitions)
-    .where(eq(userTableDefinitions.id, tableId))
-    .limit(1)
-
-  if (table.length === 0) {
-    return { hasAccess: false, notFound: true }
-  }
-
-  const tableData = table[0]
-
-  if (tableData.createdBy === userId) {
-    return { hasAccess: true, table: tableData }
-  }
-
-  const userPermission = await getUserEntityPermissions(userId, 'workspace', tableData.workspaceId)
-
-  if (hasPermissionLevel(userPermission, requiredLevel)) {
-    return { hasAccess: true, table: tableData }
-  }
-
-  return { hasAccess: false }
-}
-
-function hasPermissionLevel(
-  userPermission: 'read' | 'write' | 'admin' | null,
-  requiredLevel: PermissionLevel
-): boolean {
-  if (userPermission === null) return false
-
-  switch (requiredLevel) {
-    case 'read':
-      return true
-    case 'write':
-      return userPermission === 'write' || userPermission === 'admin'
-    case 'admin':
-      return userPermission === 'admin'
-    default:
-      return false
-  }
-}
-
-async function getTableRowCount(tableId: string): Promise<number> {
-  const [result] = await db
-    .select({ count: count() })
-    .from(userTableRows)
-    .where(eq(userTableRows.tableId, tableId))
-
-  return Number(result?.count ?? 0)
+  const table = await getTableById(tableId)
+  return table?.workspaceId === workspaceId
 }
 
 export function errorResponse(
@@ -205,30 +65,23 @@ export function errorResponse(
   return NextResponse.json(body, { status })
 }
 
-export function badRequestResponse(
-  message: string,
-  details?: unknown
-): NextResponse<ApiErrorResponse> {
+export function badRequestResponse(message: string, details?: unknown) {
   return errorResponse(message, 400, details)
 }
 
-export function unauthorizedResponse(
-  message = 'Authentication required'
-): NextResponse<ApiErrorResponse> {
+export function unauthorizedResponse(message = 'Authentication required') {
   return errorResponse(message, 401)
 }
 
-export function forbiddenResponse(message = 'Access denied'): NextResponse<ApiErrorResponse> {
+export function forbiddenResponse(message = 'Access denied') {
   return errorResponse(message, 403)
 }
 
-export function notFoundResponse(message = 'Resource not found'): NextResponse<ApiErrorResponse> {
+export function notFoundResponse(message = 'Resource not found') {
   return errorResponse(message, 404)
 }
 
-export function serverErrorResponse(
-  message = 'Internal server error'
-): NextResponse<ApiErrorResponse> {
+export function serverErrorResponse(message = 'Internal server error') {
   return errorResponse(message, 500)
 }
 
