@@ -137,7 +137,6 @@ export function FormDeploy({
         )
       }
     } else if (!isLoading) {
-      // Set default title for new forms
       const workflowName =
         useWorkflowStore.getState().blocks[Object.keys(useWorkflowStore.getState().blocks)[0]]
           ?.name || 'Form'
@@ -145,7 +144,6 @@ export function FormDeploy({
     }
   }, [existingForm, isLoading])
 
-  // Get input fields from start block and initialize field configs
   useEffect(() => {
     const blocks = Object.values(useWorkflowStore.getState().blocks)
     const startBlock = blocks.find((b) => b.type === 'starter' || b.type === 'start_trigger')
@@ -155,7 +153,6 @@ export function FormDeploy({
       if (inputFormat && Array.isArray(inputFormat)) {
         setInputFields(inputFormat)
 
-        // Initialize field configs if not already set
         if (fieldConfigs.length === 0) {
           setFieldConfigs(
             inputFormat.map((f: { name: string; type?: string }) => ({
@@ -175,7 +172,6 @@ export function FormDeploy({
 
   const allowedEmails = emailItems.filter((item) => item.isValid).map((item) => item.value)
 
-  // Validate form
   useEffect(() => {
     const isValid =
       inputFields.length > 0 &&
@@ -206,7 +202,6 @@ export function FormDeploy({
       e.preventDefault()
       setErrors({})
 
-      // Validate before submit
       if (!isIdentifierValid && identifier !== existingForm?.identifier) {
         setError('identifier', 'Please wait for identifier validation to complete')
         return
@@ -261,7 +256,6 @@ export function FormDeploy({
 
           if (result?.formUrl) {
             setFormUrl(result.formUrl)
-            // Open the form in a new window after successful deployment
             window.open(result.formUrl, '_blank', 'noopener,noreferrer')
           }
         }
@@ -275,7 +269,6 @@ export function FormDeploy({
         const message = err instanceof Error ? err.message : 'An error occurred'
         logger.error('Error deploying form:', err)
 
-        // Parse error message and show inline
         if (message.toLowerCase().includes('identifier')) {
           setError('identifier', message)
         } else if (message.toLowerCase().includes('password')) {
@@ -314,7 +307,6 @@ export function FormDeploy({
         formId: existingForm.id,
         workflowId,
       })
-      // Reset form fields after successful deletion
       setIdentifier('')
       setTitle('')
       setDescription('')
