@@ -93,6 +93,11 @@ export {
   type SModalSidebarItemProps,
   SModalSidebarSection,
   SModalSidebarSectionTitle,
+  SModalTabs,
+  SModalTabsBody,
+  SModalTabsContent,
+  SModalTabsList,
+  SModalTabsTrigger,
   SModalTrigger,
 } from './s-modal/s-modal'
 export { Slider, type SliderProps } from './slider/slider'

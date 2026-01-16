@@ -76,6 +76,15 @@ export function useMentionTokens({
         ranges.push({ start: idx, end: idx + token.length, label })
         fromIndex = idx + token.length
       }
+
+      // Token at end of message without trailing space: "@label" or " /label"
+      const tokenAtEnd = `${prefix}${label}`
+      if (message.endsWith(tokenAtEnd)) {
+        const idx = message.lastIndexOf(tokenAtEnd)
+        const hasLeadingSpace = idx > 0 && message[idx - 1] === ' '
+        const start = hasLeadingSpace ? idx - 1 : idx
+        ranges.push({ start, end: message.length, label })
+      }
     }
 
     ranges.sort((a, b) => a.start - b.start)

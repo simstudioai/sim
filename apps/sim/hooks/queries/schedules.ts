@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
+import { deploymentKeys } from '@/hooks/queries/deployments'
 
 const logger = createLogger('ScheduleQueries')
 
@@ -175,6 +176,13 @@ export function useRedeployWorkflowSchedule() {
       logger.info('Workflow redeployed for schedule reset', { workflowId, blockId })
       queryClient.invalidateQueries({
         queryKey: scheduleKeys.schedule(workflowId, blockId),
+      })
+      // Also invalidate deployment queries since we redeployed
+      queryClient.invalidateQueries({
+        queryKey: deploymentKeys.info(workflowId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: deploymentKeys.versions(workflowId),
       })
     },
     onError: (error) => {

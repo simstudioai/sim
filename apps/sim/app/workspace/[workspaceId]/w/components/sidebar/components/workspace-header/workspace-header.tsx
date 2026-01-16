@@ -103,6 +103,14 @@ interface WorkspaceHeaderProps {
    * Whether to show the collapse button
    */
   showCollapseButton?: boolean
+  /**
+   * Callback to leave the workspace
+   */
+  onLeaveWorkspace?: (workspaceId: string) => Promise<void>
+  /**
+   * Current user's session ID for owner check
+   */
+  sessionUserId?: string
 }
 
 /**
@@ -128,6 +136,8 @@ export function WorkspaceHeader({
   onImportWorkspace,
   isImportingWorkspace,
   showCollapseButton = true,
+  onLeaveWorkspace,
+  sessionUserId,
 }: WorkspaceHeaderProps) {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -265,6 +275,16 @@ export function WorkspaceHeader({
       setIsDeleteModalOpen(true)
       setIsWorkspaceMenuOpen(false)
     }
+  }
+
+  /**
+   * Handles leave action from context menu
+   */
+  const handleLeaveAction = async () => {
+    if (!capturedWorkspaceRef.current || !onLeaveWorkspace) return
+
+    await onLeaveWorkspace(capturedWorkspaceRef.current.id)
+    setIsWorkspaceMenuOpen(false)
   }
 
   /**
@@ -512,6 +532,8 @@ export function WorkspaceHeader({
         const capturedPermissions = capturedWorkspaceRef.current?.permissions
         const contextCanEdit = capturedPermissions === 'admin' || capturedPermissions === 'write'
         const contextCanAdmin = capturedPermissions === 'admin'
+        const capturedWorkspace = workspaces.find((w) => w.id === capturedWorkspaceRef.current?.id)
+        const isOwner = capturedWorkspace && sessionUserId === capturedWorkspace.ownerId
 
         return (
           <ContextMenu
@@ -523,10 +545,12 @@ export function WorkspaceHeader({
             onDuplicate={handleDuplicateAction}
             onExport={handleExportAction}
             onDelete={handleDeleteAction}
+            onLeave={handleLeaveAction}
             showRename={true}
             showDuplicate={true}
             showExport={true}
-            disableRename={!contextCanEdit}
+            showLeave={!isOwner && !!onLeaveWorkspace}
+            disableRename={!contextCanAdmin}
             disableDuplicate={!contextCanEdit}
             disableExport={!contextCanAdmin}
             disableDelete={!contextCanAdmin}

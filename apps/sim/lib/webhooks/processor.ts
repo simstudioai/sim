@@ -249,6 +249,20 @@ export function shouldSkipWebhookEvent(webhook: any, body: any, requestId: strin
     }
   }
 
+  // Webflow collection filtering - filter by collectionId if configured
+  if (webhook.provider === 'webflow') {
+    const configuredCollectionId = providerConfig.collectionId
+    if (configuredCollectionId) {
+      const payloadCollectionId = body?.payload?.collectionId || body?.collectionId
+      if (payloadCollectionId && payloadCollectionId !== configuredCollectionId) {
+        logger.info(
+          `[${requestId}] Webflow collection '${payloadCollectionId}' doesn't match configured collection '${configuredCollectionId}' for webhook ${webhook.id}, skipping`
+        )
+        return true
+      }
+    }
+  }
+
   return false
 }
 

@@ -1,0 +1,1 @@
+ALTER TABLE "workflow_mcp_server" ADD COLUMN "is_public" boolean DEFAULT false NOT NULL;

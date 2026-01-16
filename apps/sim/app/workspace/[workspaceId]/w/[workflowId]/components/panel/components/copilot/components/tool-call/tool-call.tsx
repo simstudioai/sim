@@ -1446,8 +1446,10 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
       blockType = blockType || op.block_type || ''
     }
 
-    // Fallback name to type or ID
-    if (!blockName) blockName = blockType || blockId
+    if (!blockName) blockName = blockType || ''
+    if (!blockName && !blockType) {
+      continue
+    }
 
     const change: BlockChange = { blockId, blockName, blockType }
 

@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
@@ -20,7 +20,6 @@ import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/componen
 import {
   useBlockProperties,
   useChildWorkflow,
-  useScheduleInfo,
   useWebhookInfo,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks'
 import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
@@ -39,6 +38,8 @@ import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth-credentials'
+import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedules'
+import { useDeployChildWorkflow } from '@/hooks/queries/workflows'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { useVariablesStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -595,59 +596,33 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     reactivateWebhook,
   } = useWebhookInfo(id, currentWorkflowId)
 
-  const {
-    scheduleInfo,
-    isLoading: isLoadingScheduleInfo,
-    reactivateSchedule,
-  } = useScheduleInfo(id, type, currentWorkflowId)
-
-  const { childWorkflowId, childIsDeployed, childNeedsRedeploy, refetchDeployment } =
-    useChildWorkflow(id, type, data.isPreview ?? false, data.subBlockValues)
-
-  const [isDeploying, setIsDeploying] = useState(false)
-  const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
-  const userPermissions = useUserPermissionsContext()
-
-  const deployWorkflow = useCallback(
-    async (workflowId: string) => {
-      if (isDeploying) return
-
-      try {
-        setIsDeploying(true)
-        const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            deployChatEnabled: false,
-          }),
-        })
-
-        if (response.ok) {
-          const responseData = await response.json()
-          const isDeployedStatus = responseData.isDeployed ?? false
-          const deployedAtTime = responseData.deployedAt
-            ? new Date(responseData.deployedAt)
-            : undefined
-          setDeploymentStatus(
-            workflowId,
-            isDeployedStatus,
-            deployedAtTime,
-            responseData.apiKey || ''
-          )
-          refetchDeployment()
-        } else {
-          logger.error('Failed to deploy workflow')
-        }
-      } catch (error) {
-        logger.error('Error deploying workflow:', error)
-      } finally {
-        setIsDeploying(false)
-      }
-    },
-    [isDeploying, setDeploymentStatus, refetchDeployment]
+  const { scheduleInfo, isLoading: isLoadingScheduleInfo } = useScheduleInfo(
+    currentWorkflowId,
+    id,
+    type
   )
+  const reactivateScheduleMutation = useReactivateSchedule()
+  const reactivateSchedule = useCallback(
+    async (scheduleId: string) => {
+      await reactivateScheduleMutation.mutateAsync({
+        scheduleId,
+        workflowId: currentWorkflowId,
+        blockId: id,
+      })
+    },
+    [reactivateScheduleMutation, currentWorkflowId, id]
+  )
+
+  const { childWorkflowId, childIsDeployed, childNeedsRedeploy } = useChildWorkflow(
+    id,
+    type,
+    data.isPreview ?? false,
+    data.subBlockValues
+  )
+
+  const { mutate: deployChildWorkflow, isPending: isDeploying } = useDeployChildWorkflow()
+
+  const userPermissions = useUserPermissionsContext()
 
   const currentStoreBlock = currentWorkflow.getBlockById(id)
 
@@ -1039,7 +1014,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                       onClick={(e) => {
                         e.stopPropagation()
                         if (childWorkflowId && !isDeploying && userPermissions.canAdmin) {
-                          deployWorkflow(childWorkflowId)
+                          deployChildWorkflow({ workflowId: childWorkflowId })
                         }
                       }}
                     >

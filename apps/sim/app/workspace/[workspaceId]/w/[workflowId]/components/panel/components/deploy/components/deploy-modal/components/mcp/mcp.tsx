@@ -43,7 +43,6 @@ interface McpDeployProps {
   onAddedToServer?: () => void
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
-  onHasServersChange?: (hasServers: boolean) => void
 }
 
 /**
@@ -92,17 +91,12 @@ export function McpDeploy({
   onAddedToServer,
   onSubmittingChange,
   onCanSaveChange,
-  onHasServersChange,
 }: McpDeployProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const openSettingsModal = useSettingsModalStore((state) => state.openModal)
 
-  const {
-    data: servers = [],
-    isLoading: isLoadingServers,
-    refetch: refetchServers,
-  } = useWorkflowMcpServers(workspaceId)
+  const { data: servers = [], isLoading: isLoadingServers } = useWorkflowMcpServers(workspaceId)
   const addToolMutation = useAddWorkflowMcpTool()
   const deleteToolMutation = useDeleteWorkflowMcpTool()
   const updateToolMutation = useUpdateWorkflowMcpTool()
@@ -261,10 +255,6 @@ export function McpDeploy({
     onCanSaveChange?.(hasChanges && hasDeployedTools && !!toolName.trim())
   }, [hasChanges, hasDeployedTools, toolName, onCanSaveChange])
 
-  useEffect(() => {
-    onHasServersChange?.(servers.length > 0)
-  }, [servers.length, onHasServersChange])
-
   /**
    * Save tool configuration to all deployed servers
    */
@@ -346,7 +336,6 @@ export function McpDeploy({
             toolDescription: toolDescription.trim() || undefined,
             parameterSchema,
           })
-          refetchServers()
           onAddedToServer?.()
           logger.info(`Added workflow ${workflowId} as tool to server ${serverId}`)
         } catch (error) {
@@ -375,7 +364,6 @@ export function McpDeploy({
               delete next[serverId]
               return next
             })
-            refetchServers()
           } catch (error) {
             logger.error('Failed to remove tool:', error)
           } finally {
@@ -398,7 +386,6 @@ export function McpDeploy({
       parameterSchema,
       addToolMutation,
       deleteToolMutation,
-      refetchServers,
       onAddedToServer,
     ]
   )
