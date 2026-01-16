@@ -1,6 +1,6 @@
 'use client'
 
-import { type CSSProperties, useEffect, useMemo } from 'react'
+import { type CSSProperties, useMemo } from 'react'
 import { Avatar, AvatarFallback, AvatarImage, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getUserColor } from '@/lib/workspaces/colors'
@@ -19,11 +19,6 @@ const AVATAR_CONFIG = {
 
 interface AvatarsProps {
   workflowId: string
-  /**
-   * Callback fired when the presence visibility changes.
-   * Used by parent components to adjust layout (e.g., text truncation spacing).
-   */
-  onPresenceChange?: (hasAvatars: boolean) => void
 }
 
 interface PresenceUser {
@@ -85,7 +80,7 @@ function UserAvatar({ user, index }: UserAvatarProps) {
  * @param props - Component props
  * @returns Avatar stack for workflow presence
  */
-export function Avatars({ workflowId, onPresenceChange }: AvatarsProps) {
+export function Avatars({ workflowId }: AvatarsProps) {
   const { presenceUsers, currentWorkflowId } = useSocket()
   const { data: session } = useSession()
   const currentUserId = session?.user?.id
@@ -127,19 +122,12 @@ export function Avatars({ workflowId, onPresenceChange }: AvatarsProps) {
     return { visibleUsers: visible, overflowCount: overflow }
   }, [workflowUsers, maxVisible])
 
-  useEffect(() => {
-    const hasAnyAvatars = visibleUsers.length > 0
-    if (typeof onPresenceChange === 'function') {
-      onPresenceChange(hasAnyAvatars)
-    }
-  }, [visibleUsers, onPresenceChange])
-
   if (visibleUsers.length === 0) {
     return null
   }
 
   return (
-    <div className='-space-x-1 flex items-center'>
+    <div className='-space-x-1 flex flex-shrink-0 items-center'>
       {overflowCount > 0 && (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>

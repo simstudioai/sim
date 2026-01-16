@@ -126,16 +126,7 @@ export function WorkflowControls() {
             </PopoverTrigger>
             <Tooltip.Content side='top'>{mode === 'hand' ? 'Mover' : 'Pointer'}</Tooltip.Content>
           </Tooltip.Root>
-          <PopoverContent align='center' side='top' sideOffset={8} maxWidth={100} minWidth={100}>
-            <PopoverItem
-              onClick={() => {
-                setMode('cursor')
-                setIsCanvasModeOpen(false)
-              }}
-            >
-              <Cursor className='h-3 w-3' />
-              <span>Pointer</span>
-            </PopoverItem>
+          <PopoverContent side='top' sideOffset={8} maxWidth={100} minWidth={100}>
             <PopoverItem
               onClick={() => {
                 setMode('hand')
@@ -144,6 +135,15 @@ export function WorkflowControls() {
             >
               <Hand className='h-3 w-3' />
               <span>Mover</span>
+            </PopoverItem>
+            <PopoverItem
+              onClick={() => {
+                setMode('cursor')
+                setIsCanvasModeOpen(false)
+              }}
+            >
+              <Cursor className='h-3 w-3' />
+              <span>Pointer</span>
             </PopoverItem>
           </PopoverContent>
         </Popover>
