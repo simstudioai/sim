@@ -124,7 +124,8 @@ export interface PreprocessExecutionOptions {
   workspaceId?: string // If known, used for billing resolution
   loggingSession?: LoggingSession // If provided, will be used for error logging
   isResumeContext?: boolean // If true, allows fallback billing on resolution failure (for paused workflow resumes)
-  useDraftState?: boolean // If true, use draft workflow state for preflight
+  /** @deprecated No longer used - preflight always uses deployed state */
+  useDraftState?: boolean
   envUserId?: string // Optional override for env var resolution user
 }
 
@@ -167,7 +168,6 @@ export async function preprocessExecution(
     workspaceId: providedWorkspaceId,
     loggingSession: providedLoggingSession,
     isResumeContext = false,
-    useDraftState = false,
     envUserId,
   } = options
 
@@ -491,7 +491,6 @@ export async function preprocessExecution(
         workspaceId,
         envUserId: resolvedEnvUserId,
         requestId,
-        useDraftState,
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Env var preflight failed'

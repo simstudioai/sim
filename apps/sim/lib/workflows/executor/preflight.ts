@@ -4,10 +4,7 @@ import {
   ensureEnvVarsDecryptable,
   getPersonalAndWorkspaceEnv,
 } from '@/lib/environment/utils'
-import {
-  loadDeployedWorkflowState,
-  loadWorkflowFromNormalizedTables,
-} from '@/lib/workflows/persistence/utils'
+import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
 const logger = createLogger('ExecutionPreflight')
@@ -17,22 +14,20 @@ export interface EnvVarPreflightOptions {
   workspaceId: string
   envUserId: string
   requestId?: string
-  useDraftState?: boolean
 }
 
 /**
  * Preflight env var checks to avoid scheduling executions that will fail.
+ * Always uses deployed workflow state since preflight is only done for async
+ * executions which always run on deployed state.
  */
 export async function preflightWorkflowEnvVars({
   workflowId,
   workspaceId,
   envUserId,
   requestId,
-  useDraftState = false,
 }: EnvVarPreflightOptions): Promise<void> {
-  const workflowData = useDraftState
-    ? await loadWorkflowFromNormalizedTables(workflowId)
-    : await loadDeployedWorkflowState(workflowId)
+  const workflowData = await loadDeployedWorkflowState(workflowId)
 
   if (!workflowData) {
     throw new Error('Workflow state not found')
