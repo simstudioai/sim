@@ -136,30 +136,6 @@ function getBlockConfigurations(): Record<string, BlockConfig> {
 }
 
 /**
- * Builds candidate operation identifiers for matching sub-block conditions.
- */
-function getOperationCandidates(toolId: string, blockType?: string): string[] {
-  const candidates = new Set<string>()
-  const parts = toolId.split('_')
-
-  candidates.add(toolId)
-  if (parts.length >= 1) {
-    candidates.add(parts[parts.length - 1])
-  }
-  if (parts.length >= 3) {
-    const compoundOperation = parts.slice(2).join('_')
-    candidates.add(compoundOperation)
-  }
-
-  if (blockType && toolId.startsWith(`${blockType}_`)) {
-    const suffix = toolId.slice(blockType.length + 1)
-    candidates.add(suffix)
-  }
-
-  return Array.from(candidates)
-}
-
-/**
  * Gets all parameters for a tool, categorized by their usage
  * Also includes UI component information from block configurations
  */
