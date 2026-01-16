@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check } from 'lucide-react'
 import {
+  Button,
   Popover,
   PopoverAnchor,
   PopoverBackButton,
@@ -368,17 +369,17 @@ export function ContextMenu({
                   onClick={(e) => e.stopPropagation()}
                   className='h-[20px] min-w-0 flex-1 rounded-[4px] bg-[#363636] px-[6px] text-[11px] text-white uppercase caret-white focus:outline-none'
                 />
-                <button
-                  type='button'
+                <Button
+                  variant='tertiary'
                   disabled={!canSubmitHex}
                   onClick={(e) => {
                     e.stopPropagation()
                     handleHexSubmit()
                   }}
-                  className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--brand-tertiary-2)] text-white disabled:opacity-40'
+                  className='h-[20px] w-[20px] flex-shrink-0 p-0'
                 >
                   <Check className='h-[12px] w-[12px]' />
-                </button>
+                </Button>
               </div>
             </div>
           </PopoverFolder>

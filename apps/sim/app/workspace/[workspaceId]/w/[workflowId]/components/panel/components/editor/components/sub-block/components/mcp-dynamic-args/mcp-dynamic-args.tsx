@@ -1,3 +1,4 @@
+import type { RefObject } from 'react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
@@ -143,7 +144,7 @@ function McpInputWithTags({
           setShowTags(false)
           setActiveSourceBlockId(null)
         }}
-        inputRef={inputRef}
+        inputRef={inputRef as RefObject<HTMLInputElement>}
       />
     </div>
   )
@@ -269,7 +270,7 @@ function McpTextareaWithTags({
           setShowTags(false)
           setActiveSourceBlockId(null)
         }}
-        inputRef={textareaRef}
+        inputRef={textareaRef as RefObject<HTMLTextAreaElement>}
       />
     </div>
   )

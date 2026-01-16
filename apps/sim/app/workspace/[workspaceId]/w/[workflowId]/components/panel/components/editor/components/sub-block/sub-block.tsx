@@ -1,5 +1,5 @@
 import { type JSX, type MouseEvent, memo, useRef, useState } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, ArrowUp } from 'lucide-react'
 import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'
 import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
@@ -191,7 +191,10 @@ const renderLabel = (
   const showWand = wandState?.isWandEnabled && !wandState.isPreview && !wandState.disabled
 
   return (
-    <Label className='flex items-center justify-between gap-[6px] pl-[2px]'>
+    <Label
+      className='flex items-center justify-between gap-[6px] pl-[2px]'
+      onClick={(e) => e.preventDefault()}
+    >
       <div className='flex items-center gap-[6px] whitespace-nowrap'>
         {config.title}
         {required && <span className='ml-0.5'>*</span>}
@@ -222,25 +225,42 @@ const renderLabel = (
               Generate
             </Button>
           ) : (
-            <Input
-              ref={wandState.searchInputRef}
-              value={wandState.isStreaming ? 'Generating...' : wandState.searchQuery}
-              onChange={(e) => wandState.onSearchChange(e.target.value)}
-              onBlur={wandState.onSearchBlur}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && wandState.searchQuery.trim() && !wandState.isStreaming) {
+            <div className='-my-1 flex items-center gap-[4px]'>
+              <Input
+                ref={wandState.searchInputRef}
+                value={wandState.isStreaming ? 'Generating...' : wandState.searchQuery}
+                onChange={(e) => wandState.onSearchChange(e.target.value)}
+                onBlur={wandState.onSearchBlur}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && wandState.searchQuery.trim() && !wandState.isStreaming) {
+                    wandState.onSearchSubmit()
+                  } else if (e.key === 'Escape') {
+                    wandState.onSearchCancel()
+                  }
+                }}
+                disabled={wandState.isStreaming}
+                className={cn(
+                  'h-5 max-w-[200px] flex-1 text-[11px]',
+                  wandState.isStreaming && 'text-muted-foreground'
+                )}
+                placeholder='Generate...'
+              />
+              <Button
+                variant='tertiary'
+                disabled={!wandState.searchQuery.trim() || wandState.isStreaming}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
                   wandState.onSearchSubmit()
-                } else if (e.key === 'Escape') {
-                  wandState.onSearchCancel()
-                }
-              }}
-              disabled={wandState.isStreaming}
-              className={cn(
-                '-my-1 h-5 max-w-[200px] flex-1 text-[11px]',
-                wandState.isStreaming && 'text-muted-foreground'
-              )}
-              placeholder='Describe what you want to generate...'
-            />
+                }}
+                className='h-[20px] w-[20px] flex-shrink-0 p-0'
+              >
+                <ArrowUp className='h-[12px] w-[12px]' />
+              </Button>
+            </div>
           )}
         </>
       )}

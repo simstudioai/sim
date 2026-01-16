@@ -78,24 +78,6 @@
 }
 
 /**
- * Selected node ring indicator
- * Uses a pseudo-element overlay to match the original behavior (absolute inset-0 z-40)
- */
-.react-flow__node.selected > div > div {
-  position: relative;
-}
-
-.react-flow__node.selected > div > div::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 40;
-  border-radius: 8px;
-  box-shadow: 0 0 0 1.75px var(--brand-secondary);
-  pointer-events: none;
-}
-
-/**
  * Color tokens - single source of truth for all colors
  * Light mode: Warm theme
  * Dark mode: Dark neutral theme
