@@ -27,6 +27,7 @@ import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/compo
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { getBlock } from '@/blocks/registry'
+import type { SubBlockType } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePanelEditorStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -101,16 +102,25 @@ export function Editor() {
     [blockConfig?.subBlocks]
   )
   const canonicalModeOverrides = currentBlock?.data?.canonicalModes
+  const subBlocksForAdvancedCheck = useMemo(() => {
+    const subBlocks = blockConfig?.subBlocks || []
+    if (!triggerMode) return subBlocks
+    return subBlocks.filter(
+      (subBlock) =>
+        subBlock.mode === 'trigger' || subBlock.type === ('trigger-config' as SubBlockType)
+    )
+  }, [blockConfig?.subBlocks, triggerMode])
+
   const advancedValuesPresent = hasAdvancedValues(
-    blockConfig?.subBlocks || [],
+    subBlocksForAdvancedCheck,
     blockSubBlockValues,
     canonicalIndex
   )
   const displayAdvancedOptions = advancedMode || advancedValuesPresent
 
   const hasAdvancedOnlyFields = useMemo(
-    () => hasStandaloneAdvancedFields(blockConfig?.subBlocks || [], canonicalIndex),
-    [blockConfig?.subBlocks, canonicalIndex]
+    () => hasStandaloneAdvancedFields(subBlocksForAdvancedCheck, canonicalIndex),
+    [subBlocksForAdvancedCheck, canonicalIndex]
   )
 
   // Get subblock layout using custom hook
