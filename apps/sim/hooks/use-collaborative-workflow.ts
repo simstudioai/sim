@@ -200,9 +200,6 @@ export function useCollaborativeWorkflow() {
             case BLOCK_OPERATIONS.UPDATE_NAME:
               workflowStore.updateBlockName(payload.id, payload.name)
               break
-            case BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE:
-              workflowStore.setBlockAdvancedMode(payload.id, payload.advancedMode)
-              break
             case BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE:
               workflowStore.setBlockCanonicalMode(
                 payload.id,
@@ -923,23 +920,6 @@ export function useCollaborativeWorkflow() {
     [isInActiveRoom, workflowStore, undoRedo, addToQueue, activeWorkflowId, session?.user?.id]
   )
 
-  const collaborativeToggleBlockAdvancedMode = useCallback(
-    (id: string) => {
-      const currentBlock = workflowStore.blocks[id]
-      if (!currentBlock) return
-
-      const newAdvancedMode = !currentBlock.advancedMode
-
-      executeQueuedOperation(
-        BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE,
-        OPERATION_TARGETS.BLOCK,
-        { id, advancedMode: newAdvancedMode },
-        () => workflowStore.toggleBlockAdvancedMode(id)
-      )
-    },
-    [executeQueuedOperation, workflowStore]
-  )
-
   const collaborativeSetBlockCanonicalMode = useCallback(
     (id: string, canonicalId: string, canonicalMode: 'basic' | 'advanced') => {
       executeQueuedOperation(
@@ -1625,7 +1605,6 @@ export function useCollaborativeWorkflow() {
     collaborativeUpdateBlockName,
     collaborativeBatchToggleBlockEnabled,
     collaborativeBatchUpdateParent,
-    collaborativeToggleBlockAdvancedMode,
     collaborativeSetBlockCanonicalMode,
     collaborativeBatchToggleBlockHandles,
     collaborativeBatchAddBlocks,

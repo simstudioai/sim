@@ -1,9 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BookOpen, Check, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
+import { BookOpen, Check, ChevronUp, Pencil } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import {
   buildCanonicalIndex,
   hasAdvancedValues,
@@ -106,18 +105,7 @@ export function Editor() {
     blockSubBlockValues,
     canonicalIndex
   )
-  const displayAdvancedOptions = userPermissions.canEdit
-    ? advancedMode
-    : advancedMode || advancedValuesPresent
-  const hasAdvancedOnlyFields = useMemo(() => {
-    if (!blockConfig?.subBlocks) return false
-    return blockConfig.subBlocks.some((subBlock) => {
-      if (subBlock.mode !== 'advanced') return false
-      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
-      const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
-      return !isCanonicalPair(group)
-    })
-  }, [blockConfig?.subBlocks, canonicalIndex])
+  const displayAdvancedOptions = advancedMode || advancedValuesPresent
 
   // Get subblock layout using custom hook
   const { subBlocks, stateToUse: subBlockState } = useEditorSubblockLayout(
@@ -139,23 +127,13 @@ export function Editor() {
   })
 
   // Collaborative actions
-  const {
-    collaborativeToggleBlockAdvancedMode,
-    collaborativeSetBlockCanonicalMode,
-    collaborativeUpdateBlockName,
-  } = useCollaborativeWorkflow()
+  const { collaborativeSetBlockCanonicalMode, collaborativeUpdateBlockName } =
+    useCollaborativeWorkflow()
 
   // Rename state
   const [isRenaming, setIsRenaming] = useState(false)
   const [editedName, setEditedName] = useState('')
   const nameInputRef = useRef<HTMLInputElement>(null)
-
-  // Mode toggle handlers
-  const handleToggleAdvancedMode = useCallback(() => {
-    if (currentBlockId && userPermissions.canEdit) {
-      collaborativeToggleBlockAdvancedMode(currentBlockId)
-    }
-  }, [currentBlockId, userPermissions.canEdit, collaborativeToggleBlockAdvancedMode])
 
   /**
    * Handles starting the rename process.
@@ -215,26 +193,6 @@ export function Editor() {
       window.open(docsLink, '_blank', 'noopener,noreferrer')
     }
   }
-
-  const hasAdvancedMode = hasAdvancedOnlyFields
-
-  const autoExpandedBlocksRef = useRef<Set<string>>(new Set())
-
-  useEffect(() => {
-    if (!currentBlockId || !userPermissions.canEdit) return
-    if (!advancedValuesPresent) return
-    if (advancedMode) return
-    if (autoExpandedBlocksRef.current.has(currentBlockId)) return
-
-    autoExpandedBlocksRef.current.add(currentBlockId)
-    collaborativeToggleBlockAdvancedMode(currentBlockId)
-  }, [
-    advancedMode,
-    advancedValuesPresent,
-    collaborativeToggleBlockAdvancedMode,
-    currentBlockId,
-    userPermissions.canEdit,
-  ])
 
   // Determine if connections are at minimum height (collapsed state)
   const isConnectionsAtMinHeight = connectionsHeight <= 35
@@ -447,33 +405,6 @@ export function Editor() {
               )}
             </div>
           </div>
-
-          {hasAdvancedMode && (
-            <div className='flex flex-shrink-0 items-center border-[var(--border)] border-t px-[8px] py-[6px]'>
-              <Button
-                variant='ghost'
-                className='flex h-[24px] w-full items-center justify-between px-[6px] text-[13px]'
-                onClick={handleToggleAdvancedMode}
-                disabled={!userPermissions.canEdit}
-                aria-label='Toggle advanced options'
-              >
-                <div className='flex items-center gap-[6px]'>
-                  <span className='text-[var(--text-primary)]'>
-                    {displayAdvancedOptions ? 'Hide advanced options' : 'Show advanced options'}
-                  </span>
-                  {advancedValuesPresent && (
-                    <span className='h-[6px] w-[6px] rounded-full bg-[var(--brand-9)]' />
-                  )}
-                </div>
-                <ChevronDown
-                  className={cn(
-                    'h-[14px] w-[14px] transition-transform',
-                    displayAdvancedOptions && 'rotate-180'
-                  )}
-                />
-              </Button>
-            </div>
-          )}
 
           {/* Connections Section - Only show when there are connections */}
           {hasIncomingConnections && (
