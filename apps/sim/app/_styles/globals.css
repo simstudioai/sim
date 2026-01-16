@@ -11,7 +11,7 @@
  */
 :root {
   --sidebar-width: 232px; /* SIDEBAR_WIDTH.DEFAULT */
-  --panel-width: 290px; /* PANEL_WIDTH.DEFAULT */
+  --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
   --toolbar-triggers-height: 300px; /* TOOLBAR_TRIGGERS_HEIGHT.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 155px; /* TERMINAL_HEIGHT.DEFAULT */
