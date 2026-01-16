@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
+import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
 import {
   type FieldConfig,
   useCreateForm,
@@ -146,7 +147,7 @@ export function FormDeploy({
 
   useEffect(() => {
     const blocks = Object.values(useWorkflowStore.getState().blocks)
-    const startBlock = blocks.find((b) => b.type === 'starter' || b.type === 'start_trigger')
+    const startBlock = blocks.find((b) => isValidStartBlockType(b.type))
 
     if (startBlock) {
       const inputFormat = useSubBlockStore.getState().getValue(startBlock.id, 'inputFormat')
