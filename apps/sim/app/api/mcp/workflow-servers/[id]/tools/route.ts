@@ -40,7 +40,6 @@ export const GET = withMcpAuth<RouteParams>('read')(
 
       logger.info(`[${requestId}] Listing tools for workflow MCP server: ${serverId}`)
 
-      // Verify server exists and belongs to workspace
       const [server] = await db
         .select({ id: workflowMcpServer.id })
         .from(workflowMcpServer)
@@ -53,7 +52,6 @@ export const GET = withMcpAuth<RouteParams>('read')(
         return createMcpErrorResponse(new Error('Server not found'), 'Server not found', 404)
       }
 
-      // Get tools with workflow details
       const tools = await db
         .select({
           id: workflowMcpTool.id,
@@ -107,7 +105,6 @@ export const POST = withMcpAuth<RouteParams>('write')(
         )
       }
 
-      // Verify server exists and belongs to workspace
       const [server] = await db
         .select({ id: workflowMcpServer.id })
         .from(workflowMcpServer)
@@ -120,7 +117,6 @@ export const POST = withMcpAuth<RouteParams>('write')(
         return createMcpErrorResponse(new Error('Server not found'), 'Server not found', 404)
       }
 
-      // Verify workflow exists and is deployed
       const [workflowRecord] = await db
         .select({
           id: workflow.id,
@@ -137,7 +133,6 @@ export const POST = withMcpAuth<RouteParams>('write')(
         return createMcpErrorResponse(new Error('Workflow not found'), 'Workflow not found', 404)
       }
 
-      // Verify workflow belongs to the same workspace
       if (workflowRecord.workspaceId !== workspaceId) {
         return createMcpErrorResponse(
           new Error('Workflow does not belong to this workspace'),
@@ -154,7 +149,6 @@ export const POST = withMcpAuth<RouteParams>('write')(
         )
       }
 
-      // Verify workflow has a valid start block
       const hasStartBlock = await hasValidStartBlock(body.workflowId)
       if (!hasStartBlock) {
         return createMcpErrorResponse(
@@ -164,7 +158,6 @@ export const POST = withMcpAuth<RouteParams>('write')(
         )
       }
 
-      // Check if tool already exists for this workflow
       const [existingTool] = await db
         .select({ id: workflowMcpTool.id })
         .from(workflowMcpTool)
@@ -190,7 +183,6 @@ export const POST = withMcpAuth<RouteParams>('write')(
         workflowRecord.description ||
         `Execute ${workflowRecord.name} workflow`
 
-      // Create the tool
       const toolId = crypto.randomUUID()
       const [tool] = await db
         .insert(workflowMcpTool)

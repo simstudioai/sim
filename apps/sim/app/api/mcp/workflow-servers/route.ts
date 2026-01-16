@@ -1,10 +1,13 @@
 import { db } from '@sim/db'
-import { workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
+import { workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, inArray, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-utils'
 
 const logger = createLogger('WorkflowMcpServersAPI')
 
@@ -25,18 +28,18 @@ export const GET = withMcpAuth('read')(
           createdBy: workflowMcpServer.createdBy,
           name: workflowMcpServer.name,
           description: workflowMcpServer.description,
+          isPublic: workflowMcpServer.isPublic,
           createdAt: workflowMcpServer.createdAt,
           updatedAt: workflowMcpServer.updatedAt,
           toolCount: sql<number>`(
-            SELECT COUNT(*)::int 
-            FROM "workflow_mcp_tool" 
+            SELECT COUNT(*)::int
+            FROM "workflow_mcp_tool"
             WHERE "workflow_mcp_tool"."server_id" = "workflow_mcp_server"."id"
           )`.as('tool_count'),
         })
         .from(workflowMcpServer)
         .where(eq(workflowMcpServer.workspaceId, workspaceId))
 
-      // Fetch all tools for these servers
       const serverIds = servers.map((s) => s.id)
       const tools =
         serverIds.length > 0
@@ -49,7 +52,6 @@ export const GET = withMcpAuth('read')(
               .where(inArray(workflowMcpTool.serverId, serverIds))
           : []
 
-      // Group tool names by server
       const toolNamesByServer: Record<string, string[]> = {}
       for (const tool of tools) {
         if (!toolNamesByServer[tool.serverId]) {
@@ -58,7 +60,6 @@ export const GET = withMcpAuth('read')(
         toolNamesByServer[tool.serverId].push(tool.toolName)
       }
 
-      // Attach tool names to servers
       const serversWithToolNames = servers.map((server) => ({
         ...server,
         toolNames: toolNamesByServer[server.id] || [],
@@ -80,6 +81,19 @@ export const GET = withMcpAuth('read')(
 )
 
 /**
+ * Check if a workflow has a valid start block by loading from database
+ */
+async function hasValidStartBlock(workflowId: string): Promise<boolean> {
+  try {
+    const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+    return hasValidStartBlockInState(normalizedData)
+  } catch (error) {
+    logger.warn('Error checking for start block:', error)
+    return false
+  }
+}
+
+/**
  * POST - Create a new workflow MCP server
  */
 export const POST = withMcpAuth('write')(
@@ -90,6 +104,7 @@ export const POST = withMcpAuth('write')(
       logger.info(`[${requestId}] Creating workflow MCP server:`, {
         name: body.name,
         workspaceId,
+        workflowIds: body.workflowIds,
       })
 
       if (!body.name) {
@@ -110,16 +125,82 @@ export const POST = withMcpAuth('write')(
           createdBy: userId,
           name: body.name.trim(),
           description: body.description?.trim() || null,
+          isPublic: body.isPublic ?? false,
           createdAt: new Date(),
           updatedAt: new Date(),
         })
         .returning()
 
+      // If workflowIds are provided, create tools for each workflow
+      const workflowIds: string[] = body.workflowIds || []
+      const addedTools: Array<{ workflowId: string; toolName: string }> = []
+
+      if (workflowIds.length > 0) {
+        // Fetch all workflows in one query
+        const workflows = await db
+          .select({
+            id: workflow.id,
+            name: workflow.name,
+            description: workflow.description,
+            isDeployed: workflow.isDeployed,
+            workspaceId: workflow.workspaceId,
+          })
+          .from(workflow)
+          .where(inArray(workflow.id, workflowIds))
+
+        // Create tools for each valid workflow
+        for (const workflowRecord of workflows) {
+          // Skip if workflow doesn't belong to this workspace
+          if (workflowRecord.workspaceId !== workspaceId) {
+            logger.warn(
+              `[${requestId}] Skipping workflow ${workflowRecord.id} - does not belong to workspace`
+            )
+            continue
+          }
+
+          // Skip if workflow is not deployed
+          if (!workflowRecord.isDeployed) {
+            logger.warn(`[${requestId}] Skipping workflow ${workflowRecord.id} - not deployed`)
+            continue
+          }
+
+          // Skip if workflow doesn't have a start block
+          const hasStartBlock = await hasValidStartBlock(workflowRecord.id)
+          if (!hasStartBlock) {
+            logger.warn(`[${requestId}] Skipping workflow ${workflowRecord.id} - no start block`)
+            continue
+          }
+
+          const toolName = sanitizeToolName(workflowRecord.name)
+          const toolDescription =
+            workflowRecord.description || `Execute ${workflowRecord.name} workflow`
+
+          const toolId = crypto.randomUUID()
+          await db.insert(workflowMcpTool).values({
+            id: toolId,
+            serverId,
+            workflowId: workflowRecord.id,
+            toolName,
+            toolDescription,
+            parameterSchema: {},
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+
+          addedTools.push({ workflowId: workflowRecord.id, toolName })
+        }
+
+        logger.info(
+          `[${requestId}] Added ${addedTools.length} tools to server ${serverId}:`,
+          addedTools.map((t) => t.toolName)
+        )
+      }
+
       logger.info(
         `[${requestId}] Successfully created workflow MCP server: ${body.name} (ID: ${serverId})`
       )
 
-      return createMcpSuccessResponse({ server }, 201)
+      return createMcpSuccessResponse({ server, addedTools }, 201)
     } catch (error) {
       logger.error(`[${requestId}] Error creating workflow MCP server:`, error)
       return createMcpErrorResponse(

@@ -1734,7 +1734,8 @@ export const ssoProvider = pgTable(
 
 /**
  * Workflow MCP Servers - User-created MCP servers that expose workflows as tools.
- * These servers are accessible by external MCP clients via API key authentication.
+ * These servers are accessible by external MCP clients via API key authentication,
+ * or publicly if isPublic is set to true.
  */
 export const workflowMcpServer = pgTable(
   'workflow_mcp_server',
@@ -1748,6 +1749,7 @@ export const workflowMcpServer = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     description: text('description'),
+    isPublic: boolean('is_public').notNull().default(false),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
