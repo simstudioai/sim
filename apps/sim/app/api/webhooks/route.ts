@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { webhook, workflow } from '@sim/db/schema'
+import { webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNull, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -71,7 +71,23 @@ export async function GET(request: NextRequest) {
         })
         .from(webhook)
         .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-        .where(and(eq(webhook.workflowId, workflowId), eq(webhook.blockId, blockId)))
+        .leftJoin(
+          workflowDeploymentVersion,
+          and(
+            eq(workflowDeploymentVersion.workflowId, workflow.id),
+            eq(workflowDeploymentVersion.isActive, true)
+          )
+        )
+        .where(
+          and(
+            eq(webhook.workflowId, workflowId),
+            eq(webhook.blockId, blockId),
+            or(
+              eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
+              and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
+            )
+          )
+        )
         .orderBy(desc(webhook.updatedAt))
 
       logger.info(
@@ -149,7 +165,23 @@ export async function POST(request: NextRequest) {
           const existingForBlock = await db
             .select({ id: webhook.id, path: webhook.path })
             .from(webhook)
-            .where(and(eq(webhook.workflowId, workflowId), eq(webhook.blockId, blockId)))
+            .leftJoin(
+              workflowDeploymentVersion,
+              and(
+                eq(workflowDeploymentVersion.workflowId, workflowId),
+                eq(workflowDeploymentVersion.isActive, true)
+              )
+            )
+            .where(
+              and(
+                eq(webhook.workflowId, workflowId),
+                eq(webhook.blockId, blockId),
+                or(
+                  eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
+                  and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
+                )
+              )
+            )
             .limit(1)
 
           if (existingForBlock.length > 0) {
@@ -225,7 +257,23 @@ export async function POST(request: NextRequest) {
       const existingForBlock = await db
         .select({ id: webhook.id })
         .from(webhook)
-        .where(and(eq(webhook.workflowId, workflowId), eq(webhook.blockId, blockId)))
+        .leftJoin(
+          workflowDeploymentVersion,
+          and(
+            eq(workflowDeploymentVersion.workflowId, workflowId),
+            eq(workflowDeploymentVersion.isActive, true)
+          )
+        )
+        .where(
+          and(
+            eq(webhook.workflowId, workflowId),
+            eq(webhook.blockId, blockId),
+            or(
+              eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
+              and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
+            )
+          )
+        )
         .limit(1)
       if (existingForBlock.length > 0) {
         targetWebhookId = existingForBlock[0].id

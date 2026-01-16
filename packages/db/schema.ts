@@ -492,7 +492,11 @@ export const workflowSchedule = pgTable(
     workflowId: text('workflow_id')
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
-    blockId: text('block_id').references(() => workflowBlocks.id, { onDelete: 'cascade' }),
+    deploymentVersionId: text('deployment_version_id').references(
+      () => workflowDeploymentVersion.id,
+      { onDelete: 'cascade' }
+    ),
+    blockId: text('block_id'),
     cronExpression: text('cron_expression'),
     nextRunAt: timestamp('next_run_at'),
     lastRanAt: timestamp('last_ran_at'),
@@ -507,9 +511,14 @@ export const workflowSchedule = pgTable(
   },
   (table) => {
     return {
-      workflowBlockUnique: uniqueIndex('workflow_schedule_workflow_block_unique').on(
+      workflowBlockUnique: uniqueIndex('workflow_schedule_workflow_block_deployment_unique').on(
         table.workflowId,
-        table.blockId
+        table.blockId,
+        table.deploymentVersionId
+      ),
+      workflowDeploymentIdx: index('workflow_schedule_workflow_deployment_idx').on(
+        table.workflowId,
+        table.deploymentVersionId
       ),
     }
   }
@@ -522,7 +531,11 @@ export const webhook = pgTable(
     workflowId: text('workflow_id')
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
-    blockId: text('block_id').references(() => workflowBlocks.id, { onDelete: 'cascade' }), // ID of the webhook trigger block (nullable for legacy starter block webhooks)
+    deploymentVersionId: text('deployment_version_id').references(
+      () => workflowDeploymentVersion.id,
+      { onDelete: 'cascade' }
+    ),
+    blockId: text('block_id'),
     path: text('path').notNull(),
     provider: text('provider'), // e.g., "whatsapp", "github", etc.
     providerConfig: json('provider_config'), // Store provider-specific configuration
@@ -537,12 +550,16 @@ export const webhook = pgTable(
   },
   (table) => {
     return {
-      // Ensure webhook paths are unique
-      pathIdx: uniqueIndex('path_idx').on(table.path),
+      // Ensure webhook paths are unique per deployment version
+      pathIdx: uniqueIndex('path_deployment_unique').on(table.path, table.deploymentVersionId),
       // Optimize queries for webhooks by workflow and block
       workflowBlockIdx: index('idx_webhook_on_workflow_id_block_id').on(
         table.workflowId,
         table.blockId
+      ),
+      workflowDeploymentIdx: index('webhook_workflow_deployment_idx').on(
+        table.workflowId,
+        table.deploymentVersionId
       ),
       // Optimize queries for credential set webhooks
       credentialSetIdIdx: index('webhook_credential_set_id_idx').on(table.credentialSetId),

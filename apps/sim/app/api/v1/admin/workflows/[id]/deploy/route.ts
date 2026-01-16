@@ -60,7 +60,17 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       return internalErrorResponse(deployResult.error || 'Failed to deploy workflow')
     }
 
-    const scheduleResult = await createSchedulesForDeploy(workflowId, normalizedData.blocks, db)
+    if (!deployResult.deploymentVersionId) {
+      await undeployWorkflow({ workflowId })
+      return internalErrorResponse('Failed to resolve deployment version')
+    }
+
+    const scheduleResult = await createSchedulesForDeploy(
+      workflowId,
+      normalizedData.blocks,
+      db,
+      deployResult.deploymentVersionId
+    )
     if (!scheduleResult.success) {
       logger.warn(`Schedule creation failed for workflow ${workflowId}: ${scheduleResult.error}`)
     }

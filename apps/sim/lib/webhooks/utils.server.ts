@@ -1,7 +1,7 @@
-import { db } from '@sim/db'
+import { db, workflowDeploymentVersion } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createPinnedUrl, validateUrlWithDNS } from '@/lib/core/security/input-validation'
 import type { DbOrTx } from '@/lib/db/types'
@@ -28,11 +28,28 @@ export async function handleWhatsAppVerification(
     }
 
     const webhooks = await db
-      .select()
+      .select({ webhook })
       .from(webhook)
-      .where(and(eq(webhook.provider, 'whatsapp'), eq(webhook.isActive, true)))
+      .leftJoin(
+        workflowDeploymentVersion,
+        and(
+          eq(workflowDeploymentVersion.workflowId, webhook.workflowId),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+      .where(
+        and(
+          eq(webhook.provider, 'whatsapp'),
+          eq(webhook.isActive, true),
+          or(
+            eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
+            and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
+          )
+        )
+      )
 
-    for (const wh of webhooks) {
+    for (const row of webhooks) {
+      const wh = row.webhook
       const providerConfig = (wh.providerConfig as Record<string, any>) || {}
       const verificationToken = providerConfig.verificationToken
 
@@ -1921,6 +1938,7 @@ export async function syncWebhooksForCredentialSet(params: {
   providerConfig: Record<string, any>
   requestId: string
   tx?: DbOrTx
+  deploymentVersionId?: string
 }): Promise<CredentialSetWebhookSyncResult> {
   const {
     workflowId,
@@ -1932,6 +1950,7 @@ export async function syncWebhooksForCredentialSet(params: {
     providerConfig,
     requestId,
     tx,
+    deploymentVersionId,
   } = params
 
   const dbCtx = tx ?? db
@@ -1966,7 +1985,15 @@ export async function syncWebhooksForCredentialSet(params: {
   const existingWebhooks = await dbCtx
     .select()
     .from(webhook)
-    .where(and(eq(webhook.workflowId, workflowId), eq(webhook.blockId, blockId)))
+    .where(
+      deploymentVersionId
+        ? and(
+            eq(webhook.workflowId, workflowId),
+            eq(webhook.blockId, blockId),
+            eq(webhook.deploymentVersionId, deploymentVersionId)
+          )
+        : and(eq(webhook.workflowId, workflowId), eq(webhook.blockId, blockId))
+    )
 
   // Filter to only webhooks belonging to this credential set
   const credentialSetWebhooks = existingWebhooks.filter((wh) => {
@@ -2020,6 +2047,7 @@ export async function syncWebhooksForCredentialSet(params: {
       await dbCtx
         .update(webhook)
         .set({
+          ...(deploymentVersionId ? { deploymentVersionId } : {}),
           providerConfig: updatedConfig,
           isActive: true,
           updatedAt: new Date(),
@@ -2058,6 +2086,7 @@ export async function syncWebhooksForCredentialSet(params: {
         providerConfig: newConfig,
         credentialSetId, // Indexed column for efficient credential set queries
         isActive: true,
+        ...(deploymentVersionId ? { deploymentVersionId } : {}),
         createdAt: new Date(),
         updatedAt: new Date(),
       })
@@ -2113,9 +2142,24 @@ export async function syncAllWebhooksForCredentialSet(
 
   // Find all webhooks that use this credential set using the indexed column
   const webhooksForSet = await dbCtx
-    .select()
+    .select({ webhook })
     .from(webhook)
-    .where(eq(webhook.credentialSetId, credentialSetId))
+    .leftJoin(
+      workflowDeploymentVersion,
+      and(
+        eq(workflowDeploymentVersion.workflowId, webhook.workflowId),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+    .where(
+      and(
+        eq(webhook.credentialSetId, credentialSetId),
+        or(
+          eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
+          and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
+        )
+      )
+    )
 
   if (webhooksForSet.length === 0) {
     syncLogger.info(`[${requestId}] No webhooks found using credential set ${credentialSetId}`)
@@ -2123,8 +2167,9 @@ export async function syncAllWebhooksForCredentialSet(
   }
 
   // Group webhooks by workflow+block to find unique triggers
-  const triggerGroups = new Map<string, (typeof webhooksForSet)[number]>()
-  for (const wh of webhooksForSet) {
+  const triggerGroups = new Map<string, (typeof webhooksForSet)[number]['webhook']>()
+  for (const row of webhooksForSet) {
+    const wh = row.webhook
     const key = `${wh.workflowId}:${wh.blockId}`
     // Keep the first webhook as representative (they all have same config)
     if (!triggerGroups.has(key)) {
