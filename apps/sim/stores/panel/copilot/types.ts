@@ -179,6 +179,7 @@ export interface CopilotActions {
       fileAttachments?: MessageFileAttachment[]
       contexts?: ChatContext[]
       messageId?: string
+      queueIfBusy?: boolean
     }
   ) => Promise<void>
   abortMessage: (options?: { suppressContinueOption?: boolean }) => void

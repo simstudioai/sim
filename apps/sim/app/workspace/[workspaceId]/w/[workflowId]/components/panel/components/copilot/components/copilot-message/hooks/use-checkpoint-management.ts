@@ -94,7 +94,6 @@ export function useCheckpointManagement(
 
         setShowRestoreConfirmation(false)
         onRevertModeChange?.(false)
-        onEditModeChange?.(true)
 
         logger.info('Checkpoint reverted and removed from message', {
           messageId: message.id,
@@ -108,15 +107,7 @@ export function useCheckpointManagement(
         setIsReverting(false)
       }
     }
-  }, [
-    messageCheckpoints,
-    revertToCheckpoint,
-    message.id,
-    messages,
-    currentChat,
-    onRevertModeChange,
-    onEditModeChange,
-  ])
+  }, [messageCheckpoints, revertToCheckpoint, message.id, messages, currentChat, onRevertModeChange])
 
   /**
    * Cancels checkpoint revert
@@ -176,6 +167,7 @@ export function useCheckpointManagement(
             fileAttachments: fileAttachments || message.fileAttachments,
             contexts: contexts || (message as any).contexts,
             messageId: message.id,
+            queueIfBusy: false,
           })
         }
         pendingEditRef.current = null
@@ -219,6 +211,7 @@ export function useCheckpointManagement(
           fileAttachments: fileAttachments || message.fileAttachments,
           contexts: contexts || (message as any).contexts,
           messageId: message.id,
+          queueIfBusy: false,
         })
       }
       pendingEditRef.current = null
