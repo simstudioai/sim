@@ -878,6 +878,25 @@ function validateSourceHandleForBlock(
         error: `Invalid source handle "${sourceHandle}" for router block. Valid handles: source, ${EDGE.ROUTER_PREFIX}{targetId}, error`,
       }
 
+    case 'router_v2': {
+      if (!sourceHandle.startsWith(EDGE.ROUTER_PREFIX)) {
+        return {
+          valid: false,
+          error: `Invalid source handle "${sourceHandle}" for router_v2 block. Must start with "${EDGE.ROUTER_PREFIX}"`,
+        }
+      }
+
+      const routesValue = sourceBlock?.subBlocks?.routes?.value
+      if (!routesValue) {
+        return {
+          valid: false,
+          error: `Invalid router handle "${sourceHandle}" - no routes defined`,
+        }
+      }
+
+      return validateRouterHandle(sourceHandle, sourceBlock.id, routesValue)
+    }
+
     default:
       if (sourceHandle === 'source') {
         return { valid: true }
@@ -960,6 +979,85 @@ function validateConditionHandle(
   return {
     valid: false,
     error: `Invalid condition handle "${sourceHandle}". Valid handles: ${validOptionsStr}`,
+  }
+}
+
+/**
+ * Validates router handle references a valid route in the block.
+ * Accepts both internal IDs (router-{routeId}) and semantic keys (router-{blockId}-route-1)
+ */
+function validateRouterHandle(
+  sourceHandle: string,
+  blockId: string,
+  routesValue: string | any[]
+): EdgeHandleValidationResult {
+  let routes: any[]
+  if (typeof routesValue === 'string') {
+    try {
+      routes = JSON.parse(routesValue)
+    } catch {
+      return {
+        valid: false,
+        error: `Cannot validate router handle "${sourceHandle}" - routes is not valid JSON`,
+      }
+    }
+  } else if (Array.isArray(routesValue)) {
+    routes = routesValue
+  } else {
+    return {
+      valid: false,
+      error: `Cannot validate router handle "${sourceHandle}" - routes is not an array`,
+    }
+  }
+
+  if (!Array.isArray(routes) || routes.length === 0) {
+    return {
+      valid: false,
+      error: `Invalid router handle "${sourceHandle}" - no routes defined`,
+    }
+  }
+
+  const validHandles = new Set<string>()
+  const semanticPrefix = `router-${blockId}-`
+
+  for (let i = 0; i < routes.length; i++) {
+    const route = routes[i]
+
+    // Accept internal ID format: router-{uuid}
+    if (route.id) {
+      validHandles.add(`router-${route.id}`)
+    }
+
+    // Accept 1-indexed route number format: router-{blockId}-route-1, router-{blockId}-route-2, etc.
+    validHandles.add(`${semanticPrefix}route-${i + 1}`)
+
+    // Accept normalized title format: router-{blockId}-{normalized-title}
+    // Normalize: lowercase, replace spaces with dashes, remove special chars
+    if (route.title && typeof route.title === 'string') {
+      const normalizedTitle = route.title
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')
+      if (normalizedTitle) {
+        validHandles.add(`${semanticPrefix}${normalizedTitle}`)
+      }
+    }
+  }
+
+  if (validHandles.has(sourceHandle)) {
+    return { valid: true }
+  }
+
+  const validOptions = Array.from(validHandles).slice(0, 5)
+  const moreCount = validHandles.size - validOptions.length
+  let validOptionsStr = validOptions.join(', ')
+  if (moreCount > 0) {
+    validOptionsStr += `, ... and ${moreCount} more`
+  }
+
+  return {
+    valid: false,
+    error: `Invalid router handle "${sourceHandle}". Valid handles: ${validOptionsStr}`,
   }
 }
 
