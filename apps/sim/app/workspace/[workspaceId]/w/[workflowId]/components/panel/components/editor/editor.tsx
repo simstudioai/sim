@@ -1,11 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BookOpen, Check, ChevronUp, Pencil } from 'lucide-react'
+import { BookOpen, Check, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import {
   buildCanonicalIndex,
   hasAdvancedValues,
+  hasStandaloneAdvancedFields,
   isCanonicalPair,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
@@ -107,6 +108,11 @@ export function Editor() {
   )
   const displayAdvancedOptions = advancedMode || advancedValuesPresent
 
+  const hasAdvancedOnlyFields = useMemo(
+    () => hasStandaloneAdvancedFields(blockConfig?.subBlocks || [], canonicalIndex),
+    [blockConfig?.subBlocks, canonicalIndex]
+  )
+
   // Get subblock layout using custom hook
   const { subBlocks, stateToUse: subBlockState } = useEditorSubblockLayout(
     blockConfig || ({} as any),
@@ -127,8 +133,17 @@ export function Editor() {
   })
 
   // Collaborative actions
-  const { collaborativeSetBlockCanonicalMode, collaborativeUpdateBlockName } =
-    useCollaborativeWorkflow()
+  const {
+    collaborativeSetBlockCanonicalMode,
+    collaborativeUpdateBlockName,
+    collaborativeToggleBlockAdvancedMode,
+  } = useCollaborativeWorkflow()
+
+  // Advanced mode toggle handler
+  const handleToggleAdvancedMode = useCallback(() => {
+    if (!currentBlockId || !userPermissions.canEdit) return
+    collaborativeToggleBlockAdvancedMode(currentBlockId)
+  }, [currentBlockId, userPermissions.canEdit, collaborativeToggleBlockAdvancedMode])
 
   // Rename state
   const [isRenaming, setIsRenaming] = useState(false)
@@ -401,6 +416,30 @@ export function Editor() {
                       </div>
                     )
                   })}
+                </div>
+              )}
+
+              {/* Advanced Mode Toggle - Only show when block has standalone advanced-only fields */}
+              {hasAdvancedOnlyFields && userPermissions.canEdit && (
+                <div className='flex items-center justify-center pt-[8px] pb-[4px]'>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    onClick={handleToggleAdvancedMode}
+                    className='h-[28px] gap-[6px] px-[10px] text-[12px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  >
+                    {displayAdvancedOptions ? (
+                      <>
+                        <ChevronUp className='h-[14px] w-[14px]' />
+                        Hide advanced fields
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className='h-[14px] w-[14px]' />
+                        Show advanced fields
+                      </>
+                    )}
+                  </Button>
                 </div>
               )}
             </div>

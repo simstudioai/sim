@@ -166,6 +166,21 @@ export function getCanonicalValues(
 }
 
 /**
+ * Check if a block has any standalone advanced-only fields (not part of canonical pairs).
+ * These require the block-level advanced mode toggle to be visible.
+ */
+export function hasStandaloneAdvancedFields(
+  subBlocks: SubBlockConfig[],
+  canonicalIndex: CanonicalIndex
+): boolean {
+  for (const subBlock of subBlocks) {
+    if (subBlock.mode !== 'advanced') continue
+    if (!canonicalIndex.canonicalIdBySubBlockId[subBlock.id]) return true
+  }
+  return false
+}
+
+/**
  * Check if any advanced-only or canonical advanced values are present.
  */
 export function hasAdvancedValues(

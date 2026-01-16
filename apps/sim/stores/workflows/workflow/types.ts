@@ -83,10 +83,6 @@ export interface BlockState {
   enabled: boolean
   horizontalHandles?: boolean
   height?: number
-  /**
-   * @deprecated Use `data.canonicalModes` for per-canonical-pair mode control instead.
-   * This field is kept for backward compatibility with older workflows.
-   */
   advancedMode?: boolean
   triggerMode?: boolean
   data?: BlockData
