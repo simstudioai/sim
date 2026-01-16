@@ -111,10 +111,14 @@ export function TableDataViewer() {
   /**
    * Applies new query options and resets pagination.
    */
-  const handleApplyQueryOptions = useCallback((options: QueryOptions) => {
-    setQueryOptions(options)
-    setCurrentPage(0)
-  }, [])
+  const handleApplyQueryOptions = useCallback(
+    (options: QueryOptions) => {
+      setQueryOptions(options)
+      setCurrentPage(0)
+      refetchRows()
+    },
+    [refetchRows]
+  )
 
   /**
    * Opens the delete modal for selected rows.
@@ -204,6 +208,7 @@ export function TableDataViewer() {
           columns={columns}
           onApply={handleApplyQueryOptions}
           onAddRow={handleAddRow}
+          isLoading={isLoadingRows}
         />
         {hasSelection && (
           <span className='text-[11px] text-[var(--text-tertiary)]'>{selectedCount} selected</span>

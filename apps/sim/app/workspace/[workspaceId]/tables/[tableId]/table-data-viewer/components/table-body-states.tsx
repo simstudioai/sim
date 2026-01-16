@@ -64,17 +64,19 @@ interface TableEmptyRowsProps {
 export function TableEmptyRows({ columnCount, hasFilter, onAddRow }: TableEmptyRowsProps) {
   return (
     <TableRow>
-      <TableCell colSpan={columnCount + 1} className='h-[160px] text-center'>
-        <div className='flex flex-col items-center gap-[12px]'>
-          <span className='text-[13px] text-[var(--text-tertiary)]'>
-            {hasFilter ? 'No rows match your filter' : 'No data'}
-          </span>
-          {!hasFilter && (
-            <Button variant='default' size='sm' onClick={onAddRow}>
-              <Plus className='mr-[4px] h-[12px] w-[12px]' />
-              Add first row
-            </Button>
-          )}
+      <TableCell colSpan={columnCount + 1} className='h-[160px]'>
+        <div className='fixed left-1/2 -translate-x-1/2'>
+          <div className='flex flex-col items-center gap-[12px]'>
+            <span className='text-[13px] text-[var(--text-tertiary)]'>
+              {hasFilter ? 'No rows match your filter' : 'No data'}
+            </span>
+            {!hasFilter && (
+              <Button variant='default' size='sm' onClick={onAddRow}>
+                <Plus className='mr-[4px] h-[12px] w-[12px]' />
+                Add first row
+              </Button>
+            )}
+          </div>
         </div>
       </TableCell>
     </TableRow>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { ArrowDownAZ, ArrowUpAZ, Plus, X } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpAZ, Loader2, Plus, X } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { Button, Combobox, Input } from '@/components/emcn'
 import type { FilterCondition, SortCondition } from '@/lib/table/filters/constants'
@@ -39,6 +39,8 @@ interface TableQueryBuilderProps {
   onApply: (options: QueryOptions) => void
   /** Callback to add a new row */
   onAddRow: () => void
+  /** Whether a query is currently loading */
+  isLoading?: boolean
 }
 
 /**
@@ -59,7 +61,12 @@ interface TableQueryBuilderProps {
  * />
  * ```
  */
-export function TableQueryBuilder({ columns, onApply, onAddRow }: TableQueryBuilderProps) {
+export function TableQueryBuilder({
+  columns,
+  onApply,
+  onAddRow,
+  isLoading = false,
+}: TableQueryBuilderProps) {
   const [conditions, setConditions] = useState<FilterCondition[]>([])
   const [sortCondition, setSortCondition] = useState<SortCondition | null>(null)
 
@@ -174,8 +181,9 @@ export function TableQueryBuilder({ columns, onApply, onAddRow }: TableQueryBuil
 
         {hasChanges && (
           <>
-            <Button variant='default' size='sm' onClick={handleApply}>
-              Apply
+            <Button variant='default' size='sm' onClick={handleApply} disabled={isLoading}>
+              {isLoading && <Loader2 className='mr-[4px] h-[12px] w-[12px] animate-spin' />}
+              {isLoading ? 'Applying...' : 'Apply'}
             </Button>
 
             <button
