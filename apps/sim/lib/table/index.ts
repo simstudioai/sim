@@ -6,8 +6,6 @@
  *
  * Hooks are not re-exported here to avoid pulling React into server code.
  * Import hooks directly from '@/lib/table/hooks' in client components.
- *
- * @module lib/table
  */
 
 export * from './constants'

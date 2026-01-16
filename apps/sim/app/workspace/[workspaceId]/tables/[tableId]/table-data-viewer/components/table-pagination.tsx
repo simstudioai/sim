@@ -1,7 +1,5 @@
 /**
  * Pagination controls for the table.
- *
- * @module tables/[tableId]/table-data-viewer/components/table-pagination
  */
 
 import { Button } from '@/components/emcn'

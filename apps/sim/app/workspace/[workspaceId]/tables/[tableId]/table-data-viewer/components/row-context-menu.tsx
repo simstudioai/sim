@@ -1,7 +1,5 @@
 /**
  * Context menu for row actions.
- *
- * @module tables/[tableId]/table-data-viewer/components/row-context-menu
  */
 
 import { Edit, Trash2 } from 'lucide-react'

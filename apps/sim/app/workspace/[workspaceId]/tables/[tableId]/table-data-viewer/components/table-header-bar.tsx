@@ -1,7 +1,5 @@
 /**
  * Header bar for the table data viewer.
- *
- * @module tables/[tableId]/table-data-viewer/components/table-header-bar
  */
 
 import { Info, RefreshCw } from 'lucide-react'

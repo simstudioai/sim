@@ -1,7 +1,5 @@
 /**
  * Hook for managing row selection state.
- *
- * @module tables/[tableId]/table-data-viewer/hooks/use-row-selection
  */
 
 import { useCallback, useEffect, useState } from 'react'

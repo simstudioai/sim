@@ -1,7 +1,5 @@
 /**
  * Core type definitions for user-defined tables.
- *
- * @module lib/table/types
  */
 
 import type { COLUMN_TYPES } from './constants'

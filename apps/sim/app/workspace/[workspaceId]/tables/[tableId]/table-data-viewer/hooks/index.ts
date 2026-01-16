@@ -1,7 +1,5 @@
 /**
  * Custom hooks for the table data viewer.
- *
- * @module tables/[tableId]/table-data-viewer/hooks
  */
 
 export * from './use-context-menu'

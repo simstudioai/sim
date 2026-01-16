@@ -1,7 +1,5 @@
 /**
  * Modal for viewing cell details.
- *
- * @module tables/[tableId]/table-data-viewer/components/cell-viewer-modal
  */
 
 import { Copy, X } from 'lucide-react'

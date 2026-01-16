@@ -3,8 +3,6 @@
  *
  * Provides functions to enrich tool descriptions and parameter schemas
  * with table-specific information so LLMs can construct proper queries.
- *
- * @module lib/table/llm-enrichment
  */
 
 /**

@@ -1,10 +1,4 @@
 /**
- * Utility functions for the table data viewer.
- *
- * @module tables/[tableId]/table-data-viewer/utils
- */
-
-/**
  * Gets the badge variant for a column type.
  *
  * @param type - The column type

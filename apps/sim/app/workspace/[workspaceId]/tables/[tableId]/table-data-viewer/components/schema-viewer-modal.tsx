@@ -1,7 +1,5 @@
 /**
  * Modal for viewing table schema.
- *
- * @module tables/[tableId]/table-data-viewer/components/schema-viewer-modal
  */
 
 import { Info, X } from 'lucide-react'

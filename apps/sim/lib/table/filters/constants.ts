@@ -1,8 +1,5 @@
 /**
  * Shared constants and types for table filtering and sorting.
- *
- * @module lib/table/filters/constants
- *
  */
 
 /** Comparison operators for filter conditions (maps to query-builder.ts) */

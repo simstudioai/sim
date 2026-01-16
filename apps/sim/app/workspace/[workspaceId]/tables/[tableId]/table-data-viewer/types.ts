@@ -1,7 +1,5 @@
 /**
  * Type definitions for the table data viewer.
- *
- * @module tables/[tableId]/table-data-viewer/types
  */
 
 import type { TableRow } from '@/lib/table'
@@ -15,7 +13,7 @@ export interface CellViewerData {
   /** Value being displayed */
   value: unknown
   /** Display type for formatting */
-  type: 'json' | 'text' | 'date'
+  type: 'json' | 'text' | 'date' | 'boolean' | 'number'
 }
 
 /**

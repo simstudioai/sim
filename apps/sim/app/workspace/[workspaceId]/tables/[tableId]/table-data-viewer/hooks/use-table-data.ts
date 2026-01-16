@@ -1,7 +1,5 @@
 /**
  * Hook for fetching table data and rows.
- *
- * @module tables/[tableId]/table-data-viewer/hooks/use-table-data
  */
 
 import { useQuery } from '@tanstack/react-query'

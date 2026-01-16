@@ -1,7 +1,5 @@
 /**
  * Cell value renderer for different column types.
- *
- * @module tables/[tableId]/table-data-viewer/components/table-cell-renderer
  */
 
 import type { ColumnDefinition } from '@/lib/table'

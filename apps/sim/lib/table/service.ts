@@ -5,8 +5,6 @@
  * Use API routes for: HTTP requests, frontend clients.
  *
  * Note: API routes have their own implementations for HTTP-specific concerns.
- *
- * @module lib/table/service
  */
 
 import { db } from '@sim/db'

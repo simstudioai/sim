@@ -1,11 +1,5 @@
 'use client'
 
-/**
- * Main table data viewer component.
- *
- * @module tables/[tableId]/table-data-viewer/table-data-viewer
- */
-
 import { useCallback, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -37,17 +31,11 @@ import type { CellViewerData } from './types'
 /**
  * Main component for viewing and managing table data.
  *
- * @remarks
  * Provides functionality for:
  * - Viewing rows with pagination
  * - Filtering and sorting
  * - Adding, editing, and deleting rows
  * - Viewing cell details for long/complex values
- *
- * @example
- * ```tsx
- * <TableDataViewer />
- * ```
  */
 export function TableDataViewer() {
   const params = useParams()

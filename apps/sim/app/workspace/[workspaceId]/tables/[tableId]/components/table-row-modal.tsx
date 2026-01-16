@@ -20,35 +20,19 @@ import type { ColumnDefinition, TableRow, TableSchema } from '@/lib/table'
 
 const logger = createLogger('TableRowModal')
 
-/**
- * Table metadata needed for row operations.
- */
 export interface TableInfo {
-  /** Unique identifier for the table */
   id: string
-  /** Table name for display */
   name: string
-  /** Schema defining columns */
   schema: TableSchema
 }
 
-/**
- * Props for the TableRowModal component.
- */
 export interface TableRowModalProps {
-  /** The operation mode */
   mode: 'add' | 'edit' | 'delete'
-  /** Whether the modal is open */
   isOpen: boolean
-  /** Callback when the modal should close */
   onClose: () => void
-  /** Table to operate on */
   table: TableInfo
-  /** Row being edited/deleted (required for edit/delete modes) */
   row?: TableRow
-  /** Row IDs to delete (for delete mode batch operations) */
   rowIds?: string[]
-  /** Callback when operation is successful */
   onSuccess: () => void
 }
 
@@ -67,9 +51,6 @@ function createInitialRowData(columns: ColumnDefinition[]): Record<string, unkno
   return initial
 }
 
-/**
- * Cleans and transforms form data for API submission.
- */
 function cleanRowData(
   columns: ColumnDefinition[],
   rowData: Record<string, unknown>
@@ -104,9 +85,6 @@ function cleanRowData(
   return cleanData
 }
 
-/**
- * Formats a value for display in the input field.
- */
 function formatValueForInput(value: unknown, type: string): string {
   if (value === null || value === undefined) return ''
   if (type === 'json') {
@@ -123,44 +101,6 @@ function formatValueForInput(value: unknown, type: string): string {
   return String(value)
 }
 
-/**
- * Unified modal component for add, edit, and delete row operations.
- *
- * @example Add mode:
- * ```tsx
- * <TableRowModal
- *   mode="add"
- *   isOpen={isOpen}
- *   onClose={() => setIsOpen(false)}
- *   table={tableData}
- *   onSuccess={() => refetchRows()}
- * />
- * ```
- *
- * @example Edit mode:
- * ```tsx
- * <TableRowModal
- *   mode="edit"
- *   isOpen={isOpen}
- *   onClose={() => setIsOpen(false)}
- *   table={tableData}
- *   row={selectedRow}
- *   onSuccess={() => refetchRows()}
- * />
- * ```
- *
- * @example Delete mode:
- * ```tsx
- * <TableRowModal
- *   mode="delete"
- *   isOpen={isOpen}
- *   onClose={() => setIsOpen(false)}
- *   table={tableData}
- *   rowIds={selectedRowIds}
- *   onSuccess={() => refetchRows()}
- * />
- * ```
- */
 export function TableRowModal({
   mode,
   isOpen,
@@ -191,9 +131,6 @@ export function TableRowModal({
     }
   }, [isOpen, mode, columns, row])
 
-  /**
-   * Handles add/edit form submission.
-   */
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -277,9 +214,6 @@ export function TableRowModal({
     }
   }
 
-  /**
-   * Handles modal close and resets state.
-   */
   const handleClose = () => {
     setRowData({})
     setError(null)
@@ -338,7 +272,6 @@ export function TableRowModal({
     )
   }
 
-  // Add/Edit mode UI
   const isAddMode = mode === 'add'
 
   return (
@@ -410,21 +343,12 @@ function ErrorMessage({ error }: { error: string | null }) {
   )
 }
 
-/**
- * Props for the ColumnField component.
- */
 interface ColumnFieldProps {
-  /** Column definition */
   column: ColumnDefinition
-  /** Current field value */
   value: unknown
-  /** Callback when value changes */
   onChange: (value: unknown) => void
 }
 
-/**
- * Renders an input field for a column based on its type.
- */
 function ColumnField({ column, value, onChange }: ColumnFieldProps) {
   return (
     <div className='flex flex-col gap-[8px]'>

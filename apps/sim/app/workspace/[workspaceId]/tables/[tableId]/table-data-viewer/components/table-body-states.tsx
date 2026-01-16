@@ -1,7 +1,5 @@
 /**
  * Table body placeholder states (loading and empty).
- *
- * @module tables/[tableId]/table-data-viewer/components/table-body-states
  */
 
 import { Plus } from 'lucide-react'

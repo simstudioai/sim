@@ -1,9 +1,3 @@
-/**
- * Constants for the table data viewer.
- *
- * @module tables/[tableId]/table-data-viewer/constants
- */
-
 /** Number of rows to fetch per page */
 export const ROWS_PER_PAGE = 100
 

@@ -1,7 +1,5 @@
 /**
  * Limits and constants for user-defined tables.
- *
- * @module lib/table/constants
  */
 
 export const TABLE_LIMITS = {

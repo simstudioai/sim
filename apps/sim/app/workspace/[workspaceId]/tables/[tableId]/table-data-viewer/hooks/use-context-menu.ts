@@ -1,9 +1,3 @@
-/**
- * Hook for managing context menu state.
- *
- * @module tables/[tableId]/table-data-viewer/hooks/use-context-menu
- */
-
 import { useCallback, useState } from 'react'
 import type { TableRow } from '@/lib/table'
 import type { ContextMenuState } from '../types'
@@ -26,9 +20,6 @@ export function useContextMenu(): UseContextMenuReturn {
     row: null,
   })
 
-  /**
-   * Opens the context menu for a row.
-   */
   const handleRowContextMenu = useCallback((e: React.MouseEvent, row: TableRow) => {
     e.preventDefault()
     e.stopPropagation()
@@ -39,9 +30,6 @@ export function useContextMenu(): UseContextMenuReturn {
     })
   }, [])
 
-  /**
-   * Closes the context menu.
-   */
   const closeContextMenu = useCallback(() => {
     setContextMenu((prev) => ({ ...prev, isOpen: false }))
   }, [])

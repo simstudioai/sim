@@ -1,7 +1,5 @@
 /**
  * Table data viewer sub-components.
- *
- * @module tables/[tableId]/table-data-viewer/components
  */
 
 export * from './cell-viewer-modal'

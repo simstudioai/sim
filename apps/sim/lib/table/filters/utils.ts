@@ -1,7 +1,5 @@
 /**
  * Shared utilities for filter builder UI components.
- *
- * @module lib/table/filters/utils
  */
 
 import { nanoid } from 'nanoid'

@@ -3,33 +3,18 @@
 import { Trash2, X } from 'lucide-react'
 import { Button } from '@/components/emcn'
 
-/**
- * Props for the TableActionBar component.
- */
 interface TableActionBarProps {
-  /** Number of currently selected rows */
   selectedCount: number
-  /** Callback when delete action is triggered */
   onDelete: () => void
-  /** Callback when selection should be cleared */
   onClearSelection: () => void
 }
 
 /**
  * Action bar displayed when rows are selected in the table.
  *
- * @remarks
  * Shows the count of selected rows and provides actions for
  * bulk operations like deletion.
  *
- * @example
- * ```tsx
- * <TableActionBar
- *   selectedCount={selectedRows.size}
- *   onDelete={handleDeleteSelected}
- *   onClearSelection={() => setSelectedRows(new Set())}
- * />
- * ```
  */
 export function TableActionBar({ selectedCount, onDelete, onClearSelection }: TableActionBarProps) {
   return (

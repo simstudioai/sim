@@ -26,94 +26,21 @@ import {
 } from '@/components/emcn'
 import type { TableDefinition } from '@/lib/table'
 import { useDeleteTable } from '@/hooks/queries/use-tables'
+import { getTypeBadgeVariant } from '../[tableId]/table-data-viewer/utils'
+import { formatAbsoluteDate, formatRelativeTime } from './utils'
 
 const logger = createLogger('TableCard')
 
-/**
- * Props for the TableCard component.
- */
 interface TableCardProps {
-  /** The table definition to display */
   table: TableDefinition
-  /** ID of the workspace containing this table */
   workspaceId: string
-}
-
-/**
- * Formats a date to relative time (e.g., "2h ago", "3d ago").
- *
- * @param dateValue - Date string or Date object to format
- * @returns Human-readable relative time string
- */
-function formatRelativeTime(dateValue: string | Date): string {
-  const dateString = typeof dateValue === 'string' ? dateValue : dateValue.toISOString()
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-
-  if (diffInSeconds < 60) return 'just now'
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`
-  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`
-  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`
-  if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)}w ago`
-  if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)}mo ago`
-  return `${Math.floor(diffInSeconds / 31536000)}y ago`
-}
-
-/**
- * Formats a date to absolute format for tooltip display.
- *
- * @param dateValue - Date string or Date object to format
- * @returns Formatted date string (e.g., "Jan 15, 2024, 10:30 AM")
- */
-function formatAbsoluteDate(dateValue: string | Date): string {
-  const dateString = typeof dateValue === 'string' ? dateValue : dateValue.toISOString()
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-/**
- * Gets the badge variant for a column type.
- *
- * @param type - The column type
- * @returns Badge variant name
- */
-function getTypeBadgeVariant(
-  type: string
-): 'green' | 'blue' | 'purple' | 'orange' | 'teal' | 'gray' {
-  switch (type) {
-    case 'string':
-      return 'green'
-    case 'number':
-      return 'blue'
-    case 'boolean':
-      return 'purple'
-    case 'json':
-      return 'orange'
-    case 'date':
-      return 'teal'
-    default:
-      return 'gray'
-  }
 }
 
 /**
  * Card component for displaying a table summary.
  *
- * @remarks
  * Shows table name, column/row counts, description, and provides
  * actions for viewing schema and deleting the table.
- *
- * @example
- * ```tsx
- * <TableCard table={tableData} workspaceId="ws_123" />
- * ```
  */
 export function TableCard({ table, workspaceId }: TableCardProps) {
   const router = useRouter()
@@ -123,9 +50,6 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
 
   const deleteTable = useDeleteTable(workspaceId)
 
-  /**
-   * Handles table deletion.
-   */
   const handleDelete = async () => {
     try {
       await deleteTable.mutateAsync(table.id)
@@ -135,9 +59,6 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
     }
   }
 
-  /**
-   * Navigates to the table detail page.
-   */
   const navigateToTable = () => {
     router.push(`/workspace/${workspaceId}/tables/${table.id}`)
   }

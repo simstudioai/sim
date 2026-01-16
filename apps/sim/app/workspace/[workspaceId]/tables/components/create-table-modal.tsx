@@ -23,19 +23,11 @@ import { useCreateTable } from '@/hooks/queries/use-tables'
 
 const logger = createLogger('CreateTableModal')
 
-/**
- * Props for the CreateTableModal component.
- */
 interface CreateTableModalProps {
-  /** Whether the modal is open */
   isOpen: boolean
-  /** Callback when the modal should close */
   onClose: () => void
 }
 
-/**
- * Available column type options for the combobox UI.
- */
 const COLUMN_TYPE_OPTIONS: Array<{ value: ColumnDefinition['type']; label: string }> = [
   { value: 'string', label: 'String' },
   { value: 'number', label: 'Number' },
@@ -44,9 +36,6 @@ const COLUMN_TYPE_OPTIONS: Array<{ value: ColumnDefinition['type']; label: strin
   { value: 'json', label: 'JSON' },
 ]
 
-/**
- * Column definition with a stable ID for React key.
- */
 interface ColumnWithId extends ColumnDefinition {
   /** Stable ID for React key */
   id: string
@@ -59,23 +48,6 @@ function createEmptyColumn(): ColumnWithId {
   return { id: nanoid(), name: '', type: 'string', required: true, unique: false }
 }
 
-/**
- * Modal component for creating a new table in a workspace.
- *
- * @remarks
- * This modal allows users to:
- * - Set a table name and description
- * - Define columns with name, type, and constraints
- * - Create the table via the API
- *
- * @example
- * ```tsx
- * <CreateTableModal
- *   isOpen={isModalOpen}
- *   onClose={() => setIsModalOpen(false)}
- * />
- * ```
- */
 export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string

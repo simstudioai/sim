@@ -9,13 +9,8 @@ import { useFilterBuilder } from '@/lib/table/filters/use-builder'
 import { conditionsToFilter } from '@/lib/table/filters/utils'
 import type { JsonValue } from '@/lib/table/types'
 
-/**
- * Query options for the table API.
- */
 export interface QueryOptions {
-  /** Filter criteria or null for no filter, keys are column names, values are filter values */
   filter: Record<string, JsonValue> | null
-  /** Sort configuration or null for default sort */
   sort: SortCondition | null
 }
 
@@ -46,19 +41,10 @@ interface TableQueryBuilderProps {
 /**
  * Component for building filter and sort queries for table data.
  *
- * @remarks
  * Provides a visual interface for:
  * - Adding multiple filter conditions with AND/OR logic
  * - Configuring sort column and direction
  * - Applying or clearing the query
- *
- * @example
- * ```tsx
- * <TableQueryBuilder
- *   columns={tableColumns}
- *   onApply={(options) => setQueryOptions(options)}
- *   onAddRow={() => setShowAddModal(true)}
- * />
  * ```
  */
 export function TableQueryBuilder({
@@ -89,9 +75,6 @@ export function TableQueryBuilder({
     setConditions,
   })
 
-  /**
-   * Adds a sort condition.
-   */
   const handleAddSort = useCallback(() => {
     setSortCondition({
       id: nanoid(),
@@ -100,16 +83,10 @@ export function TableQueryBuilder({
     })
   }, [columns])
 
-  /**
-   * Removes the sort condition.
-   */
   const handleRemoveSort = useCallback(() => {
     setSortCondition(null)
   }, [])
 
-  /**
-   * Applies the current filter and sort conditions.
-   */
   const handleApply = useCallback(() => {
     const filter = conditionsToFilter(conditions)
     onApply({
@@ -118,9 +95,6 @@ export function TableQueryBuilder({
     })
   }, [conditions, sortCondition, onApply])
 
-  /**
-   * Clears all filters and sort conditions.
-   */
   const handleClear = useCallback(() => {
     setConditions([])
     setSortCondition(null)
