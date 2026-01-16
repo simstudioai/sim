@@ -173,15 +173,20 @@ export type TimeRange =
   | 'Custom range'
 
 export type LogLevel = 'error' | 'info' | 'running' | 'pending' | 'all' | (string & {})
-export type TriggerType =
-  | 'chat'
-  | 'api'
-  | 'webhook'
-  | 'manual'
-  | 'schedule'
-  | 'mcp'
-  | 'all'
-  | (string & {})
+/** Core trigger types for workflow execution */
+export const CORE_TRIGGER_TYPES = [
+  'manual',
+  'api',
+  'schedule',
+  'chat',
+  'webhook',
+  'mcp',
+  'a2a',
+] as const
+
+export type CoreTriggerType = (typeof CORE_TRIGGER_TYPES)[number]
+
+export type TriggerType = CoreTriggerType | 'all' | (string & {})
 
 /** Filter state for logs and dashboard views */
 export interface FilterState {
@@ -212,4 +217,5 @@ export interface FilterState {
   toggleTrigger: (trigger: TriggerType) => void
   initializeFromURL: () => void
   syncWithURL: () => void
+  resetFilters: () => void
 }

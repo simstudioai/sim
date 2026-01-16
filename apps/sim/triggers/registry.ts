@@ -10,6 +10,7 @@ import {
   circlebackMeetingNotesTrigger,
   circlebackWebhookTrigger,
 } from '@/triggers/circleback'
+import { firefliesTranscriptionCompleteTrigger } from '@/triggers/fireflies'
 import { genericWebhookTrigger } from '@/triggers/generic'
 import {
   githubIssueClosedTrigger,
@@ -55,6 +56,7 @@ import {
   hubspotTicketDeletedTrigger,
   hubspotTicketPropertyChangedTrigger,
 } from '@/triggers/hubspot'
+import { imapPollingTrigger } from '@/triggers/imap'
 import {
   jiraIssueCommentedTrigger,
   jiraIssueCreatedTrigger,
@@ -63,6 +65,17 @@ import {
   jiraWebhookTrigger,
   jiraWorklogCreatedTrigger,
 } from '@/triggers/jira'
+import {
+  lemlistEmailBouncedTrigger,
+  lemlistEmailClickedTrigger,
+  lemlistEmailOpenedTrigger,
+  lemlistEmailRepliedTrigger,
+  lemlistEmailSentTrigger,
+  lemlistInterestedTrigger,
+  lemlistLinkedInRepliedTrigger,
+  lemlistNotInterestedTrigger,
+  lemlistWebhookTrigger,
+} from '@/triggers/lemlist'
 import {
   linearCommentCreatedTrigger,
   linearCommentUpdatedTrigger,
@@ -120,6 +133,7 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   github_push: githubPushTrigger,
   github_release_published: githubReleasePublishedTrigger,
   github_workflow_run: githubWorkflowRunTrigger,
+  fireflies_transcription_complete: firefliesTranscriptionCompleteTrigger,
   gmail_poller: gmailPollingTrigger,
   grain_webhook: grainWebhookTrigger,
   grain_recording_created: grainRecordingCreatedTrigger,
@@ -136,6 +150,15 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   jira_issue_deleted: jiraIssueDeletedTrigger,
   jira_issue_commented: jiraIssueCommentedTrigger,
   jira_worklog_created: jiraWorklogCreatedTrigger,
+  lemlist_webhook: lemlistWebhookTrigger,
+  lemlist_email_replied: lemlistEmailRepliedTrigger,
+  lemlist_email_opened: lemlistEmailOpenedTrigger,
+  lemlist_email_clicked: lemlistEmailClickedTrigger,
+  lemlist_email_sent: lemlistEmailSentTrigger,
+  lemlist_email_bounced: lemlistEmailBouncedTrigger,
+  lemlist_linkedin_replied: lemlistLinkedInRepliedTrigger,
+  lemlist_interested: lemlistInterestedTrigger,
+  lemlist_not_interested: lemlistNotInterestedTrigger,
   linear_webhook: linearWebhookTrigger,
   linear_issue_created: linearIssueCreatedTrigger,
   linear_issue_updated: linearIssueUpdatedTrigger,
@@ -183,4 +206,5 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   hubspot_ticket_created: hubspotTicketCreatedTrigger,
   hubspot_ticket_deleted: hubspotTicketDeletedTrigger,
   hubspot_ticket_property_changed: hubspotTicketPropertyChangedTrigger,
+  imap_poller: imapPollingTrigger,
 }

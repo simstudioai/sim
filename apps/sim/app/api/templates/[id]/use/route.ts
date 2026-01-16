@@ -7,7 +7,10 @@ import { v4 as uuidv4 } from 'uuid'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { regenerateWorkflowStateIds } from '@/lib/workflows/persistence/utils'
+import {
+  type RegenerateStateInput,
+  regenerateWorkflowStateIds,
+} from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('TemplateUseAPI')
 
@@ -104,9 +107,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Step 2: Regenerate IDs when creating a copy (not when connecting/editing template)
     // When connecting to template (edit mode), keep original IDs
     // When using template (copy mode), regenerate all IDs to avoid conflicts
+    const templateState = templateData.state as RegenerateStateInput
     const workflowState = connectToTemplate
-      ? templateData.state
-      : regenerateWorkflowStateIds(templateData.state)
+      ? templateState
+      : regenerateWorkflowStateIds(templateState)
 
     // Step 3: Save the workflow state using the existing state endpoint (like imports do)
     // Ensure variables in state are remapped for the new workflow as well
@@ -168,18 +172,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       `[${requestId}] Successfully used template: ${id}, created workflow: ${newWorkflowId}`
     )
 
-    // Track template usage
     try {
-      const { trackPlatformEvent } = await import('@/lib/core/telemetry')
+      const { PlatformEvents } = await import('@/lib/core/telemetry')
       const templateState = templateData.state as any
-      trackPlatformEvent('platform.template.used', {
-        'template.id': id,
-        'template.name': templateData.name,
-        'workflow.created_id': newWorkflowId,
-        'workflow.blocks_count': templateState?.blocks
-          ? Object.keys(templateState.blocks).length
-          : 0,
-        'workspace.id': workspaceId,
+      PlatformEvents.templateUsed({
+        templateId: id,
+        templateName: templateData.name,
+        newWorkflowId,
+        blocksCount: templateState?.blocks ? Object.keys(templateState.blocks).length : 0,
+        workspaceId,
       })
     } catch (_e) {
       // Silently fail

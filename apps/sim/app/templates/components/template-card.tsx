@@ -4,7 +4,7 @@ import { Star, User } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { VerifiedBadge } from '@/components/ui/verified-badge'
 import { cn } from '@/lib/core/utils/cn'
-import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
+import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks/registry'
 import { useStarTemplate } from '@/hooks/queries/templates'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -106,8 +106,6 @@ function normalizeWorkflowState(input?: any): WorkflowState | null {
     lastUpdate: input.lastUpdate,
     metadata: input.metadata,
     variables: input.variables,
-    isDeployed: input.isDeployed,
-    deployedAt: input.deployedAt,
     deploymentStatuses: input.deploymentStatuses,
     needsRedeployment: input.needsRedeployment,
     dragStartPosition: input.dragStartPosition ?? null,
@@ -204,7 +202,6 @@ function TemplateCardInner({
         {normalizedState && isInView ? (
           <WorkflowPreview
             workflowState={normalizedState}
-            showSubBlocks={false}
             height={180}
             width='100%'
             isPannable={false}

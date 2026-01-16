@@ -81,7 +81,8 @@ export function BYOK() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
-  const { data: keys = [], isLoading } = useBYOKKeys(workspaceId)
+  const { data, isLoading } = useBYOKKeys(workspaceId)
+  const keys = data?.keys ?? []
   const upsertKey = useUpsertBYOKKey()
   const deleteKey = useDeleteBYOKKey()
 
@@ -166,14 +167,14 @@ export function BYOK() {
                       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                         <span className='font-medium text-[14px]'>{provider.name}</span>
                         <p className='truncate text-[13px] text-[var(--text-muted)]'>
-                          {existingKey ? existingKey.maskedKey : provider.description}
+                          {provider.description}
                         </p>
                       </div>
                     </div>
 
                     {existingKey ? (
                       <div className='flex flex-shrink-0 items-center gap-[8px]'>
-                        <Button variant='ghost' onClick={() => openEditModal(provider.id)}>
+                        <Button variant='default' onClick={() => openEditModal(provider.id)}>
                           Update
                         </Button>
                         <Button
@@ -313,7 +314,7 @@ export function BYOK() {
               <span className='font-medium text-[var(--text-primary)]'>
                 {PROVIDERS.find((p) => p.id === deleteConfirmProvider)?.name}
               </span>{' '}
-              API key? This workspace will revert to using platform keys with the 2x multiplier.
+              API key? This workspace will revert to using platform hosted keys.
             </p>
           </ModalBody>
           <ModalFooter>

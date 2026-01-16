@@ -33,6 +33,9 @@ Use the Start block for everything originating from the editor, deploy-to-API, o
   <Card title="RSS Feed" href="/triggers/rss">
     Monitor RSS and Atom feeds for new content
   </Card>
+  <Card title="Email Polling Groups" href="#email-polling-groups">
+    Monitor team Gmail and Outlook inboxes
+  </Card>
 </Cards>
 
 ## Quick Comparison
@@ -43,6 +46,7 @@ Use the Start block for everything originating from the editor, deploy-to-API, o
 | **Schedule** | Timer managed in schedule block |
 | **Webhook** | On inbound HTTP request |
 | **RSS Feed** | New item published to feed |
+| **Email Polling Groups** | New email received in team Gmail or Outlook inboxes |
 
 > The Start block always exposes `input`, `conversationId`, and `files` fields. Add custom fields to the input format for additional structured data.
 
@@ -66,3 +70,24 @@ If your workflow has multiple triggers, the highest priority trigger will be exe
 
 **External triggers with mock payloads**: When external triggers (webhooks and integrations) are executed manually, Sim automatically generates mock payloads based on the trigger's expected data structure. This ensures downstream blocks can resolve variables correctly during testing.
 
+## Email Polling Groups
+
+Polling Groups let you monitor multiple team members' Gmail or Outlook inboxes with a single trigger. Requires a Team or Enterprise plan.
+
+**Creating a Polling Group** (Admin/Owner)
+
+1. Go to **Settings → Email Polling**
+2. Click **Create** and choose Gmail or Outlook
+3. Enter a name for the group
+
+**Inviting Members**
+
+1. Click **Add Members** on your polling group
+2. Enter email addresses (comma or newline separated, or drag & drop a CSV)
+3. Click **Send Invites**
+
+Invitees receive an email with a link to connect their account. Once connected, their inbox is automatically included in the polling group. Invitees don't need to be members of your Sim organization.
+
+**Using in a Workflow**
+
+When configuring an email trigger, select your polling group from the credentials dropdown instead of an individual account. The system creates webhooks for each member and routes all emails through your workflow.

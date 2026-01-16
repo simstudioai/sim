@@ -20,10 +20,7 @@ export interface ZendeskCreateOrganizationResponse {
   success: boolean
   output: {
     organization: any
-    metadata: {
-      operation: 'create_organization'
-      organizationId: string
-    }
+    organization_id: number
     success: boolean
   }
 }
@@ -141,17 +138,14 @@ export const zendeskCreateOrganizationTool: ToolConfig<
       success: true,
       output: {
         organization: data.organization,
-        metadata: {
-          operation: 'create_organization' as const,
-          organizationId: data.organization?.id,
-        },
+        organization_id: data.organization?.id,
         success: true,
       },
     }
   },
 
   outputs: {
-    organization: { type: 'object', description: 'Created organization object' },
-    metadata: { type: 'object', description: 'Operation metadata' },
+    organization: { type: 'json', description: 'Created organization object' },
+    organization_id: { type: 'number', description: 'The created organization ID' },
   },
 }

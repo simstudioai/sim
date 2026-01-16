@@ -80,6 +80,12 @@ Search and list all dashboards
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `dashboards` | array | List of dashboard search results |
+|   ↳ `id` | number | Dashboard ID |
+|   ↳ `uid` | string | Dashboard UID |
+|   ↳ `title` | string | Dashboard title |
+|   ↳ `url` | string | Dashboard URL path |
+|   ↳ `tags` | array | Dashboard tags |
+|   ↳ `folderTitle` | string | Parent folder title |
 
 ### `grafana_create_dashboard`
 
@@ -182,6 +188,13 @@ List all alert rules in the Grafana instance
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `rules` | array | List of alert rules |
+|   ↳ `uid` | string | Alert rule UID |
+|   ↳ `title` | string | Alert rule title |
+|   ↳ `condition` | string | Alert condition |
+|   ↳ `folderUID` | string | Parent folder UID |
+|   ↳ `ruleGroup` | string | Rule group name |
+|   ↳ `noDataState` | string | State when no data is returned |
+|   ↳ `execErrState` | string | State on execution error |
 
 ### `grafana_get_alert_rule`
 
@@ -310,6 +323,10 @@ List all alert notification contact points
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contactPoints` | array | List of contact points |
+|   ↳ `uid` | string | Contact point UID |
+|   ↳ `name` | string | Contact point name |
+|   ↳ `type` | string | Notification type \(email, slack, etc.\) |
+|   ↳ `settings` | object | Type-specific settings |
 
 ### `grafana_create_annotation`
 
@@ -360,6 +377,19 @@ Query annotations by time range, dashboard, or tags
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `annotations` | array | List of annotations |
+|   ↳ `id` | number | Annotation ID |
+|   ↳ `dashboardId` | number | Dashboard ID |
+|   ↳ `dashboardUID` | string | Dashboard UID |
+|   ↳ `created` | number | Creation timestamp in epoch ms |
+|   ↳ `updated` | number | Last update timestamp in epoch ms |
+|   ↳ `time` | number | Start time in epoch ms |
+|   ↳ `timeEnd` | number | End time in epoch ms |
+|   ↳ `text` | string | Annotation text |
+|   ↳ `tags` | array | Annotation tags |
+|   ↳ `login` | string | Login of the user who created the annotation |
+|   ↳ `email` | string | Email of the user who created the annotation |
+|   ↳ `avatarUrl` | string | Avatar URL of the user |
+|   ↳ `data` | json | Additional annotation data object from Grafana |
 
 ### `grafana_update_annotation`
 
@@ -421,6 +451,12 @@ List all data sources configured in Grafana
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `dataSources` | array | List of data sources |
+|   ↳ `id` | number | Data source ID |
+|   ↳ `uid` | string | Data source UID |
+|   ↳ `name` | string | Data source name |
+|   ↳ `type` | string | Data source type \(prometheus, mysql, etc.\) |
+|   ↳ `url` | string | Data source URL |
+|   ↳ `isDefault` | boolean | Whether this is the default data source |
 
 ### `grafana_get_data_source`
 
@@ -467,6 +503,19 @@ List all folders in Grafana
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `folders` | array | List of folders |
+|   ↳ `id` | number | Folder ID |
+|   ↳ `uid` | string | Folder UID |
+|   ↳ `title` | string | Folder title |
+|   ↳ `hasAcl` | boolean | Whether the folder has custom ACL permissions |
+|   ↳ `canSave` | boolean | Whether the current user can save the folder |
+|   ↳ `canEdit` | boolean | Whether the current user can edit the folder |
+|   ↳ `canAdmin` | boolean | Whether the current user has admin rights |
+|   ↳ `canDelete` | boolean | Whether the current user can delete the folder |
+|   ↳ `createdBy` | string | Username of who created the folder |
+|   ↳ `created` | string | Timestamp when the folder was created |
+|   ↳ `updatedBy` | string | Username of who last updated the folder |
+|   ↳ `updated` | string | Timestamp when the folder was last updated |
+|   ↳ `version` | number | Version number of the folder |
 
 ### `grafana_create_folder`
 
@@ -502,8 +551,3 @@ Create a new folder in Grafana
 | `version` | number | Version number of the folder |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `grafana`

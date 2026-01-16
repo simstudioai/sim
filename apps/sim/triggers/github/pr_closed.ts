@@ -77,6 +77,18 @@ export const githubPRClosedTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'github_pr_closed',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'github_pr_closed',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -102,21 +114,13 @@ export const githubPRClosedTrigger: TriggerConfig = {
         value: 'github_pr_closed',
       },
     },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'github_pr_closed',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'github_pr_closed',
-      },
-    },
   ],
 
   outputs: {
+    event_type: {
+      type: 'string',
+      description: 'GitHub event type from X-GitHub-Event header (e.g., pull_request)',
+    },
     action: {
       type: 'string',
       description: 'Action performed (opened, closed, synchronize, reopened, edited, etc.)',

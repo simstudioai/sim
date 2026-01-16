@@ -427,9 +427,7 @@ export const createWorkflowWithResponse = (): SerializedWorkflow => ({
         input: 'json',
       },
       outputs: {
-        response: {
-          input: 'json',
-        },
+        response: { type: 'json', description: 'Input response' },
       },
       enabled: true,
       metadata: { id: 'starter', name: 'Starter Block' },
@@ -444,11 +442,9 @@ export const createWorkflowWithResponse = (): SerializedWorkflow => ({
         headers: 'json',
       },
       outputs: {
-        response: {
-          data: 'json',
-          status: 'number',
-          headers: 'json',
-        },
+        data: { type: 'json', description: 'Response data' },
+        status: { type: 'number', description: 'Response status' },
+        headers: { type: 'json', description: 'Response headers' },
       },
       enabled: true,
       metadata: { id: 'response', name: 'Response Block' },

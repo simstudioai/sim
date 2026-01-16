@@ -5,14 +5,17 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { EDGE, normalizeName } from '@/executor/constants'
+import { getUserPermissionConfig } from '@/executor/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
@@ -49,6 +52,8 @@ interface ValidationError {
 type SkippedItemType =
   | 'block_not_found'
   | 'invalid_block_type'
+  | 'block_not_allowed'
+  | 'tool_not_allowed'
   | 'invalid_edge_target'
   | 'invalid_edge_source'
   | 'invalid_source_handle'
@@ -58,6 +63,8 @@ type SkippedItemType =
   | 'invalid_subflow_parent'
   | 'nested_subflow_not_allowed'
   | 'duplicate_block_name'
+  | 'duplicate_trigger'
+  | 'duplicate_single_instance_block'
 
 /**
  * Represents an item that was skipped during operation application
@@ -558,7 +565,9 @@ function createBlockFromParams(
   blockId: string,
   params: any,
   parentId?: string,
-  errorsCollector?: ValidationError[]
+  errorsCollector?: ValidationError[],
+  permissionConfig?: PermissionGroupConfig | null,
+  skippedItems?: SkippedItem[]
 ): any {
   const blockConfig = getAllBlocks().find((b) => b.type === params.type)
 
@@ -626,9 +635,14 @@ function createBlockFromParams(
         }
       }
 
-      // Special handling for tools - normalize to restore sanitized fields
+      // Special handling for tools - normalize and filter disallowed
       if (key === 'tools' && Array.isArray(value)) {
-        sanitizedValue = normalizeTools(value)
+        sanitizedValue = filterDisallowedTools(
+          normalizeTools(value),
+          permissionConfig ?? null,
+          blockId,
+          skippedItems ?? []
+        )
       }
 
       // Special handling for responseFormat - normalize to ensure consistent format
@@ -1094,11 +1108,68 @@ interface ApplyOperationsResult {
 }
 
 /**
+ * Checks if a block type is allowed by the permission group config
+ */
+function isBlockTypeAllowed(
+  blockType: string,
+  permissionConfig: PermissionGroupConfig | null
+): boolean {
+  if (!permissionConfig || permissionConfig.allowedIntegrations === null) {
+    return true
+  }
+  return permissionConfig.allowedIntegrations.includes(blockType)
+}
+
+/**
+ * Filters out tools that are not allowed by the permission group config
+ * Returns both the allowed tools and any skipped tool items for logging
+ */
+function filterDisallowedTools(
+  tools: any[],
+  permissionConfig: PermissionGroupConfig | null,
+  blockId: string,
+  skippedItems: SkippedItem[]
+): any[] {
+  if (!permissionConfig) {
+    return tools
+  }
+
+  const allowedTools: any[] = []
+
+  for (const tool of tools) {
+    if (tool.type === 'custom-tool' && permissionConfig.disableCustomTools) {
+      logSkippedItem(skippedItems, {
+        type: 'tool_not_allowed',
+        operationType: 'add',
+        blockId,
+        reason: `Custom tool "${tool.title || tool.customToolId || 'unknown'}" is not allowed by permission group - tool not added`,
+        details: { toolType: 'custom-tool', toolId: tool.customToolId },
+      })
+      continue
+    }
+    if (tool.type === 'mcp' && permissionConfig.disableMcpTools) {
+      logSkippedItem(skippedItems, {
+        type: 'tool_not_allowed',
+        operationType: 'add',
+        blockId,
+        reason: `MCP tool "${tool.title || 'unknown'}" is not allowed by permission group - tool not added`,
+        details: { toolType: 'mcp', serverId: tool.params?.serverId },
+      })
+      continue
+    }
+    allowedTools.push(tool)
+  }
+
+  return allowedTools
+}
+
+/**
  * Apply operations directly to the workflow JSON state
  */
 function applyOperationsToWorkflowState(
   workflowState: any,
-  operations: EditWorkflowOperation[]
+  operations: EditWorkflowOperation[],
+  permissionConfig: PermissionGroupConfig | null = null
 ): ApplyOperationsResult {
   // Deep clone the workflow state to avoid mutations
   const modifiedState = JSON.parse(JSON.stringify(workflowState))
@@ -1297,9 +1368,14 @@ function applyOperationsToWorkflowState(
               }
             }
 
-            // Special handling for tools - normalize to restore sanitized fields
+            // Special handling for tools - normalize and filter disallowed
             if (key === 'tools' && Array.isArray(value)) {
-              sanitizedValue = normalizeTools(value)
+              sanitizedValue = filterDisallowedTools(
+                normalizeTools(value),
+                permissionConfig,
+                block_id,
+                skippedItems
+              )
             }
 
             // Special handling for responseFormat - normalize to ensure consistent format
@@ -1399,6 +1475,14 @@ function applyOperationsToWorkflowState(
               operationType: 'edit',
               blockId: block_id,
               reason: `Invalid block type "${params.type}" - type change skipped`,
+              details: { requestedType: params.type },
+            })
+          } else if (!isContainerType && !isBlockTypeAllowed(params.type, permissionConfig)) {
+            logSkippedItem(skippedItems, {
+              type: 'block_not_allowed',
+              operationType: 'edit',
+              blockId: block_id,
+              reason: `Block type "${params.type}" is not allowed by permission group - type change skipped`,
               details: { requestedType: params.type },
             })
           } else {
@@ -1503,7 +1587,9 @@ function applyOperationsToWorkflowState(
               childId,
               childBlock,
               block_id,
-              validationErrors
+              validationErrors,
+              permissionConfig,
+              skippedItems
             )
             modifiedState.blocks[childId] = childBlockState
 
@@ -1680,8 +1766,55 @@ function applyOperationsToWorkflowState(
           break
         }
 
+        // Check if block type is allowed by permission group
+        if (!isContainerType && !isBlockTypeAllowed(params.type, permissionConfig)) {
+          logSkippedItem(skippedItems, {
+            type: 'block_not_allowed',
+            operationType: 'add',
+            blockId: block_id,
+            reason: `Block type "${params.type}" is not allowed by permission group - block not added`,
+            details: { requestedType: params.type },
+          })
+          break
+        }
+
+        const triggerIssue = TriggerUtils.getTriggerAdditionIssue(modifiedState.blocks, params.type)
+        if (triggerIssue) {
+          logSkippedItem(skippedItems, {
+            type: 'duplicate_trigger',
+            operationType: 'add',
+            blockId: block_id,
+            reason: `Cannot add ${triggerIssue.triggerName} - a workflow can only have one`,
+            details: { requestedType: params.type, issue: triggerIssue.issue },
+          })
+          break
+        }
+
+        // Check single-instance block constraints (e.g., Response block)
+        const singleInstanceIssue = TriggerUtils.getSingleInstanceBlockIssue(
+          modifiedState.blocks,
+          params.type
+        )
+        if (singleInstanceIssue) {
+          logSkippedItem(skippedItems, {
+            type: 'duplicate_single_instance_block',
+            operationType: 'add',
+            blockId: block_id,
+            reason: `Cannot add ${singleInstanceIssue.blockName} - a workflow can only have one`,
+            details: { requestedType: params.type },
+          })
+          break
+        }
+
         // Create new block with proper structure
-        const newBlock = createBlockFromParams(block_id, params, undefined, validationErrors)
+        const newBlock = createBlockFromParams(
+          block_id,
+          params,
+          undefined,
+          validationErrors,
+          permissionConfig,
+          skippedItems
+        )
 
         // Set loop/parallel data on parent block BEFORE adding to blocks (strict validation)
         if (params.nestedNodes) {
@@ -1760,7 +1893,9 @@ function applyOperationsToWorkflowState(
               childId,
               childBlock,
               block_id,
-              validationErrors
+              validationErrors,
+              permissionConfig,
+              skippedItems
             )
             modifiedState.blocks[childId] = childBlockState
 
@@ -1869,7 +2004,7 @@ function applyOperationsToWorkflowState(
             validationErrors.push(...validationResult.errors)
 
             Object.entries(validationResult.validInputs).forEach(([key, value]) => {
-              // Skip runtime subblock IDs (webhookId, triggerPath, testUrl, testUrlExpiresAt)
+              // Skip runtime subblock IDs (webhookId, triggerPath)
               if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
                 return
               }
@@ -1882,9 +2017,14 @@ function applyOperationsToWorkflowState(
                 }
               }
 
-              // Special handling for tools - normalize to restore sanitized fields
+              // Special handling for tools - normalize and filter disallowed
               if (key === 'tools' && Array.isArray(value)) {
-                sanitizedValue = normalizeTools(value)
+                sanitizedValue = filterDisallowedTools(
+                  normalizeTools(value),
+                  permissionConfig,
+                  block_id,
+                  skippedItems
+                )
               }
 
               // Special handling for responseFormat - normalize to ensure consistent format
@@ -1920,8 +2060,27 @@ function applyOperationsToWorkflowState(
             break
           }
 
+          // Check if block type is allowed by permission group
+          if (!isContainerType && !isBlockTypeAllowed(params.type, permissionConfig)) {
+            logSkippedItem(skippedItems, {
+              type: 'block_not_allowed',
+              operationType: 'insert_into_subflow',
+              blockId: block_id,
+              reason: `Block type "${params.type}" is not allowed by permission group - block not inserted`,
+              details: { requestedType: params.type, subflowId },
+            })
+            break
+          }
+
           // Create new block as child of subflow
-          const newBlock = createBlockFromParams(block_id, params, subflowId, validationErrors)
+          const newBlock = createBlockFromParams(
+            block_id,
+            params,
+            subflowId,
+            validationErrors,
+            permissionConfig,
+            skippedItems
+          )
           modifiedState.blocks[block_id] = newBlock
         }
 
@@ -2223,12 +2382,15 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
       workflowState = fromDb.workflowState
     }
 
+    // Get permission config for the user
+    const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
+
     // Apply operations directly to the workflow state
     const {
       state: modifiedWorkflowState,
       validationErrors,
       skippedItems,
-    } = applyOperationsToWorkflowState(workflowState, operations)
+    } = applyOperationsToWorkflowState(workflowState, operations, permissionConfig)
 
     // Get workspaceId for selector validation
     let workspaceId: string | undefined

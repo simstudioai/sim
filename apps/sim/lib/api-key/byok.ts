@@ -2,7 +2,11 @@ import { db } from '@sim/db'
 import { workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+import { getRotatingApiKey } from '@/lib/core/config/api-keys'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { getHostedModels } from '@/providers/models'
+import { useProvidersStore } from '@/stores/providers/store'
 
 const logger = createLogger('BYOKKeys')
 
@@ -51,9 +55,6 @@ export async function getApiKeyWithBYOK(
   workspaceId: string | undefined | null,
   userProvidedKey?: string
 ): Promise<{ apiKey: string; isBYOK: boolean }> {
-  const { isHosted } = await import('@/lib/core/config/feature-flags')
-  const { useProvidersStore } = await import('@/stores/providers/store')
-
   const isOllamaModel =
     provider === 'ollama' || useProvidersStore.getState().providers.ollama.models.includes(model)
   if (isOllamaModel) {
@@ -64,6 +65,11 @@ export async function getApiKeyWithBYOK(
     provider === 'vllm' || useProvidersStore.getState().providers.vllm.models.includes(model)
   if (isVllmModel) {
     return { apiKey: userProvidedKey || 'empty', isBYOK: false }
+  }
+
+  const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
+  if (isBedrockModel) {
+    return { apiKey: 'bedrock-uses-own-credentials', isBYOK: false }
   }
 
   const isOpenAIModel = provider === 'openai'
@@ -78,7 +84,6 @@ export async function getApiKeyWithBYOK(
     workspaceId &&
     (isOpenAIModel || isClaudeModel || isGeminiModel || isMistralModel)
   ) {
-    const { getHostedModels } = await import('@/providers/models')
     const hostedModels = getHostedModels()
     const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())
 
@@ -94,7 +99,6 @@ export async function getApiKeyWithBYOK(
 
       if (isModelHosted) {
         try {
-          const { getRotatingApiKey } = await import('@/lib/core/config/api-keys')
           const serverKey = getRotatingApiKey(isGeminiModel ? 'gemini' : provider)
           return { apiKey: serverKey, isBYOK: false }
         } catch (_error) {

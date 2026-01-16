@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { useReactFlow } from 'reactflow'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { getBlock } from '@/blocks/registry'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('NodeUtilities')
 
@@ -59,6 +60,47 @@ export function clampPositionToContainer(
     x: Math.max(minX, Math.min(position.x, Math.max(minX, maxX))),
     y: Math.max(minY, Math.min(position.y, Math.max(minY, maxY))),
   }
+}
+
+/**
+ * Calculates container dimensions based on child block positions.
+ * Single source of truth for container sizing - ensures consistency between
+ * live drag updates and final dimension calculations.
+ *
+ * @param childPositions - Array of child positions with their dimensions
+ * @returns Calculated width and height for the container
+ */
+export function calculateContainerDimensions(
+  childPositions: Array<{ x: number; y: number; width: number; height: number }>
+): { width: number; height: number } {
+  if (childPositions.length === 0) {
+    return {
+      width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+      height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+    }
+  }
+
+  let maxRight = 0
+  let maxBottom = 0
+
+  for (const child of childPositions) {
+    maxRight = Math.max(maxRight, child.x + child.width)
+    maxBottom = Math.max(maxBottom, child.y + child.height)
+  }
+
+  const width = Math.max(
+    CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+    CONTAINER_DIMENSIONS.LEFT_PADDING + maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
+  )
+  const height = Math.max(
+    CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+    CONTAINER_DIMENSIONS.HEADER_HEIGHT +
+      CONTAINER_DIMENSIONS.TOP_PADDING +
+      maxBottom +
+      CONTAINER_DIMENSIONS.BOTTOM_PADDING
+  )
+
+  return { width, height }
 }
 
 /**
@@ -208,28 +250,30 @@ export function useNodeUtilities(blocks: Record<string, any>) {
    * to the content area bounds (after header and padding).
    * @param nodeId ID of the node being repositioned
    * @param newParentId ID of the new parent
+   * @param skipClamping If true, returns raw relative position without clamping to container bounds
    * @returns Relative position coordinates {x, y} within the parent
    */
   const calculateRelativePosition = useCallback(
-    (nodeId: string, newParentId: string): { x: number; y: number } => {
+    (nodeId: string, newParentId: string, skipClamping?: boolean): { x: number; y: number } => {
       const nodeAbsPos = getNodeAbsolutePosition(nodeId)
       const parentAbsPos = getNodeAbsolutePosition(newParentId)
-      const parentNode = getNodes().find((n) => n.id === newParentId)
 
-      // Calculate raw relative position (relative to parent origin)
       const rawPosition = {
         x: nodeAbsPos.x - parentAbsPos.x,
         y: nodeAbsPos.y - parentAbsPos.y,
       }
 
-      // Get container and block dimensions
+      if (skipClamping) {
+        return rawPosition
+      }
+
+      const parentNode = getNodes().find((n) => n.id === newParentId)
       const containerDimensions = {
         width: parentNode?.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
         height: parentNode?.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
       }
       const blockDimensions = getBlockDimensions(nodeId)
 
-      // Clamp position to keep block inside content area
       return clampPositionToContainer(rawPosition, containerDimensions, blockDimensions)
     },
     [getNodeAbsolutePosition, getNodes, getBlockDimensions]
@@ -298,45 +342,23 @@ export function useNodeUtilities(blocks: Record<string, any>) {
    */
   const calculateLoopDimensions = useCallback(
     (nodeId: string): { width: number; height: number } => {
-      // Check both React Flow's node.parentId AND blocks store's data.parentId
-      // This ensures we catch children even if React Flow hasn't re-rendered yet
-      const childNodes = getNodes().filter(
-        (node) => node.parentId === nodeId || blocks[node.id]?.data?.parentId === nodeId
-      )
-      if (childNodes.length === 0) {
-        return {
-          width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-          height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-        }
-      }
-
-      let maxRight = 0
-      let maxBottom = 0
-
-      childNodes.forEach((node) => {
-        const { width: nodeWidth, height: nodeHeight } = getBlockDimensions(node.id)
-        // Use block position from store if available (more up-to-date)
-        const block = blocks[node.id]
-        const position = block?.position || node.position
-        maxRight = Math.max(maxRight, position.x + nodeWidth)
-        maxBottom = Math.max(maxBottom, position.y + nodeHeight)
-      })
-
-      const width = Math.max(
-        CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-        CONTAINER_DIMENSIONS.LEFT_PADDING + maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
-      )
-      const height = Math.max(
-        CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-        CONTAINER_DIMENSIONS.HEADER_HEIGHT +
-          CONTAINER_DIMENSIONS.TOP_PADDING +
-          maxBottom +
-          CONTAINER_DIMENSIONS.BOTTOM_PADDING
+      const currentBlocks = useWorkflowStore.getState().blocks
+      const childBlockIds = Object.keys(currentBlocks).filter(
+        (id) => currentBlocks[id]?.data?.parentId === nodeId
       )
 
-      return { width, height }
+      const childPositions = childBlockIds
+        .map((childId) => {
+          const child = currentBlocks[childId]
+          if (!child?.position) return null
+          const { width, height } = getBlockDimensions(childId)
+          return { x: child.position.x, y: child.position.y, width, height }
+        })
+        .filter((p): p is NonNullable<typeof p> => p !== null)
+
+      return calculateContainerDimensions(childPositions)
     },
-    [getNodes, getBlockDimensions, blocks]
+    [getBlockDimensions]
   )
 
   /**
@@ -345,45 +367,47 @@ export function useNodeUtilities(blocks: Record<string, any>) {
    */
   const resizeLoopNodes = useCallback(
     (updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void) => {
-      const containerNodes = getNodes()
-        .filter((node) => node.type && isContainerType(node.type))
-        .map((node) => ({
-          ...node,
-          depth: getNodeDepth(node.id),
+      const currentBlocks = useWorkflowStore.getState().blocks
+      const containerBlocks = Object.entries(currentBlocks)
+        .filter(([, block]) => block?.type && isContainerType(block.type))
+        .map(([id, block]) => ({
+          id,
+          block,
+          depth: getNodeDepth(id),
         }))
-        // Sort by depth descending - process innermost containers first
-        // so their dimensions are correct when outer containers calculate sizes
         .sort((a, b) => b.depth - a.depth)
 
-      containerNodes.forEach((node) => {
-        const dimensions = calculateLoopDimensions(node.id)
-        // Get current dimensions from the blocks store rather than React Flow's potentially stale state
-        const currentWidth = blocks[node.id]?.data?.width
-        const currentHeight = blocks[node.id]?.data?.height
+      for (const { id, block } of containerBlocks) {
+        const dimensions = calculateLoopDimensions(id)
+        const currentWidth = block?.data?.width
+        const currentHeight = block?.data?.height
 
-        // Only update if dimensions actually changed to avoid unnecessary re-renders
         if (dimensions.width !== currentWidth || dimensions.height !== currentHeight) {
-          updateNodeDimensions(node.id, dimensions)
+          updateNodeDimensions(id, dimensions)
         }
-      })
+      }
     },
-    [getNodes, isContainerType, getNodeDepth, calculateLoopDimensions, blocks]
+    [isContainerType, getNodeDepth, calculateLoopDimensions]
   )
 
   /**
    * Updates a node's parent with proper position calculation
    * @param nodeId ID of the node being reparented
    * @param newParentId ID of the new parent (or null to remove parent)
-   * @param updateBlockPosition Function to update the position of a block
-   * @param updateParentId Function to update the parent ID of a block
+   * @param batchUpdatePositions Function to batch update positions of blocks
+   * @param batchUpdateBlocksWithParent Function to batch update blocks with parent info
    * @param resizeCallback Function to resize loop nodes after parent update
    */
   const updateNodeParent = useCallback(
     (
       nodeId: string,
       newParentId: string | null,
-      updateBlockPosition: (id: string, position: { x: number; y: number }) => void,
-      updateParentId: (id: string, parentId: string, extent: 'parent') => void,
+      batchUpdatePositions: (
+        updates: Array<{ id: string; position: { x: number; y: number } }>
+      ) => void,
+      batchUpdateBlocksWithParent: (
+        updates: Array<{ id: string; position: { x: number; y: number }; parentId?: string }>
+      ) => void,
       resizeCallback: () => void
     ) => {
       const node = getNodes().find((n) => n.id === nodeId)
@@ -395,15 +419,15 @@ export function useNodeUtilities(blocks: Record<string, any>) {
       if (newParentId) {
         const relativePosition = calculateRelativePosition(nodeId, newParentId)
 
-        updateBlockPosition(nodeId, relativePosition)
-        updateParentId(nodeId, newParentId, 'parent')
+        batchUpdatePositions([{ id: nodeId, position: relativePosition }])
+        batchUpdateBlocksWithParent([
+          { id: nodeId, position: relativePosition, parentId: newParentId },
+        ])
       } else if (currentParentId) {
         const absolutePosition = getNodeAbsolutePosition(nodeId)
 
-        // First set the absolute position so the node visually stays in place
-        updateBlockPosition(nodeId, absolutePosition)
-        // Then clear the parent relationship in the store (empty string removes parentId/extent)
-        updateParentId(nodeId, '', 'parent')
+        batchUpdatePositions([{ id: nodeId, position: absolutePosition }])
+        batchUpdateBlocksWithParent([{ id: nodeId, position: absolutePosition, parentId: '' }])
       }
 
       resizeCallback()

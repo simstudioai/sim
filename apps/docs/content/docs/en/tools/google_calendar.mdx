@@ -6,22 +6,25 @@ description: Manage Google Calendar events
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="google_calendar"
+  type="google_calendar_v2"
   color="#E0E0E0"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Google Calendar](https://calendar.google.com) is Google's powerful calendar and scheduling service that provides a comprehensive platform for managing events, meetings, and appointments. With seamless integration across Google's ecosystem and widespread adoption, Google Calendar offers robust features for both personal and professional scheduling needs.
+[Google Calendar](https://calendar.google.com) is Google's widely used online calendar and scheduling service, making it easy to organize meetings, events, reminders, and appointments individually or collaboratively. As a key part of Google Workspace, Google Calendar offers robust tools for managing your schedule, sending invitations, setting event reminders, and sharing calendars with others.
 
-With Google Calendar, you can:
+Google Calendar supports feature-rich integrations and automation, allowing users and teams to streamline event management and keep their workflows synchronized. Its API enables programmatic creation, modification, and listing of calendar events, empowering agents and automated workflows to interact with your schedule in real time.
 
-- **Create and manage events**: Schedule meetings, appointments, and reminders with detailed information
-- **Send calendar invites**: Automatically notify and coordinate with attendees through email invitations
-- **Natural language event creation**: Quickly add events using conversational language like "Meeting with John tomorrow at 3pm"
-- **View and search events**: Easily find and access your scheduled events across multiple calendars
-- **Manage multiple calendars**: Organize different types of events across various calendars
+Key features of Google Calendar include:
 
-In Sim, the Google Calendar integration enables your agents to programmatically create, read, and manage calendar events. This allows for powerful automation scenarios such as scheduling meetings, sending calendar invites, checking availability, and managing event details. Your agents can create events with natural language input, send automated calendar invitations to attendees, retrieve event information, and list upcoming events. This integration bridges the gap between your AI workflows and calendar management, enabling seamless scheduling automation and coordination with one of the world's most widely used calendar platforms.
+- **Event Scheduling**: Create one-time or recurring events with rich details like time, location, and guests.
+- **Reminders & Notifications**: Automated email and push reminders to ensure you never miss an important event.
+- **Sharing & Collaboration**: Share calendars with individuals or groups, manage permissions, and coordinate meetings seamlessly.
+- **Integration**: Connect with Gmail, Meet, Docs, and external tools for a unified productivity experience.
+- **Time Zone Support**: Schedule meetings across regions with full time zone awareness.
+- **Mobile & Multi-Device Access**: Access your calendar from web, mobile, and desktop.
+
+In Sim, the Google Calendar integration allows your agents to read, create, update, and list calendar events as part of automated workflows. This enables powerful scenarios such as syncing meeting information, generating reminders, tracking event changes, coordinating team schedules, and much more. By connecting Sim with Google Calendar, your agents can handle scheduling tasks, manage events intelligently, and keep your whole organization on track without manual intervention.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -35,7 +38,7 @@ Integrate Google Calendar into the workflow. Can create, read, update, and list 
 
 ### `google_calendar_create`
 
-Create a new event in Google Calendar
+Create a new event in Google Calendar. Returns API-aligned fields only.
 
 #### Input
 
@@ -55,12 +58,21 @@ Create a new event in Google Calendar
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Event creation confirmation message |
-| `metadata` | json | Created event metadata including ID, status, and details |
+| `id` | string | Event ID |
+| `htmlLink` | string | Event link |
+| `status` | string | Event status |
+| `summary` | string | Event title |
+| `description` | string | Event description |
+| `location` | string | Event location |
+| `start` | json | Event start |
+| `end` | json | Event end |
+| `attendees` | json | Event attendees |
+| `creator` | json | Event creator |
+| `organizer` | json | Event organizer |
 
 ### `google_calendar_list`
 
-List events from Google Calendar
+List events from Google Calendar. Returns API-aligned fields only.
 
 #### Input
 
@@ -76,12 +88,13 @@ List events from Google Calendar
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Summary of found events count |
-| `metadata` | json | List of events with pagination tokens and event details |
+| `nextPageToken` | string | Next page token |
+| `timeZone` | string | Calendar time zone |
+| `events` | json | List of events |
 
 ### `google_calendar_get`
 
-Get a specific event from Google Calendar
+Get a specific event from Google Calendar. Returns API-aligned fields only.
 
 #### Input
 
@@ -94,12 +107,21 @@ Get a specific event from Google Calendar
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Event retrieval confirmation message |
-| `metadata` | json | Event details including ID, status, times, and attendees |
+| `id` | string | Event ID |
+| `htmlLink` | string | Event link |
+| `status` | string | Event status |
+| `summary` | string | Event title |
+| `description` | string | Event description |
+| `location` | string | Event location |
+| `start` | json | Event start |
+| `end` | json | Event end |
+| `attendees` | json | Event attendees |
+| `creator` | json | Event creator |
+| `organizer` | json | Event organizer |
 
 ### `google_calendar_quick_add`
 
-Create events from natural language text
+Create events from natural language text. Returns API-aligned fields only.
 
 #### Input
 
@@ -114,12 +136,21 @@ Create events from natural language text
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Event creation confirmation message from natural language |
-| `metadata` | json | Created event metadata including parsed details |
+| `id` | string | Event ID |
+| `htmlLink` | string | Event link |
+| `status` | string | Event status |
+| `summary` | string | Event title |
+| `description` | string | Event description |
+| `location` | string | Event location |
+| `start` | json | Event start |
+| `end` | json | Event end |
+| `attendees` | json | Event attendees |
+| `creator` | json | Event creator |
+| `organizer` | json | Event organizer |
 
 ### `google_calendar_invite`
 
-Invite attendees to an existing Google Calendar event
+Invite attendees to an existing Google Calendar event. Returns API-aligned fields only.
 
 #### Input
 
@@ -135,12 +166,16 @@ Invite attendees to an existing Google Calendar event
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Attendee invitation confirmation message with email delivery status |
-| `metadata` | json | Updated event metadata including attendee list and details |
+| `id` | string | Event ID |
+| `htmlLink` | string | Event link |
+| `status` | string | Event status |
+| `summary` | string | Event title |
+| `description` | string | Event description |
+| `location` | string | Event location |
+| `start` | json | Event start |
+| `end` | json | Event end |
+| `attendees` | json | Event attendees |
+| `creator` | json | Event creator |
+| `organizer` | json | Event organizer |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `google_calendar`

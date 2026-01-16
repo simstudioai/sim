@@ -1,6 +1,6 @@
 import { GrainIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildGenericOutputs, grainSetupInstructions, grainTriggerOptions } from './utils'
+import { buildGenericOutputs, grainSetupInstructions } from './utils'
 
 export const grainWebhookTrigger: TriggerConfig = {
   id: 'grain_webhook',
@@ -12,48 +12,13 @@ export const grainWebhookTrigger: TriggerConfig = {
 
   subBlocks: [
     {
-      id: 'selectedTriggerId',
-      title: 'Trigger Type',
-      type: 'dropdown',
-      mode: 'trigger',
-      options: grainTriggerOptions,
-      value: () => 'grain_webhook',
-      required: true,
-    },
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
+      id: 'apiKey',
+      title: 'API Key',
       type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'grain_webhook',
-      },
-    },
-    {
-      id: 'webhookSecret',
-      title: 'Webhook Secret',
-      type: 'short-input',
-      placeholder: 'Enter a strong secret',
-      description: 'Validates that webhook deliveries originate from Grain.',
+      placeholder: 'Enter your Grain API key (Personal Access Token)',
+      description: 'Required to create the webhook in Grain.',
       password: true,
-      required: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'grain_webhook',
-      },
-    },
-    {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: grainSetupInstructions('All events'),
+      required: true,
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
@@ -67,6 +32,18 @@ export const grainWebhookTrigger: TriggerConfig = {
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'grain_webhook',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'grain_webhook',
+      },
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: grainSetupInstructions('All events'),
+      mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'grain_webhook',

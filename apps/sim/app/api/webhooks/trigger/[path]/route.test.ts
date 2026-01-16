@@ -14,10 +14,6 @@ import {
 } from '@/app/api/__test-utils__/utils'
 
 const {
-  hasProcessedMessageMock,
-  markMessageAsProcessedMock,
-  closeRedisConnectionMock,
-  acquireLockMock,
   generateRequestHashMock,
   validateSlackSignatureMock,
   handleWhatsAppVerificationMock,
@@ -28,10 +24,6 @@ const {
   processWebhookMock,
   executeMock,
 } = vi.hoisted(() => ({
-  hasProcessedMessageMock: vi.fn().mockResolvedValue(false),
-  markMessageAsProcessedMock: vi.fn().mockResolvedValue(true),
-  closeRedisConnectionMock: vi.fn().mockResolvedValue(undefined),
-  acquireLockMock: vi.fn().mockResolvedValue(true),
   generateRequestHashMock: vi.fn().mockResolvedValue('test-hash-123'),
   validateSlackSignatureMock: vi.fn().mockResolvedValue(true),
   handleWhatsAppVerificationMock: vi.fn().mockResolvedValue(null),
@@ -71,13 +63,6 @@ vi.mock('@/background/webhook-execution', () => ({
 
 vi.mock('@/background/logs-webhook-delivery', () => ({
   logsWebhookDelivery: {},
-}))
-
-vi.mock('@/lib/redis', () => ({
-  hasProcessedMessage: hasProcessedMessageMock,
-  markMessageAsProcessed: markMessageAsProcessedMock,
-  closeRedisConnection: closeRedisConnectionMock,
-  acquireLock: acquireLockMock,
 }))
 
 vi.mock('@/lib/webhooks/utils', () => ({
@@ -172,6 +157,112 @@ vi.mock('@/lib/workflows/persistence/utils', () => ({
   blockExistsInDeployment: vi.fn().mockResolvedValue(true),
 }))
 
+vi.mock('@/lib/webhooks/processor', () => ({
+  findAllWebhooksForPath: vi.fn().mockImplementation(async (options: { path: string }) => {
+    // Filter webhooks by path from globalMockData
+    const matchingWebhooks = globalMockData.webhooks.filter(
+      (wh) => wh.path === options.path && wh.isActive
+    )
+
+    if (matchingWebhooks.length === 0) {
+      return []
+    }
+
+    // Return array of {webhook, workflow} objects
+    return matchingWebhooks.map((wh) => {
+      const matchingWorkflow = globalMockData.workflows.find((w) => w.id === wh.workflowId) || {
+        id: wh.workflowId || 'test-workflow-id',
+        userId: 'test-user-id',
+        workspaceId: 'test-workspace-id',
+      }
+      return {
+        webhook: wh,
+        workflow: matchingWorkflow,
+      }
+    })
+  }),
+  parseWebhookBody: vi.fn().mockImplementation(async (request: any) => {
+    try {
+      const cloned = request.clone()
+      const rawBody = await cloned.text()
+      const body = rawBody ? JSON.parse(rawBody) : {}
+      return { body, rawBody }
+    } catch {
+      return { body: {}, rawBody: '' }
+    }
+  }),
+  handleProviderChallenges: vi.fn().mockResolvedValue(null),
+  handleProviderReachabilityTest: vi.fn().mockReturnValue(null),
+  verifyProviderAuth: vi
+    .fn()
+    .mockImplementation(
+      async (
+        foundWebhook: any,
+        _foundWorkflow: any,
+        request: any,
+        _rawBody: string,
+        _requestId: string
+      ) => {
+        // Implement generic webhook auth verification for tests
+        if (foundWebhook.provider === 'generic') {
+          const providerConfig = foundWebhook.providerConfig || {}
+          if (providerConfig.requireAuth) {
+            const configToken = providerConfig.token
+            const secretHeaderName = providerConfig.secretHeaderName
+
+            if (configToken) {
+              let isTokenValid = false
+
+              if (secretHeaderName) {
+                // Custom header auth
+                const headerValue = request.headers.get(secretHeaderName.toLowerCase())
+                if (headerValue === configToken) {
+                  isTokenValid = true
+                }
+              } else {
+                // Bearer token auth
+                const authHeader = request.headers.get('authorization')
+                if (authHeader?.toLowerCase().startsWith('bearer ')) {
+                  const token = authHeader.substring(7)
+                  if (token === configToken) {
+                    isTokenValid = true
+                  }
+                }
+              }
+
+              if (!isTokenValid) {
+                const { NextResponse } = await import('next/server')
+                return new NextResponse('Unauthorized - Invalid authentication token', {
+                  status: 401,
+                })
+              }
+            } else {
+              // Auth required but no token configured
+              const { NextResponse } = await import('next/server')
+              return new NextResponse('Unauthorized - Authentication required but not configured', {
+                status: 401,
+              })
+            }
+          }
+        }
+        return null
+      }
+    ),
+  checkWebhookPreprocessing: vi.fn().mockResolvedValue(null),
+  formatProviderErrorResponse: vi.fn().mockImplementation((_webhook, error, status) => {
+    const { NextResponse } = require('next/server')
+    return NextResponse.json({ error }, { status })
+  }),
+  shouldSkipWebhookEvent: vi.fn().mockReturnValue(false),
+  handlePreDeploymentVerification: vi.fn().mockReturnValue(null),
+  queueWebhookExecution: vi.fn().mockImplementation(async () => {
+    // Call processWebhookMock so tests can verify it was called
+    processWebhookMock()
+    const { NextResponse } = await import('next/server')
+    return NextResponse.json({ message: 'Webhook processed' })
+  }),
+}))
+
 vi.mock('drizzle-orm/postgres-js', () => ({
   drizzle: vi.fn().mockReturnValue({}),
 }))
@@ -179,6 +270,10 @@ vi.mock('drizzle-orm/postgres-js', () => ({
 vi.mock('postgres', () => vi.fn().mockReturnValue({}))
 
 vi.mock('@sim/logger', () => loggerMock)
+
+vi.mock('@/lib/core/utils/request', () => ({
+  generateRequestId: vi.fn().mockReturnValue('test-request-id'),
+}))
 
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 
@@ -201,9 +296,6 @@ describe('Webhook Trigger API Route', () => {
       workspaceId: 'test-workspace-id',
     })
 
-    hasProcessedMessageMock.mockResolvedValue(false)
-    markMessageAsProcessedMock.mockResolvedValue(true)
-    acquireLockMock.mockResolvedValue(true)
     handleWhatsAppVerificationMock.mockResolvedValue(null)
     processGenericDeduplicationMock.mockResolvedValue(null)
     processWebhookMock.mockResolvedValue(new Response('Webhook processed', { status: 200 }))

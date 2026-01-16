@@ -16,6 +16,9 @@ interface LLMChatParams {
   vertexProject?: string
   vertexLocation?: string
   vertexCredential?: string
+  bedrockAccessKeyId?: string
+  bedrockSecretKey?: string
+  bedrockRegion?: string
 }
 
 interface LLMChatResponse extends ToolResponse {
@@ -98,6 +101,24 @@ export const llmChatTool: ToolConfig<LLMChatParams, LLMChatResponse> = {
       visibility: 'hidden',
       description: 'Google Cloud OAuth credential ID for Vertex AI',
     },
+    bedrockAccessKeyId: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'AWS Access Key ID for Bedrock',
+    },
+    bedrockSecretKey: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'AWS Secret Access Key for Bedrock',
+    },
+    bedrockRegion: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'AWS region for Bedrock (defaults to us-east-1)',
+    },
   },
 
   request: {
@@ -122,6 +143,9 @@ export const llmChatTool: ToolConfig<LLMChatParams, LLMChatResponse> = {
         vertexProject: params.vertexProject,
         vertexLocation: params.vertexLocation,
         vertexCredential: params.vertexCredential,
+        bedrockAccessKeyId: params.bedrockAccessKeyId,
+        bedrockSecretKey: params.bedrockSecretKey,
+        bedrockRegion: params.bedrockRegion,
       }
     },
   },

@@ -31,8 +31,8 @@ import {
 } from '@/app/workspace/[workspaceId]/knowledge/utils/sort'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useDebounce } from '@/hooks/use-debounce'
-import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
 
 const logger = createLogger('Knowledge')
 

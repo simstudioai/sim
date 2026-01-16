@@ -8,6 +8,8 @@ const telegramLogger = createLogger('TelegramWebhook')
 const airtableLogger = createLogger('AirtableWebhook')
 const typeformLogger = createLogger('TypeformWebhook')
 const calendlyLogger = createLogger('CalendlyWebhook')
+const grainLogger = createLogger('GrainWebhook')
+const lemlistLogger = createLogger('LemlistWebhook')
 
 function getProviderConfig(webhook: any): Record<string, any> {
   return (webhook.providerConfig as Record<string, any>) || {}
@@ -80,7 +82,6 @@ export async function createTeamsSubscription(
     }
   }
 
-  // Always use NEXT_PUBLIC_APP_URL to ensure Microsoft Graph can reach the public endpoint
   const notificationUrl = getNotificationUrl(webhook)
   const resource = `/chats/${chatId}/messages`
 
@@ -662,8 +663,106 @@ export async function deleteCalendlyWebhook(webhook: any, requestId: string): Pr
 }
 
 /**
+ * Delete a Grain webhook
+ * Don't fail webhook deletion if cleanup fails
+ */
+export async function deleteGrainWebhook(webhook: any, requestId: string): Promise<void> {
+  try {
+    const config = getProviderConfig(webhook)
+    const apiKey = config.apiKey as string | undefined
+    const externalId = config.externalId as string | undefined
+
+    if (!apiKey) {
+      grainLogger.warn(
+        `[${requestId}] Missing apiKey for Grain webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    if (!externalId) {
+      grainLogger.warn(
+        `[${requestId}] Missing externalId for Grain webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    const grainApiUrl = `https://api.grain.com/_/public-api/v2/hooks/${externalId}`
+
+    const grainResponse = await fetch(grainApiUrl, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Public-Api-Version': '2025-10-31',
+      },
+    })
+
+    if (!grainResponse.ok && grainResponse.status !== 404) {
+      const responseBody = await grainResponse.json().catch(() => ({}))
+      grainLogger.warn(
+        `[${requestId}] Failed to delete Grain webhook (non-fatal): ${grainResponse.status}`,
+        { response: responseBody }
+      )
+    } else {
+      grainLogger.info(`[${requestId}] Successfully deleted Grain webhook ${externalId}`)
+    }
+  } catch (error) {
+    grainLogger.warn(`[${requestId}] Error deleting Grain webhook (non-fatal)`, error)
+  }
+}
+
+/**
+ * Delete a Lemlist webhook
+ * Don't fail webhook deletion if cleanup fails
+ */
+export async function deleteLemlistWebhook(webhook: any, requestId: string): Promise<void> {
+  try {
+    const config = getProviderConfig(webhook)
+    const apiKey = config.apiKey as string | undefined
+    const externalId = config.externalId as string | undefined
+
+    if (!apiKey) {
+      lemlistLogger.warn(
+        `[${requestId}] Missing apiKey for Lemlist webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    if (!externalId) {
+      lemlistLogger.warn(
+        `[${requestId}] Missing externalId for Lemlist webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    // Lemlist uses Basic Auth with empty username and API key as password
+    const authString = Buffer.from(`:${apiKey}`).toString('base64')
+    const lemlistApiUrl = `https://api.lemlist.com/api/hooks/${externalId}`
+
+    const lemlistResponse = await fetch(lemlistApiUrl, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Basic ${authString}`,
+      },
+    })
+
+    if (!lemlistResponse.ok && lemlistResponse.status !== 404) {
+      const responseBody = await lemlistResponse.json().catch(() => ({}))
+      lemlistLogger.warn(
+        `[${requestId}] Failed to delete Lemlist webhook (non-fatal): ${lemlistResponse.status}`,
+        { response: responseBody }
+      )
+    } else {
+      lemlistLogger.info(`[${requestId}] Successfully deleted Lemlist webhook ${externalId}`)
+    }
+  } catch (error) {
+    lemlistLogger.warn(`[${requestId}] Error deleting Lemlist webhook (non-fatal)`, error)
+  }
+}
+
+/**
  * Clean up external webhook subscriptions for a webhook
- * Handles Airtable, Teams, Telegram, Typeform, and Calendly cleanup
+ * Handles Airtable, Teams, Telegram, Typeform, Calendly, Grain, and Lemlist cleanup
  * Don't fail deletion if cleanup fails
  */
 export async function cleanupExternalWebhook(
@@ -681,5 +780,9 @@ export async function cleanupExternalWebhook(
     await deleteTypeformWebhook(webhook, requestId)
   } else if (webhook.provider === 'calendly') {
     await deleteCalendlyWebhook(webhook, requestId)
+  } else if (webhook.provider === 'grain') {
+    await deleteGrainWebhook(webhook, requestId)
+  } else if (webhook.provider === 'lemlist') {
+    await deleteLemlistWebhook(webhook, requestId)
   }
 }

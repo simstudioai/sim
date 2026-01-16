@@ -1,6 +1,13 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
+import type { MentionFolderNav } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components'
+import {
+  DOCS_CONFIG,
+  FOLDER_CONFIGS,
+  type FolderConfig,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
 import type { useMentionMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-mention-menu'
-import type { ChatContext } from '@/stores/panel/copilot/types'
+import { isContextAlreadySelected } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
+import type { ChatContext } from '@/stores/panel'
 
 interface UseMentionInsertHandlersProps {
   /** Mention menu hook instance */
@@ -11,12 +18,12 @@ interface UseMentionInsertHandlersProps {
   selectedContexts: ChatContext[]
   /** Callback to update selected contexts */
   onContextAdd: (context: ChatContext) => void
+  /** Folder navigation state exposed from MentionMenu via callback */
+  mentionFolderNav?: MentionFolderNav | null
 }
 
 /**
  * Custom hook to provide insert handlers for different mention types.
- * Consolidates the logic for inserting mentions and updating selected contexts.
- * Prevents duplicate mentions from being inserted.
  *
  * @param props - Configuration object
  * @returns Insert handler functions for each mention type
@@ -26,6 +33,7 @@ export function useMentionInsertHandlers({
   workflowId,
   selectedContexts,
   onContextAdd,
+  mentionFolderNav,
 }: UseMentionInsertHandlersProps) {
   const {
     replaceActiveMentionWith,
@@ -36,342 +44,94 @@ export function useMentionInsertHandlers({
   } = mentionMenu
 
   /**
-   * Checks if a context already exists in selected contexts
-   * CRITICAL: Prioritizes label checking to prevent token system breakage
-   *
-   * @param context - Context to check
-   * @returns True if context already exists or label is already used
+   * Closes all menus and resets state
    */
-  const isContextAlreadySelected = useCallback(
-    (context: ChatContext): boolean => {
-      return selectedContexts.some((c) => {
-        // CRITICAL: Check label collision FIRST
-        // The token system uses @label format, so we cannot have duplicate labels
-        // regardless of kind or ID differences
-        if (c.label && context.label && c.label === context.label) {
-          return true
+  const closeMenus = useCallback(() => {
+    setShowMentionMenu(false)
+    if (mentionFolderNav?.isInFolder) {
+      mentionFolderNav.closeFolder()
+    }
+    setOpenSubmenuFor(null)
+  }, [setShowMentionMenu, setOpenSubmenuFor, mentionFolderNav])
+
+  const createInsertHandler = useCallback(
+    <TItem>(config: FolderConfig<TItem>) => {
+      return (item: TItem) => {
+        const label = config.getLabel(item)
+        const context = config.buildContext(item, workflowId)
+
+        if (isContextAlreadySelected(context, selectedContexts)) {
+          resetActiveMentionQuery()
+          closeMenus()
+          return
         }
 
-        // Secondary check: exact duplicate by ID fields
-        if (c.kind === context.kind) {
-          if (c.kind === 'past_chat' && 'chatId' in context && 'chatId' in c) {
-            return c.chatId === (context as any).chatId
+        if (config.useInsertFallback) {
+          if (!replaceActiveMentionWith(label)) {
+            insertAtCursor(` @${label} `)
           }
-          if (c.kind === 'workflow' && 'workflowId' in context && 'workflowId' in c) {
-            return c.workflowId === (context as any).workflowId
-          }
-          if (c.kind === 'blocks' && 'blockId' in context && 'blockId' in c) {
-            return c.blockId === (context as any).blockId
-          }
-          if (c.kind === 'workflow_block' && 'blockId' in context && 'blockId' in c) {
-            return (
-              c.workflowId === (context as any).workflowId && c.blockId === (context as any).blockId
-            )
-          }
-          if (c.kind === 'knowledge' && 'knowledgeId' in context && 'knowledgeId' in c) {
-            return c.knowledgeId === (context as any).knowledgeId
-          }
-          if (c.kind === 'templates' && 'templateId' in context && 'templateId' in c) {
-            return c.templateId === (context as any).templateId
-          }
-          if (c.kind === 'logs' && 'executionId' in context && 'executionId' in c) {
-            return c.executionId === (context as any).executionId
-          }
-          if (c.kind === 'docs') {
-            return true
-          }
+        } else {
+          replaceActiveMentionWith(label)
         }
 
-        return false
-      })
-    },
-    [selectedContexts]
-  )
-
-  /**
-   * Inserts a past chat mention
-   *
-   * @param chat - Chat object to mention
-   */
-  const insertPastChatMention = useCallback(
-    (chat: { id: string; title: string | null }) => {
-      const label = chat.title || 'New Chat'
-      const context = { kind: 'past_chat', chatId: chat.id, label } as ChatContext
-
-      // Prevent duplicate insertion
-      if (isContextAlreadySelected(context)) {
-        // Clear the partial mention text (e.g., "@Unti") before closing
-        resetActiveMentionQuery()
-        setShowMentionMenu(false)
-        setOpenSubmenuFor(null)
-        return
+        onContextAdd(context)
+        closeMenus()
       }
-
-      replaceActiveMentionWith(label)
-      onContextAdd(context)
-      setShowMentionMenu(false)
-      setOpenSubmenuFor(null)
     },
     [
-      replaceActiveMentionWith,
-      onContextAdd,
-      setShowMentionMenu,
-      setOpenSubmenuFor,
-      isContextAlreadySelected,
-      resetActiveMentionQuery,
-    ]
-  )
-
-  /**
-   * Inserts a workflow mention
-   *
-   * @param wf - Workflow object to mention
-   */
-  const insertWorkflowMention = useCallback(
-    (wf: { id: string; name: string }) => {
-      const label = wf.name || 'Untitled Workflow'
-      const context = { kind: 'workflow', workflowId: wf.id, label } as ChatContext
-
-      // Prevent duplicate insertion
-      if (isContextAlreadySelected(context)) {
-        // Clear the partial mention text before closing
-        resetActiveMentionQuery()
-        setShowMentionMenu(false)
-        setOpenSubmenuFor(null)
-        return
-      }
-
-      if (!replaceActiveMentionWith(label)) insertAtCursor(` @${label} `)
-      onContextAdd(context)
-      setShowMentionMenu(false)
-      setOpenSubmenuFor(null)
-    },
-    [
-      replaceActiveMentionWith,
-      insertAtCursor,
-      onContextAdd,
-      setShowMentionMenu,
-      setOpenSubmenuFor,
-      isContextAlreadySelected,
-      resetActiveMentionQuery,
-    ]
-  )
-
-  /**
-   * Inserts a knowledge base mention
-   *
-   * @param kb - Knowledge base object to mention
-   */
-  const insertKnowledgeMention = useCallback(
-    (kb: { id: string; name: string }) => {
-      const label = kb.name || 'Untitled'
-      const context = { kind: 'knowledge', knowledgeId: kb.id, label } as any
-
-      // Prevent duplicate insertion
-      if (isContextAlreadySelected(context)) {
-        // Clear the partial mention text before closing
-        resetActiveMentionQuery()
-        setShowMentionMenu(false)
-        setOpenSubmenuFor(null)
-        return
-      }
-
-      replaceActiveMentionWith(label)
-      onContextAdd(context)
-      setShowMentionMenu(false)
-      setOpenSubmenuFor(null)
-    },
-    [
-      replaceActiveMentionWith,
-      onContextAdd,
-      setShowMentionMenu,
-      setOpenSubmenuFor,
-      isContextAlreadySelected,
-      resetActiveMentionQuery,
-    ]
-  )
-
-  /**
-   * Inserts a block mention
-   *
-   * @param blk - Block object to mention
-   */
-  const insertBlockMention = useCallback(
-    (blk: { id: string; name: string }) => {
-      const label = blk.name || blk.id
-      const context = { kind: 'blocks', blockId: blk.id, label } as any
-
-      // Prevent duplicate insertion
-      if (isContextAlreadySelected(context)) {
-        // Clear the partial mention text before closing
-        resetActiveMentionQuery()
-        setShowMentionMenu(false)
-        setOpenSubmenuFor(null)
-        return
-      }
-
-      replaceActiveMentionWith(label)
-      onContextAdd(context)
-      setShowMentionMenu(false)
-      setOpenSubmenuFor(null)
-    },
-    [
-      replaceActiveMentionWith,
-      onContextAdd,
-      setShowMentionMenu,
-      setOpenSubmenuFor,
-      isContextAlreadySelected,
-      resetActiveMentionQuery,
-    ]
-  )
-
-  /**
-   * Inserts a workflow block mention
-   *
-   * @param blk - Workflow block object to mention
-   */
-  const insertWorkflowBlockMention = useCallback(
-    (blk: { id: string; name: string }) => {
-      const label = blk.name
-      const context = {
-        kind: 'workflow_block',
-        workflowId: workflowId as string,
-        blockId: blk.id,
-        label,
-      } as any
-
-      // Prevent duplicate insertion
-      if (isContextAlreadySelected(context)) {
-        // Clear the partial mention text before closing
-        resetActiveMentionQuery()
-        setShowMentionMenu(false)
-        setOpenSubmenuFor(null)
-        return
-      }
-
-      if (!replaceActiveMentionWith(label)) insertAtCursor(` @${label} `)
-      onContextAdd(context)
-      setShowMentionMenu(false)
-      setOpenSubmenuFor(null)
-    },
-    [
-      replaceActiveMentionWith,
-      insertAtCursor,
       workflowId,
-      onContextAdd,
-      setShowMentionMenu,
-      setOpenSubmenuFor,
-      isContextAlreadySelected,
-      resetActiveMentionQuery,
-    ]
-  )
-
-  /**
-   * Inserts a template mention
-   *
-   * @param tpl - Template object to mention
-   */
-  const insertTemplateMention = useCallback(
-    (tpl: { id: string; name: string }) => {
-      const label = tpl.name || 'Untitled Template'
-      const context = { kind: 'templates', templateId: tpl.id, label } as any
-
-      // Prevent duplicate insertion
-      if (isContextAlreadySelected(context)) {
-        // Clear the partial mention text before closing
-        resetActiveMentionQuery()
-        setShowMentionMenu(false)
-        setOpenSubmenuFor(null)
-        return
-      }
-
-      replaceActiveMentionWith(label)
-      onContextAdd(context)
-      setShowMentionMenu(false)
-      setOpenSubmenuFor(null)
-    },
-    [
+      selectedContexts,
       replaceActiveMentionWith,
+      insertAtCursor,
       onContextAdd,
-      setShowMentionMenu,
-      setOpenSubmenuFor,
-      isContextAlreadySelected,
       resetActiveMentionQuery,
+      closeMenus,
     ]
   )
 
   /**
-   * Inserts a log mention
-   *
-   * @param log - Log object to mention
-   */
-  const insertLogMention = useCallback(
-    (log: { id: string; executionId?: string; workflowName: string }) => {
-      const label = log.workflowName
-      const context = { kind: 'logs' as const, executionId: log.executionId, label }
-
-      // Prevent duplicate insertion
-      if (isContextAlreadySelected(context)) {
-        // Clear the partial mention text before closing
-        resetActiveMentionQuery()
-        setShowMentionMenu(false)
-        setOpenSubmenuFor(null)
-        return
-      }
-
-      replaceActiveMentionWith(label)
-      onContextAdd(context)
-      setShowMentionMenu(false)
-      setOpenSubmenuFor(null)
-    },
-    [
-      replaceActiveMentionWith,
-      onContextAdd,
-      setShowMentionMenu,
-      setOpenSubmenuFor,
-      isContextAlreadySelected,
-      resetActiveMentionQuery,
-    ]
-  )
-
-  /**
-   * Inserts a docs mention
+   * Special handler for Docs (no item parameter, uses DOCS_CONFIG)
    */
   const insertDocsMention = useCallback(() => {
-    const label = 'Docs'
-    const context = { kind: 'docs', label } as any
+    const label = DOCS_CONFIG.getLabel()
+    const context = DOCS_CONFIG.buildContext()
 
     // Prevent duplicate insertion
-    if (isContextAlreadySelected(context)) {
-      // Clear the partial mention text before closing
+    if (isContextAlreadySelected(context, selectedContexts)) {
       resetActiveMentionQuery()
-      setShowMentionMenu(false)
-      setOpenSubmenuFor(null)
+      closeMenus()
       return
     }
 
-    if (!replaceActiveMentionWith(label)) insertAtCursor(` @${label} `)
+    // Docs uses fallback insertion
+    if (!replaceActiveMentionWith(label)) {
+      insertAtCursor(` @${label} `)
+    }
+
     onContextAdd(context)
-    setShowMentionMenu(false)
-    setOpenSubmenuFor(null)
+    closeMenus()
   }, [
+    selectedContexts,
     replaceActiveMentionWith,
     insertAtCursor,
     onContextAdd,
-    setShowMentionMenu,
-    setOpenSubmenuFor,
-    isContextAlreadySelected,
     resetActiveMentionQuery,
+    closeMenus,
   ])
 
-  return {
-    insertPastChatMention,
-    insertWorkflowMention,
-    insertKnowledgeMention,
-    insertBlockMention,
-    insertWorkflowBlockMention,
-    insertTemplateMention,
-    insertLogMention,
-    insertDocsMention,
-  }
+  const handlers = useMemo(
+    () => ({
+      insertPastChatMention: createInsertHandler(FOLDER_CONFIGS.chats),
+      insertWorkflowMention: createInsertHandler(FOLDER_CONFIGS.workflows),
+      insertKnowledgeMention: createInsertHandler(FOLDER_CONFIGS.knowledge),
+      insertBlockMention: createInsertHandler(FOLDER_CONFIGS.blocks),
+      insertWorkflowBlockMention: createInsertHandler(FOLDER_CONFIGS['workflow-blocks']),
+      insertTemplateMention: createInsertHandler(FOLDER_CONFIGS.templates),
+      insertLogMention: createInsertHandler(FOLDER_CONFIGS.logs),
+      insertDocsMention,
+    }),
+    [createInsertHandler, insertDocsMention]
+  )
+
+  return handlers
 }

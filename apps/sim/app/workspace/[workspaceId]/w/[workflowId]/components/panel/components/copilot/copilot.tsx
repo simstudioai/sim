@@ -22,9 +22,11 @@ import {
   PopoverTrigger,
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
+import { cn } from '@/lib/core/utils/cn'
 import {
   CopilotMessage,
   PlanModeSection,
+  QueuedMessages,
   TodoList,
   UserInput,
   Welcome,
@@ -38,7 +40,7 @@ import {
   useTodoManagement,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/hooks'
 import { useScrollManagement } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
+import { useCopilotStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('Copilot')
@@ -99,7 +101,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     loadChats,
     messageCheckpoints,
     currentChat,
-    fetchContextUsage,
     selectChat,
     deleteChat,
     areChatsFresh,
@@ -118,14 +119,15 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     chatsLoadedForWorkflow,
     setCopilotWorkflowId,
     loadChats,
-    fetchContextUsage,
     loadAutoAllowedTools,
     currentChat,
     isSendingMessage,
   })
 
-  // Handle scroll management
-  const { scrollAreaRef, scrollToBottom } = useScrollManagement(messages, isSendingMessage)
+  // Handle scroll management (80px stickiness for copilot)
+  const { scrollAreaRef, scrollToBottom } = useScrollManagement(messages, isSendingMessage, {
+    stickinessThreshold: 80,
+  })
 
   // Handle chat history grouping
   const { groupedChats, handleHistoryDropdownOpen: handleHistoryDropdownOpenHook } = useChatHistory(
@@ -298,7 +300,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
    */
   const handleSubmit = useCallback(
     async (query: string, fileAttachments?: MessageFileAttachment[], contexts?: any[]) => {
-      if (!query || isSendingMessage || !activeWorkflowId) return
+      // Allow submission even when isSendingMessage - store will queue the message
+      if (!query || !activeWorkflowId) return
 
       if (showPlanTodos) {
         const store = useCopilotStore.getState()
@@ -316,7 +319,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
         logger.error('Failed to send message:', error)
       }
     },
-    [isSendingMessage, activeWorkflowId, sendMessage, showPlanTodos]
+    [activeWorkflowId, sendMessage, showPlanTodos]
   )
 
   /**
@@ -443,7 +446,13 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                                 <span className='min-w-0 flex-1 truncate'>
                                   {chat.title || 'New Chat'}
                                 </span>
-                                <div className='flex flex-shrink-0 items-center gap-[4px] opacity-0 transition-opacity group-hover:opacity-100'>
+                                <div
+                                  className={cn(
+                                    'flex flex-shrink-0 items-center gap-[4px]',
+                                    currentChat?.id !== chat.id &&
+                                      'opacity-0 transition-opacity group-hover:opacity-100'
+                                  )}
+                                >
                                   <Button
                                     variant='ghost'
                                     className='h-[16px] w-[16px] p-0'
@@ -563,6 +572,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                             onRevertModeChange={(isReverting) =>
                               handleRevertModeChange(message.id, isReverting)
                             }
+                            isLastMessage={index === messages.length - 1}
                           />
                         )
                       })}
@@ -587,6 +597,9 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     </div>
                   )}
                 </div>
+
+                {/* Queued messages (shown when messages are waiting) */}
+                <QueuedMessages />
 
                 {/* Input area with integrated mode selector */}
                 <div className='flex-shrink-0 px-[8px] pb-[8px]'>

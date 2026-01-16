@@ -44,8 +44,16 @@ interface DropdownProps {
     blockId: string,
     subBlockId: string
   ) => Promise<Array<{ label: string; id: string }>>
+  /** Async function to fetch a single option's label by ID (for hydration) */
+  fetchOptionById?: (
+    blockId: string,
+    subBlockId: string,
+    optionId: string
+  ) => Promise<{ label: string; id: string } | null>
   /** Field dependencies that trigger option refetch when changed */
   dependsOn?: SubBlockConfig['dependsOn']
+  /** Enable search input in dropdown */
+  searchable?: boolean
 }
 
 /**
@@ -69,7 +77,9 @@ export function Dropdown({
   placeholder = 'Select an option...',
   multiSelect = false,
   fetchOptions,
+  fetchOptionById,
   dependsOn,
+  searchable = false,
 }: DropdownProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string | string[]>(blockId, subBlockId) as [
     string | string[] | null | undefined,
@@ -95,6 +105,7 @@ export function Dropdown({
   const [fetchedOptions, setFetchedOptions] = useState<Array<{ label: string; id: string }>>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [hydratedOption, setHydratedOption] = useState<{ label: string; id: string } | null>(null)
 
   const previousModeRef = useRef<string | null>(null)
   const previousDependencyValuesRef = useRef<string>('')
@@ -113,7 +124,13 @@ export function Dropdown({
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   const singleValue = multiSelect ? null : (value as string | null | undefined)
-  const multiValues = multiSelect ? (value as string[] | null | undefined) || [] : null
+  const multiValues = multiSelect
+    ? Array.isArray(value)
+      ? value
+      : value
+        ? [value as string]
+        : []
+    : null
 
   const fetchOptionsIfNeeded = useCallback(async () => {
     if (!fetchOptions || isPreview || disabled) return
@@ -141,11 +158,23 @@ export function Dropdown({
   }, [fetchedOptions])
 
   const availableOptions = useMemo(() => {
-    if (fetchOptions && normalizedFetchedOptions.length > 0) {
-      return normalizedFetchedOptions
+    let opts: DropdownOption[] =
+      fetchOptions && normalizedFetchedOptions.length > 0
+        ? normalizedFetchedOptions
+        : evaluatedOptions
+
+    // Merge hydrated option if not already present
+    if (hydratedOption) {
+      const alreadyPresent = opts.some((o) =>
+        typeof o === 'string' ? o === hydratedOption.id : o.id === hydratedOption.id
+      )
+      if (!alreadyPresent) {
+        opts = [hydratedOption, ...opts]
+      }
     }
-    return evaluatedOptions
-  }, [fetchOptions, normalizedFetchedOptions, evaluatedOptions])
+
+    return opts
+  }, [fetchOptions, normalizedFetchedOptions, evaluatedOptions, hydratedOption])
 
   /**
    * Convert dropdown options to Combobox format
@@ -301,7 +330,7 @@ export function Dropdown({
   )
 
   /**
-   * Effect to clear fetched options when dependencies actually change
+   * Effect to clear fetched options and hydrated option when dependencies actually change
    * This ensures options are refetched with new dependency values (e.g., new credentials)
    */
   useEffect(() => {
@@ -314,6 +343,7 @@ export function Dropdown({
         currentDependencyValuesStr !== previousDependencyValuesStr
       ) {
         setFetchedOptions([])
+        setHydratedOption(null)
       }
 
       previousDependencyValuesRef.current = currentDependencyValuesStr
@@ -329,18 +359,72 @@ export function Dropdown({
       !isPreview &&
       !disabled &&
       fetchedOptions.length === 0 &&
-      !isLoadingOptions
+      !isLoadingOptions &&
+      !fetchError
     ) {
       fetchOptionsIfNeeded()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchOptionsIfNeeded deps already covered above
   }, [
     fetchOptions,
     isPreview,
     disabled,
     fetchedOptions.length,
     isLoadingOptions,
-    fetchOptionsIfNeeded,
-    dependencyValues, // Refetch when dependencies change
+    fetchError,
+    dependencyValues,
+  ])
+
+  /**
+   * Effect to hydrate the stored value's label by fetching it individually
+   * This ensures the correct label is shown before the full options list loads
+   */
+  useEffect(() => {
+    if (!fetchOptionById || isPreview || disabled) return
+
+    // Get the value to hydrate (single value only, not multi-select)
+    const valueToHydrate = multiSelect ? null : (singleValue as string | null | undefined)
+    if (!valueToHydrate) return
+
+    // Skip if value is an expression (not a real ID)
+    if (valueToHydrate.startsWith('<') || valueToHydrate.includes('{{')) return
+
+    // Skip if already hydrated with the same value
+    if (hydratedOption?.id === valueToHydrate) return
+
+    // Skip if value is already in fetched options or static options
+    const alreadyInFetchedOptions = fetchedOptions.some((opt) => opt.id === valueToHydrate)
+    const alreadyInStaticOptions = evaluatedOptions.some((opt) =>
+      typeof opt === 'string' ? opt === valueToHydrate : opt.id === valueToHydrate
+    )
+    if (alreadyInFetchedOptions || alreadyInStaticOptions) return
+
+    // Track if effect is still active (cleanup on unmount or value change)
+    let isActive = true
+
+    // Fetch the hydrated option
+    fetchOptionById(blockId, subBlockId, valueToHydrate)
+      .then((option) => {
+        if (isActive) setHydratedOption(option)
+      })
+      .catch(() => {
+        if (isActive) setHydratedOption(null)
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [
+    fetchOptionById,
+    singleValue,
+    multiSelect,
+    blockId,
+    subBlockId,
+    isPreview,
+    disabled,
+    fetchedOptions,
+    evaluatedOptions,
+    hydratedOption?.id,
   ])
 
   /**
@@ -363,7 +447,7 @@ export function Dropdown({
     )
   }, [multiSelect, multiValues, optionMap])
 
-  const isSearchable = subBlockId === 'operation'
+  const isSearchable = searchable || (subBlockId === 'operation' && comboboxOptions.length > 5)
 
   return (
     <Combobox
@@ -385,7 +469,7 @@ export function Dropdown({
       isLoading={isLoadingOptions}
       error={fetchError}
       searchable={isSearchable}
-      searchPlaceholder='Search operations...'
+      searchPlaceholder='Search...'
     />
   )
 }

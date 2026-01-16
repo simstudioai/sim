@@ -8,6 +8,7 @@ import {
   PopoverAnchor,
   PopoverBackButton,
   PopoverContent,
+  PopoverDivider,
   PopoverFolder,
   PopoverItem,
   PopoverScrollArea,
@@ -19,7 +20,13 @@ import {
   extractFieldsFromSchema,
   parseResponseFormatSafely,
 } from '@/lib/core/utils/response-format'
-import { getBlockOutputPaths, getBlockOutputType } from '@/lib/workflows/blocks/block-outputs'
+import {
+  getBlockOutputPaths,
+  getBlockOutputType,
+  getOutputPathsFromSchema,
+  getToolOutputPaths,
+  getToolOutputType,
+} from '@/lib/workflows/blocks/block-outputs'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import { KeyboardNavigationHandler } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/components/keyboard-navigation-handler'
 import type {
@@ -30,14 +37,13 @@ import type {
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import type { Variable } from '@/stores/panel/variables/types'
+import type { Variable } from '@/stores/panel'
+import { useVariablesStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { normalizeName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-import { getTool } from '@/tools/utils'
 
 const logger = createLogger('TagDropdown')
 
@@ -65,6 +71,12 @@ interface TagDropdownProps {
   style?: React.CSSProperties
   /** Reference to the input element for caret positioning */
   inputRef?: React.RefObject<HTMLTextAreaElement | HTMLInputElement>
+}
+
+interface TagComputationResult {
+  tags: string[]
+  variableInfoMap: Record<string, { type: string; id: string }>
+  blockTagGroups: BlockTagGroup[]
 }
 
 /**
@@ -215,161 +227,6 @@ const getOutputTypeForPath = (
     }
   }
   return 'any'
-}
-
-/**
- * Recursively generates all output paths from an outputs schema.
- *
- * @remarks
- * Traverses nested objects and arrays to build dot-separated paths
- * for all leaf values in the schema.
- *
- * @param outputs - The outputs schema object
- * @param prefix - Current path prefix for recursion
- * @returns Array of dot-separated paths to all output fields
- */
-const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[] => {
-  const paths: string[] = []
-
-  for (const [key, value] of Object.entries(outputs)) {
-    const currentPath = prefix ? `${prefix}.${key}` : key
-
-    if (typeof value === 'string') {
-      paths.push(currentPath)
-    } else if (typeof value === 'object' && value !== null) {
-      if ('type' in value && typeof value.type === 'string') {
-        const hasNestedProperties =
-          (value.type === 'object' && value.properties) ||
-          (value.type === 'array' && value.items?.properties) ||
-          (value.type === 'array' &&
-            value.items &&
-            typeof value.items === 'object' &&
-            !('type' in value.items))
-
-        if (!hasNestedProperties) {
-          paths.push(currentPath)
-        }
-
-        if (value.type === 'object' && value.properties) {
-          paths.push(...generateOutputPaths(value.properties, currentPath))
-        } else if (value.type === 'array' && value.items?.properties) {
-          paths.push(...generateOutputPaths(value.items.properties, currentPath))
-        } else if (
-          value.type === 'array' &&
-          value.items &&
-          typeof value.items === 'object' &&
-          !('type' in value.items)
-        ) {
-          paths.push(...generateOutputPaths(value.items, currentPath))
-        }
-      } else {
-        const subPaths = generateOutputPaths(value, currentPath)
-        paths.push(...subPaths)
-      }
-    } else {
-      paths.push(currentPath)
-    }
-  }
-
-  return paths
-}
-
-/**
- * Recursively generates all output paths with their types from an outputs schema.
- *
- * @remarks
- * Similar to generateOutputPaths but also captures the type information
- * for each path, useful for displaying type hints in the UI.
- *
- * @param outputs - The outputs schema object
- * @param prefix - Current path prefix for recursion
- * @returns Array of objects containing path and type for each output field
- */
-const generateOutputPathsWithTypes = (
-  outputs: Record<string, any>,
-  prefix = ''
-): Array<{ path: string; type: string }> => {
-  const paths: Array<{ path: string; type: string }> = []
-
-  for (const [key, value] of Object.entries(outputs)) {
-    const currentPath = prefix ? `${prefix}.${key}` : key
-
-    if (typeof value === 'string') {
-      paths.push({ path: currentPath, type: value })
-    } else if (typeof value === 'object' && value !== null) {
-      if ('type' in value && typeof value.type === 'string') {
-        if (value.type === 'array' && value.items?.properties) {
-          paths.push({ path: currentPath, type: 'array' })
-          const subPaths = generateOutputPathsWithTypes(value.items.properties, currentPath)
-          paths.push(...subPaths)
-        } else if (value.type === 'object' && value.properties) {
-          paths.push({ path: currentPath, type: 'object' })
-          const subPaths = generateOutputPathsWithTypes(value.properties, currentPath)
-          paths.push(...subPaths)
-        } else {
-          paths.push({ path: currentPath, type: value.type })
-        }
-      } else {
-        const subPaths = generateOutputPathsWithTypes(value, currentPath)
-        paths.push(...subPaths)
-      }
-    } else {
-      paths.push({ path: currentPath, type: 'any' })
-    }
-  }
-
-  return paths
-}
-
-/**
- * Generates output paths for a tool-based block.
- *
- * @param blockConfig - The block configuration containing tools config
- * @param operation - The selected operation for the tool
- * @returns Array of output paths for the tool, or empty array on error
- */
-const generateToolOutputPaths = (blockConfig: BlockConfig, operation: string): string[] => {
-  if (!blockConfig?.tools?.config?.tool) return []
-
-  try {
-    const toolId = blockConfig.tools.config.tool({ operation })
-    if (!toolId) return []
-
-    const toolConfig = getTool(toolId)
-    if (!toolConfig?.outputs) return []
-
-    return generateOutputPaths(toolConfig.outputs)
-  } catch (error) {
-    logger.warn('Failed to get tool outputs for operation', { operation, error })
-    return []
-  }
-}
-
-/**
- * Gets the output type for a specific path in a tool's outputs.
- *
- * @param blockConfig - The block configuration containing tools config
- * @param operation - The selected operation for the tool
- * @param path - The dot-separated path to the output field
- * @returns The type of the output field, or 'any' if not found
- */
-const getToolOutputType = (blockConfig: BlockConfig, operation: string, path: string): string => {
-  if (!blockConfig?.tools?.config?.tool) return 'any'
-
-  try {
-    const toolId = blockConfig.tools.config.tool({ operation })
-    if (!toolId) return 'any'
-
-    const toolConfig = getTool(toolId)
-    if (!toolConfig?.outputs) return 'any'
-
-    const pathsWithTypes = generateOutputPathsWithTypes(toolConfig.outputs)
-    const matchingPath = pathsWithTypes.find((p) => p.path === path)
-    return matchingPath?.type || 'any'
-  } catch (error) {
-    logger.warn('Failed to get tool output type for path', { path, error })
-    return 'any'
-  }
 }
 
 /**
@@ -600,14 +457,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     [inputValue, cursorPosition]
   )
 
+  const emptyVariableInfoMap: Record<string, { type: string; id: string }> = {}
+
   /**
    * Computes tags, variable info, and block tag groups
    */
-  const { tags, variableInfoMap, blockTagGroups } = useMemo(() => {
+  const { tags, variableInfoMap, blockTagGroups } = useMemo<TagComputationResult>(() => {
     if (activeSourceBlockId) {
       const sourceBlock = blocks[activeSourceBlockId]
       if (!sourceBlock) {
-        return { tags: [], variableInfoMap: {}, blockTagGroups: [] }
+        return { tags: [], variableInfoMap: emptyVariableInfoMap, blockTagGroups: [] }
       }
 
       const blockConfig = getBlock(sourceBlock.type)
@@ -618,7 +477,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           const blockName = sourceBlock.name || sourceBlock.type
           const normalizedBlockName = normalizeName(blockName)
 
-          const outputPaths = generateOutputPaths(mockConfig.outputs)
+          const outputPaths = getOutputPathsFromSchema(mockConfig.outputs)
           const blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
 
           const blockTagGroups: BlockTagGroup[] = [
@@ -631,9 +490,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             },
           ]
 
-          return { tags: blockTags, variableInfoMap: {}, blockTagGroups }
+          return { tags: blockTags, variableInfoMap: emptyVariableInfoMap, blockTagGroups }
         }
-        return { tags: [], variableInfoMap: {}, blockTagGroups: [] }
+        return { tags: [], variableInfoMap: emptyVariableInfoMap, blockTagGroups: [] }
       }
 
       const blockName = sourceBlock.name || sourceBlock.type
@@ -754,11 +613,29 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
             blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
           }
+        } else if (sourceBlock.type === 'human_in_the_loop') {
+          const dynamicOutputs = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
+
+          const isSelfReference = activeSourceBlockId === blockId
+
+          if (dynamicOutputs.length > 0) {
+            const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
+            // For self-reference, only show url and resumeEndpoint (not response format fields)
+            blockTags = isSelfReference
+              ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
+              : allTags
+          } else {
+            const outputPaths = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
+            const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+            blockTags = isSelfReference
+              ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
+              : allTags
+          }
         } else {
           const operationValue =
             mergedSubBlocks?.operation?.value ?? getSubBlockValue(activeSourceBlockId, 'operation')
           const toolOutputPaths = operationValue
-            ? generateToolOutputPaths(blockConfig, operationValue)
+            ? getToolOutputPaths(blockConfig, operationValue)
             : []
 
           if (toolOutputPaths.length > 0) {
@@ -791,12 +668,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         },
       ]
 
-      return { tags: blockTags, variableInfoMap: {}, blockTagGroups }
+      return { tags: blockTags, variableInfoMap: emptyVariableInfoMap, blockTagGroups }
     }
 
     const hasInvalidBlocks = Object.values(blocks).some((block) => !block || !block.type)
     if (hasInvalidBlocks) {
-      return { tags: [], variableInfoMap: {}, blockTagGroups: [] }
+      return { tags: [], variableInfoMap: emptyVariableInfoMap, blockTagGroups: [] }
     }
 
     const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
@@ -962,7 +839,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           const blockName = accessibleBlock.name || accessibleBlock.type
           const normalizedBlockName = normalizeName(blockName)
 
-          const outputPaths = generateOutputPaths(mockConfig.outputs)
+          const outputPaths = getOutputPathsFromSchema(mockConfig.outputs)
           let blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           blockTags = ensureRootTag(blockTags, normalizedBlockName)
 
@@ -1073,12 +950,24 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
           }
         } else if (accessibleBlock.type === 'human_in_the_loop') {
-          blockTags = [`${normalizedBlockName}.url`]
+          const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
+
+          const isSelfReference = accessibleBlockId === blockId
+
+          if (dynamicOutputs.length > 0) {
+            const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
+            // For self-reference, only show url and resumeEndpoint (not response format fields)
+            blockTags = isSelfReference
+              ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
+              : allTags
+          } else {
+            blockTags = [`${normalizedBlockName}.url`, `${normalizedBlockName}.resumeEndpoint`]
+          }
         } else {
           const operationValue =
             mergedSubBlocks?.operation?.value ?? getSubBlockValue(accessibleBlockId, 'operation')
           const toolOutputPaths = operationValue
-            ? generateToolOutputPaths(blockConfig, operationValue)
+            ? getToolOutputPaths(blockConfig, operationValue)
             : []
 
           if (toolOutputPaths.length > 0) {
@@ -1152,7 +1041,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   const filteredTags = useMemo(() => {
     if (!searchTerm) return tags
-    return tags.filter((tag) => tag.toLowerCase().includes(searchTerm))
+    return tags.filter((tag: string) => tag.toLowerCase().includes(searchTerm))
   }, [tags, searchTerm])
 
   const { variableTags, filteredBlockTagGroups } = useMemo(() => {
@@ -1426,7 +1315,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   }
 
   return (
-    <Popover open={visible} onOpenChange={(open) => !open && onClose?.()}>
+    <Popover open={visible} onOpenChange={(open) => !open && onClose?.()} colorScheme='inverted'>
       <PopoverAnchor asChild>
         <div
           className={cn('pointer-events-none', className)}
@@ -1502,23 +1391,24 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                           }
                         }}
                       >
-                        <span className='flex-1 truncate text-[var(--text-primary)]'>
+                        <span className='flex-1 truncate'>
                           {tag.startsWith(TAG_PREFIXES.VARIABLE)
                             ? tag.substring(TAG_PREFIXES.VARIABLE.length)
                             : tag}
                         </span>
                         {variableInfo && (
-                          <span className='ml-auto text-[10px] text-[var(--text-secondary)]'>
+                          <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>
                             {variableInfo.type}
                           </span>
                         )}
                       </PopoverItem>
                     )
                   })}
+                  {nestedBlockTagGroups.length > 0 && <PopoverDivider rootOnly />}
                 </>
               )}
 
-              {nestedBlockTagGroups.map((group: NestedBlockTagGroup) => {
+              {nestedBlockTagGroups.map((group: NestedBlockTagGroup, groupIndex: number) => {
                 const blockConfig = getBlock(group.blockType)
                 let blockColor = blockConfig?.bgColor || BLOCK_COLORS.DEFAULT
 
@@ -1565,9 +1455,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                       }}
                     >
                       <TagIcon icon={tagIcon} color={blockColor} />
-                      <span className='flex-1 truncate font-medium text-[var(--text-primary)]'>
-                        {group.blockName}
-                      </span>
+                      <span className='flex-1 truncate font-medium'>{group.blockName}</span>
                     </PopoverItem>
                     {group.nestedTags.map((nestedTag) => {
                       if (nestedTag.fullTag === rootTag) {
@@ -1650,11 +1538,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                     }
                                   }}
                                 >
-                                  <span className='flex-1 truncate text-[var(--text-primary)]'>
-                                    {child.display}
-                                  </span>
+                                  <span className='flex-1 truncate'>{child.display}</span>
                                   {childType && childType !== 'any' && (
-                                    <span className='ml-auto text-[10px] text-[var(--text-secondary)]'>
+                                    <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>
                                       {childType}
                                     </span>
                                   )}
@@ -1722,17 +1608,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                             }
                           }}
                         >
-                          <span className='flex-1 truncate text-[var(--text-primary)]'>
-                            {nestedTag.display}
-                          </span>
+                          <span className='flex-1 truncate'>{nestedTag.display}</span>
                           {tagDescription && tagDescription !== 'any' && (
-                            <span className='ml-auto text-[10px] text-[var(--text-secondary)]'>
+                            <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>
                               {tagDescription}
                             </span>
                           )}
                         </PopoverItem>
                       )
                     })}
+                    {groupIndex < nestedBlockTagGroups.length - 1 && <PopoverDivider rootOnly />}
                   </div>
                 )
               })}

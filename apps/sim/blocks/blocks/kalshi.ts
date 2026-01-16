@@ -176,6 +176,19 @@ export const KalshiBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Minimum timestamp (Unix milliseconds)',
       condition: { field: 'operation', value: ['get_fills'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in milliseconds based on the user's description.
+Examples:
+- "yesterday" -> Calculate yesterday at 00:00:00 in milliseconds since epoch
+- "last week" -> Calculate 7 days ago at 00:00:00 in milliseconds since epoch
+- "start of today" -> Today at 00:00:00 in milliseconds since epoch
+- "1 hour ago" -> Current time minus 1 hour in milliseconds since epoch
+
+Return ONLY the numeric timestamp (milliseconds since Unix epoch) - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the minimum date/time (e.g., "yesterday", "last week")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'maxTs',
@@ -183,6 +196,19 @@ export const KalshiBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Maximum timestamp (Unix milliseconds)',
       condition: { field: 'operation', value: ['get_fills'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in milliseconds based on the user's description.
+Examples:
+- "now" -> Current time in milliseconds since epoch
+- "end of today" -> Today at 23:59:59 in milliseconds since epoch
+- "tomorrow" -> Tomorrow at 00:00:00 in milliseconds since epoch
+- "end of this week" -> End of current week in milliseconds since epoch
+
+Return ONLY the numeric timestamp (milliseconds since Unix epoch) - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the maximum date/time (e.g., "now", "end of today")...',
+        generationType: 'timestamp',
+      },
     },
     // Get Candlesticks fields
     {
@@ -208,6 +234,19 @@ export const KalshiBlock: BlockConfig = {
       placeholder: 'Start timestamp (Unix seconds)',
       required: true,
       condition: { field: 'operation', value: ['get_candlesticks'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+Examples:
+- "yesterday" -> Calculate yesterday at 00:00:00 in seconds since epoch
+- "last week" -> Calculate 7 days ago at 00:00:00 in seconds since epoch
+- "start of this month" -> First day of current month at 00:00:00 in seconds since epoch
+- "24 hours ago" -> Current time minus 24 hours in seconds since epoch
+
+Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date/time (e.g., "yesterday", "start of this month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'endTs',
@@ -216,6 +255,19 @@ export const KalshiBlock: BlockConfig = {
       placeholder: 'End timestamp (Unix seconds)',
       required: true,
       condition: { field: 'operation', value: ['get_candlesticks'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+Examples:
+- "now" -> Current time in seconds since epoch
+- "end of today" -> Today at 23:59:59 in seconds since epoch
+- "end of this month" -> Last day of current month at 23:59:59 in seconds since epoch
+- "tomorrow" -> Tomorrow at 00:00:00 in seconds since epoch
+
+Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end date/time (e.g., "now", "end of today")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'periodInterval',
@@ -372,6 +424,19 @@ export const KalshiBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Unix timestamp for order expiration',
       condition: { field: 'operation', value: ['create_order'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description for when the order should expire.
+Examples:
+- "in 1 hour" -> Current time plus 1 hour in seconds since epoch
+- "end of day" -> Today at 23:59:59 in seconds since epoch
+- "tomorrow at noon" -> Tomorrow at 12:00:00 in seconds since epoch
+- "in 30 minutes" -> Current time plus 30 minutes in seconds since epoch
+
+Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe when the order should expire (e.g., "in 1 hour", "end of day")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'postOnly',

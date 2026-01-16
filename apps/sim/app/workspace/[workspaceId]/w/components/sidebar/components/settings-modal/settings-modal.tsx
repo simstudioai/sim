@@ -4,7 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { useQueryClient } from '@tanstack/react-query'
-import { Files, KeySquare, LogIn, Server, Settings, User, Users, Wrench } from 'lucide-react'
+import {
+  Files,
+  KeySquare,
+  LogIn,
+  Mail,
+  Server,
+  Settings,
+  ShieldCheck,
+  User,
+  Users,
+  Wrench,
+} from 'lucide-react'
 import {
   Card,
   Connections,
@@ -29,9 +40,11 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { getUserRole } from '@/lib/workspaces/organization'
 import {
+  AccessControl,
   ApiKeys,
   BYOK,
   Copilot,
+  CredentialSets,
   CustomTools,
   EnvironmentVariables,
   FileUploads,
@@ -48,10 +61,13 @@ import { generalSettingsKeys, useGeneralSettings } from '@/hooks/queries/general
 import { organizationKeys, useOrganizations } from '@/hooks/queries/organization'
 import { ssoKeys, useSSOProviders } from '@/hooks/queries/sso'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
-import { useSettingsModalStore } from '@/stores/settings-modal/store'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsModalStore } from '@/stores/modals/settings/store'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 const isSSOEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
+const isCredentialSetsEnabled = isTruthy(getEnv('NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED'))
+const isAccessControlEnabled = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
 
 interface SettingsModalProps {
   open: boolean
@@ -63,6 +79,8 @@ type SettingsSection =
   | 'environment'
   | 'template-profile'
   | 'integrations'
+  | 'credential-sets'
+  | 'access-control'
   | 'apikeys'
   | 'byok'
   | 'files'
@@ -74,7 +92,7 @@ type SettingsSection =
   | 'custom-tools'
   | 'workflow-mcp-servers'
 
-type NavigationSection = 'account' | 'subscription' | 'tools' | 'system'
+type NavigationSection = 'account' | 'subscription' | 'tools' | 'system' | 'enterprise'
 
 type NavigationItem = {
   id: SettingsSection
@@ -84,8 +102,8 @@ type NavigationItem = {
   hideWhenBillingDisabled?: boolean
   requiresTeam?: boolean
   requiresEnterprise?: boolean
-  requiresOwner?: boolean
   requiresHosted?: boolean
+  selfHostedOverride?: boolean
 }
 
 const sectionConfig: { key: NavigationSection; title: string }[] = [
@@ -93,11 +111,21 @@ const sectionConfig: { key: NavigationSection; title: string }[] = [
   { key: 'tools', title: 'Tools' },
   { key: 'subscription', title: 'Subscription' },
   { key: 'system', title: 'System' },
+  { key: 'enterprise', title: 'Enterprise' },
 ]
 
 const allNavigationItems: NavigationItem[] = [
   { id: 'general', label: 'General', icon: Settings, section: 'account' },
   { id: 'template-profile', label: 'Template Profile', icon: User, section: 'account' },
+  {
+    id: 'access-control',
+    label: 'Access Control',
+    icon: ShieldCheck,
+    section: 'enterprise',
+    requiresHosted: true,
+    requiresEnterprise: true,
+    selfHostedOverride: isAccessControlEnabled,
+  },
   {
     id: 'subscription',
     label: 'Subscription',
@@ -111,6 +139,7 @@ const allNavigationItems: NavigationItem[] = [
     icon: Users,
     section: 'subscription',
     hideWhenBillingDisabled: true,
+    requiresHosted: true,
     requiresTeam: true,
   },
   { id: 'integrations', label: 'Integrations', icon: Connections, section: 'tools' },
@@ -118,7 +147,7 @@ const allNavigationItems: NavigationItem[] = [
   { id: 'mcp', label: 'MCP Tools', icon: McpIcon, section: 'tools' },
   { id: 'environment', label: 'Environment', icon: FolderCode, section: 'system' },
   { id: 'apikeys', label: 'API Keys', icon: Key, section: 'system' },
-  { id: 'workflow-mcp-servers', label: 'MCP Servers', icon: Server, section: 'system' },
+  { id: 'workflow-mcp-servers', label: 'Deployed MCPs', icon: Server, section: 'system' },
   {
     id: 'byok',
     label: 'BYOK',
@@ -135,13 +164,21 @@ const allNavigationItems: NavigationItem[] = [
   },
   { id: 'files', label: 'Files', icon: Files, section: 'system' },
   {
+    id: 'credential-sets',
+    label: 'Email Polling',
+    icon: Mail,
+    section: 'system',
+    requiresHosted: true,
+    selfHostedOverride: isCredentialSetsEnabled,
+  },
+  {
     id: 'sso',
     label: 'Single Sign-On',
     icon: LogIn,
-    section: 'system',
-    requiresTeam: true,
+    section: 'enterprise',
+    requiresHosted: true,
     requiresEnterprise: true,
-    requiresOwner: true,
+    selfHostedOverride: isSSOEnabled,
   },
 ]
 
@@ -152,20 +189,23 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
   const { data: organizationsData } = useOrganizations()
-  const { data: subscriptionData } = useSubscriptionData()
+  const { data: subscriptionData } = useSubscriptionData({ enabled: isBillingEnabled })
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders()
 
   const activeOrganization = organizationsData?.activeOrganization
+  const { config: permissionConfig } = usePermissionConfig()
   const environmentBeforeLeaveHandler = useRef<((onProceed: () => void) => void) | null>(null)
   const integrationsCloseHandler = useRef<((open: boolean) => void) | null>(null)
 
   const userEmail = session?.user?.email
   const userId = session?.user?.id
+
   const userRole = getUserRole(activeOrganization, userEmail)
   const isOwner = userRole === 'owner'
   const isAdmin = userRole === 'admin'
-  const canManageSSO = isOwner || isAdmin
+  const isOrgAdminOrOwner = isOwner || isAdmin
   const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
+  const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
   const hasEnterprisePlan = subscriptionStatus.isEnterprise
   const hasOrganization = !!activeOrganization?.id
 
@@ -183,37 +223,48 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         return false
       }
 
-      // SSO has special logic that must be checked before requiresTeam
-      if (item.id === 'sso') {
-        if (isHosted) {
-          return hasOrganization && hasEnterprisePlan && canManageSSO
+      // Permission group-based filtering
+      if (item.id === 'template-profile' && permissionConfig.hideTemplates) {
+        return false
+      }
+      if (item.id === 'apikeys' && permissionConfig.hideApiKeysTab) {
+        return false
+      }
+      if (item.id === 'environment' && permissionConfig.hideEnvironmentTab) {
+        return false
+      }
+      if (item.id === 'files' && permissionConfig.hideFilesTab) {
+        return false
+      }
+      if (item.id === 'mcp' && permissionConfig.disableMcpTools) {
+        return false
+      }
+      if (item.id === 'custom-tools' && permissionConfig.disableCustomTools) {
+        return false
+      }
+
+      // Self-hosted override allows showing the item when not on hosted
+      if (item.selfHostedOverride && !isHosted) {
+        // SSO has special logic: only show if no providers or user owns a provider
+        if (item.id === 'sso') {
+          const hasProviders = (ssoProvidersData?.providers?.length ?? 0) > 0
+          return !hasProviders || isSSOProviderOwner === true
         }
-        // For self-hosted, only show SSO tab if explicitly enabled via environment variable
-        if (!isSSOEnabled) return false
-        // Show tab if user is the SSO provider owner, or if no providers exist yet (to allow initial setup)
-        const hasProviders = (ssoProvidersData?.providers?.length ?? 0) > 0
-        return !hasProviders || isSSOProviderOwner === true
+        return true
       }
 
-      if (item.requiresTeam) {
-        const isMember = userRole === 'member' || isAdmin
-        const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
-
-        if (isMember) return true
-        if (isOwner && hasTeamPlan) return true
-
+      // requiresTeam: must have team/enterprise plan AND be org admin/owner
+      if (item.requiresTeam && (!hasTeamPlan || !isOrgAdminOrOwner)) {
         return false
       }
 
-      if (item.requiresEnterprise && !hasEnterprisePlan) {
+      // requiresEnterprise: must have enterprise plan AND be org admin/owner
+      if (item.requiresEnterprise && (!hasEnterprisePlan || !isOrgAdminOrOwner)) {
         return false
       }
 
+      // requiresHosted: only show on hosted environments
       if (item.requiresHosted && !isHosted) {
-        return false
-      }
-
-      if (item.requiresOwner && !isOwner) {
         return false
       }
 
@@ -221,16 +272,14 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     })
   }, [
     hasOrganization,
+    hasTeamPlan,
     hasEnterprisePlan,
-    canManageSSO,
+    isOrgAdminOrOwner,
     isSSOProviderOwner,
-    isSSOEnabled,
     ssoProvidersData?.providers?.length,
     isOwner,
     isAdmin,
-    userRole,
-    subscriptionStatus.isTeam,
-    subscriptionStatus.isEnterprise,
+    permissionConfig,
   ])
 
   // Memoized callbacks to prevent infinite loops in child components
@@ -462,6 +511,8 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 registerCloseHandler={registerIntegrationsCloseHandler}
               />
             )}
+            {activeSection === 'credential-sets' && <CredentialSets />}
+            {activeSection === 'access-control' && <AccessControl />}
             {activeSection === 'apikeys' && <ApiKeys onOpenChange={onOpenChange} />}
             {activeSection === 'files' && <FileUploads />}
             {isBillingEnabled && activeSection === 'subscription' && <Subscription />}

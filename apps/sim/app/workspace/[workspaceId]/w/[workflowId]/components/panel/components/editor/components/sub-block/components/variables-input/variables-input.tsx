@@ -11,8 +11,8 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import type { Variable } from '@/stores/panel/variables/types'
+import type { Variable } from '@/stores/panel'
+import { useVariablesStore } from '@/stores/panel'
 
 interface VariableAssignment {
   id: string
@@ -36,6 +36,27 @@ const DEFAULT_ASSIGNMENT: Omit<VariableAssignment, 'id'> = {
   type: 'string',
   value: '',
   isExisting: false,
+}
+
+/**
+ * Parses a value that might be a JSON string or already an array of VariableAssignment.
+ * This handles the case where workflows are imported with stringified values.
+ */
+function parseVariableAssignments(value: unknown): VariableAssignment[] {
+  if (!value) return []
+  if (Array.isArray(value)) return value as VariableAssignment[]
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (Array.isArray(parsed)) return parsed as VariableAssignment[]
+      } catch {
+        // Not valid JSON, return empty array
+      }
+    }
+  }
+  return []
 }
 
 export function VariablesInput({
@@ -64,8 +85,8 @@ export function VariablesInput({
     (v: Variable) => v.workflowId === workflowId
   )
 
-  const value = isPreview ? previewValue : storeValue
-  const assignments: VariableAssignment[] = value || []
+  const rawValue = isPreview ? previewValue : storeValue
+  const assignments: VariableAssignment[] = parseVariableAssignments(rawValue)
   const isReadOnly = isPreview || disabled
 
   const getAvailableVariablesFor = (currentAssignmentId: string) => {
@@ -297,7 +318,7 @@ export function VariablesInput({
                 )}
               >
                 <div
-                  className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'
+                  className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-[10px] py-[5px]'
                   onClick={() => toggleCollapse(assignment.id)}
                 >
                   <div className='flex min-w-0 flex-1 items-center gap-[8px]'>

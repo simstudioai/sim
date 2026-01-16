@@ -11,7 +11,6 @@ interface UseCopilotInitializationProps {
   chatsLoadedForWorkflow: string | null
   setCopilotWorkflowId: (workflowId: string | null) => Promise<void>
   loadChats: (forceRefresh?: boolean) => Promise<void>
-  fetchContextUsage: () => Promise<void>
   loadAutoAllowedTools: () => Promise<void>
   currentChat: any
   isSendingMessage: boolean
@@ -30,7 +29,6 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
     chatsLoadedForWorkflow,
     setCopilotWorkflowId,
     loadChats,
-    fetchContextUsage,
     loadAutoAllowedTools,
     currentChat,
     isSendingMessage,
@@ -101,18 +99,6 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
     loadChats,
     isSendingMessage,
   ])
-
-  /**
-   * Fetch context usage when component is initialized and has a current chat
-   */
-  useEffect(() => {
-    if (isInitialized && currentChat?.id && activeWorkflowId) {
-      logger.info('[Copilot] Component initialized, fetching context usage')
-      fetchContextUsage().catch((err) => {
-        logger.warn('[Copilot] Failed to fetch context usage on mount', err)
-      })
-    }
-  }, [isInitialized, currentChat?.id, activeWorkflowId, fetchContextUsage])
 
   /**
    * Load auto-allowed tools once on mount

@@ -55,7 +55,7 @@ Retrieve all deals from Pipedrive with optional filters
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deals` | array | Array of deal objects from Pipedrive |
-| `metadata` | object | Operation metadata |
+| `metadata` | object | Pagination metadata for the response |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_get_deal`
@@ -73,7 +73,6 @@ Retrieve detailed information about a specific deal
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deal` | object | Deal object with full details |
-| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_create_deal`
@@ -99,7 +98,6 @@ Create a new deal in Pipedrive
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deal` | object | The created deal object |
-| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_update_deal`
@@ -122,7 +120,6 @@ Update an existing deal in Pipedrive
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deal` | object | The updated deal object |
-| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_get_files`
@@ -143,7 +140,7 @@ Retrieve files from Pipedrive with optional filters
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `files` | array | Array of file objects from Pipedrive |
-| `metadata` | object | Operation metadata |
+| `total_items` | number | Total number of files returned |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_get_mail_messages`
@@ -162,7 +159,7 @@ Retrieve mail threads from Pipedrive mailbox
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `messages` | array | Array of mail thread objects from Pipedrive mailbox |
-| `metadata` | object | Operation metadata |
+| `total_items` | number | Total number of mail threads returned |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_get_mail_thread`
@@ -180,7 +177,7 @@ Retrieve all messages from a specific mail thread
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `messages` | array | Array of mail message objects from the thread |
-| `metadata` | object | Operation metadata including thread ID |
+| `metadata` | object | Thread and pagination metadata |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_get_pipelines`
@@ -201,7 +198,7 @@ Retrieve all pipelines from Pipedrive
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `pipelines` | array | Array of pipeline objects from Pipedrive |
-| `metadata` | object | Operation metadata |
+| `total_items` | number | Total number of pipelines returned |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_get_pipeline_deals`
@@ -222,7 +219,7 @@ Retrieve all deals in a specific pipeline
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deals` | array | Array of deal objects from the pipeline |
-| `metadata` | object | Operation metadata including pipeline ID |
+| `metadata` | object | Pipeline and pagination metadata |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_get_projects`
@@ -243,7 +240,7 @@ Retrieve all projects or a specific project from Pipedrive
 | --------- | ---- | ----------- |
 | `projects` | array | Array of project objects \(when listing all\) |
 | `project` | object | Single project object \(when project_id is provided\) |
-| `metadata` | object | Operation metadata |
+| `total_items` | number | Total number of projects returned |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_create_project`
@@ -264,7 +261,6 @@ Create a new project in Pipedrive
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `project` | object | The created project object |
-| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_get_activities`
@@ -287,7 +283,7 @@ Retrieve activities (tasks) from Pipedrive with optional filters
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `activities` | array | Array of activity objects from Pipedrive |
-| `metadata` | object | Operation metadata |
+| `total_items` | number | Total number of activities returned |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_create_activity`
@@ -313,7 +309,6 @@ Create a new activity (task) in Pipedrive
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `activity` | object | The created activity object |
-| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_update_activity`
@@ -337,7 +332,6 @@ Update an existing activity (task) in Pipedrive
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `activity` | object | The updated activity object |
-| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_get_leads`
@@ -361,7 +355,7 @@ Retrieve all leads or a specific lead from Pipedrive
 | --------- | ---- | ----------- |
 | `leads` | array | Array of lead objects \(when listing all\) |
 | `lead` | object | Single lead object \(when lead_id is provided\) |
-| `metadata` | object | Operation metadata |
+| `total_items` | number | Total number of leads returned |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_create_lead`
@@ -386,7 +380,6 @@ Create a new lead in Pipedrive
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `lead` | object | The created lead object |
-| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_update_lead`
@@ -412,7 +405,6 @@ Update an existing lead in Pipedrive
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `lead` | object | The updated lead object |
-| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_delete_lead`
@@ -430,12 +422,6 @@ Delete a specific lead from Pipedrive
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `data` | object | Deletion confirmation data |
-| `metadata` | object | Operation metadata |
 | `success` | boolean | Operation success status |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `pipedrive`

@@ -15,9 +15,7 @@ export interface ZendeskGetTicketResponse {
   success: boolean
   output: {
     ticket: any
-    metadata: {
-      operation: 'get_ticket'
-    }
+    ticket_id: number
     success: boolean
   }
 }
@@ -81,9 +79,7 @@ export const zendeskGetTicketTool: ToolConfig<ZendeskGetTicketParams, ZendeskGet
       success: true,
       output: {
         ticket: data.ticket,
-        metadata: {
-          operation: 'get_ticket' as const,
-        },
+        ticket_id: data.ticket?.id,
         success: true,
       },
     }
@@ -91,6 +87,6 @@ export const zendeskGetTicketTool: ToolConfig<ZendeskGetTicketParams, ZendeskGet
 
   outputs: {
     ticket: { type: 'object', description: 'Ticket object' },
-    metadata: { type: 'object', description: 'Operation metadata' },
+    ticket_id: { type: 'number', description: 'The ticket ID' },
   },
 }

@@ -59,6 +59,14 @@ Query repositories in natural language and get answers with relevant code refere
 | --------- | ---- | ----------- |
 | `message` | string | AI-generated answer to the query |
 | `sources` | array | Relevant code references that support the answer |
+|   ↳ `repository` | string | Repository name \(owner/repo\) |
+|   ↳ `remote` | string | Git remote \(github/gitlab\) |
+|   ↳ `branch` | string | Branch name |
+|   ↳ `filepath` | string | Path to the file |
+|   ↳ `linestart` | number | Starting line number |
+|   ↳ `lineend` | number | Ending line number |
+|   ↳ `summary` | string | Summary of the code section |
+|   ↳ `distance` | number | Similarity score \(lower = more relevant\) |
 
 ### `greptile_search`
 
@@ -80,6 +88,14 @@ Search repositories in natural language and get relevant code references without
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `sources` | array | Relevant code references matching the search query |
+|   ↳ `repository` | string | Repository name \(owner/repo\) |
+|   ↳ `remote` | string | Git remote \(github/gitlab\) |
+|   ↳ `branch` | string | Branch name |
+|   ↳ `filepath` | string | Path to the file |
+|   ↳ `linestart` | number | Starting line number |
+|   ↳ `lineend` | number | Ending line number |
+|   ↳ `summary` | string | Summary of the code section |
+|   ↳ `distance` | number | Similarity score \(lower = more relevant\) |
 
 ### `greptile_index_repo`
 
@@ -134,8 +150,3 @@ Check the indexing status of a repository. Use this to verify if a repository is
 | `sha` | string | Git commit SHA of the indexed version |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `greptile`

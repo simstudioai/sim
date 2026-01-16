@@ -1,11 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { Check, Loader2, Plus, X, XCircle } from 'lucide-react'
+import { client } from '@/lib/auth/auth-client'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { useCustomToolsStore } from '@/stores/custom-tools'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -23,13 +24,27 @@ interface CustomToolSchema {
 }
 
 interface ManageCustomToolArgs {
-  operation: 'add' | 'edit' | 'delete'
+  operation: 'add' | 'edit' | 'delete' | 'list'
   toolId?: string
   schema?: CustomToolSchema
   code?: string
 }
 
 const API_ENDPOINT = '/api/tools/custom'
+
+async function checkCustomToolsPermission(): Promise<void> {
+  const activeOrgResponse = await client.organization.getFullOrganization()
+  const organizationId = activeOrgResponse.data?.id
+  if (!organizationId) return
+
+  const response = await fetch(`/api/permission-groups/user?organizationId=${organizationId}`)
+  if (!response.ok) return
+
+  const data = await response.json()
+  if (data?.config?.disableCustomTools) {
+    throw new Error('Custom tools are not allowed based on your permission group settings')
+  }
+}
 
 /**
  * Client tool for creating, editing, and deleting custom tools via the copilot.
@@ -66,7 +81,7 @@ export class ManageCustomToolClientTool extends BaseClientTool {
       reject: { text: 'Skip', icon: XCircle },
     },
     getDynamicText: (params, state) => {
-      const operation = params?.operation as 'add' | 'edit' | 'delete' | undefined
+      const operation = params?.operation as 'add' | 'edit' | 'delete' | 'list' | undefined
 
       // Return undefined if no operation yet - use static defaults
       if (!operation) return undefined
@@ -90,19 +105,30 @@ export class ManageCustomToolClientTool extends BaseClientTool {
             return verb === 'present' ? 'Edit' : verb === 'past' ? 'Edited' : 'Editing'
           case 'delete':
             return verb === 'present' ? 'Delete' : verb === 'past' ? 'Deleted' : 'Deleting'
+          case 'list':
+            return verb === 'present' ? 'List' : verb === 'past' ? 'Listed' : 'Listing'
+          default:
+            return verb === 'present' ? 'Manage' : verb === 'past' ? 'Managed' : 'Managing'
         }
       }
 
       // For add: only show tool name in past tense (success)
       // For edit/delete: always show tool name
+      // For list: never show individual tool name, use plural
       const shouldShowToolName = (currentState: ClientToolCallState) => {
+        if (operation === 'list') return false
         if (operation === 'add') {
           return currentState === ClientToolCallState.success
         }
         return true // edit and delete always show tool name
       }
 
-      const nameText = shouldShowToolName(state) && toolName ? ` ${toolName}` : ' custom tool'
+      const nameText =
+        operation === 'list'
+          ? ' custom tools'
+          : shouldShowToolName(state) && toolName
+            ? ` ${toolName}`
+            : ' custom tool'
 
       switch (state) {
         case ClientToolCallState.success:
@@ -164,22 +190,25 @@ export class ManageCustomToolClientTool extends BaseClientTool {
     } catch (e: any) {
       logger.error('execute failed', { message: e?.message })
       this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'Failed to manage custom tool')
+      await this.markToolComplete(500, e?.message || 'Failed to manage custom tool', {
+        success: false,
+        error: e?.message || 'Failed to manage custom tool',
+      })
     }
   }
 
   async execute(args?: ManageCustomToolArgs): Promise<void> {
     this.currentArgs = args
-    // For add operation, execute directly without confirmation
+    // For add and list operations, execute directly without confirmation
     // For edit/delete, the copilot store will check hasInterrupt() and wait for confirmation
-    if (args?.operation === 'add') {
+    if (args?.operation === 'add' || args?.operation === 'list') {
       await this.handleAccept(args)
     }
     // edit/delete will wait for user confirmation via handleAccept
   }
 
   /**
-   * Executes the custom tool operation (add, edit, or delete)
+   * Executes the custom tool operation (add, edit, delete, or list)
    */
   private async executeOperation(
     args: ManageCustomToolArgs | undefined,
@@ -188,6 +217,8 @@ export class ManageCustomToolClientTool extends BaseClientTool {
     if (!args?.operation) {
       throw new Error('Operation is required')
     }
+
+    await checkCustomToolsPermission()
 
     const { operation, toolId, schema, code } = args
 
@@ -214,6 +245,10 @@ export class ManageCustomToolClientTool extends BaseClientTool {
         break
       case 'delete':
         await this.deleteCustomTool({ toolId, workspaceId }, logger)
+        break
+      case 'list':
+        // List operation is read-only, just mark as complete
+        await this.markToolComplete(200, 'Listed custom tools')
         break
       default:
         throw new Error(`Unknown operation: ${operation}`)

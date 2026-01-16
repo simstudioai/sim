@@ -6,7 +6,7 @@ export default function StructuredData() {
         '@type': 'Organization',
         '@id': 'https://sim.ai/#organization',
         name: 'Sim',
-        alternateName: 'Sim Studio',
+        alternateName: 'Sim',
         description:
           'Open-source AI agent workflow builder used by developers at trail-blazing startups to Fortune 500 companies',
         url: 'https://sim.ai',
@@ -42,17 +42,6 @@ export default function StructuredData() {
         publisher: {
           '@id': 'https://sim.ai/#organization',
         },
-        potentialAction: [
-          {
-            '@type': 'SearchAction',
-            '@id': 'https://sim.ai/#searchaction',
-            target: {
-              '@type': 'EntryPoint',
-              urlTemplate: 'https://sim.ai/search?q={search_term_string}',
-            },
-            'query-input': 'required name=search_term_string',
-          },
-        ],
         inLanguage: 'en-US',
       },
       {
@@ -110,7 +99,7 @@ export default function StructuredData() {
             name: 'Community Plan',
             price: '0',
             priceCurrency: 'USD',
-            priceValidUntil: '2025-12-31',
+            priceValidUntil: '2026-12-31',
             itemCondition: 'https://schema.org/NewCondition',
             availability: 'https://schema.org/InStock',
             seller: {
@@ -134,7 +123,7 @@ export default function StructuredData() {
               unitText: 'MONTH',
               billingIncrement: 1,
             },
-            priceValidUntil: '2025-12-31',
+            priceValidUntil: '2026-12-31',
             itemCondition: 'https://schema.org/NewCondition',
             availability: 'https://schema.org/InStock',
             seller: {
@@ -154,7 +143,7 @@ export default function StructuredData() {
               unitText: 'MONTH',
               billingIncrement: 1,
             },
-            priceValidUntil: '2025-12-31',
+            priceValidUntil: '2026-12-31',
             itemCondition: 'https://schema.org/NewCondition',
             availability: 'https://schema.org/InStock',
             seller: {
@@ -184,8 +173,8 @@ export default function StructuredData() {
         screenshot: [
           {
             '@type': 'ImageObject',
-            url: 'https://sim.ai/screenshots/workflow-builder.png',
-            caption: 'Sim workflow builder interface',
+            url: 'https://sim.ai/logo/426-240/primary/small.png',
+            caption: 'Sim AI agent workflow builder interface',
           },
         ],
       },
@@ -223,16 +212,9 @@ export default function StructuredData() {
   }
 
   return (
-    <>
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-      />
-      {/* LLM-friendly semantic HTML comments */}
-      {/* About: Sim is a visual workflow builder for AI agents and large language models (LLMs) */}
-      {/* Purpose: Enable users to create AI-powered automations without coding */}
-      {/* Features: Drag-and-drop interface, 100+ integrations, multi-model support */}
-      {/* Use cases: Email automation, chatbots, data analysis, content generation */}
-    </>
+    <script
+      type='application/ld+json'
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+    />
   )
 }

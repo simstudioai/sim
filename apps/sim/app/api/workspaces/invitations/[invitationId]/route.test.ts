@@ -2,13 +2,6 @@ import { createSession, createWorkspaceRecord, loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-/**
- * Tests for workspace invitation by ID API route
- * Tests GET (details + token acceptance), DELETE (cancellation)
- *
- * @vitest-environment node
- */
-
 const mockGetSession = vi.fn()
 const mockHasWorkspaceAdminAccess = vi.fn()
 
@@ -227,7 +220,7 @@ describe('Workspace Invitation [invitationId] API Route', () => {
       expect(response.headers.get('location')).toBe('https://test.sim.ai/workspace/workspace-456/w')
     })
 
-    it('should redirect to error page when invitation expired', async () => {
+    it('should redirect to error page with token preserved when invitation expired', async () => {
       const session = createSession({
         userId: mockUser.id,
         email: 'invited@example.com',
@@ -250,12 +243,13 @@ describe('Workspace Invitation [invitationId] API Route', () => {
       const response = await GET(request, { params })
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe(
-        'https://test.sim.ai/invite/invitation-789?error=expired'
+      const location = response.headers.get('location')
+      expect(location).toBe(
+        'https://test.sim.ai/invite/invitation-789?error=expired&token=token-abc123'
       )
     })
 
-    it('should redirect to error page when email mismatch', async () => {
+    it('should redirect to error page with token preserved when email mismatch', async () => {
       const session = createSession({
         userId: mockUser.id,
         email: 'wrong@example.com',
@@ -277,12 +271,13 @@ describe('Workspace Invitation [invitationId] API Route', () => {
       const response = await GET(request, { params })
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe(
-        'https://test.sim.ai/invite/invitation-789?error=email-mismatch'
+      const location = response.headers.get('location')
+      expect(location).toBe(
+        'https://test.sim.ai/invite/invitation-789?error=email-mismatch&token=token-abc123'
       )
     })
 
-    it('should return 404 when invitation not found', async () => {
+    it('should return 404 when invitation not found (without token)', async () => {
       const session = createSession({ userId: mockUser.id, email: mockUser.email })
       mockGetSession.mockResolvedValue(session)
       dbSelectResults = [[]]
@@ -295,6 +290,189 @@ describe('Workspace Invitation [invitationId] API Route', () => {
 
       expect(response.status).toBe(404)
       expect(data).toEqual({ error: 'Invitation not found or has expired' })
+    })
+
+    it('should redirect to error page with token preserved when invitation not found (with token)', async () => {
+      const session = createSession({ userId: mockUser.id, email: mockUser.email })
+      mockGetSession.mockResolvedValue(session)
+      dbSelectResults = [[]]
+
+      const request = new NextRequest(
+        'http://localhost/api/workspaces/invitations/non-existent?token=some-invalid-token'
+      )
+      const params = Promise.resolve({ invitationId: 'non-existent' })
+
+      const response = await GET(request, { params })
+
+      expect(response.status).toBe(307)
+      const location = response.headers.get('location')
+      expect(location).toBe(
+        'https://test.sim.ai/invite/non-existent?error=invalid-token&token=some-invalid-token'
+      )
+    })
+
+    it('should redirect to error page with token preserved when invitation already processed', async () => {
+      const session = createSession({
+        userId: mockUser.id,
+        email: 'invited@example.com',
+        name: mockUser.name,
+      })
+      mockGetSession.mockResolvedValue(session)
+
+      const acceptedInvitation = {
+        ...mockInvitation,
+        status: 'accepted',
+      }
+
+      dbSelectResults = [[acceptedInvitation], [mockWorkspace]]
+
+      const request = new NextRequest(
+        'http://localhost/api/workspaces/invitations/token-abc123?token=token-abc123'
+      )
+      const params = Promise.resolve({ invitationId: 'token-abc123' })
+
+      const response = await GET(request, { params })
+
+      expect(response.status).toBe(307)
+      const location = response.headers.get('location')
+      expect(location).toBe(
+        'https://test.sim.ai/invite/invitation-789?error=already-processed&token=token-abc123'
+      )
+    })
+
+    it('should redirect to error page with token preserved when workspace not found', async () => {
+      const session = createSession({
+        userId: mockUser.id,
+        email: 'invited@example.com',
+        name: mockUser.name,
+      })
+      mockGetSession.mockResolvedValue(session)
+
+      dbSelectResults = [[mockInvitation], []]
+
+      const request = new NextRequest(
+        'http://localhost/api/workspaces/invitations/token-abc123?token=token-abc123'
+      )
+      const params = Promise.resolve({ invitationId: 'token-abc123' })
+
+      const response = await GET(request, { params })
+
+      expect(response.status).toBe(307)
+      const location = response.headers.get('location')
+      expect(location).toBe(
+        'https://test.sim.ai/invite/invitation-789?error=workspace-not-found&token=token-abc123'
+      )
+    })
+
+    it('should redirect to error page with token preserved when user not found', async () => {
+      const session = createSession({
+        userId: mockUser.id,
+        email: 'invited@example.com',
+        name: mockUser.name,
+      })
+      mockGetSession.mockResolvedValue(session)
+
+      dbSelectResults = [[mockInvitation], [mockWorkspace], []]
+
+      const request = new NextRequest(
+        'http://localhost/api/workspaces/invitations/token-abc123?token=token-abc123'
+      )
+      const params = Promise.resolve({ invitationId: 'token-abc123' })
+
+      const response = await GET(request, { params })
+
+      expect(response.status).toBe(307)
+      const location = response.headers.get('location')
+      expect(location).toBe(
+        'https://test.sim.ai/invite/invitation-789?error=user-not-found&token=token-abc123'
+      )
+    })
+
+    it('should URL encode special characters in token when preserving in error redirects', async () => {
+      const session = createSession({
+        userId: mockUser.id,
+        email: 'wrong@example.com',
+        name: mockUser.name,
+      })
+      mockGetSession.mockResolvedValue(session)
+
+      dbSelectResults = [
+        [mockInvitation],
+        [mockWorkspace],
+        [{ ...mockUser, email: 'wrong@example.com' }],
+      ]
+
+      const specialToken = 'token+with/special=chars&more'
+      const request = new NextRequest(
+        `http://localhost/api/workspaces/invitations/token-abc123?token=${encodeURIComponent(specialToken)}`
+      )
+      const params = Promise.resolve({ invitationId: 'token-abc123' })
+
+      const response = await GET(request, { params })
+
+      expect(response.status).toBe(307)
+      const location = response.headers.get('location')
+      expect(location).toContain('error=email-mismatch')
+      expect(location).toContain(`token=${encodeURIComponent(specialToken)}`)
+    })
+  })
+
+  describe('Token Preservation - Full Flow Scenario', () => {
+    it('should preserve token through email mismatch so user can retry with correct account', async () => {
+      const wrongSession = createSession({
+        userId: 'wrong-user',
+        email: 'wrong@example.com',
+        name: 'Wrong User',
+      })
+      mockGetSession.mockResolvedValue(wrongSession)
+
+      dbSelectResults = [
+        [mockInvitation],
+        [mockWorkspace],
+        [{ id: 'wrong-user', email: 'wrong@example.com' }],
+      ]
+
+      const request1 = new NextRequest(
+        'http://localhost/api/workspaces/invitations/token-abc123?token=token-abc123'
+      )
+      const params1 = Promise.resolve({ invitationId: 'token-abc123' })
+
+      const response1 = await GET(request1, { params: params1 })
+
+      expect(response1.status).toBe(307)
+      const location1 = response1.headers.get('location')
+      expect(location1).toBe(
+        'https://test.sim.ai/invite/invitation-789?error=email-mismatch&token=token-abc123'
+      )
+
+      vi.clearAllMocks()
+      dbSelectCallIndex = 0
+
+      const correctSession = createSession({
+        userId: mockUser.id,
+        email: 'invited@example.com',
+        name: mockUser.name,
+      })
+      mockGetSession.mockResolvedValue(correctSession)
+
+      dbSelectResults = [
+        [mockInvitation],
+        [mockWorkspace],
+        [{ ...mockUser, email: 'invited@example.com' }],
+        [],
+      ]
+
+      const request2 = new NextRequest(
+        'http://localhost/api/workspaces/invitations/token-abc123?token=token-abc123'
+      )
+      const params2 = Promise.resolve({ invitationId: 'token-abc123' })
+
+      const response2 = await GET(request2, { params: params2 })
+
+      expect(response2.status).toBe(307)
+      expect(response2.headers.get('location')).toBe(
+        'https://test.sim.ai/workspace/workspace-456/w'
+      )
     })
   })
 

@@ -58,7 +58,7 @@ function VerificationForm({
     setCountdown(30)
   }
 
-  const [buttonClass, setButtonClass] = useState('auth-button-gradient')
+  const [buttonClass, setButtonClass] = useState('branded-button-gradient')
 
   useEffect(() => {
     const checkCustomBrand = () => {
@@ -66,9 +66,9 @@ function VerificationForm({
       const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
 
       if (brandAccent && brandAccent !== '#6f3dfa') {
-        setButtonClass('auth-button-custom')
+        setButtonClass('branded-button-custom')
       } else {
-        setButtonClass('auth-button-gradient')
+        setButtonClass('branded-button-gradient')
       }
     }
 

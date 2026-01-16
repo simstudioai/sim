@@ -30,6 +30,7 @@ import { member, organization, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -182,7 +183,7 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
 export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) => {
   const { id: organizationId, memberId } = await context.params
   const url = new URL(request.url)
-  const skipBillingLogic = url.searchParams.get('skipBillingLogic') === 'true'
+  const skipBillingLogic = !isBillingEnabled || url.searchParams.get('skipBillingLogic') === 'true'
 
   try {
     const [orgData] = await db

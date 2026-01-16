@@ -122,3 +122,26 @@ The run may have already completed or been cancelled.`
       },
     },
   }
+
+export const cancelWorkflowRunV2Tool: ToolConfig = {
+  id: 'github_cancel_workflow_run_v2',
+  name: cancelWorkflowRunTool.name,
+  description: cancelWorkflowRunTool.description,
+  version: '2.0.0',
+  params: cancelWorkflowRunTool.params,
+  request: cancelWorkflowRunTool.request,
+  oauth: cancelWorkflowRunTool.oauth,
+  transformResponse: async (response: Response, params) => {
+    return {
+      success: true,
+      output: {
+        cancelled: response.status === 202,
+        run_id: params?.run_id ?? null,
+      },
+    }
+  },
+  outputs: {
+    cancelled: { type: 'boolean', description: 'Whether cancellation was initiated' },
+    run_id: { type: 'number', description: 'Workflow run ID', optional: true },
+  },
+}

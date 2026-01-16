@@ -10,6 +10,21 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E0E0E0"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Asana](https://asana.com/) is a leading work management platform designed to help teams organize, track, and manage their tasks and projects more efficiently. With Asana, individuals and organizations can streamline project planning, delegate responsibilities, monitor progress, and collaborate seamlessly across different workspaces and projects.
+
+With Asana, you can:
+
+- **Create, assign, and update tasks**: Break down your work into actionable items, assign them to team members, and keep everyone on the same page.
+- **Organize projects**: Group related tasks into projects, set deadlines, and visualize the flow of work from start to finish.
+- **Set priorities and due dates**: Ensure important tasks are completed on time and stay aligned with your project goals.
+- **Track progress and completion**: Monitor tasks as they move through various stages and quickly identify roadblocks.
+- **Collaborate with your team**: Share notes, attach relevant resources, and communicate updates directly on tasks.
+
+In Sim, the Asana integration enables your agents to programmatically interact with Asana through a suite of flexible tools described below. Your agents can retrieve, create, and update tasks, making it easy to automate project management workflows, synchronize status with other tools, or trigger actions based on Asana task events. Harness these tools to streamline your team's productivity and keep all your projects organized and up to date directly within your Sim projects.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Asana into the workflow. Can read, write, and update tasks.
@@ -44,6 +59,18 @@ Retrieve a single task by GID or get multiple tasks with filters
 | `notes` | string | Task notes or description |
 | `completed` | boolean | Whether the task is completed |
 | `assignee` | object | Assignee details |
+| ↳ `gid` | string | Assignee GID |
+| ↳ `name` | string | Assignee name |
+| `created_by` | object | Creator details |
+| ↳ `gid` | string | Creator GID |
+| ↳ `name` | string | Creator name |
+| `due_on` | string | Due date \(YYYY-MM-DD\) |
+| `created_at` | string | Task creation timestamp |
+| `modified_at` | string | Task last modified timestamp |
+| `tasks` | array | Array of tasks \(when fetching multiple\) |
+|   ↳ `gid` | string | Task GID |
+|   ↳ `name` | string | Task name |
+|   ↳ `completed` | boolean | Completion status |
 
 ### `asana_create_task`
 
@@ -116,6 +143,9 @@ Retrieve all projects from an Asana workspace
 | `success` | boolean | Operation success status |
 | `ts` | string | Timestamp of the response |
 | `projects` | array | Array of projects |
+|   ↳ `gid` | string | Project GID |
+|   ↳ `name` | string | Project name |
+|   ↳ `resource_type` | string | Resource type \(project\) |
 
 ### `asana_search_tasks`
 
@@ -138,6 +168,22 @@ Search for tasks in an Asana workspace
 | `success` | boolean | Operation success status |
 | `ts` | string | Timestamp of the response |
 | `tasks` | array | Array of matching tasks |
+|   ↳ `gid` | string | Assignee GID |
+|   ↳ `resource_type` | string | Resource type |
+|   ↳ `resource_subtype` | string | Resource subtype |
+|   ↳ `name` | string | Assignee name |
+|   ↳ `notes` | string | Task notes |
+|   ↳ `completed` | boolean | Completion status |
+|   ↳ `assignee` | object | Assignee details |
+|   ↳ `gid` | string | Assignee GID |
+|   ↳ `name` | string | Assignee name |
+|   ↳ `due_on` | string | Due date |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `modified_at` | string | Modified timestamp |
+| `next_page` | object | Pagination info |
+| ↳ `offset` | string | Offset token |
+| ↳ `path` | string | API path |
+| ↳ `uri` | string | Full URI |
 
 ### `asana_add_comment`
 
@@ -160,10 +206,7 @@ Add a comment (story) to an Asana task
 | `text` | string | Comment text content |
 | `created_at` | string | Comment creation timestamp |
 | `created_by` | object | Comment author details |
+| ↳ `gid` | string | Author GID |
+| ↳ `name` | string | Author name |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `asana`

@@ -25,22 +25,41 @@ import {
   registerToolStateSync,
 } from '@/lib/copilot/tools/client/manager'
 import { NavigateUIClientTool } from '@/lib/copilot/tools/client/navigation/navigate-ui'
+import { AuthClientTool } from '@/lib/copilot/tools/client/other/auth'
 import { CheckoffTodoClientTool } from '@/lib/copilot/tools/client/other/checkoff-todo'
+import { CrawlWebsiteClientTool } from '@/lib/copilot/tools/client/other/crawl-website'
+import { CustomToolClientTool } from '@/lib/copilot/tools/client/other/custom-tool'
+import { DebugClientTool } from '@/lib/copilot/tools/client/other/debug'
+import { DeployClientTool } from '@/lib/copilot/tools/client/other/deploy'
+import { EditClientTool } from '@/lib/copilot/tools/client/other/edit'
+import { EvaluateClientTool } from '@/lib/copilot/tools/client/other/evaluate'
+import { GetPageContentsClientTool } from '@/lib/copilot/tools/client/other/get-page-contents'
+import { InfoClientTool } from '@/lib/copilot/tools/client/other/info'
+import { KnowledgeClientTool } from '@/lib/copilot/tools/client/other/knowledge'
 import { MakeApiRequestClientTool } from '@/lib/copilot/tools/client/other/make-api-request'
 import { MarkTodoInProgressClientTool } from '@/lib/copilot/tools/client/other/mark-todo-in-progress'
 import { OAuthRequestAccessClientTool } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
 import { RememberDebugClientTool } from '@/lib/copilot/tools/client/other/remember-debug'
+import { ResearchClientTool } from '@/lib/copilot/tools/client/other/research'
+import { ScrapePageClientTool } from '@/lib/copilot/tools/client/other/scrape-page'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
 import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
+import { SearchLibraryDocsClientTool } from '@/lib/copilot/tools/client/other/search-library-docs'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
 import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
 import { SleepClientTool } from '@/lib/copilot/tools/client/other/sleep'
+import { TestClientTool } from '@/lib/copilot/tools/client/other/test'
+import { TourClientTool } from '@/lib/copilot/tools/client/other/tour'
+import { WorkflowClientTool } from '@/lib/copilot/tools/client/other/workflow'
 import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
 import { GetCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-credentials'
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
 import { CheckDeploymentStatusClientTool } from '@/lib/copilot/tools/client/workflow/check-deployment-status'
-import { DeployWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/deploy-workflow'
+import { CreateWorkspaceMcpServerClientTool } from '@/lib/copilot/tools/client/workflow/create-workspace-mcp-server'
+import { DeployApiClientTool } from '@/lib/copilot/tools/client/workflow/deploy-api'
+import { DeployChatClientTool } from '@/lib/copilot/tools/client/workflow/deploy-chat'
+import { DeployMcpClientTool } from '@/lib/copilot/tools/client/workflow/deploy-mcp'
 import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
 import { GetBlockOutputsClientTool } from '@/lib/copilot/tools/client/workflow/get-block-outputs'
 import { GetBlockUpstreamReferencesClientTool } from '@/lib/copilot/tools/client/workflow/get-block-upstream-references'
@@ -49,6 +68,7 @@ import { GetWorkflowConsoleClientTool } from '@/lib/copilot/tools/client/workflo
 import { GetWorkflowDataClientTool } from '@/lib/copilot/tools/client/workflow/get-workflow-data'
 import { GetWorkflowFromNameClientTool } from '@/lib/copilot/tools/client/workflow/get-workflow-from-name'
 import { ListUserWorkflowsClientTool } from '@/lib/copilot/tools/client/workflow/list-user-workflows'
+import { ListWorkspaceMcpServersClientTool } from '@/lib/copilot/tools/client/workflow/list-workspace-mcp-servers'
 import { ManageCustomToolClientTool } from '@/lib/copilot/tools/client/workflow/manage-custom-tool'
 import { ManageMcpToolClientTool } from '@/lib/copilot/tools/client/workflow/manage-mcp-tool'
 import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
@@ -78,6 +98,19 @@ try {
 
 // Known class-based client tools: map tool name -> instantiator
 const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
+  plan: (id) => new PlanClientTool(id),
+  edit: (id) => new EditClientTool(id),
+  debug: (id) => new DebugClientTool(id),
+  test: (id) => new TestClientTool(id),
+  deploy: (id) => new DeployClientTool(id),
+  evaluate: (id) => new EvaluateClientTool(id),
+  auth: (id) => new AuthClientTool(id),
+  research: (id) => new ResearchClientTool(id),
+  knowledge: (id) => new KnowledgeClientTool(id),
+  custom_tool: (id) => new CustomToolClientTool(id),
+  tour: (id) => new TourClientTool(id),
+  info: (id) => new InfoClientTool(id),
+  workflow: (id) => new WorkflowClientTool(id),
   run_workflow: (id) => new RunWorkflowClientTool(id),
   get_workflow_console: (id) => new GetWorkflowConsoleClientTool(id),
   get_blocks_and_tools: (id) => new GetBlocksAndToolsClientTool(id),
@@ -87,14 +120,17 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   get_trigger_blocks: (id) => new GetTriggerBlocksClientTool(id),
   search_online: (id) => new SearchOnlineClientTool(id),
   search_documentation: (id) => new SearchDocumentationClientTool(id),
+  search_library_docs: (id) => new SearchLibraryDocsClientTool(id),
   search_patterns: (id) => new SearchPatternsClientTool(id),
   search_errors: (id) => new SearchErrorsClientTool(id),
+  scrape_page: (id) => new ScrapePageClientTool(id),
+  get_page_contents: (id) => new GetPageContentsClientTool(id),
+  crawl_website: (id) => new CrawlWebsiteClientTool(id),
   remember_debug: (id) => new RememberDebugClientTool(id),
   set_environment_variables: (id) => new SetEnvironmentVariablesClientTool(id),
   get_credentials: (id) => new GetCredentialsClientTool(id),
   knowledge_base: (id) => new KnowledgeBaseClientTool(id),
   make_api_request: (id) => new MakeApiRequestClientTool(id),
-  plan: (id) => new PlanClientTool(id),
   checkoff_todo: (id) => new CheckoffTodoClientTool(id),
   mark_todo_in_progress: (id) => new MarkTodoInProgressClientTool(id),
   oauth_request_access: (id) => new OAuthRequestAccessClientTool(id),
@@ -108,7 +144,11 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   get_examples_rag: (id) => new GetExamplesRagClientTool(id),
   get_operations_examples: (id) => new GetOperationsExamplesClientTool(id),
   summarize_conversation: (id) => new SummarizeClientTool(id),
-  deploy_workflow: (id) => new DeployWorkflowClientTool(id),
+  deploy_api: (id) => new DeployApiClientTool(id),
+  deploy_chat: (id) => new DeployChatClientTool(id),
+  deploy_mcp: (id) => new DeployMcpClientTool(id),
+  list_workspace_mcp_servers: (id) => new ListWorkspaceMcpServersClientTool(id),
+  create_workspace_mcp_server: (id) => new CreateWorkspaceMcpServerClientTool(id),
   check_deployment_status: (id) => new CheckDeploymentStatusClientTool(id),
   navigate_ui: (id) => new NavigateUIClientTool(id),
   manage_custom_tool: (id) => new ManageCustomToolClientTool(id),
@@ -120,6 +160,19 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
 
 // Read-only static metadata for class-based tools (no instances)
 export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefined> = {
+  plan: (PlanClientTool as any)?.metadata,
+  edit: (EditClientTool as any)?.metadata,
+  debug: (DebugClientTool as any)?.metadata,
+  test: (TestClientTool as any)?.metadata,
+  deploy: (DeployClientTool as any)?.metadata,
+  evaluate: (EvaluateClientTool as any)?.metadata,
+  auth: (AuthClientTool as any)?.metadata,
+  research: (ResearchClientTool as any)?.metadata,
+  knowledge: (KnowledgeClientTool as any)?.metadata,
+  custom_tool: (CustomToolClientTool as any)?.metadata,
+  tour: (TourClientTool as any)?.metadata,
+  info: (InfoClientTool as any)?.metadata,
+  workflow: (WorkflowClientTool as any)?.metadata,
   run_workflow: (RunWorkflowClientTool as any)?.metadata,
   get_workflow_console: (GetWorkflowConsoleClientTool as any)?.metadata,
   get_blocks_and_tools: (GetBlocksAndToolsClientTool as any)?.metadata,
@@ -129,14 +182,17 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   get_trigger_blocks: (GetTriggerBlocksClientTool as any)?.metadata,
   search_online: (SearchOnlineClientTool as any)?.metadata,
   search_documentation: (SearchDocumentationClientTool as any)?.metadata,
+  search_library_docs: (SearchLibraryDocsClientTool as any)?.metadata,
   search_patterns: (SearchPatternsClientTool as any)?.metadata,
   search_errors: (SearchErrorsClientTool as any)?.metadata,
+  scrape_page: (ScrapePageClientTool as any)?.metadata,
+  get_page_contents: (GetPageContentsClientTool as any)?.metadata,
+  crawl_website: (CrawlWebsiteClientTool as any)?.metadata,
   remember_debug: (RememberDebugClientTool as any)?.metadata,
   set_environment_variables: (SetEnvironmentVariablesClientTool as any)?.metadata,
   get_credentials: (GetCredentialsClientTool as any)?.metadata,
   knowledge_base: (KnowledgeBaseClientTool as any)?.metadata,
   make_api_request: (MakeApiRequestClientTool as any)?.metadata,
-  plan: (PlanClientTool as any)?.metadata,
   checkoff_todo: (CheckoffTodoClientTool as any)?.metadata,
   mark_todo_in_progress: (MarkTodoInProgressClientTool as any)?.metadata,
   edit_workflow: (EditWorkflowClientTool as any)?.metadata,
@@ -150,7 +206,11 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   oauth_request_access: (OAuthRequestAccessClientTool as any)?.metadata,
   get_operations_examples: (GetOperationsExamplesClientTool as any)?.metadata,
   summarize_conversation: (SummarizeClientTool as any)?.metadata,
-  deploy_workflow: (DeployWorkflowClientTool as any)?.metadata,
+  deploy_api: (DeployApiClientTool as any)?.metadata,
+  deploy_chat: (DeployChatClientTool as any)?.metadata,
+  deploy_mcp: (DeployMcpClientTool as any)?.metadata,
+  list_workspace_mcp_servers: (ListWorkspaceMcpServersClientTool as any)?.metadata,
+  create_workspace_mcp_server: (CreateWorkspaceMcpServerClientTool as any)?.metadata,
   check_deployment_status: (CheckDeploymentStatusClientTool as any)?.metadata,
   navigate_ui: (NavigateUIClientTool as any)?.metadata,
   manage_custom_tool: (ManageCustomToolClientTool as any)?.metadata,
@@ -223,11 +283,31 @@ function resolveToolDisplay(
       if (cand?.text || cand?.icon) return { text: cand.text, icon: cand.icon }
     }
   } catch {}
-  // Humanized fallback as last resort
+  // Humanized fallback as last resort - include state verb for proper verb-noun styling
   try {
     if (toolName) {
-      const text = toolName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-      return { text, icon: undefined as any }
+      const formattedName = toolName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+      // Add state verb prefix for verb-noun rendering in tool-call component
+      let stateVerb: string
+      switch (state) {
+        case ClientToolCallState.pending:
+        case ClientToolCallState.executing:
+          stateVerb = 'Executing'
+          break
+        case ClientToolCallState.success:
+          stateVerb = 'Executed'
+          break
+        case ClientToolCallState.error:
+          stateVerb = 'Failed'
+          break
+        case ClientToolCallState.rejected:
+        case ClientToolCallState.aborted:
+          stateVerb = 'Skipped'
+          break
+        default:
+          stateVerb = 'Executing'
+      }
+      return { text: `${stateVerb} ${formattedName}`, icon: undefined as any }
     }
   } catch {}
   return undefined
@@ -338,122 +418,94 @@ function abortAllInProgressTools(set: any, get: () => CopilotStore) {
 }
 
 // Normalize loaded messages so assistant messages render correctly from DB
+/**
+ * Loads messages from DB for UI rendering.
+ * Messages are stored exactly as they render, so we just need to:
+ * 1. Register client tool instances for any tool calls
+ * 2. Clear any streaming flags (messages loaded from DB are never actively streaming)
+ * 3. Return the messages
+ */
 function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
   try {
-    return messages.map((message) => {
-      if (message.role !== 'assistant') {
-        // For user messages (and others), restore contexts from a saved contexts block
-        if (Array.isArray(message.contentBlocks) && message.contentBlocks.length > 0) {
-          const ctxBlock = (message.contentBlocks as any[]).find((b: any) => b?.type === 'contexts')
-          if (ctxBlock && Array.isArray((ctxBlock as any).contexts)) {
-            return {
-              ...message,
-              contexts: (ctxBlock as any).contexts,
-            }
+    // Log what we're loading
+    for (const message of messages) {
+      if (message.role === 'assistant') {
+        logger.info('[normalizeMessagesForUI] Loading assistant message', {
+          id: message.id,
+          hasContent: !!message.content?.trim(),
+          contentBlockCount: message.contentBlocks?.length || 0,
+          contentBlockTypes: (message.contentBlocks as any[])?.map((b) => b?.type) || [],
+        })
+      }
+    }
+
+    // Register client tool instances and clear streaming flags for all tool calls
+    for (const message of messages) {
+      if (message.contentBlocks) {
+        for (const block of message.contentBlocks as any[]) {
+          if (block?.type === 'tool_call' && block.toolCall) {
+            registerToolCallInstances(block.toolCall)
+            clearStreamingFlags(block.toolCall)
           }
         }
-        return message
       }
-
-      // Use existing contentBlocks ordering if present; otherwise only render text content
-      const blocks: any[] = Array.isArray(message.contentBlocks)
-        ? (message.contentBlocks as any[]).map((b: any) => {
-            if (b?.type === 'tool_call' && b.toolCall) {
-              // Ensure client tool instance is registered for this tool call
-              ensureClientToolInstance(b.toolCall?.name, b.toolCall?.id)
-
-              return {
-                ...b,
-                toolCall: {
-                  ...b.toolCall,
-                  state:
-                    isRejectedState(b.toolCall?.state) ||
-                    isReviewState(b.toolCall?.state) ||
-                    isBackgroundState(b.toolCall?.state) ||
-                    b.toolCall?.state === ClientToolCallState.success ||
-                    b.toolCall?.state === ClientToolCallState.error ||
-                    b.toolCall?.state === ClientToolCallState.aborted
-                      ? b.toolCall.state
-                      : ClientToolCallState.rejected,
-                  display: resolveToolDisplay(
-                    b.toolCall?.name,
-                    (isRejectedState(b.toolCall?.state) ||
-                    isReviewState(b.toolCall?.state) ||
-                    isBackgroundState(b.toolCall?.state) ||
-                    b.toolCall?.state === ClientToolCallState.success ||
-                    b.toolCall?.state === ClientToolCallState.error ||
-                    b.toolCall?.state === ClientToolCallState.aborted
-                      ? (b.toolCall?.state as any)
-                      : ClientToolCallState.rejected) as any,
-                    b.toolCall?.id,
-                    b.toolCall?.params
-                  ),
-                },
-              }
-            }
-            if (b?.type === TEXT_BLOCK_TYPE && typeof b.content === 'string') {
-              return {
-                ...b,
-                content: stripTodoTags(b.content),
-              }
-            }
-            return b
-          })
-        : []
-
-      // Prepare toolCalls with display for non-block UI components, but do not fabricate blocks
-      const updatedToolCalls = Array.isArray((message as any).toolCalls)
-        ? (message as any).toolCalls.map((tc: any) => {
-            // Ensure client tool instance is registered for this tool call
-            ensureClientToolInstance(tc?.name, tc?.id)
-
-            return {
-              ...tc,
-              state:
-                isRejectedState(tc?.state) ||
-                isReviewState(tc?.state) ||
-                isBackgroundState(tc?.state) ||
-                tc?.state === ClientToolCallState.success ||
-                tc?.state === ClientToolCallState.error ||
-                tc?.state === ClientToolCallState.aborted
-                  ? tc.state
-                  : ClientToolCallState.rejected,
-              display: resolveToolDisplay(
-                tc?.name,
-                (isRejectedState(tc?.state) ||
-                isReviewState(tc?.state) ||
-                isBackgroundState(tc?.state) ||
-                tc?.state === ClientToolCallState.success ||
-                tc?.state === ClientToolCallState.error ||
-                tc?.state === ClientToolCallState.aborted
-                  ? (tc?.state as any)
-                  : ClientToolCallState.rejected) as any,
-                tc?.id,
-                tc?.params
-              ),
-            }
-          })
-        : (message as any).toolCalls
-
-      const sanitizedContent = stripTodoTags(message.content || '')
-
-      return {
-        ...message,
-        content: sanitizedContent,
-        ...(updatedToolCalls && { toolCalls: updatedToolCalls }),
-        ...(blocks.length > 0
-          ? { contentBlocks: blocks }
-          : sanitizedContent.trim()
-            ? {
-                contentBlocks: [
-                  { type: TEXT_BLOCK_TYPE, content: sanitizedContent, timestamp: Date.now() },
-                ],
-              }
-            : {}),
+      // Also clear from toolCalls array (legacy format)
+      if (message.toolCalls) {
+        for (const toolCall of message.toolCalls) {
+          clearStreamingFlags(toolCall)
+        }
       }
-    })
+    }
+    return messages
   } catch {
     return messages
+  }
+}
+
+/**
+ * Recursively clears streaming flags from a tool call and its nested subagent tool calls.
+ * This ensures messages loaded from DB don't appear to be streaming.
+ */
+function clearStreamingFlags(toolCall: any): void {
+  if (!toolCall) return
+
+  // Always set subAgentStreaming to false - messages loaded from DB are never streaming
+  toolCall.subAgentStreaming = false
+
+  // Clear nested subagent tool calls
+  if (Array.isArray(toolCall.subAgentBlocks)) {
+    for (const block of toolCall.subAgentBlocks) {
+      if (block?.type === 'subagent_tool_call' && block.toolCall) {
+        clearStreamingFlags(block.toolCall)
+      }
+    }
+  }
+  if (Array.isArray(toolCall.subAgentToolCalls)) {
+    for (const subTc of toolCall.subAgentToolCalls) {
+      clearStreamingFlags(subTc)
+    }
+  }
+}
+
+/**
+ * Recursively registers client tool instances for a tool call and its nested subagent tool calls.
+ */
+function registerToolCallInstances(toolCall: any): void {
+  if (!toolCall?.id) return
+  ensureClientToolInstance(toolCall.name, toolCall.id)
+
+  // Register nested subagent tool calls
+  if (Array.isArray(toolCall.subAgentBlocks)) {
+    for (const block of toolCall.subAgentBlocks) {
+      if (block?.type === 'subagent_tool_call' && block.toolCall) {
+        registerToolCallInstances(block.toolCall)
+      }
+    }
+  }
+  if (Array.isArray(toolCall.subAgentToolCalls)) {
+    for (const subTc of toolCall.subAgentToolCalls) {
+      registerToolCallInstances(subTc)
+    }
   }
 }
 
@@ -578,62 +630,186 @@ function stripTodoTags(text: string): string {
     .replace(/\n{2,}/g, '\n')
 }
 
-function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
-  return messages
+/**
+ * Deep clones an object using JSON serialization.
+ * This ensures we strip any non-serializable data (functions, circular refs).
+ */
+function deepClone<T>(obj: T): T {
+  try {
+    const json = JSON.stringify(obj)
+    if (!json || json === 'undefined') {
+      logger.warn('[deepClone] JSON.stringify returned empty for object', {
+        type: typeof obj,
+        isArray: Array.isArray(obj),
+        length: Array.isArray(obj) ? obj.length : undefined,
+      })
+      return obj
+    }
+    const parsed = JSON.parse(json)
+    // Verify the clone worked
+    if (Array.isArray(obj) && (!Array.isArray(parsed) || parsed.length !== obj.length)) {
+      logger.warn('[deepClone] Array clone mismatch', {
+        originalLength: obj.length,
+        clonedLength: Array.isArray(parsed) ? parsed.length : 'not array',
+      })
+    }
+    return parsed
+  } catch (err) {
+    logger.error('[deepClone] Failed to clone object', {
+      error: String(err),
+      type: typeof obj,
+      isArray: Array.isArray(obj),
+    })
+    return obj
+  }
+}
+
+/**
+ * Serializes messages for database storage.
+ * Deep clones all fields to ensure proper JSON serialization.
+ * This ensures they render identically when loaded back.
+ */
+function serializeMessagesForDB(messages: CopilotMessage[]): any[] {
+  const result = messages
     .map((msg) => {
-      // Build content from blocks if assistant content is empty (exclude thinking)
-      let content = msg.content || ''
-      if (msg.role === 'assistant' && !content.trim() && msg.contentBlocks?.length) {
-        content = msg.contentBlocks
-          .filter((b: any) => b?.type === 'text')
-          .map((b: any) => String(b.content || ''))
-          .join('')
-          .trim()
+      // Deep clone the entire message to ensure all nested data is serializable
+      // Ensure timestamp is always a string (Zod schema requires it)
+      let timestamp: string = msg.timestamp
+      if (typeof timestamp !== 'string') {
+        const ts = timestamp as any
+        timestamp = ts instanceof Date ? ts.toISOString() : new Date().toISOString()
       }
 
-      // Strip thinking, design_workflow, and todo tags from content
-      if (content) {
-        content = stripTodoTags(
-          content
-            .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
-            .replace(/<design_workflow>[\s\S]*?<\/design_workflow>/g, '')
-        ).trim()
-      }
-
-      return {
+      const serialized: any = {
         id: msg.id,
         role: msg.role,
-        content,
-        timestamp: msg.timestamp,
-        ...(Array.isArray((msg as any).toolCalls) &&
-          (msg as any).toolCalls.length > 0 && {
-            toolCalls: (msg as any).toolCalls,
-          }),
-        ...(Array.isArray(msg.contentBlocks) &&
-          msg.contentBlocks.length > 0 && {
-            // Persist full contentBlocks including thinking so history can render it
-            contentBlocks: msg.contentBlocks,
-          }),
-        ...(msg.fileAttachments &&
-          msg.fileAttachments.length > 0 && {
-            fileAttachments: msg.fileAttachments,
-          }),
-        ...((msg as any).contexts &&
-          Array.isArray((msg as any).contexts) && {
-            contexts: (msg as any).contexts,
-          }),
+        content: msg.content || '',
+        timestamp,
       }
+
+      // Deep clone contentBlocks (the main rendering data)
+      if (Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0) {
+        serialized.contentBlocks = deepClone(msg.contentBlocks)
+      }
+
+      // Deep clone toolCalls
+      if (Array.isArray((msg as any).toolCalls) && (msg as any).toolCalls.length > 0) {
+        serialized.toolCalls = deepClone((msg as any).toolCalls)
+      }
+
+      // Deep clone file attachments
+      if (Array.isArray(msg.fileAttachments) && msg.fileAttachments.length > 0) {
+        serialized.fileAttachments = deepClone(msg.fileAttachments)
+      }
+
+      // Deep clone contexts
+      if (Array.isArray((msg as any).contexts) && (msg as any).contexts.length > 0) {
+        serialized.contexts = deepClone((msg as any).contexts)
+      }
+
+      // Deep clone citations
+      if (Array.isArray(msg.citations) && msg.citations.length > 0) {
+        serialized.citations = deepClone(msg.citations)
+      }
+
+      // Copy error type
+      if (msg.errorType) {
+        serialized.errorType = msg.errorType
+      }
+
+      return serialized
     })
-    .filter((m) => {
-      if (m.role === 'assistant') {
-        const hasText = typeof m.content === 'string' && m.content.trim().length > 0
-        const hasTools = Array.isArray((m as any).toolCalls) && (m as any).toolCalls.length > 0
-        const hasBlocks =
-          Array.isArray((m as any).contentBlocks) && (m as any).contentBlocks.length > 0
-        return hasText || hasTools || hasBlocks
+    .filter((msg) => {
+      // Filter out empty assistant messages
+      if (msg.role === 'assistant') {
+        const hasContent = typeof msg.content === 'string' && msg.content.trim().length > 0
+        const hasTools = Array.isArray(msg.toolCalls) && msg.toolCalls.length > 0
+        const hasBlocks = Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0
+        return hasContent || hasTools || hasBlocks
       }
       return true
     })
+
+  // Log what we're serializing
+  for (const msg of messages) {
+    if (msg.role === 'assistant') {
+      logger.info('[serializeMessagesForDB] Input assistant message', {
+        id: msg.id,
+        hasContent: !!msg.content?.trim(),
+        contentBlockCount: msg.contentBlocks?.length || 0,
+        contentBlockTypes: (msg.contentBlocks as any[])?.map((b) => b?.type) || [],
+      })
+    }
+  }
+
+  logger.info('[serializeMessagesForDB] Serialized messages', {
+    inputCount: messages.length,
+    outputCount: result.length,
+    sample:
+      result.length > 0
+        ? {
+            role: result[result.length - 1].role,
+            hasContent: !!result[result.length - 1].content,
+            contentBlockCount: result[result.length - 1].contentBlocks?.length || 0,
+            toolCallCount: result[result.length - 1].toolCalls?.length || 0,
+          }
+        : null,
+  })
+
+  return result
+}
+
+/**
+ * @deprecated Use serializeMessagesForDB instead.
+ */
+function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
+  return serializeMessagesForDB(messages)
+}
+
+/**
+ * Extracts all tool calls from a toolCall object, including nested subAgentBlocks.
+ * Adds them to the provided map.
+ */
+function extractToolCallsRecursively(
+  toolCall: CopilotToolCall,
+  map: Record<string, CopilotToolCall>
+): void {
+  if (!toolCall?.id) return
+  map[toolCall.id] = toolCall
+
+  // Extract nested tool calls from subAgentBlocks
+  if (Array.isArray(toolCall.subAgentBlocks)) {
+    for (const block of toolCall.subAgentBlocks) {
+      if (block?.type === 'subagent_tool_call' && block.toolCall?.id) {
+        extractToolCallsRecursively(block.toolCall, map)
+      }
+    }
+  }
+
+  // Extract from subAgentToolCalls as well
+  if (Array.isArray(toolCall.subAgentToolCalls)) {
+    for (const subTc of toolCall.subAgentToolCalls) {
+      extractToolCallsRecursively(subTc, map)
+    }
+  }
+}
+
+/**
+ * Builds a complete toolCallsById map from normalized messages.
+ * Extracts all tool calls including nested subagent tool calls.
+ */
+function buildToolCallsById(messages: CopilotMessage[]): Record<string, CopilotToolCall> {
+  const toolCallsById: Record<string, CopilotToolCall> = {}
+  for (const msg of messages) {
+    if (msg.contentBlocks) {
+      for (const block of msg.contentBlocks as any[]) {
+        if (block?.type === 'tool_call' && block.toolCall?.id) {
+          extractToolCallsRecursively(block.toolCall, toolCallsById)
+        }
+      }
+    }
+  }
+  return toolCallsById
 }
 
 // Streaming context and SSE parsing
@@ -650,6 +826,14 @@ interface StreamingContext {
   newChatId?: string
   doneEventCount: number
   streamComplete?: boolean
+  /** Track active subagent sessions by parent tool call ID */
+  subAgentParentToolCallId?: string
+  /** Track subagent content per parent tool call */
+  subAgentContent: Record<string, string>
+  /** Track subagent tool calls per parent tool call */
+  subAgentToolCalls: Record<string, CopilotToolCall[]>
+  /** Track subagent streaming blocks per parent tool call */
+  subAgentBlocks: Record<string, any[]>
 }
 
 type SSEHandler = (
@@ -1071,30 +1255,20 @@ const sseHandlers: Record<string, SSEHandler> = {
       }
     } catch {}
 
-    // Integration tools: Check if auto-allowed, otherwise wait for user confirmation
-    // This handles tools like google_calendar_*, exa_*, etc. that aren't in the client registry
+    // Integration tools: Stay in pending state until user confirms via buttons
+    // This handles tools like google_calendar_*, exa_*, gmail_read, etc. that aren't in the client registry
     // Only relevant if mode is 'build' (agent)
-    const { mode, workflowId, autoAllowedTools } = get()
+    const { mode, workflowId } = get()
     if (mode === 'build' && workflowId) {
-      // Check if tool was NOT found in client registry (def is undefined from above)
+      // Check if tool was NOT found in client registry
       const def = name ? getTool(name) : undefined
       const inst = getClientTool(id) as any
       if (!def && !inst && name) {
-        // Check if this tool is auto-allowed
-        if (autoAllowedTools.includes(name)) {
-          logger.info('[build mode] Integration tool auto-allowed, executing', { id, name })
-
-          // Auto-execute the tool
-          setTimeout(() => {
-            get().executeIntegrationTool(id)
-          }, 0)
-        } else {
-          // Integration tools stay in pending state until user confirms
-          logger.info('[build mode] Integration tool awaiting user confirmation', {
-            id,
-            name,
-          })
-        }
+        // Integration tools stay in pending state until user confirms
+        logger.info('[build mode] Integration tool awaiting user confirmation', {
+          id,
+          name,
+        })
       }
     }
   },
@@ -1474,6 +1648,352 @@ const sseHandlers: Record<string, SSEHandler> = {
   default: () => {},
 }
 
+/**
+ * Helper to update a tool call with subagent data in both toolCallsById and contentBlocks
+ */
+function updateToolCallWithSubAgentData(
+  context: StreamingContext,
+  get: () => CopilotStore,
+  set: any,
+  parentToolCallId: string
+) {
+  const { toolCallsById } = get()
+  const parentToolCall = toolCallsById[parentToolCallId]
+  if (!parentToolCall) {
+    logger.warn('[SubAgent] updateToolCallWithSubAgentData: parent tool call not found', {
+      parentToolCallId,
+      availableToolCallIds: Object.keys(toolCallsById),
+    })
+    return
+  }
+
+  // Prepare subagent blocks array for ordered display
+  const blocks = context.subAgentBlocks[parentToolCallId] || []
+
+  const updatedToolCall: CopilotToolCall = {
+    ...parentToolCall,
+    subAgentContent: context.subAgentContent[parentToolCallId] || '',
+    subAgentToolCalls: context.subAgentToolCalls[parentToolCallId] || [],
+    subAgentBlocks: blocks,
+    subAgentStreaming: true,
+  }
+
+  logger.info('[SubAgent] Updating tool call with subagent data', {
+    parentToolCallId,
+    parentToolName: parentToolCall.name,
+    subAgentContentLength: updatedToolCall.subAgentContent?.length,
+    subAgentBlocksCount: updatedToolCall.subAgentBlocks?.length,
+    subAgentToolCallsCount: updatedToolCall.subAgentToolCalls?.length,
+  })
+
+  // Update in toolCallsById
+  const updatedMap = { ...toolCallsById, [parentToolCallId]: updatedToolCall }
+  set({ toolCallsById: updatedMap })
+
+  // Update in contentBlocks
+  let foundInContentBlocks = false
+  for (let i = 0; i < context.contentBlocks.length; i++) {
+    const b = context.contentBlocks[i] as any
+    if (b.type === 'tool_call' && b.toolCall?.id === parentToolCallId) {
+      context.contentBlocks[i] = { ...b, toolCall: updatedToolCall }
+      foundInContentBlocks = true
+      break
+    }
+  }
+
+  if (!foundInContentBlocks) {
+    logger.warn('[SubAgent] Parent tool call not found in contentBlocks', {
+      parentToolCallId,
+      contentBlocksCount: context.contentBlocks.length,
+      toolCallBlockIds: context.contentBlocks
+        .filter((b: any) => b.type === 'tool_call')
+        .map((b: any) => b.toolCall?.id),
+    })
+  }
+
+  updateStreamingMessage(set, context)
+}
+
+/**
+ * SSE handlers for subagent events (events with subagent field set)
+ * These handle content and tool calls from subagents like debug
+ */
+const subAgentSSEHandlers: Record<string, SSEHandler> = {
+  // Handle subagent response start (ignore - just a marker)
+  start: () => {
+    // Subagent start event - no action needed, parent is already tracked from subagent_start
+  },
+
+  // Handle subagent text content (reasoning/thinking)
+  content: (data, context, get, set) => {
+    const parentToolCallId = context.subAgentParentToolCallId
+    logger.info('[SubAgent] content event', {
+      parentToolCallId,
+      hasData: !!data.data,
+      dataPreview: typeof data.data === 'string' ? data.data.substring(0, 50) : null,
+    })
+    if (!parentToolCallId || !data.data) {
+      logger.warn('[SubAgent] content missing parentToolCallId or data', {
+        parentToolCallId,
+        hasData: !!data.data,
+      })
+      return
+    }
+
+    // Initialize if needed
+    if (!context.subAgentContent[parentToolCallId]) {
+      context.subAgentContent[parentToolCallId] = ''
+    }
+    if (!context.subAgentBlocks[parentToolCallId]) {
+      context.subAgentBlocks[parentToolCallId] = []
+    }
+
+    // Append content
+    context.subAgentContent[parentToolCallId] += data.data
+
+    // Update or create the last text block in subAgentBlocks
+    const blocks = context.subAgentBlocks[parentToolCallId]
+    const lastBlock = blocks[blocks.length - 1]
+    if (lastBlock && lastBlock.type === 'subagent_text') {
+      lastBlock.content = (lastBlock.content || '') + data.data
+    } else {
+      blocks.push({
+        type: 'subagent_text',
+        content: data.data,
+        timestamp: Date.now(),
+      })
+    }
+
+    updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
+  },
+
+  // Handle subagent reasoning (same as content for subagent display purposes)
+  reasoning: (data, context, get, set) => {
+    const parentToolCallId = context.subAgentParentToolCallId
+    const phase = data?.phase || data?.data?.phase
+    if (!parentToolCallId) return
+
+    // Initialize if needed
+    if (!context.subAgentContent[parentToolCallId]) {
+      context.subAgentContent[parentToolCallId] = ''
+    }
+    if (!context.subAgentBlocks[parentToolCallId]) {
+      context.subAgentBlocks[parentToolCallId] = []
+    }
+
+    // For reasoning, we just append the content (treating start/end as markers)
+    if (phase === 'start' || phase === 'end') return
+
+    const chunk = typeof data?.data === 'string' ? data.data : data?.content || ''
+    if (!chunk) return
+
+    context.subAgentContent[parentToolCallId] += chunk
+
+    // Update or create the last text block in subAgentBlocks
+    const blocks = context.subAgentBlocks[parentToolCallId]
+    const lastBlock = blocks[blocks.length - 1]
+    if (lastBlock && lastBlock.type === 'subagent_text') {
+      lastBlock.content = (lastBlock.content || '') + chunk
+    } else {
+      blocks.push({
+        type: 'subagent_text',
+        content: chunk,
+        timestamp: Date.now(),
+      })
+    }
+
+    updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
+  },
+
+  // Handle subagent tool_generating (tool is being generated)
+  tool_generating: () => {
+    // Tool generating event - no action needed, we'll handle the actual tool_call
+  },
+
+  // Handle subagent tool calls - also execute client tools
+  tool_call: async (data, context, get, set) => {
+    const parentToolCallId = context.subAgentParentToolCallId
+    if (!parentToolCallId) return
+
+    const toolData = data?.data || {}
+    const id: string | undefined = toolData.id || data?.toolCallId
+    const name: string | undefined = toolData.name || data?.toolName
+    if (!id || !name) return
+
+    // Arguments can come in different locations depending on SSE format
+    // Check multiple possible locations
+    let args = toolData.arguments || toolData.input || data?.arguments || data?.input
+
+    // If arguments is a string, try to parse it as JSON
+    if (typeof args === 'string') {
+      try {
+        args = JSON.parse(args)
+      } catch {
+        logger.warn('[SubAgent] Failed to parse arguments string', { args })
+      }
+    }
+
+    logger.info('[SubAgent] tool_call received', {
+      id,
+      name,
+      hasArgs: !!args,
+      argsKeys: args ? Object.keys(args) : [],
+      toolDataKeys: Object.keys(toolData),
+      dataKeys: Object.keys(data || {}),
+    })
+
+    // Initialize if needed
+    if (!context.subAgentToolCalls[parentToolCallId]) {
+      context.subAgentToolCalls[parentToolCallId] = []
+    }
+    if (!context.subAgentBlocks[parentToolCallId]) {
+      context.subAgentBlocks[parentToolCallId] = []
+    }
+
+    // Ensure client tool instance is registered (for execution)
+    ensureClientToolInstance(name, id)
+
+    // Create or update the subagent tool call
+    const existingIndex = context.subAgentToolCalls[parentToolCallId].findIndex(
+      (tc) => tc.id === id
+    )
+    const subAgentToolCall: CopilotToolCall = {
+      id,
+      name,
+      state: ClientToolCallState.pending,
+      ...(args ? { params: args } : {}),
+      display: resolveToolDisplay(name, ClientToolCallState.pending, id, args),
+    }
+
+    if (existingIndex >= 0) {
+      context.subAgentToolCalls[parentToolCallId][existingIndex] = subAgentToolCall
+    } else {
+      context.subAgentToolCalls[parentToolCallId].push(subAgentToolCall)
+
+      // Also add to ordered blocks
+      context.subAgentBlocks[parentToolCallId].push({
+        type: 'subagent_tool_call',
+        toolCall: subAgentToolCall,
+        timestamp: Date.now(),
+      })
+    }
+
+    // Also add to main toolCallsById for proper tool execution
+    const { toolCallsById } = get()
+    const updated = { ...toolCallsById, [id]: subAgentToolCall }
+    set({ toolCallsById: updated })
+
+    updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
+
+    // Execute client tools in parallel (non-blocking) - same pattern as main tool_call handler
+    try {
+      const def = getTool(name)
+      if (def) {
+        const hasInterrupt =
+          typeof def.hasInterrupt === 'function'
+            ? !!def.hasInterrupt(args || {})
+            : !!def.hasInterrupt
+        if (!hasInterrupt) {
+          // Auto-execute tools without interrupts - non-blocking
+          const ctx = createExecutionContext({ toolCallId: id, toolName: name })
+          Promise.resolve()
+            .then(() => def.execute(ctx, args || {}))
+            .catch((execErr: any) => {
+              logger.error('[SubAgent] Tool execution failed', {
+                id,
+                name,
+                error: execErr?.message,
+              })
+            })
+        }
+      } else {
+        // Fallback to class-based tools - non-blocking
+        const instance = getClientTool(id)
+        if (instance) {
+          const hasInterruptDisplays = !!instance.getInterruptDisplays?.()
+          if (!hasInterruptDisplays) {
+            Promise.resolve()
+              .then(() => instance.execute(args || {}))
+              .catch((execErr: any) => {
+                logger.error('[SubAgent] Class tool execution failed', {
+                  id,
+                  name,
+                  error: execErr?.message,
+                })
+              })
+          }
+        }
+      }
+    } catch (e: any) {
+      logger.error('[SubAgent] Tool registry/execution error', { id, name, error: e?.message })
+    }
+  },
+
+  // Handle subagent tool results
+  tool_result: (data, context, get, set) => {
+    const parentToolCallId = context.subAgentParentToolCallId
+    if (!parentToolCallId) return
+
+    const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
+    const success: boolean | undefined = data?.success !== false // Default to true if not specified
+    if (!toolCallId) return
+
+    // Initialize if needed
+    if (!context.subAgentToolCalls[parentToolCallId]) return
+    if (!context.subAgentBlocks[parentToolCallId]) return
+
+    // Update the subagent tool call state
+    const targetState = success ? ClientToolCallState.success : ClientToolCallState.error
+    const existingIndex = context.subAgentToolCalls[parentToolCallId].findIndex(
+      (tc) => tc.id === toolCallId
+    )
+
+    if (existingIndex >= 0) {
+      const existing = context.subAgentToolCalls[parentToolCallId][existingIndex]
+      const updatedSubAgentToolCall = {
+        ...existing,
+        state: targetState,
+        display: resolveToolDisplay(existing.name, targetState, toolCallId, existing.params),
+      }
+      context.subAgentToolCalls[parentToolCallId][existingIndex] = updatedSubAgentToolCall
+
+      // Also update in ordered blocks
+      for (const block of context.subAgentBlocks[parentToolCallId]) {
+        if (block.type === 'subagent_tool_call' && block.toolCall?.id === toolCallId) {
+          block.toolCall = updatedSubAgentToolCall
+          break
+        }
+      }
+
+      // Update the individual tool call in toolCallsById so ToolCall component gets latest state
+      const { toolCallsById } = get()
+      if (toolCallsById[toolCallId]) {
+        const updatedMap = {
+          ...toolCallsById,
+          [toolCallId]: updatedSubAgentToolCall,
+        }
+        set({ toolCallsById: updatedMap })
+        logger.info('[SubAgent] Updated subagent tool call state in toolCallsById', {
+          toolCallId,
+          name: existing.name,
+          state: targetState,
+        })
+      }
+    }
+
+    updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
+  },
+
+  // Handle subagent stream done - just update the streaming state
+  done: (data, context, get, set) => {
+    const parentToolCallId = context.subAgentParentToolCallId
+    if (!parentToolCallId) return
+
+    // Update the tool call with final content but keep streaming true until subagent_end
+    updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
+  },
+}
+
 // Debounced UI update queue for smoother streaming
 const streamingUpdateQueue = new Map<string, StreamingContext>()
 let streamingUpdateRAF: number | null = null
@@ -1610,8 +2130,8 @@ const initialState = {
   streamingPlanContent: '',
   toolCallsById: {} as Record<string, CopilotToolCall>,
   suppressAutoSelect: false,
-  contextUsage: null,
   autoAllowedTools: [] as string[],
+  messageQueue: [] as import('./types').QueuedMessage[],
 }
 
 export const useCopilotStore = create<CopilotStore>()(
@@ -1622,7 +2142,7 @@ export const useCopilotStore = create<CopilotStore>()(
     setMode: (mode) => set({ mode }),
 
     // Clear messages (don't clear streamingPlanContent - let it persist)
-    clearMessages: () => set({ messages: [], contextUsage: null }),
+    clearMessages: () => set({ messages: [] }),
 
     // Workflow selection
     setWorkflowId: async (workflowId: string | null) => {
@@ -1691,16 +2211,19 @@ export const useCopilotStore = create<CopilotStore>()(
       const previousModel = get().selectedModel
 
       // Optimistically set selected chat and normalize messages for UI
+      const normalizedMessages = normalizeMessagesForUI(chat.messages || [])
+      const toolCallsById = buildToolCallsById(normalizedMessages)
+
       set({
         currentChat: chat,
-        messages: normalizeMessagesForUI(chat.messages || []),
+        messages: normalizedMessages,
+        toolCallsById,
         planTodos: [],
         showPlanTodos: false,
         streamingPlanContent: planArtifact,
         mode: chatMode,
         selectedModel: chatModel as CopilotStore['selectedModel'],
         suppressAutoSelect: false,
-        contextUsage: null,
       })
 
       // Background-save the previous chat's latest messages, plan artifact, and config before switching (optimistic)
@@ -1733,18 +2256,7 @@ export const useCopilotStore = create<CopilotStore>()(
           const latestChat = data.chats.find((c: CopilotChat) => c.id === chat.id)
           if (latestChat) {
             const normalizedMessages = normalizeMessagesForUI(latestChat.messages || [])
-
-            // Build toolCallsById map from all tool calls in normalized messages
-            const toolCallsById: Record<string, CopilotToolCall> = {}
-            for (const msg of normalizedMessages) {
-              if (msg.contentBlocks) {
-                for (const block of msg.contentBlocks as any[]) {
-                  if (block?.type === 'tool_call' && block.toolCall?.id) {
-                    toolCallsById[block.toolCall.id] = block.toolCall
-                  }
-                }
-              }
-            }
+            const toolCallsById = buildToolCallsById(normalizedMessages)
 
             set({
               currentChat: latestChat,
@@ -1752,15 +2264,11 @@ export const useCopilotStore = create<CopilotStore>()(
               chats: (get().chats || []).map((c: CopilotChat) =>
                 c.id === chat.id ? latestChat : c
               ),
-              contextUsage: null,
               toolCallsById,
             })
             try {
               await get().loadMessageCheckpoints(latestChat.id)
             } catch {}
-            // Fetch context usage for the selected chat
-            logger.info('[Context Usage] Chat selected, fetching usage')
-            await get().fetchContextUsage()
           }
         }
       } catch {}
@@ -1798,7 +2306,6 @@ export const useCopilotStore = create<CopilotStore>()(
         }
       } catch {}
 
-      logger.info('[Context Usage] New chat created, clearing context usage')
       set({
         currentChat: null,
         messages: [],
@@ -1807,7 +2314,6 @@ export const useCopilotStore = create<CopilotStore>()(
         showPlanTodos: false,
         streamingPlanContent: '',
         suppressAutoSelect: true,
-        contextUsage: null,
       })
     },
 
@@ -1886,18 +2392,7 @@ export const useCopilotStore = create<CopilotStore>()(
                 const refreshedConfig = updatedCurrentChat.config || {}
                 const refreshedMode = refreshedConfig.mode || get().mode
                 const refreshedModel = refreshedConfig.model || get().selectedModel
-
-                // Build toolCallsById map from all tool calls in normalized messages
-                const toolCallsById: Record<string, CopilotToolCall> = {}
-                for (const msg of normalizedMessages) {
-                  if (msg.contentBlocks) {
-                    for (const block of msg.contentBlocks as any[]) {
-                      if (block?.type === 'tool_call' && block.toolCall?.id) {
-                        toolCallsById[block.toolCall.id] = block.toolCall
-                      }
-                    }
-                  }
-                }
+                const toolCallsById = buildToolCallsById(normalizedMessages)
 
                 set({
                   currentChat: updatedCurrentChat,
@@ -1928,17 +2423,7 @@ export const useCopilotStore = create<CopilotStore>()(
                 hasPlanArtifact: !!planArtifact,
               })
 
-              // Build toolCallsById map from all tool calls in normalized messages
-              const toolCallsById: Record<string, CopilotToolCall> = {}
-              for (const msg of normalizedMessages) {
-                if (msg.contentBlocks) {
-                  for (const block of msg.contentBlocks as any[]) {
-                    if (block?.type === 'tool_call' && block.toolCall?.id) {
-                      toolCallsById[block.toolCall.id] = block.toolCall
-                    }
-                  }
-                }
-              }
+              const toolCallsById = buildToolCallsById(normalizedMessages)
 
               set({
                 currentChat: mostRecentChat,
@@ -1969,7 +2454,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
     // Send a message (streaming only)
     sendMessage: async (message: string, options = {}) => {
-      const { workflowId, currentChat, mode, revertState } = get()
+      const { workflowId, currentChat, mode, revertState, isSendingMessage } = get()
       const {
         stream = true,
         fileAttachments,
@@ -1983,6 +2468,16 @@ export const useCopilotStore = create<CopilotStore>()(
       }
 
       if (!workflowId) return
+
+      // If already sending a message, queue this one instead
+      if (isSendingMessage) {
+        get().addToQueue(message, { fileAttachments, contexts, messageId })
+        logger.info('[Copilot] Message queued (already sending)', {
+          queueLength: get().messageQueue.length + 1,
+          originalMessageId: messageId,
+        })
+        return
+      }
 
       const abortController = new AbortController()
       set({ isSendingMessage: true, error: null, abortController })
@@ -2055,6 +2550,13 @@ export const useCopilotStore = create<CopilotStore>()(
         // Call copilot API
         const apiMode: 'ask' | 'agent' | 'plan' =
           mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
+
+        // Extract slash commands from contexts (lowercase) and filter them out from contexts
+        const commands = contexts
+          ?.filter((c) => c.kind === 'slash_command' && 'command' in c)
+          .map((c) => (c as any).command.toLowerCase()) as string[] | undefined
+        const filteredContexts = contexts?.filter((c) => c.kind !== 'slash_command')
+
         const result = await sendStreamingMessage({
           message: messageToSend,
           userMessageId: userMessage.id,
@@ -2066,7 +2568,8 @@ export const useCopilotStore = create<CopilotStore>()(
           createNewChat: !currentChat,
           stream,
           fileAttachments,
-          contexts,
+          contexts: filteredContexts,
+          commands: commands?.length ? commands : undefined,
           abortSignal: abortController.signal,
         })
 
@@ -2158,13 +2661,14 @@ export const useCopilotStore = create<CopilotStore>()(
             ),
             isSendingMessage: false,
             isAborting: false,
-            abortController: null,
+            // Keep abortController so streaming loop can check signal.aborted
+            // It will be nulled when streaming completes or new message starts
           }))
         } else {
           set({
             isSendingMessage: false,
             isAborting: false,
-            abortController: null,
+            // Keep abortController so streaming loop can check signal.aborted
           })
         }
 
@@ -2192,16 +2696,8 @@ export const useCopilotStore = create<CopilotStore>()(
             }).catch(() => {})
           } catch {}
         }
-
-        // Fetch context usage after abort
-        logger.info('[Context Usage] Message aborted, fetching usage')
-        get()
-          .fetchContextUsage()
-          .catch((err) => {
-            logger.warn('[Context Usage] Failed to fetch after abort', err)
-          })
       } catch {
-        set({ isSendingMessage: false, isAborting: false, abortController: null })
+        set({ isSendingMessage: false, isAborting: false })
       }
     },
 
@@ -2483,8 +2979,6 @@ export const useCopilotStore = create<CopilotStore>()(
             loops: reverted.loops || {},
             parallels: reverted.parallels || {},
             lastSaved: reverted.lastSaved || Date.now(),
-            isDeployed: !!reverted.isDeployed,
-            ...(reverted.deployedAt ? { deployedAt: new Date(reverted.deployedAt) } : {}),
             deploymentStatuses: reverted.deploymentStatuses || {},
           })
 
@@ -2542,6 +3036,9 @@ export const useCopilotStore = create<CopilotStore>()(
         designWorkflowContent: '',
         pendingContent: '',
         doneEventCount: 0,
+        subAgentContent: {},
+        subAgentToolCalls: {},
+        subAgentBlocks: {},
       }
 
       if (isContinuation) {
@@ -2564,6 +3061,99 @@ export const useCopilotStore = create<CopilotStore>()(
         for await (const data of parseSSEStream(reader, decoder)) {
           const { abortController } = get()
           if (abortController?.signal.aborted) break
+
+          // Log SSE events for debugging
+          logger.info('[SSE] Received event', {
+            type: data.type,
+            hasSubAgent: !!data.subagent,
+            subagent: data.subagent,
+            dataPreview:
+              typeof data.data === 'string'
+                ? data.data.substring(0, 100)
+                : JSON.stringify(data.data)?.substring(0, 100),
+          })
+
+          // Handle subagent_start to track parent tool call
+          if (data.type === 'subagent_start') {
+            const toolCallId = data.data?.tool_call_id
+            if (toolCallId) {
+              context.subAgentParentToolCallId = toolCallId
+              // Mark the parent tool call as streaming
+              const { toolCallsById } = get()
+              const parentToolCall = toolCallsById[toolCallId]
+              if (parentToolCall) {
+                const updatedToolCall: CopilotToolCall = {
+                  ...parentToolCall,
+                  subAgentStreaming: true,
+                }
+                const updatedMap = { ...toolCallsById, [toolCallId]: updatedToolCall }
+                set({ toolCallsById: updatedMap })
+              }
+              logger.info('[SSE] Subagent session started', {
+                subagent: data.subagent,
+                parentToolCallId: toolCallId,
+              })
+            }
+            continue
+          }
+
+          // Handle subagent_end to finalize subagent content
+          if (data.type === 'subagent_end') {
+            const parentToolCallId = context.subAgentParentToolCallId
+            if (parentToolCallId) {
+              // Mark subagent streaming as complete
+              const { toolCallsById } = get()
+              const parentToolCall = toolCallsById[parentToolCallId]
+              if (parentToolCall) {
+                const updatedToolCall: CopilotToolCall = {
+                  ...parentToolCall,
+                  subAgentContent: context.subAgentContent[parentToolCallId] || '',
+                  subAgentToolCalls: context.subAgentToolCalls[parentToolCallId] || [],
+                  subAgentBlocks: context.subAgentBlocks[parentToolCallId] || [],
+                  subAgentStreaming: false, // Done streaming
+                }
+                const updatedMap = { ...toolCallsById, [parentToolCallId]: updatedToolCall }
+                set({ toolCallsById: updatedMap })
+                logger.info('[SSE] Subagent session ended', {
+                  subagent: data.subagent,
+                  parentToolCallId,
+                  contentLength: context.subAgentContent[parentToolCallId]?.length || 0,
+                  toolCallCount: context.subAgentToolCalls[parentToolCallId]?.length || 0,
+                })
+              }
+            }
+            context.subAgentParentToolCallId = undefined
+            continue
+          }
+
+          // Check if this is a subagent event (has subagent field)
+          if (data.subagent) {
+            const parentToolCallId = context.subAgentParentToolCallId
+            if (!parentToolCallId) {
+              logger.warn('[SSE] Subagent event without parent tool call ID', {
+                type: data.type,
+                subagent: data.subagent,
+              })
+              continue
+            }
+
+            logger.info('[SSE] Processing subagent event', {
+              type: data.type,
+              subagent: data.subagent,
+              parentToolCallId,
+              hasHandler: !!subAgentSSEHandlers[data.type],
+            })
+
+            const subAgentHandler = subAgentSSEHandlers[data.type]
+            if (subAgentHandler) {
+              await subAgentHandler(data, context, get, set)
+            } else {
+              logger.warn('[SSE] No handler for subagent event type', { type: data.type })
+            }
+            // Skip regular handlers for subagent events
+            if (context.streamComplete) break
+            continue
+          }
 
           const handler = sseHandlers[data.type] || sseHandlers.default
           await handler(data, context, get, set)
@@ -2608,6 +3198,7 @@ export const useCopilotStore = create<CopilotStore>()(
               : msg
           ),
           isSendingMessage: false,
+          isAborting: false,
           abortController: null,
           currentUserMessageId: null,
         }))
@@ -2616,18 +3207,53 @@ export const useCopilotStore = create<CopilotStore>()(
           await get().handleNewChatCreation(context.newChatId)
         }
 
+        // Process next message in queue if any
+        const nextInQueue = get().messageQueue[0]
+        if (nextInQueue) {
+          // Use originalMessageId if available (from edit/resend), otherwise use queue entry id
+          const messageIdToUse = nextInQueue.originalMessageId || nextInQueue.id
+          logger.info('[Queue] Processing next queued message', {
+            id: nextInQueue.id,
+            originalMessageId: nextInQueue.originalMessageId,
+            messageIdToUse,
+            queueLength: get().messageQueue.length,
+          })
+          // Remove from queue and send
+          get().removeFromQueue(nextInQueue.id)
+          // Use setTimeout to avoid blocking the current execution
+          setTimeout(() => {
+            get().sendMessage(nextInQueue.content, {
+              stream: true,
+              fileAttachments: nextInQueue.fileAttachments,
+              contexts: nextInQueue.contexts,
+              messageId: messageIdToUse,
+            })
+          }, 100)
+        }
+
         // Persist full message state (including contentBlocks), plan artifact, and config to database
         const { currentChat, streamingPlanContent, mode, selectedModel } = get()
         if (currentChat) {
           try {
             const currentMessages = get().messages
+            // Debug: Log what we're about to serialize
+            const lastMsg = currentMessages[currentMessages.length - 1]
+            if (lastMsg?.role === 'assistant') {
+              logger.info('[Stream Done] About to serialize - last message state', {
+                id: lastMsg.id,
+                contentLength: lastMsg.content?.length || 0,
+                hasContentBlocks: !!lastMsg.contentBlocks,
+                contentBlockCount: lastMsg.contentBlocks?.length || 0,
+                contentBlockTypes: (lastMsg.contentBlocks as any[])?.map((b) => b?.type) || [],
+              })
+            }
             const dbMessages = validateMessagesForLLM(currentMessages)
             const config = {
               mode,
               model: selectedModel,
             }
 
-            await fetch('/api/copilot/chat/update-messages', {
+            const saveResponse = await fetch('/api/copilot/chat/update-messages', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -2638,6 +3264,18 @@ export const useCopilotStore = create<CopilotStore>()(
               }),
             })
 
+            if (!saveResponse.ok) {
+              const errorText = await saveResponse.text().catch(() => '')
+              logger.error('[Stream Done] Failed to save messages to DB', {
+                status: saveResponse.status,
+                error: errorText,
+              })
+            } else {
+              logger.info('[Stream Done] Successfully saved messages to DB', {
+                messageCount: dbMessages.length,
+              })
+            }
+
             // Update local chat object with plan artifact and config
             set({
               currentChat: {
@@ -2646,17 +3284,15 @@ export const useCopilotStore = create<CopilotStore>()(
                 config,
               },
             })
-          } catch {}
+          } catch (err) {
+            logger.error('[Stream Done] Exception saving messages', { error: String(err) })
+          }
         }
 
         // Post copilot_stats record (input/output tokens can be null for now)
         try {
           // Removed: stats sending now occurs only on accept/reject with minimal payload
         } catch {}
-
-        // Fetch context usage after response completes
-        logger.info('[Context Usage] Stream completed, fetching usage')
-        await get().fetchContextUsage()
 
         // Invalidate subscription queries to update usage
         setTimeout(() => {
@@ -2835,85 +3471,10 @@ export const useCopilotStore = create<CopilotStore>()(
     },
 
     setSelectedModel: async (model) => {
-      logger.info('[Context Usage] Model changed', { from: get().selectedModel, to: model })
       set({ selectedModel: model })
-      // Fetch context usage after model switch
-      await get().fetchContextUsage()
     },
     setAgentPrefetch: (prefetch) => set({ agentPrefetch: prefetch }),
     setEnabledModels: (models) => set({ enabledModels: models }),
-
-    // Fetch context usage from sim-agent API
-    fetchContextUsage: async () => {
-      try {
-        const { currentChat, selectedModel, workflowId } = get()
-        logger.info('[Context Usage] Starting fetch', {
-          hasChatId: !!currentChat?.id,
-          hasWorkflowId: !!workflowId,
-          chatId: currentChat?.id,
-          workflowId,
-          model: selectedModel,
-        })
-
-        if (!currentChat?.id || !workflowId) {
-          logger.info('[Context Usage] Skipping: missing chat or workflow', {
-            hasChatId: !!currentChat?.id,
-            hasWorkflowId: !!workflowId,
-          })
-          return
-        }
-
-        const requestPayload = {
-          chatId: currentChat.id,
-          model: selectedModel,
-          workflowId,
-        }
-
-        logger.info('[Context Usage] Calling API', requestPayload)
-
-        // Call the backend API route which proxies to sim-agent
-        const response = await fetch('/api/copilot/context-usage', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestPayload),
-        })
-
-        logger.info('[Context Usage] API response', { status: response.status, ok: response.ok })
-
-        if (response.ok) {
-          const data = await response.json()
-          logger.info('[Context Usage] Received data', data)
-
-          // Check for either tokensUsed or usage field
-          if (
-            data.tokensUsed !== undefined ||
-            data.usage !== undefined ||
-            data.percentage !== undefined
-          ) {
-            const contextUsage = {
-              usage: data.tokensUsed || data.usage || 0,
-              percentage: data.percentage || 0,
-              model: data.model || selectedModel,
-              contextWindow: data.contextWindow || data.context_window || 0,
-              when: data.when || 'end',
-              estimatedTokens: data.tokensUsed || data.estimated_tokens || data.estimatedTokens,
-            }
-            set({ contextUsage })
-            logger.info('[Context Usage] Updated store', contextUsage)
-          } else {
-            logger.warn('[Context Usage] No usage data in response', data)
-          }
-        } else {
-          const errorText = await response.text().catch(() => 'Unable to read error')
-          logger.warn('[Context Usage] API call failed', {
-            status: response.status,
-            error: errorText,
-          })
-        }
-      } catch (err) {
-        logger.error('[Context Usage] Error fetching:', err)
-      }
-    },
 
     executeIntegrationTool: async (toolCallId: string) => {
       const { toolCallsById, workflowId } = get()
@@ -3097,6 +3658,77 @@ export const useCopilotStore = create<CopilotStore>()(
     isToolAutoAllowed: (toolId: string) => {
       const { autoAllowedTools } = get()
       return autoAllowedTools.includes(toolId)
+    },
+
+    // Message queue actions
+    addToQueue: (message, options) => {
+      const queuedMessage: import('./types').QueuedMessage = {
+        id: crypto.randomUUID(),
+        content: message,
+        fileAttachments: options?.fileAttachments,
+        contexts: options?.contexts,
+        queuedAt: Date.now(),
+        originalMessageId: options?.messageId,
+      }
+      set({ messageQueue: [...get().messageQueue, queuedMessage] })
+      logger.info('[Queue] Message added to queue', {
+        id: queuedMessage.id,
+        originalMessageId: options?.messageId,
+        queueLength: get().messageQueue.length,
+      })
+    },
+
+    removeFromQueue: (id) => {
+      set({ messageQueue: get().messageQueue.filter((m) => m.id !== id) })
+      logger.info('[Queue] Message removed from queue', {
+        id,
+        queueLength: get().messageQueue.length,
+      })
+    },
+
+    moveUpInQueue: (id) => {
+      const queue = [...get().messageQueue]
+      const index = queue.findIndex((m) => m.id === id)
+      if (index > 0) {
+        const item = queue[index]
+        queue.splice(index, 1)
+        queue.splice(index - 1, 0, item)
+        set({ messageQueue: queue })
+        logger.info('[Queue] Message moved up in queue', { id, newIndex: index - 1 })
+      }
+    },
+
+    sendNow: async (id) => {
+      const queue = get().messageQueue
+      const message = queue.find((m) => m.id === id)
+      if (!message) return
+
+      // Remove from queue first
+      get().removeFromQueue(id)
+
+      // If currently sending, abort and send this one
+      const { isSendingMessage } = get()
+      if (isSendingMessage) {
+        get().abortMessage()
+        // Wait a tick for abort to complete
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+
+      // Use originalMessageId if available (from edit/resend), otherwise use queue entry id
+      const messageIdToUse = message.originalMessageId || message.id
+
+      // Send the message
+      await get().sendMessage(message.content, {
+        stream: true,
+        fileAttachments: message.fileAttachments,
+        contexts: message.contexts,
+        messageId: messageIdToUse,
+      })
+    },
+
+    clearQueue: () => {
+      set({ messageQueue: [] })
+      logger.info('[Queue] Queue cleared')
     },
   }))
 )

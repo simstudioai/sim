@@ -59,10 +59,12 @@ Search the web using DuckDuckGo Instant Answers API. Returns instant answers, ab
 | `answerType` | string | Type of the answer \(e.g., calc, ip, etc.\) |
 | `type` | string | Response type: A \(article\), D \(disambiguation\), C \(category\), N \(name\), E \(exclusive\) |
 | `relatedTopics` | array | Array of related topics with URLs and descriptions |
+|   ↳ `FirstURL` | string | URL to the related topic |
+|   ↳ `Text` | string | Description of the related topic |
+|   ↳ `Result` | string | HTML result snippet |
+| `results` | array | Array of external link results |
+|   ↳ `FirstURL` | string | URL of the result |
+|   ↳ `Text` | string | Description of the result |
+|   ↳ `Result` | string | HTML result snippet |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `duckduckgo`

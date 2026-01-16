@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { filterBlacklistedModels } from '@/providers/utils'
+import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
 
 const logger = createLogger('OpenRouterModelsAPI')
 
@@ -30,6 +30,11 @@ export interface OpenRouterModelInfo {
 }
 
 export async function GET(_request: NextRequest) {
+  if (isProviderBlacklisted('openrouter')) {
+    logger.info('OpenRouter provider is blacklisted, returning empty models')
+    return NextResponse.json({ models: [], modelInfo: {} })
+  }
+
   try {
     const response = await fetch('https://openrouter.ai/api/v1/models', {
       headers: { 'Content-Type': 'application/json' },

@@ -3,8 +3,32 @@ import { format } from 'date-fns'
 import { Badge } from '@/components/emcn'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
+import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 
-const CORE_TRIGGER_TYPES = ['manual', 'api', 'schedule', 'chat', 'webhook', 'mcp'] as const
+/** Column configuration for logs table - shared between header and rows */
+export const LOG_COLUMNS = {
+  date: { width: 'w-[8%]', minWidth: 'min-w-[70px]', label: 'Date' },
+  time: { width: 'w-[12%]', minWidth: 'min-w-[90px]', label: 'Time' },
+  status: { width: 'w-[12%]', minWidth: 'min-w-[100px]', label: 'Status' },
+  workflow: { width: 'w-[22%]', minWidth: 'min-w-[140px]', label: 'Workflow' },
+  cost: { width: 'w-[12%]', minWidth: 'min-w-[90px]', label: 'Cost' },
+  trigger: { width: 'w-[14%]', minWidth: 'min-w-[110px]', label: 'Trigger' },
+  duration: { width: 'w-[20%]', minWidth: 'min-w-[100px]', label: 'Duration' },
+} as const
+
+/** Type-safe column key derived from LOG_COLUMNS */
+export type LogColumnKey = keyof typeof LOG_COLUMNS
+
+/** Ordered list of column keys for rendering table headers */
+export const LOG_COLUMN_ORDER: readonly LogColumnKey[] = [
+  'date',
+  'time',
+  'status',
+  'workflow',
+  'cost',
+  'trigger',
+  'duration',
+] as const
 
 /** Possible execution status values for workflow logs */
 export type LogStatus = 'error' | 'pending' | 'running' | 'info' | 'cancelled'
@@ -45,9 +69,10 @@ const STATUS_VARIANT_MAP: Record<
 const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['variant']> = {
   manual: 'gray-secondary',
   api: 'blue',
-  schedule: 'teal',
+  schedule: 'green',
   chat: 'purple',
   webhook: 'orange',
+  a2a: 'teal',
 }
 
 interface StatusBadgeProps {

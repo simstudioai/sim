@@ -1,7 +1,8 @@
+import { createEnvMock } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: {
+vi.mock('@/lib/core/config/env', () =>
+  createEnvMock({
     NEXT_PUBLIC_APP_URL: 'https://example.com',
     NEXT_PUBLIC_SOCKET_URL: 'https://socket.example.com',
     OLLAMA_URL: 'http://localhost:11434',
@@ -13,23 +14,12 @@ vi.mock('@/lib/core/config/env', () => ({
     NEXT_PUBLIC_BRAND_FAVICON_URL: 'https://brand.example.com/favicon.ico',
     NEXT_PUBLIC_PRIVACY_URL: 'https://legal.example.com/privacy',
     NEXT_PUBLIC_TERMS_URL: 'https://legal.example.com/terms',
-  },
-  getEnv: vi.fn((key: string) => {
-    const envMap: Record<string, string> = {
-      NEXT_PUBLIC_APP_URL: 'https://example.com',
-      NEXT_PUBLIC_SOCKET_URL: 'https://socket.example.com',
-      OLLAMA_URL: 'http://localhost:11434',
-      NEXT_PUBLIC_BRAND_LOGO_URL: 'https://brand.example.com/logo.png',
-      NEXT_PUBLIC_BRAND_FAVICON_URL: 'https://brand.example.com/favicon.ico',
-      NEXT_PUBLIC_PRIVACY_URL: 'https://legal.example.com/privacy',
-      NEXT_PUBLIC_TERMS_URL: 'https://legal.example.com/terms',
-    }
-    return envMap[key] || ''
-  }),
-}))
+  })
+)
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
   isDev: false,
+  isReactGrabEnabled: false,
 }))
 
 import {

@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpReplicateCampaign')
 
 export interface MailchimpReplicateCampaignParams {
   apiKey: string
@@ -12,11 +9,8 @@ export interface MailchimpReplicateCampaignParams {
 export interface MailchimpReplicateCampaignResponse {
   success: boolean
   output: {
-    campaign: any
-    metadata: {
-      operation: 'replicate_campaign'
-      campaignId: string
-    }
+    campaign: unknown
+    campaign_id: string
     success: boolean
   }
 }
@@ -67,10 +61,7 @@ export const mailchimpReplicateCampaignTool: ToolConfig<
       success: true,
       output: {
         campaign: data,
-        metadata: {
-          operation: 'replicate_campaign' as const,
-          campaignId: data.id,
-        },
+        campaign_id: data.id,
         success: true,
       },
     }
@@ -83,7 +74,7 @@ export const mailchimpReplicateCampaignTool: ToolConfig<
       description: 'Replicated campaign data',
       properties: {
         campaign: { type: 'object', description: 'Replicated campaign object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
+        campaign_id: { type: 'string', description: 'Campaign ID' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

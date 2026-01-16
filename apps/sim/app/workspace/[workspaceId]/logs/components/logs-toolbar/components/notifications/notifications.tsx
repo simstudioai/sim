@@ -18,11 +18,11 @@ import {
   ModalTabsContent,
   ModalTabsList,
   ModalTabsTrigger,
+  TagInput,
+  type TagItem,
 } from '@/components/emcn'
 import { SlackIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
-import { cn } from '@/lib/core/utils/cn'
-import { ALL_TRIGGER_TYPES, type TriggerType } from '@/lib/logs/types'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import {
   type NotificationSubscription,
@@ -34,6 +34,7 @@ import {
 } from '@/hooks/queries/notifications'
 import { useConnectOAuthService } from '@/hooks/queries/oauth-connections'
 import { useSlackAccounts } from '@/hooks/use-slack-accounts'
+import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 import { SlackChannelSelector } from './components/slack-channel-selector'
 import { WorkflowSelector } from './components/workflow-selector'
 
@@ -133,7 +134,7 @@ export function NotificationSettings({
     workflowIds: [] as string[],
     allWorkflows: true,
     levelFilter: ['info', 'error'] as LogLevel[],
-    triggerFilter: [...ALL_TRIGGER_TYPES] as TriggerType[],
+    triggerFilter: [...CORE_TRIGGER_TYPES] as CoreTriggerType[],
     includeFinalOutput: false,
     includeTraceSpans: false,
     includeRateLimits: false,
@@ -156,8 +157,7 @@ export function NotificationSettings({
     errorCountThreshold: 10,
   })
 
-  const [emailInputValue, setEmailInputValue] = useState('')
-  const [invalidEmails, setInvalidEmails] = useState<string[]>([])
+  const [emailItems, setEmailItems] = useState<TagItem[]>([])
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
@@ -185,6 +185,10 @@ export function NotificationSettings({
 
   const hasSubscriptions = filteredSubscriptions.length > 0
 
+  // Compute form visibility synchronously to avoid empty state flash
+  // Show form if user explicitly opened it OR if loading is complete with no subscriptions
+  const displayForm = showForm || (!isLoading && !hasSubscriptions && !editingId)
+
   const getSubscriptionsForTab = useCallback(
     (tab: NotificationType) => {
       return subscriptions.filter((s) => s.notificationType === tab)
@@ -192,18 +196,12 @@ export function NotificationSettings({
     [subscriptions]
   )
 
-  useEffect(() => {
-    if (!isLoading && !hasSubscriptions && !editingId) {
-      setShowForm(true)
-    }
-  }, [isLoading, hasSubscriptions, editingId, activeTab])
-
   const resetForm = useCallback(() => {
     setFormData({
       workflowIds: [],
       allWorkflows: true,
       levelFilter: ['info', 'error'],
-      triggerFilter: [...ALL_TRIGGER_TYPES],
+      triggerFilter: [...CORE_TRIGGER_TYPES],
       includeFinalOutput: false,
       includeTraceSpans: false,
       includeRateLimits: false,
@@ -227,8 +225,7 @@ export function NotificationSettings({
     })
     setFormErrors({})
     setEditingId(null)
-    setEmailInputValue('')
-    setInvalidEmails([])
+    setEmailItems([])
   }, [])
 
   const handleClose = useCallback(() => {
@@ -245,81 +242,37 @@ export function NotificationSettings({
       const normalized = email.trim().toLowerCase()
       const validation = quickValidateEmail(normalized)
 
-      if (formData.emailRecipients.includes(normalized) || invalidEmails.includes(normalized)) {
+      if (emailItems.some((item) => item.value === normalized)) {
         return false
       }
 
-      if (!validation.isValid) {
-        setInvalidEmails((prev) => [...prev, normalized])
-        setEmailInputValue('')
-        return false
+      setEmailItems((prev) => [...prev, { value: normalized, isValid: validation.isValid }])
+
+      if (validation.isValid) {
+        setFormErrors((prev) => ({ ...prev, emailRecipients: '' }))
+        setFormData((prev) => ({
+          ...prev,
+          emailRecipients: [...prev.emailRecipients, normalized],
+        }))
       }
 
-      setFormErrors((prev) => ({ ...prev, emailRecipients: '' }))
-      setFormData((prev) => ({
-        ...prev,
-        emailRecipients: [...prev.emailRecipients, normalized],
-      }))
-      setEmailInputValue('')
-      return true
+      return validation.isValid
     },
-    [formData.emailRecipients, invalidEmails]
+    [emailItems]
   )
 
-  const handleRemoveEmail = useCallback((emailToRemove: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      emailRecipients: prev.emailRecipients.filter((e) => e !== emailToRemove),
-    }))
-  }, [])
-
-  const handleRemoveInvalidEmail = useCallback((index: number) => {
-    setInvalidEmails((prev) => prev.filter((_, i) => i !== index))
-  }, [])
-
-  const handleEmailKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (['Enter', ',', ' '].includes(e.key) && emailInputValue.trim()) {
-        e.preventDefault()
-        addEmail(emailInputValue)
-      }
-
-      if (e.key === 'Backspace' && !emailInputValue) {
-        if (invalidEmails.length > 0) {
-          handleRemoveInvalidEmail(invalidEmails.length - 1)
-        } else if (formData.emailRecipients.length > 0) {
-          handleRemoveEmail(formData.emailRecipients[formData.emailRecipients.length - 1])
-        }
+  const handleRemoveEmailItem = useCallback(
+    (_value: string, index: number, isValid: boolean) => {
+      const itemToRemove = emailItems[index]
+      setEmailItems((prev) => prev.filter((_, i) => i !== index))
+      if (isValid && itemToRemove) {
+        setFormData((prev) => ({
+          ...prev,
+          emailRecipients: prev.emailRecipients.filter((e) => e !== itemToRemove.value),
+        }))
       }
     },
-    [
-      emailInputValue,
-      addEmail,
-      invalidEmails,
-      formData.emailRecipients,
-      handleRemoveInvalidEmail,
-      handleRemoveEmail,
-    ]
-  )
-
-  const handleEmailPaste = useCallback(
-    (e: React.ClipboardEvent<HTMLInputElement>) => {
-      e.preventDefault()
-      const pastedText = e.clipboardData.getData('text')
-      const pastedEmails = pastedText.split(/[\s,;]+/).filter(Boolean)
-
-      let addedCount = 0
-      pastedEmails.forEach((email) => {
-        if (addEmail(email)) {
-          addedCount++
-        }
-      })
-
-      if (addedCount === 0 && pastedEmails.length === 1) {
-        setEmailInputValue(emailInputValue + pastedEmails[0])
-      }
-    },
-    [addEmail, emailInputValue]
+    [emailItems]
   )
 
   const validateForm = (): boolean => {
@@ -358,8 +311,11 @@ export function NotificationSettings({
       } else if (formData.emailRecipients.length > 10) {
         errors.emailRecipients = 'Maximum 10 email recipients allowed'
       }
-      if (invalidEmails.length > 0) {
-        errors.emailRecipients = `Invalid email addresses: ${invalidEmails.join(', ')}`
+      const invalidEmailValues = emailItems
+        .filter((item) => !item.isValid)
+        .map((item) => item.value)
+      if (invalidEmailValues.length > 0) {
+        errors.emailRecipients = `Invalid email addresses: ${invalidEmailValues.join(', ')}`
       }
     }
 
@@ -466,7 +422,8 @@ export function NotificationSettings({
       levelFilter: formData.levelFilter,
       triggerFilter: formData.triggerFilter,
       includeFinalOutput: formData.includeFinalOutput,
-      includeTraceSpans: formData.includeTraceSpans,
+      // Trace spans only available for webhooks (too large for email/Slack)
+      includeTraceSpans: activeTab === 'webhook' ? formData.includeTraceSpans : false,
       includeRateLimits: formData.includeRateLimits,
       includeUsageData: formData.includeUsageData,
       alertConfig,
@@ -516,7 +473,7 @@ export function NotificationSettings({
       workflowIds: subscription.workflowIds || [],
       allWorkflows: subscription.allWorkflows,
       levelFilter: subscription.levelFilter as LogLevel[],
-      triggerFilter: subscription.triggerFilter as TriggerType[],
+      triggerFilter: subscription.triggerFilter as CoreTriggerType[],
       includeFinalOutput: subscription.includeFinalOutput,
       includeTraceSpans: subscription.includeTraceSpans,
       includeRateLimits: subscription.includeRateLimits,
@@ -538,8 +495,9 @@ export function NotificationSettings({
       inactivityHours: subscription.alertConfig?.inactivityHours || 24,
       errorCountThreshold: subscription.alertConfig?.errorCountThreshold || 10,
     })
-    setEmailInputValue('')
-    setInvalidEmails([])
+    setEmailItems(
+      (subscription.emailRecipients || []).map((email) => ({ value: email, isValid: true }))
+    )
     setShowForm(true)
   }
 
@@ -694,37 +652,13 @@ export function NotificationSettings({
           {activeTab === 'email' && (
             <div className='flex flex-col gap-[8px]'>
               <Label className='text-[var(--text-secondary)]'>Email Recipients</Label>
-              <div className='scrollbar-hide flex max-h-32 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] focus-within:outline-none dark:bg-[var(--surface-5)]'>
-                {invalidEmails.map((email, index) => (
-                  <EmailTag
-                    key={`invalid-${index}`}
-                    email={email}
-                    onRemove={() => handleRemoveInvalidEmail(index)}
-                    isInvalid={true}
-                  />
-                ))}
-                {formData.emailRecipients.map((email, index) => (
-                  <EmailTag
-                    key={`valid-${index}`}
-                    email={email}
-                    onRemove={() => handleRemoveEmail(email)}
-                  />
-                ))}
-                <input
-                  type='text'
-                  value={emailInputValue}
-                  onChange={(e) => setEmailInputValue(e.target.value)}
-                  onKeyDown={handleEmailKeyDown}
-                  onPaste={handleEmailPaste}
-                  onBlur={() => emailInputValue.trim() && addEmail(emailInputValue)}
-                  placeholder={
-                    formData.emailRecipients.length > 0 || invalidEmails.length > 0
-                      ? 'Add another email'
-                      : 'Enter emails'
-                  }
-                  className='min-w-[180px] flex-1 border-none bg-transparent p-0 font-medium font-sans text-foreground text-sm outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50'
-                />
-              </div>
+              <TagInput
+                items={emailItems}
+                onAdd={(value) => addEmail(value)}
+                onRemove={handleRemoveEmailItem}
+                placeholder='Enter emails'
+                placeholderWithTags='Add email'
+              />
               {formErrors.emailRecipients && (
                 <p className='text-[11px] text-[var(--text-error)]'>{formErrors.emailRecipients}</p>
               )}
@@ -849,14 +783,14 @@ export function NotificationSettings({
           <div className='flex flex-col gap-[8px]'>
             <Label className='text-[var(--text-secondary)]'>Trigger Type Filters</Label>
             <Combobox
-              options={ALL_TRIGGER_TYPES.map((trigger) => ({
+              options={CORE_TRIGGER_TYPES.map((trigger) => ({
                 label: trigger.charAt(0).toUpperCase() + trigger.slice(1),
                 value: trigger,
               }))}
               multiSelect
               multiSelectValues={formData.triggerFilter}
               onMultiSelectChange={(values) => {
-                setFormData({ ...formData, triggerFilter: values as TriggerType[] })
+                setFormData({ ...formData, triggerFilter: values as CoreTriggerType[] })
                 setFormErrors({ ...formErrors, triggerFilter: '' })
               }}
               placeholder='Select trigger types...'
@@ -897,7 +831,10 @@ export function NotificationSettings({
             <Combobox
               options={[
                 { label: 'Final Output', value: 'includeFinalOutput' },
-                { label: 'Trace Spans', value: 'includeTraceSpans' },
+                // Trace spans only available for webhooks (too large for email/Slack)
+                ...(activeTab === 'webhook'
+                  ? [{ label: 'Trace Spans', value: 'includeTraceSpans' }]
+                  : []),
                 { label: 'Rate Limits', value: 'includeRateLimits' },
                 { label: 'Usage Data', value: 'includeUsageData' },
               ]}
@@ -905,7 +842,7 @@ export function NotificationSettings({
               multiSelectValues={
                 [
                   formData.includeFinalOutput && 'includeFinalOutput',
-                  formData.includeTraceSpans && 'includeTraceSpans',
+                  formData.includeTraceSpans && activeTab === 'webhook' && 'includeTraceSpans',
                   formData.includeRateLimits && 'includeRateLimits',
                   formData.includeUsageData && 'includeUsageData',
                 ].filter(Boolean) as string[]
@@ -929,7 +866,7 @@ export function NotificationSettings({
                 }
                 const selected = [
                   formData.includeFinalOutput && 'includeFinalOutput',
-                  formData.includeTraceSpans && 'includeTraceSpans',
+                  formData.includeTraceSpans && activeTab === 'webhook' && 'includeTraceSpans',
                   formData.includeRateLimits && 'includeRateLimits',
                   formData.includeUsageData && 'includeUsageData',
                 ].filter(Boolean) as string[]
@@ -1210,7 +1147,7 @@ export function NotificationSettings({
   )
 
   const renderTabContent = () => {
-    if (showForm) {
+    if (displayForm) {
       return renderForm()
     }
 
@@ -1279,7 +1216,7 @@ export function NotificationSettings({
           </ModalTabs>
 
           <ModalFooter>
-            {showForm ? (
+            {displayForm ? (
               <>
                 {hasSubscriptions && (
                   <Button
@@ -1351,39 +1288,5 @@ export function NotificationSettings({
         </ModalContent>
       </Modal>
     </>
-  )
-}
-
-interface EmailTagProps {
-  email: string
-  onRemove: () => void
-  isInvalid?: boolean
-}
-
-function EmailTag({ email, onRemove, isInvalid }: EmailTagProps) {
-  return (
-    <div
-      className={cn(
-        'flex w-auto items-center gap-[4px] rounded-[4px] border px-[6px] py-[2px] text-[12px]',
-        isInvalid
-          ? 'border-[var(--text-error)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] text-[var(--text-error)] dark:bg-[color-mix(in_srgb,var(--text-error)_16%,transparent)]'
-          : 'border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-      )}
-    >
-      <span className='max-w-[200px] truncate'>{email}</span>
-      <button
-        type='button'
-        onClick={onRemove}
-        className={cn(
-          'flex-shrink-0 transition-colors focus:outline-none',
-          isInvalid
-            ? 'text-[var(--text-error)] hover:text-[var(--text-error)]'
-            : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
-        )}
-        aria-label={`Remove ${email}`}
-      >
-        <X className='h-[12px] w-[12px] translate-y-[0.2px]' />
-      </button>
-    </div>
   )
 }

@@ -1,9 +1,6 @@
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
-/**
- * Console entry for terminal logs
- */
 export interface ConsoleEntry {
   id: string
   timestamp: string
@@ -25,9 +22,6 @@ export interface ConsoleEntry {
   iterationType?: SubflowType
 }
 
-/**
- * Console update payload for partial updates
- */
 export interface ConsoleUpdate {
   content?: string
   output?: Partial<NormalizedBlockOutput>
@@ -40,17 +34,15 @@ export interface ConsoleUpdate {
   input?: any
 }
 
-/**
- * Console store state and actions
- */
 export interface ConsoleStore {
   entries: ConsoleEntry[]
   isOpen: boolean
   addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry
   clearWorkflowConsole: (workflowId: string) => void
-  clearConsole: (workflowId: string | null) => void
   exportConsoleCSV: (workflowId: string) => void
   getWorkflowEntries: (workflowId: string) => ConsoleEntry[]
   toggleConsole: () => void
   updateConsole: (blockId: string, update: string | ConsoleUpdate, executionId?: string) => void
+  _hasHydrated: boolean
+  setHasHydrated: (hasHydrated: boolean) => void
 }

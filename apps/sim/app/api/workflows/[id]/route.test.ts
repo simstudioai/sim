@@ -5,6 +5,7 @@
  * @vitest-environment node
  */
 
+import { loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,14 +21,7 @@ vi.mock('@/lib/auth', () => ({
   getSession: () => mockGetSession(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  })),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   loadWorkflowFromNormalizedTables: (workflowId: string) =>

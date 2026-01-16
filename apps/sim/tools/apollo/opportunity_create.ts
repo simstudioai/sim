@@ -97,16 +97,18 @@ export const apolloOpportunityCreateTool: ToolConfig<
     return {
       success: true,
       output: {
-        opportunity: data.opportunity || {},
-        metadata: {
-          created: !!data.opportunity,
-        },
+        opportunity: data.opportunity ?? null,
+        created: !!data.opportunity,
       },
     }
   },
 
   outputs: {
-    opportunity: { type: 'json', description: 'Created opportunity data from Apollo' },
-    metadata: { type: 'json', description: 'Creation metadata including created status' },
+    opportunity: {
+      type: 'json',
+      description: 'Created opportunity data from Apollo',
+      optional: true,
+    },
+    created: { type: 'boolean', description: 'Whether the opportunity was successfully created' },
   },
 }

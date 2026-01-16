@@ -3,8 +3,9 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
-import { ChevronRight, Folder, FolderOpen } from 'lucide-react'
+import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
@@ -19,24 +20,25 @@ import {
   useCanDelete,
   useDeleteFolder,
   useDuplicateFolder,
+  useExportFolder,
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCreateFolder, useUpdateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
-import type { FolderTreeNode } from '@/stores/folders/store'
-import {
-  generateCreativeWorkflowName,
-  getNextWorkflowColor,
-} from '@/stores/workflows/registry/utils'
+import type { FolderTreeNode } from '@/stores/folders/types'
+import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
 
 const logger = createLogger('FolderItem')
 
 interface FolderItemProps {
   folder: FolderTreeNode
   level: number
+  dragDisabled?: boolean
   hoverHandlers?: {
     onDragEnter?: (e: React.DragEvent<HTMLElement>) => void
     onDragLeave?: (e: React.DragEvent<HTMLElement>) => void
   }
+  onDragStart?: () => void
+  onDragEnd?: () => void
 }
 
 /**
@@ -47,7 +49,14 @@ interface FolderItemProps {
  * @param props - Component props
  * @returns Folder item with drag and expand support
  */
-export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
+export function FolderItem({
+  folder,
+  level,
+  dragDisabled = false,
+  hoverHandlers,
+  onDragStart: onDragStartProp,
+  onDragEnd: onDragEndProp,
+}: FolderItemProps) {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -59,23 +68,23 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   const { canDeleteFolder } = useCanDelete({ workspaceId })
   const canDelete = useMemo(() => canDeleteFolder(folder.id), [canDeleteFolder, folder.id])
 
-  // Delete modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 
-  // Delete folder hook
   const { isDeleting, handleDeleteFolder } = useDeleteFolder({
     workspaceId,
-    getFolderIds: () => folder.id,
+    folderIds: folder.id,
     onSuccess: () => setIsDeleteModalOpen(false),
   })
 
-  // Duplicate folder hook
   const { handleDuplicateFolder } = useDuplicateFolder({
     workspaceId,
-    getFolderIds: () => folder.id,
+    folderIds: folder.id,
   })
 
-  // Folder expand hook - must be declared before callbacks that use expandFolder
+  const { isExporting, hasWorkflows, handleExportFolder } = useExportFolder({
+    folderId: folder.id,
+  })
+
   const {
     isExpanded,
     handleToggleExpanded,
@@ -92,7 +101,6 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
    */
   const handleCreateWorkflowInFolder = useCallback(async () => {
     try {
-      // Generate name and color upfront for optimistic updates
       const name = generateCreativeWorkflowName()
       const color = getNextWorkflowColor()
 
@@ -105,15 +113,12 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
 
       if (result.id) {
         router.push(`/workspace/${workspaceId}/w/${result.id}`)
-        // Expand the parent folder so the new workflow is visible
         expandFolder()
-        // Scroll to the newly created workflow
         window.dispatchEvent(
           new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: result.id } })
         )
       }
     } catch (error) {
-      // Error already handled by mutation's onError callback
       logger.error('Failed to create workflow in folder:', error)
     }
   }, [createWorkflowMutation, workspaceId, folder.id, router, expandFolder])
@@ -130,9 +135,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
         parentId: folder.id,
       })
       if (result.id) {
-        // Expand the parent folder so the new folder is visible
         expandFolder()
-        // Scroll to the newly created folder
         window.dispatchEvent(
           new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: result.id } })
         )
@@ -142,14 +145,8 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
     }
   }, [createFolderMutation, workspaceId, folder.id, expandFolder])
 
-  /**
-   * Drag start handler - sets folder data for drag operation
-   *
-   * @param e - React drag event
-   */
   const onDragStart = useCallback(
     (e: React.DragEvent) => {
-      // Don't start drag if editing
       if (isEditing) {
         e.preventDefault()
         return
@@ -157,25 +154,34 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
 
       e.dataTransfer.setData('folder-id', folder.id)
       e.dataTransfer.effectAllowed = 'move'
+      onDragStartProp?.()
     },
-    [folder.id]
+    [folder.id, onDragStartProp]
   )
 
-  // Item drag hook
-  const { isDragging, shouldPreventClickRef, handleDragStart, handleDragEnd } = useItemDrag({
+  const {
+    isDragging,
+    shouldPreventClickRef,
+    handleDragStart,
+    handleDragEnd: handleDragEndBase,
+  } = useItemDrag({
     onDragStart,
   })
 
-  // Context menu hook
+  const handleDragEnd = useCallback(() => {
+    handleDragEndBase()
+    onDragEndProp?.()
+  }, [handleDragEndBase, onDragEndProp])
+
   const {
     isOpen: isContextMenuOpen,
     position,
     menuRef,
     handleContextMenu,
     closeMenu,
+    preventDismiss,
   } = useContextMenu()
 
-  // Rename hook
   const {
     isEditing,
     editValue,
@@ -242,6 +248,39 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
     [isEditing, handleRenameKeyDown, handleExpandKeyDown]
   )
 
+  /**
+   * Handle more button pointerdown - prevents click-outside dismissal when toggling
+   */
+  const handleMorePointerDown = useCallback(() => {
+    if (isContextMenuOpen) {
+      preventDismiss()
+    }
+  }, [isContextMenuOpen, preventDismiss])
+
+  /**
+   * Handle more button click - toggles context menu at button position
+   */
+  const handleMoreClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      if (isContextMenuOpen) {
+        closeMenu()
+        return
+      }
+
+      const rect = e.currentTarget.getBoundingClientRect()
+      handleContextMenu({
+        preventDefault: () => {},
+        stopPropagation: () => {},
+        clientX: rect.right,
+        clientY: rect.top,
+      } as React.MouseEvent)
+    },
+    [isContextMenuOpen, closeMenu, handleContextMenu]
+  )
+
   return (
     <>
       <div
@@ -257,7 +296,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
-        draggable={!isEditing}
+        draggable={!isEditing && !dragDisabled}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         {...hoverHandlers}
@@ -303,12 +342,22 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
             spellCheck='false'
           />
         ) : (
-          <span
-            className='truncate font-medium text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
-            onDoubleClick={handleDoubleClick}
-          >
-            {folder.name}
-          </span>
+          <>
+            <span
+              className='min-w-0 flex-1 truncate font-medium text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+              onDoubleClick={handleDoubleClick}
+            >
+              {folder.name}
+            </span>
+            <button
+              type='button'
+              onPointerDown={handleMorePointerDown}
+              onClick={handleMoreClick}
+              className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)] group-hover:opacity-100'
+            >
+              <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+            </button>
+          </>
         )}
       </div>
 
@@ -322,13 +371,16 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
         onCreate={handleCreateWorkflowInFolder}
         onCreateFolder={handleCreateFolderInFolder}
         onDuplicate={handleDuplicateFolder}
+        onExport={handleExportFolder}
         onDelete={() => setIsDeleteModalOpen(true)}
         showCreate={true}
         showCreateFolder={true}
+        showExport={true}
         disableRename={!userPermissions.canEdit}
         disableCreate={!userPermissions.canEdit || createWorkflowMutation.isPending}
         disableCreateFolder={!userPermissions.canEdit || createFolderMutation.isPending}
-        disableDuplicate={!userPermissions.canEdit}
+        disableDuplicate={!userPermissions.canEdit || !hasWorkflows}
+        disableExport={!userPermissions.canEdit || isExporting || !hasWorkflows}
         disableDelete={!userPermissions.canEdit || !canDelete}
       />
 

@@ -1,13 +1,16 @@
+import { loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 import { quickValidateEmail, validateEmail } from '@/lib/messaging/email/validation'
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
+vi.mock('@sim/logger', () => loggerMock)
+
+vi.mock('dns', () => ({
+  resolveMx: (
+    _domain: string,
+    callback: (err: Error | null, addresses: { exchange: string; priority: number }[]) => void
+  ) => {
+    callback(null, [{ exchange: 'mail.example.com', priority: 10 }])
+  },
 }))
 
 describe('Email Validation', () => {

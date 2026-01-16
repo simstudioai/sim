@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { ArrowUp, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
+  BubbleChatClose,
   BubbleChatPreview,
   Button,
   Copy,
@@ -23,6 +24,7 @@ import {
   Trash,
 } from '@/components/emcn'
 import { VariableIcon } from '@/components/icons'
+import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -40,11 +42,12 @@ import { Variables } from '@/app/workspace/[workspaceId]/w/[workflowId]/componen
 import { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-auto-layout'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useChatStore } from '@/stores/chat/store'
-import { usePanelStore } from '@/stores/panel/store'
-import type { PanelTab } from '@/stores/panel/types'
+import type { PanelTab } from '@/stores/panel'
+import { usePanelStore, useVariablesStore as usePanelVariablesStore } from '@/stores/panel'
 import { useVariablesStore } from '@/stores/variables/store'
-import { useWorkflowJsonStore } from '@/stores/workflows/json/store'
+import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -92,20 +95,20 @@ export function Panel() {
 
   // Hooks
   const userPermissions = useUserPermissionsContext()
+  const { config: permissionConfig } = usePermissionConfig()
   const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })
   const { workflows, activeWorkflowId, duplicateWorkflow, hydration } = useWorkflowRegistry()
   const isRegistryLoading =
     hydration.phase === 'idle' ||
     hydration.phase === 'metadata-loading' ||
     hydration.phase === 'state-loading'
-  const { getJson } = useWorkflowJsonStore()
   const { blocks } = useWorkflowStore()
   const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null)
 
   // Delete workflow hook
   const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
     workspaceId,
-    getWorkflowIds: () => activeWorkflowId || '',
+    workflowIds: activeWorkflowId || '',
     isActive: true,
     onSuccess: () => setIsDeleteModalOpen(false),
   })
@@ -220,12 +223,27 @@ export function Panel() {
 
     setIsExporting(true)
     try {
-      // Get the JSON from the store
-      const jsonContent = await getJson()
+      const workflow = getWorkflowWithValues(activeWorkflowId)
 
-      if (!jsonContent) {
-        throw new Error('Failed to generate JSON')
+      if (!workflow || !workflow.state) {
+        throw new Error('No workflow state found')
       }
+
+      const workflowVariables = usePanelVariablesStore
+        .getState()
+        .getVariablesByWorkflowId(activeWorkflowId)
+
+      const jsonContent = generateWorkflowJson(workflow.state, {
+        workflowId: activeWorkflowId,
+        name: currentWorkflow.name,
+        description: currentWorkflow.description,
+        variables: workflowVariables.map((v) => ({
+          id: v.id,
+          name: v.name,
+          type: v.type,
+          value: v.value,
+        })),
+      })
 
       const filename = `${currentWorkflow.name.replace(/[^a-z0-9]/gi, '-')}.json`
       downloadFile(jsonContent, filename, 'application/json')
@@ -236,7 +254,7 @@ export function Panel() {
       setIsExporting(false)
       setIsMenuOpen(false)
     }
-  }, [currentWorkflow, activeWorkflowId, getJson, downloadFile])
+  }, [currentWorkflow, activeWorkflowId, downloadFile])
 
   /**
    * Handles duplicating the current workflow
@@ -412,7 +430,7 @@ export function Panel() {
                 variant={isChatOpen ? 'active' : 'default'}
                 onClick={() => setIsChatOpen(!isChatOpen)}
               >
-                <BubbleChatPreview />
+                {isChatOpen ? <BubbleChatClose /> : <BubbleChatPreview />}
               </Button>
             </div>
 
@@ -438,18 +456,20 @@ export function Panel() {
           {/* Tabs */}
           <div className='flex flex-shrink-0 items-center justify-between px-[8px] pt-[14px]'>
             <div className='flex gap-[4px]'>
-              <Button
-                className={`h-[28px] truncate rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
-                  _hasHydrated && activeTab === 'copilot'
-                    ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
-                }`}
-                variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
-                onClick={() => handleTabClick('copilot')}
-                data-tab-button='copilot'
-              >
-                Copilot
-              </Button>
+              {!permissionConfig.hideCopilot && (
+                <Button
+                  className={`h-[28px] truncate rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                    _hasHydrated && activeTab === 'copilot'
+                      ? 'border-[var(--border-1)]'
+                      : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                  }`}
+                  variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
+                  onClick={() => handleTabClick('copilot')}
+                  data-tab-button='copilot'
+                >
+                  Copilot
+                </Button>
+              )}
               <Button
                 className={`h-[28px] rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
                   _hasHydrated && activeTab === 'toolbar'
@@ -482,18 +502,20 @@ export function Panel() {
 
           {/* Tab Content - Keep all tabs mounted but hidden to preserve state */}
           <div className='flex-1 overflow-hidden pt-[12px]'>
-            <div
-              className={
-                _hasHydrated && activeTab === 'copilot'
-                  ? 'h-full'
-                  : _hasHydrated
-                    ? 'hidden'
-                    : 'h-full'
-              }
-              data-tab-content='copilot'
-            >
-              <Copilot ref={copilotRef} panelWidth={panelWidth} />
-            </div>
+            {!permissionConfig.hideCopilot && (
+              <div
+                className={
+                  _hasHydrated && activeTab === 'copilot'
+                    ? 'h-full'
+                    : _hasHydrated
+                      ? 'hidden'
+                      : 'h-full'
+                }
+                data-tab-content='copilot'
+              >
+                <Copilot ref={copilotRef} panelWidth={panelWidth} />
+              </div>
+            )}
             <div
               className={
                 _hasHydrated && activeTab === 'editor'

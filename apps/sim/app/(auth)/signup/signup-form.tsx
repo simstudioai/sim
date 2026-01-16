@@ -95,7 +95,7 @@ function SignupFormContent({
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
   const [redirectUrl, setRedirectUrl] = useState('')
   const [isInviteFlow, setIsInviteFlow] = useState(false)
-  const [buttonClass, setButtonClass] = useState('auth-button-gradient')
+  const [buttonClass, setButtonClass] = useState('branded-button-gradient')
   const [isButtonHovered, setIsButtonHovered] = useState(false)
 
   const [name, setName] = useState('')
@@ -109,11 +109,15 @@ function SignupFormContent({
       setEmail(emailParam)
     }
 
-    const redirectParam = searchParams.get('redirect')
+    // Check both 'redirect' and 'callbackUrl' params (login page uses callbackUrl)
+    const redirectParam = searchParams.get('redirect') || searchParams.get('callbackUrl')
     if (redirectParam) {
       setRedirectUrl(redirectParam)
 
-      if (redirectParam.startsWith('/invite/')) {
+      if (
+        redirectParam.startsWith('/invite/') ||
+        redirectParam.startsWith('/credential-account/')
+      ) {
         setIsInviteFlow(true)
       }
     }
@@ -128,9 +132,9 @@ function SignupFormContent({
       const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
 
       if (brandAccent && brandAccent !== '#6f3dfa') {
-        setButtonClass('auth-button-custom')
+        setButtonClass('branded-button-custom')
       } else {
-        setButtonClass('auth-button-gradient')
+        setButtonClass('branded-button-gradient')
       }
     }
 
@@ -353,15 +357,6 @@ function SignupFormContent({
           sessionStorage.setItem('inviteRedirectUrl', redirectUrl)
           sessionStorage.setItem('isInviteFlow', 'true')
         }
-      }
-
-      try {
-        await client.emailOtp.sendVerificationOtp({
-          email: emailValue,
-          type: 'sign-in',
-        })
-      } catch (otpErr) {
-        logger.warn('Failed to send sign-in OTP after signup; user can press Resend', otpErr)
       }
 
       router.push('/verify?fromSignup=true')

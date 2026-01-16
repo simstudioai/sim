@@ -66,6 +66,22 @@ export const GoogleGroupsBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Filter query (e.g., email:admin*)',
       condition: { field: 'operation', value: 'list_groups' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Google Groups search query based on the user's description.
+Use Google Groups Admin SDK query syntax:
+- email:pattern* - search by email address (supports wildcards)
+- name:term - search by group name
+- memberKey:email - search by member email
+
+Examples:
+- "groups starting with admin" -> email:admin*
+- "groups with support in the name" -> name:support*
+- "groups containing user@example.com" -> memberKey:user@example.com
+
+Return ONLY the query string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the groups you want to find...',
+      },
     },
     {
       id: 'maxResults',
@@ -115,6 +131,22 @@ export const GoogleGroupsBlock: BlockConfig = {
       placeholder: 'Display name for the group',
       required: true,
       condition: { field: 'operation', value: 'create_group' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a professional group display name based on the user's description.
+The name should be:
+- Clear and descriptive
+- Appropriate for a workplace setting
+- Concise (typically 2-5 words)
+
+Examples:
+- "marketing team" -> Marketing Team
+- "project managers" -> Project Managers
+- "sales leadership" -> Sales Leadership Team
+
+Return ONLY the group name - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the group you want to create...',
+      },
     },
     {
       id: 'description',
@@ -122,6 +154,17 @@ export const GoogleGroupsBlock: BlockConfig = {
       type: 'long-input',
       placeholder: 'Optional description for the group',
       condition: { field: 'operation', value: ['create_group', 'update_group'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a professional group description based on the user's request.
+The description should:
+- Clearly explain the purpose of the group
+- Be concise but informative (1-3 sentences)
+- Use professional language appropriate for a workplace setting
+
+Return ONLY the description text - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the purpose of this group...',
+      },
     },
 
     {

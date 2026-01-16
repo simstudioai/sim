@@ -2,14 +2,14 @@
 
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
-import { Layout, LibraryBig, Search } from 'lucide-react'
+import { Layout, Search } from 'lucide-react'
 import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
-import { Button } from '@/components/emcn'
+import { Button, Library } from '@/components/emcn'
 import { AgentIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useSearchModalStore } from '@/stores/search-modal/store'
+import { useSearchModalStore } from '@/stores/modals/search/store'
 
 const logger = createLogger('WorkflowCommandList')
 
@@ -41,7 +41,7 @@ const commands: CommandItem[] = [
   },
   {
     label: 'Logs',
-    icon: LibraryBig,
+    icon: Library,
     shortcut: 'L',
   },
   {

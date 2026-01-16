@@ -87,14 +87,10 @@ describe('Workspace Invitations API Route', () => {
       WorkspaceInvitationEmail: vi.fn(),
     }))
 
-    vi.doMock('@/lib/core/config/env', () => ({
-      env: {
-        RESEND_API_KEY: 'test-resend-key',
-        NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
-        FROM_EMAIL_ADDRESS: 'Sim <noreply@test.sim.ai>',
-        EMAIL_DOMAIN: 'test.sim.ai',
-      },
-    }))
+    vi.doMock('@/lib/core/config/env', async () => {
+      const { createEnvMock } = await import('@sim/testing')
+      return createEnvMock()
+    })
 
     vi.doMock('@/lib/core/utils/urls', () => ({
       getEmailDomain: vi.fn().mockReturnValue('sim.ai'),
@@ -104,6 +100,16 @@ describe('Workspace Invitations API Route', () => {
       and: vi.fn().mockImplementation((...args) => ({ type: 'and', conditions: args })),
       eq: vi.fn().mockImplementation((field, value) => ({ type: 'eq', field, value })),
       inArray: vi.fn().mockImplementation((field, values) => ({ type: 'inArray', field, values })),
+    }))
+
+    vi.doMock('@/executor/utils/permission-check', () => ({
+      validateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
+      InvitationsNotAllowedError: class InvitationsNotAllowedError extends Error {
+        constructor() {
+          super('Invitations are not allowed based on your permission group settings')
+          this.name = 'InvitationsNotAllowedError'
+        }
+      },
     }))
   })
 

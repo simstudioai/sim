@@ -15,9 +15,6 @@ export interface ZendeskSearchCountResponse {
   success: boolean
   output: {
     count: number
-    metadata: {
-      operation: 'search_count'
-    }
     success: boolean
   }
 }
@@ -90,9 +87,6 @@ export const zendeskSearchCountTool: ToolConfig<
       success: true,
       output: {
         count: data.count || 0,
-        metadata: {
-          operation: 'search_count' as const,
-        },
         success: true,
       },
     }
@@ -100,6 +94,5 @@ export const zendeskSearchCountTool: ToolConfig<
 
   outputs: {
     count: { type: 'number', description: 'Number of matching results' },
-    metadata: { type: 'object', description: 'Operation metadata' },
   },
 }

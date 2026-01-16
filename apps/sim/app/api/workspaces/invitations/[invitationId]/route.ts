@@ -11,7 +11,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { WorkspaceInvitationEmail } from '@/components/emails/workspace-invitation'
+import { WorkspaceInvitationEmail } from '@/components/emails'
 import { getSession } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -31,7 +31,6 @@ export async function GET(
   const isAcceptFlow = !!token // If token is provided, this is an acceptance flow
 
   if (!session?.user?.id) {
-    // For token-based acceptance flows, redirect to login
     if (isAcceptFlow) {
       return NextResponse.redirect(new URL(`/invite/${invitationId}?token=${token}`, getBaseUrl()))
     }
@@ -51,8 +50,9 @@ export async function GET(
 
     if (!invitation) {
       if (isAcceptFlow) {
+        const tokenParam = token ? `&token=${encodeURIComponent(token)}` : ''
         return NextResponse.redirect(
-          new URL(`/invite/${invitationId}?error=invalid-token`, getBaseUrl())
+          new URL(`/invite/${invitationId}?error=invalid-token${tokenParam}`, getBaseUrl())
         )
       }
       return NextResponse.json({ error: 'Invitation not found or has expired' }, { status: 404 })
@@ -60,8 +60,9 @@ export async function GET(
 
     if (new Date() > new Date(invitation.expiresAt)) {
       if (isAcceptFlow) {
+        const tokenParam = token ? `&token=${encodeURIComponent(token)}` : ''
         return NextResponse.redirect(
-          new URL(`/invite/${invitation.id}?error=expired`, getBaseUrl())
+          new URL(`/invite/${invitation.id}?error=expired${tokenParam}`, getBaseUrl())
         )
       }
       return NextResponse.json({ error: 'Invitation has expired' }, { status: 400 })
@@ -75,17 +76,20 @@ export async function GET(
 
     if (!workspaceDetails) {
       if (isAcceptFlow) {
+        const tokenParam = token ? `&token=${encodeURIComponent(token)}` : ''
         return NextResponse.redirect(
-          new URL(`/invite/${invitation.id}?error=workspace-not-found`, getBaseUrl())
+          new URL(`/invite/${invitation.id}?error=workspace-not-found${tokenParam}`, getBaseUrl())
         )
       }
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
     if (isAcceptFlow) {
+      const tokenParam = token ? `&token=${encodeURIComponent(token)}` : ''
+
       if (invitation.status !== ('pending' as WorkspaceInvitationStatus)) {
         return NextResponse.redirect(
-          new URL(`/invite/${invitation.id}?error=already-processed`, getBaseUrl())
+          new URL(`/invite/${invitation.id}?error=already-processed${tokenParam}`, getBaseUrl())
         )
       }
 
@@ -100,7 +104,7 @@ export async function GET(
 
       if (!userData) {
         return NextResponse.redirect(
-          new URL(`/invite/${invitation.id}?error=user-not-found`, getBaseUrl())
+          new URL(`/invite/${invitation.id}?error=user-not-found${tokenParam}`, getBaseUrl())
         )
       }
 
@@ -108,7 +112,7 @@ export async function GET(
 
       if (!isValidMatch) {
         return NextResponse.redirect(
-          new URL(`/invite/${invitation.id}?error=email-mismatch`, getBaseUrl())
+          new URL(`/invite/${invitation.id}?error=email-mismatch${tokenParam}`, getBaseUrl())
         )
       }
 

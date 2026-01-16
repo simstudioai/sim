@@ -6,6 +6,7 @@ import {
   type GetBlockOptionsResultType,
 } from '@/lib/copilot/tools/shared/schemas'
 import { registry as blockRegistry } from '@/blocks/registry'
+import { getUserPermissionConfig } from '@/executor/utils/permission-check'
 import { tools as toolsRegistry } from '@/tools/registry'
 
 export const getBlockOptionsServerTool: BaseServerTool<
@@ -13,9 +14,19 @@ export const getBlockOptionsServerTool: BaseServerTool<
   GetBlockOptionsResultType
 > = {
   name: 'get_block_options',
-  async execute({ blockId }: GetBlockOptionsInputType): Promise<GetBlockOptionsResultType> {
+  async execute(
+    { blockId }: GetBlockOptionsInputType,
+    context?: { userId: string }
+  ): Promise<GetBlockOptionsResultType> {
     const logger = createLogger('GetBlockOptionsServerTool')
     logger.debug('Executing get_block_options', { blockId })
+
+    const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
+    const allowedIntegrations = permissionConfig?.allowedIntegrations
+
+    if (allowedIntegrations != null && !allowedIntegrations.includes(blockId)) {
+      throw new Error(`Block "${blockId}" is not available`)
+    }
 
     const blockConfig = blockRegistry[blockId]
     if (!blockConfig) {

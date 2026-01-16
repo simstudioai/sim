@@ -29,10 +29,10 @@ const TIMEOUTS = {
 
 // Configuration for handling large documents
 const LARGE_DOC_CONFIG = {
-  MAX_CHUNKS_PER_BATCH: 500, // Insert embeddings in batches of 500
-  MAX_EMBEDDING_BATCH: 500, // Generate embeddings in batches of 500
-  MAX_FILE_SIZE: 100 * 1024 * 1024, // 100MB max file size
-  MAX_CHUNKS_PER_DOCUMENT: 100000, // Maximum chunks allowed per document
+  MAX_CHUNKS_PER_BATCH: 500,
+  MAX_EMBEDDING_BATCH: env.KB_CONFIG_BATCH_SIZE || 2000,
+  MAX_FILE_SIZE: 100 * 1024 * 1024,
+  MAX_CHUNKS_PER_DOCUMENT: 100000,
 }
 
 /**
@@ -212,7 +212,6 @@ export async function processDocumentTags(
     return result
   }
 
-  // Fetch existing tag definitions
   const existingDefinitions = await db
     .select()
     .from(knowledgeBaseTagDefinitions)
@@ -220,18 +219,15 @@ export async function processDocumentTags(
 
   const existingByName = new Map(existingDefinitions.map((def) => [def.displayName, def]))
 
-  // First pass: collect all validation errors
   const undefinedTags: string[] = []
   const typeErrors: string[] = []
 
   for (const tag of tagData) {
-    // Skip if no tag name
     if (!tag.tagName?.trim()) continue
 
     const tagName = tag.tagName.trim()
     const fieldType = tag.fieldType || 'text'
 
-    // For boolean, check if value is defined; for others, check if value is non-empty
     const hasValue =
       fieldType === 'boolean'
         ? tag.value !== undefined && tag.value !== null && tag.value !== ''
@@ -239,14 +235,12 @@ export async function processDocumentTags(
 
     if (!hasValue) continue
 
-    // Check if tag exists
     const existingDef = existingByName.get(tagName)
     if (!existingDef) {
       undefinedTags.push(tagName)
       continue
     }
 
-    // Validate value type using shared validation
     const rawValue = typeof tag.value === 'string' ? tag.value.trim() : tag.value
     const actualFieldType = existingDef.fieldType || fieldType
     const validationError = validateTagValue(tagName, String(rawValue), actualFieldType)
@@ -255,7 +249,6 @@ export async function processDocumentTags(
     }
   }
 
-  // Throw combined error if there are any validation issues
   if (undefinedTags.length > 0 || typeErrors.length > 0) {
     const errorParts: string[] = []
 
@@ -270,7 +263,6 @@ export async function processDocumentTags(
     throw new Error(errorParts.join('\n'))
   }
 
-  // Second pass: process valid tags
   for (const tag of tagData) {
     if (!tag.tagName?.trim()) continue
 
@@ -285,14 +277,13 @@ export async function processDocumentTags(
     if (!hasValue) continue
 
     const existingDef = existingByName.get(tagName)
-    if (!existingDef) continue // Already validated above
+    if (!existingDef) continue
 
     const targetSlot = existingDef.tagSlot
     const actualFieldType = existingDef.fieldType || fieldType
     const rawValue = typeof tag.value === 'string' ? tag.value.trim() : tag.value
     const stringValue = String(rawValue).trim()
 
-    // Assign value to the slot with proper type conversion (values already validated)
     if (actualFieldType === 'boolean') {
       setTagValue(result, targetSlot, parseBooleanValue(stringValue) ?? false)
     } else if (actualFieldType === 'number') {
@@ -440,7 +431,6 @@ export async function processDocumentAsync(
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
-    // Use KB's chunkingConfig as fallback if processingOptions not provided
     const kbConfig = kb[0].chunkingConfig as { maxSize: number; minSize: number; overlap: number }
 
     await withTimeout(
@@ -469,7 +459,6 @@ export async function processDocumentAsync(
           `[${documentId}] Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`
         )
 
-        // Generate embeddings in batches for large documents
         const chunkTexts = processed.chunks.map((chunk) => chunk.text)
         const embeddings: number[][] = []
 
@@ -485,7 +474,9 @@ export async function processDocumentAsync(
 
             logger.info(`[${documentId}] Processing embedding batch ${batchNum}/${totalBatches}`)
             const batchEmbeddings = await generateEmbeddings(batch, undefined, kb[0].workspaceId)
-            embeddings.push(...batchEmbeddings)
+            for (const emb of batchEmbeddings) {
+              embeddings.push(emb)
+            }
           }
         }
 
@@ -562,23 +553,18 @@ export async function processDocumentAsync(
         }))
 
         await db.transaction(async (tx) => {
-          // Insert embeddings in batches for large documents
           if (embeddingRecords.length > 0) {
-            const batchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
-            const totalBatches = Math.ceil(embeddingRecords.length / batchSize)
+            await tx.delete(embedding).where(eq(embedding.documentId, documentId))
 
-            logger.info(
-              `[${documentId}] Inserting ${embeddingRecords.length} embeddings in ${totalBatches} batches`
-            )
+            const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
+            const batches: (typeof embeddingRecords)[] = []
+            for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
+              batches.push(embeddingRecords.slice(i, i + insertBatchSize))
+            }
 
-            for (let i = 0; i < embeddingRecords.length; i += batchSize) {
-              const batch = embeddingRecords.slice(i, i + batchSize)
-              const batchNum = Math.floor(i / batchSize) + 1
-
+            logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
+            for (const batch of batches) {
               await tx.insert(embedding).values(batch)
-              logger.info(
-                `[${documentId}] Inserted batch ${batchNum}/${totalBatches} (${batch.length} records)`
-              )
             }
           }
 
@@ -689,11 +675,9 @@ export async function createDocumentRecords(
   requestId: string,
   userId?: string
 ): Promise<DocumentData[]> {
-  // Check storage limits before creating documents
   if (userId) {
     const totalSize = documents.reduce((sum, doc) => sum + doc.fileSize, 0)
 
-    // Get knowledge base owner
     const kb = await db
       .select({ userId: knowledgeBase.userId })
       .from(knowledgeBase)
@@ -713,7 +697,7 @@ export async function createDocumentRecords(
     for (const docData of documents) {
       const documentId = randomUUID()
 
-      let processedTags: Record<string, any> = {}
+      let processedTags: Partial<ProcessedDocumentTags> = {}
 
       if (docData.documentTagsData) {
         try {
@@ -722,7 +706,6 @@ export async function createDocumentRecords(
             processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
           }
         } catch (error) {
-          // Re-throw validation errors, only catch JSON parse errors
           if (error instanceof SyntaxError) {
             logger.warn(`[${requestId}] Failed to parse documentTagsData for bulk document:`, error)
           } else {
@@ -791,7 +774,6 @@ export async function createDocumentRecords(
       if (userId) {
         const totalSize = documents.reduce((sum, doc) => sum + doc.fileSize, 0)
 
-        // Get knowledge base owner
         const kb = await db
           .select({ userId: knowledgeBase.userId })
           .from(knowledgeBase)
@@ -1079,7 +1061,7 @@ export async function createSingleDocument(
   const now = new Date()
 
   // Process structured tag data if provided
-  let processedTags: Record<string, any> = {
+  let processedTags: ProcessedDocumentTags = {
     // Text tags (7 slots)
     tag1: documentData.tag1 ?? null,
     tag2: documentData.tag2 ?? null,
@@ -1555,23 +1537,30 @@ export async function updateDocument(
     return value || null
   }
 
+  // Type-safe access to tag slots in updateData
+  type UpdateDataWithTags = typeof updateData & Record<TagSlot, string | undefined>
+  const typedUpdateData = updateData as UpdateDataWithTags
+
   ALL_TAG_SLOTS.forEach((slot: TagSlot) => {
-    const updateValue = (updateData as any)[slot]
+    const updateValue = typedUpdateData[slot]
     if (updateValue !== undefined) {
-      ;(dbUpdateData as any)[slot] = convertTagValue(slot, updateValue)
+      ;(dbUpdateData as Record<TagSlot, string | number | Date | boolean | null>)[slot] =
+        convertTagValue(slot, updateValue)
     }
   })
 
   await db.transaction(async (tx) => {
     await tx.update(document).set(dbUpdateData).where(eq(document.id, documentId))
 
-    const hasTagUpdates = ALL_TAG_SLOTS.some((field) => (updateData as any)[field] !== undefined)
+    const hasTagUpdates = ALL_TAG_SLOTS.some((field) => typedUpdateData[field] !== undefined)
 
     if (hasTagUpdates) {
-      const embeddingUpdateData: Record<string, any> = {}
+      const embeddingUpdateData: Partial<ProcessedDocumentTags> = {}
       ALL_TAG_SLOTS.forEach((field) => {
-        if ((updateData as any)[field] !== undefined) {
-          embeddingUpdateData[field] = convertTagValue(field, (updateData as any)[field])
+        if (typedUpdateData[field] !== undefined) {
+          ;(embeddingUpdateData as Record<TagSlot, string | number | Date | boolean | null>)[
+            field
+          ] = convertTagValue(field, typedUpdateData[field])
         }
       })
 

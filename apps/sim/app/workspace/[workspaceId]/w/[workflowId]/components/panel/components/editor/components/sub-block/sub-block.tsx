@@ -30,6 +30,7 @@ import {
   ProjectSelectorInput,
   ResponseFormat,
   ScheduleInfo,
+  SheetSelectorInput,
   ShortInput,
   SlackSelectorInput,
   SliderInput,
@@ -460,7 +461,9 @@ function SubBlockComponent({
               disabled={isDisabled}
               multiSelect={config.multiSelect}
               fetchOptions={config.fetchOptions}
+              fetchOptionById={config.fetchOptionById}
               dependsOn={config.dependsOn}
+              searchable={config.searchable}
             />
           </div>
         )
@@ -478,6 +481,9 @@ function SubBlockComponent({
               previewValue={previewValue as any}
               disabled={isDisabled}
               config={config}
+              fetchOptions={config.fetchOptions}
+              fetchOptionById={config.fetchOptionById}
+              dependsOn={config.dependsOn}
             />
           </div>
         )
@@ -604,6 +610,18 @@ function SubBlockComponent({
           />
         )
 
+      case 'router-input':
+        return (
+          <ConditionInput
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue as any}
+            disabled={isDisabled}
+            mode='router'
+          />
+        )
+
       case 'eval-input':
         return (
           <EvalInput
@@ -658,6 +676,18 @@ function SubBlockComponent({
       case 'file-selector':
         return (
           <FileSelectorInput
+            blockId={blockId}
+            subBlock={config}
+            disabled={isDisabled}
+            isPreview={isPreview}
+            previewValue={previewValue}
+            previewContextValues={isPreview ? subBlockValues : undefined}
+          />
+        )
+
+      case 'sheet-selector':
+        return (
+          <SheetSelectorInput
             blockId={blockId}
             subBlock={config}
             disabled={isDisabled}

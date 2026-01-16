@@ -108,13 +108,20 @@ export const salesforceCreateCaseTool: ToolConfig<
         id: data.id,
         success: data.success,
         created: true,
-        metadata: { operation: 'create_case' },
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success' },
-    output: { type: 'object', description: 'Created case' },
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Created case data',
+      properties: {
+        id: { type: 'string', description: 'Created case ID' },
+        success: { type: 'boolean', description: 'Salesforce operation success' },
+        created: { type: 'boolean', description: 'Whether case was created' },
+      },
+    },
   },
 }

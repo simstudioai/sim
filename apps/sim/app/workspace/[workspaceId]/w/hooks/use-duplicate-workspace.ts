@@ -6,10 +6,9 @@ const logger = createLogger('useDuplicateWorkspace')
 
 interface UseDuplicateWorkspaceProps {
   /**
-   * Function that returns the workspace ID to duplicate
-   * This function is called when duplication occurs to get fresh state
+   * The workspace ID to duplicate
    */
-  getWorkspaceId: () => string | null
+  workspaceId: string | null
   /**
    * Optional callback after successful duplication
    */
@@ -19,17 +18,10 @@ interface UseDuplicateWorkspaceProps {
 /**
  * Hook for managing workspace duplication.
  *
- * Handles:
- * - Workspace duplication
- * - Calling duplicate API
- * - Loading state management
- * - Error handling and logging
- * - Navigation to duplicated workspace
- *
  * @param props - Hook configuration
  * @returns Duplicate workspace handlers and state
  */
-export function useDuplicateWorkspace({ getWorkspaceId, onSuccess }: UseDuplicateWorkspaceProps) {
+export function useDuplicateWorkspace({ workspaceId, onSuccess }: UseDuplicateWorkspaceProps) {
   const router = useRouter()
   const [isDuplicating, setIsDuplicating] = useState(false)
 
@@ -38,18 +30,12 @@ export function useDuplicateWorkspace({ getWorkspaceId, onSuccess }: UseDuplicat
    */
   const handleDuplicateWorkspace = useCallback(
     async (workspaceName: string) => {
-      if (isDuplicating) {
+      if (isDuplicating || !workspaceId) {
         return
       }
 
       setIsDuplicating(true)
       try {
-        // Get fresh workspace ID at duplication time
-        const workspaceId = getWorkspaceId()
-        if (!workspaceId) {
-          return
-        }
-
         const response = await fetch(`/api/workspaces/${workspaceId}/duplicate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -70,7 +56,6 @@ export function useDuplicateWorkspace({ getWorkspaceId, onSuccess }: UseDuplicat
           workflowsCount: duplicatedWorkspace.workflowsCount,
         })
 
-        // Navigate to duplicated workspace
         router.push(`/workspace/${duplicatedWorkspace.id}/w`)
 
         onSuccess?.()
@@ -83,7 +68,7 @@ export function useDuplicateWorkspace({ getWorkspaceId, onSuccess }: UseDuplicat
         setIsDuplicating(false)
       }
     },
-    [getWorkspaceId, isDuplicating, router, onSuccess]
+    [workspaceId, isDuplicating, router, onSuccess]
   )
 
   return {

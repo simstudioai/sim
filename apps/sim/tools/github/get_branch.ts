@@ -90,3 +90,34 @@ Protected: ${branch.protected ? 'Yes' : 'No'}`
     },
   },
 }
+
+export const getBranchV2Tool: ToolConfig<GetBranchParams, any> = {
+  id: 'github_get_branch_v2',
+  name: getBranchTool.name,
+  description: getBranchTool.description,
+  version: '2.0.0',
+  params: getBranchTool.params,
+  request: getBranchTool.request,
+
+  transformResponse: async (response: Response) => {
+    const branch = await response.json()
+    return {
+      success: true,
+      output: {
+        name: branch.name,
+        commit: branch.commit,
+        protected: branch.protected,
+        protection: branch.protection,
+        protection_url: branch.protection_url,
+      },
+    }
+  },
+
+  outputs: {
+    name: { type: 'string', description: 'Branch name' },
+    commit: { type: 'json', description: 'Commit object with sha, url, etc.' },
+    protected: { type: 'boolean', description: 'Whether branch is protected' },
+    protection: { type: 'json', description: 'Protection settings object' },
+    protection_url: { type: 'string', description: 'URL to protection settings' },
+  },
+}

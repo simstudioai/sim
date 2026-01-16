@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpPauseAutomation')
 
 export interface MailchimpPauseAutomationParams {
   apiKey: string
@@ -12,10 +9,6 @@ export interface MailchimpPauseAutomationParams {
 export interface MailchimpPauseAutomationResponse {
   success: boolean
   output: {
-    metadata: {
-      operation: 'pause_automation'
-      workflowId: string
-    }
     success: boolean
   }
 }
@@ -66,10 +59,6 @@ export const mailchimpPauseAutomationTool: ToolConfig<
     return {
       success: true,
       output: {
-        metadata: {
-          operation: 'pause_automation' as const,
-          workflowId: '',
-        },
         success: true,
       },
     }
@@ -81,7 +70,6 @@ export const mailchimpPauseAutomationTool: ToolConfig<
       type: 'object',
       description: 'Pause confirmation',
       properties: {
-        metadata: { type: 'object', description: 'Operation metadata' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

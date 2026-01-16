@@ -2,12 +2,30 @@ import type { ClientToolCallState, ClientToolDisplay } from '@/lib/copilot/tools
 
 export type ToolState = ClientToolCallState
 
+/**
+ * Subagent content block for nested thinking/reasoning inside a tool call
+ */
+export interface SubAgentContentBlock {
+  type: 'subagent_text' | 'subagent_tool_call'
+  content?: string
+  toolCall?: CopilotToolCall
+  timestamp: number
+}
+
 export interface CopilotToolCall {
   id: string
   name: string
   state: ClientToolCallState
   params?: Record<string, any>
   display?: ClientToolDisplay
+  /** Content streamed from a subagent (e.g., debug agent) */
+  subAgentContent?: string
+  /** Tool calls made by the subagent */
+  subAgentToolCalls?: CopilotToolCall[]
+  /** Structured content blocks for subagent (thinking + tool calls in order) */
+  subAgentBlocks?: SubAgentContentBlock[]
+  /** Whether subagent is currently streaming */
+  subAgentStreaming?: boolean
 }
 
 export interface MessageFileAttachment {
@@ -42,6 +60,20 @@ export interface CopilotMessage {
   errorType?: 'usage_limit' | 'unauthorized' | 'forbidden' | 'rate_limit' | 'upgrade_required'
 }
 
+/**
+ * A message queued for sending while another message is in progress.
+ * Like Cursor's queued message feature.
+ */
+export interface QueuedMessage {
+  id: string
+  content: string
+  fileAttachments?: MessageFileAttachment[]
+  contexts?: ChatContext[]
+  queuedAt: number
+  /** Original messageId to use when processing (for edit/resend flows) */
+  originalMessageId?: string
+}
+
 // Contexts attached to a user message
 export type ChatContext =
   | { kind: 'past_chat'; chatId: string; label: string }
@@ -53,6 +85,7 @@ export type ChatContext =
   | { kind: 'knowledge'; knowledgeId?: string; label: string }
   | { kind: 'templates'; templateId?: string; label: string }
   | { kind: 'docs'; label: string }
+  | { kind: 'slash_command'; command: string; label: string }
 
 import type { CopilotChat as ApiCopilotChat } from '@/lib/copilot/api'
 
@@ -73,6 +106,9 @@ export interface CopilotState {
     | 'gpt-5.1-high'
     | 'gpt-5-codex'
     | 'gpt-5.1-codex'
+    | 'gpt-5.2'
+    | 'gpt-5.2-codex'
+    | 'gpt-5.2-pro'
     | 'gpt-4o'
     | 'gpt-4.1'
     | 'o3'
@@ -131,18 +167,11 @@ export interface CopilotState {
 
   // Per-message metadata captured at send-time for reliable stats
 
-  // Context usage tracking for percentage pill
-  contextUsage: {
-    usage: number
-    percentage: number
-    model: string
-    contextWindow: number
-    when: 'start' | 'end'
-    estimatedTokens?: number
-  } | null
-
   // Auto-allowed integration tools (tools that can run without confirmation)
   autoAllowedTools: string[]
+
+  // Message queue for messages sent while another is in progress
+  messageQueue: QueuedMessage[]
 }
 
 export interface CopilotActions {
@@ -150,7 +179,6 @@ export interface CopilotActions {
   setSelectedModel: (model: CopilotStore['selectedModel']) => Promise<void>
   setAgentPrefetch: (prefetch: boolean) => void
   setEnabledModels: (models: string[] | null) => void
-  fetchContextUsage: () => Promise<void>
 
   setWorkflowId: (workflowId: string | null) => Promise<void>
   validateCurrentChat: () => boolean
@@ -220,6 +248,21 @@ export interface CopilotActions {
   addAutoAllowedTool: (toolId: string) => Promise<void>
   removeAutoAllowedTool: (toolId: string) => Promise<void>
   isToolAutoAllowed: (toolId: string) => boolean
+
+  // Message queue actions
+  addToQueue: (
+    message: string,
+    options?: {
+      fileAttachments?: MessageFileAttachment[]
+      contexts?: ChatContext[]
+      /** Original messageId to preserve (for edit/resend flows) */
+      messageId?: string
+    }
+  ) => void
+  removeFromQueue: (id: string) => void
+  moveUpInQueue: (id: string) => void
+  sendNow: (id: string) => Promise<void>
+  clearQueue: () => void
 }
 
 export type CopilotStore = CopilotState & CopilotActions

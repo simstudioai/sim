@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useToolbarStore } from '@/stores/panel/toolbar/store'
+import { useToolbarStore } from '@/stores/panel'
 
 /**
  * Minimum height for the blocks section (in pixels)

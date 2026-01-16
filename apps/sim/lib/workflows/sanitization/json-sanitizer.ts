@@ -53,15 +53,24 @@ export interface ExportWorkflowState {
     metadata?: {
       name?: string
       description?: string
+      color?: string
+      sortOrder?: number
       exportedAt?: string
     }
     variables?: Array<{
       id: string
       name: string
       type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
-      value: any
+      value: unknown
     }>
   }
+}
+
+/** Condition structure for sanitization */
+interface SanitizedCondition {
+  id: string
+  title: string
+  value: string
 }
 
 /**
@@ -70,15 +79,18 @@ export interface ExportWorkflowState {
  */
 function sanitizeConditions(conditionsJson: string): string {
   try {
-    const conditions = JSON.parse(conditionsJson)
+    const conditions: unknown = JSON.parse(conditionsJson)
     if (!Array.isArray(conditions)) return conditionsJson
 
     // Keep only id, title, and value - remove UI state
-    const cleaned = conditions.map((cond: any) => ({
-      id: cond.id,
-      title: cond.title,
-      value: cond.value || '',
-    }))
+    const cleaned: SanitizedCondition[] = conditions.map((cond: unknown) => {
+      const condition = cond as Record<string, unknown>
+      return {
+        id: String(condition.id ?? ''),
+        title: String(condition.title ?? ''),
+        value: String(condition.value ?? ''),
+      }
+    })
 
     return JSON.stringify(cleaned)
   } catch {
@@ -86,11 +98,50 @@ function sanitizeConditions(conditionsJson: string): string {
   }
 }
 
+/** Tool input structure for sanitization */
+interface ToolInput {
+  type: string
+  customToolId?: string
+  schema?: {
+    type?: string
+    function?: {
+      name: string
+      description?: string
+      parameters?: unknown
+    }
+  }
+  code?: string
+  title?: string
+  toolId?: string
+  usageControl?: string
+  isExpanded?: boolean
+  [key: string]: unknown
+}
+
+/** Sanitized tool output structure */
+interface SanitizedTool {
+  type: string
+  customToolId?: string
+  usageControl?: string
+  title?: string
+  toolId?: string
+  schema?: {
+    type: string
+    function: {
+      name: string
+      description?: string
+      parameters?: unknown
+    }
+  }
+  code?: string
+  [key: string]: unknown
+}
+
 /**
  * Sanitize tools array by removing UI state and redundant fields
  */
-function sanitizeTools(tools: any[]): any[] {
-  return tools.map((tool) => {
+function sanitizeTools(tools: ToolInput[]): SanitizedTool[] {
+  return tools.map((tool): SanitizedTool => {
     if (tool.type === 'custom-tool') {
       // New reference format: minimal fields only
       if (tool.customToolId && !tool.schema && !tool.code) {
@@ -102,7 +153,7 @@ function sanitizeTools(tools: any[]): any[] {
       }
 
       // Legacy inline format: include all fields
-      const sanitized: any = {
+      const sanitized: SanitizedTool = {
         type: tool.type,
         title: tool.title,
         toolId: tool.toolId,
@@ -129,23 +180,24 @@ function sanitizeTools(tools: any[]): any[] {
       return sanitized
     }
 
-    const { isExpanded, ...cleanTool } = tool
-    return cleanTool
+    const { isExpanded: _isExpanded, ...cleanTool } = tool
+    return cleanTool as SanitizedTool
   })
 }
 
 /**
  * Sort object keys recursively for consistent comparison
  */
-function sortKeysRecursively(item: any): any {
+function sortKeysRecursively(item: unknown): unknown {
   if (Array.isArray(item)) {
     return item.map(sortKeysRecursively)
   }
   if (item !== null && typeof item === 'object') {
-    return Object.keys(item)
+    const obj = item as Record<string, unknown>
+    return Object.keys(obj)
       .sort()
-      .reduce((result: any, key: string) => {
-        result[key] = sortKeysRecursively(item[key])
+      .reduce((result: Record<string, unknown>, key: string) => {
+        result[key] = sortKeysRecursively(obj[key])
         return result
       }, {})
   }
@@ -183,7 +235,7 @@ function sanitizeSubBlocks(
 
         // Sort keys for consistent comparison
         if (obj && typeof obj === 'object') {
-          sanitized[key] = sortKeysRecursively(obj)
+          sanitized[key] = sortKeysRecursively(obj) as Record<string, unknown>
           return
         }
       } catch {
@@ -201,7 +253,7 @@ function sanitizeSubBlocks(
     }
 
     if (key === 'tools' && Array.isArray(subBlock.value)) {
-      sanitized[key] = sanitizeTools(subBlock.value)
+      sanitized[key] = sanitizeTools(subBlock.value as unknown as ToolInput[])
       return
     }
 
@@ -383,7 +435,7 @@ export function sanitizeForExport(state: WorkflowState): ExportWorkflowState {
   // Use unified sanitization with env var preservation for export
   const sanitizedState = sanitizeWorkflowForSharing(fullState, {
     preserveEnvVars: true, // Keep {{ENV_VAR}} references in exported workflows
-  })
+  }) as ExportWorkflowState['state']
 
   return {
     version: '1.0',

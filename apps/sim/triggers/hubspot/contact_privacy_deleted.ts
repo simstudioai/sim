@@ -95,6 +95,17 @@ export const hubspotContactPrivacyDeletedTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'hubspot_contact_privacy_deleted',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'hubspot_contact_privacy_deleted',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
@@ -152,17 +163,6 @@ export const hubspotContactPrivacyDeletedTrigger: TriggerConfig = {
       showCopyButton: true,
       description: 'Run this command to subscribe to contact privacy deletion events',
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_contact_privacy_deleted',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_contact_privacy_deleted',
       condition: {
         field: 'selectedTriggerId',
         value: 'hubspot_contact_privacy_deleted',

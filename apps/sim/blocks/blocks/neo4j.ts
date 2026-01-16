@@ -1,8 +1,8 @@
 import { Neo4jIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import type { Neo4jResponse } from '@/tools/neo4j/types'
+import type { Neo4jIntrospectResponse, Neo4jResponse } from '@/tools/neo4j/types'
 
-export const Neo4jBlock: BlockConfig<Neo4jResponse> = {
+export const Neo4jBlock: BlockConfig<Neo4jResponse | Neo4jIntrospectResponse> = {
   type: 'neo4j',
   name: 'Neo4j',
   description: 'Connect to Neo4j graph database',
@@ -24,6 +24,7 @@ export const Neo4jBlock: BlockConfig<Neo4jResponse> = {
         { label: 'Update Properties (SET)', id: 'update' },
         { label: 'Delete Nodes/Relationships', id: 'delete' },
         { label: 'Execute Cypher', id: 'execute' },
+        { label: 'Introspect Schema', id: 'introspect' },
       ],
       value: () => 'query',
     },
@@ -589,6 +590,7 @@ Return ONLY valid JSON.`,
       'neo4j_update',
       'neo4j_delete',
       'neo4j_execute',
+      'neo4j_introspect',
     ],
     config: {
       tool: (params) => {
@@ -605,6 +607,8 @@ Return ONLY valid JSON.`,
             return 'neo4j_delete'
           case 'execute':
             return 'neo4j_execute'
+          case 'introspect':
+            return 'neo4j_introspect'
           default:
             throw new Error(`Invalid Neo4j operation: ${params.operation}`)
         }

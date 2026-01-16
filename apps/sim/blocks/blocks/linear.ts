@@ -77,7 +77,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         // Project Update Operations
         { label: 'Create Project Update', id: 'linear_create_project_update' },
         { label: 'List Project Updates', id: 'linear_list_project_updates' },
-        { label: 'Create Project Link', id: 'linear_create_project_link' },
         // Notification Operations
         { label: 'List Notifications', id: 'linear_list_notifications' },
         { label: 'Update Notification', id: 'linear_update_notification' },
@@ -227,6 +226,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_update_project',
           'linear_archive_project',
           'linear_delete_project',
+          'linear_create_project_update',
           'linear_list_project_updates',
         ],
       },
@@ -239,6 +239,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_update_project',
           'linear_archive_project',
           'linear_delete_project',
+          'linear_create_project_update',
           'linear_list_project_updates',
           'linear_list_project_labels',
         ],
@@ -261,7 +262,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_delete_project',
           'linear_create_project_update',
           'linear_list_project_updates',
-          'linear_create_project_link',
         ],
       },
       condition: {
@@ -275,7 +275,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_delete_project',
           'linear_create_project_update',
           'linear_list_project_updates',
-          'linear_create_project_link',
           'linear_list_project_labels',
         ],
       },
@@ -317,6 +316,17 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_create_issue', 'linear_update_issue'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a concise Linear issue title based on the user's description.
+The title should:
+- Be clear and descriptive
+- Capture the essence of the issue
+- Be suitable for project management tracking
+
+Return ONLY the title text - no explanations.`,
+        placeholder: 'Describe the issue (e.g., "login not working", "add export feature")...',
+      },
     },
     // Description (for issue creation/update, comments, projects)
     {
@@ -333,6 +343,17 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_update_project',
         ],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a detailed description based on the user's description.
+The description should:
+- Provide context and details
+- Include acceptance criteria or requirements when applicable
+- Be professional and clear
+
+Return ONLY the description text - no explanations.`,
+        placeholder: 'Describe the details (e.g., "users report errors when logging in")...',
+      },
     },
     // Comment body
     {
@@ -347,6 +368,18 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       condition: {
         field: 'operation',
         value: ['linear_create_comment', 'linear_update_comment', 'linear_create_project_update'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comment or project update based on the user's description.
+The comment should:
+- Be professional and informative
+- Provide relevant updates or information
+- Be suitable for team collaboration
+
+Return ONLY the comment text - no explanations.`,
+        placeholder:
+          'Describe what you want to communicate (e.g., "progress update", "request for review")...',
       },
     },
     // Comment ID
@@ -476,6 +509,18 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_search_issues'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a search query for Linear issues based on the user's description.
+The query should:
+- Be specific and targeted
+- Use relevant keywords
+- Be suitable for finding issues
+
+Return ONLY the search query - no explanations.`,
+        placeholder:
+          'Describe what you want to search for (e.g., "open bugs", "my assigned tasks")...',
+      },
     },
     // Include archived (for list operations)
     {
@@ -509,6 +554,19 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_create_cycle', 'linear_create_project'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "today" -> Today's date
+- "next Monday" -> Calculate the next Monday
+- "start of next month" -> First day of next month
+- "in 2 weeks" -> Calculate 14 days from now
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "next Monday", "start of next month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'endDate',
@@ -518,6 +576,19 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       condition: {
         field: 'operation',
         value: ['linear_create_cycle'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "in 2 weeks" -> Calculate 14 days from now
+- "end of month" -> Last day of current month
+- "next Friday" -> Calculate the next Friday
+- "end of quarter" -> Last day of current quarter
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end date (e.g., "in 2 weeks", "end of month")...',
+        generationType: 'timestamp',
       },
     },
     // Target date (for projects)
@@ -530,6 +601,19 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_create_project', 'linear_update_project'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "end of quarter" -> Last day of current quarter
+- "in 3 months" -> Calculate 3 months from now
+- "end of year" -> December 31 of current year
+- "next month" -> First day of next month
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the target date (e.g., "end of quarter", "in 3 months")...',
+        generationType: 'timestamp',
+      },
     },
     // Attachment URL
     {
@@ -540,7 +624,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       required: true,
       condition: {
         field: 'operation',
-        value: ['linear_create_attachment', 'linear_create_project_link'],
+        value: ['linear_create_attachment'],
       },
     },
     // Attachment title
@@ -849,6 +933,18 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_create_customer_request', 'linear_update_customer_request'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a customer request description based on the user's description.
+The description should:
+- Clearly explain the customer's need or request
+- Include relevant context and details
+- Be professional and suitable for product feedback
+
+Return ONLY the description text - no explanations.`,
+        placeholder:
+          'Describe the customer request (e.g., "need bulk export feature", "integration with Slack")...',
+      },
     },
     // Customer request priority/urgency
     {
@@ -1098,6 +1194,19 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_create_project_milestone', 'linear_update_project_milestone'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "in 2 weeks" -> Calculate 14 days from now
+- "end of sprint" -> Calculate based on typical 2-week sprint
+- "next milestone" -> Calculate a reasonable next milestone date
+- "end of month" -> Last day of current month
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the milestone target date (e.g., "in 2 weeks", "end of month")...',
+        generationType: 'timestamp',
+      },
     },
     // Project status fields
     {
@@ -1105,6 +1214,36 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       title: 'Status Name',
       type: 'short-input',
       placeholder: 'Enter project status name',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_create_project_status'],
+      },
+    },
+    {
+      id: 'projectStatusType',
+      title: 'Status Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Backlog', id: 'backlog' },
+        { label: 'Planned', id: 'planned' },
+        { label: 'Started', id: 'started' },
+        { label: 'Paused', id: 'paused' },
+        { label: 'Completed', id: 'completed' },
+        { label: 'Canceled', id: 'canceled' },
+      ],
+      value: () => 'started',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_create_project_status'],
+      },
+    },
+    {
+      id: 'projectStatusPosition',
+      title: 'Position',
+      type: 'short-input',
+      placeholder: 'Enter position (e.g. 0, 1, 2...)',
       required: true,
       condition: {
         field: 'operation',
@@ -1216,7 +1355,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       'linear_list_favorites',
       'linear_create_project_update',
       'linear_list_project_updates',
-      'linear_create_project_link',
       'linear_list_notifications',
       'linear_update_notification',
       'linear_create_customer',
@@ -1662,17 +1800,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
               projectId: effectiveProjectId,
             }
 
-          case 'linear_create_project_link':
-            if (!effectiveProjectId || !params.url?.trim()) {
-              throw new Error('Project ID and URL are required.')
-            }
-            return {
-              ...baseParams,
-              projectId: effectiveProjectId,
-              url: params.url.trim(),
-              label: params.name,
-            }
-
           case 'linear_list_notifications':
             return baseParams
 
@@ -1923,22 +2050,22 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
             }
 
           case 'linear_add_label_to_project':
-            if (!effectiveProjectId || !params.projectLabelId?.trim()) {
+            if (!params.projectIdForMilestone?.trim() || !params.projectLabelId?.trim()) {
               throw new Error('Project ID and label ID are required.')
             }
             return {
               ...baseParams,
-              projectId: effectiveProjectId,
+              projectId: params.projectIdForMilestone.trim(),
               labelId: params.projectLabelId.trim(),
             }
 
           case 'linear_remove_label_from_project':
-            if (!effectiveProjectId || !params.projectLabelId?.trim()) {
+            if (!params.projectIdForMilestone?.trim() || !params.projectLabelId?.trim()) {
               throw new Error('Project ID and label ID are required.')
             }
             return {
               ...baseParams,
-              projectId: effectiveProjectId,
+              projectId: params.projectIdForMilestone.trim(),
               labelId: params.projectLabelId.trim(),
             }
 
@@ -1987,13 +2114,20 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
 
           // Project Status Operations
           case 'linear_create_project_status':
-            if (!params.projectStatusName?.trim() || !params.statusColor?.trim()) {
-              throw new Error('Project status name and color are required.')
+            if (
+              !params.projectStatusName?.trim() ||
+              !params.projectStatusType?.trim() ||
+              !params.statusColor?.trim() ||
+              !params.projectStatusPosition?.trim()
+            ) {
+              throw new Error('Project status name, type, color, and position are required.')
             }
             return {
               ...baseParams,
               name: params.projectStatusName.trim(),
+              type: params.projectStatusType.trim(),
               color: params.statusColor.trim(),
+              position: Number.parseFloat(params.projectStatusPosition.trim()),
               description: params.projectStatusDescription?.trim() || undefined,
               indefinite: params.projectStatusIndefinite === 'true',
             }
@@ -2160,7 +2294,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
     // Project update outputs
     update: { type: 'json', description: 'Project update data' },
     updates: { type: 'json', description: 'Project updates list' },
-    link: { type: 'json', description: 'Project link data' },
     // Notification outputs
     notification: { type: 'json', description: 'Notification data' },
     notifications: { type: 'json', description: 'Notifications list' },

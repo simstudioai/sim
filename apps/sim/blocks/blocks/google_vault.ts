@@ -90,6 +90,22 @@ export const GoogleVaultBlock: BlockConfig = {
       placeholder: 'Name for the export',
       condition: { field: 'operation', value: 'create_matters_export' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a descriptive export name for Google Vault based on the user's description.
+The name should be:
+- Clear and descriptive
+- Include relevant identifiers (date, case, scope)
+- Professional and concise
+
+Examples:
+- "email export for Q4" -> Q4_2024_Email_Export
+- "drive files for legal case" -> Legal_Case_Drive_Files_Export
+- "john's messages" -> John_Doe_Messages_Export
+
+Return ONLY the export name - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the export...',
+      },
     },
     {
       id: 'holdName',
@@ -98,6 +114,22 @@ export const GoogleVaultBlock: BlockConfig = {
       placeholder: 'Name of the hold',
       condition: { field: 'operation', value: 'create_matters_holds' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a descriptive hold name for Google Vault based on the user's description.
+The name should be:
+- Clear and descriptive
+- Include relevant identifiers (case name, scope, date)
+- Professional and concise
+
+Examples:
+- "hold for investigation" -> Investigation_Hold_2024
+- "preserve emails for John" -> John_Doe_Email_Preservation
+- "legal hold for project alpha" -> Project_Alpha_Legal_Hold
+
+Return ONLY the hold name - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the hold...',
+      },
     },
     {
       id: 'corpus',
@@ -169,6 +201,22 @@ export const GoogleVaultBlock: BlockConfig = {
       placeholder: 'Enter Matter name',
       condition: { field: 'operation', value: 'create_matters' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a descriptive matter name for Google Vault based on the user's description.
+The name should be:
+- Clear and descriptive
+- Professional and suitable for legal/compliance purposes
+- Include relevant identifiers if applicable
+
+Examples:
+- "investigation into data breach" -> Data_Breach_Investigation_2024
+- "lawsuit from acme corp" -> Acme_Corp_Litigation
+- "HR complaint case" -> HR_Complaint_Matter_001
+
+Return ONLY the matter name - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the matter...',
+      },
     },
     {
       id: 'description',
@@ -176,6 +224,17 @@ export const GoogleVaultBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Optional description for the matter',
       condition: { field: 'operation', value: 'create_matters' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a professional description for a Google Vault matter based on the user's request.
+The description should:
+- Clearly explain the purpose and scope of the matter
+- Be concise but informative (1-3 sentences)
+- Use professional language appropriate for legal/compliance contexts
+
+Return ONLY the description text - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the purpose of this matter...',
+      },
     },
     // Optional get specific matter by ID
     {

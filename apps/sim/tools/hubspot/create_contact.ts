@@ -92,10 +92,7 @@ export const hubspotCreateContactTool: ToolConfig<
       success: true,
       output: {
         contact: data,
-        metadata: {
-          operation: 'create_contact' as const,
-          contactId: data.id,
-        },
+        contactId: data.id,
         success: true,
       },
     }
@@ -103,7 +100,7 @@ export const hubspotCreateContactTool: ToolConfig<
 
   outputs: {
     contact: { type: 'object', description: 'Created HubSpot contact object' },
-    metadata: { type: 'object', description: 'Operation metadata' },
+    contactId: { type: 'string', description: 'The created contact ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

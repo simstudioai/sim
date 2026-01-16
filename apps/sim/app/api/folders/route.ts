@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, workspaceId, parentId, color } = body
+    const { name, workspaceId, parentId, color, sortOrder: providedSortOrder } = body
 
     if (!name || !workspaceId) {
       return NextResponse.json({ error: 'Name and workspace ID are required' }, { status: 400 })
@@ -81,25 +81,26 @@ export async function POST(request: NextRequest) {
     // Generate a new ID
     const id = crypto.randomUUID()
 
-    // Use transaction to ensure sortOrder consistency
     const newFolder = await db.transaction(async (tx) => {
-      // Get the next sort order for the parent (or root level)
-      // Consider all folders in the workspace, not just those created by current user
-      const existingFolders = await tx
-        .select({ sortOrder: workflowFolder.sortOrder })
-        .from(workflowFolder)
-        .where(
-          and(
-            eq(workflowFolder.workspaceId, workspaceId),
-            parentId ? eq(workflowFolder.parentId, parentId) : isNull(workflowFolder.parentId)
+      let sortOrder: number
+      if (providedSortOrder !== undefined) {
+        sortOrder = providedSortOrder
+      } else {
+        const existingFolders = await tx
+          .select({ sortOrder: workflowFolder.sortOrder })
+          .from(workflowFolder)
+          .where(
+            and(
+              eq(workflowFolder.workspaceId, workspaceId),
+              parentId ? eq(workflowFolder.parentId, parentId) : isNull(workflowFolder.parentId)
+            )
           )
-        )
-        .orderBy(desc(workflowFolder.sortOrder))
-        .limit(1)
+          .orderBy(desc(workflowFolder.sortOrder))
+          .limit(1)
 
-      const nextSortOrder = existingFolders.length > 0 ? existingFolders[0].sortOrder + 1 : 0
+        sortOrder = existingFolders.length > 0 ? existingFolders[0].sortOrder + 1 : 0
+      }
 
-      // Insert the new folder within the same transaction
       const [folder] = await tx
         .insert(workflowFolder)
         .values({
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
           workspaceId,
           parentId: parentId || null,
           color: color || '#6B7280',
-          sortOrder: nextSortOrder,
+          sortOrder,
         })
         .returning()
 

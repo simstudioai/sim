@@ -32,12 +32,11 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
+import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth-credentials'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useKnowledgeBase } from '@/hooks/use-knowledge'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
-import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useVariablesStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -199,8 +198,9 @@ const tryParseJson = (value: unknown): unknown => {
 
 /**
  * Formats a subblock value for display, intelligently handling nested objects and arrays.
+ * Used by both the canvas workflow blocks and copilot edit summaries.
  */
-const getDisplayValue = (value: unknown): string => {
+export const getDisplayValue = (value: unknown): string => {
   if (value == null || value === '') return '-'
 
   // Try parsing JSON strings first
@@ -612,27 +612,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     [isDeploying, setDeploymentStatus, refetchDeployment]
   )
 
-  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
-
-  /**
-   * Clear credential-dependent fields when credential changes to prevent
-   * stale data from persisting with new credentials.
-   */
-  const prevCredRef = useRef<string | undefined>(undefined)
-  useEffect(() => {
-    const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-    if (!activeWorkflowId) return
-    const current = useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id]
-    if (!current) return
-    const cred = current.credential?.value as string | undefined
-    if (prevCredRef.current !== cred) {
-      prevCredRef.current = cred
-      const keys = Object.keys(current)
-      const dependentKeys = keys.filter((k) => k !== 'credential')
-      dependentKeys.forEach((k) => collaborativeSetSubblockValue(id, k, ''))
-    }
-  }, [id, collaborativeSetSubblockValue])
-
   const currentStoreBlock = currentWorkflow.getBlockById(id)
 
   const isStarterBlock = type === 'starter'
@@ -842,6 +821,39 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   }, [type, subBlockState, id])
 
   /**
+   * Compute per-route rows (id/value) for router_v2 blocks so we can render
+   * one row per route with its own output handle.
+   * Uses same structure as conditions: { id, title, value }
+   */
+  const routerRows = useMemo(() => {
+    if (type !== 'router_v2') return [] as { id: string; value: string }[]
+
+    const routesValue = subBlockState.routes?.value
+    const raw = typeof routesValue === 'string' ? routesValue : undefined
+
+    try {
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown
+        if (Array.isArray(parsed)) {
+          return parsed.map((item: unknown, index: number) => {
+            const routeItem = item as { id?: string; value?: string }
+            return {
+              // Use stable ID format that matches ConditionInput's generateStableId
+              id: routeItem?.id ?? `${id}-route${index + 1}`,
+              value: routeItem?.value ?? '',
+            }
+          })
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to parse router routes value', { error, blockId: id })
+    }
+
+    // Fallback must match ConditionInput's default: generateStableId(blockId, 'route1') = `${blockId}-route1`
+    return [{ id: `${id}-route1`, value: '' }]
+  }, [type, subBlockState, id])
+
+  /**
    * Compute and publish deterministic layout metrics for workflow blocks.
    * This avoids ResizeObserver/animation-frame jitter and prevents initial "jump".
    */
@@ -857,6 +869,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       let rowsCount = 0
       if (type === 'condition') {
         rowsCount = conditionRows.length + defaultHandlesRow
+      } else if (type === 'router_v2') {
+        // +1 for context row, plus route rows
+        rowsCount = 1 + routerRows.length + defaultHandlesRow
       } else {
         const subblockRowCount = subBlockRows.reduce((acc, row) => acc + row.length, 0)
         rowsCount = subblockRowCount + defaultHandlesRow
@@ -877,8 +892,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       type,
       config.category,
       displayTriggerMode,
-      subBlockRows.length,
+      subBlockRows.reduce((acc, row) => acc + row.length, 0),
       conditionRows.length,
+      routerRows.length,
       horizontalHandles,
     ],
   })
@@ -914,7 +930,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           </div>
         )}
 
-        <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
+        {!data.isPreview && (
+          <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
+        )}
 
         {shouldShowDefaultHandles && <Connections blockId={id} />}
 
@@ -974,11 +992,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                   <Tooltip.Trigger asChild>
                     <Badge
                       variant={!childIsDeployed ? 'red' : 'amber'}
-                      className='cursor-pointer'
+                      className={userPermissions.canAdmin ? 'cursor-pointer' : 'cursor-not-allowed'}
                       dot
                       onClick={(e) => {
                         e.stopPropagation()
-                        if (childWorkflowId && !isDeploying) {
+                        if (childWorkflowId && !isDeploying && userPermissions.canAdmin) {
                           deployWorkflow(childWorkflowId)
                         }
                       }}
@@ -988,7 +1006,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                   </Tooltip.Trigger>
                   <Tooltip.Content>
                     <span className='text-sm'>
-                      {!childIsDeployed ? 'Click to deploy' : 'Click to redeploy'}
+                      {!userPermissions.canAdmin
+                        ? 'Admin permission required to deploy'
+                        : !childIsDeployed
+                          ? 'Click to deploy'
+                          : 'Click to redeploy'}
                     </span>
                   </Tooltip.Content>
                 </Tooltip.Root>
@@ -1025,7 +1047,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                     Webhook
                   </Badge>
                 </Tooltip.Trigger>
-                <Tooltip.Content side='top' className='max-w-[300px] p-4'>
+                <Tooltip.Content side='top' className='max-w-[300px]'>
                   {webhookProvider && webhookPath ? (
                     <>
                       <p className='text-sm'>{getProviderName(webhookProvider)} Webhook</p>
@@ -1073,32 +1095,45 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
         {hasContentBelowHeader && (
           <div className='flex flex-col gap-[8px] p-[8px]'>
-            {type === 'condition'
-              ? conditionRows.map((cond) => (
+            {type === 'condition' ? (
+              conditionRows.map((cond) => (
+                <SubBlockRow key={cond.id} title={cond.title} value={getDisplayValue(cond.value)} />
+              ))
+            ) : type === 'router_v2' ? (
+              <>
+                <SubBlockRow
+                  key='context'
+                  title='Context'
+                  value={getDisplayValue(subBlockState.context?.value)}
+                />
+                {routerRows.map((route, index) => (
                   <SubBlockRow
-                    key={cond.id}
-                    title={cond.title}
-                    value={getDisplayValue(cond.value)}
+                    key={route.id}
+                    title={`Route ${index + 1}`}
+                    value={getDisplayValue(route.value)}
                   />
-                ))
-              : subBlockRows.map((row, rowIndex) =>
-                  row.map((subBlock) => {
-                    const rawValue = subBlockState[subBlock.id]?.value
-                    return (
-                      <SubBlockRow
-                        key={`${subBlock.id}-${rowIndex}`}
-                        title={subBlock.title ?? subBlock.id}
-                        value={getDisplayValue(rawValue)}
-                        subBlock={subBlock}
-                        rawValue={rawValue}
-                        workspaceId={workspaceId}
-                        workflowId={currentWorkflowId}
-                        blockId={id}
-                        allSubBlockValues={subBlockState}
-                      />
-                    )
-                  })
-                )}
+                ))}
+              </>
+            ) : (
+              subBlockRows.map((row, rowIndex) =>
+                row.map((subBlock) => {
+                  const rawValue = subBlockState[subBlock.id]?.value
+                  return (
+                    <SubBlockRow
+                      key={`${subBlock.id}-${rowIndex}`}
+                      title={subBlock.title ?? subBlock.id}
+                      value={getDisplayValue(rawValue)}
+                      subBlock={subBlock}
+                      rawValue={rawValue}
+                      workspaceId={workspaceId}
+                      workflowId={currentWorkflowId}
+                      blockId={id}
+                      allSubBlockValues={subBlockState}
+                    />
+                  )
+                })
+              )
+            )}
             {shouldShowDefaultHandles && <SubBlockRow title='error' />}
           </div>
         )}
@@ -1153,7 +1188,58 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           </>
         )}
 
-        {type !== 'condition' && type !== 'response' && (
+        {type === 'router_v2' && (
+          <>
+            {routerRows.map((route, routeIndex) => {
+              // +1 row offset for context row at the top
+              const topOffset =
+                HANDLE_POSITIONS.CONDITION_START_Y +
+                (routeIndex + 1) * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
+              return (
+                <Handle
+                  key={`handle-${route.id}`}
+                  type='source'
+                  position={Position.Right}
+                  id={`router-${route.id}`}
+                  className={getHandleClasses('right')}
+                  style={{ top: `${topOffset}px`, transform: 'translateY(-50%)' }}
+                  data-nodeid={id}
+                  data-handleid={`router-${route.id}`}
+                  isConnectableStart={true}
+                  isConnectableEnd={false}
+                  isValidConnection={(connection) => {
+                    if (connection.target === id) return false
+                    const edges = useWorkflowStore.getState().edges
+                    return !wouldCreateCycle(edges, connection.source!, connection.target!)
+                  }}
+                />
+              )
+            })}
+            <Handle
+              type='source'
+              position={Position.Right}
+              id='error'
+              className={getHandleClasses('right', true)}
+              style={{
+                right: '-7px',
+                top: 'auto',
+                bottom: `${HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET}px`,
+                transform: 'translateY(50%)',
+              }}
+              data-nodeid={id}
+              data-handleid='error'
+              isConnectableStart={true}
+              isConnectableEnd={false}
+              isValidConnection={(connection) => {
+                if (connection.target === id) return false
+                const edges = useWorkflowStore.getState().edges
+                return !wouldCreateCycle(edges, connection.source!, connection.target!)
+              }}
+            />
+          </>
+        )}
+
+        {type !== 'condition' && type !== 'router_v2' && type !== 'response' && (
           <>
             <Handle
               type='source'

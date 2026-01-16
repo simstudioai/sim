@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { MailchimpLandingPage } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpUpdateLandingPage')
 
 export interface MailchimpUpdateLandingPageParams {
   apiKey: string
@@ -15,10 +12,7 @@ export interface MailchimpUpdateLandingPageResponse {
   success: boolean
   output: {
     landingPage: MailchimpLandingPage
-    metadata: {
-      operation: 'update_landing_page'
-      pageId: string
-    }
+    page_id: string
     success: boolean
   }
 }
@@ -81,10 +75,7 @@ export const mailchimpUpdateLandingPageTool: ToolConfig<
       success: true,
       output: {
         landingPage: data,
-        metadata: {
-          operation: 'update_landing_page' as const,
-          pageId: data.id,
-        },
+        page_id: data.id,
         success: true,
       },
     }
@@ -97,7 +88,7 @@ export const mailchimpUpdateLandingPageTool: ToolConfig<
       description: 'Updated landing page data',
       properties: {
         landingPage: { type: 'object', description: 'Updated landing page object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
+        page_id: { type: 'string', description: 'Landing page ID' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

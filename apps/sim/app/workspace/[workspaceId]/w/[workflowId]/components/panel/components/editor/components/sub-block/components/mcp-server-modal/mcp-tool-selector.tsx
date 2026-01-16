@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { Combobox } from '@/components/emcn/components'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useMcpTools } from '@/hooks/use-mcp-tools'
+import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 
 interface McpToolSelectorProps {
   blockId: string

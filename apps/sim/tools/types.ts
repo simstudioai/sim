@@ -61,7 +61,6 @@ export interface ToolConfig<P = any, R = any> {
     }
   >
 
-  // Output schema - what this tool produces
   outputs?: Record<
     string,
     {
@@ -69,8 +68,8 @@ export interface ToolConfig<P = any, R = any> {
       description?: string
       optional?: boolean
       fileConfig?: {
-        mimeType?: string // Expected MIME type for file outputs
-        extension?: string // Expected file extension
+        mimeType?: string
+        extension?: string
       }
       items?: {
         type: string
@@ -93,7 +92,7 @@ export interface ToolConfig<P = any, R = any> {
     url: string | ((params: P) => string)
     method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>
-    body?: (params: P) => Record<string, any> | string
+    body?: (params: P) => Record<string, any> | string | FormData | undefined
   }
 
   // Post-processing (optional) - allows additional processing after the initial request
@@ -122,7 +121,9 @@ export interface TableRow {
 }
 
 export interface OAuthTokenPayload {
-  credentialId: string
+  credentialId?: string
+  credentialAccountUserId?: string
+  providerId?: string
   workflowId?: string
 }
 

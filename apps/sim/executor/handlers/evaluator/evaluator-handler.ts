@@ -8,6 +8,7 @@ import { BlockType, DEFAULTS, EVALUATOR, HTTP } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAPIUrl, extractAPIErrorMessage } from '@/executor/utils/http'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
+import { validateModelProvider } from '@/executor/utils/permission-check'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -32,7 +33,13 @@ export class EvaluatorBlockHandler implements BlockHandler {
       vertexProject: inputs.vertexProject,
       vertexLocation: inputs.vertexLocation,
       vertexCredential: inputs.vertexCredential,
+      bedrockAccessKeyId: inputs.bedrockAccessKeyId,
+      bedrockSecretKey: inputs.bedrockSecretKey,
+      bedrockRegion: inputs.bedrockRegion,
     }
+
+    await validateModelProvider(ctx.userId, evaluatorConfig.model, ctx)
+
     const providerId = getProviderFromModel(evaluatorConfig.model)
 
     let finalApiKey: string | undefined = evaluatorConfig.apiKey
@@ -126,6 +133,12 @@ export class EvaluatorBlockHandler implements BlockHandler {
       if (providerId === 'azure-openai') {
         providerRequest.azureEndpoint = inputs.azureEndpoint
         providerRequest.azureApiVersion = inputs.azureApiVersion
+      }
+
+      if (providerId === 'bedrock') {
+        providerRequest.bedrockAccessKeyId = evaluatorConfig.bedrockAccessKeyId
+        providerRequest.bedrockSecretKey = evaluatorConfig.bedrockSecretKey
+        providerRequest.bedrockRegion = evaluatorConfig.bedrockRegion
       }
 
       const response = await fetch(url.toString(), {

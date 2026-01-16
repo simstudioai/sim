@@ -62,6 +62,14 @@ export const typeformWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'typeform_webhook',
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -71,7 +79,7 @@ export const typeformWebhookTrigger: TriggerConfig = {
         'Find your Form ID in the URL when editing your form (e.g., <code>https://admin.typeform.com/form/ABC123/create</code> → Form ID is <code>ABC123</code>)',
         'Fill in the form above with your Form ID and Personal Access Token',
         'Optionally add a Webhook Secret for enhanced security - Sim will verify all incoming webhooks match this secret',
-        'Click "Save" below - Sim will automatically register the webhook with Typeform',
+        'Click "Save" above - Sim will automatically register the webhook with Typeform',
         '<strong>Note:</strong> Requires a Typeform PRO or PRO+ account to use webhooks',
       ]
         .map(
@@ -80,14 +88,6 @@ export const typeformWebhookTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'typeform_webhook',
     },
   ],
 
@@ -136,6 +136,8 @@ export const typeformWebhookTrigger: TriggerConfig = {
         'Array of respondent answers (only includes answered questions). Each answer contains type, value, and field reference.',
     },
     definition: {
+      description:
+        'Form definition (only included when "Include Form Definition" is enabled in trigger settings)',
       id: {
         type: 'string',
         description: 'Form ID',

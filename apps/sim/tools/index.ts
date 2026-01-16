@@ -253,9 +253,8 @@ export async function executeTool(
       try {
         const baseUrl = getBaseUrl()
 
-        // Prepare the token payload
         const tokenPayload: OAuthTokenPayload = {
-          credentialId: contextParams.credential,
+          credentialId: contextParams.credential as string,
         }
 
         // Add workflowId if it exists in params, context, or executionContext

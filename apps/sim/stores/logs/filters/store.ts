@@ -1,5 +1,11 @@
 import { create } from 'zustand'
-import type { FilterState, LogLevel, TimeRange, TriggerType } from '@/stores/logs/filters/types'
+import {
+  CORE_TRIGGER_TYPES,
+  type FilterState,
+  type LogLevel,
+  type TimeRange,
+  type TriggerType,
+} from '@/stores/logs/filters/types'
 
 const getSearchParams = () => {
   if (typeof window === 'undefined') return new URLSearchParams()
@@ -59,9 +65,7 @@ const parseTriggerArrayFromURL = (value: string | null): TriggerType[] => {
   if (!value) return []
   return value
     .split(',')
-    .filter((t): t is TriggerType =>
-      ['chat', 'api', 'webhook', 'manual', 'schedule', 'mcp'].includes(t)
-    )
+    .filter((t): t is TriggerType => (CORE_TRIGGER_TYPES as readonly string[]).includes(t))
 }
 
 const parseStringArrayFromURL = (value: string | null): string[] => {
@@ -249,6 +253,22 @@ export const useFilterStore = create<FilterState>((set, get) => ({
       searchQuery,
       isInitializing: false,
     })
+  },
+
+  resetFilters: () => {
+    set({
+      timeRange: DEFAULT_TIME_RANGE,
+      startDate: undefined,
+      endDate: undefined,
+      level: 'all',
+      workflowIds: [],
+      folderIds: [],
+      triggers: [],
+      searchQuery: '',
+    })
+    if (!get().isInitializing) {
+      get().syncWithURL()
+    }
   },
 
   syncWithURL: () => {

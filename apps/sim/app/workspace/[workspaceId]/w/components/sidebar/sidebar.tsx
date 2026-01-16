@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowDown, Database, HelpCircle, Layout, Plus, Search, Settings } from 'lucide-react'
+import { Database, HelpCircle, Layout, Plus, Search, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { Button, FolderPlus, Library, Tooltip } from '@/components/emcn'
+import { Button, Download, FolderPlus, Library, Loader, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -13,6 +13,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
   HelpModal,
+  NavItemContextMenu,
   SearchModal,
   SettingsModal,
   UsageIndicator,
@@ -20,6 +21,7 @@ import {
   WorkspaceHeader,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import {
+  useContextMenu,
   useFolderOperations,
   useSidebarResize,
   useWorkflowOperations,
@@ -28,12 +30,14 @@ import {
 import {
   useDuplicateWorkspace,
   useExportWorkspace,
+  useImportWorkflow,
   useImportWorkspace,
 } from '@/app/workspace/[workspaceId]/w/hooks'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
-import { useSearchModalStore } from '@/stores/search-modal/store'
-import { useSettingsModalStore } from '@/stores/settings-modal/store'
+import { useSearchModalStore } from '@/stores/modals/search/store'
+import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
@@ -69,6 +73,7 @@ export function Sidebar() {
 
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const { canEdit } = useUserPermissionsContext()
+  const { config: permissionConfig } = usePermissionConfig()
 
   /**
    * Sidebar state from store with hydration tracking to prevent SSR mismatch.
@@ -81,9 +86,11 @@ export function Sidebar() {
   const isCollapsed = hasHydrated ? isCollapsedStore : false
   const isOnWorkflowPage = !!workflowId
 
-  const [isImporting, setIsImporting] = useState(false)
   const workspaceFileInputRef = useRef<HTMLInputElement>(null)
 
+  const { isImporting, handleFileChange: handleImportFileChange } = useImportWorkflow({
+    workspaceId,
+  })
   const { isImporting: isImportingWorkspace, handleImportWorkspace: importWorkspace } =
     useImportWorkspace()
   const { handleExportWorkspace: exportWorkspace } = useExportWorkspace()
@@ -168,8 +175,48 @@ export function Sidebar() {
     workspaceId,
   })
 
+  /** Context menu state for navigation items */
+  const [activeNavItemHref, setActiveNavItemHref] = useState<string | null>(null)
+  const {
+    isOpen: isNavContextMenuOpen,
+    position: navContextMenuPosition,
+    menuRef: navMenuRef,
+    handleContextMenu: handleNavContextMenuBase,
+    closeMenu: closeNavContextMenu,
+  } = useContextMenu()
+
+  const handleNavItemContextMenu = useCallback(
+    (e: React.MouseEvent, href: string) => {
+      setActiveNavItemHref(href)
+      handleNavContextMenuBase(e)
+    },
+    [handleNavContextMenuBase]
+  )
+
+  const handleNavContextMenuClose = useCallback(() => {
+    closeNavContextMenu()
+    setActiveNavItemHref(null)
+  }, [closeNavContextMenu])
+
+  const handleNavOpenInNewTab = useCallback(() => {
+    if (activeNavItemHref) {
+      window.open(activeNavItemHref, '_blank', 'noopener,noreferrer')
+    }
+  }, [activeNavItemHref])
+
+  const handleNavCopyLink = useCallback(async () => {
+    if (activeNavItemHref) {
+      const fullUrl = `${window.location.origin}${activeNavItemHref}`
+      try {
+        await navigator.clipboard.writeText(fullUrl)
+      } catch (error) {
+        logger.error('Failed to copy link to clipboard', { error })
+      }
+    }
+  }, [activeNavItemHref])
+
   const { handleDuplicateWorkspace: duplicateWorkspace } = useDuplicateWorkspace({
-    getWorkspaceId: () => workspaceId,
+    workspaceId,
   })
 
   const searchModalWorkflows = useMemo(
@@ -196,39 +243,42 @@ export function Sidebar() {
   )
 
   const footerNavigationItems = useMemo(
-    () => [
-      {
-        id: 'logs',
-        label: 'Logs',
-        icon: Library,
-        href: `/workspace/${workspaceId}/logs`,
-      },
-      {
-        id: 'templates',
-        label: 'Templates',
-        icon: Layout,
-        href: `/workspace/${workspaceId}/templates`,
-      },
-      {
-        id: 'knowledge-base',
-        label: 'Knowledge Base',
-        icon: Database,
-        href: `/workspace/${workspaceId}/knowledge`,
-      },
-      {
-        id: 'help',
-        label: 'Help',
-        icon: HelpCircle,
-        onClick: () => setIsHelpModalOpen(true),
-      },
-      {
-        id: 'settings',
-        label: 'Settings',
-        icon: Settings,
-        onClick: () => openSettingsModal(),
-      },
-    ],
-    [workspaceId]
+    () =>
+      [
+        {
+          id: 'logs',
+          label: 'Logs',
+          icon: Library,
+          href: `/workspace/${workspaceId}/logs`,
+        },
+        {
+          id: 'templates',
+          label: 'Templates',
+          icon: Layout,
+          href: `/workspace/${workspaceId}/templates`,
+          hidden: permissionConfig.hideTemplates,
+        },
+        {
+          id: 'knowledge-base',
+          label: 'Knowledge Base',
+          icon: Database,
+          href: `/workspace/${workspaceId}/knowledge`,
+          hidden: permissionConfig.hideKnowledgeBaseTab,
+        },
+        {
+          id: 'help',
+          label: 'Help',
+          icon: HelpCircle,
+          onClick: () => setIsHelpModalOpen(true),
+        },
+        {
+          id: 'settings',
+          label: 'Settings',
+          icon: Settings,
+          onClick: () => openSettingsModal(),
+        },
+      ].filter((item) => !item.hidden),
+    [workspaceId, permissionConfig.hideTemplates, permissionConfig.hideKnowledgeBaseTab]
   )
 
   const isLoading = workflowsLoading || sessionLoading
@@ -518,21 +568,31 @@ export function Sidebar() {
                       Workflows
                     </div>
                     <div className='flex items-center justify-center gap-[10px]'>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            variant='ghost'
-                            className='translate-y-[-0.25px] p-[1px]'
-                            onClick={handleImportWorkflow}
-                            disabled={isImporting || !canEdit}
-                          >
-                            <ArrowDown className='h-[14px] w-[14px]' />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content className='py-[2.5px]'>
-                          <p>{isImporting ? 'Importing workflow...' : 'Import workflow'}</p>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
+                      {isImporting ? (
+                        <Button
+                          variant='ghost'
+                          className='translate-y-[-0.25px] p-[1px]'
+                          disabled={!canEdit || isImporting}
+                        >
+                          <Loader className='h-[14px] w-[14px]' animate />
+                        </Button>
+                      ) : (
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <Button
+                              variant='ghost'
+                              className='translate-y-[-0.25px] p-[1px]'
+                              onClick={handleImportWorkflow}
+                              disabled={!canEdit}
+                            >
+                              <Download className='h-[14px] w-[14px]' />
+                            </Button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content>
+                            <p>Import workflows</p>
+                          </Tooltip.Content>
+                        </Tooltip.Root>
+                      )}
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
@@ -544,7 +604,7 @@ export function Sidebar() {
                             <FolderPlus className='h-[14px] w-[14px]' />
                           </Button>
                         </Tooltip.Trigger>
-                        <Tooltip.Content className='py-[2.5px]'>
+                        <Tooltip.Content>
                           <p>{isCreatingFolder ? 'Creating folder...' : 'Create folder'}</p>
                         </Tooltip.Content>
                       </Tooltip.Root>
@@ -559,7 +619,7 @@ export function Sidebar() {
                             <Plus className='h-[14px] w-[14px]' />
                           </Button>
                         </Tooltip.Trigger>
-                        <Tooltip.Content className='py-[2.5px]'>
+                        <Tooltip.Content>
                           <p>{isCreatingWorkflow ? 'Creating workflow...' : 'Create workflow'}</p>
                         </Tooltip.Content>
                       </Tooltip.Root>
@@ -575,8 +635,8 @@ export function Sidebar() {
                   <WorkflowList
                     regularWorkflows={regularWorkflows}
                     isLoading={isLoading}
-                    isImporting={isImporting}
-                    setIsImporting={setIsImporting}
+                    canReorder={canEdit}
+                    handleFileChange={handleImportFileChange}
                     fileInputRef={fileInputRef}
                     scrollContainerRef={scrollContainerRef}
                   />
@@ -629,12 +689,23 @@ export function Sidebar() {
                       href={item.href!}
                       data-item-id={item.id}
                       className={`${baseClasses} ${activeClasses}`}
+                      onContextMenu={(e) => handleNavItemContextMenu(e, item.href!)}
                     >
                       {content}
                     </Link>
                   )
                 })}
               </div>
+
+              {/* Nav Item Context Menu */}
+              <NavItemContextMenu
+                isOpen={isNavContextMenuOpen}
+                position={navContextMenuPosition}
+                menuRef={navMenuRef}
+                onClose={handleNavContextMenuClose}
+                onOpenInNewTab={handleNavOpenInNewTab}
+                onCopyLink={handleNavCopyLink}
+              />
             </div>
           </aside>
 
@@ -661,7 +732,12 @@ export function Sidebar() {
       />
 
       {/* Footer Navigation Modals */}
-      <HelpModal open={isHelpModalOpen} onOpenChange={setIsHelpModalOpen} />
+      <HelpModal
+        open={isHelpModalOpen}
+        onOpenChange={setIsHelpModalOpen}
+        workflowId={workflowId}
+        workspaceId={workspaceId}
+      />
       <SettingsModal
         open={isSettingsModalOpen}
         onOpenChange={(open) => (open ? openSettingsModal() : closeSettingsModal())}

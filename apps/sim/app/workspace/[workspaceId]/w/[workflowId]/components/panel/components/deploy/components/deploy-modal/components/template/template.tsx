@@ -12,13 +12,14 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  TagInput,
   Textarea,
 } from '@/components/emcn'
-import { Skeleton, TagInput } from '@/components/ui'
+import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { captureAndUploadOGImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from '@/lib/og'
-import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
+import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import {
   useCreateTemplate,
   useDeleteTemplate,
@@ -404,10 +405,24 @@ export function TemplateDeploy({
             Tags
           </Label>
           <TagInput
-            value={formData.tags}
-            onChange={(tags) => updateField('tags', tags)}
+            items={formData.tags.map((tag) => ({ value: tag, isValid: true }))}
+            onAdd={(value) => {
+              if (!formData.tags.includes(value) && formData.tags.length < 10) {
+                updateField('tags', [...formData.tags, value])
+                return true
+              }
+              return false
+            }}
+            onRemove={(_value, index) => {
+              updateField(
+                'tags',
+                formData.tags.filter((_, i) => i !== index)
+              )
+            }}
             placeholder='Dev, Agents, Research, etc.'
-            maxTags={10}
+            placeholderWithTags='Add another'
+            tagVariant='secondary'
+            triggerKeys={['Enter', ',']}
             disabled={isSubmitting}
           />
         </div>
@@ -488,7 +503,6 @@ const OGCaptureContainer = forwardRef<HTMLDivElement>((_, ref) => {
     >
       <WorkflowPreview
         workflowState={workflowState}
-        showSubBlocks={false}
         height='100%'
         width='100%'
         isPannable={false}
@@ -529,7 +543,6 @@ function TemplatePreviewContent({ existingTemplate }: TemplatePreviewContentProp
     <WorkflowPreview
       key={`template-preview-${existingTemplate.id}`}
       workflowState={workflowState}
-      showSubBlocks={true}
       height='100%'
       width='100%'
       isPannable={true}

@@ -17,7 +17,7 @@ import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { REFERENCE } from '@/executor/constants'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 import { executeTool } from '@/tools'
-import { getTool } from '@/tools/utils'
+import { getTool, resolveToolId } from '@/tools/utils'
 
 const logger = createLogger('CopilotExecuteToolAPI')
 
@@ -86,15 +86,17 @@ export async function POST(req: NextRequest) {
 
     const { toolCallId, toolName, arguments: toolArgs, workflowId } = ExecuteToolSchema.parse(body)
 
+    const resolvedToolName = resolveToolId(toolName)
+
     logger.info(`[${tracker.requestId}] Executing tool`, {
       toolCallId,
       toolName,
+      resolvedToolName,
       workflowId,
       hasArgs: Object.keys(toolArgs).length > 0,
     })
 
-    // Get tool config from registry
-    const toolConfig = getTool(toolName)
+    const toolConfig = getTool(resolvedToolName)
     if (!toolConfig) {
       // Find similar tool names to help debug
       const { tools: allTools } = await import('@/tools/registry')
@@ -252,7 +254,7 @@ export async function POST(req: NextRequest) {
       hasApiKey: !!executionParams.apiKey,
     })
 
-    const result = await executeTool(toolName, executionParams, true)
+    const result = await executeTool(resolvedToolName, executionParams, true)
 
     logger.info(`[${tracker.requestId}] Tool execution complete`, {
       toolName,

@@ -17,7 +17,8 @@ import {
 } from '@/components/emcn'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
-import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal/invite-modal'
+import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('WorkspaceHeader')
 
@@ -151,12 +152,18 @@ export function WorkspaceHeader({
     setIsMounted(true)
   }, [])
 
+  const { isInvitationsDisabled } = usePermissionConfig()
+
   // Listen for open-invite-modal event from context menu
   useEffect(() => {
-    const handleOpenInvite = () => setIsInviteModalOpen(true)
+    const handleOpenInvite = () => {
+      if (!isInvitationsDisabled) {
+        setIsInviteModalOpen(true)
+      }
+    }
     window.addEventListener('open-invite-modal', handleOpenInvite)
     return () => window.removeEventListener('open-invite-modal', handleOpenInvite)
-  }, [])
+  }, [isInvitationsDisabled])
 
   /**
    * Focus the inline list rename input when it becomes active
@@ -204,10 +211,11 @@ export function WorkspaceHeader({
   }
 
   /**
-   * Close context menu
+   * Close context menu and the workspace dropdown
    */
   const closeContextMenu = () => {
     setIsContextMenuOpen(false)
+    setIsWorkspaceMenuOpen(false)
   }
 
   /**
@@ -341,7 +349,7 @@ export function WorkspaceHeader({
                             <ArrowDown className='h-[14px] w-[14px]' />
                           </Button>
                         </Tooltip.Trigger>
-                        <Tooltip.Content className='py-[2.5px]'>
+                        <Tooltip.Content>
                           <p>
                             {isImportingWorkspace ? 'Importing workspace...' : 'Import workspace'}
                           </p>
@@ -364,7 +372,7 @@ export function WorkspaceHeader({
                             <Plus className='h-[14px] w-[14px]' />
                           </Button>
                         </Tooltip.Trigger>
-                        <Tooltip.Content className='py-[2.5px]'>
+                        <Tooltip.Content>
                           <p>
                             {isCreatingWorkspace ? 'Creating workspace...' : 'Create workspace'}
                           </p>
@@ -458,8 +466,8 @@ export function WorkspaceHeader({
       </div>
       {/* Workspace Actions */}
       <div className='flex flex-shrink-0 items-center gap-[10px]'>
-        {/* Invite - hidden in collapsed mode */}
-        {!isCollapsed && (
+        {/* Invite - hidden in collapsed mode or when invitations are disabled */}
+        {!isCollapsed && !isInvitationsDisabled && (
           <Badge className='cursor-pointer' onClick={() => setIsInviteModalOpen(true)}>
             Invite
           </Badge>

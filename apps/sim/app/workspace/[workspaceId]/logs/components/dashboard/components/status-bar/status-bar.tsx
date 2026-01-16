@@ -63,13 +63,13 @@ export function StatusBar({
             hoverBrightness = 'hover:brightness-200'
           } else if (segment.successRate === 100) {
             color = 'bg-emerald-400/90'
-            hoverBrightness = 'hover:brightness-110'
+            hoverBrightness = 'hover:brightness-106'
           } else if (segment.successRate >= 95) {
             color = 'bg-amber-400/90'
-            hoverBrightness = 'hover:brightness-110'
+            hoverBrightness = 'hover:brightness-106'
           } else {
             color = 'bg-red-400/90'
-            hoverBrightness = 'hover:brightness-110'
+            hoverBrightness = 'hover:brightness-106'
           }
 
           return (

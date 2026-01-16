@@ -110,6 +110,18 @@ export interface ElasticsearchClusterHealthParams extends ElasticsearchBaseParam
 
 export interface ElasticsearchClusterStatsParams extends ElasticsearchBaseParams {}
 
+export interface ElasticsearchListIndicesParams extends ElasticsearchBaseParams {}
+
+export interface ElasticsearchIndexInfo {
+  index: string
+  health: string
+  status: string
+  docsCount: number
+  storeSize: string
+  primaryShards: number
+  replicaShards: number
+}
+
 // Response types
 export interface ElasticsearchDocumentResponse extends ToolResponse {
   output: {
@@ -262,6 +274,14 @@ export interface ElasticsearchIndexStatsResponse extends ToolResponse {
   }
 }
 
+export interface ElasticsearchListIndicesResponse extends ToolResponse {
+  output: {
+    message: string
+    indices: ElasticsearchIndexInfo[]
+  }
+  error?: string
+}
+
 // Union type for all Elasticsearch responses
 export type ElasticsearchResponse =
   | ElasticsearchDocumentResponse
@@ -276,3 +296,4 @@ export type ElasticsearchResponse =
   | ElasticsearchClusterStatsResponse
   | ElasticsearchRefreshResponse
   | ElasticsearchIndexStatsResponse
+  | ElasticsearchListIndicesResponse

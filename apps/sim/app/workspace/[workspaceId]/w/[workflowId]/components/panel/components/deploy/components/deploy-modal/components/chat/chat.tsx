@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertTriangle, Check, Clipboard, Eye, EyeOff, Loader2, RefreshCw, X } from 'lucide-react'
+import { AlertTriangle, Check, Clipboard, Eye, EyeOff, Loader2, RefreshCw } from 'lucide-react'
 import {
   Button,
+  ButtonGroup,
+  ButtonGroupItem,
   Input,
   Label,
   Modal,
@@ -12,6 +14,8 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  TagInput,
+  type TagItem,
   Textarea,
   Tooltip,
 } from '@/components/emcn'
@@ -19,7 +23,7 @@ import { Alert, AlertDescription, Skeleton } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { generatePassword } from '@/lib/core/security/encryption'
 import { cn } from '@/lib/core/utils/cn'
-import { getEmailDomain } from '@/lib/core/utils/urls'
+import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 import {
@@ -350,6 +354,7 @@ export function ChatDeploy({
           </div>
 
           <AuthSelector
+            key={existingChat?.id ?? 'new'}
             authType={formData.authType}
             password={formData.password}
             emails={formData.emails}
@@ -410,7 +415,7 @@ export function ChatDeploy({
             >
               Cancel
             </Button>
-            <Button variant='destructive' onClick={handleDelete} disabled={isDeleting}>
+            <Button variant='default' onClick={handleDelete} disabled={isDeleting}>
               {isDeleting ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>
@@ -488,7 +493,7 @@ function IdentifierInput({
     onChange(lowercaseValue)
   }
 
-  const fullUrl = `${getEnv('NEXT_PUBLIC_APP_URL')}/chat/${value}`
+  const fullUrl = `${getBaseUrl()}/chat/${value}`
   const displayUrl = fullUrl.replace(/^https?:\/\//, '')
 
   return (
@@ -505,26 +510,41 @@ function IdentifierInput({
           error && 'border-[var(--text-error)]'
         )}
       >
-        <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] px-[8px] font-medium text-[var(--text-secondary)] text-sm dark:bg-[var(--surface-5)]'>
+        <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-[6px] pl-[8px] font-medium text-[var(--text-secondary)] text-sm dark:bg-[var(--surface-5)]'>
           {getDomainPrefix()}
         </div>
         <div className='relative flex-1'>
           <Input
             id='chat-url'
-            placeholder='company-name'
+            placeholder='my-chat'
             value={value}
             onChange={(e) => handleChange(e.target.value)}
             required
             disabled={disabled}
             className={cn(
               'rounded-none border-0 pl-0 shadow-none disabled:bg-transparent disabled:opacity-100',
-              isChecking && 'pr-[32px]'
+              (isChecking || (isValid && value)) && 'pr-[32px]'
             )}
           />
-          {isChecking && (
+          {isChecking ? (
             <div className='-translate-y-1/2 absolute top-1/2 right-2'>
               <Loader2 className='h-4 w-4 animate-spin text-[var(--text-tertiary)]' />
             </div>
+          ) : (
+            isValid &&
+            value &&
+            value !== originalIdentifier && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <div className='-translate-y-1/2 absolute top-1/2 right-2'>
+                    <Check className='h-4 w-4 text-[var(--brand-tertiary-2)]' />
+                  </div>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span>Name is available</span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )
           )}
         </div>
       </div>
@@ -581,10 +601,11 @@ function AuthSelector({
   error,
 }: AuthSelectorProps) {
   const [showPassword, setShowPassword] = useState(false)
-  const [emailInputValue, setEmailInputValue] = useState('')
   const [emailError, setEmailError] = useState('')
   const [copySuccess, setCopySuccess] = useState(false)
-  const [invalidEmails, setInvalidEmails] = useState<string[]>([])
+  const [emailItems, setEmailItems] = useState<TagItem[]>(() =>
+    emails.map((email) => ({ value: email, isValid: true }))
+  )
 
   const handleGeneratePassword = () => {
     const newPassword = generatePassword(24)
@@ -605,59 +626,25 @@ function AuthSelector({
     const validation = quickValidateEmail(normalized)
     const isValid = validation.isValid || isDomainPattern
 
-    if (emails.includes(normalized) || invalidEmails.includes(normalized)) {
+    if (emailItems.some((item) => item.value === normalized)) {
       return false
     }
 
-    if (!isValid) {
-      setInvalidEmails((prev) => [...prev, normalized])
-      setEmailInputValue('')
-      return false
+    setEmailItems((prev) => [...prev, { value: normalized, isValid }])
+
+    if (isValid) {
+      setEmailError('')
+      onEmailsChange([...emails, normalized])
     }
 
-    setEmailError('')
-    onEmailsChange([...emails, normalized])
-    setEmailInputValue('')
-    return true
+    return isValid
   }
 
-  const handleRemoveEmail = (emailToRemove: string) => {
-    onEmailsChange(emails.filter((e) => e !== emailToRemove))
-  }
-
-  const handleRemoveInvalidEmail = (index: number) => {
-    setInvalidEmails((prev) => prev.filter((_, i) => i !== index))
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (['Enter', ',', ' '].includes(e.key) && emailInputValue.trim()) {
-      e.preventDefault()
-      addEmail(emailInputValue)
-    }
-
-    if (e.key === 'Backspace' && !emailInputValue) {
-      if (invalidEmails.length > 0) {
-        handleRemoveInvalidEmail(invalidEmails.length - 1)
-      } else if (emails.length > 0) {
-        handleRemoveEmail(emails[emails.length - 1])
-      }
-    }
-  }
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault()
-    const pastedText = e.clipboardData.getData('text')
-    const pastedEmails = pastedText.split(/[\s,;]+/).filter(Boolean)
-
-    let addedCount = 0
-    pastedEmails.forEach((email) => {
-      if (addEmail(email)) {
-        addedCount++
-      }
-    })
-
-    if (addedCount === 0 && pastedEmails.length === 1) {
-      setEmailInputValue(emailInputValue + pastedEmails[0])
+  const handleRemoveEmailItem = (_value: string, index: number, isValid: boolean) => {
+    const itemToRemove = emailItems[index]
+    setEmailItems((prev) => prev.filter((_, i) => i !== index))
+    if (isValid && itemToRemove) {
+      onEmailsChange(emails.filter((e) => e !== itemToRemove.value))
     }
   }
 
@@ -672,26 +659,17 @@ function AuthSelector({
         <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
           Access control
         </Label>
-        <div className='inline-flex gap-[2px]'>
-          {authOptions.map((type, index, arr) => (
-            <Button
-              key={type}
-              type='button'
-              variant={authType === type ? 'active' : 'default'}
-              onClick={() => !disabled && onAuthTypeChange(type)}
-              disabled={disabled}
-              className={`px-[8px] py-[4px] text-[12px] ${
-                index === 0
-                  ? 'rounded-r-none'
-                  : index === arr.length - 1
-                    ? 'rounded-l-none'
-                    : 'rounded-none'
-              }`}
-            >
+        <ButtonGroup
+          value={authType}
+          onValueChange={(val) => onAuthTypeChange(val as AuthType)}
+          disabled={disabled}
+        >
+          {authOptions.map((type) => (
+            <ButtonGroupItem key={type} value={type}>
               {AUTH_LABELS[type]}
-            </Button>
+            </ButtonGroupItem>
           ))}
-        </div>
+        </ButtonGroup>
       </div>
 
       {authType === 'password' && (
@@ -781,40 +759,14 @@ function AuthSelector({
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
             {authType === 'email' ? 'Allowed emails' : 'Allowed SSO emails'}
           </Label>
-          <div className='scrollbar-hide flex max-h-32 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] focus-within:outline-none dark:bg-[var(--surface-5)]'>
-            {invalidEmails.map((email, index) => (
-              <EmailTag
-                key={`invalid-${index}`}
-                email={email}
-                onRemove={() => handleRemoveInvalidEmail(index)}
-                disabled={disabled}
-                isInvalid={true}
-              />
-            ))}
-            {emails.map((email, index) => (
-              <EmailTag
-                key={`valid-${index}`}
-                email={email}
-                onRemove={() => handleRemoveEmail(email)}
-                disabled={disabled}
-              />
-            ))}
-            <input
-              type='text'
-              value={emailInputValue}
-              onChange={(e) => setEmailInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              onBlur={() => emailInputValue.trim() && addEmail(emailInputValue)}
-              placeholder={
-                emails.length > 0 || invalidEmails.length > 0
-                  ? 'Add another email'
-                  : 'Enter emails or domains (@example.com)'
-              }
-              className='min-w-[180px] flex-1 border-none bg-transparent p-0 font-medium font-sans text-foreground text-sm outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50'
-              disabled={disabled}
-            />
-          </div>
+          <TagInput
+            items={emailItems}
+            onAdd={(value) => addEmail(value)}
+            onRemove={handleRemoveEmailItem}
+            placeholder='Enter emails or domains (@example.com)'
+            placeholderWithTags='Add email'
+            disabled={disabled}
+          />
           {emailError && (
             <p className='mt-[6.5px] text-[11px] text-[var(--text-error)]'>{emailError}</p>
           )}
@@ -827,43 +779,6 @@ function AuthSelector({
       )}
 
       {error && <p className='mt-[6.5px] text-[11px] text-[var(--text-error)]'>{error}</p>}
-    </div>
-  )
-}
-
-interface EmailTagProps {
-  email: string
-  onRemove: () => void
-  disabled?: boolean
-  isInvalid?: boolean
-}
-
-function EmailTag({ email, onRemove, disabled, isInvalid }: EmailTagProps) {
-  return (
-    <div
-      className={cn(
-        'flex w-auto items-center gap-[4px] rounded-[4px] border px-[6px] py-[2px] text-[12px]',
-        isInvalid
-          ? 'border-[var(--text-error)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] text-[var(--text-error)] dark:bg-[color-mix(in_srgb,var(--text-error)_16%,transparent)]'
-          : 'border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-      )}
-    >
-      <span className='max-w-[200px] truncate'>{email}</span>
-      {!disabled && (
-        <button
-          type='button'
-          onClick={onRemove}
-          className={cn(
-            'flex-shrink-0 transition-colors focus:outline-none',
-            isInvalid
-              ? 'text-[var(--text-error)] hover:text-[var(--text-error)]'
-              : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
-          )}
-          aria-label={`Remove ${email}`}
-        >
-          <X className='h-[12px] w-[12px] translate-y-[0.2px]' />
-        </button>
-      )}
     </div>
   )
 }

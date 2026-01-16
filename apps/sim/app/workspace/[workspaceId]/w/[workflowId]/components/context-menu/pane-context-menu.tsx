@@ -1,6 +1,12 @@
 'use client'
 
-import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverDivider,
+  PopoverItem,
+} from '@/components/emcn'
 import type { PaneContextMenuProps } from './types'
 
 /**
@@ -18,17 +24,26 @@ export function PaneContextMenu({
   onAddBlock,
   onAutoLayout,
   onOpenLogs,
-  onOpenVariables,
-  onOpenChat,
+  onToggleVariables,
+  onToggleChat,
   onInvite,
+  isVariablesOpen = false,
+  isChatOpen = false,
   hasClipboard = false,
   disableEdit = false,
   disableAdmin = false,
   canUndo = false,
   canRedo = false,
+  isInvitationsDisabled = false,
 }: PaneContextMenuProps) {
   return (
-    <Popover open={isOpen} onOpenChange={onClose} variant='secondary' size='sm'>
+    <Popover
+      open={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+      variant='secondary'
+      size='sm'
+      colorScheme='inverted'
+    >
       <PopoverAnchor
         style={{
           position: 'fixed',
@@ -39,7 +54,7 @@ export function PaneContextMenu({
         }}
       />
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-        {/* Undo */}
+        {/* History actions */}
         <PopoverItem
           className='group'
           disabled={disableEdit || !canUndo}
@@ -49,10 +64,8 @@ export function PaneContextMenu({
           }}
         >
           <span>Undo</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘Z</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘Z</span>
         </PopoverItem>
-
-        {/* Redo */}
         <PopoverItem
           className='group'
           disabled={disableEdit || !canRedo}
@@ -62,10 +75,11 @@ export function PaneContextMenu({
           }}
         >
           <span>Redo</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘⇧Z</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘⇧Z</span>
         </PopoverItem>
 
-        {/* Paste */}
+        {/* Edit and creation actions */}
+        <PopoverDivider />
         <PopoverItem
           className='group'
           disabled={disableEdit || !hasClipboard}
@@ -75,10 +89,8 @@ export function PaneContextMenu({
           }}
         >
           <span>Paste</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘V</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘V</span>
         </PopoverItem>
-
-        {/* Add Block */}
         <PopoverItem
           className='group'
           disabled={disableEdit}
@@ -88,10 +100,8 @@ export function PaneContextMenu({
           }}
         >
           <span>Add Block</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘K</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘K</span>
         </PopoverItem>
-
-        {/* Auto-layout */}
         <PopoverItem
           className='group'
           disabled={disableEdit}
@@ -101,10 +111,11 @@ export function PaneContextMenu({
           }}
         >
           <span>Auto-layout</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⇧L</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⇧L</span>
         </PopoverItem>
 
-        {/* Open Logs */}
+        {/* Navigation actions */}
+        <PopoverDivider />
         <PopoverItem
           className='group'
           onClick={() => {
@@ -113,39 +124,40 @@ export function PaneContextMenu({
           }}
         >
           <span>Open Logs</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘L</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘L</span>
         </PopoverItem>
-
-        {/* Open Variables */}
         <PopoverItem
           onClick={() => {
-            onOpenVariables()
+            onToggleVariables()
             onClose()
           }}
         >
-          Variables
+          {isVariablesOpen ? 'Close Variables' : 'Open Variables'}
         </PopoverItem>
-
-        {/* Open Chat */}
         <PopoverItem
           onClick={() => {
-            onOpenChat()
+            onToggleChat()
             onClose()
           }}
         >
-          Open Chat
+          {isChatOpen ? 'Close Chat' : 'Open Chat'}
         </PopoverItem>
 
-        {/* Invite to Workspace - admin only */}
-        <PopoverItem
-          disabled={disableAdmin}
-          onClick={() => {
-            onInvite()
-            onClose()
-          }}
-        >
-          Invite to Workspace
-        </PopoverItem>
+        {/* Admin action - hidden when invitations are disabled */}
+        {!isInvitationsDisabled && (
+          <>
+            <PopoverDivider />
+            <PopoverItem
+              disabled={disableAdmin}
+              onClick={() => {
+                onInvite()
+                onClose()
+              }}
+            >
+              Invite to Workspace
+            </PopoverItem>
+          </>
+        )}
       </PopoverContent>
     </Popover>
   )

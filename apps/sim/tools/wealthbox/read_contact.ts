@@ -47,7 +47,7 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
     },
   },
 
-  transformResponse: async (response: Response, params?: WealthboxReadParams) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     // Format contact information into readable content
@@ -82,8 +82,8 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
         content,
         contact,
         metadata: {
-          operation: 'read_contact' as const,
-          contactId: params?.contactId || contact.id?.toString() || '',
+          itemId: contact.id?.toString() ?? null,
+          contactId: contact.id?.toString() ?? null,
           itemType: 'contact' as const,
         },
       },
@@ -102,8 +102,8 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
           type: 'object',
           description: 'Operation metadata',
           properties: {
-            operation: { type: 'string', description: 'The operation performed' },
-            contactId: { type: 'string', description: 'ID of the contact' },
+            itemId: { type: 'string', description: 'ID of the contact', optional: true },
+            contactId: { type: 'string', description: 'ID of the contact', optional: true },
             itemType: { type: 'string', description: 'Type of item (contact)' },
           },
         },

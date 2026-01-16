@@ -5,6 +5,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -262,6 +263,157 @@ export async function POST(request: NextRequest) {
       workflowRecord.workspaceId || undefined
     )
 
+    // --- Credential Set Handling ---
+    // For credential sets, we fan out to create one webhook per credential at save time.
+    // This applies to all OAuth-based triggers, not just polling ones.
+    // Check for credentialSetId directly (frontend may already extract it) or credential set value in credential fields
+    const rawCredentialId = (resolvedProviderConfig?.credentialId ||
+      resolvedProviderConfig?.triggerCredentials) as string | undefined
+    const directCredentialSetId = resolvedProviderConfig?.credentialSetId as string | undefined
+
+    if (directCredentialSetId || rawCredentialId) {
+      const { isCredentialSetValue, extractCredentialSetId } = await import('@/executor/constants')
+
+      const credentialSetId =
+        directCredentialSetId ||
+        (rawCredentialId && isCredentialSetValue(rawCredentialId)
+          ? extractCredentialSetId(rawCredentialId)
+          : null)
+
+      if (credentialSetId) {
+        logger.info(
+          `[${requestId}] Credential set detected for ${provider} trigger. Syncing webhooks for set ${credentialSetId}`
+        )
+
+        const { getProviderIdFromServiceId } = await import('@/lib/oauth')
+        const { syncWebhooksForCredentialSet, configureGmailPolling, configureOutlookPolling } =
+          await import('@/lib/webhooks/utils.server')
+
+        // Map provider to OAuth provider ID
+        const oauthProviderId = getProviderIdFromServiceId(provider)
+
+        const {
+          credentialId: _cId,
+          triggerCredentials: _tCred,
+          credentialSetId: _csId,
+          ...baseProviderConfig
+        } = resolvedProviderConfig
+
+        try {
+          const syncResult = await syncWebhooksForCredentialSet({
+            workflowId,
+            blockId,
+            provider,
+            basePath: finalPath,
+            credentialSetId,
+            oauthProviderId,
+            providerConfig: baseProviderConfig,
+            requestId,
+          })
+
+          if (syncResult.webhooks.length === 0) {
+            logger.error(
+              `[${requestId}] No webhooks created for credential set - no valid credentials found`
+            )
+            return NextResponse.json(
+              {
+                error: `No valid credentials found in credential set for ${provider}`,
+                details: 'Please ensure team members have connected their accounts',
+              },
+              { status: 400 }
+            )
+          }
+
+          // Configure each new webhook (for providers that need configuration)
+          const pollingProviders = ['gmail', 'outlook']
+          const needsConfiguration = pollingProviders.includes(provider)
+
+          if (needsConfiguration) {
+            const configureFunc =
+              provider === 'gmail' ? configureGmailPolling : configureOutlookPolling
+            const configureErrors: string[] = []
+
+            for (const wh of syncResult.webhooks) {
+              if (wh.isNew) {
+                // Fetch the webhook data for configuration
+                const webhookRows = await db
+                  .select()
+                  .from(webhook)
+                  .where(eq(webhook.id, wh.id))
+                  .limit(1)
+
+                if (webhookRows.length > 0) {
+                  const success = await configureFunc(webhookRows[0], requestId)
+                  if (!success) {
+                    configureErrors.push(
+                      `Failed to configure webhook for credential ${wh.credentialId}`
+                    )
+                    logger.warn(
+                      `[${requestId}] Failed to configure ${provider} polling for webhook ${wh.id}`
+                    )
+                  }
+                }
+              }
+            }
+
+            if (
+              configureErrors.length > 0 &&
+              configureErrors.length === syncResult.webhooks.length
+            ) {
+              // All configurations failed - roll back
+              logger.error(`[${requestId}] All webhook configurations failed, rolling back`)
+              for (const wh of syncResult.webhooks) {
+                await db.delete(webhook).where(eq(webhook.id, wh.id))
+              }
+              return NextResponse.json(
+                {
+                  error: `Failed to configure ${provider} polling`,
+                  details: 'Please check account permissions and try again',
+                },
+                { status: 500 }
+              )
+            }
+          }
+
+          logger.info(
+            `[${requestId}] Successfully synced ${syncResult.webhooks.length} webhooks for credential set ${credentialSetId}`
+          )
+
+          // Return the first webhook as the "primary" for the UI
+          // The UI will query by credentialSetId to get all of them
+          const primaryWebhookRows = await db
+            .select()
+            .from(webhook)
+            .where(eq(webhook.id, syncResult.webhooks[0].id))
+            .limit(1)
+
+          return NextResponse.json(
+            {
+              webhook: primaryWebhookRows[0],
+              credentialSetInfo: {
+                credentialSetId,
+                totalWebhooks: syncResult.webhooks.length,
+                created: syncResult.created,
+                updated: syncResult.updated,
+                deleted: syncResult.deleted,
+              },
+            },
+            { status: syncResult.created > 0 ? 201 : 200 }
+          )
+        } catch (err) {
+          logger.error(`[${requestId}] Error syncing webhooks for credential set`, err)
+          return NextResponse.json(
+            {
+              error: `Failed to configure ${provider} webhook`,
+              details: err instanceof Error ? err.message : 'Unknown error',
+            },
+            { status: 500 }
+          )
+        }
+      }
+    }
+    // --- End Credential Set Handling ---
+
     // Create external subscriptions before saving to DB to prevent orphaned records
     let externalSubscriptionId: string | undefined
     let externalSubscriptionCreated = false
@@ -422,6 +574,10 @@ export async function POST(request: NextRequest) {
             blockId,
             provider,
             providerConfig: resolvedProviderConfig,
+            credentialSetId:
+              ((resolvedProviderConfig as Record<string, unknown>)?.credentialSetId as
+                | string
+                | null) || null,
             isActive: true,
             updatedAt: new Date(),
           })
@@ -445,6 +601,10 @@ export async function POST(request: NextRequest) {
             path: finalPath,
             provider,
             providerConfig: resolvedProviderConfig,
+            credentialSetId:
+              ((resolvedProviderConfig as Record<string, unknown>)?.credentialSetId as
+                | string
+                | null) || null,
             isActive: true,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -580,6 +740,123 @@ export async function POST(request: NextRequest) {
       }
     }
     // --- End RSS specific logic ---
+
+    if (savedWebhook && provider === 'grain') {
+      logger.info(`[${requestId}] Grain provider detected. Creating Grain webhook subscription.`)
+      try {
+        const grainResult = await createGrainWebhookSubscription(
+          request,
+          {
+            id: savedWebhook.id,
+            path: savedWebhook.path,
+            providerConfig: savedWebhook.providerConfig,
+          },
+          requestId
+        )
+
+        if (grainResult) {
+          // Update the webhook record with the external Grain hook ID and event types for filtering
+          const updatedConfig = {
+            ...(savedWebhook.providerConfig as Record<string, any>),
+            externalId: grainResult.id,
+            eventTypes: grainResult.eventTypes,
+          }
+          await db
+            .update(webhook)
+            .set({
+              providerConfig: updatedConfig,
+              updatedAt: new Date(),
+            })
+            .where(eq(webhook.id, savedWebhook.id))
+
+          savedWebhook.providerConfig = updatedConfig
+          logger.info(`[${requestId}] Successfully created Grain webhook`, {
+            grainHookId: grainResult.id,
+            eventTypes: grainResult.eventTypes,
+            webhookId: savedWebhook.id,
+          })
+        }
+      } catch (err) {
+        logger.error(
+          `[${requestId}] Error creating Grain webhook subscription, rolling back webhook`,
+          err
+        )
+        await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
+        return NextResponse.json(
+          {
+            error: 'Failed to create webhook in Grain',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+    // --- End Grain specific logic ---
+
+    // --- Lemlist specific logic ---
+    if (savedWebhook && provider === 'lemlist') {
+      logger.info(
+        `[${requestId}] Lemlist provider detected. Creating Lemlist webhook subscription.`
+      )
+      try {
+        const lemlistResult = await createLemlistWebhookSubscription(
+          {
+            id: savedWebhook.id,
+            path: savedWebhook.path,
+            providerConfig: savedWebhook.providerConfig,
+          },
+          requestId
+        )
+
+        if (lemlistResult) {
+          // Update the webhook record with the external Lemlist hook ID
+          const updatedConfig = {
+            ...(savedWebhook.providerConfig as Record<string, any>),
+            externalId: lemlistResult.id,
+          }
+          await db
+            .update(webhook)
+            .set({
+              providerConfig: updatedConfig,
+              updatedAt: new Date(),
+            })
+            .where(eq(webhook.id, savedWebhook.id))
+
+          savedWebhook.providerConfig = updatedConfig
+          logger.info(`[${requestId}] Successfully created Lemlist webhook`, {
+            lemlistHookId: lemlistResult.id,
+            webhookId: savedWebhook.id,
+          })
+        }
+      } catch (err) {
+        logger.error(
+          `[${requestId}] Error creating Lemlist webhook subscription, rolling back webhook`,
+          err
+        )
+        await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
+        return NextResponse.json(
+          {
+            error: 'Failed to create webhook in Lemlist',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+    // --- End Lemlist specific logic ---
+
+    if (!targetWebhookId && savedWebhook) {
+      try {
+        PlatformEvents.webhookCreated({
+          webhookId: savedWebhook.id,
+          workflowId: workflowId,
+          provider: provider || 'generic',
+          workspaceId: workflowRecord.workspaceId || undefined,
+        })
+      } catch {
+        // Telemetry should not fail the operation
+      }
+    }
 
     const status = targetWebhookId ? 200 : 201
     return NextResponse.json({ webhook: savedWebhook }, { status })
@@ -939,6 +1216,263 @@ async function createWebflowWebhookSubscription(
   } catch (error: any) {
     logger.error(
       `[${requestId}] Exception during Webflow webhook creation for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+    throw error
+  }
+}
+
+// Helper function to create the webhook subscription in Grain
+async function createGrainWebhookSubscription(
+  request: NextRequest,
+  webhookData: any,
+  requestId: string
+): Promise<{ id: string; eventTypes: string[] } | undefined> {
+  try {
+    const { path, providerConfig } = webhookData
+    const { apiKey, triggerId, includeHighlights, includeParticipants, includeAiSummary } =
+      providerConfig || {}
+
+    if (!apiKey) {
+      logger.warn(`[${requestId}] Missing apiKey for Grain webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error(
+        'Grain API Key is required. Please provide your Grain Personal Access Token in the trigger configuration.'
+      )
+    }
+
+    // Map trigger IDs to Grain API hook_type (only 2 options: recording_added, upload_status)
+    const hookTypeMap: Record<string, string> = {
+      grain_webhook: 'recording_added',
+      grain_recording_created: 'recording_added',
+      grain_recording_updated: 'recording_added',
+      grain_highlight_created: 'recording_added',
+      grain_highlight_updated: 'recording_added',
+      grain_story_created: 'recording_added',
+      grain_upload_status: 'upload_status',
+    }
+
+    const eventTypeMap: Record<string, string[]> = {
+      grain_webhook: [],
+      grain_recording_created: ['recording_added'],
+      grain_recording_updated: ['recording_updated'],
+      grain_highlight_created: ['highlight_created'],
+      grain_highlight_updated: ['highlight_updated'],
+      grain_story_created: ['story_created'],
+      grain_upload_status: ['upload_status'],
+    }
+
+    const hookType = hookTypeMap[triggerId] ?? 'recording_added'
+    const eventTypes = eventTypeMap[triggerId] ?? []
+
+    if (!hookTypeMap[triggerId]) {
+      logger.warn(
+        `[${requestId}] Unknown triggerId for Grain: ${triggerId}, defaulting to recording_added`,
+        {
+          webhookId: webhookData.id,
+        }
+      )
+    }
+
+    logger.info(`[${requestId}] Creating Grain webhook`, {
+      triggerId,
+      hookType,
+      eventTypes,
+      webhookId: webhookData.id,
+    })
+
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+
+    const grainApiUrl = 'https://api.grain.com/_/public-api/v2/hooks/create'
+
+    const requestBody: Record<string, any> = {
+      hook_url: notificationUrl,
+      hook_type: hookType,
+    }
+
+    // Build include object based on configuration
+    const include: Record<string, boolean> = {}
+    if (includeHighlights) {
+      include.highlights = true
+    }
+    if (includeParticipants) {
+      include.participants = true
+    }
+    if (includeAiSummary) {
+      include.ai_summary = true
+    }
+    if (Object.keys(include).length > 0) {
+      requestBody.include = include
+    }
+
+    const grainResponse = await fetch(grainApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Public-Api-Version': '2025-10-31',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    const responseBody = await grainResponse.json()
+
+    if (!grainResponse.ok || responseBody.error || responseBody.errors) {
+      logger.warn('[App] Grain response body:', responseBody)
+      const errorMessage =
+        responseBody.errors?.detail ||
+        responseBody.error?.message ||
+        responseBody.error ||
+        responseBody.message ||
+        'Unknown Grain API error'
+      logger.error(
+        `[${requestId}] Failed to create webhook in Grain for webhook ${webhookData.id}. Status: ${grainResponse.status}`,
+        { message: errorMessage, response: responseBody }
+      )
+
+      let userFriendlyMessage = 'Failed to create webhook subscription in Grain'
+      if (grainResponse.status === 401) {
+        userFriendlyMessage =
+          'Invalid Grain API Key. Please verify your Personal Access Token is correct.'
+      } else if (grainResponse.status === 403) {
+        userFriendlyMessage =
+          'Access denied. Please ensure your Grain API Key has appropriate permissions.'
+      } else if (errorMessage && errorMessage !== 'Unknown Grain API error') {
+        userFriendlyMessage = `Grain error: ${errorMessage}`
+      }
+
+      throw new Error(userFriendlyMessage)
+    }
+
+    logger.info(
+      `[${requestId}] Successfully created webhook in Grain for webhook ${webhookData.id}.`,
+      {
+        grainWebhookId: responseBody.id,
+        eventTypes,
+      }
+    )
+
+    return { id: responseBody.id, eventTypes }
+  } catch (error: any) {
+    logger.error(
+      `[${requestId}] Exception during Grain webhook creation for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+    throw error
+  }
+}
+
+// Helper function to create the webhook subscription in Lemlist
+async function createLemlistWebhookSubscription(
+  webhookData: any,
+  requestId: string
+): Promise<{ id: string } | undefined> {
+  try {
+    const { path, providerConfig } = webhookData
+    const { apiKey, triggerId, campaignId } = providerConfig || {}
+
+    if (!apiKey) {
+      logger.warn(`[${requestId}] Missing apiKey for Lemlist webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error(
+        'Lemlist API Key is required. Please provide your Lemlist API Key in the trigger configuration.'
+      )
+    }
+
+    // Map trigger IDs to Lemlist event types
+    const eventTypeMap: Record<string, string | undefined> = {
+      lemlist_email_replied: 'emailsReplied',
+      lemlist_linkedin_replied: 'linkedinReplied',
+      lemlist_interested: 'interested',
+      lemlist_not_interested: 'notInterested',
+      lemlist_email_opened: 'emailsOpened',
+      lemlist_email_clicked: 'emailsClicked',
+      lemlist_email_bounced: 'emailsBounced',
+      lemlist_email_sent: 'emailsSent',
+      lemlist_webhook: undefined, // Generic webhook - no type filter
+    }
+
+    const eventType = eventTypeMap[triggerId]
+
+    logger.info(`[${requestId}] Creating Lemlist webhook`, {
+      triggerId,
+      eventType,
+      hasCampaignId: !!campaignId,
+      webhookId: webhookData.id,
+    })
+
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+
+    const lemlistApiUrl = 'https://api.lemlist.com/api/hooks'
+
+    // Build request body
+    const requestBody: Record<string, any> = {
+      targetUrl: notificationUrl,
+    }
+
+    // Add event type if specified (omit for generic webhook to receive all events)
+    if (eventType) {
+      requestBody.type = eventType
+    }
+
+    // Add campaign filter if specified
+    if (campaignId) {
+      requestBody.campaignId = campaignId
+    }
+
+    // Lemlist uses Basic Auth with empty username and API key as password
+    const authString = Buffer.from(`:${apiKey}`).toString('base64')
+
+    const lemlistResponse = await fetch(lemlistApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${authString}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    const responseBody = await lemlistResponse.json()
+
+    if (!lemlistResponse.ok || responseBody.error) {
+      const errorMessage = responseBody.message || responseBody.error || 'Unknown Lemlist API error'
+      logger.error(
+        `[${requestId}] Failed to create webhook in Lemlist for webhook ${webhookData.id}. Status: ${lemlistResponse.status}`,
+        { message: errorMessage, response: responseBody }
+      )
+
+      let userFriendlyMessage = 'Failed to create webhook subscription in Lemlist'
+      if (lemlistResponse.status === 401) {
+        userFriendlyMessage = 'Invalid Lemlist API Key. Please verify your API Key is correct.'
+      } else if (lemlistResponse.status === 403) {
+        userFriendlyMessage =
+          'Access denied. Please ensure your Lemlist API Key has appropriate permissions.'
+      } else if (errorMessage && errorMessage !== 'Unknown Lemlist API error') {
+        userFriendlyMessage = `Lemlist error: ${errorMessage}`
+      }
+
+      throw new Error(userFriendlyMessage)
+    }
+
+    logger.info(
+      `[${requestId}] Successfully created webhook in Lemlist for webhook ${webhookData.id}.`,
+      {
+        lemlistWebhookId: responseBody._id,
+      }
+    )
+
+    return { id: responseBody._id }
+  } catch (error: any) {
+    logger.error(
+      `[${requestId}] Exception during Lemlist webhook creation for webhook ${webhookData.id}.`,
       {
         message: error.message,
         stack: error.stack,

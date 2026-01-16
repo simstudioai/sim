@@ -82,6 +82,12 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
     metadata: {
       type: 'json',
       description: 'Updated document metadata including ID, title, and URL',
+      properties: {
+        documentId: { type: 'string', description: 'Google Docs document ID' },
+        title: { type: 'string', description: 'Document title' },
+        mimeType: { type: 'string', description: 'Document MIME type' },
+        url: { type: 'string', description: 'Document URL' },
+      },
     },
   },
 

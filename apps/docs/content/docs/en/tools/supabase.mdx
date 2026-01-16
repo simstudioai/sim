@@ -53,6 +53,7 @@ Query data from a Supabase table
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to query |
 | `schema` | string | No | Database schema to query from \(default: public\). Use this to access tables in other schemas. |
+| `select` | string | No | Columns to return \(comma-separated\). Defaults to * \(all columns\) |
 | `filter` | string | No | PostgREST filter \(e.g., "id=eq.123"\) |
 | `orderBy` | string | No | Column to order by \(add DESC for descending\) |
 | `limit` | number | No | Maximum number of rows to return |
@@ -97,6 +98,7 @@ Get a single row from a Supabase table based on filter criteria
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to query |
 | `schema` | string | No | Database schema to query from \(default: public\). Use this to access tables in other schemas. |
+| `select` | string | No | Columns to return \(comma-separated\). Defaults to * \(all columns\) |
 | `filter` | string | Yes | PostgREST filter to find the specific row \(e.g., "id=eq.123"\) |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 
@@ -258,6 +260,32 @@ Call a PostgreSQL function in Supabase
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `results` | json | Result returned from the function |
+
+### `supabase_introspect`
+
+Introspect Supabase database schema to get table structures, columns, and relationships
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `schema` | string | No | Database schema to introspect \(defaults to all user schemas, commonly "public"\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `tables` | array | Array of table schemas with columns, keys, and indexes |
+|   ↳ `name` | string | Table name |
+|   ↳ `schema` | string | Database schema name |
+|   ↳ `columns` | array | Array of column definitions |
+|   ↳ `primaryKey` | array | Array of primary key column names |
+|   ↳ `foreignKeys` | array | Array of foreign key relationships |
+|   ↳ `indexes` | array | Array of index definitions |
+| `schemas` | array | List of schemas found in the database |
 
 ### `supabase_storage_upload`
 
@@ -493,8 +521,3 @@ Create a temporary signed URL for a file in a Supabase storage bucket
 | `signedUrl` | string | The temporary signed URL to access the file |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `supabase`

@@ -41,6 +41,14 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'webflow_form_submission',
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -61,14 +69,6 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
         .join(''),
       mode: 'trigger',
     },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'webflow_form_submission',
-    },
   ],
 
   outputs: {
@@ -76,9 +76,9 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       type: 'string',
       description: 'The site ID where the form was submitted',
     },
-    workspaceId: {
+    formId: {
       type: 'string',
-      description: 'The workspace ID where the event occurred',
+      description: 'The form ID',
     },
     name: {
       type: 'string',

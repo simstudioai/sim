@@ -157,7 +157,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
         {formattedContent && !formattedContent.startsWith('Uploaded') && (
           <div className='rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] transition-all duration-200'>
-            <div className='whitespace-pre-wrap break-words font-medium font-sans text-gray-100 text-sm leading-[1.25rem]'>
+            <div className='whitespace-pre-wrap break-words font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.25rem]'>
               <WordWrap text={formattedContent} />
             </div>
           </div>
@@ -168,7 +168,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
   return (
     <div className='w-full max-w-full overflow-hidden pl-[2px] opacity-100 transition-opacity duration-200'>
-      <div className='whitespace-pre-wrap break-words font-[470] font-season text-[#E8E8E8] text-sm leading-[1.25rem]'>
+      <div className='whitespace-pre-wrap break-words font-[470] font-season text-[var(--text-primary)] text-sm leading-[1.25rem]'>
         <WordWrap text={formattedContent} />
         {message.isStreaming && <StreamingIndicator />}
       </div>

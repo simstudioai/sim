@@ -45,11 +45,12 @@ import {
   useFloatBoundarySync,
   useFloatDrag,
   useFloatResize,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-float'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/float'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import type { BlockLog, ExecutionResult } from '@/executor/types'
-import { getChatPosition, useChatStore } from '@/stores/chat/store'
-import { useExecutionStore } from '@/stores/execution/store'
+import { useChatStore } from '@/stores/chat/store'
+import { getChatPosition } from '@/stores/chat/utils'
+import { useExecutionStore } from '@/stores/execution'
 import { useOperationQueue } from '@/stores/operation-queue/store'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -220,7 +221,9 @@ export function Chat() {
     exportChatCSV,
   } = useChatStore()
 
-  const { entries } = useTerminalConsoleStore()
+  const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
+  const entriesFromStore = useTerminalConsoleStore((state) => state.entries)
+  const entries = hasConsoleHydrated ? entriesFromStore : []
   const { isExecuting } = useExecutionStore()
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const { data: session } = useSession()
@@ -473,6 +476,7 @@ export function Chat() {
   /**
    * Processes streaming response from workflow execution
    * Reads the stream chunk by chunk and updates the message content in real-time
+   * When the final event arrives, extracts any additional selected outputs (model, tokens, toolCalls)
    * @param stream - ReadableStream containing the workflow execution response
    * @param responseMessageId - ID of the message to update with streamed content
    */
@@ -552,7 +556,7 @@ export function Chat() {
         focusInput(100)
       }
     },
-    [appendMessageContent, finalizeMessageStream, focusInput]
+    [appendMessageContent, finalizeMessageStream, focusInput, selectedOutputs, activeWorkflowId]
   )
 
   /**
@@ -564,7 +568,6 @@ export function Chat() {
       if (!result || !activeWorkflowId) return
       if (typeof result !== 'object') return
 
-      // Handle streaming response
       if ('stream' in result && result.stream instanceof ReadableStream) {
         const responseMessageId = crypto.randomUUID()
         addMessage({
@@ -578,7 +581,6 @@ export function Chat() {
         return
       }
 
-      // Handle success with logs
       if ('success' in result && result.success && 'logs' in result && Array.isArray(result.logs)) {
         selectedOutputs
           .map((outputId) => extractOutputFromLogs(result.logs as BlockLog[], outputId))
@@ -596,7 +598,6 @@ export function Chat() {
         return
       }
 
-      // Handle error response
       if ('success' in result && !result.success) {
         const errorMessage =
           'error' in result && typeof result.error === 'string'
@@ -622,7 +623,6 @@ export function Chat() {
 
     const sentMessage = chatMessage.trim()
 
-    // Update prompt history (only if new unique message)
     if (sentMessage && promptHistory[promptHistory.length - 1] !== sentMessage) {
       setPromptHistory((prev) => [...prev, sentMessage])
     }
@@ -631,10 +631,8 @@ export function Chat() {
     const conversationId = getConversationId(activeWorkflowId)
 
     try {
-      // Process file attachments
       const attachmentsWithData = await processFileAttachments(chatFiles)
 
-      // Add user message
       const messageContent =
         sentMessage || (chatFiles.length > 0 ? `Uploaded ${chatFiles.length} file(s)` : '')
       addMessage({
@@ -644,7 +642,6 @@ export function Chat() {
         attachments: attachmentsWithData,
       })
 
-      // Prepare workflow input
       const workflowInput: {
         input: string
         conversationId: string
@@ -667,13 +664,11 @@ export function Chat() {
         }
       }
 
-      // Clear input and files
       setChatMessage('')
       clearFiles()
       clearErrors()
       focusInput(10)
 
-      // Execute workflow
       const result = await handleRunWorkflow(workflowInput)
       handleWorkflowResponse(result)
     } catch (error) {
@@ -705,7 +700,9 @@ export function Chat() {
     (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
-        handleSendMessage()
+        if (!isStreaming && !isExecuting) {
+          handleSendMessage()
+        }
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
         if (promptHistory.length > 0) {
@@ -728,7 +725,7 @@ export function Chat() {
         }
       }
     },
-    [handleSendMessage, promptHistory, historyIndex]
+    [handleSendMessage, promptHistory, historyIndex, isStreaming, isExecuting]
   )
 
   /**
@@ -864,7 +861,7 @@ export function Chat() {
             selectedOutputs={selectedOutputs}
             onOutputSelect={handleOutputSelection}
             disabled={!activeWorkflowId}
-            placeholder='Select outputs'
+            placeholder='Outputs'
             align='end'
             maxHeight={180}
           />
@@ -1040,7 +1037,7 @@ export function Chat() {
                 onKeyDown={handleKeyPress}
                 placeholder={isDragOver ? 'Drop files here...' : 'Type a message...'}
                 className='w-full border-0 bg-transparent pr-[56px] pl-[4px] shadow-none focus-visible:ring-0 focus-visible:ring-offset-0'
-                disabled={!activeWorkflowId || isExecuting}
+                disabled={!activeWorkflowId}
               />
 
               {/* Buttons positioned absolutely on the right */}
@@ -1070,7 +1067,8 @@ export function Chat() {
                     disabled={
                       (!chatMessage.trim() && chatFiles.length === 0) ||
                       !activeWorkflowId ||
-                      isExecuting
+                      isExecuting ||
+                      isStreaming
                     }
                     className={cn(
                       'h-[22px] w-[22px] rounded-full p-0 transition-colors',

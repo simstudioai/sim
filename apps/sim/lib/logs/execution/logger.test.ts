@@ -1,31 +1,8 @@
-import { loggerMock } from '@sim/testing'
+import { databaseMock, loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { ExecutionLogger } from '@/lib/logs/execution/logger'
 
-// Mock database module
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn(() => Promise.resolve([])),
-        })),
-      })),
-    })),
-    insert: vi.fn(() => ({
-      values: vi.fn(() => ({
-        returning: vi.fn(() => Promise.resolve([])),
-      })),
-    })),
-    update: vi.fn(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn(() => ({
-          returning: vi.fn(() => Promise.resolve([])),
-        })),
-      })),
-    })),
-  },
-}))
+vi.mock('@sim/db', () => databaseMock)
 
 // Mock database schema
 vi.mock('@sim/db/schema', () => ({
@@ -311,97 +288,6 @@ describe('ExecutionLogger', () => {
       const files = extractFilesMethod(traceSpans, null, null)
       expect(files).toHaveLength(1)
       expect(files[0].name).toBe('nested.json')
-    })
-  })
-
-  describe('cost model merging', () => {
-    test('should merge cost models correctly', () => {
-      const loggerInstance = new ExecutionLogger()
-      const mergeCostModelsMethod = (loggerInstance as any).mergeCostModels.bind(loggerInstance)
-
-      const existing = {
-        'gpt-4': {
-          input: 0.01,
-          output: 0.02,
-          total: 0.03,
-          tokens: { input: 100, output: 200, total: 300 },
-        },
-      }
-
-      const additional = {
-        'gpt-4': {
-          input: 0.005,
-          output: 0.01,
-          total: 0.015,
-          tokens: { input: 50, output: 100, total: 150 },
-        },
-        'gpt-3.5-turbo': {
-          input: 0.001,
-          output: 0.002,
-          total: 0.003,
-          tokens: { input: 10, output: 20, total: 30 },
-        },
-      }
-
-      const merged = mergeCostModelsMethod(existing, additional)
-
-      expect(merged['gpt-4'].input).toBe(0.015)
-      expect(merged['gpt-4'].output).toBe(0.03)
-      expect(merged['gpt-4'].total).toBe(0.045)
-      expect(merged['gpt-4'].tokens.input).toBe(150)
-      expect(merged['gpt-4'].tokens.output).toBe(300)
-      expect(merged['gpt-4'].tokens.total).toBe(450)
-
-      expect(merged['gpt-3.5-turbo']).toBeDefined()
-      expect(merged['gpt-3.5-turbo'].total).toBe(0.003)
-    })
-
-    test('should handle prompt/completion token aliases', () => {
-      const loggerInstance = new ExecutionLogger()
-      const mergeCostModelsMethod = (loggerInstance as any).mergeCostModels.bind(loggerInstance)
-
-      const existing = {
-        'gpt-4': {
-          input: 0.01,
-          output: 0.02,
-          total: 0.03,
-          tokens: { prompt: 100, completion: 200, total: 300 },
-        },
-      }
-
-      const additional = {
-        'gpt-4': {
-          input: 0.005,
-          output: 0.01,
-          total: 0.015,
-          tokens: { input: 50, output: 100, total: 150 },
-        },
-      }
-
-      const merged = mergeCostModelsMethod(existing, additional)
-
-      expect(merged['gpt-4'].tokens.input).toBe(150)
-      expect(merged['gpt-4'].tokens.output).toBe(300)
-    })
-
-    test('should handle empty existing models', () => {
-      const loggerInstance = new ExecutionLogger()
-      const mergeCostModelsMethod = (loggerInstance as any).mergeCostModels.bind(loggerInstance)
-
-      const existing = {}
-      const additional = {
-        'claude-3': {
-          input: 0.02,
-          output: 0.04,
-          total: 0.06,
-          tokens: { input: 200, output: 400, total: 600 },
-        },
-      }
-
-      const merged = mergeCostModelsMethod(existing, additional)
-
-      expect(merged['claude-3']).toBeDefined()
-      expect(merged['claude-3'].total).toBe(0.06)
     })
   })
 })

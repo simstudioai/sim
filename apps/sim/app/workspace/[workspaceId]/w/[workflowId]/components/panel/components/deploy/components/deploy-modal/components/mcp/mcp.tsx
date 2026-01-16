@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { Badge, Combobox, type ComboboxOption, Input, Label, Textarea } from '@/components/emcn'
+import {
+  Badge,
+  Button,
+  Combobox,
+  type ComboboxOption,
+  Input,
+  Label,
+  Textarea,
+} from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
@@ -18,7 +26,7 @@ import {
   type WorkflowMcpServer,
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
-import { useSettingsModalStore } from '@/stores/settings-modal/store'
+import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -35,6 +43,7 @@ interface McpDeployProps {
   onAddedToServer?: () => void
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
+  onHasServersChange?: (hasServers: boolean) => void
 }
 
 /**
@@ -83,6 +92,7 @@ export function McpDeploy({
   onAddedToServer,
   onSubmittingChange,
   onCanSaveChange,
+  onHasServersChange,
 }: McpDeployProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -128,10 +138,12 @@ export function McpDeploy({
 
   const [toolName, setToolName] = useState(() => sanitizeToolName(workflowName))
   const [toolDescription, setToolDescription] = useState(() => {
+    const normalizedDesc = workflowDescription?.toLowerCase().trim()
     const isDefaultDescription =
       !workflowDescription ||
       workflowDescription === workflowName ||
-      workflowDescription.toLowerCase() === 'new workflow'
+      normalizedDesc === 'new workflow' ||
+      normalizedDesc === 'your first workflow - start building here!'
 
     return isDefaultDescription ? '' : workflowDescription
   })
@@ -183,10 +195,12 @@ export function McpDeploy({
         setToolName(toolInfo.tool.toolName)
 
         const loadedDescription = toolInfo.tool.toolDescription || ''
+        const normalizedLoadedDesc = loadedDescription.toLowerCase().trim()
         const isDefaultDescription =
           !loadedDescription ||
           loadedDescription === workflowName ||
-          loadedDescription.toLowerCase() === 'new workflow'
+          normalizedLoadedDesc === 'new workflow' ||
+          normalizedLoadedDesc === 'your first workflow - start building here!'
         setToolDescription(isDefaultDescription ? '' : loadedDescription)
 
         const schema = toolInfo.tool.parameterSchema as Record<string, unknown> | undefined
@@ -246,6 +260,10 @@ export function McpDeploy({
   useEffect(() => {
     onCanSaveChange?.(hasChanges && hasDeployedTools && !!toolName.trim())
   }, [hasChanges, hasDeployedTools, toolName, onCanSaveChange])
+
+  useEffect(() => {
+    onHasServersChange?.(servers.length > 0)
+  }, [servers.length, onHasServersChange])
 
   /**
    * Save tool configuration to all deployed servers
@@ -428,14 +446,16 @@ export function McpDeploy({
 
   if (servers.length === 0) {
     return (
-      <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
-        <button
-          type='button'
+      <div className='flex h-full flex-col items-center justify-center gap-3'>
+        <p className='text-[13px] text-[var(--text-muted)]'>
+          Create an MCP Server in Settings → Deployed MCPs first.
+        </p>
+        <Button
+          variant='tertiary'
           onClick={() => openSettingsModal({ section: 'workflow-mcp-servers' })}
-          className='transition-colors hover:text-[var(--text-secondary)]'
         >
-          Create an MCP Server in Settings → MCP Servers first.
-        </button>
+          Create MCP Server
+        </Button>
       </div>
     )
   }
@@ -443,7 +463,7 @@ export function McpDeploy({
   return (
     <form
       id='mcp-deploy-form'
-      className='-mx-1 space-y-[12px] overflow-y-auto px-1'
+      className='-mx-1 space-y-[12px] px-1'
       onSubmit={(e) => {
         e.preventDefault()
         handleSave()
@@ -497,25 +517,31 @@ export function McpDeploy({
             {inputFormat.map((field) => (
               <div
                 key={field.name}
-                className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
+                className='overflow-hidden rounded-[4px] border border-[var(--border-1)]'
               >
-                <div className='flex items-center justify-between'>
-                  <p className='font-medium text-[13px] text-[var(--text-primary)]'>{field.name}</p>
-                  <Badge variant='outline' className='text-[10px]'>
-                    {field.type}
-                  </Badge>
+                <div className='flex items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'>
+                  <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+                    <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
+                      {field.name}
+                    </span>
+                    <Badge size='sm'>{field.type}</Badge>
+                  </div>
                 </div>
-                <Input
-                  value={parameterDescriptions[field.name] || ''}
-                  onChange={(e) =>
-                    setParameterDescriptions((prev) => ({
-                      ...prev,
-                      [field.name]: e.target.value,
-                    }))
-                  }
-                  placeholder='Description'
-                  className='mt-[6px] h-[28px] text-[12px]'
-                />
+                <div className='border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
+                  <div className='flex flex-col gap-[6px]'>
+                    <Label className='text-[13px]'>Description</Label>
+                    <Input
+                      value={parameterDescriptions[field.name] || ''}
+                      onChange={(e) =>
+                        setParameterDescriptions((prev) => ({
+                          ...prev,
+                          [field.name]: e.target.value,
+                        }))
+                      }
+                      placeholder={`Enter description for ${field.name}`}
+                    />
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -535,7 +561,6 @@ export function McpDeploy({
           searchable
           searchPlaceholder='Search servers...'
           disabled={!toolName.trim() || isPending}
-          isLoading={isPending}
           overlayContent={
             <span className='truncate text-[var(--text-primary)]'>{selectedServersLabel}</span>
           }

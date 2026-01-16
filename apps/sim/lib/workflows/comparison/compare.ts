@@ -1,5 +1,5 @@
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
+import { SYSTEM_SUBBLOCK_IDS, TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import {
   normalizedStringify,
   normalizeEdge,
@@ -51,8 +51,8 @@ export function hasWorkflowChanged(
   }
 
   // 3. Build normalized representations of blocks for comparison
-  const normalizedCurrentBlocks: Record<string, any> = {}
-  const normalizedDeployedBlocks: Record<string, any> = {}
+  const normalizedCurrentBlocks: Record<string, unknown> = {}
+  const normalizedDeployedBlocks: Record<string, unknown> = {}
 
   for (const blockId of currentBlockIds) {
     const currentBlock = currentState.blocks[blockId]
@@ -103,11 +103,13 @@ export function hasWorkflowChanged(
       subBlocks: undefined,
     }
 
-    // Get all subBlock IDs from both states, excluding runtime metadata
+    // Get all subBlock IDs from both states, excluding runtime metadata and UI-only elements
     const allSubBlockIds = [
       ...new Set([...Object.keys(currentSubBlocks), ...Object.keys(deployedSubBlocks)]),
     ]
-      .filter((id) => !TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(id))
+      .filter(
+        (id) => !TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(id) && !SYSTEM_SUBBLOCK_IDS.includes(id)
+      )
       .sort()
 
     // Normalize and compare each subBlock
@@ -118,8 +120,9 @@ export function hasWorkflowChanged(
       }
 
       // Get values with special handling for null/undefined
-      let currentValue = currentSubBlocks[subBlockId].value ?? null
-      let deployedValue = deployedSubBlocks[subBlockId].value ?? null
+      // Using unknown type since sanitization functions return different types
+      let currentValue: unknown = currentSubBlocks[subBlockId].value ?? null
+      let deployedValue: unknown = deployedSubBlocks[subBlockId].value ?? null
 
       if (subBlockId === 'tools' && Array.isArray(currentValue) && Array.isArray(deployedValue)) {
         currentValue = sanitizeTools(currentValue)
@@ -230,8 +233,8 @@ export function hasWorkflowChanged(
   }
 
   // 6. Compare variables
-  const currentVariables = normalizeVariables((currentState as any).variables)
-  const deployedVariables = normalizeVariables((deployedState as any).variables)
+  const currentVariables = normalizeVariables(currentState.variables)
+  const deployedVariables = normalizeVariables(deployedState.variables)
 
   const normalizedCurrentVars = normalizeValue(
     Object.fromEntries(Object.entries(currentVariables).map(([id, v]) => [id, sanitizeVariable(v)]))

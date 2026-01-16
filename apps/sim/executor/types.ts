@@ -1,4 +1,5 @@
 import type { TraceSpan } from '@/lib/logs/types'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
@@ -124,6 +125,7 @@ export interface ExecutionMetadata {
   isDebugSession?: boolean
   context?: ExecutionContext
   workflowConnections?: Array<{ source: string; target: string }>
+  credentialAccountUserId?: string
   status?: 'running' | 'paused' | 'completed'
   pausePoints?: string[]
   resumeChain?: {
@@ -150,6 +152,9 @@ export interface ExecutionContext {
   executionId?: string
   userId?: string
   isDeployedContext?: boolean
+
+  permissionConfig?: PermissionGroupConfig | null
+  permissionConfigLoaded?: boolean
 
   blockStates: ReadonlyMap<string, BlockState>
   executedBlocks: ReadonlySet<string>

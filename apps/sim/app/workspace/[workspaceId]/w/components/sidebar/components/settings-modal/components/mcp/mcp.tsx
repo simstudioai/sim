@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -16,13 +16,20 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
+import { cn } from '@/lib/core/utils/cn'
 import {
   getIssueBadgeLabel,
   getIssueBadgeVariant,
   getMcpToolIssue,
   type McpToolIssue,
 } from '@/lib/mcp/tool-validation'
-import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
+import type { McpTransport } from '@/lib/mcp/types'
+import {
+  checkEnvVarTrigger,
+  EnvVarDropdown,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { useMcpServerTest } from '@/hooks/mcp/use-mcp-server-test'
 import {
   useCreateMcpServer,
   useDeleteMcpServer,
@@ -32,18 +39,43 @@ import {
   useRefreshMcpServer,
   useStoredMcpTools,
 } from '@/hooks/queries/mcp'
-import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import type { InputFieldType, McpServerFormData, McpServerTestResult } from './components'
-import {
-  FormattedInput,
-  FormField,
-  formatTransportLabel,
-  HeaderRow,
-  McpServerSkeleton,
-  ServerListItem,
-} from './components'
+import { FormField, McpServerSkeleton } from './components'
+
+/**
+ * Represents a single header entry in the form.
+ * Using an array of objects allows duplicate keys during editing.
+ */
+interface HeaderEntry {
+  key: string
+  value: string
+}
+
+interface McpServerFormData {
+  name: string
+  transport: McpTransport
+  url?: string
+  timeout?: number
+  headers?: HeaderEntry[]
+}
+
+interface McpServerTestResult {
+  success: boolean
+  message?: string
+  error?: string
+  warnings?: string[]
+}
+
+type InputFieldType = 'url' | 'header-key' | 'header-value'
+
+interface EnvVarDropdownConfig {
+  searchTerm: string
+  cursorPosition: number
+  workspaceId: string
+  onSelect: (value: string) => void
+  onClose: () => void
+}
 
 interface McpTool {
   name: string
@@ -72,6 +104,33 @@ const DEFAULT_FORM_DATA: McpServerFormData = {
 }
 
 /**
+ * Formats a transport type string for display.
+ */
+function formatTransportLabel(transport: string): string {
+  return transport
+    .split('-')
+    .map((word) =>
+      ['http', 'sse', 'stdio'].includes(word.toLowerCase())
+        ? word.toUpperCase()
+        : word.charAt(0).toUpperCase() + word.slice(1)
+    )
+    .join('-')
+}
+
+/**
+ * Formats a tools list for display in the server list.
+ */
+function formatToolsLabel(tools: McpTool[], connectionStatus?: string): string {
+  if (connectionStatus === 'error') {
+    return 'Unable to connect'
+  }
+  const count = tools.length
+  const plural = count !== 1 ? 's' : ''
+  const names = count > 0 ? `: ${tools.map((t) => t.name).join(', ')}` : ''
+  return `${count} tool${plural}${names}`
+}
+
+/**
  * Determines the label for the test connection button based on current state.
  */
 function getTestButtonLabel(
@@ -82,6 +141,198 @@ function getTestButtonLabel(
   if (testResult?.success) return 'Connection success'
   if (testResult && !testResult.success) return 'No connection: retry'
   return 'Test Connection'
+}
+
+interface FormattedInputProps {
+  ref?: React.RefObject<HTMLInputElement | null>
+  placeholder: string
+  value: string
+  scrollLeft: number
+  showEnvVars: boolean
+  envVarProps: EnvVarDropdownConfig
+  className?: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onScroll: (scrollLeft: number) => void
+}
+
+function FormattedInput({
+  ref,
+  placeholder,
+  value,
+  scrollLeft,
+  showEnvVars,
+  envVarProps,
+  className,
+  onChange,
+  onScroll,
+}: FormattedInputProps) {
+  const handleScroll = (e: React.UIEvent<HTMLInputElement>) => {
+    onScroll(e.currentTarget.scrollLeft)
+  }
+
+  return (
+    <div className={cn('relative', className)}>
+      <EmcnInput
+        ref={ref}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        onScroll={handleScroll}
+        onInput={handleScroll}
+        className='h-9 text-transparent caret-foreground placeholder:text-[var(--text-muted)]'
+      />
+      <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-[8px] py-[6px] font-medium font-sans text-sm'>
+        <div className='whitespace-nowrap' style={{ transform: `translateX(-${scrollLeft}px)` }}>
+          {formatDisplayText(value)}
+        </div>
+      </div>
+      {showEnvVars && (
+        <EnvVarDropdown
+          visible={showEnvVars}
+          onSelect={envVarProps.onSelect}
+          searchTerm={envVarProps.searchTerm}
+          inputValue={value}
+          cursorPosition={envVarProps.cursorPosition}
+          workspaceId={envVarProps.workspaceId}
+          onClose={envVarProps.onClose}
+          className='w-full'
+          maxHeight='200px'
+          style={{ position: 'absolute', top: '100%', left: 0, zIndex: 99999 }}
+        />
+      )}
+    </div>
+  )
+}
+
+interface HeaderRowProps {
+  header: HeaderEntry
+  index: number
+  headerScrollLeft: Record<string, number>
+  showEnvVars: boolean
+  activeInputField: InputFieldType | null
+  activeHeaderIndex: number | null
+  envSearchTerm: string
+  cursorPosition: number
+  workspaceId: string
+  onInputChange: (field: InputFieldType, value: string, index?: number) => void
+  onHeaderScroll: (key: string, scrollLeft: number) => void
+  onEnvVarSelect: (value: string) => void
+  onEnvVarClose: () => void
+  onRemove: () => void
+}
+
+function HeaderRow({
+  header,
+  index,
+  headerScrollLeft,
+  showEnvVars,
+  activeInputField,
+  activeHeaderIndex,
+  envSearchTerm,
+  cursorPosition,
+  workspaceId,
+  onInputChange,
+  onHeaderScroll,
+  onEnvVarSelect,
+  onEnvVarClose,
+  onRemove,
+}: HeaderRowProps) {
+  const isKeyActive =
+    showEnvVars && activeInputField === 'header-key' && activeHeaderIndex === index
+  const isValueActive =
+    showEnvVars && activeInputField === 'header-value' && activeHeaderIndex === index
+
+  const envVarProps: EnvVarDropdownConfig = {
+    searchTerm: envSearchTerm,
+    cursorPosition,
+    workspaceId,
+    onSelect: onEnvVarSelect,
+    onClose: onEnvVarClose,
+  }
+
+  return (
+    <div className='relative flex items-center gap-[8px]'>
+      <FormattedInput
+        placeholder='Name'
+        value={header.key || ''}
+        scrollLeft={headerScrollLeft[`key-${index}`] || 0}
+        showEnvVars={isKeyActive}
+        envVarProps={envVarProps}
+        className='flex-1'
+        onChange={(e) => onInputChange('header-key', e.target.value, index)}
+        onScroll={(scrollLeft) => onHeaderScroll(`key-${index}`, scrollLeft)}
+      />
+
+      <FormattedInput
+        placeholder='Value'
+        value={header.value || ''}
+        scrollLeft={headerScrollLeft[`value-${index}`] || 0}
+        showEnvVars={isValueActive}
+        envVarProps={envVarProps}
+        className='flex-1'
+        onChange={(e) => onInputChange('header-value', e.target.value, index)}
+        onScroll={(scrollLeft) => onHeaderScroll(`value-${index}`, scrollLeft)}
+      />
+
+      <Button type='button' variant='ghost' onClick={onRemove} className='h-6 w-6 shrink-0 p-0'>
+        <X className='h-3 w-3' />
+      </Button>
+    </div>
+  )
+}
+
+interface ServerListItemProps {
+  server: McpServer
+  tools: McpTool[]
+  isDeleting: boolean
+  isLoadingTools?: boolean
+  isRefreshing?: boolean
+  onRemove: () => void
+  onViewDetails: () => void
+}
+
+function ServerListItem({
+  server,
+  tools,
+  isDeleting,
+  isLoadingTools = false,
+  isRefreshing = false,
+  onRemove,
+  onViewDetails,
+}: ServerListItemProps) {
+  const transportLabel = formatTransportLabel(server.transport || 'http')
+  const toolsLabel = formatToolsLabel(tools, server.connectionStatus)
+  const isError = server.connectionStatus === 'error'
+
+  return (
+    <div className='flex items-center justify-between gap-[12px]'>
+      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+        <div className='flex items-center gap-[6px]'>
+          <span className='max-w-[200px] truncate font-medium text-[14px]'>
+            {server.name || 'Unnamed Server'}
+          </span>
+          <span className='text-[13px] text-[var(--text-secondary)]'>({transportLabel})</span>
+        </div>
+        <p
+          className={`truncate text-[13px] ${isError ? 'text-red-500 dark:text-red-400' : 'text-[var(--text-muted)]'}`}
+        >
+          {isRefreshing
+            ? 'Refreshing...'
+            : isLoadingTools && tools.length === 0
+              ? 'Loading...'
+              : toolsLabel}
+        </p>
+      </div>
+      <div className='flex flex-shrink-0 items-center gap-[4px]'>
+        <Button variant='default' onClick={onViewDetails}>
+          Details
+        </Button>
+        <Button variant='ghost' onClick={onRemove} disabled={isDeleting}>
+          {isDeleting ? 'Deleting...' : 'Delete'}
+        </Button>
+      </div>
+    </div>
+  )
 }
 
 interface MCPProps {

@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { withOptimisticUpdate } from '@/lib/core/utils/optimistic-update'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
+import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type {
@@ -11,7 +12,6 @@ import type {
   WorkflowMetadata,
   WorkflowRegistry,
 } from '@/stores/workflows/registry/types'
-import { getNextWorkflowColor } from '@/stores/workflows/registry/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { getUniqueBlockName, regenerateBlockIds } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -40,9 +40,7 @@ function resetWorkflowStores() {
     edges: [],
     loops: {},
     parallels: {},
-    isDeployed: false,
-    deployedAt: undefined,
-    deploymentStatuses: {}, // Reset deployment statuses map
+    deploymentStatuses: {},
     lastSaved: Date.now(),
   })
 
@@ -99,11 +97,18 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           return acc
         }, {})
 
-        set((state) => ({
-          workflows: mapped,
-          error: null,
-          hydration:
-            state.hydration.phase === 'state-loading'
+        set((state) => {
+          // Preserve hydration if workflow is loading or already ready and still exists
+          const shouldPreserveHydration =
+            state.hydration.phase === 'state-loading' ||
+            (state.hydration.phase === 'ready' &&
+              state.hydration.workflowId &&
+              mapped[state.hydration.workflowId])
+
+          return {
+            workflows: mapped,
+            error: null,
+            hydration: shouldPreserveHydration
               ? state.hydration
               : {
                   phase: 'metadata-ready',
@@ -112,7 +117,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   requestId: null,
                   error: null,
                 },
-        }))
+          }
+        })
       },
 
       failMetadataLoad: (workspaceId: string | null, errorMessage: string) => {
@@ -227,31 +233,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             },
           },
         }))
-
-        // Also update the workflow store if this is the active workflow
-        const { activeWorkflowId } = get()
-        if (workflowId === activeWorkflowId) {
-          // Update the workflow store for backward compatibility
-          useWorkflowStore.setState((state) => ({
-            isDeployed,
-            deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
-            needsRedeployment: isDeployed ? false : state.needsRedeployment,
-            deploymentStatuses: {
-              ...state.deploymentStatuses,
-              [workflowId as string]: {
-                isDeployed,
-                deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
-                apiKey,
-                needsRedeployment: isDeployed
-                  ? false
-                  : ((state.deploymentStatuses?.[workflowId as string] as any)?.needsRedeployment ??
-                    false),
-              },
-            },
-          }))
-        }
-
-        // Note: Socket.IO handles real-time sync automatically
       },
 
       // Method to set the needsRedeployment flag for a specific workflow
@@ -322,9 +303,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               edges: workflowData.state.edges || [],
               loops: workflowData.state.loops || {},
               parallels: workflowData.state.parallels || {},
-              isDeployed: workflowData.isDeployed || false,
-              deployedAt: workflowData.deployedAt ? new Date(workflowData.deployedAt) : undefined,
-              apiKey: workflowData.apiKey,
               lastSaved: Date.now(),
               deploymentStatuses: {},
             }
@@ -334,8 +312,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               edges: [],
               loops: {},
               parallels: {},
-              isDeployed: false,
-              deployedAt: undefined,
               deploymentStatuses: {},
               lastSaved: Date.now(),
             }
@@ -500,7 +476,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Use the server-generated ID
         const id = duplicatedWorkflow.id
 
-        // Generate new workflow metadata using the server-generated ID
         const newWorkflow: WorkflowMetadata = {
           id,
           name: `${sourceWorkflow.name} (Copy)`,
@@ -508,8 +483,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           createdAt: new Date(),
           description: sourceWorkflow.description,
           color: getNextWorkflowColor(),
-          workspaceId, // Include the workspaceId in the new workflow
-          folderId: sourceWorkflow.folderId, // Include the folderId from source workflow
+          workspaceId,
+          folderId: sourceWorkflow.folderId,
+          sortOrder: duplicatedWorkflow.sortOrder ?? 0,
         }
 
         // Get the current workflow state to copy from
@@ -543,8 +519,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           edges: sourceState.edges,
           loops: sourceState.loops,
           parallels: sourceState.parallels,
-          isDeployed: false,
-          deployedAt: undefined,
           workspaceId,
           deploymentStatuses: {},
           lastSaved: Date.now(),
@@ -622,8 +596,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   edges: [...useWorkflowStore.getState().edges],
                   loops: { ...useWorkflowStore.getState().loops },
                   parallels: { ...useWorkflowStore.getState().parallels },
-                  isDeployed: useWorkflowStore.getState().isDeployed,
-                  deployedAt: useWorkflowStore.getState().deployedAt,
                   lastSaved: useWorkflowStore.getState().lastSaved,
                 }
               : null,
@@ -646,8 +618,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 edges: [],
                 loops: {},
                 parallels: {},
-                isDeployed: false,
-                deployedAt: undefined,
                 lastSaved: Date.now(),
               })
 

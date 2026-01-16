@@ -7,6 +7,7 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
+import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('ExecutionPreprocessing')
 
@@ -108,7 +109,7 @@ export interface PreprocessExecutionOptions {
   // Required fields
   workflowId: string
   userId: string // The authenticated user ID
-  triggerType: 'manual' | 'api' | 'webhook' | 'schedule' | 'chat' | 'mcp'
+  triggerType: CoreTriggerType | 'form'
   executionId: string
   requestId: string
 
@@ -541,6 +542,7 @@ async function logPreprocessingError(params: {
         stackTrace: undefined,
       },
       traceSpans: [],
+      skipCost: true, // Preprocessing errors should not charge - no execution occurred
     })
 
     logger.debug(`[${requestId}] Logged preprocessing error to database`, {

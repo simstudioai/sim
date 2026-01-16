@@ -45,21 +45,49 @@ const Content = React.forwardRef<
       collisionPadding={8}
       avoidCollisions={true}
       className={cn(
-        'z-[10000300] rounded-[3px] bg-black px-[7.5px] py-[6px] font-base text-white text-xs shadow-md dark:bg-white dark:text-black',
+        'z-[10000300] rounded-[4px] bg-[#1b1b1b] px-[8px] py-[3.5px] font-base text-white text-xs shadow-sm dark:bg-[#fdfdfd] dark:text-black',
         className
       )}
       {...props}
     >
       {props.children}
-      <TooltipPrimitive.Arrow className='fill-black dark:fill-white' />
+      <TooltipPrimitive.Arrow className='fill-[#1b1b1b] dark:fill-[#fdfdfd]' />
     </TooltipPrimitive.Content>
   </TooltipPrimitive.Portal>
 ))
 Content.displayName = TooltipPrimitive.Content.displayName
+
+interface ShortcutProps {
+  /** The keyboard shortcut keys to display (e.g., "⌘D", "⌘K") */
+  keys: string
+  /** Optional additional class names */
+  className?: string
+  /** Optional children to display before the shortcut */
+  children?: React.ReactNode
+}
+
+/**
+ * Displays a keyboard shortcut within tooltip content.
+ *
+ * @example
+ * ```tsx
+ * <Tooltip.Content>
+ *   <Tooltip.Shortcut keys="⌘D">Clear console</Tooltip.Shortcut>
+ * </Tooltip.Content>
+ * ```
+ */
+const Shortcut = ({ keys, className, children }: ShortcutProps) => (
+  <span className={cn('flex items-center gap-[8px]', className)}>
+    {children && <span>{children}</span>}
+    <span className='opacity-70'>{keys}</span>
+  </span>
+)
+Shortcut.displayName = 'Tooltip.Shortcut'
 
 export const Tooltip = {
   Root,
   Trigger,
   Content,
   Provider,
+  Shortcut,
 }

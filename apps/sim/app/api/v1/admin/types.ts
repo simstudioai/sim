@@ -243,7 +243,7 @@ export interface WorkflowExportState {
     color?: string
     exportedAt?: string
   }
-  variables?: WorkflowVariable[]
+  variables?: Record<string, WorkflowVariable>
 }
 
 export interface WorkflowExportPayload {
@@ -317,36 +317,44 @@ export interface WorkspaceImportResponse {
 // =============================================================================
 
 /**
- * Parse workflow variables from database JSON format to array format.
- * Handles both array and Record<string, Variable> formats.
+ * Parse workflow variables from database JSON format to Record format.
+ * Handles both legacy Array and current Record<string, Variable> formats.
  */
 export function parseWorkflowVariables(
   dbVariables: DbWorkflow['variables']
-): WorkflowVariable[] | undefined {
+): Record<string, WorkflowVariable> | undefined {
   if (!dbVariables) return undefined
 
   try {
     const varsObj = typeof dbVariables === 'string' ? JSON.parse(dbVariables) : dbVariables
 
+    // Handle legacy Array format by converting to Record
     if (Array.isArray(varsObj)) {
-      return varsObj.map((v) => ({
-        id: v.id,
-        name: v.name,
-        type: v.type,
-        value: v.value,
-      }))
+      const result: Record<string, WorkflowVariable> = {}
+      for (const v of varsObj) {
+        result[v.id] = {
+          id: v.id,
+          name: v.name,
+          type: v.type,
+          value: v.value,
+        }
+      }
+      return result
     }
 
+    // Already Record format - normalize and return
     if (typeof varsObj === 'object' && varsObj !== null) {
-      return Object.values(varsObj).map((v: unknown) => {
+      const result: Record<string, WorkflowVariable> = {}
+      for (const [key, v] of Object.entries(varsObj)) {
         const variable = v as { id: string; name: string; type: VariableType; value: unknown }
-        return {
+        result[key] = {
           id: variable.id,
           name: variable.name,
           type: variable.type,
           value: variable.value,
         }
-      })
+      }
+      return result
     }
   } catch {
     // pass
@@ -511,6 +519,22 @@ export interface AdminMemberDetail extends AdminMember {
 }
 
 // =============================================================================
+// Workspace Member Types
+// =============================================================================
+
+export interface AdminWorkspaceMember {
+  id: string
+  workspaceId: string
+  userId: string
+  permissions: 'admin' | 'write' | 'read'
+  createdAt: string
+  updatedAt: string
+  userName: string
+  userEmail: string
+  userImage: string | null
+}
+
+// =============================================================================
 // User Billing Types
 // =============================================================================
 
@@ -598,4 +622,24 @@ export interface AdminSeatAnalytics {
     joinedAt: string
     lastActive: string | null
   }>
+}
+
+export interface AdminDeploymentVersion {
+  id: string
+  version: number
+  name: string | null
+  isActive: boolean
+  createdAt: string
+  createdBy: string | null
+  deployedByName: string | null
+}
+
+export interface AdminDeployResult {
+  isDeployed: boolean
+  version: number
+  deployedAt: string
+}
+
+export interface AdminUndeployResult {
+  isDeployed: boolean
 }

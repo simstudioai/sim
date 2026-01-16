@@ -7,6 +7,17 @@ import postgres from 'postgres'
 import { env } from '@/lib/core/config/env'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { mergeSubBlockValues } from '@/lib/workflows/subblocks'
+import {
+  BLOCK_OPERATIONS,
+  BLOCKS_OPERATIONS,
+  EDGE_OPERATIONS,
+  EDGES_OPERATIONS,
+  OPERATION_TARGETS,
+  SUBFLOW_OPERATIONS,
+  VARIABLE_OPERATIONS,
+  WORKFLOW_OPERATIONS,
+} from '@/socket/constants'
 
 const logger = createLogger('SocketDatabase')
 
@@ -155,7 +166,7 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
   try {
     const { operation: op, target, payload, timestamp, userId } = operation
 
-    if (op === 'update-position' && Math.random() < 0.01) {
+    if (op === BLOCK_OPERATIONS.UPDATE_POSITION && Math.random() < 0.01) {
       logger.debug('Socket DB operation sample:', {
         operation: op,
         target,
@@ -170,22 +181,25 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
         .where(eq(workflow.id, workflowId))
 
       switch (target) {
-        case 'block':
+        case OPERATION_TARGETS.BLOCK:
           await handleBlockOperationTx(tx, workflowId, op, payload)
           break
-        case 'blocks':
+        case OPERATION_TARGETS.BLOCKS:
           await handleBlocksOperationTx(tx, workflowId, op, payload)
           break
-        case 'edge':
+        case OPERATION_TARGETS.EDGE:
           await handleEdgeOperationTx(tx, workflowId, op, payload)
           break
-        case 'subflow':
+        case OPERATION_TARGETS.EDGES:
+          await handleEdgesOperationTx(tx, workflowId, op, payload)
+          break
+        case OPERATION_TARGETS.SUBFLOW:
           await handleSubflowOperationTx(tx, workflowId, op, payload)
           break
-        case 'variable':
+        case OPERATION_TARGETS.VARIABLE:
           await handleVariableOperationTx(tx, workflowId, op, payload)
           break
-        case 'workflow':
+        case OPERATION_TARGETS.WORKFLOW:
           await handleWorkflowOperationTx(tx, workflowId, op, payload)
           break
         default:
@@ -219,7 +233,7 @@ async function handleBlockOperationTx(
   payload: any
 ) {
   switch (operation) {
-    case 'update-position': {
+    case BLOCK_OPERATIONS.UPDATE_POSITION: {
       if (!payload.id || !payload.position) {
         throw new Error('Missing required fields for update position operation')
       }
@@ -244,7 +258,7 @@ async function handleBlockOperationTx(
       break
     }
 
-    case 'update-name': {
+    case BLOCK_OPERATIONS.UPDATE_NAME: {
       if (!payload.id || !payload.name) {
         throw new Error('Missing required fields for update name operation')
       }
@@ -266,7 +280,7 @@ async function handleBlockOperationTx(
       break
     }
 
-    case 'toggle-enabled': {
+    case BLOCK_OPERATIONS.TOGGLE_ENABLED: {
       if (!payload.id) {
         throw new Error('Missing block ID for toggle enabled operation')
       }
@@ -296,7 +310,7 @@ async function handleBlockOperationTx(
       break
     }
 
-    case 'update-parent': {
+    case BLOCK_OPERATIONS.UPDATE_PARENT: {
       if (!payload.id) {
         throw new Error('Missing block ID for update parent operation')
       }
@@ -361,7 +375,7 @@ async function handleBlockOperationTx(
       break
     }
 
-    case 'update-advanced-mode': {
+    case BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE: {
       if (!payload.id || payload.advancedMode === undefined) {
         throw new Error('Missing required fields for update advanced mode operation')
       }
@@ -383,29 +397,7 @@ async function handleBlockOperationTx(
       break
     }
 
-    case 'update-trigger-mode': {
-      if (!payload.id || payload.triggerMode === undefined) {
-        throw new Error('Missing required fields for update trigger mode operation')
-      }
-
-      const updateResult = await tx
-        .update(workflowBlocks)
-        .set({
-          triggerMode: payload.triggerMode,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
-        .returning({ id: workflowBlocks.id })
-
-      if (updateResult.length === 0) {
-        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
-      }
-
-      logger.debug(`Updated block trigger mode: ${payload.id} -> ${payload.triggerMode}`)
-      break
-    }
-
-    case 'toggle-handles': {
+    case BLOCK_OPERATIONS.TOGGLE_HANDLES: {
       if (!payload.id || payload.horizontalHandles === undefined) {
         throw new Error('Missing required fields for toggle handles operation')
       }
@@ -442,7 +434,7 @@ async function handleBlocksOperationTx(
   payload: any
 ) {
   switch (operation) {
-    case 'batch-update-positions': {
+    case BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS: {
       const { updates } = payload
       if (!Array.isArray(updates) || updates.length === 0) {
         return
@@ -463,8 +455,8 @@ async function handleBlocksOperationTx(
       break
     }
 
-    case 'batch-add-blocks': {
-      const { blocks, edges, loops, parallels } = payload
+    case BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS: {
+      const { blocks, edges, loops, parallels, subBlockValues } = payload
 
       logger.info(`Batch adding blocks to workflow ${workflowId}`, {
         blockCount: blocks?.length || 0,
@@ -474,22 +466,30 @@ async function handleBlocksOperationTx(
       })
 
       if (blocks && blocks.length > 0) {
-        const blockValues = blocks.map((block: Record<string, unknown>) => ({
-          id: block.id as string,
-          workflowId,
-          type: block.type as string,
-          name: block.name as string,
-          positionX: (block.position as { x: number; y: number }).x,
-          positionY: (block.position as { x: number; y: number }).y,
-          data: (block.data as Record<string, unknown>) || {},
-          subBlocks: (block.subBlocks as Record<string, unknown>) || {},
-          outputs: (block.outputs as Record<string, unknown>) || {},
-          enabled: (block.enabled as boolean) ?? true,
-          horizontalHandles: (block.horizontalHandles as boolean) ?? true,
-          advancedMode: (block.advancedMode as boolean) ?? false,
-          triggerMode: (block.triggerMode as boolean) ?? false,
-          height: (block.height as number) || 0,
-        }))
+        const blockValues = blocks.map((block: Record<string, unknown>) => {
+          const blockId = block.id as string
+          const mergedSubBlocks = mergeSubBlockValues(
+            block.subBlocks as Record<string, unknown>,
+            subBlockValues?.[blockId]
+          )
+
+          return {
+            id: blockId,
+            workflowId,
+            type: block.type as string,
+            name: block.name as string,
+            positionX: (block.position as { x: number; y: number }).x,
+            positionY: (block.position as { x: number; y: number }).y,
+            data: (block.data as Record<string, unknown>) || {},
+            subBlocks: mergedSubBlocks,
+            outputs: (block.outputs as Record<string, unknown>) || {},
+            enabled: (block.enabled as boolean) ?? true,
+            horizontalHandles: (block.horizontalHandles as boolean) ?? true,
+            advancedMode: (block.advancedMode as boolean) ?? false,
+            triggerMode: (block.triggerMode as boolean) ?? false,
+            height: (block.height as number) || 0,
+          }
+        })
 
         await tx.insert(workflowBlocks).values(blockValues)
 
@@ -575,7 +575,7 @@ async function handleBlocksOperationTx(
       break
     }
 
-    case 'batch-remove-blocks': {
+    case BLOCKS_OPERATIONS.BATCH_REMOVE_BLOCKS: {
       const { ids } = payload
       if (!Array.isArray(ids) || ids.length === 0) {
         return
@@ -690,6 +690,135 @@ async function handleBlocksOperationTx(
       break
     }
 
+    case BLOCKS_OPERATIONS.BATCH_TOGGLE_ENABLED: {
+      const { blockIds } = payload
+      if (!Array.isArray(blockIds) || blockIds.length === 0) {
+        return
+      }
+
+      logger.info(
+        `Batch toggling enabled state for ${blockIds.length} blocks in workflow ${workflowId}`
+      )
+
+      const blocks = await tx
+        .select({ id: workflowBlocks.id, enabled: workflowBlocks.enabled })
+        .from(workflowBlocks)
+        .where(and(eq(workflowBlocks.workflowId, workflowId), inArray(workflowBlocks.id, blockIds)))
+
+      for (const block of blocks) {
+        await tx
+          .update(workflowBlocks)
+          .set({
+            enabled: !block.enabled,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(workflowBlocks.id, block.id), eq(workflowBlocks.workflowId, workflowId)))
+      }
+
+      logger.debug(`Batch toggled enabled state for ${blocks.length} blocks`)
+      break
+    }
+
+    case BLOCKS_OPERATIONS.BATCH_TOGGLE_HANDLES: {
+      const { blockIds } = payload
+      if (!Array.isArray(blockIds) || blockIds.length === 0) {
+        return
+      }
+
+      logger.info(`Batch toggling handles for ${blockIds.length} blocks in workflow ${workflowId}`)
+
+      const blocks = await tx
+        .select({ id: workflowBlocks.id, horizontalHandles: workflowBlocks.horizontalHandles })
+        .from(workflowBlocks)
+        .where(and(eq(workflowBlocks.workflowId, workflowId), inArray(workflowBlocks.id, blockIds)))
+
+      for (const block of blocks) {
+        await tx
+          .update(workflowBlocks)
+          .set({
+            horizontalHandles: !block.horizontalHandles,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(workflowBlocks.id, block.id), eq(workflowBlocks.workflowId, workflowId)))
+      }
+
+      logger.debug(`Batch toggled handles for ${blocks.length} blocks`)
+      break
+    }
+
+    case BLOCKS_OPERATIONS.BATCH_UPDATE_PARENT: {
+      const { updates } = payload
+      if (!Array.isArray(updates) || updates.length === 0) {
+        return
+      }
+
+      logger.info(`Batch updating parent for ${updates.length} blocks in workflow ${workflowId}`)
+
+      for (const update of updates) {
+        const { id, parentId, position } = update
+        if (!id) continue
+
+        // Fetch current parent to update subflow node lists
+        const [existing] = await tx
+          .select({
+            id: workflowBlocks.id,
+            parentId: sql<string | null>`${workflowBlocks.data}->>'parentId'`,
+          })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, id), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        if (!existing) {
+          logger.warn(`Block ${id} not found for batch-update-parent`)
+          continue
+        }
+
+        const isRemovingFromParent = !parentId
+
+        // Get current data and position
+        const [currentBlock] = await tx
+          .select({
+            data: workflowBlocks.data,
+            positionX: workflowBlocks.positionX,
+            positionY: workflowBlocks.positionY,
+          })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, id), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        const currentData = currentBlock?.data || {}
+
+        const updatedData = isRemovingFromParent
+          ? {}
+          : {
+              ...currentData,
+              ...(parentId ? { parentId, extent: 'parent' } : {}),
+            }
+
+        await tx
+          .update(workflowBlocks)
+          .set({
+            positionX: position?.x ?? currentBlock?.positionX ?? 0,
+            positionY: position?.y ?? currentBlock?.positionY ?? 0,
+            data: updatedData,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(workflowBlocks.id, id), eq(workflowBlocks.workflowId, workflowId)))
+
+        // If the block now has a parent, update the new parent's subflow node list
+        if (parentId) {
+          await updateSubflowNodeList(tx, workflowId, parentId)
+        }
+        // If the block had a previous parent, update that parent's node list as well
+        if (existing?.parentId && existing.parentId !== parentId) {
+          await updateSubflowNodeList(tx, workflowId, existing.parentId)
+        }
+      }
+
+      logger.debug(`Batch updated parent for ${updates.length} blocks`)
+      break
+    }
+
     default:
       throw new Error(`Unsupported blocks operation: ${operation}`)
   }
@@ -697,7 +826,7 @@ async function handleBlocksOperationTx(
 
 async function handleEdgeOperationTx(tx: any, workflowId: string, operation: string, payload: any) {
   switch (operation) {
-    case 'add': {
+    case EDGE_OPERATIONS.ADD: {
       // Validate required fields
       if (!payload.id || !payload.source || !payload.target) {
         throw new Error('Missing required fields for add edge operation')
@@ -716,7 +845,7 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
       break
     }
 
-    case 'remove': {
+    case EDGE_OPERATIONS.REMOVE: {
       if (!payload.id) {
         throw new Error('Missing edge ID for remove operation')
       }
@@ -740,6 +869,60 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
   }
 }
 
+async function handleEdgesOperationTx(
+  tx: any,
+  workflowId: string,
+  operation: string,
+  payload: any
+) {
+  switch (operation) {
+    case EDGES_OPERATIONS.BATCH_REMOVE_EDGES: {
+      const { ids } = payload
+      if (!Array.isArray(ids) || ids.length === 0) {
+        logger.debug('No edge IDs provided for batch remove')
+        return
+      }
+
+      logger.info(`Batch removing ${ids.length} edges from workflow ${workflowId}`)
+
+      await tx
+        .delete(workflowEdges)
+        .where(and(eq(workflowEdges.workflowId, workflowId), inArray(workflowEdges.id, ids)))
+
+      logger.debug(`Batch removed ${ids.length} edges from workflow ${workflowId}`)
+      break
+    }
+
+    case EDGES_OPERATIONS.BATCH_ADD_EDGES: {
+      const { edges } = payload
+      if (!Array.isArray(edges) || edges.length === 0) {
+        logger.debug('No edges provided for batch add')
+        return
+      }
+
+      logger.info(`Batch adding ${edges.length} edges to workflow ${workflowId}`)
+
+      const edgeValues = edges.map((edge: Record<string, unknown>) => ({
+        id: edge.id as string,
+        workflowId,
+        sourceBlockId: edge.source as string,
+        targetBlockId: edge.target as string,
+        sourceHandle: (edge.sourceHandle as string | null) || null,
+        targetHandle: (edge.targetHandle as string | null) || null,
+      }))
+
+      await tx.insert(workflowEdges).values(edgeValues)
+
+      logger.debug(`Batch added ${edges.length} edges to workflow ${workflowId}`)
+      break
+    }
+
+    default:
+      logger.warn(`Unknown edges operation: ${operation}`)
+      throw new Error(`Unsupported edges operation: ${operation}`)
+  }
+}
+
 async function handleSubflowOperationTx(
   tx: any,
   workflowId: string,
@@ -747,7 +930,7 @@ async function handleSubflowOperationTx(
   payload: any
 ) {
   switch (operation) {
-    case 'update': {
+    case SUBFLOW_OPERATIONS.UPDATE: {
       if (!payload.id || !payload.config) {
         throw new Error('Missing required fields for update subflow operation')
       }
@@ -874,7 +1057,7 @@ async function handleVariableOperationTx(
   const currentVariables = (workflowData[0].variables as Record<string, any>) || {}
 
   switch (operation) {
-    case 'add': {
+    case VARIABLE_OPERATIONS.ADD: {
       if (!payload.id || !payload.name || payload.type === undefined) {
         throw new Error('Missing required fields for add variable operation')
       }
@@ -903,7 +1086,7 @@ async function handleVariableOperationTx(
       break
     }
 
-    case 'remove': {
+    case VARIABLE_OPERATIONS.REMOVE: {
       if (!payload.variableId) {
         throw new Error('Missing variable ID for remove operation')
       }
@@ -937,7 +1120,7 @@ async function handleWorkflowOperationTx(
   payload: any
 ) {
   switch (operation) {
-    case 'replace-state': {
+    case WORKFLOW_OPERATIONS.REPLACE_STATE: {
       if (!payload.state) {
         throw new Error('Missing state for replace-state operation')
       }

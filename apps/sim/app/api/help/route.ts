@@ -21,7 +21,6 @@ export async function POST(req: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    // Get user session
     const session = await getSession()
     if (!session?.user?.email) {
       logger.warn(`[${requestId}] Unauthorized help request attempt`)
@@ -30,20 +29,20 @@ export async function POST(req: NextRequest) {
 
     const email = session.user.email
 
-    // Handle multipart form data
     const formData = await req.formData()
 
-    // Extract form fields
     const subject = formData.get('subject') as string
     const message = formData.get('message') as string
     const type = formData.get('type') as string
+    const workflowId = formData.get('workflowId') as string | null
+    const workspaceId = formData.get('workspaceId') as string
+    const userAgent = formData.get('userAgent') as string | null
 
     logger.info(`[${requestId}] Processing help request`, {
       type,
       email: `${email.substring(0, 3)}***`, // Log partial email for privacy
     })
 
-    // Validate the form data
     const validationResult = helpFormSchema.safeParse({
       subject,
       message,
@@ -60,7 +59,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Extract images
     const images: { filename: string; content: Buffer; contentType: string }[] = []
 
     for (const [key, value] of formData.entries()) {
@@ -81,10 +79,14 @@ export async function POST(req: NextRequest) {
 
     logger.debug(`[${requestId}] Help request includes ${images.length} images`)
 
-    // Prepare email content
+    const userId = session.user.id
     let emailText = `
 Type: ${type}
 From: ${email}
+User ID: ${userId}
+Workspace ID: ${workspaceId ?? 'N/A'}
+Workflow ID: ${workflowId ?? 'N/A'}
+Browser: ${userAgent ?? 'N/A'}
 
 ${message}
     `
@@ -115,10 +117,8 @@ ${message}
 
     logger.info(`[${requestId}] Help request email sent successfully`)
 
-    // Send confirmation email to the user
     try {
       const confirmationHtml = await renderHelpConfirmationEmail(
-        email,
         type as 'bug' | 'feedback' | 'feature_request' | 'other',
         images.length
       )

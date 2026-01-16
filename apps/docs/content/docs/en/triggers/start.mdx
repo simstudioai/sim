@@ -44,7 +44,7 @@ Reference structured values downstream with expressions such as <code>&lt;start.
 
 ## How it behaves per entry point
 
-<Tabs items={['Editor run', 'Deploy to API', 'Deploy to chat']}>
+<Tabs items={['Editor run', 'Deploy to API', 'Deploy to chat', 'Deploy to form']}>
   <Tab>
     When you click <strong>Run</strong> in the editor, the Start block renders the Input Format as a form. Default values make it easy to retest without retyping data. Submitting the form triggers the workflow immediately and the values become available on <code>&lt;start.fieldName&gt;</code> (for example <code>&lt;start.sampleField&gt;</code>).
 
@@ -63,6 +63,13 @@ Reference structured values downstream with expressions such as <code>&lt;start.
     In chat deployments the Start block binds to the active conversation. The latest message fills <code>&lt;start.input&gt;</code>, the session identifier is available at <code>&lt;start.conversationId&gt;</code>, and user attachments appear on <code>&lt;start.files&gt;</code>, alongside any Input Format fields scoped as <code>&lt;start.fieldName&gt;</code>.
 
     If you launch chat with additional structured context (for example from an embed), it merges into the corresponding <code>&lt;start.fieldName&gt;</code> outputs, keeping downstream blocks consistent with API and manual runs.
+  </Tab>
+  <Tab>
+    Form deployments render the Input Format as a standalone, embeddable form page. Each field becomes a form input with appropriate UI controls—text inputs for strings, number inputs for numbers, toggle switches for booleans, and file upload zones for files.
+
+    When a user submits the form, values become available on <code>&lt;start.fieldName&gt;</code> just like other entry points. The workflow executes with trigger type <code>form</code>, and submitters see a customizable thank-you message upon completion.
+
+    Forms can be embedded via iframe or shared as direct links, making them ideal for surveys, contact forms, and data collection workflows.
   </Tab>
 </Tabs>
 

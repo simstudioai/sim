@@ -1,0 +1,77 @@
+---
+title: Entreprise
+description: Fonctionnalités entreprise pour les organisations ayant des
+  exigences avancées en matière de sécurité et de conformité
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Sim Entreprise fournit des fonctionnalités avancées pour les organisations ayant des exigences renforcées en matière de sécurité, de conformité et de gestion.
+
+---
+
+## Apportez votre propre clé (BYOK)
+
+Utilisez vos propres clés API pour les fournisseurs de modèles IA au lieu des clés hébergées par Sim.
+
+### Fournisseurs pris en charge
+
+| Fournisseur | Utilisation |
+|----------|-------|
+| OpenAI | Embeddings de base de connaissances, bloc Agent |
+| Anthropic | Bloc Agent |
+| Google | Bloc Agent |
+| Mistral | OCR de base de connaissances |
+
+### Configuration
+
+1. Accédez à **Paramètres** → **BYOK** dans votre espace de travail
+2. Cliquez sur **Ajouter une clé** pour votre fournisseur
+3. Saisissez votre clé API et enregistrez
+
+<Callout type="warn">
+  Les clés BYOK sont chiffrées au repos. Seuls les administrateurs et propriétaires de l'organisation peuvent gérer les clés.
+</Callout>
+
+Une fois configurés, les workflows utilisent votre clé au lieu des clés hébergées par Sim. Si elle est supprimée, les workflows basculent automatiquement vers les clés hébergées.
+
+---
+
+## Authentification unique (SSO)
+
+Authentification entreprise avec prise en charge de SAML 2.0 et OIDC pour une gestion centralisée des identités.
+
+### Fournisseurs pris en charge
+
+- Okta
+- Azure AD / Entra ID
+- Google Workspace
+- OneLogin
+- Tout fournisseur SAML 2.0 ou OIDC
+
+### Configuration
+
+1. Accédez à **Paramètres** → **SSO** dans votre espace de travail
+2. Choisissez votre fournisseur d'identité
+3. Configurez la connexion en utilisant les métadonnées de votre IdP
+4. Activez le SSO pour votre organisation
+
+<Callout type="info">
+  Une fois le SSO activé, les membres de l'équipe s'authentifient via votre fournisseur d'identité au lieu d'utiliser un email/mot de passe.
+</Callout>
+
+---
+
+## Auto-hébergé
+
+Pour les déploiements auto-hébergés, les fonctionnalités entreprise peuvent être activées via des variables d'environnement :
+
+| Variable | Description |
+|----------|-------------|
+| `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | Authentification unique avec SAML/OIDC |
+| `CREDENTIAL_SETS_ENABLED`, `NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED` | Groupes de sondage pour les déclencheurs d'e-mail |
+| `DISABLE_INVITATIONS`, `NEXT_PUBLIC_DISABLE_INVITATIONS` | Désactiver globalement les invitations aux espaces de travail/organisations |
+
+<Callout type="warn">
+  BYOK est uniquement disponible sur Sim hébergé. Les déploiements auto-hébergés configurent les clés de fournisseur d'IA directement via les variables d'environnement.
+</Callout>

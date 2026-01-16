@@ -6,30 +6,23 @@ description: Launch and manage Cursor cloud agents to work on GitHub repositorie
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="cursor"
+  type="cursor_v2"
   color="#1E1E1E"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Cursor](https://www.cursor.so/) is an AI IDE and cloud-based platform that lets you launch and manage powerful AI agents able to work directly on your GitHub repositories. Cursor agents can automate development tasks, enhance your team's productivity, and collaborate with you by making code changes, responding to natural language instructions, and maintaining conversation history about their activities.
+[Cursor](https://www.cursor.so) is an intelligent cloud-based platform that enables you to launch and manage AI agents capable of collaborating on your GitHub repositories. Cursor agents are designed to help automate software development workflows, accelerate code changes, and provide powerful assistance directly within your version control stack.
 
 With Cursor, you can:
 
-- **Launch cloud agents for codebases**: Instantly create new AI agents that work on your repositories in the cloud
-- **Delegate coding tasks using natural language**: Guide agents with written instructions, amendments, and clarifications
-- **Monitor progress and outputs**: Retrieve agent status, view detailed results, and inspect current or completed tasks
-- **Access full conversation history**: Review all prompts and AI responses for transparency and auditability
-- **Control and manage agent lifecycle**: List active agents, terminate agents, and manage API-based agent launches and follow-ups
+- **Launch cloud agents**: Instantly start AI agents to perform tasks on your repositories—ranging from code generation and refactoring to documentation and bug fixing.
+- **Collaborate on pull requests and branches**: Agents can work on feature branches, propose changes, and assist with code reviews.
+- **Guide and refine AI work**: Provide follow-up instructions to agents, enabling you to iteratively direct their actions and results.
+- **Monitor progress and results**: Check agent status, review their output, and inspect conversation threads—all from a unified dashboard or API.
+- **Control agent lifecycle**: Start, stop, restart, or archive agents as needed to manage compute resources and workflow states.
+- **Integrate with your workflow**: Use the API to connect Cursor agents with CI/CD pipelines, chatbots, or internal tools for automated workflows.
 
-In Sim, the Cursor integration enables your agents and workflows to interact programmatically with Cursor cloud agents. This means you can use Sim to:
-
-- List all cloud agents and browse their current state (`cursor_list_agents`)
-- Retrieve up-to-date status and outputs for any agent (`cursor_get_agent`)
-- View the full conversation history for any coding agent (`cursor_get_conversation`)
-- Add follow-up instructions or new prompts to a running agent
-- Manage and terminate agents as needed
-
-This integration helps you combine the flexible intelligence of Sim agents with the powerful development automation capabilities of Cursor, making it possible to scale AI-driven development across your projects.
+Integrating Cursor into your Sim automations unleashes the power of AI assistance on your software projects. Let agents contribute code, resolve issues, and complete repetitive development tasks so you and your team can focus on higher-level engineering work.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -43,7 +36,7 @@ Interact with Cursor Cloud Agents API to launch AI agents that can work on your 
 
 ### `cursor_list_agents`
 
-List all cloud agents for the authenticated user with optional pagination.
+List all cloud agents for the authenticated user with optional pagination. Returns API-aligned fields only.
 
 #### Input
 
@@ -57,12 +50,12 @@ List all cloud agents for the authenticated user with optional pagination.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Human-readable list of agents |
-| `metadata` | object | Agent list metadata |
+| `agents` | array | Array of agent objects |
+| `nextCursor` | string | Pagination cursor for next page |
 
 ### `cursor_get_agent`
 
-Retrieve the current status and results of a cloud agent.
+Retrieve the current status and results of a cloud agent. Returns API-aligned fields only.
 
 #### Input
 
@@ -75,12 +68,17 @@ Retrieve the current status and results of a cloud agent.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Human-readable agent details |
-| `metadata` | object | Agent metadata |
+| `id` | string | Agent ID |
+| `name` | string | Agent name |
+| `status` | string | Agent status |
+| `source` | json | Source repository info |
+| `target` | json | Target branch/PR info |
+| `summary` | string | Agent summary |
+| `createdAt` | string | Creation timestamp |
 
 ### `cursor_get_conversation`
 
-Retrieve the conversation history of a cloud agent, including all user prompts and assistant responses.
+Retrieve the conversation history of a cloud agent, including all user prompts and assistant responses. Returns API-aligned fields only.
 
 #### Input
 
@@ -93,12 +91,12 @@ Retrieve the conversation history of a cloud agent, including all user prompts a
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Human-readable conversation history |
-| `metadata` | object | Conversation metadata |
+| `id` | string | Agent ID |
+| `messages` | array | Array of conversation messages |
 
 ### `cursor_launch_agent`
 
-Start a new cloud agent to work on a GitHub repository with the given instructions.
+Start a new cloud agent to work on a GitHub repository with the given instructions. Returns API-aligned fields only.
 
 #### Input
 
@@ -119,12 +117,12 @@ Start a new cloud agent to work on a GitHub repository with the given instructio
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Success message with agent details |
-| `metadata` | object | Launch result metadata |
+| `id` | string | Agent ID |
+| `url` | string | Agent URL |
 
 ### `cursor_add_followup`
 
-Add a follow-up instruction to an existing cloud agent.
+Add a follow-up instruction to an existing cloud agent. Returns API-aligned fields only.
 
 #### Input
 
@@ -139,12 +137,11 @@ Add a follow-up instruction to an existing cloud agent.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Success message |
-| `metadata` | object | Result metadata |
+| `id` | string | Agent ID |
 
 ### `cursor_stop_agent`
 
-Stop a running cloud agent. This pauses the agent without deleting it.
+Stop a running cloud agent. Returns API-aligned fields only.
 
 #### Input
 
@@ -157,12 +154,11 @@ Stop a running cloud agent. This pauses the agent without deleting it.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Success message |
-| `metadata` | object | Result metadata |
+| `id` | string | Agent ID |
 
 ### `cursor_delete_agent`
 
-Permanently delete a cloud agent. This action cannot be undone.
+Permanently delete a cloud agent. Returns API-aligned fields only.
 
 #### Input
 
@@ -175,12 +171,6 @@ Permanently delete a cloud agent. This action cannot be undone.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Success message |
-| `metadata` | object | Result metadata |
+| `id` | string | Agent ID |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `cursor`

@@ -75,3 +75,64 @@ export type GoogleSheetsResponse =
   | GoogleSheetsWriteResponse
   | GoogleSheetsUpdateResponse
   | GoogleSheetsAppendResponse
+
+// V2 Types - with explicit sheetName parameter
+
+export interface GoogleSheetsV2ReadResponse extends ToolResponse {
+  output: {
+    sheetName: string
+    range: string
+    values: any[][]
+    metadata: GoogleSheetsMetadata
+  }
+}
+
+export interface GoogleSheetsV2WriteResponse extends ToolResponse {
+  output: {
+    updatedRange: string
+    updatedRows: number
+    updatedColumns: number
+    updatedCells: number
+    metadata: GoogleSheetsMetadata
+  }
+}
+
+export interface GoogleSheetsV2UpdateResponse extends ToolResponse {
+  output: {
+    updatedRange: string
+    updatedRows: number
+    updatedColumns: number
+    updatedCells: number
+    metadata: GoogleSheetsMetadata
+  }
+}
+
+export interface GoogleSheetsV2AppendResponse extends ToolResponse {
+  output: {
+    tableRange: string
+    updatedRange: string
+    updatedRows: number
+    updatedColumns: number
+    updatedCells: number
+    metadata: GoogleSheetsMetadata
+  }
+}
+
+export interface GoogleSheetsV2ToolParams {
+  accessToken: string
+  spreadsheetId: string
+  sheetName: string
+  cellRange?: string
+  values?: any[][]
+  valueInputOption?: 'RAW' | 'USER_ENTERED'
+  insertDataOption?: 'OVERWRITE' | 'INSERT_ROWS'
+  includeValuesInResponse?: boolean
+  responseValueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
+  majorDimension?: 'ROWS' | 'COLUMNS'
+}
+
+export type GoogleSheetsV2Response =
+  | GoogleSheetsV2ReadResponse
+  | GoogleSheetsV2WriteResponse
+  | GoogleSheetsV2UpdateResponse
+  | GoogleSheetsV2AppendResponse

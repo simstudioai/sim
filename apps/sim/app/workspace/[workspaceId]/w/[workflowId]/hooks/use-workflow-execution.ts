@@ -20,9 +20,9 @@ import { coerceValue } from '@/executor/utils/start-block'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
-import { useExecutionStore } from '@/stores/execution/store'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { useExecutionStore } from '@/stores/execution'
+import { useVariablesStore } from '@/stores/panel'
+import { useEnvironmentStore } from '@/stores/settings/environment'
 import { type ConsoleEntry, useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -885,6 +885,7 @@ export function useWorkflowExecution() {
 
       const activeBlocksSet = new Set<string>()
       const streamedContent = new Map<string, string>()
+      const accumulatedBlockLogs: BlockLog[] = []
 
       // Execute the workflow
       try {
@@ -933,14 +934,30 @@ export function useWorkflowExecution() {
 
               // Edges already tracked in onBlockStarted, no need to track again
 
+              const startedAt = new Date(Date.now() - data.durationMs).toISOString()
+              const endedAt = new Date().toISOString()
+
+              // Accumulate block log for the execution result
+              accumulatedBlockLogs.push({
+                blockId: data.blockId,
+                blockName: data.blockName || 'Unknown Block',
+                blockType: data.blockType || 'unknown',
+                input: data.input || {},
+                output: data.output,
+                success: true,
+                durationMs: data.durationMs,
+                startedAt,
+                endedAt,
+              })
+
               // Add to console
               addConsole({
                 input: data.input || {},
                 output: data.output,
                 success: true,
                 durationMs: data.durationMs,
-                startedAt: new Date(Date.now() - data.durationMs).toISOString(),
-                endedAt: new Date().toISOString(),
+                startedAt,
+                endedAt,
                 workflowId: activeWorkflowId,
                 blockId: data.blockId,
                 executionId: executionId || uuidv4(),
@@ -967,6 +984,24 @@ export function useWorkflowExecution() {
 
               // Track failed block execution in run path
               setBlockRunStatus(data.blockId, 'error')
+
+              const startedAt = new Date(Date.now() - data.durationMs).toISOString()
+              const endedAt = new Date().toISOString()
+
+              // Accumulate block error log for the execution result
+              accumulatedBlockLogs.push({
+                blockId: data.blockId,
+                blockName: data.blockName || 'Unknown Block',
+                blockType: data.blockType || 'unknown',
+                input: data.input || {},
+                output: {},
+                success: false,
+                error: data.error,
+                durationMs: data.durationMs,
+                startedAt,
+                endedAt,
+              })
+
               // Add error to console
               addConsole({
                 input: data.input || {},
@@ -974,8 +1009,8 @@ export function useWorkflowExecution() {
                 success: false,
                 error: data.error,
                 durationMs: data.durationMs,
-                startedAt: new Date(Date.now() - data.durationMs).toISOString(),
-                endedAt: new Date().toISOString(),
+                startedAt,
+                endedAt,
                 workflowId: activeWorkflowId,
                 blockId: data.blockId,
                 executionId: executionId || uuidv4(),
@@ -1029,7 +1064,7 @@ export function useWorkflowExecution() {
                   startTime: data.startTime,
                   endTime: data.endTime,
                 },
-                logs: [],
+                logs: accumulatedBlockLogs,
               }
             },
 
@@ -1041,7 +1076,7 @@ export function useWorkflowExecution() {
                 metadata: {
                   duration: data.duration,
                 },
-                logs: [],
+                logs: accumulatedBlockLogs,
               }
 
               // Only add workflow-level error if no blocks have executed yet

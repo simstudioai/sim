@@ -1,10 +1,10 @@
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
-import { Eye, EyeOff } from 'lucide-react'
-import { Button } from '@/components/emcn'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
+import { useCopilotStore, usePanelStore } from '@/stores/panel'
 import { useTerminalStore } from '@/stores/terminal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -15,28 +15,20 @@ const logger = createLogger('DiffControls')
 
 export const DiffControls = memo(function DiffControls() {
   const isTerminalResizing = useTerminalStore((state) => state.isResizing)
-  const {
-    isShowingDiff,
-    isDiffReady,
-    hasActiveDiff,
-    toggleDiffView,
-    acceptChanges,
-    rejectChanges,
-    baselineWorkflow,
-  } = useWorkflowDiffStore(
-    useCallback(
-      (state) => ({
-        isShowingDiff: state.isShowingDiff,
-        isDiffReady: state.isDiffReady,
-        hasActiveDiff: state.hasActiveDiff,
-        toggleDiffView: state.toggleDiffView,
-        acceptChanges: state.acceptChanges,
-        rejectChanges: state.rejectChanges,
-        baselineWorkflow: state.baselineWorkflow,
-      }),
-      []
+  const isPanelResizing = usePanelStore((state) => state.isResizing)
+  const { isDiffReady, hasActiveDiff, acceptChanges, rejectChanges, baselineWorkflow } =
+    useWorkflowDiffStore(
+      useCallback(
+        (state) => ({
+          isDiffReady: state.isDiffReady,
+          hasActiveDiff: state.hasActiveDiff,
+          acceptChanges: state.acceptChanges,
+          rejectChanges: state.rejectChanges,
+          baselineWorkflow: state.baselineWorkflow,
+        }),
+        []
+      )
     )
-  )
 
   const { updatePreviewToolCallState, currentChat, messages } = useCopilotStore(
     useCallback(
@@ -52,11 +44,6 @@ export const DiffControls = memo(function DiffControls() {
   const { activeWorkflowId } = useWorkflowRegistry(
     useCallback((state) => ({ activeWorkflowId: state.activeWorkflowId }), [])
   )
-
-  const handleToggleDiff = useCallback(() => {
-    logger.info('Toggling diff view', { currentState: isShowingDiff })
-    toggleDiffView()
-  }, [isShowingDiff, toggleDiffView])
 
   const createCheckpoint = useCallback(async () => {
     if (!activeWorkflowId || !currentChat?.id) {
@@ -109,12 +96,7 @@ export const DiffControls = memo(function DiffControls() {
         loops: rawState.loops || {},
         parallels: rawState.parallels || {},
         lastSaved: rawState.lastSaved || Date.now(),
-        isDeployed: rawState.isDeployed || false,
         deploymentStatuses: rawState.deploymentStatuses || {},
-        // Only include deployedAt if it's a valid date, never include null/undefined
-        ...(rawState.deployedAt && rawState.deployedAt instanceof Date
-          ? { deployedAt: rawState.deployedAt }
-          : {}),
       }
 
       logger.info('Prepared complete workflow state for checkpoint', {
@@ -211,54 +193,47 @@ export const DiffControls = memo(function DiffControls() {
     }
   }, [activeWorkflowId, currentChat, messages, baselineWorkflow])
 
-  const handleAccept = useCallback(async () => {
+  const handleAccept = useCallback(() => {
     logger.info('Accepting proposed changes with backup protection')
 
+    // Resolve target toolCallId for build/edit and update to terminal success state in the copilot store
+    // This happens synchronously first for instant UI feedback
     try {
-      // Create a checkpoint before applying changes so it appears under the triggering user message
-      await createCheckpoint().catch((error) => {
-        logger.warn('Failed to create checkpoint before accept:', error)
-      })
-
-      // Resolve target toolCallId for build/edit and update to terminal success state in the copilot store
-      try {
-        const { toolCallsById, messages } = useCopilotStore.getState()
-        let id: string | undefined
-        outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
-          const m = messages[mi]
-          if (m.role !== 'assistant' || !m.contentBlocks) continue
-          const blocks = m.contentBlocks as any[]
-          for (let bi = blocks.length - 1; bi >= 0; bi--) {
-            const b = blocks[bi]
-            if (b?.type === 'tool_call') {
-              const tn = b.toolCall?.name
-              if (tn === 'edit_workflow') {
-                id = b.toolCall?.id
-                break outer
-              }
+      const { toolCallsById, messages } = useCopilotStore.getState()
+      let id: string | undefined
+      outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
+        const m = messages[mi]
+        if (m.role !== 'assistant' || !m.contentBlocks) continue
+        const blocks = m.contentBlocks as any[]
+        for (let bi = blocks.length - 1; bi >= 0; bi--) {
+          const b = blocks[bi]
+          if (b?.type === 'tool_call') {
+            const tn = b.toolCall?.name
+            if (tn === 'edit_workflow') {
+              id = b.toolCall?.id
+              break outer
             }
           }
         }
-        if (!id) {
-          const candidates = Object.values(toolCallsById).filter((t) => t.name === 'edit_workflow')
-          id = candidates.length ? candidates[candidates.length - 1].id : undefined
-        }
-        if (id) updatePreviewToolCallState('accepted', id)
-      } catch {}
+      }
+      if (!id) {
+        const candidates = Object.values(toolCallsById).filter((t) => t.name === 'edit_workflow')
+        id = candidates.length ? candidates[candidates.length - 1].id : undefined
+      }
+      if (id) updatePreviewToolCallState('accepted', id)
+    } catch {}
 
-      // Accept changes without blocking the UI; errors will be logged by the store handler
-      acceptChanges().catch((error) => {
-        logger.error('Failed to accept changes (background):', error)
-      })
+    // Accept changes without blocking the UI; errors will be logged by the store handler
+    acceptChanges().catch((error) => {
+      logger.error('Failed to accept changes (background):', error)
+    })
 
-      logger.info('Accept triggered; UI will update optimistically')
-    } catch (error) {
-      logger.error('Failed to accept changes:', error)
+    // Create checkpoint in the background (fire-and-forget) so it doesn't block UI
+    createCheckpoint().catch((error) => {
+      logger.warn('Failed to create checkpoint after accept:', error)
+    })
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      logger.error('Workflow update failed:', errorMessage)
-      alert(`Failed to save workflow changes: ${errorMessage}`)
-    }
+    logger.info('Accept triggered; UI will update optimistically')
   }, [createCheckpoint, updatePreviewToolCallState, acceptChanges])
 
   const handleReject = useCallback(() => {
@@ -298,54 +273,82 @@ export const DiffControls = memo(function DiffControls() {
 
   const preventZoomRef = usePreventZoom()
 
+  // Register global command to accept changes (Cmd/Ctrl + Shift + Enter)
+  const acceptCommand = useMemo(
+    () =>
+      createCommand({
+        id: 'accept-diff-changes',
+        handler: () => {
+          if (hasActiveDiff && isDiffReady) {
+            handleAccept()
+          }
+        },
+      }),
+    [hasActiveDiff, isDiffReady, handleAccept]
+  )
+  useRegisterGlobalCommands([acceptCommand])
+
   // Don't show anything if no diff is available or diff is not ready
   if (!hasActiveDiff || !isDiffReady) {
     return null
   }
 
+  const isResizing = isTerminalResizing || isPanelResizing
+
   return (
     <div
       ref={preventZoomRef}
       className={clsx(
-        '-translate-x-1/2 fixed left-1/2 z-30',
-        !isTerminalResizing && 'transition-[bottom] duration-100 ease-out'
+        'fixed z-30',
+        !isResizing && 'transition-[bottom,right] duration-100 ease-out'
       )}
-      style={{ bottom: 'calc(var(--terminal-height) + 40px)' }}
+      style={{
+        bottom: 'calc(var(--terminal-height) + 16px)',
+        right: 'calc(var(--panel-width) + 16px)',
+      }}
     >
-      <div className='flex items-center gap-[6px] rounded-[10px] p-[6px]'>
-        {/* Toggle (left, icon-only) */}
-        <Button
-          variant='active'
-          onClick={handleToggleDiff}
-          className='h-[30px] w-[30px] rounded-[8px] p-0'
-          title={isShowingDiff ? 'View original' : 'Preview changes'}
-        >
-          {isShowingDiff ? (
-            <Eye className='h-[14px] w-[14px]' />
-          ) : (
-            <EyeOff className='h-[14px] w-[14px]' />
-          )}
-        </Button>
-
-        {/* Reject */}
-        <Button
-          variant='active'
+      <div
+        className='group relative flex h-[30px] overflow-hidden rounded-[4px]'
+        style={{ isolation: 'isolate' }}
+      >
+        {/* Reject side */}
+        <button
           onClick={handleReject}
-          className='h-[30px] rounded-[8px] px-3'
           title='Reject changes'
+          className='relative flex h-full items-center border border-[var(--border)] bg-[var(--surface-4)] pr-[20px] pl-[12px] font-medium text-[13px] text-[var(--text-secondary)] transition-colors hover:border-[var(--border-1)] hover:bg-[var(--surface-6)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--surface-5)]'
+          style={{
+            clipPath: 'polygon(0 0, calc(100% + 10px) 0, 100% 100%, 0 100%)',
+            borderRadius: '4px 0 0 4px',
+          }}
         >
           Reject
-        </Button>
-
-        {/* Accept */}
-        <Button
-          variant='tertiary'
+        </button>
+        {/* Slanted divider - split gray/green */}
+        <div
+          className='pointer-events-none absolute top-0 bottom-0 z-10'
+          style={{
+            left: '66px',
+            width: '2px',
+            transform: 'skewX(-18.4deg)',
+            background:
+              'linear-gradient(to right, var(--border) 50%, color-mix(in srgb, var(--brand-tertiary-2) 70%, black) 50%)',
+          }}
+        />
+        {/* Accept side */}
+        <button
           onClick={handleAccept}
-          className='h-[30px] rounded-[8px] px-3'
-          title='Accept changes'
+          title='Accept changes (⇧⌘⏎)'
+          className='-ml-[10px] relative flex h-full items-center border border-[rgba(0,0,0,0.15)] bg-[var(--brand-tertiary-2)] pr-[12px] pl-[20px] font-medium text-[13px] text-[var(--text-inverse)] transition-[background-color,border-color,fill,stroke] hover:brightness-110 dark:border-[rgba(255,255,255,0.1)]'
+          style={{
+            clipPath: 'polygon(10px 0, 100% 0, 100% 100%, 0 100%)',
+            borderRadius: '0 4px 4px 0',
+          }}
         >
           Accept
-        </Button>
+          <kbd className='ml-2 rounded border border-white/20 bg-white/10 px-1.5 py-0.5 font-medium font-sans text-[10px]'>
+            ⇧⌘<span className='translate-y-[-1px]'>⏎</span>
+          </kbd>
+        </button>
       </div>
     </div>
   )

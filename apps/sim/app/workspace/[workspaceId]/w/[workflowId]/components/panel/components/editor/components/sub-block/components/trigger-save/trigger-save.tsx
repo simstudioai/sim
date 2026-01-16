@@ -16,7 +16,6 @@ import { useWebhookManagement } from '@/hooks/use-webhook-management'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
-import { ShortInput } from '../short-input/short-input'
 
 const logger = createLogger('TriggerSave')
 
@@ -41,20 +40,6 @@ export function TriggerSave({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [deleteStatus, setDeleteStatus] = useState<'idle' | 'deleting'>('idle')
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [isGeneratingTestUrl, setIsGeneratingTestUrl] = useState(false)
-
-  const storedTestUrl = useSubBlockStore((state) => state.getValue(blockId, 'testUrl'))
-  const storedTestUrlExpiresAt = useSubBlockStore((state) =>
-    state.getValue(blockId, 'testUrlExpiresAt')
-  )
-
-  const isTestUrlExpired = useMemo(() => {
-    if (!storedTestUrlExpiresAt) return true
-    return new Date(storedTestUrlExpiresAt) < new Date()
-  }, [storedTestUrlExpiresAt])
-
-  const testUrl = isTestUrlExpired ? null : (storedTestUrl as string | null)
-  const testUrlExpiresAt = isTestUrlExpired ? null : (storedTestUrlExpiresAt as string | null)
 
   const effectiveTriggerId = useMemo(() => {
     if (triggerId && isTriggerValid(triggerId)) {
@@ -83,9 +68,6 @@ export function TriggerSave({
 
   const triggerDef =
     effectiveTriggerId && isTriggerValid(effectiveTriggerId) ? getTrigger(effectiveTriggerId) : null
-
-  const hasWebhookUrlDisplay =
-    triggerDef?.subBlocks.some((sb) => sb.id === 'webhookUrlDisplay') ?? false
 
   const validateRequiredFields = useCallback(
     (
@@ -210,13 +192,6 @@ export function TriggerSave({
     validateRequiredFields,
   ])
 
-  useEffect(() => {
-    if (isTestUrlExpired && storedTestUrl) {
-      useSubBlockStore.getState().setValue(blockId, 'testUrl', null)
-      useSubBlockStore.getState().setValue(blockId, 'testUrlExpiresAt', null)
-    }
-  }, [blockId, isTestUrlExpired, storedTestUrl])
-
   const handleSave = async () => {
     if (isPreview || disabled) return
 
@@ -276,34 +251,6 @@ export function TriggerSave({
     }
   }
 
-  const generateTestUrl = async () => {
-    if (!webhookId) return
-    try {
-      setIsGeneratingTestUrl(true)
-      const res = await fetch(`/api/webhooks/${webhookId}/test-url`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err?.error || 'Failed to generate test URL')
-      }
-      const json = await res.json()
-      useSubBlockStore.getState().setValue(blockId, 'testUrl', json.url)
-      useSubBlockStore.getState().setValue(blockId, 'testUrlExpiresAt', json.expiresAt)
-      collaborativeSetSubblockValue(blockId, 'testUrl', json.url)
-      collaborativeSetSubblockValue(blockId, 'testUrlExpiresAt', json.expiresAt)
-    } catch (e) {
-      logger.error('Failed to generate test webhook URL', { error: e })
-      setErrorMessage(
-        e instanceof Error ? e.message : 'Failed to generate test URL. Please try again.'
-      )
-    } finally {
-      setIsGeneratingTestUrl(false)
-    }
-  }
-
   const handleDeleteClick = () => {
     if (isPreview || disabled || !webhookId) return
     setShowDeleteDialog(true)
@@ -322,14 +269,9 @@ export function TriggerSave({
         setSaveStatus('idle')
         setErrorMessage(null)
 
-        useSubBlockStore.getState().setValue(blockId, 'testUrl', null)
-        useSubBlockStore.getState().setValue(blockId, 'testUrlExpiresAt', null)
-
         collaborativeSetSubblockValue(blockId, 'triggerPath', '')
         collaborativeSetSubblockValue(blockId, 'webhookId', null)
         collaborativeSetSubblockValue(blockId, 'triggerConfig', null)
-        collaborativeSetSubblockValue(blockId, 'testUrl', null)
-        collaborativeSetSubblockValue(blockId, 'testUrlExpiresAt', null)
 
         logger.info('Trigger configuration deleted successfully', {
           blockId,
@@ -361,9 +303,9 @@ export function TriggerSave({
           onClick={handleSave}
           disabled={disabled || isProcessing}
           className={cn(
-            'h-[32px] flex-1 rounded-[8px] px-[12px] transition-all duration-200',
-            saveStatus === 'saved' && 'bg-green-600 hover:bg-green-700',
-            saveStatus === 'error' && 'bg-red-600 hover:bg-red-700'
+            'flex-1',
+            saveStatus === 'saved' && '!bg-green-600 !text-white hover:!bg-green-700',
+            saveStatus === 'error' && '!bg-red-600 !text-white hover:!bg-red-700'
           )}
         >
           {saveStatus === 'saving' && 'Saving...'}
@@ -373,63 +315,13 @@ export function TriggerSave({
         </Button>
 
         {webhookId && (
-          <Button
-            variant='default'
-            onClick={handleDeleteClick}
-            disabled={disabled || isProcessing}
-            className='h-[32px] rounded-[8px] px-[12px]'
-          >
+          <Button variant='default' onClick={handleDeleteClick} disabled={disabled || isProcessing}>
             <Trash className='h-[14px] w-[14px]' />
           </Button>
         )}
       </div>
 
       {errorMessage && <p className='mt-2 text-[12px] text-[var(--text-error)]'>{errorMessage}</p>}
-
-      {webhookId && hasWebhookUrlDisplay && (
-        <div className='mt-4 space-y-2'>
-          <div className='flex items-center justify-between'>
-            <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-              Test Webhook URL
-            </span>
-            <Button
-              variant='ghost'
-              onClick={generateTestUrl}
-              disabled={isGeneratingTestUrl || isProcessing}
-            >
-              {isGeneratingTestUrl ? 'Generating…' : testUrl ? 'Regenerate' : 'Generate'}
-            </Button>
-          </div>
-          {testUrl ? (
-            <>
-              <ShortInput
-                blockId={blockId}
-                subBlockId={`${subBlockId}-test-url`}
-                config={{
-                  id: `${subBlockId}-test-url`,
-                  type: 'short-input',
-                  readOnly: true,
-                  showCopyButton: true,
-                }}
-                value={testUrl}
-                readOnly={true}
-                showCopyButton={true}
-                disabled={isPreview || disabled}
-                isPreview={isPreview}
-              />
-              {testUrlExpiresAt && (
-                <p className='text-[12px] text-[var(--text-tertiary)]'>
-                  Expires {new Date(testUrlExpiresAt).toLocaleString()}
-                </p>
-              )}
-            </>
-          ) : (
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
-              Generate a temporary URL to test against the live (undeployed) workflow state.
-            </p>
-          )}
-        </div>
-      )}
 
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <ModalContent size='sm'>

@@ -1,0 +1,76 @@
+---
+title: エンタープライズ
+description: 高度なセキュリティとコンプライアンス要件を持つ組織向けのエンタープライズ機能
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Sim Enterpriseは、強化されたセキュリティ、コンプライアンス、管理要件を持つ組織向けの高度な機能を提供します。
+
+---
+
+## Bring Your Own Key (BYOK)
+
+Simのホストキーの代わりに、AIモデルプロバイダー用の独自のAPIキーを使用できます。
+
+### 対応プロバイダー
+
+| プロバイダー | 用途 |
+|----------|-------|
+| OpenAI | ナレッジベースの埋め込み、エージェントブロック |
+| Anthropic | エージェントブロック |
+| Google | エージェントブロック |
+| Mistral | ナレッジベースOCR |
+
+### セットアップ
+
+1. ワークスペースの**設定** → **BYOK**に移動します
+2. プロバイダーの**キーを追加**をクリックします
+3. APIキーを入力して保存します
+
+<Callout type="warn">
+  BYOKキーは保存時に暗号化されます。組織の管理者とオーナーのみがキーを管理できます。
+</Callout>
+
+設定すると、ワークフローはSimのホストキーの代わりに独自のキーを使用します。削除すると、ワークフローは自動的にホストキーにフォールバックします。
+
+---
+
+## シングルサインオン (SSO)
+
+集中型IDマネジメントのためのSAML 2.0およびOIDCサポートを備えたエンタープライズ認証。
+
+### 対応プロバイダー
+
+- Okta
+- Azure AD / Entra ID
+- Google Workspace
+- OneLogin
+- SAML 2.0またはOIDCに対応する任意のプロバイダー
+
+### セットアップ
+
+1. ワークスペースの**設定** → **SSO**に移動します
+2. IDプロバイダーを選択します
+3. IdPのメタデータを使用して接続を設定します
+4. 組織のSSOを有効にします
+
+<Callout type="info">
+  SSOを有効にすると、チームメンバーはメール/パスワードの代わりにIDプロバイダーを通じて認証します。
+</Callout>
+
+---
+
+## セルフホスト
+
+セルフホストデプロイメントの場合、エンタープライズ機能は環境変数を介して有効にできます:
+
+| 変数 | 説明 |
+|----------|-------------|
+| `SSO_ENABLED`、`NEXT_PUBLIC_SSO_ENABLED` | SAML/OIDCによるシングルサインオン |
+| `CREDENTIAL_SETS_ENABLED`、`NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED` | メールトリガー用のポーリンググループ |
+| `DISABLE_INVITATIONS`、`NEXT_PUBLIC_DISABLE_INVITATIONS` | ワークスペース/組織への招待をグローバルに無効化 |
+
+<Callout type="warn">
+  BYOKはホスト型Simでのみ利用可能です。セルフホスト型デプロイメントでは、環境変数を介してAIプロバイダーキーを直接設定します。
+</Callout>

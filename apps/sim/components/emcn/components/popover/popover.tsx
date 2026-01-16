@@ -52,55 +52,103 @@
 import * as React from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { Check, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { cn } from '@/lib/core/utils/cn'
 
 type PopoverSize = 'sm' | 'md'
-
-/**
- * Shared base styles for all popover interactive items.
- * Ensures consistent styling across items, folders, and back button.
- */
-const POPOVER_ITEM_BASE_CLASSES =
-  'flex min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[var(--text-primary)] disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed'
-
-/**
- * Size-specific styles for popover items.
- * SM: 11px text, 22px height
- * MD: 13px text, 26px height
- */
-const POPOVER_ITEM_SIZE_CLASSES: Record<PopoverSize, string> = {
-  sm: 'h-[22px] text-[11px]',
-  md: 'h-[26px] text-[13px]',
-}
-
-/**
- * Size-specific icon classes for popover items.
- */
-const POPOVER_ICON_SIZE_CLASSES: Record<PopoverSize, string> = {
-  sm: 'h-3 w-3',
-  md: 'h-3.5 w-3.5',
-}
-
-/**
- * Variant-specific active state styles for popover items.
- */
-const POPOVER_ITEM_ACTIVE_CLASSES = {
-  secondary: 'bg-[var(--brand-secondary)] text-[var(--bg)] [&_svg]:text-[var(--bg)]',
-  default:
-    'bg-[var(--surface-7)] dark:bg-[var(--surface-5)] text-[var(--text-primary)] [&_svg]:text-[var(--text-primary)]',
-}
-
-/**
- * Variant-specific hover state styles for popover items.
- */
-const POPOVER_ITEM_HOVER_CLASSES = {
-  secondary:
-    'hover:bg-[var(--brand-secondary)] hover:text-[var(--bg)] hover:[&_svg]:text-[var(--bg)]',
-  default:
-    'hover:bg-[var(--surface-7)] dark:hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)] hover:[&_svg]:text-[var(--text-primary)]',
-}
-
+type PopoverColorScheme = 'default' | 'inverted'
 type PopoverVariant = 'default' | 'secondary'
+
+/**
+ * Style constants for popover components.
+ * Organized by component type and property.
+ */
+const STYLES = {
+  /** Base classes shared by all interactive items */
+  itemBase:
+    'flex min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
+
+  /** Content container */
+  content: 'px-[6px] py-[6px] rounded-[6px]',
+
+  /** Size variants */
+  size: {
+    sm: { item: 'h-[22px] text-[11px]', icon: 'h-3 w-3', section: 'px-[6px] py-[4px] text-[11px]' },
+    md: {
+      item: 'h-[26px] text-[13px]',
+      icon: 'h-3.5 w-3.5',
+      section: 'px-[6px] py-[4px] text-[13px]',
+    },
+  } satisfies Record<PopoverSize, { item: string; icon: string; section: string }>,
+
+  /** Color scheme variants */
+  colorScheme: {
+    default: {
+      text: 'text-[var(--text-primary)]',
+      section: 'text-[var(--text-tertiary)]',
+      search: 'text-[var(--text-muted)]',
+      searchInput: 'text-[var(--text-primary)] placeholder:text-[var(--text-muted)]',
+      content: 'bg-[var(--surface-5)] text-foreground dark:bg-[var(--surface-3)]',
+      divider: 'border-[var(--border-1)]',
+    },
+    inverted: {
+      text: 'text-white dark:text-[var(--text-primary)]',
+      section: 'text-[var(--text-muted-inverse)]',
+      search: 'text-[var(--text-muted-inverse)] dark:text-[var(--text-muted)]',
+      searchInput:
+        'text-white placeholder:text-[var(--text-muted-inverse)] dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-muted)]',
+      content: 'bg-[#1b1b1b] text-white dark:bg-[var(--surface-3)] dark:text-foreground',
+      divider: 'border-[#363636] dark:border-[var(--border-1)]',
+    },
+  } satisfies Record<
+    PopoverColorScheme,
+    {
+      text: string
+      section: string
+      search: string
+      searchInput: string
+      content: string
+      divider: string
+    }
+  >,
+
+  /** Interactive state styles: default, secondary (brand), inverted (dark bg in light mode) */
+  states: {
+    default: {
+      active: 'bg-[var(--border-1)] text-[var(--text-primary)] [&_svg]:text-[var(--text-primary)]',
+      hover:
+        'hover:bg-[var(--border-1)] hover:text-[var(--text-primary)] hover:[&_svg]:text-[var(--text-primary)]',
+    },
+    secondary: {
+      active: 'bg-[var(--brand-secondary)] text-white [&_svg]:text-white',
+      hover: 'hover:bg-[var(--brand-secondary)] hover:text-white hover:[&_svg]:text-white',
+    },
+    inverted: {
+      active:
+        'bg-[#363636] text-white [&_svg]:text-white dark:bg-[var(--surface-5)] dark:text-[var(--text-primary)] dark:[&_svg]:text-[var(--text-primary)]',
+      hover:
+        'hover:bg-[#363636] hover:text-white hover:[&_svg]:text-white dark:hover:bg-[var(--surface-5)] dark:hover:text-[var(--text-primary)] dark:hover:[&_svg]:text-[var(--text-primary)]',
+    },
+  },
+} as const
+
+/**
+ * Gets the active/hover classes for a popover item.
+ * Uses variant for secondary, otherwise colorScheme determines default vs inverted.
+ */
+function getItemStateClasses(
+  variant: PopoverVariant,
+  colorScheme: PopoverColorScheme,
+  isActive: boolean
+): string {
+  const state = isActive ? 'active' : 'hover'
+
+  if (variant === 'secondary') {
+    return STYLES.states.secondary[state]
+  }
+
+  return colorScheme === 'inverted' ? STYLES.states.inverted[state] : STYLES.states.default[state]
+}
 
 interface PopoverContextValue {
   openFolder: (
@@ -116,8 +164,12 @@ interface PopoverContextValue {
   onFolderSelect: (() => void) | null
   variant: PopoverVariant
   size: PopoverSize
+  colorScheme: PopoverColorScheme
   searchQuery: string
   setSearchQuery: (query: string) => void
+  /** ID of the last hovered item (for hover submenus) */
+  lastHoveredItem: string | null
+  setLastHoveredItem: (id: string | null) => void
 }
 
 const PopoverContext = React.createContext<PopoverContextValue | null>(null)
@@ -143,29 +195,41 @@ export interface PopoverProps extends PopoverPrimitive.PopoverProps {
    * @default 'md'
    */
   size?: PopoverSize
+  /**
+   * Color scheme for the popover
+   * - default: light background in light mode, dark in dark mode
+   * - inverted: dark background (#1b1b1b) in light mode, matches tooltip styling
+   * @default 'default'
+   */
+  colorScheme?: PopoverColorScheme
 }
 
 /**
  * Root popover component. Manages open state and folder navigation context.
- *
- * @example
- * ```tsx
- * <Popover open={open} onOpenChange={setOpen} variant="default" size="md">
- *   <PopoverAnchor>...</PopoverAnchor>
- *   <PopoverContent>...</PopoverContent>
- * </Popover>
- * ```
  */
 const Popover: React.FC<PopoverProps> = ({
   children,
   variant = 'default',
   size = 'md',
+  colorScheme = 'default',
+  open,
   ...props
 }) => {
   const [currentFolder, setCurrentFolder] = React.useState<string | null>(null)
   const [folderTitle, setFolderTitle] = React.useState<string | null>(null)
   const [onFolderSelect, setOnFolderSelect] = React.useState<(() => void) | null>(null)
   const [searchQuery, setSearchQuery] = React.useState<string>('')
+  const [lastHoveredItem, setLastHoveredItem] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (open === false) {
+      setCurrentFolder(null)
+      setFolderTitle(null)
+      setOnFolderSelect(null)
+      setSearchQuery('')
+      setLastHoveredItem(null)
+    }
+  }, [open])
 
   const openFolder = React.useCallback(
     (id: string, title: string, onLoad?: () => void | Promise<void>, onSelect?: () => void) => {
@@ -185,7 +249,7 @@ const Popover: React.FC<PopoverProps> = ({
     setOnFolderSelect(null)
   }, [])
 
-  const contextValue: PopoverContextValue = React.useMemo(
+  const contextValue = React.useMemo<PopoverContextValue>(
     () => ({
       openFolder,
       closeFolder,
@@ -195,8 +259,11 @@ const Popover: React.FC<PopoverProps> = ({
       onFolderSelect,
       variant,
       size,
+      colorScheme,
       searchQuery,
       setSearchQuery,
+      lastHoveredItem,
+      setLastHoveredItem,
     }),
     [
       openFolder,
@@ -206,13 +273,17 @@ const Popover: React.FC<PopoverProps> = ({
       onFolderSelect,
       variant,
       size,
+      colorScheme,
       searchQuery,
+      lastHoveredItem,
     ]
   )
 
   return (
     <PopoverContext.Provider value={contextValue}>
-      <PopoverPrimitive.Root {...props}>{children}</PopoverPrimitive.Root>
+      <PopoverPrimitive.Root open={open} {...props}>
+        {children}
+      </PopoverPrimitive.Root>
     </PopoverContext.Provider>
   )
 }
@@ -222,13 +293,6 @@ Popover.displayName = 'Popover'
 /**
  * Trigger element that opens/closes the popover when clicked.
  * Use asChild to render as a custom component.
- *
- * @example
- * ```tsx
- * <PopoverTrigger asChild>
- *   <Button>Open Menu</Button>
- * </PopoverTrigger>
- * ```
  */
 const PopoverTrigger = PopoverPrimitive.Trigger
 
@@ -244,74 +308,48 @@ export interface PopoverContentProps
     'side' | 'align' | 'sideOffset' | 'alignOffset' | 'collisionPadding'
   > {
   /**
-   * When true, renders the popover content inline instead of in a portal.
-   * Useful when used inside other portalled components (e.g. dialogs)
-   * where additional portals can interfere with scroll locking behavior.
+   * Renders content inline instead of in a portal.
+   * Useful inside dialogs where portals interfere with scroll locking.
    * @default false
    */
   disablePortal?: boolean
-  /**
-   * Maximum height for the popover content in pixels
-   */
+  /** Maximum height in pixels */
   maxHeight?: number
-  /**
-   * Maximum width for the popover content in pixels.
-   * When provided, Popover will also enable default truncation for inner text and section headers.
-   */
+  /** Maximum width in pixels. Enables text truncation when set. */
   maxWidth?: number
-  /**
-   * Minimum width for the popover content in pixels
-   */
+  /** Minimum width in pixels */
   minWidth?: number
   /**
-   * Preferred side to display the popover
+   * Preferred side to display
    * @default 'bottom'
    */
   side?: 'top' | 'right' | 'bottom' | 'left'
   /**
-   * Alignment of the popover relative to anchor
+   * Alignment relative to anchor
    * @default 'start'
    */
   align?: 'start' | 'center' | 'end'
-  /**
-   * Offset from the anchor in pixels.
-   * Defaults to 22px for top side (to avoid covering cursor) and 10px for other sides.
-   */
+  /** Offset from anchor. Defaults to 20px for top, 14px for other sides. */
   sideOffset?: number
   /**
-   * Padding from viewport edges in pixels
+   * Padding from viewport edges
    * @default 8
    */
   collisionPadding?: number
   /**
-   * When true, adds a border to the popover content
+   * Adds border to content
    * @default false
    */
   border?: boolean
   /**
-   * When true, the popover will flip to avoid collisions with viewport edges
+   * Flip to avoid viewport collisions
    * @default true
    */
   avoidCollisions?: boolean
 }
 
 /**
- * Shared styles for popover content container.
- * Both sizes use same padding and 6px border radius.
- */
-const POPOVER_CONTENT_CLASSES = 'px-[6px] py-[6px] rounded-[6px]'
-
-/**
- * Popover content component with automatic positioning and collision detection.
- * Wraps children in a styled container with scrollable area.
- *
- * @example
- * ```tsx
- * <PopoverContent maxHeight={300}>
- *   <PopoverItem>Item 1</PopoverItem>
- *   <PopoverItem>Item 2</PopoverItem>
- * </PopoverContent>
- * ```
+ * Popover content with automatic positioning and collision detection.
  */
 const PopoverContent = React.forwardRef<
   React.ElementRef<typeof PopoverPrimitive.Content>,
@@ -340,13 +378,10 @@ const PopoverContent = React.forwardRef<
   ) => {
     const context = React.useContext(PopoverContext)
     const size = context?.size || 'md'
+    const colorScheme = context?.colorScheme || 'default'
 
-    // Smart default offset: larger offset when rendering above to avoid covering cursor
     const effectiveSideOffset = sideOffset ?? (side === 'top' ? 20 : 14)
 
-    // Detect explicit width constraints provided by the consumer.
-    // When present, we enable default text truncation behavior for inner flexible items,
-    // so callers don't need to manually pass 'truncate' to every label.
     const hasUserWidthConstraint =
       maxWidth !== undefined ||
       minWidth !== undefined ||
@@ -359,29 +394,21 @@ const PopoverContent = React.forwardRef<
       if (!container) return
 
       const { scrollHeight, clientHeight, scrollTop } = container
-      if (scrollHeight <= clientHeight) {
-        return
-      }
+      if (scrollHeight <= clientHeight) return
 
       const deltaY = event.deltaY
       const isScrollingDown = deltaY > 0
       const isAtTop = scrollTop === 0
       const isAtBottom = scrollTop + clientHeight >= scrollHeight
 
-      // If we're at the boundary and user keeps scrolling in that direction,
-      // let the event bubble so parent scroll containers can handle it.
-      if ((isScrollingDown && isAtBottom) || (!isScrollingDown && isAtTop)) {
-        return
-      }
+      if ((isScrollingDown && isAtBottom) || (!isScrollingDown && isAtTop)) return
 
-      // Otherwise, consume the wheel event and manually scroll the popover content.
       event.preventDefault()
       container.scrollTop += deltaY
     }
 
     const handleOpenAutoFocus = React.useCallback(
       (e: Event) => {
-        // Always prevent auto-focus to avoid flickering from focus-triggered repositioning
         e.preventDefault()
         onOpenAutoFocus?.(e)
       },
@@ -390,7 +417,6 @@ const PopoverContent = React.forwardRef<
 
     const handleCloseAutoFocus = React.useCallback(
       (e: Event) => {
-        // Always prevent auto-focus to avoid flickering from focus-triggered repositioning
         e.preventDefault()
         onCloseAutoFocus?.(e)
       },
@@ -412,11 +438,9 @@ const PopoverContent = React.forwardRef<
         onCloseAutoFocus={handleCloseAutoFocus}
         {...restProps}
         className={cn(
-          // will-change-transform creates a new GPU compositing layer to prevent paint flickering
-          'z-[10000200] flex flex-col overflow-auto bg-[var(--surface-5)] text-foreground outline-none will-change-transform dark:bg-[var(--surface-3)]',
-          POPOVER_CONTENT_CLASSES,
-          // If width is constrained by the caller (prop or style), ensure inner flexible text truncates by default,
-          // and also truncate section headers.
+          'z-[10000200] flex flex-col overflow-auto outline-none will-change-transform',
+          STYLES.colorScheme[colorScheme].content,
+          STYLES.content,
           hasUserWidthConstraint && '[&_.flex-1]:truncate [&_[data-popover-section]]:truncate',
           border && 'border border-[var(--border-1)]',
           className
@@ -424,7 +448,6 @@ const PopoverContent = React.forwardRef<
         style={{
           maxHeight: `${maxHeight || 400}px`,
           maxWidth: maxWidth !== undefined ? `${maxWidth}px` : 'calc(100vw - 16px)',
-          // Only enforce default min width when the user hasn't set width constraints
           minWidth:
             minWidth !== undefined
               ? `${minWidth}px`
@@ -440,9 +463,7 @@ const PopoverContent = React.forwardRef<
       </PopoverPrimitive.Content>
     )
 
-    if (disablePortal) {
-      return content
-    }
+    if (disablePortal) return content
 
     return <PopoverPrimitive.Portal>{content}</PopoverPrimitive.Portal>
   }
@@ -453,83 +474,68 @@ PopoverContent.displayName = 'PopoverContent'
 export interface PopoverScrollAreaProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 /**
- * Scrollable area container for popover items.
- * Use this to wrap items that should scroll within the popover.
- *
- * @example
- * ```tsx
- * <PopoverContent>
- *   <PopoverScrollArea>
- *     <PopoverItem>Item 1</PopoverItem>
- *     <PopoverItem>Item 2</PopoverItem>
- *   </PopoverScrollArea>
- * </PopoverContent>
- * ```
+ * Scrollable container for popover items.
  */
 const PopoverScrollArea = React.forwardRef<HTMLDivElement, PopoverScrollAreaProps>(
-  ({ className, ...props }, ref) => {
-    return (
-      <div
-        className={cn(
-          'min-h-0 overflow-auto overscroll-contain',
-          // Add margin to wrapper divs containing sections (not individual items)
-          '[&>div:has([data-popover-section]):not(:first-child)]:mt-[6px]',
-          className
-        )}
-        ref={ref}
-        {...props}
-      />
-    )
-  }
+  ({ className, ...props }, ref) => (
+    <div
+      className={cn(
+        'min-h-0 overflow-auto overscroll-contain',
+        '[&>div:has([data-popover-section]):not(:first-child)]:mt-[6px]',
+        className
+      )}
+      ref={ref}
+      {...props}
+    />
+  )
 )
 
 PopoverScrollArea.displayName = 'PopoverScrollArea'
 
 export interface PopoverItemProps extends React.HTMLAttributes<HTMLDivElement> {
   /**
-   * Whether this item is currently active/selected
+   * Whether this item has active/highlighted background styling.
+   * Use for keyboard navigation focus or persistent highlight states.
    */
   active?: boolean
-  /**
-   * If true, this item will only show when not inside any folder
-   */
+  /** Only show when not inside any folder */
   rootOnly?: boolean
-  /**
-   * Whether this item is disabled
-   */
+  /** Whether this item is disabled */
   disabled?: boolean
   /**
-   * Whether to show a checkmark when active
+   * Show a checkmark to indicate selection/checked state.
+   * Unlike `active`, this only shows the checkmark without background highlight,
+   * following the pattern where hover provides interaction feedback
+   * and checkmarks indicate current value.
    * @default false
    */
   showCheck?: boolean
 }
 
 /**
- * Popover item component for individual items within a popover.
- *
- * @example
- * ```tsx
- * <PopoverItem active={isActive} disabled={isDisabled} onClick={() => handleClick()}>
- *   <Icon className="h-3.5 w-3.5" />
- *   <span>Item label</span>
- * </PopoverItem>
- * ```
+ * Individual popover item with hover and active states.
  */
 const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
   (
-    { className, active, rootOnly, disabled, showCheck = false, children, onClick, ...props },
+    {
+      className,
+      active,
+      rootOnly,
+      disabled,
+      showCheck = false,
+      children,
+      onClick,
+      onMouseEnter,
+      ...props
+    },
     ref
   ) => {
-    // Try to get context - if not available, we're outside Popover (shouldn't happen)
     const context = React.useContext(PopoverContext)
     const variant = context?.variant || 'default'
     const size = context?.size || 'md'
+    const colorScheme = context?.colorScheme || 'default'
 
-    // If rootOnly is true and we're in a folder, don't render
-    if (rootOnly && context?.isInFolder) {
-      return null
-    }
+    if (rootOnly && context?.isInFolder) return null
 
     const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
       if (disabled) {
@@ -539,12 +545,19 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
       onClick?.(e)
     }
 
+    const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
+      // Clear last hovered item to close any open hover submenus
+      context?.setLastHoveredItem(null)
+      onMouseEnter?.(e)
+    }
+
     return (
       <div
         className={cn(
-          POPOVER_ITEM_BASE_CLASSES,
-          POPOVER_ITEM_SIZE_CLASSES[size],
-          active ? POPOVER_ITEM_ACTIVE_CLASSES[variant] : POPOVER_ITEM_HOVER_CLASSES[variant],
+          STYLES.itemBase,
+          STYLES.colorScheme[colorScheme].text,
+          STYLES.size[size].item,
+          getItemStateClasses(variant, colorScheme, !!active),
           disabled && 'pointer-events-none cursor-not-allowed opacity-50',
           className
         )}
@@ -553,12 +566,11 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
         aria-selected={active}
         aria-disabled={disabled}
         onClick={handleClick}
+        onMouseEnter={handleMouseEnter}
         {...props}
       >
         {children}
-        {showCheck && active && (
-          <Check className={cn('ml-auto', POPOVER_ICON_SIZE_CLASSES[size])} />
-        )}
+        {showCheck && <Check className={cn('ml-auto', STYLES.size[size].icon)} />}
       </div>
     )
   }
@@ -567,46 +579,27 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
 PopoverItem.displayName = 'PopoverItem'
 
 export interface PopoverSectionProps extends React.HTMLAttributes<HTMLDivElement> {
-  /**
-   * If true, this section will only show when not inside any folder
-   */
+  /** Only show when not inside any folder */
   rootOnly?: boolean
 }
 
 /**
- * Size-specific styles for popover section headers.
- * Shared: 6px padding, 4px vertical padding
- */
-const POPOVER_SECTION_SIZE_CLASSES: Record<PopoverSize, string> = {
-  sm: 'px-[6px] py-[4px] text-[11px]',
-  md: 'px-[6px] py-[4px] text-[13px]',
-}
-
-/**
- * Popover section header component for grouping items with a title.
- *
- * @example
- * ```tsx
- * <PopoverSection>
- *   Section Title
- * </PopoverSection>
- * ```
+ * Section header for grouping popover items.
  */
 const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
   ({ className, rootOnly, ...props }, ref) => {
     const context = React.useContext(PopoverContext)
     const size = context?.size || 'md'
+    const colorScheme = context?.colorScheme || 'default'
 
-    // If rootOnly is true and we're in a folder, don't render
-    if (rootOnly && context?.isInFolder) {
-      return null
-    }
+    if (rootOnly && context?.isInFolder) return null
 
     return (
       <div
         className={cn(
-          'mt-[6px] min-w-0 font-base text-[var(--text-tertiary)] first:mt-0 first:pt-0 dark:text-[var(--text-tertiary)]',
-          POPOVER_SECTION_SIZE_CLASSES[size],
+          'mt-[6px] min-w-0 font-base first:mt-0 first:pt-0',
+          STYLES.colorScheme[colorScheme].section,
+          STYLES.size[size].section,
           className
         )}
         data-popover-section=''
@@ -620,88 +613,164 @@ const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
 PopoverSection.displayName = 'PopoverSection'
 
 export interface PopoverFolderProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'children'> {
-  /**
-   * Unique identifier for the folder
-   */
+  /** Unique folder identifier */
   id: string
-  /**
-   * Display title for the folder
-   */
+  /** Display title */
   title: string
-  /**
-   * Icon to display before the title
-   */
+  /** Icon before title */
   icon?: React.ReactNode
-  /**
-   * Function to call when folder is opened (for lazy loading)
-   */
+  /** Callback when folder opens (for lazy loading) */
   onOpen?: () => void | Promise<void>
-  /**
-   * Function to call when the folder title is selected (from within the folder view)
-   */
+  /** Callback when folder title is selected from within folder view */
   onSelect?: () => void
-  /**
-   * Children to render when folder is open
-   */
+  /** Folder contents */
   children?: React.ReactNode
-  /**
-   * Whether this item is currently active/selected
-   */
+  /** Whether currently active/selected */
   active?: boolean
+  /**
+   * Expand folder on hover to show submenu alongside parent
+   * When true, hovering shows a floating submenu; clicking still uses inline navigation
+   * @default false
+   */
+  expandOnHover?: boolean
 }
 
 /**
- * Popover folder component that expands to show nested content.
- * Automatically handles navigation and back button rendering.
- *
- * @example
- * ```tsx
- * <PopoverFolder id="workflows" title="Workflows" icon={<Icon />}>
- *   <PopoverItem>Workflow 1</PopoverItem>
- *   <PopoverItem>Workflow 2</PopoverItem>
- * </PopoverFolder>
- * ```
+ * Expandable folder that shows nested content.
+ * Supports two modes:
+ * - Click mode (default): Replaces parent content, shows back button
+ * - Hover mode (expandOnHover): Shows floating submenu alongside parent
  */
 const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
-  ({ className, id, title, icon, onOpen, onSelect, children, active, ...props }, ref) => {
-    const { openFolder, currentFolder, isInFolder, variant, size } = usePopoverContext()
+  (
+    {
+      className,
+      id,
+      title,
+      icon,
+      onOpen,
+      onSelect,
+      children,
+      active,
+      expandOnHover = false,
+      ...props
+    },
+    ref
+  ) => {
+    const {
+      openFolder,
+      currentFolder,
+      isInFolder,
+      variant,
+      size,
+      colorScheme,
+      lastHoveredItem,
+      setLastHoveredItem,
+    } = usePopoverContext()
+    const [submenuPosition, setSubmenuPosition] = React.useState<{ top: number; left: number }>({
+      top: 0,
+      left: 0,
+    })
+    const triggerRef = React.useRef<HTMLDivElement>(null)
 
-    // Don't render if we're in a different folder
-    if (isInFolder && currentFolder !== id) {
-      return null
-    }
+    // Submenu is open when this folder is the last hovered item (for expandOnHover mode)
+    const isHoverOpen = expandOnHover && lastHoveredItem === id
 
-    // If we're in this folder, render its children
-    if (currentFolder === id) {
-      return <>{children}</>
-    }
+    // Merge refs
+    const mergedRef = React.useCallback(
+      (node: HTMLDivElement | null) => {
+        triggerRef.current = node
+        if (typeof ref === 'function') {
+          ref(node)
+        } else if (ref) {
+          ref.current = node
+        }
+      },
+      [ref]
+    )
 
-    // Handle click anywhere on folder item
-    const handleClick = (e: React.MouseEvent) => {
-      e.stopPropagation()
+    // If we're in a folder and this isn't the current one, hide
+    if (isInFolder && currentFolder !== id) return null
+    // If this folder is open via click (inline mode), render children directly
+    if (currentFolder === id) return <>{children}</>
+
+    const handleClickOpen = () => {
       openFolder(id, title, onOpen, onSelect)
     }
 
-    // Otherwise, render as a clickable folder item
+    const handleClick = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (expandOnHover) {
+        // In hover mode, clicking opens inline and clears hover state
+        setLastHoveredItem(null)
+      }
+      handleClickOpen()
+    }
+
+    const handleMouseEnter = () => {
+      if (!expandOnHover) return
+
+      // Calculate position for submenu
+      if (triggerRef.current) {
+        const rect = triggerRef.current.getBoundingClientRect()
+        const parentPopover = triggerRef.current.closest('[data-radix-popper-content-wrapper]')
+        const parentRect = parentPopover?.getBoundingClientRect()
+
+        // Position to the right of the parent popover with a small gap
+        setSubmenuPosition({
+          top: rect.top,
+          left: parentRect ? parentRect.right + 4 : rect.right + 4,
+        })
+      }
+
+      setLastHoveredItem(id)
+      onOpen?.()
+    }
+
     return (
-      <div
-        ref={ref}
-        className={cn(
-          POPOVER_ITEM_BASE_CLASSES,
-          POPOVER_ITEM_SIZE_CLASSES[size],
-          active ? POPOVER_ITEM_ACTIVE_CLASSES[variant] : POPOVER_ITEM_HOVER_CLASSES[variant],
-          className
-        )}
-        role='menuitem'
-        aria-haspopup='true'
-        aria-expanded={false}
-        onClick={handleClick}
-        {...props}
-      >
-        {icon}
-        <span className='flex-1'>{title}</span>
-        <ChevronRight className={POPOVER_ICON_SIZE_CLASSES[size]} />
-      </div>
+      <>
+        <div
+          ref={mergedRef}
+          className={cn(
+            STYLES.itemBase,
+            STYLES.colorScheme[colorScheme].text,
+            STYLES.size[size].item,
+            getItemStateClasses(variant, colorScheme, !!active || isHoverOpen),
+            className
+          )}
+          role='menuitem'
+          aria-haspopup='true'
+          aria-expanded={isHoverOpen}
+          onClick={handleClick}
+          onMouseEnter={handleMouseEnter}
+          {...props}
+        >
+          {icon}
+          <span className='flex-1'>{title}</span>
+          <ChevronRight className={STYLES.size[size].icon} />
+        </div>
+
+        {/* Hover submenu - rendered as a portal to escape overflow clipping */}
+        {isHoverOpen &&
+          typeof document !== 'undefined' &&
+          createPortal(
+            <div
+              className={cn(
+                'fixed z-[10000201] min-w-[120px]',
+                STYLES.content,
+                STYLES.colorScheme[colorScheme].content,
+                'shadow-lg'
+              )}
+              style={{
+                top: submenuPosition.top,
+                left: submenuPosition.left,
+              }}
+            >
+              {children}
+            </div>,
+            document.body
+          )}
+      </>
     )
   }
 )
@@ -709,42 +778,23 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
 PopoverFolder.displayName = 'PopoverFolder'
 
 export interface PopoverBackButtonProps extends React.HTMLAttributes<HTMLDivElement> {
-  /**
-   * Ref callback for the folder title element (when selectable)
-   */
+  /** Ref callback for folder title element */
   folderTitleRef?: (el: HTMLElement | null) => void
-  /**
-   * Whether the folder title is currently active/selected
-   */
+  /** Whether folder title is active/selected */
   folderTitleActive?: boolean
-  /**
-   * Callback when mouse enters the folder title
-   */
+  /** Callback on folder title mouse enter */
   onFolderTitleMouseEnter?: () => void
 }
 
 /**
- * Back button component that appears when inside a folder.
- * Automatically hidden when at root level.
- *
- * @example
- * ```tsx
- * <Popover>
- *   <PopoverBackButton />
- *   <PopoverContent>
- *     // content
- *   </PopoverContent>
- * </Popover>
- * ```
+ * Back button shown inside folders. Hidden at root level.
  */
 const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProps>(
   ({ className, folderTitleRef, folderTitleActive, onFolderTitleMouseEnter, ...props }, ref) => {
-    const { isInFolder, closeFolder, folderTitle, onFolderSelect, variant, size } =
+    const { isInFolder, closeFolder, folderTitle, onFolderSelect, variant, size, colorScheme } =
       usePopoverContext()
 
-    if (!isInFolder) {
-      return null
-    }
+    if (!isInFolder) return null
 
     return (
       <div className='flex flex-col'>
@@ -752,28 +802,30 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
           ref={ref}
           className={cn(
             'peer',
-            POPOVER_ITEM_BASE_CLASSES,
-            POPOVER_ITEM_SIZE_CLASSES[size],
-            POPOVER_ITEM_HOVER_CLASSES[variant],
+            STYLES.itemBase,
+            STYLES.colorScheme[colorScheme].text,
+            STYLES.size[size].item,
+            getItemStateClasses(variant, colorScheme, false),
             className
           )}
           role='button'
-          onClick={closeFolder}
+          onClick={(e) => {
+            e.stopPropagation()
+            closeFolder()
+          }}
           {...props}
         >
-          <ChevronLeft className={POPOVER_ICON_SIZE_CLASSES[size]} />
+          <ChevronLeft className={STYLES.size[size].icon} />
           <span>Back</span>
         </div>
         {folderTitle && onFolderSelect && (
           <div
             ref={folderTitleRef}
             className={cn(
-              POPOVER_ITEM_BASE_CLASSES,
-              POPOVER_ITEM_SIZE_CLASSES[size],
-              folderTitleActive
-                ? POPOVER_ITEM_ACTIVE_CLASSES[variant]
-                : POPOVER_ITEM_HOVER_CLASSES[variant],
-              // Hide active/hover background when back button is hovered
+              STYLES.itemBase,
+              STYLES.colorScheme[colorScheme].text,
+              STYLES.size[size].item,
+              getItemStateClasses(variant, colorScheme, !!folderTitleActive),
               'peer-hover:!bg-transparent'
             )}
             role='button'
@@ -789,8 +841,9 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
         {folderTitle && !onFolderSelect && (
           <div
             className={cn(
-              'font-base text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]',
-              POPOVER_SECTION_SIZE_CLASSES[size]
+              'font-base',
+              STYLES.colorScheme[colorScheme].section,
+              STYLES.size[size].section
             )}
           >
             {folderTitle}
@@ -805,43 +858,20 @@ PopoverBackButton.displayName = 'PopoverBackButton'
 
 export interface PopoverSearchProps extends React.HTMLAttributes<HTMLDivElement> {
   /**
-   * Placeholder text for the search input
+   * Placeholder text
    * @default 'Search...'
    */
   placeholder?: string
-  /**
-   * Callback when search query changes
-   */
+  /** Callback when query changes */
   onValueChange?: (value: string) => void
 }
 
 /**
- * Size-specific styles for popover search container.
- * Shared: padding
- */
-const POPOVER_SEARCH_SIZE_CLASSES: Record<PopoverSize, string> = {
-  sm: 'px-[8px] py-[6px] text-[11px]',
-  md: 'px-[8px] py-[6px] text-[13px]',
-}
-
-/**
- * Search input component for filtering popover items.
- *
- * @example
- * ```tsx
- * <Popover>
- *   <PopoverContent>
- *     <PopoverSearch placeholder="Search tools..." />
- *     <PopoverScrollArea>
- *       // items
- *     </PopoverScrollArea>
- *   </PopoverContent>
- * </Popover>
- * ```
+ * Search input for filtering popover items.
  */
 const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
   ({ className, placeholder = 'Search...', onValueChange, ...props }, ref) => {
-    const { searchQuery, setSearchQuery, size } = usePopoverContext()
+    const { searchQuery, setSearchQuery, size, colorScheme } = usePopoverContext()
     const inputRef = React.useRef<HTMLInputElement>(null)
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -857,18 +887,19 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
     }, [setSearchQuery, onValueChange])
 
     return (
-      <div
-        ref={ref}
-        className={cn('flex items-center', POPOVER_SEARCH_SIZE_CLASSES[size], className)}
-        {...props}
-      >
+      <div ref={ref} className={cn('flex items-center px-[8px] py-[6px]', className)} {...props}>
         <Search
-          className={cn('mr-2 shrink-0 text-[var(--text-muted)]', POPOVER_ICON_SIZE_CLASSES[size])}
+          className={cn(
+            'mr-2 shrink-0',
+            STYLES.colorScheme[colorScheme].search,
+            STYLES.size[size].icon
+          )}
         />
         <input
           ref={inputRef}
           className={cn(
-            'w-full bg-transparent font-base text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none',
+            'w-full bg-transparent font-base focus:outline-none',
+            STYLES.colorScheme[colorScheme].searchInput,
             size === 'sm' ? 'text-[11px]' : 'text-[13px]'
           )}
           placeholder={placeholder}
@@ -882,6 +913,34 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
 
 PopoverSearch.displayName = 'PopoverSearch'
 
+export interface PopoverDividerProps extends React.HTMLAttributes<HTMLDivElement> {
+  /** Only show when not inside any folder */
+  rootOnly?: boolean
+}
+
+/**
+ * Horizontal divider for separating popover sections.
+ */
+const PopoverDivider = React.forwardRef<HTMLDivElement, PopoverDividerProps>(
+  ({ className, rootOnly, ...props }, ref) => {
+    const context = React.useContext(PopoverContext)
+    const colorScheme = context?.colorScheme || 'default'
+
+    if (rootOnly && context?.isInFolder) return null
+
+    return (
+      <div
+        ref={ref}
+        className={cn('my-[6px] border-t', STYLES.colorScheme[colorScheme].divider, className)}
+        role='separator'
+        {...props}
+      />
+    )
+  }
+)
+
+PopoverDivider.displayName = 'PopoverDivider'
+
 export {
   Popover,
   PopoverTrigger,
@@ -893,7 +952,8 @@ export {
   PopoverFolder,
   PopoverBackButton,
   PopoverSearch,
+  PopoverDivider,
   usePopoverContext,
 }
 
-export type { PopoverSize }
+export type { PopoverSize, PopoverColorScheme }

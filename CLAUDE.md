@@ -1,4 +1,4 @@
-# Sim Studio Development Guidelines
+# Sim Development Guidelines
 
 You are a professional software engineer. All code must follow best practices: accurate, readable, clean, and efficient.
 
@@ -52,7 +52,7 @@ import { useWorkflowStore } from '@/stores/workflows/store'
 import { useWorkflowStore } from '../../../stores/workflows/store'
 ```
 
-Use barrel exports (`index.ts`) when a folder has 3+ exports.
+Use barrel exports (`index.ts`) when a folder has 3+ exports. Do not re-export from non-barrel files; import directly from the source.
 
 ### Import Order
 1. React/core libraries
@@ -173,13 +173,13 @@ Use Vitest. Test files: `feature.ts` → `feature.test.ts`
 /**
  * @vitest-environment node
  */
-
-// Mocks BEFORE imports
-vi.mock('@sim/db', () => ({ db: { select: vi.fn() } }))
-
-// Imports AFTER mocks
+import { databaseMock, loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
-import { createSession, loggerMock } from '@sim/testing'
+
+vi.mock('@sim/db', () => databaseMock)
+vi.mock('@sim/logger', () => loggerMock)
+
+import { myFunction } from '@/lib/feature'
 
 describe('feature', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -187,7 +187,7 @@ describe('feature', () => {
 })
 ```
 
-Use `@sim/testing` factories over manual test data.
+Use `@sim/testing` mocks/factories over local test data. See `.cursor/rules/sim-testing.mdc` for details.
 
 ## Utils Rules
 

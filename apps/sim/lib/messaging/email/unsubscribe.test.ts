@@ -1,5 +1,10 @@
+import { createEnvMock, createMockLogger } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EmailType } from '@/lib/messaging/email/mailer'
+
+const loggerMock = vi.hoisted(() => ({
+  createLogger: () => createMockLogger(),
+}))
 
 const mockDb = vi.hoisted(() => ({
   select: vi.fn(),
@@ -25,23 +30,9 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((a, b) => ({ type: 'eq', left: a, right: b })),
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: {
-    BETTER_AUTH_SECRET: 'test-secret-key',
-  },
-  isTruthy: (value: string | boolean | number | undefined) =>
-    typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value),
-  getEnv: (variable: string) => process.env[variable],
-}))
+vi.mock('@/lib/core/config/env', () => createEnvMock({ BETTER_AUTH_SECRET: 'test-secret-key' }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 import {
   generateUnsubscribeToken,

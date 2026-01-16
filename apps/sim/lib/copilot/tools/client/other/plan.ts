@@ -1,16 +1,20 @@
-import { createLogger } from '@sim/logger'
-import { ListTodo, Loader2, X, XCircle } from 'lucide-react'
+import { ListTodo, Loader2, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 
 interface PlanArgs {
-  objective?: string
-  todoList?: Array<{ id?: string; content: string } | string>
+  request: string
 }
 
+/**
+ * Plan tool that spawns a subagent to plan an approach.
+ * This tool auto-executes and the actual work is done by the plan subagent.
+ * The subagent's output is streamed as nested content under this tool call.
+ */
 export class PlanClientTool extends BaseClientTool {
   static readonly id = 'plan'
 
@@ -22,48 +26,34 @@ export class PlanClientTool extends BaseClientTool {
     displayNames: {
       [ClientToolCallState.generating]: { text: 'Planning', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Planning', icon: Loader2 },
-      [ClientToolCallState.executing]: { text: 'Planning an approach', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Finished planning', icon: ListTodo },
-      [ClientToolCallState.error]: { text: 'Failed to plan', icon: X },
-      [ClientToolCallState.aborted]: { text: 'Aborted planning', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Skipped planning approach', icon: XCircle },
+      [ClientToolCallState.executing]: { text: 'Planning', icon: Loader2 },
+      [ClientToolCallState.success]: { text: 'Planned', icon: ListTodo },
+      [ClientToolCallState.error]: { text: 'Failed to plan', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped plan', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted plan', icon: XCircle },
+    },
+    uiConfig: {
+      subagent: {
+        streamingLabel: 'Planning',
+        completedLabel: 'Planned',
+        shouldCollapse: true,
+        outputArtifacts: ['plan'],
+      },
     },
   }
 
-  async execute(args?: PlanArgs): Promise<void> {
-    const logger = createLogger('PlanClientTool')
-    try {
-      this.setState(ClientToolCallState.executing)
-
-      // Update store todos from args if present (client-side only)
-      try {
-        const todoList = args?.todoList
-        if (Array.isArray(todoList)) {
-          const todos = todoList.map((item: any, index: number) => ({
-            id: (item && (item.id || item.todoId)) || `todo-${index}`,
-            content: typeof item === 'string' ? item : item.content,
-            completed: false,
-            executing: false,
-          }))
-          const { useCopilotStore } = await import('@/stores/panel/copilot/store')
-          const store = useCopilotStore.getState()
-          if (store.setPlanTodos) {
-            store.setPlanTodos(todos)
-            useCopilotStore.setState({ showPlanTodos: true })
-          }
-        }
-      } catch (e) {
-        logger.warn('Failed to update plan todos in store', { message: (e as any)?.message })
-      }
-
-      this.setState(ClientToolCallState.success)
-      // Echo args back so store/tooling can parse todoList if needed
-      await this.markToolComplete(200, 'Plan ready', args || {})
-      this.setState(ClientToolCallState.success)
-    } catch (e: any) {
-      logger.error('execute failed', { message: e?.message })
-      this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'Failed to plan')
-    }
+  /**
+   * Execute the plan tool.
+   * This just marks the tool as executing - the actual planning work is done server-side
+   * by the plan subagent, and its output is streamed as subagent events.
+   */
+  async execute(_args?: PlanArgs): Promise<void> {
+    // Immediately transition to executing state - no user confirmation needed
+    this.setState(ClientToolCallState.executing)
+    // The tool result will come from the server via tool_result event
+    // when the plan subagent completes its work
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(PlanClientTool.id, PlanClientTool.metadata.uiConfig!)

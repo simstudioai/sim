@@ -6,6 +6,7 @@
  * This file contains unit tests for the knowledge base utility functions,
  * including access checks, document processing, and embedding generation.
  */
+import { createEnvMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('drizzle-orm', () => ({
@@ -15,12 +16,7 @@ vi.mock('drizzle-orm', () => ({
   sql: (strings: TemplateStringsArray, ...expr: any[]) => ({ strings, expr }),
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: { OPENAI_API_KEY: 'test-key' },
-  getEnv: (key: string) => process.env[key],
-  isTruthy: (value: string | boolean | number | undefined) =>
-    typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value),
-}))
+vi.mock('@/lib/core/config/env', () => createEnvMock({ OPENAI_API_KEY: 'test-key' }))
 
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   retryWithExponentialBackoff: (fn: any) => fn(),
@@ -136,16 +132,29 @@ vi.mock('@sim/db', () => {
           },
         }),
       }),
+      delete: () => ({
+        where: () => Promise.resolve(),
+      }),
+      insert: () => ({
+        values: (records: any) => {
+          dbOps.order.push('insert')
+          dbOps.insertRecords.push(records)
+          return Promise.resolve()
+        },
+      }),
       transaction: vi.fn(async (fn: any) => {
         await fn({
-          insert: (table: any) => ({
+          delete: () => ({
+            where: () => Promise.resolve(),
+          }),
+          insert: () => ({
             values: (records: any) => {
               dbOps.order.push('insert')
               dbOps.insertRecords.push(records)
               return Promise.resolve()
             },
           }),
-          update: (table: any) => ({
+          update: () => ({
             set: (payload: any) => ({
               where: () => {
                 dbOps.updatePayloads.push(payload)

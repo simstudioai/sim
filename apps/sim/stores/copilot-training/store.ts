@@ -2,57 +2,13 @@ import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
-import {
-  computeEditSequence,
-  type EditOperation,
-} from '@/lib/workflows/training/compute-edit-sequence'
+import { computeEditSequence } from '@/lib/workflows/training/compute-edit-sequence'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { CopilotTrainingState, TrainingDataset } from './types'
 
 const logger = createLogger('CopilotTrainingStore')
-
-export interface TrainingDataset {
-  id: string
-  workflowId: string
-  title: string
-  prompt: string
-  startState: WorkflowState
-  endState: WorkflowState
-  editSequence: EditOperation[]
-  createdAt: Date
-  sentAt?: Date
-  metadata?: {
-    duration?: number // Time taken to complete edits in ms
-    blockCount?: number
-    edgeCount?: number
-  }
-}
-
-interface CopilotTrainingState {
-  // Current training session
-  isTraining: boolean
-  currentTitle: string
-  currentPrompt: string
-  startSnapshot: WorkflowState | null
-  startTime: number | null
-
-  // Completed datasets
-  datasets: TrainingDataset[]
-
-  // UI state
-  showModal: boolean
-
-  // Actions
-  startTraining: (title: string, prompt: string) => void
-  stopTraining: () => TrainingDataset | null
-  cancelTraining: () => void
-  setPrompt: (prompt: string) => void
-  toggleModal: () => void
-  clearDatasets: () => void
-  exportDatasets: () => string
-  markDatasetSent: (id: string, sentAt?: Date) => void
-}
 
 /**
  * Get a clean snapshot of the current workflow state

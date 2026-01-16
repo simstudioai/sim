@@ -351,7 +351,10 @@ describe('API key lifecycle', () => {
 
   it('should reject key if storage is tampered', async () => {
     const key = generateApiKey()
-    const tamperedStorage = `${key.slice(0, -1)}X` // Change last character
+    const lastChar = key.slice(-1)
+    // Ensure tampered character is different from original (handles edge case where key ends in 'X')
+    const tamperedChar = lastChar === 'X' ? 'Y' : 'X'
+    const tamperedStorage = `${key.slice(0, -1)}${tamperedChar}`
     const result = await authenticateApiKey(key, tamperedStorage)
     expectApiKeyInvalid(result)
   })

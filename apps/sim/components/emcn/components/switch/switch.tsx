@@ -12,10 +12,12 @@ import { cn } from '@/lib/core/utils/cn'
 const Switch = React.forwardRef<
   React.ElementRef<typeof SwitchPrimitives.Root>,
   React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
->(({ className, ...props }, ref) => (
+>(({ className, disabled, ...props }, ref) => (
   <SwitchPrimitives.Root
+    disabled={disabled}
     className={cn(
-      'peer inline-flex h-[17px] w-[30px] shrink-0 cursor-pointer items-center rounded-[20px] transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
+      'peer inline-flex h-[17px] w-[30px] shrink-0 cursor-pointer items-center rounded-[20px] transition-colors focus-visible:outline-none',
+      'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50',
       'bg-[var(--border-1)] data-[state=checked]:bg-[var(--text-primary)]',
       className
     )}

@@ -31,6 +31,14 @@ export const telegramWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'telegram_webhook',
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -46,14 +54,6 @@ export const telegramWebhookTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'telegram_webhook',
     },
   ],
 
@@ -110,6 +110,7 @@ export const telegramWebhookTrigger: TriggerConfig = {
     },
     sender: {
       id: { type: 'number', description: 'Sender user ID' },
+      username: { type: 'string', description: 'Sender username (if available)' },
       firstName: { type: 'string', description: 'Sender first name' },
       lastName: { type: 'string', description: 'Sender last name' },
       languageCode: { type: 'string', description: 'Sender language code (if available)' },

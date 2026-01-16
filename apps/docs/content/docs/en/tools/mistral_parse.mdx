@@ -57,10 +57,15 @@ Parse PDF documents using Mistral OCR API
 | `success` | boolean | Whether the PDF was parsed successfully |
 | `content` | string | Extracted content in the requested format \(markdown, text, or JSON\) |
 | `metadata` | object | Processing metadata including jobId, fileType, pageCount, and usage info |
+| ↳ `jobId` | string | Unique job identifier |
+| ↳ `fileType` | string | File type \(e.g., pdf\) |
+| ↳ `fileName` | string | Original file name |
+| ↳ `source` | string | Source type \(url\) |
+| ↳ `pageCount` | number | Number of pages processed |
+| ↳ `model` | string | Mistral model used |
+| ↳ `resultType` | string | Output format \(markdown, text, json\) |
+| ↳ `processedAt` | string | Processing timestamp |
+| ↳ `sourceUrl` | string | Source URL if applicable |
+| ↳ `usageInfo` | object | Usage statistics from OCR processing |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `mistral_parse`
