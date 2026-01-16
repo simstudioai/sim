@@ -161,6 +161,20 @@ interface ContextMenuProps {
    * Set to true when creation is in progress or user lacks permissions
    */
   disableCreateFolder?: boolean
+  /**
+   * Callback when leave is clicked (for workspaces)
+   */
+  onLeave?: () => void
+  /**
+   * Whether to show the leave option (default: false)
+   * Set to true for workspaces the user can leave
+   */
+  showLeave?: boolean
+  /**
+   * Whether the leave option is disabled (default: false)
+   * Set to true when user cannot leave (e.g., last admin)
+   */
+  disableLeave?: boolean
 }
 
 /**
@@ -198,6 +212,9 @@ export function ContextMenu({
   disableDelete = false,
   disableCreate = false,
   disableCreateFolder = false,
+  onLeave,
+  showLeave = false,
+  disableLeave = false,
 }: ContextMenuProps) {
   const [hexInput, setHexInput] = useState(currentColor || '#ffffff')
 
@@ -412,8 +429,20 @@ export function ContextMenu({
           </PopoverItem>
         )}
 
-        {/* Destructive action */}
+        {/* Destructive actions */}
         {(hasNavigationSection || hasEditSection || hasCopySection) && <PopoverDivider rootOnly />}
+        {showLeave && onLeave && (
+          <PopoverItem
+            rootOnly
+            disabled={disableLeave}
+            onClick={() => {
+              onLeave()
+              onClose()
+            }}
+          >
+            Leave
+          </PopoverItem>
+        )}
         <PopoverItem
           rootOnly
           disabled={disableDelete}
