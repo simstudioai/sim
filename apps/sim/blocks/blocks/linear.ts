@@ -417,7 +417,10 @@ Return ONLY the comment text - no explanations.`,
       title: 'Name',
       type: 'short-input',
       placeholder: 'Enter name',
-      required: true,
+      required: {
+        field: 'operation',
+        value: ['linear_create_label', 'linear_create_project', 'linear_create_workflow_state'],
+      },
       condition: {
         field: 'operation',
         value: [
@@ -550,6 +553,10 @@ Return ONLY the search query - no explanations.`,
       title: 'Start Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      required: {
+        field: 'operation',
+        value: ['linear_create_cycle'],
+      },
       condition: {
         field: 'operation',
         value: ['linear_create_cycle', 'linear_create_project'],
@@ -573,6 +580,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'End Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      required: true,
       condition: {
         field: 'operation',
         value: ['linear_create_cycle'],
@@ -1407,13 +1415,10 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         // Operation-specific param mapping
         switch (params.operation) {
           case 'linear_read_issues':
-            if (!effectiveTeamId || !effectiveProjectId) {
-              throw new Error('Team ID and Project ID are required.')
-            }
             return {
               ...baseParams,
-              teamId: effectiveTeamId,
-              projectId: effectiveProjectId,
+              teamId: effectiveTeamId || undefined,
+              projectId: effectiveProjectId || undefined,
               includeArchived: params.includeArchived,
             }
 
@@ -1427,8 +1432,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             }
 
           case 'linear_create_issue':
-            if (!effectiveTeamId || !effectiveProjectId) {
-              throw new Error('Team ID and Project ID are required.')
+            if (!effectiveTeamId) {
+              throw new Error('Team ID is required.')
             }
             if (!params.title?.trim()) {
               throw new Error('Title is required.')
@@ -1436,7 +1441,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               teamId: effectiveTeamId,
-              projectId: effectiveProjectId,
+              projectId: effectiveProjectId || undefined,
               title: params.title.trim(),
               description: params.description,
               stateId: params.stateId,
@@ -1504,13 +1509,13 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             }
 
           case 'linear_update_comment':
-            if (!params.commentId?.trim() || !params.body?.trim()) {
-              throw new Error('Comment ID and body are required.')
+            if (!params.commentId?.trim()) {
+              throw new Error('Comment ID is required.')
             }
             return {
               ...baseParams,
               commentId: params.commentId.trim(),
-              body: params.body.trim(),
+              body: params.body?.trim() || undefined,
             }
 
           case 'linear_delete_comment':
@@ -1637,15 +1642,12 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             if (!effectiveTeamId || !params.name?.trim() || !params.workflowType) {
               throw new Error('Team ID, name, and workflow type are required.')
             }
-            if (!params.color?.trim()) {
-              throw new Error('Color is required for workflow state creation.')
-            }
             return {
               ...baseParams,
               teamId: effectiveTeamId,
               name: params.name.trim(),
               type: params.workflowType,
-              color: params.color.trim(),
+              color: params.color?.trim() || undefined,
             }
 
           case 'linear_update_workflow_state':
@@ -1675,15 +1677,15 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             }
 
           case 'linear_create_cycle':
-            if (!effectiveTeamId || !params.name?.trim()) {
-              throw new Error('Team ID and cycle name are required.')
+            if (!effectiveTeamId || !params.startDate?.trim() || !params.endDate?.trim()) {
+              throw new Error('Team ID, start date, and end date are required.')
             }
             return {
               ...baseParams,
               teamId: effectiveTeamId,
-              name: params.name.trim(),
-              startsAt: params.startDate,
-              endsAt: params.endDate,
+              name: params.name?.trim() || undefined,
+              startsAt: params.startDate.trim(),
+              endsAt: params.endDate.trim(),
             }
 
           case 'linear_get_active_cycle':
