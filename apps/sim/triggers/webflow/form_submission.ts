@@ -21,7 +21,7 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       type: 'oauth-input',
       description: 'This trigger requires webflow credentials to access your account.',
       serviceId: 'webflow',
-      requiredScopes: [],
+      requiredScopes: ['forms:read'],
       required: true,
       mode: 'trigger',
       condition: {
@@ -96,11 +96,12 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       dependsOn: ['triggerCredentials'],
     },
     {
-      id: 'formId',
-      title: 'Form ID',
+      id: 'formName',
+      title: 'Form Name',
       type: 'short-input',
-      placeholder: 'form-123abc (optional)',
-      description: 'The ID of the specific form to monitor (optional - leave empty for all forms)',
+      placeholder: 'Contact Form (optional)',
+      description:
+        'The name of the specific form to monitor (optional - leave empty for all forms)',
       required: false,
       mode: 'trigger',
       condition: {
@@ -128,8 +129,8 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       defaultValue: [
         'Connect your Webflow account using the "Select Webflow credential" button above.',
         'Select your Webflow site from the dropdown.',
-        'Optionally enter a Form ID to monitor only a specific form.',
-        'If no Form ID is provided, the trigger will fire for any form submission on the site.',
+        'Optionally enter the Form Name to monitor only a specific form.',
+        'If no Form Name is provided, the trigger will fire for any form submission on the site.',
         'The webhook will trigger whenever a form is submitted on the specified site.',
         'Form data will be included in the payload with all submitted field values.',
         'Make sure your Webflow account has appropriate permissions for the specified site.',
