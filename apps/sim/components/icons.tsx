@@ -3679,6 +3679,22 @@ export function VllmIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function LiteLLMIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>
+      <title>LiteLLM</title>
+      <path
+        d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'
+        stroke='#10B981'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        fill='none'
+      />
+    </svg>
+  )
+}
+
 export function PosthogIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
