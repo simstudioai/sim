@@ -2,6 +2,17 @@ import type { OAuthService } from '@/lib/oauth'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 
+/**
+ * Minimal execution context injected into tool params at runtime.
+ * This is a subset of the full ExecutionContext from executor/types.ts.
+ */
+export type WorkflowToolExecutionContext = {
+  workspaceId?: string
+  workflowId?: string
+  executionId?: string
+  userId?: string
+}
+
 export interface OutputProperty {
   type: string
   description?: string
@@ -60,7 +71,7 @@ export interface ToolConfig<P = any, R = any> {
       }
     }
   >
-
+  // Output schema - what this tool produces
   outputs?: Record<
     string,
     {
@@ -68,8 +79,8 @@ export interface ToolConfig<P = any, R = any> {
       description?: string
       optional?: boolean
       fileConfig?: {
-        mimeType?: string
-        extension?: string
+        mimeType?: string // Expected MIME type for file outputs
+        extension?: string // Expected file extension
       }
       items?: {
         type: string
