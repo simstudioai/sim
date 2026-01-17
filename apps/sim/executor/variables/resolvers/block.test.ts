@@ -6,10 +6,14 @@ import type { ResolutionContext } from './reference'
 
 vi.mock('@sim/logger', () => loggerMock)
 
-/**
- * Creates a minimal workflow for testing.
- */
-function createTestWorkflow(blocks: Array<{ id: string; name?: string; type?: string }> = []) {
+function createTestWorkflow(
+  blocks: Array<{
+    id: string
+    name?: string
+    type?: string
+    outputs?: Record<string, any>
+  }> = []
+) {
   return {
     version: '1.0',
     blocks: blocks.map((b) => ({
@@ -17,7 +21,7 @@ function createTestWorkflow(blocks: Array<{ id: string; name?: string; type?: st
       position: { x: 0, y: 0 },
       config: { tool: b.type ?? 'function', params: {} },
       inputs: {},
-      outputs: {},
+      outputs: b.outputs ?? {},
       metadata: { id: b.type ?? 'function', name: b.name ?? b.id },
       enabled: true,
     })),
@@ -126,7 +130,7 @@ describe('BlockResolver', () => {
       expect(resolver.resolve('<source.items.1.id>', ctx)).toBe(2)
     })
 
-    it.concurrent('should return undefined for non-existent path', () => {
+    it.concurrent('should return undefined for non-existent path when no schema defined', () => {
       const workflow = createTestWorkflow([{ id: 'source' }])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current', {
@@ -134,6 +138,48 @@ describe('BlockResolver', () => {
       })
 
       expect(resolver.resolve('<source.nonexistent>', ctx)).toBeUndefined()
+    })
+
+    it.concurrent('should throw error for path not in output schema', () => {
+      const workflow = createTestWorkflow([
+        {
+          id: 'source',
+          outputs: {
+            validField: { type: 'string', description: 'A valid field' },
+            nested: {
+              child: { type: 'number', description: 'Nested child' },
+            },
+          },
+        },
+      ])
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext('current', {
+        source: { validField: 'value', nested: { child: 42 } },
+      })
+
+      expect(() => resolver.resolve('<source.invalidField>', ctx)).toThrow(
+        /"invalidField" doesn't exist on block "source"/
+      )
+      expect(() => resolver.resolve('<source.invalidField>', ctx)).toThrow(/Available fields:/)
+    })
+
+    it.concurrent('should return undefined for path in schema but missing in data', () => {
+      const workflow = createTestWorkflow([
+        {
+          id: 'source',
+          outputs: {
+            requiredField: { type: 'string', description: 'Always present' },
+            optionalField: { type: 'string', description: 'Sometimes missing' },
+          },
+        },
+      ])
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext('current', {
+        source: { requiredField: 'value' },
+      })
+
+      expect(resolver.resolve('<source.requiredField>', ctx)).toBe('value')
+      expect(resolver.resolve('<source.optionalField>', ctx)).toBeUndefined()
     })
 
     it.concurrent('should return undefined for non-existent block', () => {
