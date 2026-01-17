@@ -1,11 +1,10 @@
 import type { GoogleVaultCreateMattersHoldsParams } from '@/tools/google_vault/types'
+import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
 
-// matters.holds.create
-// POST https://vault.googleapis.com/v1/matters/{matterId}/holds
 export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsParams> = {
-  id: 'create_matters_holds',
-  name: 'Vault Create Hold (by Matter)',
+  id: 'google_vault_create_matters_holds',
+  name: 'Vault Create Hold',
   description: 'Create a hold in a matter',
   version: '1.0',
 
@@ -15,9 +14,24 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
   },
 
   params: {
-    accessToken: { type: 'string', required: true, visibility: 'hidden' },
-    matterId: { type: 'string', required: true, visibility: 'user-only' },
-    holdName: { type: 'string', required: true, visibility: 'user-only' },
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'OAuth access token',
+    },
+    matterId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The matter ID',
+    },
+    holdName: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Name for the hold',
+    },
     corpus: {
       type: 'string',
       required: true,
@@ -36,6 +50,30 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
       visibility: 'user-only',
       description: 'Organization unit ID to put on hold (alternative to accounts)',
     },
+    terms: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Search terms to filter held content (for MAIL and GROUPS corpus)',
+    },
+    startTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Start time for date filtering (ISO 8601 format, for MAIL and GROUPS corpus)',
+    },
+    endTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'End time for date filtering (ISO 8601 format, for MAIL and GROUPS corpus)',
+    },
+    includeSharedDrives: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Include files in shared drives (for DRIVE corpus)',
+    },
   },
 
   request: {
@@ -46,13 +84,11 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      // Build Hold body. One of accounts or orgUnit must be provided.
       const body: any = {
         name: params.holdName,
         corpus: params.corpus,
       }
 
-      // Handle accountEmails - can be string (comma-separated) or array
       let emails: string[] = []
       if (params.accountEmails) {
         if (Array.isArray(params.accountEmails)) {
@@ -66,10 +102,27 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
       }
 
       if (emails.length > 0) {
-        // Google Vault expects HeldAccount objects with 'email' or 'accountId'. Use 'email' here.
         body.accounts = emails.map((email: string) => ({ email }))
       } else if (params.orgUnitId) {
         body.orgUnit = { orgUnitId: params.orgUnitId }
+      }
+
+      if (params.corpus === 'MAIL' || params.corpus === 'GROUPS') {
+        const hasQueryParams = params.terms || params.startTime || params.endTime
+        if (hasQueryParams) {
+          const queryObj: any = {}
+          if (params.terms) queryObj.terms = params.terms
+          if (params.startTime) queryObj.startTime = params.startTime
+          if (params.endTime) queryObj.endTime = params.endTime
+
+          if (params.corpus === 'MAIL') {
+            body.query = { mailQuery: queryObj }
+          } else {
+            body.query = { groupsQuery: queryObj }
+          }
+        }
+      } else if (params.corpus === 'DRIVE' && params.includeSharedDrives) {
+        body.query = { driveQuery: { includeSharedDriveFiles: params.includeSharedDrives } }
       }
 
       return body
@@ -79,7 +132,8 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to create hold')
+      const errorMessage = data.error?.message || 'Failed to create hold'
+      throw new Error(enhanceGoogleVaultError(errorMessage))
     }
     return { success: true, output: { hold: data } }
   },

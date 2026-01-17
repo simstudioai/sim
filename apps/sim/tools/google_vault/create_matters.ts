@@ -1,15 +1,9 @@
+import type { GoogleVaultCreateMattersParams } from '@/tools/google_vault/types'
+import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export interface GoogleVaultCreateMattersParams {
-  accessToken: string
-  name: string
-  description?: string
-}
-
-// matters.create
-// POST https://vault.googleapis.com/v1/matters
 export const createMattersTool: ToolConfig<GoogleVaultCreateMattersParams> = {
-  id: 'create_matters',
+  id: 'google_vault_create_matters',
   name: 'Vault Create Matter',
   description: 'Create a new matter in Google Vault',
   version: '1.0',
@@ -20,9 +14,24 @@ export const createMattersTool: ToolConfig<GoogleVaultCreateMattersParams> = {
   },
 
   params: {
-    accessToken: { type: 'string', required: true, visibility: 'hidden' },
-    name: { type: 'string', required: true, visibility: 'user-only' },
-    description: { type: 'string', required: false, visibility: 'user-only' },
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'OAuth access token',
+    },
+    name: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Name for the new matter',
+    },
+    description: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Optional description for the matter',
+    },
   },
 
   request: {
@@ -38,7 +47,8 @@ export const createMattersTool: ToolConfig<GoogleVaultCreateMattersParams> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to create matter')
+      const errorMessage = data.error?.message || 'Failed to create matter'
+      throw new Error(enhanceGoogleVaultError(errorMessage))
     }
     return { success: true, output: { matter: data } }
   },
