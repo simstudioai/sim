@@ -143,6 +143,7 @@ export async function ensureBlockEnvVarsResolvable(
   options: { requestId?: string } = {}
 ): Promise<void> {
   const requestId = options.requestId
+  const envVarPattern = createEnvVarPattern()
   await Promise.all(
     Object.values(blocks).map(async (block) => {
       const subBlocks = block.subBlocks ?? {}
@@ -157,7 +158,6 @@ export async function ensureBlockEnvVarsResolvable(
             return
           }
 
-          const envVarPattern = createEnvVarPattern()
           const matches = value.match(envVarPattern)
           if (!matches) {
             return

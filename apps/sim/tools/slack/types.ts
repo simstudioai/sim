@@ -7,7 +7,9 @@ export interface SlackBaseParams {
 }
 
 export interface SlackMessageParams extends SlackBaseParams {
+  destinationType?: 'channel' | 'dm'
   channel?: string
+  dmUserId?: string
   userId?: string
   text: string
   thread_ts?: string
@@ -22,7 +24,9 @@ export interface SlackCanvasParams extends SlackBaseParams {
 }
 
 export interface SlackMessageReaderParams extends SlackBaseParams {
+  destinationType?: 'channel' | 'dm'
   channel?: string
+  dmUserId?: string
   userId?: string
   limit?: number
   oldest?: string
