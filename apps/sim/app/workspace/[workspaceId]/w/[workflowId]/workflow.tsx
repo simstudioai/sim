@@ -700,7 +700,23 @@ const WorkflowContent = React.memo(() => {
         triggerMode,
       })
 
-      collaborativeBatchAddBlocks([block], autoConnectEdge ? [autoConnectEdge] : [], {}, {}, {})
+      const subBlockValues: Record<string, Record<string, unknown>> = {}
+      if (block.subBlocks && Object.keys(block.subBlocks).length > 0) {
+        subBlockValues[id] = {}
+        for (const [subBlockId, subBlock] of Object.entries(block.subBlocks)) {
+          if (subBlock.value !== null && subBlock.value !== undefined) {
+            subBlockValues[id][subBlockId] = subBlock.value
+          }
+        }
+      }
+
+      collaborativeBatchAddBlocks(
+        [block],
+        autoConnectEdge ? [autoConnectEdge] : [],
+        {},
+        {},
+        subBlockValues
+      )
       usePanelEditorStore.getState().setCurrentBlockId(id)
     },
     [collaborativeBatchAddBlocks, setSelectedEdges]
