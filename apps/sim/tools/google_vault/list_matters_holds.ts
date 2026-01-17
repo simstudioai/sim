@@ -4,7 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams> = {
   id: 'google_vault_list_matters_holds',
-  name: 'Vault List Holds (by Matter)',
+  name: 'Vault List Holds',
   description: 'List holds for a matter',
   version: '1.0',
 
@@ -14,11 +14,36 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
   },
 
   params: {
-    accessToken: { type: 'string', required: true, visibility: 'hidden' },
-    matterId: { type: 'string', required: true, visibility: 'user-only' },
-    pageSize: { type: 'number', required: false, visibility: 'user-only' },
-    pageToken: { type: 'string', required: false, visibility: 'hidden' },
-    holdId: { type: 'string', required: false, visibility: 'user-only' },
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'OAuth access token',
+    },
+    matterId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The matter ID',
+    },
+    pageSize: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Number of holds to return per page',
+    },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Token for pagination',
+    },
+    holdId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Optional hold ID to fetch a specific hold',
+    },
   },
 
   request: {

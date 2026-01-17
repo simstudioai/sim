@@ -4,7 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportParams> = {
   id: 'google_vault_create_matters_export',
-  name: 'Vault Create Export (by Matter)',
+  name: 'Vault Create Export',
   description: 'Create an export in a matter',
   version: '1.0',
 
@@ -14,9 +14,24 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
   },
 
   params: {
-    accessToken: { type: 'string', required: true, visibility: 'hidden' },
-    matterId: { type: 'string', required: true, visibility: 'user-only' },
-    exportName: { type: 'string', required: true, visibility: 'user-only' },
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'OAuth access token',
+    },
+    matterId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The matter ID',
+    },
+    exportName: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Name for the export (avoid special characters)',
+    },
     corpus: {
       type: 'string',
       required: true,

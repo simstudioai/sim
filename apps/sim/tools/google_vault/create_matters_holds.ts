@@ -4,7 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsParams> = {
   id: 'google_vault_create_matters_holds',
-  name: 'Vault Create Hold (by Matter)',
+  name: 'Vault Create Hold',
   description: 'Create a hold in a matter',
   version: '1.0',
 
@@ -14,9 +14,24 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
   },
 
   params: {
-    accessToken: { type: 'string', required: true, visibility: 'hidden' },
-    matterId: { type: 'string', required: true, visibility: 'user-only' },
-    holdName: { type: 'string', required: true, visibility: 'user-only' },
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'OAuth access token',
+    },
+    matterId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The matter ID',
+    },
+    holdName: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Name for the hold',
+    },
     corpus: {
       type: 'string',
       required: true,

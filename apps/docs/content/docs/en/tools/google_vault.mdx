@@ -42,8 +42,8 @@ Create an export in a matter
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `matterId` | string | Yes | No description |
-| `exportName` | string | Yes | No description |
+| `matterId` | string | Yes | The matter ID |
+| `exportName` | string | Yes | Name for the export \(avoid special characters\) |
 | `corpus` | string | Yes | Data corpus to export \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
 | `accountEmails` | string | No | Comma-separated list of user emails to scope export |
 | `orgUnitId` | string | No | Organization unit ID to scope export \(alternative to emails\) |
@@ -65,10 +65,10 @@ List exports for a matter
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `matterId` | string | Yes | No description |
-| `pageSize` | number | No | No description |
-| `pageToken` | string | No | No description |
-| `exportId` | string | No | No description |
+| `matterId` | string | Yes | The matter ID |
+| `pageSize` | number | No | Number of exports to return per page |
+| `pageToken` | string | No | Token for pagination |
+| `exportId` | string | No | Optional export ID to fetch a specific export |
 
 #### Output
 
@@ -86,10 +86,10 @@ Download a single file from a Google Vault export (GCS object)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `matterId` | string | Yes | No description |
-| `bucketName` | string | Yes | No description |
-| `objectName` | string | Yes | No description |
-| `fileName` | string | No | No description |
+| `matterId` | string | Yes | The matter ID |
+| `bucketName` | string | Yes | GCS bucket name from cloudStorageSink.files.bucketName |
+| `objectName` | string | Yes | GCS object name from cloudStorageSink.files.objectName |
+| `fileName` | string | No | Optional filename override for the downloaded file |
 
 #### Output
 
@@ -105,8 +105,8 @@ Create a hold in a matter
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `matterId` | string | Yes | No description |
-| `holdName` | string | Yes | No description |
+| `matterId` | string | Yes | The matter ID |
+| `holdName` | string | Yes | Name for the hold |
 | `corpus` | string | Yes | Data corpus to hold \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
 | `accountEmails` | string | No | Comma-separated list of user emails to put on hold |
 | `orgUnitId` | string | No | Organization unit ID to put on hold \(alternative to accounts\) |
@@ -129,10 +129,10 @@ List holds for a matter
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `matterId` | string | Yes | No description |
-| `pageSize` | number | No | No description |
-| `pageToken` | string | No | No description |
-| `holdId` | string | No | No description |
+| `matterId` | string | Yes | The matter ID |
+| `pageSize` | number | No | Number of holds to return per page |
+| `pageToken` | string | No | Token for pagination |
+| `holdId` | string | No | Optional hold ID to fetch a specific hold |
 
 #### Output
 
@@ -150,8 +150,8 @@ Create a new matter in Google Vault
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `name` | string | Yes | No description |
-| `description` | string | No | No description |
+| `name` | string | Yes | Name for the new matter |
+| `description` | string | No | Optional description for the matter |
 
 #### Output
 
@@ -167,9 +167,9 @@ List matters, or get a specific matter if matterId is provided
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `pageSize` | number | No | No description |
-| `pageToken` | string | No | No description |
-| `matterId` | string | No | No description |
+| `pageSize` | number | No | Number of matters to return per page |
+| `pageToken` | string | No | Token for pagination |
+| `matterId` | string | No | Optional matter ID to fetch a specific matter |
 
 #### Output
 

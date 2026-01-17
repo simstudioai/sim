@@ -14,10 +14,30 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
   },
 
   params: {
-    accessToken: { type: 'string', required: true, visibility: 'hidden' },
-    pageSize: { type: 'number', required: false, visibility: 'user-only' },
-    pageToken: { type: 'string', required: false, visibility: 'hidden' },
-    matterId: { type: 'string', required: false, visibility: 'user-only' },
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'OAuth access token',
+    },
+    pageSize: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Number of matters to return per page',
+    },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Token for pagination',
+    },
+    matterId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Optional matter ID to fetch a specific matter',
+    },
   },
 
   request: {

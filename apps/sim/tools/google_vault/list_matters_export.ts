@@ -4,7 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const listMattersExportTool: ToolConfig<GoogleVaultListMattersExportParams> = {
   id: 'google_vault_list_matters_export',
-  name: 'Vault List Exports (by Matter)',
+  name: 'Vault List Exports',
   description: 'List exports for a matter',
   version: '1.0',
 
@@ -14,11 +14,36 @@ export const listMattersExportTool: ToolConfig<GoogleVaultListMattersExportParam
   },
 
   params: {
-    accessToken: { type: 'string', required: true, visibility: 'hidden' },
-    matterId: { type: 'string', required: true, visibility: 'user-only' },
-    pageSize: { type: 'number', required: false, visibility: 'user-only' },
-    pageToken: { type: 'string', required: false, visibility: 'hidden' },
-    exportId: { type: 'string', required: false, visibility: 'user-only' },
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'OAuth access token',
+    },
+    matterId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The matter ID',
+    },
+    pageSize: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Number of exports to return per page',
+    },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Token for pagination',
+    },
+    exportId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Optional export ID to fetch a specific export',
+    },
   },
 
   request: {

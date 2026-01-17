@@ -14,11 +14,36 @@ export const downloadExportFileTool: ToolConfig<GoogleVaultDownloadExportFilePar
   },
 
   params: {
-    accessToken: { type: 'string', required: true, visibility: 'hidden' },
-    matterId: { type: 'string', required: true, visibility: 'user-only' },
-    bucketName: { type: 'string', required: true, visibility: 'user-only' },
-    objectName: { type: 'string', required: true, visibility: 'user-only' },
-    fileName: { type: 'string', required: false, visibility: 'user-only' },
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'OAuth access token',
+    },
+    matterId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The matter ID',
+    },
+    bucketName: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'GCS bucket name from cloudStorageSink.files.bucketName',
+    },
+    objectName: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'GCS object name from cloudStorageSink.files.objectName',
+    },
+    fileName: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Optional filename override for the downloaded file',
+    },
   },
 
   request: {

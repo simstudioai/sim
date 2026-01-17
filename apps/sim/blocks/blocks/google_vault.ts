@@ -206,7 +206,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     },
     // Date filtering for holds (only works with MAIL and GROUPS corpus)
     {
-      id: 'startTime',
+      id: 'holdStartTime',
       title: 'Start Time',
       type: 'short-input',
       placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
@@ -232,7 +232,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
     },
     {
-      id: 'endTime',
+      id: 'holdEndTime',
       title: 'End Time',
       type: 'short-input',
       placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
@@ -286,7 +286,7 @@ Return ONLY the search query - no explanations, no quotes, no extra text.`,
     },
     // Search terms for holds (only works with MAIL and GROUPS corpus)
     {
-      id: 'terms',
+      id: 'holdTerms',
       title: 'Search Terms',
       type: 'long-input',
       placeholder: 'Enter search query (e.g., from:user@example.com subject:confidential)',
@@ -300,7 +300,7 @@ Return ONLY the search query - no explanations, no quotes, no extra text.`,
         prompt: `Generate a Google Vault search query based on the user's description.
 The query can use Gmail-style search operators:
 - from:user@example.com - emails from specific sender
-- to:user@example.com - emails to specific recipient  
+- to:user@example.com - emails to specific recipient
 - subject:keyword - emails with keyword in subject
 - has:attachment - emails with attachments
 - filename:pdf - emails with PDF attachments
@@ -438,10 +438,14 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
         }
       },
       params: (params) => {
-        const { credential, ...rest } = params
+        const { credential, holdStartTime, holdEndTime, holdTerms, ...rest } = params
         return {
           ...rest,
           credential,
+          // Map hold-specific fields to their tool parameter names
+          ...(holdStartTime && { startTime: holdStartTime }),
+          ...(holdEndTime && { endTime: holdEndTime }),
+          ...(holdTerms && { terms: holdTerms }),
         }
       },
     },
@@ -463,6 +467,18 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
 
     // Create hold inputs
     holdName: { type: 'string', description: 'Name for the hold' },
+    holdStartTime: {
+      type: 'string',
+      description: 'Start time for hold date filtering (ISO 8601 format, MAIL/GROUPS only)',
+    },
+    holdEndTime: {
+      type: 'string',
+      description: 'End time for hold date filtering (ISO 8601 format, MAIL/GROUPS only)',
+    },
+    holdTerms: {
+      type: 'string',
+      description: 'Search query terms for hold (MAIL/GROUPS only)',
+    },
     includeSharedDrives: {
       type: 'boolean',
       description: 'Include files in shared drives (for DRIVE corpus holds)',
@@ -484,12 +500,32 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
     description: { type: 'string', description: 'Matter description' },
   },
   outputs: {
-    matters: { type: 'json', description: 'Array of matter objects (for list_matters)' },
-    exports: { type: 'json', description: 'Array of export objects (for list_matters_export)' },
-    holds: { type: 'json', description: 'Array of hold objects (for list_matters_holds)' },
-    matter: { type: 'json', description: 'Created matter object (for create_matters)' },
-    export: { type: 'json', description: 'Created export object (for create_matters_export)' },
-    hold: { type: 'json', description: 'Created hold object (for create_matters_holds)' },
+    matters: {
+      type: 'json',
+      description: 'Array of matter objects (for list_matters without matterId)',
+    },
+    exports: {
+      type: 'json',
+      description: 'Array of export objects (for list_matters_export without exportId)',
+    },
+    holds: {
+      type: 'json',
+      description: 'Array of hold objects (for list_matters_holds without holdId)',
+    },
+    matter: {
+      type: 'json',
+      description: 'Single matter object (for create_matters or list_matters with matterId)',
+    },
+    export: {
+      type: 'json',
+      description:
+        'Single export object (for create_matters_export or list_matters_export with exportId)',
+    },
+    hold: {
+      type: 'json',
+      description:
+        'Single hold object (for create_matters_holds or list_matters_holds with holdId)',
+    },
     file: { type: 'json', description: 'Downloaded export file (UserFile) from execution files' },
     nextPageToken: {
       type: 'string',
