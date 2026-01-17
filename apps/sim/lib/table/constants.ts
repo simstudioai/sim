@@ -27,5 +27,4 @@ export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as c
 
 export const NAME_PATTERN = /^[a-z_][a-z0-9_]*$/i
 
-/** Database table name for user table rows (used in SQL query building) */
 export const USER_TABLE_ROWS_SQL_NAME = 'user_table_rows'
