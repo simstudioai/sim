@@ -8,6 +8,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import type { FilterRule, SortRule } from '@/lib/table/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ActionBar,
@@ -187,15 +188,7 @@ const isDocumentTagArray = (value: unknown): value is DocumentTagItem[] => {
 /**
  * Type guard for filter condition array (used in table block filter builder)
  */
-interface FilterConditionItem {
-  id: string
-  logicalOperator: 'and' | 'or'
-  column: string
-  operator: string
-  value: string
-}
-
-const isFilterConditionArray = (value: unknown): value is FilterConditionItem[] => {
+const isFilterConditionArray = (value: unknown): value is FilterRule[] => {
   if (!Array.isArray(value) || value.length === 0) return false
   const firstItem = value[0]
   return (
@@ -211,13 +204,7 @@ const isFilterConditionArray = (value: unknown): value is FilterConditionItem[] 
 /**
  * Type guard for sort condition array (used in table block sort builder)
  */
-interface SortConditionItem {
-  id: string
-  column: string
-  direction: 'asc' | 'desc'
-}
-
-const isSortConditionArray = (value: unknown): value is SortConditionItem[] => {
+const isSortConditionArray = (value: unknown): value is SortRule[] => {
   if (!Array.isArray(value) || value.length === 0) return false
   const firstItem = value[0]
   return (
@@ -299,7 +286,7 @@ export const getDisplayValue = (value: unknown): string => {
       (c) => typeof c.column === 'string' && c.column.trim() !== ''
     )
     if (validConditions.length === 0) return '-'
-    const formatCondition = (c: FilterConditionItem) => {
+    const formatCondition = (c: FilterRule) => {
       const opLabels: Record<string, string> = {
         eq: '=',
         ne: '≠',
@@ -325,7 +312,7 @@ export const getDisplayValue = (value: unknown): string => {
       (c) => typeof c.column === 'string' && c.column.trim() !== ''
     )
     if (validConditions.length === 0) return '-'
-    const formatSort = (c: SortConditionItem) => `${c.column} ${c.direction === 'desc' ? '↓' : '↑'}`
+    const formatSort = (c: SortRule) => `${c.column} ${c.direction === 'desc' ? '↓' : '↑'}`
     if (validConditions.length === 1) return formatSort(validConditions[0])
     if (validConditions.length === 2) {
       return `${formatSort(validConditions[0])}, ${formatSort(validConditions[1])}`
