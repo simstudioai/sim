@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * Seed script to populate the stress_test_users table.
  *

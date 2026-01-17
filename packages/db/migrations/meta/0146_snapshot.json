@@ -1,6 +1,6 @@
 {
-  "id": "cffb4dda-dfcc-474d-a6d8-fdb2b749edaf",
-  "prevId": "604deef4-68ee-4a32-94bd-21ce3e37be38",
+  "id": "60cd2b70-8665-4541-a747-db49939aaf8f",
+  "prevId": "c7f4dbd0-6742-4e4d-8764-576026d265f0",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4787,6 +4787,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "auto_add_new_members": {
+          "name": "auto_add_new_members",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
       "indexes": {
@@ -4837,6 +4844,22 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "permission_group_org_auto_add_unique": {
+          "name": "permission_group_org_auto_add_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "auto_add_new_members = true",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -5494,7 +5517,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'system'"
+          "default": "'dark'"
         },
         "auto_connect": {
           "name": "auto_connect",
@@ -5551,6 +5574,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "show_action_bar": {
+          "name": "show_action_bar",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         },
         "copilot_enabled_models": {
           "name": "copilot_enabled_models",
@@ -6900,6 +6930,291 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.user_table_definitions": {
+      "name": "user_table_definitions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "schema": {
+          "name": "schema",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_rows": {
+          "name": "max_rows",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 10000
+        },
+        "row_count": {
+          "name": "row_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "user_table_def_workspace_id_idx": {
+          "name": "user_table_def_workspace_id_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_table_def_workspace_name_unique": {
+          "name": "user_table_def_workspace_name_unique",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "user_table_definitions_workspace_id_workspace_id_fk": {
+          "name": "user_table_definitions_workspace_id_workspace_id_fk",
+          "tableFrom": "user_table_definitions",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_table_definitions_created_by_user_id_fk": {
+          "name": "user_table_definitions_created_by_user_id_fk",
+          "tableFrom": "user_table_definitions",
+          "tableTo": "user",
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_table_rows": {
+      "name": "user_table_rows",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "table_id": {
+          "name": "table_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data": {
+          "name": "data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "user_table_rows_table_id_idx": {
+          "name": "user_table_rows_table_id_idx",
+          "columns": [
+            {
+              "expression": "table_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_table_rows_workspace_id_idx": {
+          "name": "user_table_rows_workspace_id_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_table_rows_data_gin_idx": {
+          "name": "user_table_rows_data_gin_idx",
+          "columns": [
+            {
+              "expression": "data",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "user_table_rows_workspace_table_idx": {
+          "name": "user_table_rows_workspace_table_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "table_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "user_table_rows_table_id_user_table_definitions_id_fk": {
+          "name": "user_table_rows_table_id_user_table_definitions_id_fk",
+          "tableFrom": "user_table_rows",
+          "tableTo": "user_table_definitions",
+          "columnsFrom": ["table_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_table_rows_workspace_id_workspace_id_fk": {
+          "name": "user_table_rows_workspace_id_workspace_id_fk",
+          "tableFrom": "user_table_rows",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_table_rows_created_by_user_id_fk": {
+          "name": "user_table_rows_created_by_user_id_fk",
+          "tableFrom": "user_table_rows",
+          "tableTo": "user",
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.verification": {
       "name": "verification",
       "schema": "",
@@ -7048,6 +7363,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "deployment_version_id": {
+          "name": "deployment_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "block_id": {
           "name": "block_id",
           "type": "text",
@@ -7114,11 +7435,17 @@
         }
       },
       "indexes": {
-        "path_idx": {
-          "name": "path_idx",
+        "path_deployment_unique": {
+          "name": "path_deployment_unique",
           "columns": [
             {
               "expression": "path",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "deployment_version_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -7140,6 +7467,27 @@
             },
             {
               "expression": "block_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "webhook_workflow_deployment_idx": {
+          "name": "webhook_workflow_deployment_idx",
+          "columns": [
+            {
+              "expression": "workflow_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "deployment_version_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -7176,11 +7524,11 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "webhook_block_id_workflow_blocks_id_fk": {
-          "name": "webhook_block_id_workflow_blocks_id_fk",
+        "webhook_deployment_version_id_workflow_deployment_version_id_fk": {
+          "name": "webhook_deployment_version_id_workflow_deployment_version_id_fk",
           "tableFrom": "webhook",
-          "tableTo": "workflow_blocks",
-          "columnsFrom": ["block_id"],
+          "tableTo": "workflow_deployment_version",
+          "columnsFrom": ["deployment_version_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -8694,6 +9042,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "is_public": {
+          "name": "is_public",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -8918,6 +9273,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "deployment_version_id": {
+          "name": "deployment_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "block_id": {
           "name": "block_id",
           "type": "text",
@@ -8997,8 +9358,8 @@
         }
       },
       "indexes": {
-        "workflow_schedule_workflow_block_unique": {
-          "name": "workflow_schedule_workflow_block_unique",
+        "workflow_schedule_workflow_block_deployment_unique": {
+          "name": "workflow_schedule_workflow_block_deployment_unique",
           "columns": [
             {
               "expression": "workflow_id",
@@ -9011,9 +9372,36 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "deployment_version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workflow_schedule_workflow_deployment_idx": {
+          "name": "workflow_schedule_workflow_deployment_idx",
+          "columns": [
+            {
+              "expression": "workflow_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "deployment_version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -9029,11 +9417,11 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "workflow_schedule_block_id_workflow_blocks_id_fk": {
-          "name": "workflow_schedule_block_id_workflow_blocks_id_fk",
+        "workflow_schedule_deployment_version_id_workflow_deployment_version_id_fk": {
+          "name": "workflow_schedule_deployment_version_id_workflow_deployment_version_id_fk",
           "tableFrom": "workflow_schedule",
-          "tableTo": "workflow_blocks",
-          "columnsFrom": ["block_id"],
+          "tableTo": "workflow_deployment_version",
+          "columnsFrom": ["deployment_version_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
