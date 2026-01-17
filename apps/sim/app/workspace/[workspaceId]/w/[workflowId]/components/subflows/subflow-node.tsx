@@ -66,7 +66,7 @@ export interface SubflowNodeData {
  * @param props - Node properties containing data and id
  * @returns Rendered subflow node component
  */
-export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeData>) => {
+export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<SubflowNodeData>) => {
   const { getNodes } = useReactFlow()
   const blockRef = useRef<HTMLDivElement>(null)
   const userPermissions = useUserPermissionsContext()
@@ -134,13 +134,15 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
 
   /**
    * Determine the ring styling based on subflow state priority:
-   * 1. Focused (selected in editor) or preview selected - blue ring
+   * 1. Focused (selected in editor), selected (shift-click/box), or preview selected - blue ring
    * 2. Diff status (version comparison) - green/orange ring
    */
-  const hasRing = isFocused || isPreviewSelected || diffStatus === 'new' || diffStatus === 'edited'
+  const isSelected = !isPreview && selected
+  const hasRing =
+    isFocused || isSelected || isPreviewSelected || diffStatus === 'new' || diffStatus === 'edited'
   const ringStyles = cn(
     hasRing && 'ring-[1.75px]',
-    (isFocused || isPreviewSelected) && 'ring-[var(--brand-secondary)]',
+    (isFocused || isSelected || isPreviewSelected) && 'ring-[var(--brand-secondary)]',
     diffStatus === 'new' && 'ring-[var(--brand-tertiary-2)]',
     diffStatus === 'edited' && 'ring-[var(--warning)]'
   )
@@ -167,7 +169,7 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
           data-node-id={id}
           data-type='subflowNode'
           data-nesting-level={nestingLevel}
-          data-subflow-selected={isFocused || isPreviewSelected}
+          data-subflow-selected={isFocused || isSelected || isPreviewSelected}
         >
           {!isPreview && (
             <ActionBar blockId={id} blockType={data.kind} disabled={!userPermissions.canEdit} />

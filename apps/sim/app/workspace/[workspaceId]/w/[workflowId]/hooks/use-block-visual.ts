@@ -17,6 +17,8 @@ interface UseBlockVisualProps {
   data: WorkflowBlockProps
   /** Whether the block is pending execution */
   isPending?: boolean
+  /** Whether the block is selected (via shift-click or selection box) */
+  isSelected?: boolean
 }
 
 /**
@@ -28,7 +30,12 @@ interface UseBlockVisualProps {
  * @param props - The hook properties
  * @returns Visual state, click handler, and ring styling for the block
  */
-export function useBlockVisual({ blockId, data, isPending = false }: UseBlockVisualProps) {
+export function useBlockVisual({
+  blockId,
+  data,
+  isPending = false,
+  isSelected = false,
+}: UseBlockVisualProps) {
   const isPreview = data.isPreview ?? false
   const isPreviewSelected = data.isPreviewSelected ?? false
 
@@ -42,7 +49,6 @@ export function useBlockVisual({ blockId, data, isPending = false }: UseBlockVis
     isDeletedBlock,
   } = useBlockState(blockId, currentWorkflow, data)
 
-  // Check if the editor panel is open for this block
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
   const activeTab = usePanelStore((state) => state.activeTab)
   const isEditorOpen = !isPreview && currentBlockId === blockId && activeTab === 'editor'
@@ -68,6 +74,7 @@ export function useBlockVisual({ blockId, data, isPending = false }: UseBlockVis
         diffStatus: isPreview ? undefined : diffStatus,
         runPathStatus,
         isPreviewSelection: isPreview && isPreviewSelected,
+        isSelected: isPreview ? false : isSelected,
       }),
     [
       isExecuting,
@@ -78,6 +85,7 @@ export function useBlockVisual({ blockId, data, isPending = false }: UseBlockVis
       runPathStatus,
       isPreview,
       isPreviewSelected,
+      isSelected,
     ]
   )
 
