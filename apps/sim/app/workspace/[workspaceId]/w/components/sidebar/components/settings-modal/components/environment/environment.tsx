@@ -831,7 +831,7 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
             </p>
           </ModalBody>
           <ModalFooter>
-            <Button variant='default' onClick={handleCancel}>
+            <Button variant='destructive' onClick={handleCancel}>
               Discard Changes
             </Button>
             {hasConflicts || hasInvalidKeys ? (

@@ -11,8 +11,6 @@ import {
   ButtonGroupItem,
   Checkbox,
   Code,
-  Combobox,
-  type ComboboxOption,
   Input,
   Label,
   TagInput,
@@ -270,14 +268,6 @@ export function A2aDeploy({
   useEffect(() => {
     onNeedsRepublishChange?.(!!needsRepublish)
   }, [needsRepublish, onNeedsRepublishChange])
-
-  const authSchemeOptions: ComboboxOption[] = useMemo(
-    () => [
-      { label: 'API Key', value: 'apiKey' },
-      { label: 'None (Public)', value: 'none' },
-    ],
-    []
-  )
 
   const canSave = name.trim().length > 0 && description.trim().length > 0
   useEffect(() => {
@@ -758,17 +748,18 @@ console.log(data);`
         />
       </div>
 
-      {/* Authentication */}
+      {/* Access */}
       <div>
         <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-          Authentication
+          Access
         </Label>
-        <Combobox
-          options={authSchemeOptions}
+        <ButtonGroup
           value={authScheme}
-          onChange={(v) => setAuthScheme(v as AuthScheme)}
-          placeholder='Select authentication...'
-        />
+          onValueChange={(value) => setAuthScheme(value as AuthScheme)}
+        >
+          <ButtonGroupItem value='apiKey'>API Key</ButtonGroupItem>
+          <ButtonGroupItem value='none'>Public</ButtonGroupItem>
+        </ButtonGroup>
         <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
           {authScheme === 'none'
             ? 'Anyone can call this agent without authentication'

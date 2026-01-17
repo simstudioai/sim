@@ -321,12 +321,7 @@ export function BYOK() {
             <Button variant='default' onClick={() => setDeleteConfirmProvider(null)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleDelete}
-              disabled={deleteKey.isPending}
-              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-            >
+            <Button variant='destructive' onClick={handleDelete} disabled={deleteKey.isPending}>
               {deleteKey.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>
