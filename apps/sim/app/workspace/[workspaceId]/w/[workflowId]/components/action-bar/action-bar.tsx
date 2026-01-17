@@ -68,7 +68,6 @@ export const ActionBar = memo(
         subBlockValues,
       })
 
-      // Set pending selection before adding - workflow.tsx will apply it after render
       setPendingSelection([newId])
       collaborativeBatchAddBlocks([block], [], {}, {}, { [newId]: filteredValues })
     }, [
