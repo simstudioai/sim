@@ -75,33 +75,6 @@ export const openaiProvider: ProviderConfig = {
         }))
       : undefined
 
-    // === DEBUG: Log full request details ===
-    logger.info('[OpenAIProvider] === FULL REQUEST DEBUG ===')
-    logger.info(`[OpenAIProvider] Messages: ${allMessages.length} total`)
-    for (const [i, m] of allMessages.entries()) {
-      const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
-      logger.info(`[OpenAIProvider]   [${i}] ${m.role}: ${content?.substring(0, 150)}...`)
-    }
-
-    // Log tool definitions with formatted JSON
-    if (tools?.length) {
-      for (const tool of tools) {
-        logger.info(`[OpenAIProvider] Tool: ${tool.function.name}`)
-        logger.info(
-          `[OpenAIProvider]   Description: ${tool.function.description?.substring(0, 200)}...`
-        )
-        logger.info(`[OpenAIProvider]   Parameters:`)
-        const params = tool.function.parameters as any
-        if (params?.properties) {
-          for (const [key, val] of Object.entries(params.properties)) {
-            const desc = (val as any).description || ''
-            logger.info(`[OpenAIProvider]     - ${key}: ${desc.substring(0, 100)}`)
-          }
-        }
-      }
-    }
-    logger.info('[OpenAIProvider] === END REQUEST DEBUG ===')
-
     const payload: any = {
       model: request.model,
       messages: allMessages,
@@ -320,17 +293,6 @@ export const openaiProvider: ProviderConfig = {
 
           try {
             const toolArgs = JSON.parse(toolCall.function.arguments)
-
-            // === DEBUG: Log LLM tool call details ===
-            logger.info('[OpenAIProvider] === LLM TOOL CALL ===')
-            logger.info(`[OpenAIProvider] Tool: ${toolName}`)
-            logger.info(`[OpenAIProvider] Arguments: ${JSON.stringify(toolArgs, null, 2)}`)
-            if (toolName.startsWith('table_')) {
-              const filterStr = toolArgs.filter ? JSON.stringify(toolArgs.filter, null, 2) : 'NONE'
-              logger.info(`[OpenAIProvider] Filter: ${filterStr}`)
-              logger.info(`[OpenAIProvider] Limit: ${toolArgs.limit || 'default'}`)
-            }
-
             const tool = request.tools?.find((t) => t.id === toolName)
 
             if (!tool) {
@@ -338,21 +300,8 @@ export const openaiProvider: ProviderConfig = {
             }
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-
-            logger.info(`[OpenAIProvider] Executing ${toolName}...`)
             const result = await executeTool(toolName, executionParams, true)
             const toolCallEndTime = Date.now()
-
-            // === DEBUG: Log tool result ===
-            const resultString = JSON.stringify(result)
-            const sizeKB = Math.round(resultString.length / 1024)
-            logger.info(`[OpenAIProvider] === TOOL RESULT ===`)
-            logger.info(`[OpenAIProvider] Success: ${result.success}, Size: ${sizeKB}KB`)
-            if (result.output?.rows) {
-              logger.info(
-                `[OpenAIProvider] Rows returned: ${result.output.rows.length}, Total matching: ${result.output.totalCount}`
-              )
-            }
 
             return {
               toolCall,
@@ -434,17 +383,10 @@ export const openaiProvider: ProviderConfig = {
             success: result.success,
           })
 
-          const toolMessageContent = JSON.stringify(resultContent)
-          const msgSizeKB = Math.round(toolMessageContent.length / 1024)
-          const estTokens = Math.round(toolMessageContent.length / 4)
-          logger.info(
-            `[OpenAIProvider] Adding ${toolName} result to conversation: ${msgSizeKB}KB (~${estTokens} tokens)`
-          )
-
           currentMessages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: toolMessageContent,
+            content: JSON.stringify(resultContent),
           })
         }
 
