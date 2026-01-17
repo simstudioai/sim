@@ -80,8 +80,6 @@ export const slackMessageReaderTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params: SlackMessageReaderParams) => {
-      // Agent tool: uses destinationType + dmUserId
-      // Standalone block: no destinationType, sets userId directly
       const isDM = params.destinationType === 'dm'
       return {
         accessToken: params.accessToken || params.botToken,
