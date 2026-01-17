@@ -1,4 +1,4 @@
-import type { TableRow } from '@/lib/table'
+import type { TableRow } from '@/lib/table/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 import type { TableRowInsertParams } from './types'
 

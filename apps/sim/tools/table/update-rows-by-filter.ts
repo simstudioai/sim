@@ -1,4 +1,4 @@
-import { TABLE_LIMITS } from '@/lib/table'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import type { ToolConfig } from '@/tools/types'
 import type { TableBulkOperationResponse, TableUpdateByFilterParams } from './types'
 
