@@ -7,6 +7,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
@@ -28,11 +29,7 @@ import {
   shouldSkipBlockRender,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import {
-  BLOCK_DIMENSIONS,
-  HANDLE_POSITIONS,
-  useBlockDimensions,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
+import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'

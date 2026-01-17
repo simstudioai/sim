@@ -2,9 +2,6 @@ import { useEffect, useRef } from 'react'
 import { useUpdateNodeInternals } from 'reactflow'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
-// Re-export for backwards compatibility
-export { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
-
 interface BlockDimensions {
   width: number
   height: number

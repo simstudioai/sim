@@ -424,7 +424,7 @@ export function ChatDeploy({
             >
               Cancel
             </Button>
-            <Button variant='default' onClick={handleDelete} disabled={isDeleting}>
+            <Button variant='destructive' onClick={handleDelete} disabled={isDeleting}>
               {isDeleting ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>

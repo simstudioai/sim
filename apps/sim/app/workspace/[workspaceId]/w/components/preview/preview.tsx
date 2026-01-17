@@ -19,7 +19,7 @@ import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/componen
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
-import { estimateBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-node-utilities'
+import { estimateBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { WorkflowPreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview/components/block'
 import { WorkflowPreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/subflow'
 import { getBlock } from '@/blocks'
