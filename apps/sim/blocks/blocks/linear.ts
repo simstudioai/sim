@@ -535,6 +535,51 @@ Return ONLY the search query - no explanations.`,
         value: ['linear_read_issues', 'linear_search_issues', 'linear_list_projects'],
       },
     },
+    // Issue filtering options for read_issues (advanced)
+    {
+      id: 'labelIds',
+      title: 'Label IDs',
+      type: 'short-input',
+      placeholder: 'Array of label IDs to filter by',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'linear_read_issues',
+      },
+    },
+    {
+      id: 'createdAfter',
+      title: 'Created After',
+      type: 'short-input',
+      placeholder: 'Filter issues created after this date (ISO 8601 format)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'linear_read_issues',
+      },
+    },
+    {
+      id: 'updatedAfter',
+      title: 'Updated After',
+      type: 'short-input',
+      placeholder: 'Filter issues updated after this date (ISO 8601 format)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'linear_read_issues',
+      },
+    },
+    {
+      id: 'orderBy',
+      title: 'Order By',
+      type: 'short-input',
+      placeholder: 'Sort order: "createdAt" or "updatedAt" (default: "updatedAt")',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'linear_read_issues',
+      },
+    },
     // Cycle ID
     {
       id: 'cycleId',
@@ -2188,6 +2233,16 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     estimate: { type: 'string', description: 'Estimate points' },
     query: { type: 'string', description: 'Search query' },
     includeArchived: { type: 'boolean', description: 'Include archived items' },
+    labelIds: { type: 'array', description: 'Array of label IDs to filter by' },
+    createdAfter: {
+      type: 'string',
+      description: 'Filter issues created after this date (ISO 8601)',
+    },
+    updatedAfter: {
+      type: 'string',
+      description: 'Filter issues updated after this date (ISO 8601)',
+    },
+    orderBy: { type: 'string', description: 'Sort order: createdAt or updatedAt' },
     cycleId: { type: 'string', description: 'Cycle identifier' },
     startDate: { type: 'string', description: 'Start date' },
     endDate: { type: 'string', description: 'End date' },

@@ -30,7 +30,7 @@ import {
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useProvidersStore } from '@/stores/providers/store'
-import { deepMergeInputMapping } from '@/tools/params'
+import { deepMergeInputMapping, isEmptyTagValue } from '@/tools/params'
 
 const logger = createLogger('ProviderUtils')
 
@@ -990,6 +990,10 @@ export function prepareToolExecution(
   if (tool.params) {
     for (const [key, value] of Object.entries(tool.params)) {
       if (value !== undefined && value !== null && value !== '') {
+        // Skip tag-based params if they're effectively empty (only default/unfilled entries)
+        if ((key === 'documentTags' || key === 'tagFilters') && isEmptyTagValue(value)) {
+          continue
+        }
         filteredUserParams[key] = value
       }
     }

@@ -1,5 +1,6 @@
 import type { StructuredFilter } from '@/lib/knowledge/types'
 import type { KnowledgeSearchResponse } from '@/tools/knowledge/types'
+import { enrichKBTagFiltersSchema } from '@/tools/schema-enrichers'
 import type { ToolConfig } from '@/tools/types'
 
 export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
@@ -39,6 +40,13 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
           tagValue: { type: 'string' },
         },
       },
+    },
+  },
+
+  schemaEnrichment: {
+    tagFilters: {
+      dependsOn: 'knowledgeBaseId',
+      enrichSchema: enrichKBTagFiltersSchema,
     },
   },
 
