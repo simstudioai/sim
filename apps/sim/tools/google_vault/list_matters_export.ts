@@ -3,7 +3,7 @@ import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listMattersExportTool: ToolConfig<GoogleVaultListMattersExportParams> = {
-  id: 'list_matters_export',
+  id: 'google_vault_list_matters_export',
   name: 'Vault List Exports (by Matter)',
   description: 'List exports for a matter',
   version: '1.0',

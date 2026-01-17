@@ -36,6 +36,8 @@ Connect Google Vault to create exports, list exports, and manage holds within ma
 
 ### `google_vault_create_matters_export`
 
+Create an export in a matter
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -53,34 +55,28 @@ Connect Google Vault to create exports, list exports, and manage holds within ma
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matters` | json | Array of matter objects \(for list_matters\) |
-| `exports` | json | Array of export objects \(for list_matters_export\) |
-| `holds` | json | Array of hold objects \(for list_matters_holds\) |
-| `matter` | json | Created matter object \(for create_matters\) |
-| `export` | json | Created export object \(for create_matters_export\) |
-| `hold` | json | Created hold object \(for create_matters_holds\) |
-| `file` | json | Downloaded export file \(UserFile\) from execution files |
-| `nextPageToken` | string | Token for fetching next page of results \(for list operations\) |
+| `export` | json | Created export object |
 
 ### `google_vault_list_matters_export`
+
+List exports for a matter
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | No description |
+| `pageSize` | number | No | No description |
+| `pageToken` | string | No | No description |
+| `exportId` | string | No | No description |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matters` | json | Array of matter objects \(for list_matters\) |
-| `exports` | json | Array of export objects \(for list_matters_export\) |
-| `holds` | json | Array of hold objects \(for list_matters_holds\) |
-| `matter` | json | Created matter object \(for create_matters\) |
-| `export` | json | Created export object \(for create_matters_export\) |
-| `hold` | json | Created hold object \(for create_matters_holds\) |
-| `file` | json | Downloaded export file \(UserFile\) from execution files |
-| `nextPageToken` | string | Token for fetching next page of results \(for list operations\) |
+| `exports` | json | Array of export objects |
+| `export` | json | Single export object \(when exportId is provided\) |
+| `nextPageToken` | string | Token for fetching next page of results |
 
 ### `google_vault_download_export_file`
 
@@ -103,6 +99,8 @@ Download a single file from a Google Vault export (GCS object)
 
 ### `google_vault_create_matters_holds`
 
+Create a hold in a matter
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -121,73 +119,64 @@ Download a single file from a Google Vault export (GCS object)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matters` | json | Array of matter objects \(for list_matters\) |
-| `exports` | json | Array of export objects \(for list_matters_export\) |
-| `holds` | json | Array of hold objects \(for list_matters_holds\) |
-| `matter` | json | Created matter object \(for create_matters\) |
-| `export` | json | Created export object \(for create_matters_export\) |
-| `hold` | json | Created hold object \(for create_matters_holds\) |
-| `file` | json | Downloaded export file \(UserFile\) from execution files |
-| `nextPageToken` | string | Token for fetching next page of results \(for list operations\) |
+| `hold` | json | Created hold object |
 
 ### `google_vault_list_matters_holds`
 
+List holds for a matter
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | No description |
+| `pageSize` | number | No | No description |
+| `pageToken` | string | No | No description |
+| `holdId` | string | No | No description |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matters` | json | Array of matter objects \(for list_matters\) |
-| `exports` | json | Array of export objects \(for list_matters_export\) |
-| `holds` | json | Array of hold objects \(for list_matters_holds\) |
-| `matter` | json | Created matter object \(for create_matters\) |
-| `export` | json | Created export object \(for create_matters_export\) |
-| `hold` | json | Created hold object \(for create_matters_holds\) |
-| `file` | json | Downloaded export file \(UserFile\) from execution files |
-| `nextPageToken` | string | Token for fetching next page of results \(for list operations\) |
+| `holds` | json | Array of hold objects |
+| `hold` | json | Single hold object \(when holdId is provided\) |
+| `nextPageToken` | string | Token for fetching next page of results |
 
 ### `google_vault_create_matters`
 
+Create a new matter in Google Vault
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | No description |
+| `description` | string | No | No description |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matters` | json | Array of matter objects \(for list_matters\) |
-| `exports` | json | Array of export objects \(for list_matters_export\) |
-| `holds` | json | Array of hold objects \(for list_matters_holds\) |
-| `matter` | json | Created matter object \(for create_matters\) |
-| `export` | json | Created export object \(for create_matters_export\) |
-| `hold` | json | Created hold object \(for create_matters_holds\) |
-| `file` | json | Downloaded export file \(UserFile\) from execution files |
-| `nextPageToken` | string | Token for fetching next page of results \(for list operations\) |
+| `matter` | json | Created matter object |
 
 ### `google_vault_list_matters`
 
+List matters, or get a specific matter if matterId is provided
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `pageSize` | number | No | No description |
+| `pageToken` | string | No | No description |
+| `matterId` | string | No | No description |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matters` | json | Array of matter objects \(for list_matters\) |
-| `exports` | json | Array of export objects \(for list_matters_export\) |
-| `holds` | json | Array of hold objects \(for list_matters_holds\) |
-| `matter` | json | Created matter object \(for create_matters\) |
-| `export` | json | Created export object \(for create_matters_export\) |
-| `hold` | json | Created hold object \(for create_matters_holds\) |
-| `file` | json | Downloaded export file \(UserFile\) from execution files |
-| `nextPageToken` | string | Token for fetching next page of results \(for list operations\) |
+| `matters` | json | Array of matter objects |
+| `matter` | json | Single matter object \(when matterId is provided\) |
+| `nextPageToken` | string | Token for fetching next page of results |
 
 

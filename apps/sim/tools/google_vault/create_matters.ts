@@ -3,7 +3,7 @@ import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createMattersTool: ToolConfig<GoogleVaultCreateMattersParams> = {
-  id: 'create_matters',
+  id: 'google_vault_create_matters',
   name: 'Vault Create Matter',
   description: 'Create a new matter in Google Vault',
   version: '1.0',

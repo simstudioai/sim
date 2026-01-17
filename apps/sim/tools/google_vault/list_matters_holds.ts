@@ -3,7 +3,7 @@ import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams> = {
-  id: 'list_matters_holds',
+  id: 'google_vault_list_matters_holds',
   name: 'Vault List Holds (by Matter)',
   description: 'List holds for a matter',
   version: '1.0',
