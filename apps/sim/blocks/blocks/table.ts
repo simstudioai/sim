@@ -177,7 +177,7 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
   description: 'User-defined data tables',
   longDescription:
     'Create and manage custom data tables. Store, query, and manipulate structured data within workflows.',
-  docsLink: 'https://docs.sim.ai/tools/table',
+  docsLink: 'https://docs.simstudio.ai/tools/table',
   category: 'blocks',
   bgColor: '#10B981',
   icon: TableIcon,
