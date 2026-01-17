@@ -407,6 +407,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           setPresenceUsers((prev) => {
             const existingIndex = prev.findIndex((user) => user.socketId === data.socketId)
             if (existingIndex === -1) {
+              logger.debug('Received cursor-update for unknown user', { socketId: data.socketId })
               return prev
             }
             return prev.map((user) =>
@@ -420,6 +421,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           setPresenceUsers((prev) => {
             const existingIndex = prev.findIndex((user) => user.socketId === data.socketId)
             if (existingIndex === -1) {
+              logger.debug('Received selection-update for unknown user', {
+                socketId: data.socketId,
+              })
               return prev
             }
             return prev.map((user) =>
