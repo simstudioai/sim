@@ -307,25 +307,18 @@ export function Code({
         ? getDefaultValueString()
         : storeValue
 
-  const lastValidationStatus = useRef<boolean>(true)
-
   useEffect(() => {
     if (!onValidationChange) return
 
-    const nextStatus = shouldValidateJson ? isValidJson : true
-    if (lastValidationStatus.current === nextStatus) {
-      return
-    }
+    const isValid = !shouldValidateJson || isValidJson
 
-    lastValidationStatus.current = nextStatus
-
-    if (!shouldValidateJson) {
-      onValidationChange(nextStatus)
+    if (isValid) {
+      onValidationChange(true)
       return
     }
 
     const timeoutId = setTimeout(() => {
-      onValidationChange(nextStatus)
+      onValidationChange(false)
     }, 150)
 
     return () => clearTimeout(timeoutId)
@@ -337,7 +330,7 @@ export function Code({
     }
 
     handleStreamChunkRef.current = (chunk: string) => {
-      setCode((prev) => prev + chunk)
+      setCode((prev: string) => prev + chunk)
     }
 
     handleGeneratedContentRef.current = (generatedCode: string) => {
@@ -434,12 +427,12 @@ export function Code({
       `
       document.body.appendChild(tempContainer)
 
-      lines.forEach((line) => {
+      lines.forEach((line: string) => {
         const lineDiv = document.createElement('div')
 
         if (line.includes('<') && line.includes('>')) {
           const parts = line.split(/(<[^>]+>)/g)
-          parts.forEach((part) => {
+          parts.forEach((part: string) => {
             const span = document.createElement('span')
             span.textContent = part
             lineDiv.appendChild(span)
@@ -472,7 +465,6 @@ export function Code({
     }
   }, [code])
 
-  // Event Handlers
   /**
    * Handles drag-and-drop events for inserting reference tags into the code editor.
    * @param e - The drag event
@@ -500,7 +492,6 @@ export function Code({
           textarea.selectionStart = newCursorPosition
           textarea.selectionEnd = newCursorPosition
 
-          // Show tag dropdown after cursor is positioned
           setShowTags(true)
           if (data.connectionData?.sourceBlockId) {
             setActiveSourceBlockId(data.connectionData.sourceBlockId)
@@ -559,7 +550,6 @@ export function Code({
     }
   }
 
-  // Helper Functions
   /**
    * Determines whether a `<...>` segment should be highlighted as a reference.
    * @param part - The code segment to check
@@ -596,7 +586,6 @@ export function Code({
     return accessiblePrefixes.has(normalizedPrefix)
   }
 
-  // Expose wand control handlers to parent via ref
   useImperativeHandle(
     wandControlRef,
     () => ({
@@ -617,7 +606,7 @@ export function Code({
     const numbers: ReactElement[] = []
     let lineNumber = 1
 
-    visualLineHeights.forEach((height) => {
+    visualLineHeights.forEach((height: number) => {
       const isActive = lineNumber === activeLineNumber
       numbers.push(
         <div
@@ -724,7 +713,7 @@ export function Code({
 
           <Editor
             value={code}
-            onValueChange={(newCode) => {
+            onValueChange={(newCode: string) => {
               if (!isAiStreaming && !isPreview && !disabled && !readOnly) {
                 hasEditedSinceFocusRef.current = true
                 setCode(newCode)
@@ -761,7 +750,6 @@ export function Code({
             }}
             onFocus={() => {
               hasEditedSinceFocusRef.current = false
-              // Show tag dropdown on focus when code is empty
               if (!isPreview && !disabled && !readOnly && code.trim() === '') {
                 setShowTags(true)
                 setCursorPosition(0)

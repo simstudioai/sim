@@ -207,21 +207,21 @@ const renderLabel = (
       <Label className='flex items-center gap-[6px] whitespace-nowrap'>
         {config.title}
         {required && <span className='ml-0.5'>*</span>}
-        {config.type === 'code' && config.language === 'json' && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <AlertTriangle
-                className={cn(
-                  'h-4 w-4 cursor-pointer text-destructive',
-                  !isValidJson ? 'opacity-100' : 'opacity-0'
-                )}
-              />
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              <p>Invalid JSON</p>
-            </Tooltip.Content>
-          </Tooltip.Root>
-        )}
+        {config.type === 'code' &&
+          config.language === 'json' &&
+          !isValidJson &&
+          !wandState?.isStreaming && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <span className='inline-flex'>
+                  <AlertTriangle className='h-3 w-3 flex-shrink-0 cursor-pointer text-destructive' />
+                </span>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
+                <p>Invalid JSON</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          )}
       </Label>
       <div className='flex items-center gap-[6px]'>
         {showWand && (
@@ -239,9 +239,11 @@ const renderLabel = (
                 <Input
                   ref={wandState.searchInputRef}
                   value={wandState.isStreaming ? 'Generating...' : wandState.searchQuery}
-                  onChange={(e) => wandState.onSearchChange(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    wandState.onSearchChange(e.target.value)
+                  }
                   onBlur={wandState.onSearchBlur}
-                  onKeyDown={(e) => {
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                     if (
                       e.key === 'Enter' &&
                       wandState.searchQuery.trim() &&
@@ -262,11 +264,11 @@ const renderLabel = (
                 <Button
                   variant='tertiary'
                   disabled={!wandState.searchQuery.trim() || wandState.isStreaming}
-                  onMouseDown={(e) => {
+                  onMouseDown={(e: React.MouseEvent) => {
                     e.preventDefault()
                     e.stopPropagation()
                   }}
-                  onClick={(e) => {
+                  onClick={(e: React.MouseEvent) => {
                     e.stopPropagation()
                     wandState.onSearchSubmit()
                   }}
