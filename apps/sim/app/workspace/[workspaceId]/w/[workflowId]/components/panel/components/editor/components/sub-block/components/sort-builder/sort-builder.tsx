@@ -10,7 +10,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { EmptyState } from './components/empty-state'
 import { SortRuleRow } from './components/sort-rule-row'
 
-interface SortFormatProps {
+interface SortBuilderProps {
   blockId: string
   subBlockId: string
   isPreview?: boolean
@@ -27,7 +27,7 @@ const createDefaultRule = (columns: ComboboxOption[]): SortRule => ({
 })
 
 /** Visual builder for table sort rules in workflow blocks. */
-export function SortFormat({
+export function SortBuilder({
   blockId,
   subBlockId,
   isPreview = false,
@@ -35,7 +35,7 @@ export function SortFormat({
   disabled = false,
   columns: propColumns,
   tableIdSubBlockId = 'tableId',
-}: SortFormatProps) {
+}: SortBuilderProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<SortRule[]>(blockId, subBlockId)
   const [tableIdValue] = useSubBlockValue<string>(blockId, tableIdSubBlockId)
 

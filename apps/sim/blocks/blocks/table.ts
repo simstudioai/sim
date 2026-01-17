@@ -317,7 +317,7 @@ Return ONLY the rows array:`,
     {
       id: 'bulkFilterBuilder',
       title: 'Filter Conditions',
-      type: 'filter-format',
+      type: 'filter-builder',
       required: {
         field: 'operation',
         value: ['update_rows_by_filter', 'delete_rows_by_filter'],
@@ -398,7 +398,7 @@ Return ONLY the filter JSON:`,
     {
       id: 'filterBuilder',
       title: 'Filter Conditions',
-      type: 'filter-format',
+      type: 'filter-builder',
       condition: {
         field: 'operation',
         value: 'query_rows',
@@ -410,7 +410,7 @@ Return ONLY the filter JSON:`,
     {
       id: 'sortBuilder',
       title: 'Sort Order',
-      type: 'sort-format',
+      type: 'sort-builder',
       condition: {
         field: 'operation',
         value: 'query_rows',

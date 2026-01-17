@@ -17,7 +17,7 @@ import {
   EvalInput,
   FileSelectorInput,
   FileUpload,
-  FilterFormat,
+  FilterBuilder,
   FolderSelectorInput,
   GroupedCheckboxList,
   InputFormat,
@@ -35,7 +35,7 @@ import {
   ShortInput,
   SlackSelectorInput,
   SliderInput,
-  SortFormat,
+  SortBuilder,
   Switch,
   Table,
   TableSelector,
@@ -814,9 +814,9 @@ function SubBlockComponent({
           />
         )
 
-      case 'filter-format':
+      case 'filter-builder':
         return (
-          <FilterFormat
+          <FilterBuilder
             blockId={blockId}
             subBlockId={config.id}
             isPreview={isPreview}
@@ -825,9 +825,9 @@ function SubBlockComponent({
           />
         )
 
-      case 'sort-format':
+      case 'sort-builder':
         return (
-          <SortFormat
+          <SortBuilder
             blockId={blockId}
             subBlockId={config.id}
             isPreview={isPreview}

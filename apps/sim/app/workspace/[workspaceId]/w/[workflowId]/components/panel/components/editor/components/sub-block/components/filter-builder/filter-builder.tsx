@@ -10,7 +10,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { EmptyState } from './components/empty-state'
 import { FilterRuleRow } from './components/filter-rule-row'
 
-interface FilterFormatProps {
+interface FilterBuilderProps {
   blockId: string
   subBlockId: string
   isPreview?: boolean
@@ -21,7 +21,7 @@ interface FilterFormatProps {
 }
 
 /** Visual builder for table filter rules in workflow blocks. */
-export function FilterFormat({
+export function FilterBuilder({
   blockId,
   subBlockId,
   isPreview = false,
@@ -29,7 +29,7 @@ export function FilterFormat({
   disabled = false,
   columns: propColumns,
   tableIdSubBlockId = 'tableId',
-}: FilterFormatProps) {
+}: FilterBuilderProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<FilterRule[]>(blockId, subBlockId)
   const [tableIdValue] = useSubBlockValue<string>(blockId, tableIdSubBlockId)
 
