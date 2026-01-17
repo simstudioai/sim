@@ -107,6 +107,7 @@ export const SELECTOR_TYPES_HYDRATION_REQUIRED: SubBlockType[] = [
   'variables-input',
   'mcp-server-selector',
   'mcp-tool-selector',
+  'table-selector',
 ] as const
 
 export type ExtractToolOutput<T> = T extends ToolResponse ? T['output'] : never
