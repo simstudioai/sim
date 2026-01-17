@@ -557,7 +557,7 @@ function FileUploadSyncWrapper({
   )
 }
 
-function ChannelSelectorSyncWrapper({
+function SlackSelectorSyncWrapper({
   blockId,
   paramId,
   value,
@@ -565,6 +565,7 @@ function ChannelSelectorSyncWrapper({
   uiComponent,
   disabled,
   previewContextValues,
+  selectorType,
 }: {
   blockId: string
   paramId: string
@@ -573,6 +574,7 @@ function ChannelSelectorSyncWrapper({
   uiComponent: any
   disabled: boolean
   previewContextValues?: Record<string, any>
+  selectorType: 'channel-selector' | 'user-selector'
 }) {
   return (
     <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
@@ -580,7 +582,7 @@ function ChannelSelectorSyncWrapper({
         blockId={blockId}
         subBlock={{
           id: paramId,
-          type: 'channel-selector' as const,
+          type: selectorType,
           title: paramId,
           serviceId: uiComponent.serviceId,
           placeholder: uiComponent.placeholder,
@@ -1952,7 +1954,7 @@ export function ToolInput({
 
       case 'channel-selector':
         return (
-          <ChannelSelectorSyncWrapper
+          <SlackSelectorSyncWrapper
             blockId={blockId}
             paramId={param.id}
             value={value}
@@ -1960,6 +1962,21 @@ export function ToolInput({
             uiComponent={uiComponent}
             disabled={disabled}
             previewContextValues={currentToolParams as any}
+            selectorType='channel-selector'
+          />
+        )
+
+      case 'user-selector':
+        return (
+          <SlackSelectorSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
+            value={value}
+            onChange={onChange}
+            uiComponent={uiComponent}
+            disabled={disabled}
+            previewContextValues={currentToolParams as any}
+            selectorType='user-selector'
           />
         )
 

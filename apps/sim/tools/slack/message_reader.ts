@@ -23,6 +23,12 @@ export const slackMessageReaderTool: ToolConfig<
       visibility: 'user-only',
       description: 'Authentication method: oauth or bot_token',
     },
+    destinationType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Destination type: channel or dm',
+    },
     botToken: {
       type: 'string',
       required: false,
@@ -41,11 +47,11 @@ export const slackMessageReaderTool: ToolConfig<
       visibility: 'user-only',
       description: 'Slack channel to read messages from (e.g., #general)',
     },
-    userId: {
+    dmUserId: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'User ID for DM conversation (e.g., U1234567890)',
+      description: 'Target Slack user for DM conversation',
     },
     limit: {
       type: 'number',
@@ -73,14 +79,19 @@ export const slackMessageReaderTool: ToolConfig<
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: SlackMessageReaderParams) => ({
-      accessToken: params.accessToken || params.botToken,
-      channel: params.channel,
-      userId: params.userId,
-      limit: params.limit,
-      oldest: params.oldest,
-      latest: params.latest,
-    }),
+    body: (params: SlackMessageReaderParams) => {
+      // Agent tool: uses destinationType + dmUserId
+      // Standalone block: no destinationType, sets userId directly
+      const isDM = params.destinationType === 'dm'
+      return {
+        accessToken: params.accessToken || params.botToken,
+        channel: isDM ? undefined : params.channel,
+        userId: isDM ? params.dmUserId : params.userId,
+        limit: params.limit,
+        oldest: params.oldest,
+        latest: params.latest,
+      }
+    },
   },
 
   transformResponse: async (response: Response) => {
