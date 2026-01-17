@@ -174,15 +174,36 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
           throw new Error(result.error || 'Failed to delete row')
         }
       } else {
-        await Promise.all(
-          idsToDelete.map((rowId) =>
-            fetch(`/api/table/${table?.id}/rows/${rowId}`, {
+        const results = await Promise.allSettled(
+          idsToDelete.map(async (rowId) => {
+            const res = await fetch(`/api/table/${table?.id}/rows/${rowId}`, {
               method: 'DELETE',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ workspaceId }),
             })
-          )
+
+            if (!res.ok) {
+              const result: { error?: string } = await res.json().catch(() => ({}))
+              throw new Error(result.error || `Failed to delete row ${rowId}`)
+            }
+
+            return rowId
+          })
         )
+
+        const failures = results.filter((r) => r.status === 'rejected')
+
+        if (failures.length > 0) {
+          const failureCount = failures.length
+          const totalCount = idsToDelete.length
+          const successCount = totalCount - failureCount
+          const firstError =
+            failures[0].status === 'rejected' ? failures[0].reason?.message || 'Unknown error' : ''
+
+          throw new Error(
+            `Failed to delete ${failureCount} of ${totalCount} row(s)${successCount > 0 ? ` (${successCount} deleted successfully)` : ''}. ${firstError}`
+          )
+        }
       }
 
       onSuccess()
