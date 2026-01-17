@@ -8,16 +8,17 @@ import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { Filter, RowData, Sort, TableSchema } from '@/lib/table'
 import {
+  checkUniqueConstraintsDb,
   getUniqueColumns,
   TABLE_LIMITS,
+  USER_TABLE_ROWS_SQL_NAME,
   validateBatchRows,
   validateRowAgainstSchema,
   validateRowData,
   validateRowSize,
-  validateUniqueConstraints,
 } from '@/lib/table'
 import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
-import { accessError, checkAccess, verifyTableWorkspace } from '../../utils'
+import { accessError, checkAccess } from '../../utils'
 
 const logger = createLogger('TableRowsAPI')
 
@@ -295,8 +296,7 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
 
     const { table } = accessResult
 
-    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-    if (!isValidWorkspace) {
+    if (validated.workspaceId !== table.workspaceId) {
       logger.warn(
         `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
       )
@@ -309,7 +309,7 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
     ]
 
     if (validated.filter) {
-      const filterClause = buildFilterClause(validated.filter as Filter, 'user_table_rows')
+      const filterClause = buildFilterClause(validated.filter as Filter, USER_TABLE_ROWS_SQL_NAME)
       if (filterClause) {
         baseConditions.push(filterClause)
       }
@@ -327,7 +327,7 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
 
     if (validated.sort) {
       const schema = table.schema as TableSchema
-      const sortClause = buildSortClause(validated.sort, 'user_table_rows', schema.columns)
+      const sortClause = buildSortClause(validated.sort, USER_TABLE_ROWS_SQL_NAME, schema.columns)
       if (sortClause) {
         query = query.orderBy(sortClause) as typeof query
       }
@@ -417,7 +417,7 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
       eq(userTableRows.workspaceId, validated.workspaceId),
     ]
 
-    const filterClause = buildFilterClause(validated.filter as Filter, 'user_table_rows')
+    const filterClause = buildFilterClause(validated.filter as Filter, USER_TABLE_ROWS_SQL_NAME)
     if (filterClause) {
       baseConditions.push(filterClause)
     }
@@ -469,23 +469,16 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
       }
     }
 
+    // Check unique constraints using optimized database query
     const uniqueColumns = getUniqueColumns(table.schema as TableSchema)
     if (uniqueColumns.length > 0) {
-      const allRows = await db
-        .select({
-          id: userTableRows.id,
-          data: userTableRows.data,
-        })
-        .from(userTableRows)
-        .where(eq(userTableRows.tableId, tableId))
-
       for (const row of matchingRows) {
         const existingData = row.data as RowData
         const mergedData = { ...existingData, ...updateData }
-        const uniqueValidation = validateUniqueConstraints(
+        const uniqueValidation = await checkUniqueConstraintsDb(
+          tableId,
           mergedData,
           table.schema as TableSchema,
-          allRows.map((r) => ({ id: r.id, data: r.data as RowData })),
           row.id
         )
 
@@ -573,8 +566,7 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
 
     const { table } = accessResult
 
-    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-    if (!isValidWorkspace) {
+    if (validated.workspaceId !== table.workspaceId) {
       logger.warn(
         `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
       )
@@ -586,7 +578,7 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
       eq(userTableRows.workspaceId, validated.workspaceId),
     ]
 
-    const filterClause = buildFilterClause(validated.filter as Filter, 'user_table_rows')
+    const filterClause = buildFilterClause(validated.filter as Filter, USER_TABLE_ROWS_SQL_NAME)
     if (filterClause) {
       baseConditions.push(filterClause)
     }

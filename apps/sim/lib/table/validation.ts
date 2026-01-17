@@ -4,7 +4,7 @@
 
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from './constants'
 import type { ColumnDefinition, RowData, TableSchema, ValidationResult } from './types'
@@ -39,6 +39,7 @@ export interface ValidateBatchRowsOptions {
 
 /**
  * Validates a single row (size, schema, unique constraints) and returns a formatted response on failure.
+ * Uses optimized database queries for unique constraint checks to avoid loading all rows into memory.
  */
 export async function validateRowData(
   options: ValidateRowOptions
@@ -68,28 +69,16 @@ export async function validateRowData(
   }
 
   if (checkUnique) {
-    const uniqueColumns = getUniqueColumns(schema)
-    if (uniqueColumns.length > 0) {
-      const existingRows = await db
-        .select({ id: userTableRows.id, data: userTableRows.data })
-        .from(userTableRows)
-        .where(eq(userTableRows.tableId, tableId))
+    // Use optimized database query instead of loading all rows
+    const uniqueValidation = await checkUniqueConstraintsDb(tableId, rowData, schema, excludeRowId)
 
-      const uniqueValidation = validateUniqueConstraints(
-        rowData,
-        schema,
-        existingRows.map((r) => ({ id: r.id, data: r.data as RowData })),
-        excludeRowId
-      )
-
-      if (!uniqueValidation.valid) {
-        return {
-          valid: false,
-          response: NextResponse.json(
-            { error: 'Unique constraint violation', details: uniqueValidation.errors },
-            { status: 400 }
-          ),
-        }
+    if (!uniqueValidation.valid) {
+      return {
+        valid: false,
+        response: NextResponse.json(
+          { error: 'Unique constraint violation', details: uniqueValidation.errors },
+          { status: 400 }
+        ),
       }
     }
   }
@@ -99,6 +88,7 @@ export async function validateRowData(
 
 /**
  * Validates multiple rows for batch insert (size, schema, unique constraints including within batch).
+ * Uses optimized database queries for unique constraint checks to avoid loading all rows into memory.
  */
 export async function validateBatchRows(
   options: ValidateBatchRowsOptions
@@ -134,30 +124,14 @@ export async function validateBatchRows(
   if (checkUnique) {
     const uniqueColumns = getUniqueColumns(schema)
     if (uniqueColumns.length > 0) {
-      const existingRows = await db
-        .select({ id: userTableRows.id, data: userTableRows.data })
-        .from(userTableRows)
-        .where(eq(userTableRows.tableId, tableId))
+      // Use optimized batch unique constraint check
+      const uniqueResult = await checkBatchUniqueConstraintsDb(tableId, rows, schema)
 
-      for (let i = 0; i < rows.length; i++) {
-        const rowData = rows[i]
-        const batchRows = rows.slice(0, i).map((data, idx) => ({ id: `batch_${idx}`, data }))
-
-        const uniqueValidation = validateUniqueConstraints(rowData, schema, [
-          ...existingRows.map((r) => ({ id: r.id, data: r.data as RowData })),
-          ...batchRows,
-        ])
-
-        if (!uniqueValidation.valid) {
-          errors.push({ row: i, errors: uniqueValidation.errors })
-        }
-      }
-
-      if (errors.length > 0) {
+      if (!uniqueResult.valid) {
         return {
           valid: false,
           response: NextResponse.json(
-            { error: 'Unique constraint violations in batch', details: errors },
+            { error: 'Unique constraint violations in batch', details: uniqueResult.errors },
             { status: 400 }
           ),
         }
@@ -298,7 +272,7 @@ export function getUniqueColumns(schema: TableSchema): ColumnDefinition[] {
   return schema.columns.filter((col) => col.unique === true)
 }
 
-/** Validates unique constraints against existing rows. */
+/** Validates unique constraints against existing rows (in-memory version for batch validation within a batch). */
 export function validateUniqueConstraints(
   data: RowData,
   schema: TableSchema,
@@ -330,6 +304,202 @@ export function validateUniqueConstraints(
   }
 
   return { valid: errors.length === 0, errors }
+}
+
+/**
+ * Checks unique constraints using targeted database queries.
+ * Only queries for specific conflicting values instead of loading all rows.
+ * This reduces memory usage from O(n) to O(1) where n is the number of rows.
+ */
+export async function checkUniqueConstraintsDb(
+  tableId: string,
+  data: RowData,
+  schema: TableSchema,
+  excludeRowId?: string
+): Promise<ValidationResult> {
+  const errors: string[] = []
+  const uniqueColumns = getUniqueColumns(schema)
+
+  if (uniqueColumns.length === 0) {
+    return { valid: true, errors: [] }
+  }
+
+  // Build conditions for each unique column value
+  const conditions = []
+
+  for (const column of uniqueColumns) {
+    const value = data[column.name]
+    if (value === null || value === undefined) continue
+
+    // Use JSONB operators to check for existing values
+    // For strings, use case-insensitive comparison
+    if (typeof value === 'string') {
+      conditions.push({
+        column,
+        value,
+        sql: sql`lower(${userTableRows.data}->>${sql.raw(`'${column.name}'`)}) = ${value.toLowerCase()}`,
+      })
+    } else {
+      // For other types, use direct JSONB comparison
+      conditions.push({
+        column,
+        value,
+        sql: sql`(${userTableRows.data}->${sql.raw(`'${column.name}'`)})::jsonb = ${JSON.stringify(value)}::jsonb`,
+      })
+    }
+  }
+
+  if (conditions.length === 0) {
+    return { valid: true, errors: [] }
+  }
+
+  // Query for each unique column separately to provide specific error messages
+  for (const condition of conditions) {
+    const baseCondition = and(eq(userTableRows.tableId, tableId), condition.sql)
+
+    const whereClause = excludeRowId
+      ? and(baseCondition, sql`${userTableRows.id} != ${excludeRowId}`)
+      : baseCondition
+
+    const conflictingRow = await db
+      .select({ id: userTableRows.id })
+      .from(userTableRows)
+      .where(whereClause)
+      .limit(1)
+
+    if (conflictingRow.length > 0) {
+      errors.push(
+        `Column "${condition.column.name}" must be unique. Value "${condition.value}" already exists in row ${conflictingRow[0].id}`
+      )
+    }
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
+/**
+ * Checks unique constraints for a batch of rows using targeted database queries.
+ * Validates both against existing database rows and within the batch itself.
+ */
+export async function checkBatchUniqueConstraintsDb(
+  tableId: string,
+  rows: RowData[],
+  schema: TableSchema
+): Promise<{ valid: boolean; errors: Array<{ row: number; errors: string[] }> }> {
+  const uniqueColumns = getUniqueColumns(schema)
+  const rowErrors: Array<{ row: number; errors: string[] }> = []
+
+  if (uniqueColumns.length === 0) {
+    return { valid: true, errors: [] }
+  }
+
+  // Build a set of all unique values for each column to check against DB
+  const valuesByColumn = new Map<string, { values: Set<string>; column: ColumnDefinition }>()
+
+  for (const column of uniqueColumns) {
+    valuesByColumn.set(column.name, { values: new Set(), column })
+  }
+
+  // Collect all unique values from the batch and check for duplicates within the batch
+  const batchValueMap = new Map<string, Map<string, number>>() // columnName -> (normalizedValue -> firstRowIndex)
+
+  for (const column of uniqueColumns) {
+    batchValueMap.set(column.name, new Map())
+  }
+
+  for (let i = 0; i < rows.length; i++) {
+    const rowData = rows[i]
+    const currentRowErrors: string[] = []
+
+    for (const column of uniqueColumns) {
+      const value = rowData[column.name]
+      if (value === null || value === undefined) continue
+
+      const normalizedValue =
+        typeof value === 'string' ? value.toLowerCase() : JSON.stringify(value)
+
+      // Check for duplicate within batch
+      const columnValueMap = batchValueMap.get(column.name)!
+      if (columnValueMap.has(normalizedValue)) {
+        const firstRowIndex = columnValueMap.get(normalizedValue)!
+        currentRowErrors.push(
+          `Column "${column.name}" must be unique. Value "${value}" duplicates row ${firstRowIndex + 1} in batch`
+        )
+      } else {
+        columnValueMap.set(normalizedValue, i)
+        valuesByColumn.get(column.name)!.values.add(normalizedValue)
+      }
+    }
+
+    if (currentRowErrors.length > 0) {
+      rowErrors.push({ row: i, errors: currentRowErrors })
+    }
+  }
+
+  // Now check against database for all unique values at once
+  for (const [columnName, { values, column }] of valuesByColumn) {
+    if (values.size === 0) continue
+
+    // Build OR conditions for all values of this column
+    const valueArray = Array.from(values)
+    const valueConditions = valueArray.map((normalizedValue) => {
+      // Check if the original values are strings (normalized values for strings are lowercase)
+      // We need to determine the type from the column definition or the first row that has this value
+      const isStringColumn = column.type === 'string'
+
+      if (isStringColumn) {
+        return sql`lower(${userTableRows.data}->>${sql.raw(`'${columnName}'`)}) = ${normalizedValue}`
+      }
+      return sql`(${userTableRows.data}->${sql.raw(`'${columnName}'`)})::jsonb = ${normalizedValue}::jsonb`
+    })
+
+    const conflictingRows = await db
+      .select({
+        id: userTableRows.id,
+        data: userTableRows.data,
+      })
+      .from(userTableRows)
+      .where(and(eq(userTableRows.tableId, tableId), or(...valueConditions)))
+      .limit(valueArray.length) // We only need up to one conflict per value
+
+    // Map conflicts back to batch rows
+    for (const conflict of conflictingRows) {
+      const conflictData = conflict.data as RowData
+      const conflictValue = conflictData[columnName]
+      const normalizedConflictValue =
+        typeof conflictValue === 'string'
+          ? conflictValue.toLowerCase()
+          : JSON.stringify(conflictValue)
+
+      // Find which batch rows have this conflicting value
+      for (let i = 0; i < rows.length; i++) {
+        const rowValue = rows[i][columnName]
+        if (rowValue === null || rowValue === undefined) continue
+
+        const normalizedRowValue =
+          typeof rowValue === 'string' ? rowValue.toLowerCase() : JSON.stringify(rowValue)
+
+        if (normalizedRowValue === normalizedConflictValue) {
+          // Check if this row already has errors for this column
+          let rowError = rowErrors.find((e) => e.row === i)
+          if (!rowError) {
+            rowError = { row: i, errors: [] }
+            rowErrors.push(rowError)
+          }
+
+          const errorMsg = `Column "${columnName}" must be unique. Value "${rowValue}" already exists in row ${conflict.id}`
+          if (!rowError.errors.includes(errorMsg)) {
+            rowError.errors.push(errorMsg)
+          }
+        }
+      }
+    }
+  }
+
+  // Sort errors by row index
+  rowErrors.sort((a, b) => a.row - b.row)
+
+  return { valid: rowErrors.length === 0, errors: rowErrors }
 }
 
 /** Validates column definition format and type. */

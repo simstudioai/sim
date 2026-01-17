@@ -11,7 +11,7 @@ import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, sql } from 'drizzle-orm'
-import { TABLE_LIMITS } from './constants'
+import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import type {
   BatchInsertData,
@@ -29,12 +29,13 @@ import type {
   UpdateRowData,
 } from './types'
 import {
+  checkBatchUniqueConstraintsDb,
+  checkUniqueConstraintsDb,
   getUniqueColumns,
   validateRowAgainstSchema,
   validateRowSize,
   validateTableName,
   validateTableSchema,
-  validateUniqueConstraints,
 } from './validation'
 
 const logger = createLogger('TableService')
@@ -227,19 +228,10 @@ export async function insertRow(
     throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
   }
 
-  // Check unique constraints
+  // Check unique constraints using optimized database query
   const uniqueColumns = getUniqueColumns(table.schema)
   if (uniqueColumns.length > 0) {
-    const existingRows = await db
-      .select({ id: userTableRows.id, data: userTableRows.data })
-      .from(userTableRows)
-      .where(eq(userTableRows.tableId, data.tableId))
-
-    const uniqueValidation = validateUniqueConstraints(
-      data.data,
-      table.schema,
-      existingRows.map((r) => ({ id: r.id, data: r.data as RowData }))
-    )
+    const uniqueValidation = await checkUniqueConstraintsDb(data.tableId, data.data, table.schema)
     if (!uniqueValidation.valid) {
       throw new Error(uniqueValidation.errors.join(', '))
     }
@@ -306,23 +298,16 @@ export async function batchInsertRows(
     }
   }
 
-  // Check unique constraints across all rows
+  // Check unique constraints across all rows using optimized database query
   const uniqueColumns = getUniqueColumns(table.schema)
   if (uniqueColumns.length > 0) {
-    const existingRows = await db
-      .select({ id: userTableRows.id, data: userTableRows.data })
-      .from(userTableRows)
-      .where(eq(userTableRows.tableId, data.tableId))
-
-    const allRows = existingRows.map((r) => ({ id: r.id, data: r.data as RowData }))
-
-    for (let i = 0; i < data.rows.length; i++) {
-      const uniqueValidation = validateUniqueConstraints(data.rows[i], table.schema, allRows)
-      if (!uniqueValidation.valid) {
-        throw new Error(`Row ${i + 1}: ${uniqueValidation.errors.join(', ')}`)
-      }
-      // Add to allRows for checking subsequent rows in batch
-      allRows.push({ id: `pending_${i}`, data: data.rows[i] })
+    const uniqueResult = await checkBatchUniqueConstraintsDb(data.tableId, data.rows, table.schema)
+    if (!uniqueResult.valid) {
+      // Format errors for batch insert
+      const errorMessages = uniqueResult.errors
+        .map((e) => `Row ${e.row + 1}: ${e.errors.join(', ')}`)
+        .join('; ')
+      throw new Error(errorMessages)
     }
   }
 
@@ -365,7 +350,7 @@ export async function queryRows(
 ): Promise<QueryResult> {
   const { filter, sort, limit = TABLE_LIMITS.DEFAULT_QUERY_LIMIT, offset = 0 } = options
 
-  const tableName = 'user_table_rows'
+  const tableName = USER_TABLE_ROWS_SQL_NAME
 
   // Build WHERE clause
   const baseConditions = and(
@@ -493,18 +478,13 @@ export async function updateRow(
     throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
   }
 
-  // Check unique constraints
+  // Check unique constraints using optimized database query
   const uniqueColumns = getUniqueColumns(table.schema)
   if (uniqueColumns.length > 0) {
-    const existingRows = await db
-      .select({ id: userTableRows.id, data: userTableRows.data })
-      .from(userTableRows)
-      .where(eq(userTableRows.tableId, data.tableId))
-
-    const uniqueValidation = validateUniqueConstraints(
+    const uniqueValidation = await checkUniqueConstraintsDb(
+      data.tableId,
       data.data,
       table.schema,
-      existingRows.map((r) => ({ id: r.id, data: r.data as RowData })),
       data.rowId // Exclude current row
     )
     if (!uniqueValidation.valid) {
@@ -567,7 +547,7 @@ export async function updateRowsByFilter(
   table: TableDefinition,
   requestId: string
 ): Promise<BulkOperationResult> {
-  const tableName = 'user_table_rows'
+  const tableName = USER_TABLE_ROWS_SQL_NAME
 
   // Build filter clause
   const filterClause = buildFilterClause(data.filter, tableName)
@@ -651,7 +631,7 @@ export async function deleteRowsByFilter(
   data: BulkDeleteData,
   requestId: string
 ): Promise<BulkOperationResult> {
-  const tableName = 'user_table_rows'
+  const tableName = USER_TABLE_ROWS_SQL_NAME
 
   // Build filter clause
   const filterClause = buildFilterClause(data.filter, tableName)
