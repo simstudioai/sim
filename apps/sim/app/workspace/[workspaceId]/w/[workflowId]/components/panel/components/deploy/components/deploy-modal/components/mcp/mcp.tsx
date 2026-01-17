@@ -15,7 +15,7 @@ import {
 import { Skeleton } from '@/components/ui'
 import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
-import { isValidStartBlockType } from '@/lib/workflows/triggers/trigger-utils'
+import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
 import type { InputFormatField } from '@/lib/workflows/types'
 import {
   useAddWorkflowMcpTool,

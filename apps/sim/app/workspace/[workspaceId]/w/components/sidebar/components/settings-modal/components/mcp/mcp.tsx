@@ -1170,7 +1170,7 @@ export function MCP({ initialServerId }: MCPProps) {
       </div>
 
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete MCP Server</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>

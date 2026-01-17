@@ -8,6 +8,7 @@ import {
   PopoverDivider,
   PopoverItem,
 } from '@/components/emcn'
+import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
 
 /**
  * Block information for context menu actions
@@ -73,9 +74,7 @@ export function BlockMenu({
   const allEnabled = selectedBlocks.every((b) => b.enabled)
   const allDisabled = selectedBlocks.every((b) => !b.enabled)
 
-  const hasStarterBlock = selectedBlocks.some(
-    (b) => b.type === 'starter' || b.type === 'start_trigger'
-  )
+  const hasStarterBlock = selectedBlocks.some((b) => isValidStartBlockType(b.type))
   const allNoteBlocks = selectedBlocks.every((b) => b.type === 'note')
   const isSubflow =
     isSingleBlock && (selectedBlocks[0]?.type === 'loop' || selectedBlocks[0]?.type === 'parallel')

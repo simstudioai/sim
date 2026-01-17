@@ -824,7 +824,7 @@ export function CredentialSets() {
 
       {/* Create Polling Group Modal */}
       <Modal open={showCreateModal} onOpenChange={handleCloseCreateModal}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Create Polling Group</ModalHeader>
           <ModalBody>
             <div className='flex flex-col gap-[12px]'>
@@ -897,7 +897,7 @@ export function CredentialSets() {
 
       {/* Leave Confirmation Modal */}
       <Modal open={!!leavingMembership} onOpenChange={() => setLeavingMembership(null)}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Leave Polling Group</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
@@ -925,7 +925,7 @@ export function CredentialSets() {
 
       {/* Delete Confirmation Modal */}
       <Modal open={!!deletingSet} onOpenChange={() => setDeletingSet(null)}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete Polling Group</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>

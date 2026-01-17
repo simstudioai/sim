@@ -1069,7 +1069,7 @@ export function AccessControl() {
         </Modal>
 
         <Modal open={showUnsavedChanges} onOpenChange={setShowUnsavedChanges}>
-          <ModalContent className='w-[400px]'>
+          <ModalContent size='sm'>
             <ModalHeader>Unsaved Changes</ModalHeader>
             <ModalBody>
               <p className='text-[12px] text-[var(--text-tertiary)]'>
@@ -1185,7 +1185,7 @@ export function AccessControl() {
       </div>
 
       <Modal open={showCreateModal} onOpenChange={handleCloseCreateModal}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Create Permission Group</ModalHeader>
           <ModalBody>
             <div className='flex flex-col gap-[12px]'>
@@ -1237,7 +1237,7 @@ export function AccessControl() {
       </Modal>
 
       <Modal open={!!deletingGroup} onOpenChange={() => setDeletingGroup(null)}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete Permission Group</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>

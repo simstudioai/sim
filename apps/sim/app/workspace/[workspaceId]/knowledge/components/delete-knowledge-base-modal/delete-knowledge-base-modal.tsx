@@ -38,7 +38,7 @@ export function DeleteKnowledgeBaseModal({
 }: DeleteKnowledgeBaseModalProps) {
   return (
     <Modal open={isOpen} onOpenChange={onClose}>
-      <ModalContent className='w-[400px]'>
+      <ModalContent size='sm'>
         <ModalHeader>Delete Knowledge Base</ModalHeader>
         <ModalBody>
           <p className='text-[12px] text-[var(--text-secondary)]'>
@@ -55,7 +55,7 @@ export function DeleteKnowledgeBaseModal({
           </p>
         </ModalBody>
         <ModalFooter>
-          <Button variant='active' onClick={onClose} disabled={isDeleting}>
+          <Button variant='default' onClick={onClose} disabled={isDeleting}>
             Cancel
           </Button>
           <Button variant='destructive' onClick={onConfirm} disabled={isDeleting}>

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertCircle, Wand2 } from 'lucide-react'
+import { AlertCircle, ArrowUp } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
+  Input,
   Modal,
   ModalBody,
   ModalContent,
@@ -878,35 +879,53 @@ try {
                       JSON Schema
                     </Label>
                     {schemaError && (
-                      <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-xs'>
+                      <div className='ml-2 flex min-w-0 items-center gap-1 text-[12px] text-[var(--text-error)]'>
                         <AlertCircle className='h-3 w-3 flex-shrink-0' />
                         <span className='truncate'>{schemaError}</span>
                       </div>
                     )}
                   </div>
-                  <div className='flex min-w-0 flex-1 items-center justify-end gap-1 pr-[4px]'>
+                  <div className='flex min-w-0 items-center justify-end gap-[4px]'>
                     {!isSchemaPromptActive ? (
-                      <button
-                        type='button'
+                      <Button
+                        variant='active'
+                        className='-my-1 h-5 px-2 py-0 text-[11px]'
                         onClick={handleSchemaWandClick}
                         disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
-                        className='inline-flex h-[16px] w-[16px] items-center justify-center rounded-full hover:bg-transparent disabled:opacity-50'
-                        aria-label='Generate schema with AI'
                       >
-                        <Wand2 className='!h-[12px] !w-[12px] text-[var(--text-secondary)]' />
-                      </button>
+                        Generate
+                      </Button>
                     ) : (
-                      <input
-                        ref={schemaPromptInputRef}
-                        type='text'
-                        value={schemaGeneration.isStreaming ? 'Generating...' : schemaPromptInput}
-                        onChange={(e) => handleSchemaPromptChange(e.target.value)}
-                        onBlur={handleSchemaPromptBlur}
-                        onKeyDown={handleSchemaPromptKeyDown}
-                        disabled={schemaGeneration.isStreaming}
-                        className='h-[16px] w-full border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[var(--text-muted)] focus:outline-none'
-                        placeholder='Describe schema...'
-                      />
+                      <div className='-my-1 flex items-center gap-[4px]'>
+                        <Input
+                          ref={schemaPromptInputRef}
+                          value={schemaGeneration.isStreaming ? 'Generating...' : schemaPromptInput}
+                          onChange={(e) => handleSchemaPromptChange(e.target.value)}
+                          onBlur={handleSchemaPromptBlur}
+                          onKeyDown={handleSchemaPromptKeyDown}
+                          disabled={schemaGeneration.isStreaming}
+                          className={cn(
+                            'h-5 max-w-[200px] flex-1 text-[11px]',
+                            schemaGeneration.isStreaming && 'text-muted-foreground'
+                          )}
+                          placeholder='Generate...'
+                        />
+                        <Button
+                          variant='tertiary'
+                          disabled={!schemaPromptInput.trim() || schemaGeneration.isStreaming}
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleSchemaPromptSubmit()
+                          }}
+                          className='h-[20px] w-[20px] flex-shrink-0 p-0'
+                        >
+                          <ArrowUp className='h-[12px] w-[12px]' />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -952,35 +971,53 @@ try {
                       Code
                     </Label>
                     {codeError && !codeGeneration.isStreaming && (
-                      <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-xs'>
+                      <div className='ml-2 flex min-w-0 items-center gap-1 text-[12px] text-[var(--text-error)]'>
                         <AlertCircle className='h-3 w-3 flex-shrink-0' />
                         <span className='truncate'>{codeError}</span>
                       </div>
                     )}
                   </div>
-                  <div className='flex min-w-0 flex-1 items-center justify-end gap-1 pr-[4px]'>
+                  <div className='flex min-w-0 items-center justify-end gap-[4px]'>
                     {!isCodePromptActive ? (
-                      <button
-                        type='button'
+                      <Button
+                        variant='active'
+                        className='-my-1 h-5 px-2 py-0 text-[11px]'
                         onClick={handleCodeWandClick}
                         disabled={codeGeneration.isLoading || codeGeneration.isStreaming}
-                        className='inline-flex h-[16px] w-[16px] items-center justify-center rounded-full hover:bg-transparent disabled:opacity-50'
-                        aria-label='Generate code with AI'
                       >
-                        <Wand2 className='!h-[12px] !w-[12px] text-[var(--text-secondary)]' />
-                      </button>
+                        Generate
+                      </Button>
                     ) : (
-                      <input
-                        ref={codePromptInputRef}
-                        type='text'
-                        value={codeGeneration.isStreaming ? 'Generating...' : codePromptInput}
-                        onChange={(e) => handleCodePromptChange(e.target.value)}
-                        onBlur={handleCodePromptBlur}
-                        onKeyDown={handleCodePromptKeyDown}
-                        disabled={codeGeneration.isStreaming}
-                        className='h-[16px] w-full border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[var(--text-muted)] focus:outline-none'
-                        placeholder='Describe code...'
-                      />
+                      <div className='-my-1 flex items-center gap-[4px]'>
+                        <Input
+                          ref={codePromptInputRef}
+                          value={codeGeneration.isStreaming ? 'Generating...' : codePromptInput}
+                          onChange={(e) => handleCodePromptChange(e.target.value)}
+                          onBlur={handleCodePromptBlur}
+                          onKeyDown={handleCodePromptKeyDown}
+                          disabled={codeGeneration.isStreaming}
+                          className={cn(
+                            'h-5 max-w-[200px] flex-1 text-[11px]',
+                            codeGeneration.isStreaming && 'text-muted-foreground'
+                          )}
+                          placeholder='Generate...'
+                        />
+                        <Button
+                          variant='tertiary'
+                          disabled={!codePromptInput.trim() || codeGeneration.isStreaming}
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleCodePromptSubmit()
+                          }}
+                          className='h-[20px] w-[20px] flex-shrink-0 p-0'
+                        >
+                          <ArrowUp className='h-[12px] w-[12px]' />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>

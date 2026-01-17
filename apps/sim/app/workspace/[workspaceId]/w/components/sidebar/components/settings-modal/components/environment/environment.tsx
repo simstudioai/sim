@@ -821,7 +821,7 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
       </div>
 
       <Modal open={showUnsavedChanges} onOpenChange={setShowUnsavedChanges}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Unsaved Changes</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>

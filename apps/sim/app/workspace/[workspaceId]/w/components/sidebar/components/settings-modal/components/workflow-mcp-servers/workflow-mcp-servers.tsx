@@ -532,7 +532,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
       </div>
 
       <Modal open={!!toolToDelete} onOpenChange={(open) => !open && setToolToDelete(null)}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Remove Workflow</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
@@ -745,7 +745,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                 }
               />
               {addToolMutation.isError && (
-                <p className='text-[11px] text-[var(--text-error)] leading-tight'>
+                <p className='text-[12px] text-[var(--text-error)] leading-tight'>
                   {addToolMutation.error?.message || 'Failed to add workflow'}
                 </p>
               )}
@@ -1109,7 +1109,7 @@ export function WorkflowMcpServers() {
       </div>
 
       <Modal open={!!serverToDelete} onOpenChange={(open) => !open && setServerToDelete(null)}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete MCP Server</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>

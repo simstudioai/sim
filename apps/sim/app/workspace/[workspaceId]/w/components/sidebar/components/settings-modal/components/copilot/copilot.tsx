@@ -211,7 +211,7 @@ export function Copilot() {
 
       {/* Create API Key Dialog */}
       <Modal open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Create new API key</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>
@@ -234,7 +234,7 @@ export function Copilot() {
                 autoFocus
               />
               {createError && (
-                <p className='text-[11px] text-[var(--text-error)] leading-tight'>{createError}</p>
+                <p className='text-[12px] text-[var(--text-error)] leading-tight'>{createError}</p>
               )}
             </div>
           </ModalBody>
@@ -273,7 +273,7 @@ export function Copilot() {
           }
         }}
       >
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Your API key has been created</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>
@@ -310,7 +310,7 @@ export function Copilot() {
 
       {/* Delete Confirmation Dialog */}
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete API key</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
