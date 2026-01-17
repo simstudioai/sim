@@ -3,16 +3,12 @@
 import { useState } from 'react'
 import { Check, Clipboard } from 'lucide-react'
 import {
-  Badge,
   Button,
   ButtonGroup,
   ButtonGroupItem,
   Code,
+  Combobox,
   Label,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
@@ -602,48 +598,19 @@ console.log(limits);`
                   <span>{copied.async ? 'Copied' : 'Copy'}</span>
                 </Tooltip.Content>
               </Tooltip.Root>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <div className='min-w-0 max-w-full'>
-                    <Badge
-                      variant='outline'
-                      className='flex-none cursor-pointer whitespace-nowrap rounded-[6px]'
-                    >
-                      <span className='whitespace-nowrap text-[12px]'>
-                        {getAsyncExampleTitle()}
-                      </span>
-                    </Badge>
-                  </div>
-                </PopoverTrigger>
-                <PopoverContent
-                  side='bottom'
-                  align='end'
-                  sideOffset={4}
-                  maxHeight={300}
-                  maxWidth={300}
-                  minWidth={160}
-                  border
-                >
-                  <PopoverItem
-                    active={asyncExampleType === 'execute'}
-                    onClick={() => setAsyncExampleType('execute')}
-                  >
-                    Execute Job
-                  </PopoverItem>
-                  <PopoverItem
-                    active={asyncExampleType === 'status'}
-                    onClick={() => setAsyncExampleType('status')}
-                  >
-                    Check Status
-                  </PopoverItem>
-                  <PopoverItem
-                    active={asyncExampleType === 'rate-limits'}
-                    onClick={() => setAsyncExampleType('rate-limits')}
-                  >
-                    Rate Limits
-                  </PopoverItem>
-                </PopoverContent>
-              </Popover>
+              <Combobox
+                size='sm'
+                className='!w-fit !py-[2px] min-w-[100px] rounded-[6px] px-[9px]'
+                options={[
+                  { label: 'Execute Job', value: 'execute' },
+                  { label: 'Check Status', value: 'status' },
+                  { label: 'Rate Limits', value: 'rate-limits' },
+                ]}
+                value={asyncExampleType}
+                onChange={(value) => setAsyncExampleType(value as AsyncExampleType)}
+                align='end'
+                dropdownWidth={160}
+              />
             </div>
           </div>
           <Code.Viewer

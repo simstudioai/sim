@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { useReactFlow } from 'reactflow'
 import type { AutoLayoutOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/auto-layout-utils'
 import { applyAutoLayoutAndUpdateStore as applyAutoLayoutStandalone } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/auto-layout-utils'
+import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 
 export type { AutoLayoutOptions }
 
@@ -16,7 +17,8 @@ const logger = createLogger('useAutoLayout')
  * Note: This hook requires a ReactFlowProvider ancestor.
  */
 export function useAutoLayout(workflowId: string | null) {
-  const { fitView } = useReactFlow()
+  const reactFlowInstance = useReactFlow()
+  const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
 
   const applyAutoLayoutAndUpdateStore = useCallback(
     async (options: AutoLayoutOptions = {}) => {
@@ -38,7 +40,7 @@ export function useAutoLayout(workflowId: string | null) {
       if (result.success) {
         logger.info('Auto layout completed successfully')
         requestAnimationFrame(() => {
-          fitView({ padding: 0.8, duration: 600 })
+          fitViewToBounds({ padding: 0.15, duration: 600 })
         })
       } else {
         logger.error('Auto layout failed:', result.error)
@@ -52,7 +54,7 @@ export function useAutoLayout(workflowId: string | null) {
         error: error instanceof Error ? error.message : 'Unknown error',
       }
     }
-  }, [applyAutoLayoutAndUpdateStore, fitView])
+  }, [applyAutoLayoutAndUpdateStore, fitViewToBounds])
 
   return {
     applyAutoLayoutAndUpdateStore,

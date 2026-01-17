@@ -23,7 +23,6 @@ export function lemlistSetupInstructions(eventType: string): string {
   const instructions = [
     'Enter your Lemlist API Key above.',
     'You can find your API key in Lemlist at <strong>Settings > Integrations > API</strong>.',
-    `Click <strong>"Save Configuration"</strong> to automatically create the webhook in Lemlist for <strong>${eventType}</strong> events.`,
     'The webhook will be automatically deleted when you remove this trigger.',
   ]
 
@@ -86,17 +85,24 @@ const coreOutputs = {
     type: 'string',
     description: 'Lemlist team identifier',
   },
+} as const
+
+/**
+ * Campaign-related fields - only present when activity is part of a campaign
+ * These may be missing for first replies or activities outside campaign context
+ */
+const campaignOutputs = {
   leadId: {
     type: 'string',
-    description: 'Lead identifier',
+    description: 'Lead identifier (only present for campaign activities)',
   },
   campaignId: {
     type: 'string',
-    description: 'Campaign identifier',
+    description: 'Campaign identifier (only present for campaign activities)',
   },
   campaignName: {
     type: 'string',
-    description: 'Campaign name',
+    description: 'Campaign name (only present for campaign activities)',
   },
 } as const
 
@@ -194,6 +200,7 @@ const emailContentOutputs = {
 export function buildEmailSentOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
+    ...campaignOutputs,
     ...leadOutputs,
     ...sequenceOutputs,
     ...senderOutputs,
@@ -207,6 +214,7 @@ export function buildEmailSentOutputs(): Record<string, TriggerOutput> {
 export function buildEmailRepliedOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
+    ...campaignOutputs,
     ...leadOutputs,
     ...sequenceOutputs,
     ...senderOutputs,
@@ -220,6 +228,7 @@ export function buildEmailRepliedOutputs(): Record<string, TriggerOutput> {
 export function buildEmailOpenedOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
+    ...campaignOutputs,
     ...leadOutputs,
     ...sequenceOutputs,
     ...senderOutputs,
@@ -236,6 +245,7 @@ export function buildEmailOpenedOutputs(): Record<string, TriggerOutput> {
 export function buildEmailClickedOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
+    ...campaignOutputs,
     ...leadOutputs,
     ...sequenceOutputs,
     ...senderOutputs,
@@ -256,6 +266,7 @@ export function buildEmailClickedOutputs(): Record<string, TriggerOutput> {
 export function buildEmailBouncedOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
+    ...campaignOutputs,
     ...leadOutputs,
     ...sequenceOutputs,
     ...senderOutputs,
@@ -276,6 +287,7 @@ export function buildEmailBouncedOutputs(): Record<string, TriggerOutput> {
 export function buildLinkedInRepliedOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
+    ...campaignOutputs,
     ...leadOutputs,
     ...sequenceOutputs,
     text: {
@@ -291,6 +303,7 @@ export function buildLinkedInRepliedOutputs(): Record<string, TriggerOutput> {
 export function buildInterestOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
+    ...campaignOutputs,
     ...leadOutputs,
     ...sequenceOutputs,
   } as Record<string, TriggerOutput>
@@ -303,6 +316,7 @@ export function buildInterestOutputs(): Record<string, TriggerOutput> {
 export function buildLemlistOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
+    ...campaignOutputs,
     ...leadOutputs,
     ...sequenceOutputs,
     ...senderOutputs,

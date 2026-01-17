@@ -5,8 +5,7 @@ import { McpClient } from '@/lib/mcp/client'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import type { McpServerConfig, McpTransport } from '@/lib/mcp/types'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
-import { REFERENCE } from '@/executor/constants'
-import { createEnvVarPattern } from '@/executor/utils/reference-validation'
+import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('McpServerTestAPI')
 
@@ -24,22 +23,23 @@ function isUrlBasedTransport(transport: McpTransport): boolean {
  * Resolve environment variables in strings
  */
 function resolveEnvVars(value: string, envVars: Record<string, string>): string {
-  const envVarPattern = createEnvVarPattern()
-  const envMatches = value.match(envVarPattern)
-  if (!envMatches) return value
+  const missingVars: string[] = []
+  const resolvedValue = resolveEnvVarReferences(value, envVars, {
+    allowEmbedded: true,
+    resolveExactMatch: true,
+    trimKeys: true,
+    onMissing: 'keep',
+    deep: false,
+    missingKeys: missingVars,
+  }) as string
 
-  let resolvedValue = value
-  for (const match of envMatches) {
-    const envKey = match.slice(REFERENCE.ENV_VAR_START.length, -REFERENCE.ENV_VAR_END.length).trim()
-    const envValue = envVars[envKey]
-
-    if (envValue === undefined) {
+  if (missingVars.length > 0) {
+    const uniqueMissing = Array.from(new Set(missingVars))
+    uniqueMissing.forEach((envKey) => {
       logger.warn(`Environment variable "${envKey}" not found in MCP server test`)
-      continue
-    }
-
-    resolvedValue = resolvedValue.replace(match, envValue)
+    })
   }
+
   return resolvedValue
 }
 

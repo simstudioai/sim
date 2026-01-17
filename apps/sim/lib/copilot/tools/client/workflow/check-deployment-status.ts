@@ -15,6 +15,8 @@ interface ApiDeploymentDetails {
   isDeployed: boolean
   deployedAt: string | null
   endpoint: string | null
+  apiKey: string | null
+  needsRedeployment: boolean
 }
 
 interface ChatDeploymentDetails {
@@ -22,6 +24,14 @@ interface ChatDeploymentDetails {
   chatId: string | null
   identifier: string | null
   chatUrl: string | null
+  title: string | null
+  description: string | null
+  authType: string | null
+  allowedEmails: string[] | null
+  outputConfigs: Array<{ blockId: string; path: string }> | null
+  welcomeMessage: string | null
+  primaryColor: string | null
+  hasPassword: boolean
 }
 
 interface McpDeploymentDetails {
@@ -31,6 +41,8 @@ interface McpDeploymentDetails {
     serverName: string
     toolName: string
     toolDescription: string | null
+    parameterSchema?: Record<string, unknown> | null
+    toolId?: string | null
   }>
 }
 
@@ -96,6 +108,8 @@ export class CheckDeploymentStatusClientTool extends BaseClientTool {
         isDeployed: isApiDeployed,
         deployedAt: apiDeploy?.deployedAt || null,
         endpoint: isApiDeployed ? `${appUrl}/api/workflows/${workflowId}/execute` : null,
+        apiKey: apiDeploy?.apiKey || null,
+        needsRedeployment: apiDeploy?.needsRedeployment === true,
       }
 
       // Chat deployment details
@@ -105,6 +119,18 @@ export class CheckDeploymentStatusClientTool extends BaseClientTool {
         chatId: chatDeploy?.deployment?.id || null,
         identifier: chatDeploy?.deployment?.identifier || null,
         chatUrl: isChatDeployed ? `${appUrl}/chat/${chatDeploy?.deployment?.identifier}` : null,
+        title: chatDeploy?.deployment?.title || null,
+        description: chatDeploy?.deployment?.description || null,
+        authType: chatDeploy?.deployment?.authType || null,
+        allowedEmails: Array.isArray(chatDeploy?.deployment?.allowedEmails)
+          ? chatDeploy?.deployment?.allowedEmails
+          : null,
+        outputConfigs: Array.isArray(chatDeploy?.deployment?.outputConfigs)
+          ? chatDeploy?.deployment?.outputConfigs
+          : null,
+        welcomeMessage: chatDeploy?.deployment?.customizations?.welcomeMessage || null,
+        primaryColor: chatDeploy?.deployment?.customizations?.primaryColor || null,
+        hasPassword: chatDeploy?.deployment?.hasPassword === true,
       }
 
       // MCP deployment details - find servers that have this workflow as a tool
@@ -129,6 +155,8 @@ export class CheckDeploymentStatusClientTool extends BaseClientTool {
                     serverName: server.name,
                     toolName: tool.toolName,
                     toolDescription: tool.toolDescription,
+                    parameterSchema: tool.parameterSchema ?? null,
+                    toolId: tool.id ?? null,
                   })
                 }
               }

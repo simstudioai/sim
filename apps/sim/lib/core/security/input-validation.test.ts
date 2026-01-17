@@ -2,6 +2,7 @@ import { loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 import {
   createPinnedUrl,
+  validateAirtableId,
   validateAlphanumericId,
   validateEnum,
   validateExternalUrl,
@@ -1109,6 +1110,85 @@ describe('validateGoogleCalendarId', () => {
       const result = validateGoogleCalendarId('test<script>alert(1)</script>')
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('format is invalid')
+    })
+  })
+})
+
+describe('validateAirtableId', () => {
+  describe('valid base IDs (app prefix)', () => {
+    it.concurrent('should accept valid base ID', () => {
+      const result = validateAirtableId('appABCDEFGHIJKLMN', 'app', 'baseId')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('appABCDEFGHIJKLMN')
+    })
+
+    it.concurrent('should accept base ID with mixed case', () => {
+      const result = validateAirtableId('appAbCdEfGhIjKlMn', 'app', 'baseId')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept base ID with numbers', () => {
+      const result = validateAirtableId('app12345678901234', 'app', 'baseId')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('valid table IDs (tbl prefix)', () => {
+    it.concurrent('should accept valid table ID', () => {
+      const result = validateAirtableId('tblABCDEFGHIJKLMN', 'tbl', 'tableId')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('valid webhook IDs (ach prefix)', () => {
+    it.concurrent('should accept valid webhook ID', () => {
+      const result = validateAirtableId('achABCDEFGHIJKLMN', 'ach', 'webhookId')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('invalid IDs', () => {
+    it.concurrent('should reject null', () => {
+      const result = validateAirtableId(null, 'app', 'baseId')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('required')
+    })
+
+    it.concurrent('should reject empty string', () => {
+      const result = validateAirtableId('', 'app', 'baseId')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('required')
+    })
+
+    it.concurrent('should reject wrong prefix', () => {
+      const result = validateAirtableId('tblABCDEFGHIJKLMN', 'app', 'baseId')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('starting with "app"')
+    })
+
+    it.concurrent('should reject too short ID (13 chars after prefix)', () => {
+      const result = validateAirtableId('appABCDEFGHIJKLM', 'app', 'baseId')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject too long ID (15 chars after prefix)', () => {
+      const result = validateAirtableId('appABCDEFGHIJKLMNO', 'app', 'baseId')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject special characters', () => {
+      const result = validateAirtableId('appABCDEFGH/JKLMN', 'app', 'baseId')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject path traversal attempts', () => {
+      const result = validateAirtableId('app../etc/passwd', 'app', 'baseId')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject lowercase prefix', () => {
+      const result = validateAirtableId('AppABCDEFGHIJKLMN', 'app', 'baseId')
+      expect(result.isValid).toBe(false)
     })
   })
 })

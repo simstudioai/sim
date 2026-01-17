@@ -3,8 +3,55 @@
  *
  * @vitest-environment node
  */
+import {
+  createMockRequest,
+  mockConsoleLogger,
+  mockCryptoUuid,
+  mockDrizzleOrm,
+  mockUuid,
+  setupCommonApiMocks,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest, setupAuthApiMocks } from '@/app/api/__test-utils__/utils'
+
+/** Setup auth API mocks for testing authentication routes */
+function setupAuthApiMocks(
+  options: {
+    operations?: {
+      forgetPassword?: { success?: boolean; error?: string }
+      resetPassword?: { success?: boolean; error?: string }
+    }
+  } = {}
+) {
+  setupCommonApiMocks()
+  mockUuid()
+  mockCryptoUuid()
+  mockConsoleLogger()
+  mockDrizzleOrm()
+
+  const { operations = {} } = options
+  const defaultOperations = {
+    forgetPassword: { success: true, error: 'Forget password error', ...operations.forgetPassword },
+    resetPassword: { success: true, error: 'Reset password error', ...operations.resetPassword },
+  }
+
+  const createAuthMethod = (config: { success?: boolean; error?: string }) => {
+    return vi.fn().mockImplementation(() => {
+      if (config.success) {
+        return Promise.resolve()
+      }
+      return Promise.reject(new Error(config.error))
+    })
+  }
+
+  vi.doMock('@/lib/auth', () => ({
+    auth: {
+      api: {
+        forgetPassword: createAuthMethod(defaultOperations.forgetPassword),
+        resetPassword: createAuthMethod(defaultOperations.resetPassword),
+      },
+    },
+  }))
+}
 
 describe('Reset Password API Route', () => {
   beforeEach(() => {

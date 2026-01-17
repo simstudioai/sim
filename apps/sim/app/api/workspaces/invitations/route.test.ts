@@ -1,5 +1,5 @@
+import { createMockRequest, mockAuth, mockConsoleLogger } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest, mockAuth, mockConsoleLogger } from '@/app/api/__test-utils__/utils'
 
 describe('Workspace Invitations API Route', () => {
   const mockWorkspace = { id: 'workspace-1', name: 'Test Workspace' }

@@ -77,7 +77,7 @@ export function RenameDocumentModal({
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent>
+      <ModalContent size='sm'>
         <ModalHeader>Rename Document</ModalHeader>
         <form onSubmit={handleSubmit} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody className='!pb-[16px]'>
@@ -108,7 +108,7 @@ export function RenameDocumentModal({
           <ModalFooter>
             <div className='flex w-full items-center justify-between gap-[12px]'>
               {error ? (
-                <p className='min-w-0 flex-1 truncate text-[11px] text-[var(--text-error)] leading-tight'>
+                <p className='min-w-0 flex-1 truncate text-[12px] text-[var(--text-error)] leading-tight'>
                   {error}
                 </p>
               ) : (

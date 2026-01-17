@@ -1,8 +1,7 @@
 'use client'
 
-import { type CSSProperties, useEffect, useMemo } from 'react'
+import { type CSSProperties, useMemo } from 'react'
 import { Avatar, AvatarFallback, AvatarImage, Tooltip } from '@/components/emcn'
-import { useSession } from '@/lib/auth/auth-client'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
@@ -19,11 +18,6 @@ const AVATAR_CONFIG = {
 
 interface AvatarsProps {
   workflowId: string
-  /**
-   * Callback fired when the presence visibility changes.
-   * Used by parent components to adjust layout (e.g., text truncation spacing).
-   */
-  onPresenceChange?: (hasAvatars: boolean) => void
 }
 
 interface PresenceUser {
@@ -85,10 +79,8 @@ function UserAvatar({ user, index }: UserAvatarProps) {
  * @param props - Component props
  * @returns Avatar stack for workflow presence
  */
-export function Avatars({ workflowId, onPresenceChange }: AvatarsProps) {
-  const { presenceUsers, currentWorkflowId } = useSocket()
-  const { data: session } = useSession()
-  const currentUserId = session?.user?.id
+export function Avatars({ workflowId }: AvatarsProps) {
+  const { presenceUsers, currentWorkflowId, currentSocketId } = useSocket()
   const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
 
   /**
@@ -104,14 +96,14 @@ export function Avatars({ workflowId, onPresenceChange }: AvatarsProps) {
 
   /**
    * Only show presence for the currently active workflow.
-   * Filter out the current user from the list.
+   * Filter out the current socket connection (allows same user's other tabs to appear).
    */
   const workflowUsers = useMemo(() => {
     if (currentWorkflowId !== workflowId) {
       return []
     }
-    return presenceUsers.filter((user) => user.userId !== currentUserId)
-  }, [presenceUsers, currentWorkflowId, workflowId, currentUserId])
+    return presenceUsers.filter((user) => user.socketId !== currentSocketId)
+  }, [presenceUsers, currentWorkflowId, workflowId, currentSocketId])
 
   /**
    * Calculate visible users and overflow count
@@ -127,19 +119,12 @@ export function Avatars({ workflowId, onPresenceChange }: AvatarsProps) {
     return { visibleUsers: visible, overflowCount: overflow }
   }, [workflowUsers, maxVisible])
 
-  useEffect(() => {
-    const hasAnyAvatars = visibleUsers.length > 0
-    if (typeof onPresenceChange === 'function') {
-      onPresenceChange(hasAnyAvatars)
-    }
-  }, [visibleUsers, onPresenceChange])
-
   if (visibleUsers.length === 0) {
     return null
   }
 
   return (
-    <div className='-space-x-1 flex items-center'>
+    <div className='-space-x-1 flex flex-shrink-0 items-center'>
       {overflowCount > 0 && (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>

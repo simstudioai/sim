@@ -269,11 +269,127 @@ function sanitizeSubBlocks(
 }
 
 /**
+ * Convert internal condition handle (condition-{uuid}) to semantic format (condition-{blockId}-if)
+ */
+function convertConditionHandleToSemantic(
+  handle: string,
+  blockId: string,
+  block: BlockState
+): string {
+  if (!handle.startsWith('condition-')) {
+    return handle
+  }
+
+  // Extract the condition UUID from the handle
+  const conditionId = handle.substring('condition-'.length)
+
+  // Get conditions from block subBlocks
+  const conditionsValue = block.subBlocks?.conditions?.value
+  if (!conditionsValue || typeof conditionsValue !== 'string') {
+    return handle
+  }
+
+  let conditions: Array<{ id: string; title: string }>
+  try {
+    conditions = JSON.parse(conditionsValue)
+  } catch {
+    return handle
+  }
+
+  if (!Array.isArray(conditions)) {
+    return handle
+  }
+
+  // Find the condition by ID and generate semantic handle
+  let elseIfCount = 0
+  for (const condition of conditions) {
+    const title = condition.title?.toLowerCase()
+    if (condition.id === conditionId) {
+      if (title === 'if') {
+        return `condition-${blockId}-if`
+      }
+      if (title === 'else if') {
+        elseIfCount++
+        return elseIfCount === 1
+          ? `condition-${blockId}-else-if`
+          : `condition-${blockId}-else-if-${elseIfCount}`
+      }
+      if (title === 'else') {
+        return `condition-${blockId}-else`
+      }
+    }
+    // Count else-ifs as we iterate
+    if (title === 'else if') {
+      elseIfCount++
+    }
+  }
+
+  // Fallback: return original handle if condition not found
+  return handle
+}
+
+/**
+ * Convert internal router handle (router-{uuid}) to semantic format (router-{blockId}-route-N)
+ */
+function convertRouterHandleToSemantic(handle: string, blockId: string, block: BlockState): string {
+  if (!handle.startsWith('router-')) {
+    return handle
+  }
+
+  // Extract the route UUID from the handle
+  const routeId = handle.substring('router-'.length)
+
+  // Get routes from block subBlocks
+  const routesValue = block.subBlocks?.routes?.value
+  if (!routesValue || typeof routesValue !== 'string') {
+    return handle
+  }
+
+  let routes: Array<{ id: string; title?: string }>
+  try {
+    routes = JSON.parse(routesValue)
+  } catch {
+    return handle
+  }
+
+  if (!Array.isArray(routes)) {
+    return handle
+  }
+
+  // Find the route by ID and generate semantic handle (1-indexed)
+  for (let i = 0; i < routes.length; i++) {
+    if (routes[i].id === routeId) {
+      return `router-${blockId}-route-${i + 1}`
+    }
+  }
+
+  // Fallback: return original handle if route not found
+  return handle
+}
+
+/**
+ * Convert source handle to semantic format for condition and router blocks
+ */
+function convertToSemanticHandle(handle: string, blockId: string, block: BlockState): string {
+  if (handle.startsWith('condition-') && block.type === 'condition') {
+    return convertConditionHandleToSemantic(handle, blockId, block)
+  }
+
+  if (handle.startsWith('router-') && block.type === 'router_v2') {
+    return convertRouterHandleToSemantic(handle, blockId, block)
+  }
+
+  return handle
+}
+
+/**
  * Extract connections for a block from edges and format as operations-style connections
+ * Converts internal UUID handles to semantic format for training data
  */
 function extractConnectionsForBlock(
   blockId: string,
-  edges: WorkflowState['edges']
+  edges: WorkflowState['edges'],
+  block: BlockState
 ): Record<string, string | string[]> | undefined {
   const connections: Record<string, string[]> = {}
 
@@ -284,9 +400,12 @@ function extractConnectionsForBlock(
     return undefined
   }
 
-  // Group by source handle
+  // Group by source handle (converting to semantic format)
   for (const edge of outgoingEdges) {
-    const handle = edge.sourceHandle || 'source'
+    let handle = edge.sourceHandle || 'source'
+
+    // Convert internal UUID handles to semantic format
+    handle = convertToSemanticHandle(handle, blockId, block)
 
     if (!connections[handle]) {
       connections[handle] = []
@@ -321,7 +440,7 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
 
   // Helper to recursively sanitize a block and its children
   const sanitizeBlock = (blockId: string, block: BlockState): CopilotBlockState => {
-    const connections = extractConnectionsForBlock(blockId, state.edges)
+    const connections = extractConnectionsForBlock(blockId, state.edges, block)
 
     // For loop/parallel blocks, extract config from block.data instead of subBlocks
     let inputs: Record<string, string | number | string[][] | object>

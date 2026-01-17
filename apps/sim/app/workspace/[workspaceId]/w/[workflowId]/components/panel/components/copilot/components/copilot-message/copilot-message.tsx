@@ -1,6 +1,6 @@
 'use client'
 
-import { type FC, memo, useCallback, useMemo, useState } from 'react'
+import { type FC, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import {
@@ -93,6 +93,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     // UI state
     const [isHoveringMessage, setIsHoveringMessage] = useState(false)
 
+    const cancelEditRef = useRef<(() => void) | null>(null)
+
     // Checkpoint management hook
     const {
       showRestoreConfirmation,
@@ -112,7 +114,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       messages,
       messageCheckpoints,
       onRevertModeChange,
-      onEditModeChange
+      onEditModeChange,
+      () => cancelEditRef.current?.()
     )
 
     // Message editing hook
@@ -141,6 +144,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       setShowCheckpointDiscardModal,
       pendingEditRef,
     })
+
+    cancelEditRef.current = handleCancelEdit
 
     // Get clean text content with double newline parsing
     const cleanTextContent = useMemo(() => {
@@ -488,8 +493,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             {/* Content blocks in chronological order */}
             {memoizedContentBlocks}
 
-            {/* Streaming indicator always at bottom during streaming */}
-            {isStreaming && <StreamingIndicator />}
+            {isStreaming && (
+              <StreamingIndicator className={!hasVisibleContent ? 'mt-1' : undefined} />
+            )}
 
             {message.errorType === 'usage_limit' && (
               <div className='flex gap-1.5'>

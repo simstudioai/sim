@@ -4,9 +4,9 @@
  * @vitest-environment node
  */
 
+import { createMockLogger } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockLogger } from '@/app/api/__test-utils__/utils'
 
 describe('OAuth Credentials API Route', () => {
   const mockGetSession = vi.fn()

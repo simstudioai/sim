@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { Button, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
@@ -8,11 +8,29 @@ import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
 
 const MIN_TEXTAREA_HEIGHT_PX = 80
 const MAX_TEXTAREA_HEIGHT_PX = 320
+
+/** Pattern to match complete message objects in JSON */
+const COMPLETE_MESSAGE_PATTERN =
+  /"role"\s*:\s*"(system|user|assistant)"[^}]*"content"\s*:\s*"((?:[^"\\]|\\.)*)"/g
+
+/** Pattern to match incomplete content at end of buffer */
+const INCOMPLETE_CONTENT_PATTERN = /"content"\s*:\s*"((?:[^"\\]|\\.)*)$/
+
+/** Pattern to match role before content */
+const ROLE_BEFORE_CONTENT_PATTERN = /"role"\s*:\s*"(system|user|assistant)"[^{]*$/
+
+/**
+ * Unescapes JSON string content
+ */
+const unescapeContent = (str: string): string =>
+  str.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
 
 /**
  * Interface for individual message in the messages array
@@ -38,6 +56,8 @@ interface MessagesInputProps {
   previewValue?: Message[] | null
   /** Whether the input is disabled */
   disabled?: boolean
+  /** Ref to expose wand control handlers to parent */
+  wandControlRef?: React.MutableRefObject<WandControlHandlers | null>
 }
 
 /**
@@ -55,6 +75,7 @@ export function MessagesInput({
   isPreview = false,
   previewValue,
   disabled = false,
+  wandControlRef,
 }: MessagesInputProps) {
   const [messages, setMessages] = useSubBlockValue<Message[]>(blockId, subBlockId, false)
   const [localMessages, setLocalMessages] = useState<Message[]>([{ role: 'user', content: '' }])
@@ -67,6 +88,142 @@ export function MessagesInput({
     isPreview,
     disabled,
   })
+
+  /**
+   * Gets the current messages as JSON string for wand context
+   */
+  const getMessagesJson = useCallback((): string => {
+    if (localMessages.length === 0) return ''
+    // Filter out empty messages for cleaner context
+    const nonEmptyMessages = localMessages.filter((m) => m.content.trim() !== '')
+    if (nonEmptyMessages.length === 0) return ''
+    return JSON.stringify(nonEmptyMessages, null, 2)
+  }, [localMessages])
+
+  /**
+   * Streaming buffer for accumulating JSON content
+   */
+  const streamBufferRef = useRef<string>('')
+
+  /**
+   * Parses and validates messages from JSON content
+   */
+  const parseMessages = useCallback((content: string): Message[] | null => {
+    try {
+      const parsed = JSON.parse(content)
+      if (Array.isArray(parsed)) {
+        const validMessages: Message[] = parsed
+          .filter(
+            (m): m is { role: string; content: string } =>
+              typeof m === 'object' &&
+              m !== null &&
+              typeof m.role === 'string' &&
+              typeof m.content === 'string'
+          )
+          .map((m) => ({
+            role: (['system', 'user', 'assistant'].includes(m.role)
+              ? m.role
+              : 'user') as Message['role'],
+            content: m.content,
+          }))
+        return validMessages.length > 0 ? validMessages : null
+      }
+    } catch {
+      // Parsing failed
+    }
+    return null
+  }, [])
+
+  /**
+   * Extracts messages from streaming JSON buffer
+   * Uses simple pattern matching for efficiency
+   */
+  const extractStreamingMessages = useCallback(
+    (buffer: string): Message[] => {
+      // Try complete JSON parse first
+      const complete = parseMessages(buffer)
+      if (complete) return complete
+
+      const result: Message[] = []
+
+      // Reset regex lastIndex for global pattern
+      COMPLETE_MESSAGE_PATTERN.lastIndex = 0
+      let match
+      while ((match = COMPLETE_MESSAGE_PATTERN.exec(buffer)) !== null) {
+        result.push({ role: match[1] as Message['role'], content: unescapeContent(match[2]) })
+      }
+
+      // Check for incomplete message at end (content still streaming)
+      const lastContentIdx = buffer.lastIndexOf('"content"')
+      if (lastContentIdx !== -1) {
+        const tail = buffer.slice(lastContentIdx)
+        const incomplete = tail.match(INCOMPLETE_CONTENT_PATTERN)
+        if (incomplete) {
+          const head = buffer.slice(0, lastContentIdx)
+          const roleMatch = head.match(ROLE_BEFORE_CONTENT_PATTERN)
+          if (roleMatch) {
+            const content = unescapeContent(incomplete[1])
+            // Only add if not duplicate of last complete message
+            if (result.length === 0 || result[result.length - 1].content !== content) {
+              result.push({ role: roleMatch[1] as Message['role'], content })
+            }
+          }
+        }
+      }
+
+      return result
+    },
+    [parseMessages]
+  )
+
+  /**
+   * Wand hook for AI-assisted content generation
+   */
+  const wandHook = useWand({
+    wandConfig: config.wandConfig,
+    currentValue: getMessagesJson(),
+    onStreamStart: () => {
+      streamBufferRef.current = ''
+      setLocalMessages([{ role: 'system', content: '' }])
+    },
+    onStreamChunk: (chunk) => {
+      streamBufferRef.current += chunk
+      const extracted = extractStreamingMessages(streamBufferRef.current)
+      if (extracted.length > 0) {
+        setLocalMessages(extracted)
+      }
+    },
+    onGeneratedContent: (content) => {
+      const validMessages = parseMessages(content)
+      if (validMessages) {
+        setLocalMessages(validMessages)
+        setMessages(validMessages)
+      } else {
+        // Fallback: treat as raw system prompt
+        const trimmed = content.trim()
+        if (trimmed) {
+          const fallback: Message[] = [{ role: 'system', content: trimmed }]
+          setLocalMessages(fallback)
+          setMessages(fallback)
+        }
+      }
+    },
+  })
+
+  /**
+   * Expose wand control handlers to parent via ref
+   */
+  useImperativeHandle(
+    wandControlRef,
+    () => ({
+      onWandTrigger: (prompt: string) => {
+        wandHook.generateStream({ prompt })
+      },
+      isWandActive: wandHook.isPromptVisible,
+      isWandStreaming: wandHook.isStreaming,
+    }),
+    [wandHook]
+  )
 
   /**
    * Initialize local state from stored or preview value
@@ -308,7 +465,7 @@ export function MessagesInput({
   }, [currentMessages, autoResizeTextarea])
 
   return (
-    <div className='flex w-full flex-col gap-3'>
+    <div className='flex w-full flex-col gap-[10px]'>
       {currentMessages.map((message, index) => (
         <div
           key={`message-${index}`}
@@ -364,7 +521,7 @@ export function MessagesInput({
                         type='button'
                         disabled={isPreview || disabled}
                         className={cn(
-                          '-ml-1.5 -my-1 rounded px-1.5 py-1 font-medium text-[13px] text-[var(--text-primary)] leading-none transition-colors hover:bg-[var(--surface-5)] hover:text-[var(--text-secondary)]',
+                          'group -ml-1.5 -my-1 flex items-center gap-1 rounded px-1.5 py-1 font-medium text-[13px] text-[var(--text-primary)] leading-none transition-colors hover:bg-[var(--surface-5)] hover:text-[var(--text-secondary)]',
                           (isPreview || disabled) &&
                             'cursor-default hover:bg-transparent hover:text-[var(--text-primary)]'
                         )}
@@ -372,6 +529,14 @@ export function MessagesInput({
                         aria-label='Select message role'
                       >
                         {formatRole(message.role)}
+                        {!isPreview && !disabled && (
+                          <ChevronDown
+                            className={cn(
+                              'h-3 w-3 flex-shrink-0 transition-transform duration-100',
+                              openPopoverIndex === index && 'rotate-180'
+                            )}
+                          />
+                        )}
                       </button>
                     </PopoverTrigger>
                     <PopoverContent minWidth={140} align='start'>
@@ -486,6 +651,7 @@ export function MessagesInput({
                     }}
                     onDrop={fieldHandlers.onDrop}
                     onDragOver={fieldHandlers.onDragOver}
+                    onFocus={fieldHandlers.onFocus}
                     onScroll={(e) => {
                       const overlay = overlayRefs.current[fieldId]
                       if (overlay) {

@@ -22,7 +22,7 @@ import {
 import { Skeleton } from '@/components/ui'
 import type { AgentAuthentication, AgentCapabilities } from '@/lib/a2a/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import {
   useA2AAgentByWorkflow,
@@ -83,8 +83,7 @@ interface A2aDeployProps {
   workflowNeedsRedeployment?: boolean
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
-  onAgentExistsChange?: (exists: boolean) => void
-  onPublishedChange?: (published: boolean) => void
+  /** Callback for when republish status changes - depends on local form state */
   onNeedsRepublishChange?: (needsRepublish: boolean) => void
   onDeployWorkflow?: () => Promise<void>
 }
@@ -99,8 +98,6 @@ export function A2aDeploy({
   workflowNeedsRedeployment,
   onSubmittingChange,
   onCanSaveChange,
-  onAgentExistsChange,
-  onPublishedChange,
   onNeedsRepublishChange,
   onDeployWorkflow,
 }: A2aDeployProps) {
@@ -235,14 +232,6 @@ export function A2aDeploy({
       setSkillTags([])
     }
   }, [existingAgent, workflowName, workflowDescription])
-
-  useEffect(() => {
-    onAgentExistsChange?.(!!existingAgent)
-  }, [existingAgent, onAgentExistsChange])
-
-  useEffect(() => {
-    onPublishedChange?.(existingAgent?.isPublished ?? false)
-  }, [existingAgent?.isPublished, onPublishedChange])
 
   const hasFormChanges = useMemo(() => {
     if (!existingAgent) return false

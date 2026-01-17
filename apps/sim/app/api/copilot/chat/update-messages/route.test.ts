@@ -3,14 +3,9 @@
  *
  * @vitest-environment node
  */
+import { createMockRequest, mockAuth, mockCryptoUuid, setupCommonApiMocks } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  createMockRequest,
-  mockAuth,
-  mockCryptoUuid,
-  setupCommonApiMocks,
-} from '@/app/api/__test-utils__/utils'
 
 describe('Copilot Chat Update Messages API Route', () => {
   const mockSelect = vi.fn()

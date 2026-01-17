@@ -32,7 +32,7 @@ export class BlockResolver implements Resolver {
       return false
     }
     const [type] = parts
-    return !SPECIAL_REFERENCE_PREFIXES.includes(type as any)
+    return !(SPECIAL_REFERENCE_PREFIXES as readonly string[]).includes(type)
   }
 
   resolve(reference: string, context: ResolutionContext): any {
@@ -108,11 +108,7 @@ export class BlockResolver implements Resolver {
       }
     }
 
-    // If still undefined, throw error with original path
-    const availableKeys = output && typeof output === 'object' ? Object.keys(output) : []
-    throw new Error(
-      `No value found at path "${pathParts.join('.')}" in block "${blockName}". Available fields: ${availableKeys.join(', ')}`
-    )
+    return undefined
   }
 
   private getBlockOutput(blockId: string, context: ResolutionContext): any {

@@ -1858,7 +1858,7 @@ export const auth = betterAuth({
           authorizationUrl: 'https://webflow.com/oauth/authorize',
           tokenUrl: 'https://api.webflow.com/oauth/access_token',
           userInfoUrl: 'https://api.webflow.com/v2/token/introspect',
-          scopes: ['sites:read', 'sites:write', 'cms:read', 'cms:write'],
+          scopes: ['sites:read', 'sites:write', 'cms:read', 'cms:write', 'forms:read'],
           responseType: 'code',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/webflow`,
           getUserInfo: async (tokens) => {

@@ -63,6 +63,9 @@ export interface BlockData {
 
   // Container node type (for ReactFlow node type determination)
   type?: string
+
+  /** Canonical swap overrides keyed by canonicalParamId */
+  canonicalModes?: Record<string, 'basic' | 'advanced'>
 }
 
 export interface BlockLayoutState {
@@ -218,6 +221,7 @@ export interface WorkflowActions {
     changedSubblocks: Array<{ blockId: string; subBlockId: string; newValue: any }>
   }
   setBlockAdvancedMode: (id: string, advancedMode: boolean) => void
+  setBlockCanonicalMode: (id: string, canonicalId: string, mode: 'basic' | 'advanced') => void
   setBlockTriggerMode: (id: string, triggerMode: boolean) => void
   updateBlockLayoutMetrics: (id: string, dimensions: { width: number; height: number }) => void
   triggerUpdate: () => void

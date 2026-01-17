@@ -495,6 +495,7 @@ export async function deployWorkflow(params: {
 }): Promise<{
   success: boolean
   version?: number
+  deploymentVersionId?: string
   deployedAt?: Date
   currentState?: any
   error?: string
@@ -533,6 +534,7 @@ export async function deployWorkflow(params: {
         .where(eq(workflowDeploymentVersion.workflowId, workflowId))
 
       const nextVersion = Number(maxVersion) + 1
+      const deploymentVersionId = uuidv4()
 
       // Deactivate all existing versions
       await tx
@@ -542,7 +544,7 @@ export async function deployWorkflow(params: {
 
       // Create new deployment version
       await tx.insert(workflowDeploymentVersion).values({
-        id: uuidv4(),
+        id: deploymentVersionId,
         workflowId,
         version: nextVersion,
         state: currentState,
@@ -562,10 +564,10 @@ export async function deployWorkflow(params: {
       // Note: Templates are NOT automatically updated on deployment
       // Template updates must be done explicitly through the "Update Template" button
 
-      return nextVersion
+      return { version: nextVersion, deploymentVersionId }
     })
 
-    logger.info(`Deployed workflow ${workflowId} as v${deployedVersion}`)
+    logger.info(`Deployed workflow ${workflowId} as v${deployedVersion.version}`)
 
     if (workflowName) {
       try {
@@ -582,7 +584,7 @@ export async function deployWorkflow(params: {
           workflowName,
           blocksCount: Object.keys(currentState.blocks).length,
           edgesCount: currentState.edges.length,
-          version: deployedVersion,
+          version: deployedVersion.version,
           loopsCount: Object.keys(currentState.loops).length,
           parallelsCount: Object.keys(currentState.parallels).length,
           blockTypes: JSON.stringify(blockTypeCounts),
@@ -594,7 +596,8 @@ export async function deployWorkflow(params: {
 
     return {
       success: true,
-      version: deployedVersion,
+      version: deployedVersion.version,
+      deploymentVersionId: deployedVersion.deploymentVersionId,
       deployedAt: now,
       currentState,
     }

@@ -38,6 +38,18 @@ export class EditWorkflowClientTool extends BaseClientTool {
     super(toolCallId, EditWorkflowClientTool.id, EditWorkflowClientTool.metadata)
   }
 
+  async markToolComplete(status: number, message?: any, data?: any): Promise<boolean> {
+    const logger = createLogger('EditWorkflowClientTool')
+    logger.info('markToolComplete payload', {
+      toolCallId: this.toolCallId,
+      toolName: this.name,
+      status,
+      message,
+      data,
+    })
+    return super.markToolComplete(status, message, data)
+  }
+
   /**
    * Get sanitized workflow JSON from a workflow state, merge subblocks, and sanitize for copilot
    * This matches what get_user_workflow returns
@@ -173,21 +185,13 @@ export class EditWorkflowClientTool extends BaseClientTool {
   async execute(args?: EditWorkflowArgs): Promise<void> {
     const logger = createLogger('EditWorkflowClientTool')
 
+    if (this.hasExecuted) {
+      logger.info('execute skipped (already executed)', { toolCallId: this.toolCallId })
+      return
+    }
+
     // Use timeout protection to ensure tool always completes
     await this.executeWithTimeout(async () => {
-      if (this.hasExecuted) {
-        logger.info('execute skipped (already executed)', { toolCallId: this.toolCallId })
-        // Even if skipped, ensure we mark complete with current workflow state
-        if (!this.hasBeenMarkedComplete()) {
-          const currentWorkflowJson = this.getCurrentWorkflowJsonSafe(logger)
-          await this.markToolComplete(
-            200,
-            'Tool already executed',
-            currentWorkflowJson ? { userWorkflow: currentWorkflowJson } : undefined
-          )
-        }
-        return
-      }
       this.hasExecuted = true
       logger.info('execute called', { toolCallId: this.toolCallId, argsProvided: !!args })
       this.setState(ClientToolCallState.executing)

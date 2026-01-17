@@ -9,6 +9,7 @@ import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import {
   createEnvVarPattern,
   createWorkflowVariablePattern,
+  resolveEnvVarReferences,
 } from '@/executor/utils/reference-validation'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -479,9 +480,29 @@ function resolveEnvironmentVariables(
   const replacements: Array<{ match: string; index: number; varName: string; varValue: string }> =
     []
 
+  const resolverVars: Record<string, string> = {}
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) {
+      resolverVars[key] = String(value)
+    }
+  })
+  Object.entries(envVars).forEach(([key, value]) => {
+    if (value) {
+      resolverVars[key] = value
+    }
+  })
+
   while ((match = regex.exec(code)) !== null) {
     const varName = match[1].trim()
-    const varValue = envVars[varName] || params[varName] || ''
+    const resolved = resolveEnvVarReferences(match[0], resolverVars, {
+      allowEmbedded: true,
+      resolveExactMatch: true,
+      trimKeys: true,
+      onMissing: 'empty',
+      deep: false,
+    })
+    const varValue =
+      typeof resolved === 'string' ? resolved : resolved == null ? '' : String(resolved)
     replacements.push({
       match: match[0],
       index: match.index,

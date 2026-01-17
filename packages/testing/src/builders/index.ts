@@ -18,4 +18,11 @@
  */
 
 export { ExecutionContextBuilder } from './execution.builder'
+export {
+  createErrorFetch,
+  createToolMockFetch,
+  type TestToolConfig,
+  type ToolResponse,
+  ToolTester,
+} from './tool-tester.builder'
 export { WorkflowBuilder } from './workflow.builder'

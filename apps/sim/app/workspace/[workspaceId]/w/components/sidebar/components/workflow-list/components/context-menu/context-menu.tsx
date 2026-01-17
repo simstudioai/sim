@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check } from 'lucide-react'
 import {
+  Button,
   Popover,
   PopoverAnchor,
   PopoverBackButton,
@@ -160,6 +161,20 @@ interface ContextMenuProps {
    * Set to true when creation is in progress or user lacks permissions
    */
   disableCreateFolder?: boolean
+  /**
+   * Callback when leave is clicked (for workspaces)
+   */
+  onLeave?: () => void
+  /**
+   * Whether to show the leave option (default: false)
+   * Set to true for workspaces the user can leave
+   */
+  showLeave?: boolean
+  /**
+   * Whether the leave option is disabled (default: false)
+   * Set to true when user cannot leave (e.g., last admin)
+   */
+  disableLeave?: boolean
 }
 
 /**
@@ -197,6 +212,9 @@ export function ContextMenu({
   disableDelete = false,
   disableCreate = false,
   disableCreateFolder = false,
+  onLeave,
+  showLeave = false,
+  disableLeave = false,
 }: ContextMenuProps) {
   const [hexInput, setHexInput] = useState(currentColor || '#ffffff')
 
@@ -368,17 +386,17 @@ export function ContextMenu({
                   onClick={(e) => e.stopPropagation()}
                   className='h-[20px] min-w-0 flex-1 rounded-[4px] bg-[#363636] px-[6px] text-[11px] text-white uppercase caret-white focus:outline-none'
                 />
-                <button
-                  type='button'
+                <Button
+                  variant='tertiary'
                   disabled={!canSubmitHex}
                   onClick={(e) => {
                     e.stopPropagation()
                     handleHexSubmit()
                   }}
-                  className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--brand-tertiary-2)] text-white disabled:opacity-40'
+                  className='h-[20px] w-[20px] flex-shrink-0 p-0'
                 >
                   <Check className='h-[12px] w-[12px]' />
-                </button>
+                </Button>
               </div>
             </div>
           </PopoverFolder>
@@ -411,8 +429,20 @@ export function ContextMenu({
           </PopoverItem>
         )}
 
-        {/* Destructive action */}
+        {/* Destructive actions */}
         {(hasNavigationSection || hasEditSection || hasCopySection) && <PopoverDivider rootOnly />}
+        {showLeave && onLeave && (
+          <PopoverItem
+            rootOnly
+            disabled={disableLeave}
+            onClick={() => {
+              onLeave()
+              onClose()
+            }}
+          >
+            Leave
+          </PopoverItem>
+        )}
         <PopoverItem
           rootOnly
           disabled={disableDelete}

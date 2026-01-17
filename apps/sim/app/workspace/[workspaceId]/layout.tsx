@@ -1,6 +1,5 @@
 'use client'
 
-import { Tooltip } from '@/components/emcn'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
 import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings-loader'
@@ -13,16 +12,14 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
       <SettingsLoader />
       <ProviderModelsLoader />
       <GlobalCommandsProvider>
-        <Tooltip.Provider delayDuration={600} skipDelayDuration={0}>
-          <div className='flex h-screen w-full bg-[var(--bg)]'>
-            <WorkspacePermissionsProvider>
-              <div className='shrink-0' suppressHydrationWarning>
-                <Sidebar />
-              </div>
-              {children}
-            </WorkspacePermissionsProvider>
-          </div>
-        </Tooltip.Provider>
+        <div className='flex h-screen w-full bg-[var(--bg)]'>
+          <WorkspacePermissionsProvider>
+            <div className='shrink-0' suppressHydrationWarning>
+              <Sidebar />
+            </div>
+            {children}
+          </WorkspacePermissionsProvider>
+        </div>
       </GlobalCommandsProvider>
     </>
   )

@@ -22,6 +22,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       .select({
         id: chat.id,
         identifier: chat.identifier,
+        title: chat.title,
+        description: chat.description,
+        customizations: chat.customizations,
+        authType: chat.authType,
+        allowedEmails: chat.allowedEmails,
+        outputConfigs: chat.outputConfigs,
+        password: chat.password,
         isActive: chat.isActive,
       })
       .from(chat)
@@ -34,6 +41,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         ? {
             id: deploymentResults[0].id,
             identifier: deploymentResults[0].identifier,
+            title: deploymentResults[0].title,
+            description: deploymentResults[0].description,
+            customizations: deploymentResults[0].customizations,
+            authType: deploymentResults[0].authType,
+            allowedEmails: deploymentResults[0].allowedEmails,
+            outputConfigs: deploymentResults[0].outputConfigs,
+            hasPassword: Boolean(deploymentResults[0].password),
           }
         : null
 

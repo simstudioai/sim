@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Maximize2 } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
+  Expand,
   Label,
   Modal,
   ModalBody,
@@ -222,7 +222,7 @@ export function GeneralDeploy({
                       onClick={() => setShowExpandedPreview(true)}
                       className='absolute right-[8px] bottom-[8px] z-10 h-[28px] w-[28px] cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
                     >
-                      <Maximize2 className='h-[14px] w-[14px]' />
+                      <Expand className='h-[14px] w-[14px]' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top'>See preview</Tooltip.Content>
@@ -334,7 +334,6 @@ export function GeneralDeploy({
                     }}
                     onPaneClick={() => setExpandedSelectedBlockId(null)}
                     selectedBlockId={expandedSelectedBlockId}
-                    lightweight
                   />
                 </div>
                 {expandedSelectedBlockId && workflowToShow.blocks?.[expandedSelectedBlockId] && (

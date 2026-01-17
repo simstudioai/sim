@@ -8,24 +8,8 @@ export const SYSTEM_SUBBLOCK_IDS: string[] = [
   'triggerCredentials', // OAuth credentials subblock
   'triggerInstructions', // Setup instructions text
   'webhookUrlDisplay', // Webhook URL display
-  'triggerSave', // Save configuration button
   'samplePayload', // Example payload display
   'setupScript', // Setup script code (e.g., Apps Script)
-  'triggerId', // Stored trigger ID
-  'selectedTriggerId', // Selected trigger from dropdown (multi-trigger blocks)
-]
-
-/**
- * Trigger-related subblock IDs whose values should be persisted and
- * propagated when workflows are edited programmatically.
- */
-export const TRIGGER_PERSISTED_SUBBLOCK_IDS: string[] = [
-  'triggerConfig',
-  'triggerCredentials',
-  'triggerId',
-  'selectedTriggerId',
-  'webhookId',
-  'triggerPath',
 ]
 
 /**

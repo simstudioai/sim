@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react'
+import { cn } from '@/lib/core/utils/cn'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 
 /**
@@ -7,13 +8,22 @@ import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId
 const CHARACTER_DELAY = 3
 
 /**
+ * Props for the StreamingIndicator component
+ */
+interface StreamingIndicatorProps {
+  /** Optional class name for layout adjustments */
+  className?: string
+}
+
+/**
  * StreamingIndicator shows animated dots during message streaming
  * Used as a standalone indicator when no content has arrived yet
  *
+ * @param props - Component props
  * @returns Animated loading indicator
  */
-export const StreamingIndicator = memo(() => (
-  <div className='flex h-[1.25rem] items-center text-muted-foreground'>
+export const StreamingIndicator = memo(({ className }: StreamingIndicatorProps) => (
+  <div className={cn('flex h-[1.25rem] items-center text-muted-foreground', className)}>
     <div className='flex space-x-0.5'>
       <div className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground [animation-delay:0ms] [animation-duration:1.2s]' />
       <div className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground [animation-delay:150ms] [animation-duration:1.2s]' />

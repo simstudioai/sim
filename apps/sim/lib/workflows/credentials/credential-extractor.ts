@@ -1,15 +1,16 @@
+import {
+  buildCanonicalIndex,
+  buildSubBlockValues,
+  evaluateSubBlockCondition,
+  hasAdvancedValues,
+  isSubBlockFeatureEnabled,
+  isSubBlockVisibleForMode,
+  type SubBlockCondition,
+} from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { BlockState, SubBlockState, WorkflowState } from '@/stores/workflows/workflow/types'
-
-/** Condition type for SubBlock visibility - mirrors the inline type from blocks/types.ts */
-interface SubBlockCondition {
-  field: string
-  value: string | number | boolean | Array<string | number | boolean> | undefined
-  not?: boolean
-  and?: SubBlockCondition
-}
 
 // Credential types based on actual patterns in the codebase
 export enum CredentialType {
@@ -117,36 +118,32 @@ export function extractRequiredCredentials(
 
   /** Helper to check visibility, respecting mode and conditions */
   function isSubBlockVisible(block: BlockState, subBlockConfig: SubBlockConfig): boolean {
-    const mode = subBlockConfig.mode ?? 'both'
-    if (mode === 'trigger' && !block?.triggerMode) return false
-    if (mode === 'basic' && block?.advancedMode) return false
-    if (mode === 'advanced' && !block?.advancedMode) return false
+    if (!isSubBlockFeatureEnabled(subBlockConfig)) return false
 
-    if (!subBlockConfig.condition) return true
+    const values = buildSubBlockValues(block?.subBlocks || {})
+    const blockConfig = getBlock(block.type)
+    const blockSubBlocks = blockConfig?.subBlocks || []
+    const canonicalIndex = buildCanonicalIndex(blockSubBlocks)
+    const effectiveAdvanced =
+      (block?.advancedMode ?? false) || hasAdvancedValues(blockSubBlocks, values, canonicalIndex)
+    const canonicalModeOverrides = block.data?.canonicalModes
 
-    const condition =
-      typeof subBlockConfig.condition === 'function'
-        ? subBlockConfig.condition()
-        : subBlockConfig.condition
+    if (subBlockConfig.mode === 'trigger' && !block?.triggerMode) return false
+    if (block?.triggerMode && subBlockConfig.mode && subBlockConfig.mode !== 'trigger') return false
 
-    const evaluate = (cond: SubBlockCondition): boolean => {
-      const currentValue = block?.subBlocks?.[cond.field]?.value
-      const expected = cond.value
-
-      let match =
-        expected === undefined
-          ? true
-          : Array.isArray(expected)
-            ? expected.includes(currentValue as string)
-            : currentValue === expected
-
-      if (cond.not) match = !match
-      if (cond.and) match = match && evaluate(cond.and)
-
-      return match
+    if (
+      !isSubBlockVisibleForMode(
+        subBlockConfig,
+        effectiveAdvanced,
+        canonicalIndex,
+        values,
+        canonicalModeOverrides
+      )
+    ) {
+      return false
     }
 
-    return evaluate(condition)
+    return evaluateSubBlockCondition(subBlockConfig.condition as SubBlockCondition, values)
   }
 
   // Sort: OAuth first, then secrets, alphabetically within each type

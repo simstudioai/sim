@@ -25,8 +25,7 @@ import type {
   McpTransport,
 } from '@/lib/mcp/types'
 import { MCP_CONSTANTS } from '@/lib/mcp/utils'
-import { REFERENCE } from '@/executor/constants'
-import { createEnvVarPattern } from '@/executor/utils/reference-validation'
+import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('McpService')
 
@@ -51,31 +50,21 @@ class McpService {
    * Resolve environment variables in strings
    */
   private resolveEnvVars(value: string, envVars: Record<string, string>): string {
-    const envVarPattern = createEnvVarPattern()
-    const envMatches = value.match(envVarPattern)
-    if (!envMatches) return value
-
-    let resolvedValue = value
     const missingVars: string[] = []
-
-    for (const match of envMatches) {
-      const envKey = match
-        .slice(REFERENCE.ENV_VAR_START.length, -REFERENCE.ENV_VAR_END.length)
-        .trim()
-      const envValue = envVars[envKey]
-
-      if (envValue === undefined) {
-        missingVars.push(envKey)
-        continue
-      }
-
-      resolvedValue = resolvedValue.replace(match, envValue)
-    }
+    const resolvedValue = resolveEnvVarReferences(value, envVars, {
+      allowEmbedded: true,
+      resolveExactMatch: true,
+      trimKeys: true,
+      onMissing: 'keep',
+      deep: false,
+      missingKeys: missingVars,
+    }) as string
 
     if (missingVars.length > 0) {
+      const uniqueMissing = Array.from(new Set(missingVars))
       throw new Error(
-        `Missing required environment variable${missingVars.length > 1 ? 's' : ''}: ${missingVars.join(', ')}. ` +
-          `Please set ${missingVars.length > 1 ? 'these variables' : 'this variable'} in your workspace or personal environment settings.`
+        `Missing required environment variable${uniqueMissing.length > 1 ? 's' : ''}: ${uniqueMissing.join(', ')}. ` +
+          `Please set ${uniqueMissing.length > 1 ? 'these variables' : 'this variable'} in your workspace or personal environment settings.`
       )
     }
 

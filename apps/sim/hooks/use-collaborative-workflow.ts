@@ -203,6 +203,13 @@ export function useCollaborativeWorkflow() {
             case BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE:
               workflowStore.setBlockAdvancedMode(payload.id, payload.advancedMode)
               break
+            case BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE:
+              workflowStore.setBlockCanonicalMode(
+                payload.id,
+                payload.canonicalId,
+                payload.canonicalMode
+              )
+              break
           }
         } else if (target === OPERATION_TARGETS.BLOCKS) {
           switch (operation) {
@@ -918,16 +925,26 @@ export function useCollaborativeWorkflow() {
 
   const collaborativeToggleBlockAdvancedMode = useCallback(
     (id: string) => {
-      const currentBlock = workflowStore.blocks[id]
-      if (!currentBlock) return
-
-      const newAdvancedMode = !currentBlock.advancedMode
-
+      const block = workflowStore.blocks[id]
+      if (!block) return
+      const newAdvancedMode = !block.advancedMode
       executeQueuedOperation(
         BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE,
         OPERATION_TARGETS.BLOCK,
         { id, advancedMode: newAdvancedMode },
-        () => workflowStore.toggleBlockAdvancedMode(id)
+        () => workflowStore.setBlockAdvancedMode(id, newAdvancedMode)
+      )
+    },
+    [executeQueuedOperation, workflowStore]
+  )
+
+  const collaborativeSetBlockCanonicalMode = useCallback(
+    (id: string, canonicalId: string, canonicalMode: 'basic' | 'advanced') => {
+      executeQueuedOperation(
+        BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE,
+        OPERATION_TARGETS.BLOCK,
+        { id, canonicalId, canonicalMode },
+        () => workflowStore.setBlockCanonicalMode(id, canonicalId, canonicalMode)
       )
     },
     [executeQueuedOperation, workflowStore]
@@ -1607,6 +1624,7 @@ export function useCollaborativeWorkflow() {
     collaborativeBatchToggleBlockEnabled,
     collaborativeBatchUpdateParent,
     collaborativeToggleBlockAdvancedMode,
+    collaborativeSetBlockCanonicalMode,
     collaborativeBatchToggleBlockHandles,
     collaborativeBatchAddBlocks,
     collaborativeBatchRemoveBlocks,

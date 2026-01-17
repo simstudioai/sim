@@ -157,6 +157,7 @@ export function Sidebar() {
     isCreatingWorkspace,
     updateWorkspaceName,
     confirmDeleteWorkspace,
+    handleLeaveWorkspace,
   } = useWorkspaceManagement({
     workspaceId,
     sessionUserId: sessionData?.user?.id,
@@ -378,6 +379,17 @@ export function Sidebar() {
     [workspaces, confirmDeleteWorkspace]
   )
 
+  /** Leaves a workspace */
+  const handleLeaveWorkspaceWrapper = useCallback(
+    async (workspaceIdToLeave: string) => {
+      const workspaceToLeave = workspaces.find((w) => w.id === workspaceIdToLeave)
+      if (workspaceToLeave) {
+        await handleLeaveWorkspace(workspaceToLeave)
+      }
+    },
+    [workspaces, handleLeaveWorkspace]
+  )
+
   /** Duplicates a workspace */
   const handleDuplicateWorkspace = useCallback(
     async (_workspaceIdToDuplicate: string, workspaceName: string) => {
@@ -489,7 +501,7 @@ export function Sidebar() {
     <>
       {isCollapsed ? (
         /* Floating collapsed header - minimal pill showing workspace name and expand toggle */
-        <div className='fixed top-[14px] left-[10px] z-10 w-fit rounded-[10px] border border-[var(--border)] bg-[var(--surface-1)] px-[10px] py-[6px]'>
+        <div className='fixed top-[14px] left-[10px] z-10 w-fit rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] py-[4px] pr-[10px] pl-[6px]'>
           <WorkspaceHeader
             activeWorkspace={activeWorkspace}
             workspaceId={workspaceId}
@@ -509,6 +521,8 @@ export function Sidebar() {
             onImportWorkspace={handleImportWorkspace}
             isImportingWorkspace={isImportingWorkspace}
             showCollapseButton={isOnWorkflowPage}
+            onLeaveWorkspace={handleLeaveWorkspaceWrapper}
+            sessionUserId={sessionData?.user?.id}
           />
         </div>
       ) : (
@@ -542,6 +556,8 @@ export function Sidebar() {
                   onImportWorkspace={handleImportWorkspace}
                   isImportingWorkspace={isImportingWorkspace}
                   showCollapseButton={isOnWorkflowPage}
+                  onLeaveWorkspace={handleLeaveWorkspaceWrapper}
+                  sessionUserId={sessionData?.user?.id}
                 />
               </div>
 
@@ -639,6 +655,9 @@ export function Sidebar() {
                     handleFileChange={handleImportFileChange}
                     fileInputRef={fileInputRef}
                     scrollContainerRef={scrollContainerRef}
+                    onCreateWorkflow={handleCreateWorkflow}
+                    onCreateFolder={handleCreateFolder}
+                    disableCreate={!canEdit || isCreatingWorkflow || isCreatingFolder}
                   />
                 </div>
               </div>

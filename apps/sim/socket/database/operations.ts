@@ -1,6 +1,7 @@
 import * as schema from '@sim/db'
 import { webhook, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import type { InferSelectModel } from 'drizzle-orm'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -394,6 +395,46 @@ async function handleBlockOperationTx(
       }
 
       logger.debug(`Updated block advanced mode: ${payload.id} -> ${payload.advancedMode}`)
+      break
+    }
+
+    case BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE: {
+      if (!payload.id || !payload.canonicalId || !payload.canonicalMode) {
+        throw new Error('Missing required fields for update canonical mode operation')
+      }
+
+      const existingBlock = await tx
+        .select({ data: workflowBlocks.data })
+        .from(workflowBlocks)
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .limit(1)
+
+      const currentData = (existingBlock?.[0]?.data as Record<string, unknown>) || {}
+      const currentCanonicalModes = (currentData.canonicalModes as Record<string, unknown>) || {}
+      const canonicalModes = {
+        ...currentCanonicalModes,
+        [payload.canonicalId]: payload.canonicalMode,
+      }
+
+      const updateResult = await tx
+        .update(workflowBlocks)
+        .set({
+          data: {
+            ...currentData,
+            canonicalModes,
+          },
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .returning({ id: workflowBlocks.id })
+
+      if (updateResult.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      logger.debug(
+        `Updated block canonical mode: ${payload.id} -> ${payload.canonicalId}: ${payload.canonicalMode}`
+      )
       break
     }
 
@@ -1134,7 +1175,14 @@ async function handleWorkflowOperationTx(
         parallelCount: Object.keys(parallels || {}).length,
       })
 
-      // Delete all existing blocks (this will cascade delete edges via ON DELETE CASCADE)
+      // Snapshot existing webhooks before deletion to preserve them through the cycle
+      // (workflowBlocks has CASCADE DELETE to webhook table)
+      const existingWebhooks = await tx
+        .select()
+        .from(webhook)
+        .where(eq(webhook.workflowId, workflowId))
+
+      // Delete all existing blocks (this will cascade delete edges and webhooks via ON DELETE CASCADE)
       await tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId))
 
       // Delete all existing subflows
@@ -1198,6 +1246,32 @@ async function handleWorkflowOperationTx(
         }))
 
         await tx.insert(workflowSubflows).values(parallelValues)
+      }
+
+      // Re-insert preserved webhooks if any exist and their blocks still exist
+      type WebhookRecord = InferSelectModel<typeof webhook>
+      if (existingWebhooks.length > 0) {
+        const webhookInserts = existingWebhooks
+          .filter((wh: WebhookRecord) => !!blocks?.[wh.blockId ?? ''])
+          .map((wh: WebhookRecord) => ({
+            id: wh.id,
+            workflowId: wh.workflowId,
+            blockId: wh.blockId,
+            path: wh.path,
+            provider: wh.provider,
+            providerConfig: wh.providerConfig,
+            credentialSetId: wh.credentialSetId,
+            isActive: wh.isActive,
+            createdAt: wh.createdAt,
+            updatedAt: new Date(),
+          }))
+
+        if (webhookInserts.length > 0) {
+          await tx.insert(webhook).values(webhookInserts)
+          logger.debug(`Preserved ${webhookInserts.length} webhook(s) through state replacement`, {
+            workflowId,
+          })
+        }
       }
 
       logger.info(`Successfully replaced workflow state for ${workflowId}`)

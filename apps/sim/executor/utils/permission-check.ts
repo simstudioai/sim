@@ -3,6 +3,7 @@ import { member, permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
+import { isAccessControlEnabled, isHosted } from '@/lib/core/config/feature-flags'
 import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
@@ -52,6 +53,10 @@ export class InvitationsNotAllowedError extends Error {
 export async function getUserPermissionConfig(
   userId: string
 ): Promise<PermissionGroupConfig | null> {
+  if (!isHosted && !isAccessControlEnabled) {
+    return null
+  }
+
   const [membership] = await db
     .select({ organizationId: member.organizationId })
     .from(member)
@@ -136,6 +141,10 @@ export async function validateBlockType(
   blockType: string,
   ctx?: ExecutionContext
 ): Promise<void> {
+  if (blockType === 'start_trigger') {
+    return
+  }
+
   if (!userId) {
     return
   }

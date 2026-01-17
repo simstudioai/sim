@@ -4,13 +4,13 @@ import type { NodeProps } from 'reactflow'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/core/utils/cn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
   BLOCK_DIMENSIONS,
   useBlockDimensions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { ActionBar } from '../workflow-block/components'
 import type { WorkflowBlockProps } from '../workflow-block/types'
 
 interface NoteBlockNodeData extends WorkflowBlockProps {}

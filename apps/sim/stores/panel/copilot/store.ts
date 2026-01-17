@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
+import type { CopilotTransportMode } from '@/lib/copilot/models'
 import type {
   BaseClientToolMetadata,
   ClientToolDisplay,
@@ -71,6 +72,7 @@ import { ListUserWorkflowsClientTool } from '@/lib/copilot/tools/client/workflow
 import { ListWorkspaceMcpServersClientTool } from '@/lib/copilot/tools/client/workflow/list-workspace-mcp-servers'
 import { ManageCustomToolClientTool } from '@/lib/copilot/tools/client/workflow/manage-custom-tool'
 import { ManageMcpToolClientTool } from '@/lib/copilot/tools/client/workflow/manage-mcp-tool'
+import { RedeployClientTool } from '@/lib/copilot/tools/client/workflow/redeploy'
 import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
 import { SetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/set-global-workflow-variables'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
@@ -84,7 +86,9 @@ import type {
 } from '@/stores/panel/copilot/types'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('CopilotStore')
 
@@ -147,6 +151,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   deploy_api: (id) => new DeployApiClientTool(id),
   deploy_chat: (id) => new DeployChatClientTool(id),
   deploy_mcp: (id) => new DeployMcpClientTool(id),
+  redeploy: (id) => new RedeployClientTool(id),
   list_workspace_mcp_servers: (id) => new ListWorkspaceMcpServersClientTool(id),
   create_workspace_mcp_server: (id) => new CreateWorkspaceMcpServerClientTool(id),
   check_deployment_status: (id) => new CheckDeploymentStatusClientTool(id),
@@ -209,6 +214,7 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   deploy_api: (DeployApiClientTool as any)?.metadata,
   deploy_chat: (DeployChatClientTool as any)?.metadata,
   deploy_mcp: (DeployMcpClientTool as any)?.metadata,
+  redeploy: (RedeployClientTool as any)?.metadata,
   list_workspace_mcp_servers: (ListWorkspaceMcpServersClientTool as any)?.metadata,
   create_workspace_mcp_server: (CreateWorkspaceMcpServerClientTool as any)?.metadata,
   check_deployment_status: (CheckDeploymentStatusClientTool as any)?.metadata,
@@ -237,6 +243,7 @@ const TEXT_BLOCK_TYPE = 'text'
 const THINKING_BLOCK_TYPE = 'thinking'
 const DATA_PREFIX = 'data: '
 const DATA_PREFIX_LENGTH = 6
+const CONTINUE_OPTIONS_TAG = '<options>{"1":"Continue"}</options>'
 
 // Resolve display text/icon for a tool based on its state
 function resolveToolDisplay(
@@ -360,6 +367,7 @@ function abortAllInProgressTools(set: any, get: () => CopilotStore) {
     const { toolCallsById, messages } = get()
     const updatedMap = { ...toolCallsById }
     const abortedIds = new Set<string>()
+    let hasUpdates = false
     for (const [id, tc] of Object.entries(toolCallsById)) {
       const st = tc.state as any
       // Abort anything not already terminal success/error/rejected/aborted
@@ -373,11 +381,19 @@ function abortAllInProgressTools(set: any, get: () => CopilotStore) {
         updatedMap[id] = {
           ...tc,
           state: ClientToolCallState.aborted,
+          subAgentStreaming: false,
           display: resolveToolDisplay(tc.name, ClientToolCallState.aborted, id, (tc as any).params),
         }
+        hasUpdates = true
+      } else if (tc.subAgentStreaming) {
+        updatedMap[id] = {
+          ...tc,
+          subAgentStreaming: false,
+        }
+        hasUpdates = true
       }
     }
-    if (abortedIds.size > 0) {
+    if (abortedIds.size > 0 || hasUpdates) {
       set({ toolCallsById: updatedMap })
       // Update inline blocks in-place for the latest assistant message only (most relevant)
       set((s: CopilotStore) => {
@@ -620,6 +636,97 @@ function createErrorMessage(
   }
 }
 
+/**
+ * Builds a workflow snapshot suitable for checkpoint persistence.
+ */
+function buildCheckpointWorkflowState(workflowId: string): WorkflowState | null {
+  const rawState = useWorkflowStore.getState().getWorkflowState()
+  if (!rawState) return null
+
+  const blocksWithSubblockValues = mergeSubblockState(rawState.blocks, workflowId)
+
+  const filteredBlocks = Object.entries(blocksWithSubblockValues).reduce(
+    (acc, [blockId, block]) => {
+      if (block?.type && block?.name) {
+        acc[blockId] = {
+          ...block,
+          id: block.id || blockId,
+          enabled: block.enabled !== undefined ? block.enabled : true,
+          horizontalHandles: block.horizontalHandles !== undefined ? block.horizontalHandles : true,
+          height: block.height !== undefined ? block.height : 90,
+          subBlocks: block.subBlocks || {},
+          outputs: block.outputs || {},
+          data: block.data || {},
+          position: block.position || { x: 0, y: 0 },
+        }
+      }
+      return acc
+    },
+    {} as WorkflowState['blocks']
+  )
+
+  return {
+    blocks: filteredBlocks,
+    edges: rawState.edges || [],
+    loops: rawState.loops || {},
+    parallels: rawState.parallels || {},
+    lastSaved: rawState.lastSaved || Date.now(),
+    deploymentStatuses: rawState.deploymentStatuses || {},
+  }
+}
+
+/**
+ * Persists a previously captured snapshot as a workflow checkpoint.
+ */
+async function saveMessageCheckpoint(
+  messageId: string,
+  get: () => CopilotStore,
+  set: (partial: Partial<CopilotStore> | ((state: CopilotStore) => Partial<CopilotStore>)) => void
+): Promise<boolean> {
+  const { workflowId, currentChat, messageSnapshots, messageCheckpoints } = get()
+  if (!workflowId || !currentChat?.id) return false
+
+  const snapshot = messageSnapshots[messageId]
+  if (!snapshot) return false
+
+  const nextSnapshots = { ...messageSnapshots }
+  delete nextSnapshots[messageId]
+  set({ messageSnapshots: nextSnapshots })
+
+  try {
+    const response = await fetch('/api/copilot/checkpoints', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workflowId,
+        chatId: currentChat.id,
+        messageId,
+        workflowState: JSON.stringify(snapshot),
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to create checkpoint: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    const newCheckpoint = result.checkpoint
+    if (newCheckpoint) {
+      const existingCheckpoints = messageCheckpoints[messageId] || []
+      const updatedCheckpoints = {
+        ...messageCheckpoints,
+        [messageId]: [newCheckpoint, ...existingCheckpoints],
+      }
+      set({ messageCheckpoints: updatedCheckpoints })
+    }
+
+    return true
+  } catch (error) {
+    logger.error('Failed to create checkpoint from snapshot:', error)
+    return false
+  }
+}
+
 function stripTodoTags(text: string): string {
   if (!text) return text
   return text
@@ -826,6 +933,8 @@ interface StreamingContext {
   newChatId?: string
   doneEventCount: number
   streamComplete?: boolean
+  wasAborted?: boolean
+  suppressContinueOption?: boolean
   /** Track active subagent sessions by parent tool call ID */
   subAgentParentToolCallId?: string
   /** Track subagent content per parent tool call */
@@ -842,6 +951,132 @@ type SSEHandler = (
   get: () => CopilotStore,
   set: any
 ) => Promise<void> | void
+
+function appendTextBlock(context: StreamingContext, text: string) {
+  if (!text) return
+  context.accumulatedContent.append(text)
+  if (context.currentTextBlock && context.contentBlocks.length > 0) {
+    const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
+    if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
+      lastBlock.content += text
+      return
+    }
+  }
+  context.currentTextBlock = contentBlockPool.get()
+  context.currentTextBlock.type = TEXT_BLOCK_TYPE
+  context.currentTextBlock.content = text
+  context.currentTextBlock.timestamp = Date.now()
+  context.contentBlocks.push(context.currentTextBlock)
+}
+
+function appendContinueOption(content: string): string {
+  if (/<options>/i.test(content)) return content
+  const suffix = content.trim().length > 0 ? '\n\n' : ''
+  return `${content}${suffix}${CONTINUE_OPTIONS_TAG}`
+}
+
+function appendContinueOptionBlock(blocks: any[]): any[] {
+  if (!Array.isArray(blocks)) return blocks
+  const hasOptions = blocks.some(
+    (block) =>
+      block?.type === TEXT_BLOCK_TYPE &&
+      typeof block.content === 'string' &&
+      /<options>/i.test(block.content)
+  )
+  if (hasOptions) return blocks
+  return [
+    ...blocks,
+    {
+      type: TEXT_BLOCK_TYPE,
+      content: CONTINUE_OPTIONS_TAG,
+      timestamp: Date.now(),
+    },
+  ]
+}
+
+function beginThinkingBlock(context: StreamingContext) {
+  if (!context.currentThinkingBlock) {
+    context.currentThinkingBlock = contentBlockPool.get()
+    context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
+    context.currentThinkingBlock.content = ''
+    context.currentThinkingBlock.timestamp = Date.now()
+    ;(context.currentThinkingBlock as any).startTime = Date.now()
+    context.contentBlocks.push(context.currentThinkingBlock)
+  }
+  context.isInThinkingBlock = true
+  context.currentTextBlock = null
+}
+
+/**
+ * Removes thinking tags (raw or escaped) from streamed content.
+ */
+function stripThinkingTags(text: string): string {
+  return text.replace(/<\/?thinking[^>]*>/gi, '').replace(/&lt;\/?thinking[^&]*&gt;/gi, '')
+}
+
+function appendThinkingContent(context: StreamingContext, text: string) {
+  if (!text) return
+  const cleanedText = stripThinkingTags(text)
+  if (!cleanedText) return
+  if (context.currentThinkingBlock) {
+    context.currentThinkingBlock.content += cleanedText
+  } else {
+    context.currentThinkingBlock = contentBlockPool.get()
+    context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
+    context.currentThinkingBlock.content = cleanedText
+    context.currentThinkingBlock.timestamp = Date.now()
+    context.currentThinkingBlock.startTime = Date.now()
+    context.contentBlocks.push(context.currentThinkingBlock)
+  }
+  context.isInThinkingBlock = true
+  context.currentTextBlock = null
+}
+
+function finalizeThinkingBlock(context: StreamingContext) {
+  if (context.currentThinkingBlock) {
+    context.currentThinkingBlock.duration =
+      Date.now() - (context.currentThinkingBlock.startTime || Date.now())
+  }
+  context.isInThinkingBlock = false
+  context.currentThinkingBlock = null
+  context.currentTextBlock = null
+}
+
+function upsertToolCallBlock(context: StreamingContext, toolCall: CopilotToolCall) {
+  let found = false
+  for (let i = 0; i < context.contentBlocks.length; i++) {
+    const b = context.contentBlocks[i] as any
+    if (b.type === 'tool_call' && b.toolCall?.id === toolCall.id) {
+      context.contentBlocks[i] = { ...b, toolCall }
+      found = true
+      break
+    }
+  }
+  if (!found) {
+    context.contentBlocks.push({ type: 'tool_call', toolCall, timestamp: Date.now() })
+  }
+}
+
+function appendSubAgentText(context: StreamingContext, parentToolCallId: string, text: string) {
+  if (!context.subAgentContent[parentToolCallId]) {
+    context.subAgentContent[parentToolCallId] = ''
+  }
+  if (!context.subAgentBlocks[parentToolCallId]) {
+    context.subAgentBlocks[parentToolCallId] = []
+  }
+  context.subAgentContent[parentToolCallId] += text
+  const blocks = context.subAgentBlocks[parentToolCallId]
+  const lastBlock = blocks[blocks.length - 1]
+  if (lastBlock && lastBlock.type === 'subagent_text') {
+    lastBlock.content = (lastBlock.content || '') + text
+  } else {
+    blocks.push({
+      type: 'subagent_text',
+      content: text,
+      timestamp: Date.now(),
+    })
+  }
+}
 
 const sseHandlers: Record<string, SSEHandler> = {
   chat_id: async (data, context, get) => {
@@ -1033,17 +1268,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       logger.info('[toolCallsById] map updated', updated)
 
       // Add/refresh inline content block
-      let found = false
-      for (let i = 0; i < context.contentBlocks.length; i++) {
-        const b = context.contentBlocks[i] as any
-        if (b.type === 'tool_call' && b.toolCall?.id === toolCallId) {
-          context.contentBlocks[i] = { ...b, toolCall: tc }
-          found = true
-          break
-        }
-      }
-      if (!found)
-        context.contentBlocks.push({ type: 'tool_call', toolCall: tc, timestamp: Date.now() })
+      upsertToolCallBlock(context, tc)
       updateStreamingMessage(set, context)
     }
   },
@@ -1079,19 +1304,13 @@ const sseHandlers: Record<string, SSEHandler> = {
     logger.info('[toolCallsById] → pending', { id, name, params: args })
 
     // Ensure an inline content block exists/updated for this tool call
-    let found = false
-    for (let i = 0; i < context.contentBlocks.length; i++) {
-      const b = context.contentBlocks[i] as any
-      if (b.type === 'tool_call' && b.toolCall?.id === id) {
-        context.contentBlocks[i] = { ...b, toolCall: next }
-        found = true
-        break
-      }
-    }
-    if (!found) {
-      context.contentBlocks.push({ type: 'tool_call', toolCall: next, timestamp: Date.now() })
-    }
+    upsertToolCallBlock(context, next)
     updateStreamingMessage(set, context)
+
+    // Do not execute on partial tool_call frames
+    if (isPartial) {
+      return
+    }
 
     // Prefer interface-based registry to determine interrupt and execute
     try {
@@ -1275,44 +1494,18 @@ const sseHandlers: Record<string, SSEHandler> = {
   reasoning: (data, context, _get, set) => {
     const phase = (data && (data.phase || data?.data?.phase)) as string | undefined
     if (phase === 'start') {
-      if (!context.currentThinkingBlock) {
-        context.currentThinkingBlock = contentBlockPool.get()
-        context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
-        context.currentThinkingBlock.content = ''
-        context.currentThinkingBlock.timestamp = Date.now()
-        ;(context.currentThinkingBlock as any).startTime = Date.now()
-        context.contentBlocks.push(context.currentThinkingBlock)
-      }
-      context.isInThinkingBlock = true
-      context.currentTextBlock = null
+      beginThinkingBlock(context)
       updateStreamingMessage(set, context)
       return
     }
     if (phase === 'end') {
-      if (context.currentThinkingBlock) {
-        ;(context.currentThinkingBlock as any).duration =
-          Date.now() - ((context.currentThinkingBlock as any).startTime || Date.now())
-      }
-      context.isInThinkingBlock = false
-      context.currentThinkingBlock = null
-      context.currentTextBlock = null
+      finalizeThinkingBlock(context)
       updateStreamingMessage(set, context)
       return
     }
     const chunk: string = typeof data?.data === 'string' ? data.data : data?.content || ''
     if (!chunk) return
-    if (context.currentThinkingBlock) {
-      context.currentThinkingBlock.content += chunk
-    } else {
-      context.currentThinkingBlock = contentBlockPool.get()
-      context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
-      context.currentThinkingBlock.content = chunk
-      context.currentThinkingBlock.timestamp = Date.now()
-      ;(context.currentThinkingBlock as any).startTime = Date.now()
-      context.contentBlocks.push(context.currentThinkingBlock)
-    }
-    context.isInThinkingBlock = true
-    context.currentTextBlock = null
+    appendThinkingContent(context, chunk)
     updateStreamingMessage(set, context)
   },
   content: (data, context, get, set) => {
@@ -1327,21 +1520,23 @@ const sseHandlers: Record<string, SSEHandler> = {
     const designWorkflowStartRegex = /<design_workflow>/
     const designWorkflowEndRegex = /<\/design_workflow>/
 
-    const appendTextToContent = (text: string) => {
-      if (!text) return
-      context.accumulatedContent.append(text)
-      if (context.currentTextBlock && context.contentBlocks.length > 0) {
-        const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
-        if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
-          lastBlock.content += text
-          return
-        }
+    const splitTrailingPartialTag = (
+      text: string,
+      tags: string[]
+    ): { text: string; remaining: string } => {
+      const partialIndex = text.lastIndexOf('<')
+      if (partialIndex < 0) {
+        return { text, remaining: '' }
       }
-      context.currentTextBlock = contentBlockPool.get()
-      context.currentTextBlock.type = TEXT_BLOCK_TYPE
-      context.currentTextBlock.content = text
-      context.currentTextBlock.timestamp = Date.now()
-      context.contentBlocks.push(context.currentTextBlock)
+      const possibleTag = text.substring(partialIndex)
+      const matchesTagStart = tags.some((tag) => tag.startsWith(possibleTag))
+      if (!matchesTagStart) {
+        return { text, remaining: '' }
+      }
+      return {
+        text: text.substring(0, partialIndex),
+        remaining: possibleTag,
+      }
     }
 
     while (contentToProcess.length > 0) {
@@ -1363,13 +1558,19 @@ const sseHandlers: Record<string, SSEHandler> = {
           hasProcessedContent = true
         } else {
           // Still in design_workflow block, accumulate content
-          context.designWorkflowContent += contentToProcess
+          const { text, remaining } = splitTrailingPartialTag(contentToProcess, [
+            '</design_workflow>',
+          ])
+          context.designWorkflowContent += text
 
           // Update store with partial content for streaming effect (available in all modes)
           set({ streamingPlanContent: context.designWorkflowContent })
 
-          contentToProcess = ''
+          contentToProcess = remaining
           hasProcessedContent = true
+          if (remaining) {
+            break
+          }
         }
         continue
       }
@@ -1380,7 +1581,7 @@ const sseHandlers: Record<string, SSEHandler> = {
         if (designStartMatch) {
           const textBeforeDesign = contentToProcess.substring(0, designStartMatch.index)
           if (textBeforeDesign) {
-            appendTextToContent(textBeforeDesign)
+            appendTextBlock(context, textBeforeDesign)
             hasProcessedContent = true
           }
           context.isInDesignWorkflowBlock = true
@@ -1471,63 +1672,27 @@ const sseHandlers: Record<string, SSEHandler> = {
         const endMatch = thinkingEndRegex.exec(contentToProcess)
         if (endMatch) {
           const thinkingContent = contentToProcess.substring(0, endMatch.index)
-          if (context.currentThinkingBlock) {
-            context.currentThinkingBlock.content += thinkingContent
-          } else {
-            context.currentThinkingBlock = contentBlockPool.get()
-            context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
-            context.currentThinkingBlock.content = thinkingContent
-            context.currentThinkingBlock.timestamp = Date.now()
-            context.currentThinkingBlock.startTime = Date.now()
-            context.contentBlocks.push(context.currentThinkingBlock)
-          }
-          context.isInThinkingBlock = false
-          if (context.currentThinkingBlock) {
-            context.currentThinkingBlock.duration =
-              Date.now() - (context.currentThinkingBlock.startTime || Date.now())
-          }
-          context.currentThinkingBlock = null
-          context.currentTextBlock = null
+          appendThinkingContent(context, thinkingContent)
+          finalizeThinkingBlock(context)
           contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
           hasProcessedContent = true
         } else {
-          if (context.currentThinkingBlock) {
-            context.currentThinkingBlock.content += contentToProcess
-          } else {
-            context.currentThinkingBlock = contentBlockPool.get()
-            context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
-            context.currentThinkingBlock.content = contentToProcess
-            context.currentThinkingBlock.timestamp = Date.now()
-            context.currentThinkingBlock.startTime = Date.now()
-            context.contentBlocks.push(context.currentThinkingBlock)
+          const { text, remaining } = splitTrailingPartialTag(contentToProcess, ['</thinking>'])
+          if (text) {
+            appendThinkingContent(context, text)
+            hasProcessedContent = true
           }
-          contentToProcess = ''
-          hasProcessedContent = true
+          contentToProcess = remaining
+          if (remaining) {
+            break
+          }
         }
       } else {
         const startMatch = thinkingStartRegex.exec(contentToProcess)
         if (startMatch) {
           const textBeforeThinking = contentToProcess.substring(0, startMatch.index)
           if (textBeforeThinking) {
-            context.accumulatedContent.append(textBeforeThinking)
-            if (context.currentTextBlock && context.contentBlocks.length > 0) {
-              const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
-              if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
-                lastBlock.content += textBeforeThinking
-              } else {
-                context.currentTextBlock = contentBlockPool.get()
-                context.currentTextBlock.type = TEXT_BLOCK_TYPE
-                context.currentTextBlock.content = textBeforeThinking
-                context.currentTextBlock.timestamp = Date.now()
-                context.contentBlocks.push(context.currentTextBlock)
-              }
-            } else {
-              context.currentTextBlock = contentBlockPool.get()
-              context.currentTextBlock.type = TEXT_BLOCK_TYPE
-              context.currentTextBlock.content = textBeforeThinking
-              context.currentTextBlock.timestamp = Date.now()
-              context.contentBlocks.push(context.currentTextBlock)
-            }
+            appendTextBlock(context, textBeforeThinking)
             hasProcessedContent = true
           }
           context.isInThinkingBlock = true
@@ -1556,25 +1721,7 @@ const sseHandlers: Record<string, SSEHandler> = {
             remaining = contentToProcess.substring(partialTagIndex)
           }
           if (textToAdd) {
-            context.accumulatedContent.append(textToAdd)
-            if (context.currentTextBlock && context.contentBlocks.length > 0) {
-              const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
-              if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
-                lastBlock.content += textToAdd
-              } else {
-                context.currentTextBlock = contentBlockPool.get()
-                context.currentTextBlock.type = TEXT_BLOCK_TYPE
-                context.currentTextBlock.content = textToAdd
-                context.currentTextBlock.timestamp = Date.now()
-                context.contentBlocks.push(context.currentTextBlock)
-              }
-            } else {
-              context.currentTextBlock = contentBlockPool.get()
-              context.currentTextBlock.type = TEXT_BLOCK_TYPE
-              context.currentTextBlock.content = textToAdd
-              context.currentTextBlock.timestamp = Date.now()
-              context.contentBlocks.push(context.currentTextBlock)
-            }
+            appendTextBlock(context, textToAdd)
             hasProcessedContent = true
           }
           contentToProcess = remaining
@@ -1612,37 +1759,13 @@ const sseHandlers: Record<string, SSEHandler> = {
   stream_end: (_data, context, _get, set) => {
     if (context.pendingContent) {
       if (context.isInThinkingBlock && context.currentThinkingBlock) {
-        context.currentThinkingBlock.content += context.pendingContent
+        appendThinkingContent(context, context.pendingContent)
       } else if (context.pendingContent.trim()) {
-        context.accumulatedContent.append(context.pendingContent)
-        if (context.currentTextBlock && context.contentBlocks.length > 0) {
-          const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
-          if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
-            lastBlock.content += context.pendingContent
-          } else {
-            context.currentTextBlock = contentBlockPool.get()
-            context.currentTextBlock.type = TEXT_BLOCK_TYPE
-            context.currentTextBlock.content = context.pendingContent
-            context.currentTextBlock.timestamp = Date.now()
-            context.contentBlocks.push(context.currentTextBlock)
-          }
-        } else {
-          context.currentTextBlock = contentBlockPool.get()
-          context.currentTextBlock.type = TEXT_BLOCK_TYPE
-          context.currentTextBlock.content = context.pendingContent
-          context.currentTextBlock.timestamp = Date.now()
-          context.contentBlocks.push(context.currentTextBlock)
-        }
+        appendTextBlock(context, context.pendingContent)
       }
       context.pendingContent = ''
     }
-    if (context.currentThinkingBlock) {
-      context.currentThinkingBlock.duration =
-        Date.now() - (context.currentThinkingBlock.startTime || Date.now())
-    }
-    context.isInThinkingBlock = false
-    context.currentThinkingBlock = null
-    context.currentTextBlock = null
+    finalizeThinkingBlock(context)
     updateStreamingMessage(set, context)
   },
   default: () => {},
@@ -1740,29 +1863,7 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    // Initialize if needed
-    if (!context.subAgentContent[parentToolCallId]) {
-      context.subAgentContent[parentToolCallId] = ''
-    }
-    if (!context.subAgentBlocks[parentToolCallId]) {
-      context.subAgentBlocks[parentToolCallId] = []
-    }
-
-    // Append content
-    context.subAgentContent[parentToolCallId] += data.data
-
-    // Update or create the last text block in subAgentBlocks
-    const blocks = context.subAgentBlocks[parentToolCallId]
-    const lastBlock = blocks[blocks.length - 1]
-    if (lastBlock && lastBlock.type === 'subagent_text') {
-      lastBlock.content = (lastBlock.content || '') + data.data
-    } else {
-      blocks.push({
-        type: 'subagent_text',
-        content: data.data,
-        timestamp: Date.now(),
-      })
-    }
+    appendSubAgentText(context, parentToolCallId, data.data)
 
     updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
   },
@@ -1773,34 +1874,13 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
     const phase = data?.phase || data?.data?.phase
     if (!parentToolCallId) return
 
-    // Initialize if needed
-    if (!context.subAgentContent[parentToolCallId]) {
-      context.subAgentContent[parentToolCallId] = ''
-    }
-    if (!context.subAgentBlocks[parentToolCallId]) {
-      context.subAgentBlocks[parentToolCallId] = []
-    }
-
     // For reasoning, we just append the content (treating start/end as markers)
     if (phase === 'start' || phase === 'end') return
 
     const chunk = typeof data?.data === 'string' ? data.data : data?.content || ''
     if (!chunk) return
 
-    context.subAgentContent[parentToolCallId] += chunk
-
-    // Update or create the last text block in subAgentBlocks
-    const blocks = context.subAgentBlocks[parentToolCallId]
-    const lastBlock = blocks[blocks.length - 1]
-    if (lastBlock && lastBlock.type === 'subagent_text') {
-      lastBlock.content = (lastBlock.content || '') + chunk
-    } else {
-      blocks.push({
-        type: 'subagent_text',
-        content: chunk,
-        timestamp: Date.now(),
-      })
-    }
+    appendSubAgentText(context, parentToolCallId, chunk)
 
     updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
   },
@@ -1819,6 +1899,7 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
     const id: string | undefined = toolData.id || data?.toolCallId
     const name: string | undefined = toolData.name || data?.toolName
     if (!id || !name) return
+    const isPartial = toolData.partial === true
 
     // Arguments can come in different locations depending on SSE format
     // Check multiple possible locations
@@ -1884,6 +1965,10 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
     set({ toolCallsById: updated })
 
     updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
+
+    if (isPartial) {
+      return
+    }
 
     // Execute client tools in parallel (non-blocking) - same pattern as main tool_call handler
     try {
@@ -2002,6 +2087,14 @@ const MIN_BATCH_INTERVAL = 16
 const MAX_BATCH_INTERVAL = 50
 const MAX_QUEUE_SIZE = 5
 
+function stopStreamingUpdates() {
+  if (streamingUpdateRAF !== null) {
+    cancelAnimationFrame(streamingUpdateRAF)
+    streamingUpdateRAF = null
+  }
+  streamingUpdateQueue.clear()
+}
+
 function createOptimizedContentBlocks(contentBlocks: any[]): any[] {
   const result: any[] = new Array(contentBlocks.length)
   for (let i = 0; i < contentBlocks.length; i++) {
@@ -2109,6 +2202,7 @@ const initialState = {
   messages: [] as CopilotMessage[],
   checkpoints: [] as any[],
   messageCheckpoints: {} as Record<string, any[]>,
+  messageSnapshots: {} as Record<string, WorkflowState>,
   isLoading: false,
   isLoadingChats: false,
   isLoadingCheckpoints: false,
@@ -2132,6 +2226,7 @@ const initialState = {
   suppressAutoSelect: false,
   autoAllowedTools: [] as string[],
   messageQueue: [] as import('./types').QueuedMessage[],
+  suppressAbortContinueOption: false,
 }
 
 export const useCopilotStore = create<CopilotStore>()(
@@ -2154,7 +2249,7 @@ export const useCopilotStore = create<CopilotStore>()(
       // Abort all in-progress tools and clear any diff preview
       abortAllInProgressTools(set, get)
       try {
-        useWorkflowDiffStore.getState().clearDiff()
+        useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
       } catch {}
 
       set({
@@ -2188,7 +2283,7 @@ export const useCopilotStore = create<CopilotStore>()(
       // Abort in-progress tools and clear diff when changing chats
       abortAllInProgressTools(set, get)
       try {
-        useWorkflowDiffStore.getState().clearDiff()
+        useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
       } catch {}
 
       // Restore plan content and config (mode/model) from selected chat
@@ -2281,7 +2376,7 @@ export const useCopilotStore = create<CopilotStore>()(
       // Abort in-progress tools and clear diff on new chat
       abortAllInProgressTools(set, get)
       try {
-        useWorkflowDiffStore.getState().clearDiff()
+        useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
       } catch {}
 
       // Background-save the current chat before clearing (optimistic)
@@ -2454,36 +2549,64 @@ export const useCopilotStore = create<CopilotStore>()(
 
     // Send a message (streaming only)
     sendMessage: async (message: string, options = {}) => {
-      const { workflowId, currentChat, mode, revertState, isSendingMessage } = get()
+      const {
+        workflowId,
+        currentChat,
+        mode,
+        revertState,
+        isSendingMessage,
+        abortController: activeAbortController,
+      } = get()
       const {
         stream = true,
         fileAttachments,
         contexts,
         messageId,
+        queueIfBusy = true,
       } = options as {
         stream?: boolean
         fileAttachments?: MessageFileAttachment[]
         contexts?: ChatContext[]
         messageId?: string
+        queueIfBusy?: boolean
       }
 
       if (!workflowId) return
 
-      // If already sending a message, queue this one instead
-      if (isSendingMessage) {
-        get().addToQueue(message, { fileAttachments, contexts, messageId })
-        logger.info('[Copilot] Message queued (already sending)', {
-          queueLength: get().messageQueue.length + 1,
+      // If already sending a message, queue this one instead unless bypassing queue
+      if (isSendingMessage && !activeAbortController) {
+        logger.warn('[Copilot] sendMessage: stale sending state detected, clearing', {
           originalMessageId: messageId,
         })
-        return
+        set({ isSendingMessage: false })
+      } else if (isSendingMessage && activeAbortController?.signal.aborted) {
+        logger.warn('[Copilot] sendMessage: aborted controller detected, clearing', {
+          originalMessageId: messageId,
+        })
+        set({ isSendingMessage: false, abortController: null })
+      } else if (isSendingMessage) {
+        if (queueIfBusy) {
+          get().addToQueue(message, { fileAttachments, contexts, messageId })
+          logger.info('[Copilot] Message queued (already sending)', {
+            queueLength: get().messageQueue.length + 1,
+            originalMessageId: messageId,
+          })
+          return
+        }
+        get().abortMessage({ suppressContinueOption: true })
       }
 
-      const abortController = new AbortController()
-      set({ isSendingMessage: true, error: null, abortController })
+      const nextAbortController = new AbortController()
+      set({ isSendingMessage: true, error: null, abortController: nextAbortController })
 
       const userMessage = createUserMessage(message, fileAttachments, contexts, messageId)
       const streamingMessage = createStreamingMessage()
+      const snapshot = workflowId ? buildCheckpointWorkflowState(workflowId) : null
+      if (snapshot) {
+        set((state) => ({
+          messageSnapshots: { ...state.messageSnapshots, [userMessage.id]: snapshot },
+        }))
+      }
 
       let newMessages: CopilotMessage[]
       if (revertState) {
@@ -2548,7 +2671,7 @@ export const useCopilotStore = create<CopilotStore>()(
         }
 
         // Call copilot API
-        const apiMode: 'ask' | 'agent' | 'plan' =
+        const apiMode: CopilotTransportMode =
           mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
 
         // Extract slash commands from contexts (lowercase) and filter them out from contexts
@@ -2570,7 +2693,7 @@ export const useCopilotStore = create<CopilotStore>()(
           fileAttachments,
           contexts: filteredContexts,
           commands: commands?.length ? commands : undefined,
-          abortSignal: abortController.signal,
+          abortSignal: nextAbortController.signal,
         })
 
         if (result.success && result.stream) {
@@ -2640,12 +2763,14 @@ export const useCopilotStore = create<CopilotStore>()(
     },
 
     // Abort streaming
-    abortMessage: () => {
+    abortMessage: (options?: { suppressContinueOption?: boolean }) => {
       const { abortController, isSendingMessage, messages } = get()
       if (!isSendingMessage || !abortController) return
-      set({ isAborting: true })
+      const suppressContinueOption = options?.suppressContinueOption === true
+      set({ isAborting: true, suppressAbortContinueOption: suppressContinueOption })
       try {
         abortController.abort()
+        stopStreamingUpdates()
         const lastMessage = messages[messages.length - 1]
         if (lastMessage && lastMessage.role === 'assistant') {
           const textContent =
@@ -2653,10 +2778,21 @@ export const useCopilotStore = create<CopilotStore>()(
               ?.filter((b) => b.type === 'text')
               .map((b: any) => b.content)
               .join('') || ''
+          const nextContentBlocks = suppressContinueOption
+            ? (lastMessage.contentBlocks ?? [])
+            : appendContinueOptionBlock(
+                lastMessage.contentBlocks ? [...lastMessage.contentBlocks] : []
+              )
           set((state) => ({
             messages: state.messages.map((msg) =>
               msg.id === lastMessage.id
-                ? { ...msg, content: textContent.trim() || 'Message was aborted' }
+                ? {
+                    ...msg,
+                    content: suppressContinueOption
+                      ? textContent.trim() || 'Message was aborted'
+                      : appendContinueOption(textContent.trim() || 'Message was aborted'),
+                    contentBlocks: nextContentBlocks,
+                  }
                 : msg
             ),
             isSendingMessage: false,
@@ -2955,6 +3091,10 @@ export const useCopilotStore = create<CopilotStore>()(
       if (!workflowId) return
       set({ isRevertingCheckpoint: true, checkpointError: null })
       try {
+        const { messageCheckpoints } = get()
+        const checkpointMessageId = Object.entries(messageCheckpoints).find(([, cps]) =>
+          (cps || []).some((cp: any) => cp?.id === checkpointId)
+        )?.[0]
         const response = await fetch('/api/copilot/checkpoints/revert', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -3000,6 +3140,11 @@ export const useCopilotStore = create<CopilotStore>()(
             },
           })
         }
+        if (checkpointMessageId) {
+          const { messageCheckpoints: currentCheckpoints } = get()
+          const updatedCheckpoints = { ...currentCheckpoints, [checkpointMessageId]: [] }
+          set({ messageCheckpoints: updatedCheckpoints })
+        }
         set({ isRevertingCheckpoint: false })
       } catch (error) {
         set({
@@ -3012,6 +3157,10 @@ export const useCopilotStore = create<CopilotStore>()(
     getCheckpointsForMessage: (messageId: string) => {
       const { messageCheckpoints } = get()
       return messageCheckpoints[messageId] || []
+    },
+    saveMessageCheckpoint: async (messageId: string) => {
+      if (!messageId) return false
+      return saveMessageCheckpoint(messageId, get, set)
     },
 
     // Handle streaming response
@@ -3060,7 +3209,19 @@ export const useCopilotStore = create<CopilotStore>()(
       try {
         for await (const data of parseSSEStream(reader, decoder)) {
           const { abortController } = get()
-          if (abortController?.signal.aborted) break
+          if (abortController?.signal.aborted) {
+            context.wasAborted = true
+            const { suppressAbortContinueOption } = get()
+            context.suppressContinueOption = suppressAbortContinueOption === true
+            if (suppressAbortContinueOption) {
+              set({ suppressAbortContinueOption: false })
+            }
+            context.pendingContent = ''
+            finalizeThinkingBlock(context)
+            stopStreamingUpdates()
+            reader.cancel()
+            break
+          }
 
           // Log SSE events for debugging
           logger.info('[SSE] Received event', {
@@ -3160,7 +3321,9 @@ export const useCopilotStore = create<CopilotStore>()(
           if (context.streamComplete) break
         }
 
-        if (sseHandlers.stream_end) sseHandlers.stream_end({}, context, get, set)
+        if (!context.wasAborted && sseHandlers.stream_end) {
+          sseHandlers.stream_end({}, context, get, set)
+        }
 
         if (streamingUpdateRAF !== null) {
           cancelAnimationFrame(streamingUpdateRAF)
@@ -3177,6 +3340,9 @@ export const useCopilotStore = create<CopilotStore>()(
               : block
           )
         }
+        if (context.wasAborted && !context.suppressContinueOption) {
+          sanitizedContentBlocks = appendContinueOptionBlock(sanitizedContentBlocks)
+        }
 
         if (context.contentBlocks) {
           context.contentBlocks.forEach((block) => {
@@ -3187,21 +3353,37 @@ export const useCopilotStore = create<CopilotStore>()(
         }
 
         const finalContent = stripTodoTags(context.accumulatedContent.toString())
-        set((state) => ({
-          messages: state.messages.map((msg) =>
-            msg.id === assistantMessageId
-              ? {
-                  ...msg,
-                  content: finalContent,
-                  contentBlocks: sanitizedContentBlocks,
-                }
-              : msg
-          ),
-          isSendingMessage: false,
-          isAborting: false,
-          abortController: null,
-          currentUserMessageId: null,
-        }))
+        const finalContentWithOptions =
+          context.wasAborted && !context.suppressContinueOption
+            ? appendContinueOption(finalContent)
+            : finalContent
+        set((state) => {
+          const snapshotId = state.currentUserMessageId
+          const nextSnapshots =
+            snapshotId && state.messageSnapshots[snapshotId]
+              ? (() => {
+                  const updated = { ...state.messageSnapshots }
+                  delete updated[snapshotId]
+                  return updated
+                })()
+              : state.messageSnapshots
+          return {
+            messages: state.messages.map((msg) =>
+              msg.id === assistantMessageId
+                ? {
+                    ...msg,
+                    content: finalContentWithOptions,
+                    contentBlocks: sanitizedContentBlocks,
+                  }
+                : msg
+            ),
+            isSendingMessage: false,
+            isAborting: false,
+            abortController: null,
+            currentUserMessageId: null,
+            messageSnapshots: nextSnapshots,
+          }
+        })
 
         if (context.newChatId && !get().currentChat) {
           await get().handleNewChatCreation(context.newChatId)
@@ -3709,7 +3891,7 @@ export const useCopilotStore = create<CopilotStore>()(
       // If currently sending, abort and send this one
       const { isSendingMessage } = get()
       if (isSendingMessage) {
-        get().abortMessage()
+        get().abortMessage({ suppressContinueOption: true })
         // Wait a tick for abort to complete
         await new Promise((resolve) => setTimeout(resolve, 50))
       }

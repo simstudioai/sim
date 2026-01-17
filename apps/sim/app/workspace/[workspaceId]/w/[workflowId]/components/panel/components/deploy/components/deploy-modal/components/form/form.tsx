@@ -17,11 +17,18 @@ import { Skeleton } from '@/components/ui'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
+import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
+import {
+  type FieldConfig,
+  useCreateForm,
+  useDeleteForm,
+  useFormByWorkflow,
+  useUpdateForm,
+} from '@/hooks/queries/forms'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { EmbedCodeGenerator } from './components/embed-code-generator'
 import { FormBuilder } from './components/form-builder'
-import { useFormDeployment } from './hooks/use-form-deployment'
 import { useIdentifierValidation } from './hooks/use-identifier-validation'
 
 const logger = createLogger('FormDeploy')
@@ -34,38 +41,11 @@ interface FormErrors {
   general?: string
 }
 
-interface FieldConfig {
-  name: string
-  type: string
-  label: string
-  description?: string
-  required?: boolean
-}
-
-export interface ExistingForm {
-  id: string
-  identifier: string
-  title: string
-  description?: string
-  customizations: {
-    primaryColor?: string
-    thankYouMessage?: string
-    logoUrl?: string
-    fieldConfigs?: FieldConfig[]
-  }
-  authType: 'public' | 'password' | 'email'
-  hasPassword?: boolean
-  allowedEmails?: string[]
-  showBranding: boolean
-  isActive: boolean
-}
-
 interface FormDeployProps {
   workflowId: string
   onDeploymentComplete?: () => void
   onValidationChange?: (isValid: boolean) => void
   onSubmittingChange?: (isSubmitting: boolean) => void
-  onExistingFormChange?: (exists: boolean) => void
   formSubmitting?: boolean
   setFormSubmitting?: (submitting: boolean) => void
   onDeployed?: () => Promise<void>
@@ -81,7 +61,6 @@ export function FormDeploy({
   onDeploymentComplete,
   onValidationChange,
   onSubmittingChange,
-  onExistingFormChange,
   formSubmitting,
   setFormSubmitting,
   onDeployed,
@@ -95,8 +74,6 @@ export function FormDeploy({
   const [authType, setAuthType] = useState<'public' | 'password' | 'email'>('public')
   const [password, setPassword] = useState('')
   const [emailItems, setEmailItems] = useState<TagItem[]>([])
-  const [existingForm, setExistingForm] = useState<ExistingForm | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const [formUrl, setFormUrl] = useState('')
   const [inputFields, setInputFields] = useState<{ name: string; type: string }[]>([])
   const [showPasswordField, setShowPasswordField] = useState(false)
@@ -104,7 +81,12 @@ export function FormDeploy({
   const [errors, setErrors] = useState<FormErrors>({})
   const [isIdentifierValid, setIsIdentifierValid] = useState(false)
 
-  const { createForm, updateForm, deleteForm, isSubmitting } = useFormDeployment()
+  const { data: existingForm, isLoading } = useFormByWorkflow(workflowId)
+  const createFormMutation = useCreateForm()
+  const updateFormMutation = useUpdateForm()
+  const deleteFormMutation = useDeleteForm()
+
+  const isSubmitting = createFormMutation.isPending || updateFormMutation.isPending
 
   const {
     isChecking: isCheckingIdentifier,
@@ -124,85 +106,54 @@ export function FormDeploy({
     setErrors((prev) => ({ ...prev, [field]: undefined }))
   }
 
-  // Fetch existing form deployment
+  // Populate form fields when existing form data is loaded
   useEffect(() => {
-    async function fetchExistingForm() {
-      if (!workflowId) return
-
-      try {
-        setIsLoading(true)
-        const response = await fetch(`/api/workflows/${workflowId}/form/status`)
-
-        if (response.ok) {
-          const data = await response.json()
-          if (data.isDeployed && data.form) {
-            const detailResponse = await fetch(`/api/form/manage/${data.form.id}`)
-            if (detailResponse.ok) {
-              const formDetail = await detailResponse.json()
-              const form = formDetail.form as ExistingForm
-              setExistingForm(form)
-              onExistingFormChange?.(true)
-
-              setIdentifier(form.identifier)
-              setTitle(form.title)
-              setDescription(form.description || '')
-              setThankYouMessage(
-                form.customizations?.thankYouMessage ||
-                  'Your response has been submitted successfully.'
-              )
-              setAuthType(form.authType)
-              setEmailItems(
-                (form.allowedEmails || []).map((email) => ({ value: email, isValid: true }))
-              )
-              if (form.customizations?.fieldConfigs) {
-                setFieldConfigs(form.customizations.fieldConfigs)
-              }
-
-              const baseUrl = getBaseUrl()
-              try {
-                const url = new URL(baseUrl)
-                let host = url.host
-                if (host.startsWith('www.')) host = host.substring(4)
-                setFormUrl(`${url.protocol}//${host}/form/${form.identifier}`)
-              } catch {
-                setFormUrl(
-                  isDev
-                    ? `http://localhost:3000/form/${form.identifier}`
-                    : `https://sim.ai/form/${form.identifier}`
-                )
-              }
-            }
-          } else {
-            setExistingForm(null)
-            onExistingFormChange?.(false)
-
-            const workflowName =
-              useWorkflowStore.getState().blocks[Object.keys(useWorkflowStore.getState().blocks)[0]]
-                ?.name || 'Form'
-            setTitle(`${workflowName} Form`)
-          }
-        }
-      } catch (err) {
-        logger.error('Error fetching form deployment:', err)
-      } finally {
-        setIsLoading(false)
+    if (existingForm) {
+      setIdentifier(existingForm.identifier)
+      setTitle(existingForm.title)
+      setDescription(existingForm.description || '')
+      setThankYouMessage(
+        existingForm.customizations?.thankYouMessage ||
+          'Your response has been submitted successfully.'
+      )
+      setAuthType(existingForm.authType)
+      setEmailItems(
+        (existingForm.allowedEmails || []).map((email) => ({ value: email, isValid: true }))
+      )
+      if (existingForm.customizations?.fieldConfigs) {
+        setFieldConfigs(existingForm.customizations.fieldConfigs)
       }
+
+      const baseUrl = getBaseUrl()
+      try {
+        const url = new URL(baseUrl)
+        let host = url.host
+        if (host.startsWith('www.')) host = host.substring(4)
+        setFormUrl(`${url.protocol}//${host}/form/${existingForm.identifier}`)
+      } catch {
+        setFormUrl(
+          isDev
+            ? `http://localhost:3000/form/${existingForm.identifier}`
+            : `https://sim.ai/form/${existingForm.identifier}`
+        )
+      }
+    } else if (!isLoading) {
+      const workflowName =
+        useWorkflowStore.getState().blocks[Object.keys(useWorkflowStore.getState().blocks)[0]]
+          ?.name || 'Form'
+      setTitle(`${workflowName} Form`)
     }
+  }, [existingForm, isLoading])
 
-    fetchExistingForm()
-  }, [workflowId, onExistingFormChange])
-
-  // Get input fields from start block and initialize field configs
   useEffect(() => {
     const blocks = Object.values(useWorkflowStore.getState().blocks)
-    const startBlock = blocks.find((b) => b.type === 'starter' || b.type === 'start_trigger')
+    const startBlock = blocks.find((b) => isValidStartBlockType(b.type))
 
     if (startBlock) {
       const inputFormat = useSubBlockStore.getState().getValue(startBlock.id, 'inputFormat')
       if (inputFormat && Array.isArray(inputFormat)) {
         setInputFields(inputFormat)
 
-        // Initialize field configs if not already set
         if (fieldConfigs.length === 0) {
           setFieldConfigs(
             inputFormat.map((f: { name: string; type?: string }) => ({
@@ -222,7 +173,6 @@ export function FormDeploy({
 
   const allowedEmails = emailItems.filter((item) => item.isValid).map((item) => item.value)
 
-  // Validate form
   useEffect(() => {
     const isValid =
       inputFields.length > 0 &&
@@ -253,7 +203,6 @@ export function FormDeploy({
       e.preventDefault()
       setErrors({})
 
-      // Validate before submit
       if (!isIdentifierValid && identifier !== existingForm?.identifier) {
         setError('identifier', 'Please wait for identifier validation to complete')
         return
@@ -281,17 +230,21 @@ export function FormDeploy({
 
       try {
         if (existingForm) {
-          await updateForm(existingForm.id, {
-            identifier,
-            title,
-            description,
-            customizations,
-            authType,
-            password: password || undefined,
-            allowedEmails,
+          await updateFormMutation.mutateAsync({
+            formId: existingForm.id,
+            workflowId,
+            data: {
+              identifier,
+              title,
+              description,
+              customizations,
+              authType,
+              password: password || undefined,
+              allowedEmails,
+            },
           })
         } else {
-          const result = await createForm({
+          const result = await createFormMutation.mutateAsync({
             workflowId,
             identifier,
             title,
@@ -304,7 +257,6 @@ export function FormDeploy({
 
           if (result?.formUrl) {
             setFormUrl(result.formUrl)
-            // Open the form in a new window after successful deployment
             window.open(result.formUrl, '_blank', 'noopener,noreferrer')
           }
         }
@@ -318,7 +270,6 @@ export function FormDeploy({
         const message = err instanceof Error ? err.message : 'An error occurred'
         logger.error('Error deploying form:', err)
 
-        // Parse error message and show inline
         if (message.toLowerCase().includes('identifier')) {
           setError('identifier', message)
         } else if (message.toLowerCase().includes('password')) {
@@ -342,8 +293,8 @@ export function FormDeploy({
       password,
       allowedEmails,
       isIdentifierValid,
-      createForm,
-      updateForm,
+      createFormMutation,
+      updateFormMutation,
       onDeployed,
       onDeploymentComplete,
     ]
@@ -353,9 +304,10 @@ export function FormDeploy({
     if (!existingForm) return
 
     try {
-      await deleteForm(existingForm.id)
-      setExistingForm(null)
-      onExistingFormChange?.(false)
+      await deleteFormMutation.mutateAsync({
+        formId: existingForm.id,
+        workflowId,
+      })
       setIdentifier('')
       setTitle('')
       setDescription('')
@@ -363,7 +315,7 @@ export function FormDeploy({
     } catch (err) {
       logger.error('Error deleting form:', err)
     }
-  }, [existingForm, deleteForm, onExistingFormChange])
+  }, [existingForm, deleteFormMutation, workflowId])
 
   if (isLoading) {
     return (
@@ -447,7 +399,7 @@ export function FormDeploy({
             </div>
           </div>
           {(identifierError || errors.identifier) && (
-            <p className='mt-[6.5px] text-[11px] text-[var(--text-error)]'>
+            <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>
               {identifierError || errors.identifier}
             </p>
           )}
@@ -531,7 +483,7 @@ export function FormDeploy({
               </button>
             </div>
             {errors.password && (
-              <p className='mt-[6.5px] text-[11px] text-[var(--text-error)]'>{errors.password}</p>
+              <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>{errors.password}</p>
             )}
             <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
               {existingForm?.hasPassword
@@ -568,7 +520,7 @@ export function FormDeploy({
               placeholderWithTags='Add another'
             />
             {errors.emails && (
-              <p className='mt-[6.5px] text-[11px] text-[var(--text-error)]'>{errors.emails}</p>
+              <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>{errors.emails}</p>
             )}
             <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
               Add specific emails or entire domains (@example.com)
@@ -599,7 +551,7 @@ export function FormDeploy({
         )}
 
         {errors.general && (
-          <p className='mt-[6.5px] text-[11px] text-[var(--text-error)]'>{errors.general}</p>
+          <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>{errors.general}</p>
         )}
 
         <button type='button' data-delete-trigger onClick={handleDelete} className='hidden' />

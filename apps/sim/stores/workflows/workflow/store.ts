@@ -848,6 +848,35 @@ export const useWorkflowStore = create<WorkflowStore>()(
         // Note: Socket.IO handles real-time sync automatically
       },
 
+      setBlockCanonicalMode: (id: string, canonicalId: string, mode: 'basic' | 'advanced') => {
+        set((state) => {
+          const block = state.blocks[id]
+          if (!block) {
+            return state
+          }
+
+          const currentData = block.data || {}
+          const currentCanonicalModes = currentData.canonicalModes || {}
+          const canonicalModes = { ...currentCanonicalModes, [canonicalId]: mode }
+
+          return {
+            blocks: {
+              ...state.blocks,
+              [id]: {
+                ...block,
+                data: {
+                  ...currentData,
+                  canonicalModes,
+                },
+              },
+            },
+            edges: [...state.edges],
+            loops: { ...state.loops },
+          }
+        })
+        get().updateLastSaved()
+      },
+
       setBlockTriggerMode: (id: string, triggerMode: boolean) => {
         set((state) => ({
           blocks: {

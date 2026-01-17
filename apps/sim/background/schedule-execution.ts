@@ -5,7 +5,6 @@ import { Cron } from 'croner'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import type { ZodRecord, ZodString } from 'zod'
-import { decryptSecret } from '@/lib/core/security/encryption'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -22,12 +21,9 @@ import {
   getScheduleTimeValues,
   getSubBlockValue,
 } from '@/lib/workflows/schedules/utils'
-import { REFERENCE } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
-import { createEnvVarPattern } from '@/executor/utils/reference-validation'
-import { mergeSubblockState } from '@/stores/workflows/server-utils'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 const logger = createLogger('TriggerScheduleExecution')
@@ -119,68 +115,6 @@ async function determineNextRunAfterError(
   return new Date(now.getTime() + 24 * 60 * 60 * 1000)
 }
 
-async function ensureBlockVariablesResolvable(
-  blocks: Record<string, BlockState>,
-  variables: Record<string, string>,
-  requestId: string
-) {
-  await Promise.all(
-    Object.values(blocks).map(async (block) => {
-      const subBlocks = block.subBlocks ?? {}
-      await Promise.all(
-        Object.values(subBlocks).map(async (subBlock) => {
-          const value = subBlock.value
-          if (
-            typeof value !== 'string' ||
-            !value.includes(REFERENCE.ENV_VAR_START) ||
-            !value.includes(REFERENCE.ENV_VAR_END)
-          ) {
-            return
-          }
-
-          const envVarPattern = createEnvVarPattern()
-          const matches = value.match(envVarPattern)
-          if (!matches) {
-            return
-          }
-
-          for (const match of matches) {
-            const varName = match.slice(
-              REFERENCE.ENV_VAR_START.length,
-              -REFERENCE.ENV_VAR_END.length
-            )
-            const encryptedValue = variables[varName]
-            if (!encryptedValue) {
-              throw new Error(`Environment variable "${varName}" was not found`)
-            }
-
-            try {
-              await decryptSecret(encryptedValue)
-            } catch (error) {
-              logger.error(`[${requestId}] Error decrypting value for variable "${varName}"`, error)
-
-              const message = error instanceof Error ? error.message : 'Unknown error'
-              throw new Error(`Failed to decrypt environment variable "${varName}": ${message}`)
-            }
-          }
-        })
-      )
-    })
-  )
-}
-
-async function ensureEnvVarsDecryptable(variables: Record<string, string>, requestId: string) {
-  for (const [key, encryptedValue] of Object.entries(variables)) {
-    try {
-      await decryptSecret(encryptedValue)
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to decrypt environment variable "${key}"`, error)
-      const message = error instanceof Error ? error.message : 'Unknown error'
-      throw new Error(`Failed to decrypt environment variable "${key}": ${message}`)
-    }
-  }
-}
-
 async function runWorkflowExecution({
   payload,
   workflowRecord,
@@ -217,8 +151,6 @@ async function runWorkflowExecution({
       }
     }
 
-    const mergedStates = mergeSubblockState(blocks)
-
     const workspaceId = workflowRecord.workspaceId
     if (!workspaceId) {
       throw new Error(`Workflow ${payload.workflowId} has no associated workspace`)
@@ -235,9 +167,6 @@ async function runWorkflowExecution({
       ...personalEncrypted,
       ...workspaceEncrypted,
     })
-
-    await ensureBlockVariablesResolvable(mergedStates, variables, requestId)
-    await ensureEnvVarsDecryptable(variables, requestId)
 
     const input = {
       _context: {
@@ -348,6 +277,7 @@ export type ScheduleExecutionPayload = {
   failedCount?: number
   now: string
   scheduledFor?: string
+  preflighted?: boolean
 }
 
 function calculateNextRunTime(
@@ -407,6 +337,7 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
       checkRateLimit: true,
       checkDeployment: true,
       loggingSession,
+      preflightEnvVars: !payload.preflighted,
     })
 
     if (!preprocessResult.success) {

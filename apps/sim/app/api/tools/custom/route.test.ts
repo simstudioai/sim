@@ -3,10 +3,9 @@
  *
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
+import { createMockRequest, loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
 describe('Custom Tools API Routes', () => {
   const sampleTools = [
@@ -364,7 +363,7 @@ describe('Custom Tools API Routes', () => {
     })
 
     it('should reject requests missing tool ID', async () => {
-      const req = createMockRequest('DELETE')
+      const req = new NextRequest('http://localhost:3000/api/tools/custom')
 
       const { DELETE } = await import('@/app/api/tools/custom/route')
 

@@ -126,16 +126,14 @@ describe('BlockResolver', () => {
       expect(resolver.resolve('<source.items.1.id>', ctx)).toBe(2)
     })
 
-    it.concurrent('should throw error for non-existent path', () => {
+    it.concurrent('should return undefined for non-existent path', () => {
       const workflow = createTestWorkflow([{ id: 'source' }])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current', {
         source: { existing: 'value' },
       })
 
-      expect(() => resolver.resolve('<source.nonexistent>', ctx)).toThrow(
-        /No value found at path "nonexistent" in block "source"/
-      )
+      expect(resolver.resolve('<source.nonexistent>', ctx)).toBeUndefined()
     })
 
     it.concurrent('should return undefined for non-existent block', () => {
@@ -971,19 +969,17 @@ describe('BlockResolver', () => {
         source: { value: undefined, other: 'exists' },
       })
 
-      expect(() => resolver.resolve('<source.value>', ctx)).toThrow()
+      expect(resolver.resolve('<source.value>', ctx)).toBeUndefined()
     })
 
-    it.concurrent('should handle deeply nested path errors', () => {
+    it.concurrent('should return undefined for deeply nested non-existent path', () => {
       const workflow = createTestWorkflow([{ id: 'source' }])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current', {
         source: { level1: { level2: {} } },
       })
 
-      expect(() => resolver.resolve('<source.level1.level2.level3>', ctx)).toThrow(
-        /No value found at path "level1.level2.level3"/
-      )
+      expect(resolver.resolve('<source.level1.level2.level3>', ctx)).toBeUndefined()
     })
   })
 })

@@ -42,7 +42,7 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
       id: 'data',
       title: 'Response Data',
       type: 'code',
-      placeholder: '{\n  "message": "Hello world",\n  "userId": "<variable.userId>"\n}',
+      placeholder: '{\n  "message": "Hello world"\n}',
       language: 'json',
       condition: { field: 'dataMode', value: 'json' },
       description:

@@ -46,7 +46,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     return blockConfig.subBlocks.filter((subBlock) => {
       if (subBlock.hidden) return false
       if (subBlock.hideFromPreview) return false
-      if (subBlock.mode === 'trigger') return false
+      if (subBlock.mode === 'trigger' && blockConfig.category !== 'triggers') return false
       if (subBlock.mode === 'advanced') return false
       return true
     })

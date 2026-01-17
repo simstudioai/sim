@@ -216,7 +216,7 @@ export function FormBuilder({
           )}
         </div>
         {titleError && (
-          <p className='mt-[4px] text-[11px] text-[var(--text-error)]'>{titleError}</p>
+          <p className='mt-[4px] text-[12px] text-[var(--text-error)]'>{titleError}</p>
         )}
         <div className='mt-[4px] flex items-center gap-[6px]'>
           <input

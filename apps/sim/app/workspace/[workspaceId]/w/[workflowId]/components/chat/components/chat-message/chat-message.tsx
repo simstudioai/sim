@@ -113,16 +113,17 @@ export function ChatMessage({ message }: ChatMessageProps) {
         {message.attachments && message.attachments.length > 0 && (
           <div className='mb-2 flex flex-wrap gap-[6px]'>
             {message.attachments.map((attachment) => {
-              const isImage = attachment.type.startsWith('image/')
               const hasValidDataUrl =
                 attachment.dataUrl?.trim() && attachment.dataUrl.startsWith('data:')
+              // Only treat as displayable image if we have both image type AND valid data URL
+              const canDisplayAsImage = attachment.type.startsWith('image/') && hasValidDataUrl
 
               return (
                 <div
                   key={attachment.id}
                   className={`group relative flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface-2)] ${
                     hasValidDataUrl ? 'cursor-pointer' : ''
-                  } ${isImage ? 'h-[40px] w-[40px]' : 'flex min-w-[80px] max-w-[120px] items-center justify-center px-[8px] py-[2px]'}`}
+                  } ${canDisplayAsImage ? 'h-[40px] w-[40px]' : 'flex min-w-[80px] max-w-[120px] items-center justify-center px-[8px] py-[2px]'}`}
                   onClick={(e) => {
                     if (hasValidDataUrl) {
                       e.preventDefault()
@@ -131,7 +132,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                     }
                   }}
                 >
-                  {isImage && hasValidDataUrl ? (
+                  {canDisplayAsImage ? (
                     <img
                       src={attachment.dataUrl}
                       alt={attachment.name}
