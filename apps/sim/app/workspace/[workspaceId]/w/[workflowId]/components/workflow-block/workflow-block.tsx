@@ -208,7 +208,6 @@ const tryParseJson = (value: unknown): unknown => {
 export const getDisplayValue = (value: unknown): string => {
   if (value == null || value === '') return '-'
 
-  // Try parsing JSON strings first
   const parsedValue = tryParseJson(value)
 
   if (isMessagesArray(parsedValue)) {
@@ -557,6 +556,7 @@ const SubBlockRow = ({
 export const WorkflowBlock = memo(function WorkflowBlock({
   id,
   data,
+  selected,
 }: NodeProps<WorkflowBlockProps>) {
   const { type, config, name, isPending } = data
 
@@ -574,7 +574,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     hasRing,
     ringStyles,
     runPathStatus,
-  } = useBlockVisual({ blockId: id, data, isPending })
+  } = useBlockVisual({ blockId: id, data, isPending, isSelected: selected })
 
   const currentBlock = currentWorkflow.getBlockById(id)
 
