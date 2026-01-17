@@ -1,7 +1,6 @@
 import * as schema from '@sim/db'
 import { webhook, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import type { InferSelectModel } from 'drizzle-orm'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -1175,14 +1174,6 @@ async function handleWorkflowOperationTx(
         parallelCount: Object.keys(parallels || {}).length,
       })
 
-      // Snapshot existing webhooks before deletion to preserve them through the cycle
-      // (workflowBlocks has CASCADE DELETE to webhook table)
-      const existingWebhooks = await tx
-        .select()
-        .from(webhook)
-        .where(eq(webhook.workflowId, workflowId))
-
-      // Delete all existing blocks (this will cascade delete edges and webhooks via ON DELETE CASCADE)
       await tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId))
 
       // Delete all existing subflows
@@ -1246,32 +1237,6 @@ async function handleWorkflowOperationTx(
         }))
 
         await tx.insert(workflowSubflows).values(parallelValues)
-      }
-
-      // Re-insert preserved webhooks if any exist and their blocks still exist
-      type WebhookRecord = InferSelectModel<typeof webhook>
-      if (existingWebhooks.length > 0) {
-        const webhookInserts = existingWebhooks
-          .filter((wh: WebhookRecord) => !!blocks?.[wh.blockId ?? ''])
-          .map((wh: WebhookRecord) => ({
-            id: wh.id,
-            workflowId: wh.workflowId,
-            blockId: wh.blockId,
-            path: wh.path,
-            provider: wh.provider,
-            providerConfig: wh.providerConfig,
-            credentialSetId: wh.credentialSetId,
-            isActive: wh.isActive,
-            createdAt: wh.createdAt,
-            updatedAt: new Date(),
-          }))
-
-        if (webhookInserts.length > 0) {
-          await tx.insert(webhook).values(webhookInserts)
-          logger.debug(`Preserved ${webhookInserts.length} webhook(s) through state replacement`, {
-            workflowId,
-          })
-        }
       }
 
       logger.info(`Successfully replaced workflow state for ${workflowId}`)

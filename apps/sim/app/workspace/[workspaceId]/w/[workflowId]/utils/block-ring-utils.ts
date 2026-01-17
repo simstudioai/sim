@@ -14,6 +14,8 @@ export interface BlockRingOptions {
   diffStatus: BlockDiffStatus
   runPathStatus: BlockRunPathStatus
   isPreviewSelection?: boolean
+  /** Whether the block is selected via shift-click or selection box (shows blue ring) */
+  isSelected?: boolean
 }
 
 /**
@@ -32,11 +34,13 @@ export function getBlockRingStyles(options: BlockRingOptions): {
     diffStatus,
     runPathStatus,
     isPreviewSelection,
+    isSelected,
   } = options
 
   const hasRing =
     isExecuting ||
     isEditorOpen ||
+    isSelected ||
     isPending ||
     diffStatus === 'new' ||
     diffStatus === 'edited' ||
@@ -46,25 +50,37 @@ export function getBlockRingStyles(options: BlockRingOptions): {
   const ringClassName = cn(
     // Executing block: pulsing success ring with prominent thickness (highest priority)
     isExecuting && 'ring-[3.5px] ring-[var(--border-success)] animate-ring-pulse',
-    // Editor open or preview selection: static blue ring
+    // Editor open, selected, or preview selection: static blue ring
     !isExecuting &&
-      (isEditorOpen || isPreviewSelection) &&
+      (isEditorOpen || isSelected || isPreviewSelection) &&
       'ring-[1.75px] ring-[var(--brand-secondary)]',
     // Non-active states use standard ring utilities
-    !isExecuting && !isEditorOpen && !isPreviewSelection && hasRing && 'ring-[1.75px]',
+    !isExecuting &&
+      !isEditorOpen &&
+      !isSelected &&
+      !isPreviewSelection &&
+      hasRing &&
+      'ring-[1.75px]',
     // Pending state: warning ring
-    !isExecuting && !isEditorOpen && isPending && 'ring-[var(--warning)]',
+    !isExecuting && !isEditorOpen && !isSelected && isPending && 'ring-[var(--warning)]',
     // Deleted state (highest priority after active/pending)
-    !isExecuting && !isEditorOpen && !isPending && isDeletedBlock && 'ring-[var(--text-error)]',
+    !isExecuting &&
+      !isEditorOpen &&
+      !isSelected &&
+      !isPending &&
+      isDeletedBlock &&
+      'ring-[var(--text-error)]',
     // Diff states
     !isExecuting &&
       !isEditorOpen &&
+      !isSelected &&
       !isPending &&
       !isDeletedBlock &&
       diffStatus === 'new' &&
       'ring-[var(--brand-tertiary-2)]',
     !isExecuting &&
       !isEditorOpen &&
+      !isSelected &&
       !isPending &&
       !isDeletedBlock &&
       diffStatus === 'edited' &&
@@ -72,6 +88,7 @@ export function getBlockRingStyles(options: BlockRingOptions): {
     // Run path states (lowest priority - only show if no other states active)
     !isExecuting &&
       !isEditorOpen &&
+      !isSelected &&
       !isPending &&
       !isDeletedBlock &&
       !diffStatus &&
@@ -79,6 +96,7 @@ export function getBlockRingStyles(options: BlockRingOptions): {
       'ring-[var(--border-success)]',
     !isExecuting &&
       !isEditorOpen &&
+      !isSelected &&
       !isPending &&
       !isDeletedBlock &&
       !diffStatus &&

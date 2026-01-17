@@ -168,12 +168,17 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
   )
 })
 
-export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlockNodeData>) {
+export const NoteBlock = memo(function NoteBlock({
+  id,
+  data,
+  selected,
+}: NodeProps<NoteBlockNodeData>) {
   const { type, config, name } = data
 
   const { activeWorkflowId, isEnabled, handleClick, hasRing, ringStyles } = useBlockVisual({
     blockId: id,
     data,
+    isSelected: selected,
   })
   const storedValues = useSubBlockStore(
     useCallback(

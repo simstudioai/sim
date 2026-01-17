@@ -406,21 +406,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('cursor-update', (data) => {
           setPresenceUsers((prev) => {
             const existingIndex = prev.findIndex((user) => user.socketId === data.socketId)
-            if (existingIndex !== -1) {
-              return prev.map((user) =>
-                user.socketId === data.socketId ? { ...user, cursor: data.cursor } : user
-              )
+            if (existingIndex === -1) {
+              logger.debug('Received cursor-update for unknown user', { socketId: data.socketId })
+              return prev
             }
-            return [
-              ...prev,
-              {
-                socketId: data.socketId,
-                userId: data.userId,
-                userName: data.userName,
-                avatarUrl: data.avatarUrl,
-                cursor: data.cursor,
-              },
-            ]
+            return prev.map((user) =>
+              user.socketId === data.socketId ? { ...user, cursor: data.cursor } : user
+            )
           })
           eventHandlers.current.cursorUpdate?.(data)
         })
@@ -428,21 +420,15 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('selection-update', (data) => {
           setPresenceUsers((prev) => {
             const existingIndex = prev.findIndex((user) => user.socketId === data.socketId)
-            if (existingIndex !== -1) {
-              return prev.map((user) =>
-                user.socketId === data.socketId ? { ...user, selection: data.selection } : user
-              )
-            }
-            return [
-              ...prev,
-              {
+            if (existingIndex === -1) {
+              logger.debug('Received selection-update for unknown user', {
                 socketId: data.socketId,
-                userId: data.userId,
-                userName: data.userName,
-                avatarUrl: data.avatarUrl,
-                selection: data.selection,
-              },
-            ]
+              })
+              return prev
+            }
+            return prev.map((user) =>
+              user.socketId === data.socketId ? { ...user, selection: data.selection } : user
+            )
           })
           eventHandlers.current.selectionUpdate?.(data)
         })
