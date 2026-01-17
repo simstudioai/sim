@@ -48,7 +48,7 @@ export const ActionBar = memo(
       collaborativeBatchToggleBlockEnabled,
       collaborativeBatchToggleBlockHandles,
     } = useCollaborativeWorkflow()
-    const { activeWorkflowId } = useWorkflowRegistry()
+    const { activeWorkflowId, setPendingSelection } = useWorkflowRegistry()
     const blocks = useWorkflowStore((state) => state.blocks)
     const subBlockStore = useSubBlockStore()
 
@@ -68,6 +68,8 @@ export const ActionBar = memo(
         subBlockValues,
       })
 
+      // Set pending selection before adding - workflow.tsx will apply it after render
+      setPendingSelection([newId])
       collaborativeBatchAddBlocks([block], [], {}, {}, { [newId]: filteredValues })
     }, [
       blockId,
@@ -75,6 +77,7 @@ export const ActionBar = memo(
       activeWorkflowId,
       subBlockStore.workflowValues,
       collaborativeBatchAddBlocks,
+      setPendingSelection,
     ])
 
     /**

@@ -42,22 +42,23 @@ import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/comp
 import { WorkflowControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import {
-  clearDragHighlights,
-  computeClampedPositionUpdates,
-  getClampedPositionForNode,
-  isInEditableElement,
-  resolveParentChildSelectionConflicts,
   useAutoLayout,
+  useCanvasContextMenu,
   useCurrentWorkflow,
   useNodeUtilities,
-  validateTriggerPaste,
+  useShiftSelectionLock,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useCanvasContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-canvas-context-menu'
 import {
   calculateContainerDimensions,
   clampPositionToContainer,
+  clearDragHighlights,
+  computeClampedPositionUpdates,
   estimateBlockDimensions,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-node-utilities'
+  getClampedPositionForNode,
+  isInEditableElement,
+  resolveParentChildSelectionConflicts,
+  validateTriggerPaste,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
@@ -235,6 +236,7 @@ const WorkflowContent = React.memo(() => {
   const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
   const canvasMode = useCanvasModeStore((state) => state.mode)
   const isHandMode = canvasMode === 'hand'
+  const { handleCanvasMouseDown, selectionProps } = useShiftSelectionLock({ isHandMode })
   const [oauthModal, setOauthModal] = useState<{
     provider: OAuthProvider
     serviceId: string
@@ -264,6 +266,9 @@ const WorkflowContent = React.memo(() => {
     preparePasteData,
     hasClipboard,
     clipboard,
+    pendingSelection,
+    setPendingSelection,
+    clearPendingSelection,
   } = useWorkflowRegistry(
     useShallow((state) => ({
       workflows: state.workflows,
@@ -274,6 +279,9 @@ const WorkflowContent = React.memo(() => {
       preparePasteData: state.preparePasteData,
       hasClipboard: state.hasClipboard,
       clipboard: state.clipboard,
+      pendingSelection: state.pendingSelection,
+      setPendingSelection: state.setPendingSelection,
+      clearPendingSelection: state.clearPendingSelection,
     }))
   )
 
@@ -440,9 +448,6 @@ const WorkflowContent = React.memo(() => {
   const multiNodeDragStartRef = useRef<Map<string, { x: number; y: number; parentId?: string }>>(
     new Map()
   )
-
-  /** Stores node IDs to select on next derivedNodes sync (for paste/duplicate operations). */
-  const pendingSelectionRef = useRef<Set<string> | null>(null)
 
   /** Re-applies diff markers when blocks change after socket rehydration. */
   const blocksRef = useRef(blocks)
@@ -682,7 +687,7 @@ const WorkflowContent = React.memo(() => {
       autoConnectEdge?: Edge,
       triggerMode?: boolean
     ) => {
-      pendingSelectionRef.current = new Set([id])
+      setPendingSelection([id])
       setSelectedEdges(new Map())
 
       const blockData: Record<string, unknown> = { ...(data || {}) }
@@ -719,7 +724,7 @@ const WorkflowContent = React.memo(() => {
       )
       usePanelEditorStore.getState().setCurrentBlockId(id)
     },
-    [collaborativeBatchAddBlocks, setSelectedEdges]
+    [collaborativeBatchAddBlocks, setSelectedEdges, setPendingSelection]
   )
 
   const { activeBlockIds, pendingBlocks, isDebugging } = useExecutionStore(
@@ -881,10 +886,7 @@ const WorkflowContent = React.memo(() => {
       }
 
       // Set pending selection before adding blocks - sync effect will apply it (accumulates for rapid pastes)
-      pendingSelectionRef.current = new Set([
-        ...(pendingSelectionRef.current ?? []),
-        ...pastedBlocksArray.map((b) => b.id),
-      ])
+      setPendingSelection(pastedBlocksArray.map((b) => b.id))
 
       collaborativeBatchAddBlocks(
         pastedBlocksArray,
@@ -894,7 +896,14 @@ const WorkflowContent = React.memo(() => {
         pasteData.subBlockValues
       )
     },
-    [preparePasteData, blocks, addNotification, activeWorkflowId, collaborativeBatchAddBlocks]
+    [
+      preparePasteData,
+      blocks,
+      addNotification,
+      activeWorkflowId,
+      collaborativeBatchAddBlocks,
+      setPendingSelection,
+    ]
   )
 
   const handleContextPaste = useCallback(() => {
@@ -2041,26 +2050,28 @@ const WorkflowContent = React.memo(() => {
 
   useEffect(() => {
     // Check for pending selection (from paste/duplicate), otherwise preserve existing selection
-    const pendingSelection = pendingSelectionRef.current
-    pendingSelectionRef.current = null
+    if (pendingSelection && pendingSelection.length > 0) {
+      const pendingSet = new Set(pendingSelection)
+      clearPendingSelection()
 
+      // Apply pending selection and resolve parent-child conflicts
+      const withSelection = derivedNodes.map((node) => ({
+        ...node,
+        selected: pendingSet.has(node.id),
+      }))
+      setDisplayNodes(resolveParentChildSelectionConflicts(withSelection, blocks))
+      return
+    }
+
+    // Preserve existing selection state
     setDisplayNodes((currentNodes) => {
-      if (pendingSelection) {
-        // Apply pending selection and resolve parent-child conflicts
-        const withSelection = derivedNodes.map((node) => ({
-          ...node,
-          selected: pendingSelection.has(node.id),
-        }))
-        return resolveParentChildSelectionConflicts(withSelection, blocks)
-      }
-      // Preserve existing selection state
       const selectedIds = new Set(currentNodes.filter((n) => n.selected).map((n) => n.id))
       return derivedNodes.map((node) => ({
         ...node,
         selected: selectedIds.has(node.id),
       }))
     })
-  }, [derivedNodes, blocks])
+  }, [derivedNodes, blocks, pendingSelection, clearPendingSelection])
 
   /** Handles ActionBar remove-from-subflow events. */
   useEffect(() => {
@@ -3010,23 +3021,6 @@ const WorkflowContent = React.memo(() => {
     usePanelEditorStore.getState().clearCurrentBlock()
   }, [])
 
-  /** Prevents native text selection when starting a shift-drag on the pane. */
-  const handleCanvasMouseDown = useCallback((event: React.MouseEvent) => {
-    if (!event.shiftKey) return
-
-    const target = event.target as HTMLElement | null
-    if (!target) return
-
-    const isPaneTarget = Boolean(target.closest('.react-flow__pane, .react-flow__selectionpane'))
-    if (!isPaneTarget) return
-
-    event.preventDefault()
-    const selection = window.getSelection()
-    if (selection && selection.rangeCount > 0) {
-      selection.removeAllRanges()
-    }
-  }, [])
-
   /**
    * Handles node click to select the node in ReactFlow.
    * Parent-child conflict resolution happens automatically in onNodesChange.
@@ -3226,9 +3220,10 @@ const WorkflowContent = React.memo(() => {
               onPointerMove={handleCanvasPointerMove}
               onPointerLeave={handleCanvasPointerLeave}
               elementsSelectable={true}
-              selectionOnDrag={!isHandMode}
+              selectionOnDrag={selectionProps.selectionOnDrag}
               selectionMode={SelectionMode.Partial}
-              panOnDrag={isHandMode ? [0, 1] : false}
+              panOnDrag={selectionProps.panOnDrag}
+              selectionKeyCode={selectionProps.selectionKeyCode}
               multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
               nodesConnectable={effectivePermissions.canEdit}
               nodesDraggable={effectivePermissions.canEdit}

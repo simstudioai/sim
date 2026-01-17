@@ -117,7 +117,7 @@ export function TeamSeats({
         </ModalBody>
 
         <ModalFooter>
-          <Button variant='active' onClick={() => onOpenChange(false)} disabled={isLoading}>
+          <Button variant='default' onClick={() => onOpenChange(false)} disabled={isLoading}>
             Cancel
           </Button>
 

@@ -57,7 +57,6 @@ function resetWorkflowStores() {
 function setWorkspaceTransitioning(isTransitioning: boolean): void {
   isWorkspaceTransitioning = isTransitioning
 
-  // Set a safety timeout to prevent permanently stuck in transition state
   if (isTransitioning) {
     setTimeout(() => {
       if (isWorkspaceTransitioning) {
@@ -77,6 +76,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       deploymentStatuses: {},
       hydration: initialHydration,
       clipboard: null,
+      pendingSelection: null,
 
       beginMetadataLoad: (workspaceId: string) => {
         set((state) => ({
@@ -98,7 +98,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         }, {})
 
         set((state) => {
-          // Preserve hydration if workflow is loading or already ready and still exists
           const shouldPreserveHydration =
             state.hydration.phase === 'state-loading' ||
             (state.hydration.phase === 'ready' &&
@@ -134,9 +133,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         }))
       },
 
-      // Switch to workspace - just clear state, let sidebar handle workflow loading
       switchToWorkspace: async (workspaceId: string) => {
-        // Prevent multiple simultaneous transitions
         if (isWorkspaceTransitioning) {
           logger.warn(
             `Ignoring workspace switch to ${workspaceId} - transition already in progress`
@@ -144,16 +141,13 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           return
         }
 
-        // Set transition flag
         setWorkspaceTransitioning(true)
 
         try {
           logger.info(`Switching to workspace: ${workspaceId}`)
 
-          // Clear current workspace state
           resetWorkflowStores()
 
-          // Update state - sidebar will load workflows when URL changes
           set({
             activeWorkflowId: null,
             workflows: {},
@@ -186,26 +180,21 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         }
       },
 
-      // Method to get deployment status for a specific workflow
       getWorkflowDeploymentStatus: (workflowId: string | null): DeploymentStatus | null => {
         if (!workflowId) {
-          // If no workflow ID provided, check the active workflow
           workflowId = get().activeWorkflowId
           if (!workflowId) return null
         }
 
         const { deploymentStatuses = {} } = get()
 
-        // Get from the workflow-specific deployment statuses in the registry
         if (deploymentStatuses[workflowId]) {
           return deploymentStatuses[workflowId]
         }
 
-        // No deployment status found
         return null
       },
 
-      // Method to set deployment status for a specific workflow
       setDeploymentStatus: (
         workflowId: string | null,
         isDeployed: boolean,
@@ -217,7 +206,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           if (!workflowId) return
         }
 
-        // Update the deployment statuses in the registry
         set((state) => ({
           deploymentStatuses: {
             ...state.deploymentStatuses,
@@ -225,7 +213,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               isDeployed,
               deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
               apiKey,
-              // Preserve existing needsRedeployment flag if available, but reset if newly deployed
               needsRedeployment: isDeployed
                 ? false
                 : ((state.deploymentStatuses?.[workflowId as string] as any)?.needsRedeployment ??
@@ -235,14 +222,12 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         }))
       },
 
-      // Method to set the needsRedeployment flag for a specific workflow
       setWorkflowNeedsRedeployment: (workflowId: string | null, needsRedeployment: boolean) => {
         if (!workflowId) {
           workflowId = get().activeWorkflowId
           if (!workflowId) return
         }
 
-        // Update the registry's deployment status for this specific workflow
         set((state) => {
           const deploymentStatuses = state.deploymentStatuses || {}
           const currentStatus = deploymentStatuses[workflowId as string] || { isDeployed: false }
@@ -258,7 +243,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }
         })
 
-        // Only update the global flag if this is the active workflow
         const { activeWorkflowId } = get()
         if (workflowId === activeWorkflowId) {
           useWorkflowStore.getState().setNeedsRedeploymentFlag(needsRedeployment)
@@ -402,7 +386,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         }
       },
 
-      // Modified setActiveWorkflow to work with clean DB-only architecture
       setActiveWorkflow: async (id: string) => {
         const { activeWorkflowId, hydration } = get()
 
@@ -473,7 +456,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           return null
         }
 
-        // Use the server-generated ID
         const id = duplicatedWorkflow.id
 
         const newWorkflow: WorkflowMetadata = {
@@ -842,6 +824,16 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
       clearClipboard: () => {
         set({ clipboard: null })
+      },
+
+      setPendingSelection: (blockIds: string[]) => {
+        set((state) => ({
+          pendingSelection: [...(state.pendingSelection ?? []), ...blockIds],
+        }))
+      },
+
+      clearPendingSelection: () => {
+        set({ pendingSelection: null })
       },
     }),
     { name: 'workflow-registry' }

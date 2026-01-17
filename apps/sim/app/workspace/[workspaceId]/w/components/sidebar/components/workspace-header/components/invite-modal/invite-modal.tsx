@@ -709,7 +709,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                 </Button>
                 <Button
                   type='button'
-                  variant='default'
+                  variant='tertiary'
                   disabled={isSaving || isSubmitting}
                   onClick={handleSaveChanges}
                   className='h-[32px] gap-[8px] px-[12px] font-medium'

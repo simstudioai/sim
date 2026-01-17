@@ -294,10 +294,9 @@ export function BYOK() {
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='tertiary'
               onClick={handleSave}
               disabled={!apiKeyInput.trim() || upsertKey.isPending}
-              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
             >
               {upsertKey.isPending ? 'Saving...' : 'Save'}
             </Button>
