@@ -11,24 +11,18 @@ import {
 } from '@/executor/variables/resolvers/reference'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
-/**
- * Check if a path exists in an output schema.
- * Handles nested objects, arrays, and various schema formats.
- * Numeric indices (array access) are skipped during validation.
- */
 function isPathInOutputSchema(
   outputs: Record<string, any> | undefined,
   pathParts: string[]
 ): boolean {
   if (!outputs || pathParts.length === 0) {
-    return true // No schema or no path = allow (lenient)
+    return true
   }
 
   let current: any = outputs
   for (let i = 0; i < pathParts.length; i++) {
     const part = pathParts[i]
 
-    // Skip numeric indices (array access like items.0.name)
     if (/^\d+$/.test(part)) {
       continue
     }
@@ -37,21 +31,17 @@ function isPathInOutputSchema(
       return false
     }
 
-    // Check if the key exists directly
     if (part in current) {
       current = current[part]
       continue
     }
 
-    // Check if current has 'properties' (object type with nested schema)
     if (current.properties && part in current.properties) {
       current = current.properties[part]
       continue
     }
 
-    // Check if current is an array type with items
     if (current.type === 'array' && current.items) {
-      // Array items can have properties or be a nested schema
       if (current.items.properties && part in current.items.properties) {
         current = current.items.properties[part]
         continue
@@ -62,25 +52,18 @@ function isPathInOutputSchema(
       }
     }
 
-    // Check if current has a 'type' field (it's a leaf with type definition)
-    // but we're trying to go deeper - this means the path doesn't exist
     if ('type' in current && typeof current.type === 'string') {
-      // It's a typed field, can't go deeper unless it has properties
       if (!current.properties && !current.items) {
         return false
       }
     }
 
-    // Path part not found in schema
     return false
   }
 
   return true
 }
 
-/**
- * Get available top-level field names from an output schema for error messages.
- */
 function getSchemaFieldNames(outputs: Record<string, any> | undefined): string[] {
   if (!outputs) return []
   return Object.keys(outputs)
@@ -185,9 +168,6 @@ export class BlockResolver implements Resolver {
       }
     }
 
-    // Path not found in data - check if it exists in the schema
-    // If path is NOT in schema, it's likely a typo - throw an error
-    // If path IS in schema but data is missing, it's an optional field - return undefined
     const schemaFields = getSchemaFieldNames(block?.outputs)
     if (schemaFields.length > 0 && !isPathInOutputSchema(block?.outputs, pathParts)) {
       throw new Error(
@@ -196,7 +176,6 @@ export class BlockResolver implements Resolver {
       )
     }
 
-    // Path exists in schema but data is missing - return undefined (optional field)
     return undefined
   }
 
