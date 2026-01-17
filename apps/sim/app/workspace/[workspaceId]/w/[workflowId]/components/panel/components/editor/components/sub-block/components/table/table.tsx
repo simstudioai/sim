@@ -243,6 +243,7 @@ export function Table({
             onScroll={handleScroll}
             onDrop={handlers.onDrop}
             onDragOver={handlers.onDragOver}
+            onFocus={handlers.onFocus}
             disabled={isPreview || disabled}
             autoComplete='off'
             className='w-full border-0 bg-transparent px-[10px] py-[8px] font-medium text-sm text-transparent leading-[21px] caret-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'

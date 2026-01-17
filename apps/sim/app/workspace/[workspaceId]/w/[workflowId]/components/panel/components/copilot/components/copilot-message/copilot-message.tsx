@@ -1,6 +1,6 @@
 'use client'
 
-import { type FC, memo, useCallback, useMemo, useState } from 'react'
+import { type FC, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import {
@@ -93,6 +93,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     // UI state
     const [isHoveringMessage, setIsHoveringMessage] = useState(false)
 
+    const cancelEditRef = useRef<(() => void) | null>(null)
+
     // Checkpoint management hook
     const {
       showRestoreConfirmation,
@@ -112,7 +114,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       messages,
       messageCheckpoints,
       onRevertModeChange,
-      onEditModeChange
+      onEditModeChange,
+      () => cancelEditRef.current?.()
     )
 
     // Message editing hook
@@ -141,6 +144,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       setShowCheckpointDiscardModal,
       pendingEditRef,
     })
+
+    cancelEditRef.current = handleCancelEdit
 
     // Get clean text content with double newline parsing
     const cleanTextContent = useMemo(() => {
@@ -187,6 +192,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     )
 
     // Memoize content blocks to avoid re-rendering unchanged blocks
+    // No entrance animations to prevent layout shift
     const memoizedContentBlocks = useMemo(() => {
       if (!message.contentBlocks || message.contentBlocks.length === 0) {
         return null
@@ -205,14 +211,10 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
           // Use smooth streaming for the last text block if we're streaming
           const shouldUseSmoothing = isStreaming && isLastTextBlock
+          const blockKey = `text-${index}-${block.timestamp || index}`
 
           return (
-            <div
-              key={`text-${index}-${block.timestamp || index}`}
-              className={`w-full max-w-full overflow-hidden transition-opacity duration-200 ease-in-out ${
-                cleanBlockContent.length > 0 ? 'opacity-100' : 'opacity-70'
-              } ${shouldUseSmoothing ? 'translate-y-0 transition-transform duration-100 ease-out' : ''}`}
-            >
+            <div key={blockKey} className='w-full max-w-full'>
               {shouldUseSmoothing ? (
                 <SmoothStreamingText content={cleanBlockContent} isStreaming={isStreaming} />
               ) : (
@@ -224,29 +226,33 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         if (block.type === 'thinking') {
           // Check if there are any blocks after this one (tool calls, text, etc.)
           const hasFollowingContent = index < message.contentBlocks!.length - 1
+          // Check if special tags (options, plan) are present - should also close thinking
+          const hasSpecialTags = !!(parsedTags?.options || parsedTags?.plan)
+          const blockKey = `thinking-${index}-${block.timestamp || index}`
+
           return (
-            <div key={`thinking-${index}-${block.timestamp || index}`} className='w-full'>
+            <div key={blockKey} className='w-full'>
               <ThinkingBlock
                 content={block.content}
                 isStreaming={isStreaming}
                 hasFollowingContent={hasFollowingContent}
+                hasSpecialTags={hasSpecialTags}
               />
             </div>
           )
         }
         if (block.type === 'tool_call') {
+          const blockKey = `tool-${block.toolCall.id}`
+
           return (
-            <div
-              key={`tool-${block.toolCall.id}`}
-              className='opacity-100 transition-opacity duration-300 ease-in-out'
-            >
+            <div key={blockKey}>
               <ToolCall toolCallId={block.toolCall.id} toolCall={block.toolCall} />
             </div>
           )
         }
         return null
       })
-    }, [message.contentBlocks, isStreaming])
+    }, [message.contentBlocks, isStreaming, parsedTags])
 
     if (isUser) {
       return (
@@ -279,6 +285,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 onModeChange={setMode}
                 panelWidth={panelWidth}
                 clearOnSubmit={false}
+                initialContexts={message.contexts}
               />
 
               {/* Inline Checkpoint Discard Confirmation - shown below input in edit mode */}
@@ -346,14 +353,18 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                     const contexts: any[] = Array.isArray((message as any).contexts)
                       ? ((message as any).contexts as any[])
                       : []
-                    const labels = contexts
-                      .filter((c) => c?.kind !== 'current_workflow')
-                      .map((c) => c?.label)
-                      .filter(Boolean) as string[]
-                    if (!labels.length) return text
+
+                    // Build tokens with their prefixes (@ for mentions, / for commands)
+                    const tokens = contexts
+                      .filter((c) => c?.kind !== 'current_workflow' && c?.label)
+                      .map((c) => {
+                        const prefix = c?.kind === 'slash_command' ? '/' : '@'
+                        return `${prefix}${c.label}`
+                      })
+                    if (!tokens.length) return text
 
                     const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                    const pattern = new RegExp(`@(${labels.map(escapeRegex).join('|')})`, 'g')
+                    const pattern = new RegExp(`(${tokens.map(escapeRegex).join('|')})`, 'g')
 
                     const nodes: React.ReactNode[] = []
                     let lastIndex = 0
@@ -460,18 +471,31 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       )
     }
 
+    // Check if there's any visible content in the blocks
+    const hasVisibleContent = useMemo(() => {
+      if (!message.contentBlocks || message.contentBlocks.length === 0) return false
+      return message.contentBlocks.some((block) => {
+        if (block.type === 'text') {
+          const parsed = parseSpecialTags(block.content)
+          return parsed.cleanContent.trim().length > 0
+        }
+        return block.type === 'thinking' || block.type === 'tool_call'
+      })
+    }, [message.contentBlocks])
+
     if (isAssistant) {
       return (
         <div
-          className={`w-full max-w-full overflow-hidden transition-opacity duration-200 [max-width:var(--panel-max-width)] ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+          className={`w-full max-w-full overflow-hidden [max-width:var(--panel-max-width)] ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
           style={{ '--panel-max-width': `${panelWidth - 16}px` } as React.CSSProperties}
         >
-          <div className='max-w-full space-y-1.5 px-[2px] transition-all duration-200 ease-in-out'>
+          <div className='max-w-full space-y-1 px-[2px]'>
             {/* Content blocks in chronological order */}
             {memoizedContentBlocks}
 
-            {/* Always show streaming indicator at the end while streaming */}
-            {isStreaming && <StreamingIndicator />}
+            {isStreaming && (
+              <StreamingIndicator className={!hasVisibleContent ? 'mt-1' : undefined} />
+            )}
 
             {message.errorType === 'usage_limit' && (
               <div className='flex gap-1.5'>

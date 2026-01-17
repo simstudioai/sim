@@ -327,12 +327,14 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
   /**
    * Handle search input blur.
    *
-   * We intentionally keep search mode active after blur so that ArrowUp/Down
-   * navigation continues to work after the first move from the search input
-   * into the triggers/blocks list (e.g. when initiated via Mod+F).
+   * If the search query is empty, deactivate search mode to show the search icon again.
+   * If there's a query, keep search mode active so ArrowUp/Down navigation continues
+   * to work after focus moves into the triggers/blocks list (e.g. when initiated via Mod+F).
    */
   const handleSearchBlur = () => {
-    // No-op by design
+    if (!searchQuery.trim()) {
+      setIsSearchActive(false)
+    }
   }
 
   /**

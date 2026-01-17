@@ -8,7 +8,7 @@ import {
 
 // Mock the billing constants
 vi.mock('@/lib/billing/constants', () => ({
-  BASE_EXECUTION_CHARGE: 0.001,
+  BASE_EXECUTION_CHARGE: 0.005,
 }))
 
 vi.mock('@sim/logger', () => loggerMock)
@@ -148,7 +148,7 @@ describe('createEnvironmentObject', () => {
 })
 
 describe('calculateCostSummary', () => {
-  const BASE_EXECUTION_CHARGE = 0.001
+  const BASE_EXECUTION_CHARGE = 0.005
 
   test('should return base execution charge for empty trace spans', () => {
     const result = calculateCostSummary([])

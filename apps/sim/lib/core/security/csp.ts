@@ -1,5 +1,5 @@
 import { env, getEnv } from '../config/env'
-import { isDev } from '../config/feature-flags'
+import { isDev, isReactGrabEnabled } from '../config/feature-flags'
 
 /**
  * Content Security Policy (CSP) configuration builder
@@ -40,6 +40,7 @@ export const buildTimeCSPDirectives: CSPDirectives = {
     'https://*.google.com',
     'https://apis.google.com',
     'https://assets.onedollarstats.com',
+    ...(isReactGrabEnabled ? ['https://unpkg.com'] : []),
   ],
 
   'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
@@ -166,10 +167,11 @@ export function generateRuntimeCSP(): string {
   const dynamicDomainsStr = uniqueDynamicDomains.join(' ')
   const brandLogoDomain = brandLogoDomains[0] || ''
   const brandFaviconDomain = brandFaviconDomains[0] || ''
+  const reactGrabScript = isReactGrabEnabled ? 'https://unpkg.com' : ''
 
   return `
     default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://apis.google.com https://assets.onedollarstats.com;
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://apis.google.com https://assets.onedollarstats.com ${reactGrabScript};
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com https://*.atlassian.com https://cdn.discordapp.com https://*.githubusercontent.com https://*.s3.amazonaws.com https://s3.amazonaws.com https://*.amazonaws.com https://*.blob.core.windows.net https://github.com/* https://collector.onedollarstats.com ${brandLogoDomain} ${brandFaviconDomain};
     media-src 'self' blob:;

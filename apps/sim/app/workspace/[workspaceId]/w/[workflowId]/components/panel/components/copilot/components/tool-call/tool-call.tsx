@@ -8,7 +8,6 @@ import { Button, Code, getCodeEditorProps, highlight, languages } from '@/compon
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
-// Initialize all tool UI configs
 import '@/lib/copilot/tools/client/init-tool-configs'
 import {
   getSubagentLabels as getSubagentLabelsFromConfig,
@@ -497,6 +496,11 @@ const ACTION_VERBS = [
   'Accessed',
   'Managing',
   'Managed',
+  'Scraping',
+  'Scraped',
+  'Crawling',
+  'Crawled',
+  'Getting',
 ] as const
 
 /**
@@ -1061,7 +1065,7 @@ function SubAgentContent({
       <div
         ref={scrollContainerRef}
         className={clsx(
-          'overflow-y-auto transition-all duration-300 ease-in-out',
+          'overflow-y-auto transition-all duration-150 ease-out',
           isExpanded ? 'mt-1.5 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
@@ -1157,10 +1161,10 @@ function SubAgentThinkingContent({
 
 /**
  * Subagents that should collapse when done streaming.
- * Default behavior is to NOT collapse (stay expanded like edit).
- * Only these specific subagents collapse into "Planned for Xs >" style headers.
+ * Default behavior is to NOT collapse (stay expanded like edit, superagent, info, etc.).
+ * Only plan, debug, and research collapse into summary headers.
  */
-const COLLAPSIBLE_SUBAGENTS = new Set(['plan', 'debug', 'research', 'info'])
+const COLLAPSIBLE_SUBAGENTS = new Set(['plan', 'debug', 'research'])
 
 /**
  * SubagentContentRenderer handles the rendering of subagent content.
@@ -1321,7 +1325,7 @@ function SubagentContentRenderer({
 
       <div
         className={clsx(
-          'overflow-hidden transition-all duration-300 ease-in-out',
+          'overflow-hidden transition-all duration-150 ease-out',
           isExpanded ? 'mt-1.5 max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
@@ -1442,8 +1446,10 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
       blockType = blockType || op.block_type || ''
     }
 
-    // Fallback name to type or ID
-    if (!blockName) blockName = blockType || blockId
+    if (!blockName) blockName = blockType || ''
+    if (!blockName && !blockType) {
+      continue
+    }
 
     const change: BlockChange = { blockId, blockName, blockType }
 
@@ -1631,10 +1637,8 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
  * Checks if a tool is an integration tool (server-side executed, not a client tool)
  */
 function isIntegrationTool(toolName: string): boolean {
-  // Check if it's NOT a client tool (not in CLASS_TOOL_METADATA and not in registered tools)
-  const isClientTool = !!CLASS_TOOL_METADATA[toolName]
-  const isRegisteredTool = !!getRegisteredTools()[toolName]
-  return !isClientTool && !isRegisteredTool
+  // Any tool NOT in CLASS_TOOL_METADATA is an integration tool (server-side execution)
+  return !CLASS_TOOL_METADATA[toolName]
 }
 
 function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
@@ -1663,16 +1667,9 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
     return true
   }
 
-  // Also show buttons for integration tools in pending state (they need user confirmation)
-  // But NOT if the tool is auto-allowed (it will auto-execute)
+  // Always show buttons for integration tools in pending state (they need user confirmation)
   const mode = useCopilotStore.getState().mode
-  const isAutoAllowed = useCopilotStore.getState().isToolAutoAllowed(toolCall.name)
-  if (
-    mode === 'build' &&
-    isIntegrationTool(toolCall.name) &&
-    toolCall.state === 'pending' &&
-    !isAutoAllowed
-  ) {
+  if (mode === 'build' && isIntegrationTool(toolCall.name) && toolCall.state === 'pending') {
     return true
   }
 
@@ -1895,15 +1892,20 @@ function RunSkipButtons({
 
   if (buttonsHidden) return null
 
-  // Standardized buttons for all interrupt tools: Allow, Always Allow, Skip
+  // Hide "Always Allow" for integration tools (only show for client tools with interrupts)
+  const showAlwaysAllow = !isIntegrationTool(toolCall.name)
+
+  // Standardized buttons for all interrupt tools: Allow, (Always Allow for client tools only), Skip
   return (
     <div className='mt-1.5 flex gap-[6px]'>
       <Button onClick={onRun} disabled={isProcessing} variant='tertiary'>
         {isProcessing ? 'Allowing...' : 'Allow'}
       </Button>
-      <Button onClick={onAlwaysAllow} disabled={isProcessing} variant='default'>
-        {isProcessing ? 'Allowing...' : 'Always Allow'}
-      </Button>
+      {showAlwaysAllow && (
+        <Button onClick={onAlwaysAllow} disabled={isProcessing} variant='default'>
+          {isProcessing ? 'Allowing...' : 'Always Allow'}
+        </Button>
+      )}
       <Button onClick={onSkip} disabled={isProcessing} variant='default'>
         Skip
       </Button>
@@ -1952,7 +1954,12 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   }, [params])
 
   // Skip rendering some internal tools
-  if (toolCall.name === 'checkoff_todo' || toolCall.name === 'mark_todo_in_progress') return null
+  if (
+    toolCall.name === 'checkoff_todo' ||
+    toolCall.name === 'mark_todo_in_progress' ||
+    toolCall.name === 'tool_search_tool_regex'
+  )
+    return null
 
   // Special rendering for subagent tools - show as thinking text with tool calls at top level
   const SUBAGENT_TOOLS = [
@@ -1969,6 +1976,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     'tour',
     'info',
     'workflow',
+    'superagent',
   ]
   const isSubagentTool = SUBAGENT_TOOLS.includes(toolCall.name)
 
@@ -2596,16 +2604,23 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     }
   }
 
+  // For edit_workflow, hide text display when we have operations (WorkflowEditSummary replaces it)
+  const isEditWorkflow = toolCall.name === 'edit_workflow'
+  const hasOperations = Array.isArray(params.operations) && params.operations.length > 0
+  const hideTextForEditWorkflow = isEditWorkflow && hasOperations
+
   return (
     <div className='w-full'>
-      <div className={isToolNameClickable ? 'cursor-pointer' : ''} onClick={handleToolNameClick}>
-        <ShimmerOverlayText
-          text={displayName}
-          active={isLoadingState}
-          isSpecial={isSpecial}
-          className='font-[470] font-season text-[var(--text-secondary)] text-sm dark:text-[var(--text-muted)]'
-        />
-      </div>
+      {!hideTextForEditWorkflow && (
+        <div className={isToolNameClickable ? 'cursor-pointer' : ''} onClick={handleToolNameClick}>
+          <ShimmerOverlayText
+            text={displayName}
+            active={isLoadingState}
+            isSpecial={isSpecial}
+            className='font-[470] font-season text-[var(--text-secondary)] text-sm dark:text-[var(--text-muted)]'
+          />
+        </div>
+      )}
       {isExpandableTool && expanded && <div className='mt-1.5'>{renderPendingDetails()}</div>}
       {showRemoveAutoAllow && isAutoAllowed && (
         <div className='mt-1.5'>

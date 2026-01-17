@@ -8,6 +8,7 @@ import { getSession } from '@/lib/auth'
 import { generateChatTitle } from '@/lib/copilot/chat-title'
 import { getCopilotModel } from '@/lib/copilot/config'
 import { SIM_AGENT_API_URL_DEFAULT, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
+import { COPILOT_MODEL_IDS, COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -40,31 +41,8 @@ const ChatMessageSchema = z.object({
   userMessageId: z.string().optional(), // ID from frontend for the user message
   chatId: z.string().optional(),
   workflowId: z.string().min(1, 'Workflow ID is required'),
-  model: z
-    .enum([
-      'gpt-5-fast',
-      'gpt-5',
-      'gpt-5-medium',
-      'gpt-5-high',
-      'gpt-5.1-fast',
-      'gpt-5.1',
-      'gpt-5.1-medium',
-      'gpt-5.1-high',
-      'gpt-5-codex',
-      'gpt-5.1-codex',
-      'gpt-4o',
-      'gpt-4.1',
-      'o3',
-      'claude-4-sonnet',
-      'claude-4.5-haiku',
-      'claude-4.5-sonnet',
-      'claude-4.5-opus',
-      'claude-4.1-opus',
-      'gemini-3-pro',
-    ])
-    .optional()
-    .default('claude-4.5-opus'),
-  mode: z.enum(['ask', 'agent', 'plan']).optional().default('agent'),
+  model: z.enum(COPILOT_MODEL_IDS).optional().default('claude-4.5-opus'),
+  mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
@@ -97,6 +75,7 @@ const ChatMessageSchema = z.object({
       })
     )
     .optional(),
+  commands: z.array(z.string()).optional(),
 })
 
 /**
@@ -132,6 +111,7 @@ export async function POST(req: NextRequest) {
       provider,
       conversationId,
       contexts,
+      commands,
     } = ChatMessageSchema.parse(body)
     // Ensure we have a consistent user message ID for this request
     const userMessageIdToUse = userMessageId || crypto.randomUUID()
@@ -290,7 +270,8 @@ export async function POST(req: NextRequest) {
     }
 
     const defaults = getCopilotModel('chat')
-    const modelToUse = env.COPILOT_MODEL || defaults.model
+    const selectedModel = model || defaults.model
+    const envModel = env.COPILOT_MODEL || defaults.model
 
     let providerConfig: CopilotProviderConfig | undefined
     const providerEnv = env.COPILOT_PROVIDER as any
@@ -299,7 +280,7 @@ export async function POST(req: NextRequest) {
       if (providerEnv === 'azure-openai') {
         providerConfig = {
           provider: 'azure-openai',
-          model: modelToUse,
+          model: envModel,
           apiKey: env.AZURE_OPENAI_API_KEY,
           apiVersion: 'preview',
           endpoint: env.AZURE_OPENAI_ENDPOINT,
@@ -307,7 +288,7 @@ export async function POST(req: NextRequest) {
       } else if (providerEnv === 'vertex') {
         providerConfig = {
           provider: 'vertex',
-          model: modelToUse,
+          model: envModel,
           apiKey: env.COPILOT_API_KEY,
           vertexProject: env.VERTEX_PROJECT,
           vertexLocation: env.VERTEX_LOCATION,
@@ -315,11 +296,14 @@ export async function POST(req: NextRequest) {
       } else {
         providerConfig = {
           provider: providerEnv,
-          model: modelToUse,
+          model: selectedModel,
           apiKey: env.COPILOT_API_KEY,
         }
       }
     }
+
+    const effectiveMode = mode === 'agent' ? 'build' : mode
+    const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
 
     // Determine conversationId to use for this request
     const effectiveConversationId =
@@ -340,7 +324,7 @@ export async function POST(req: NextRequest) {
       }
     } | null = null
 
-    if (mode === 'agent') {
+    if (effectiveMode === 'build') {
       // Build base tools (executed locally, not deferred)
       // Include function_execute for code execution capability
       baseTools = [
@@ -447,8 +431,8 @@ export async function POST(req: NextRequest) {
       userId: authenticatedUserId,
       stream: stream,
       streamToolCalls: true,
-      model: model,
-      mode: mode,
+      model: selectedModel,
+      mode: transportMode,
       messageId: userMessageIdToUse,
       version: SIM_AGENT_VERSION,
       ...(providerConfig ? { provider: providerConfig } : {}),
@@ -462,6 +446,7 @@ export async function POST(req: NextRequest) {
       ...(integrationTools.length > 0 && { tools: integrationTools }),
       ...(baseTools.length > 0 && { baseTools }),
       ...(credentials && { credentials }),
+      ...(commands && commands.length > 0 && { commands }),
     }
 
     try {
@@ -471,7 +456,7 @@ export async function POST(req: NextRequest) {
         hasConversationId: !!effectiveConversationId,
         hasFileAttachments: processedFileContents.length > 0,
         messageLength: message.length,
-        mode,
+        mode: effectiveMode,
         hasTools: integrationTools.length > 0,
         toolCount: integrationTools.length,
         hasBaseTools: baseTools.length > 0,

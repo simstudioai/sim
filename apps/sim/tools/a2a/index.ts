@@ -5,7 +5,6 @@ import { a2aGetPushNotificationTool } from './get_push_notification'
 import { a2aGetTaskTool } from './get_task'
 import { a2aResubscribeTool } from './resubscribe'
 import { a2aSendMessageTool } from './send_message'
-import { a2aSendMessageStreamTool } from './send_message_stream'
 import { a2aSetPushNotificationTool } from './set_push_notification'
 
 export {
@@ -16,6 +15,5 @@ export {
   a2aGetTaskTool,
   a2aResubscribeTool,
   a2aSendMessageTool,
-  a2aSendMessageStreamTool,
   a2aSetPushNotificationTool,
 }

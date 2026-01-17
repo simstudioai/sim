@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Check } from 'lucide-react'
 import {
@@ -308,6 +308,7 @@ export function OAuthRequiredModal({
   serviceId,
   newScopes = [],
 }: OAuthRequiredModalProps) {
+  const [error, setError] = useState<string | null>(null)
   const { baseProvider } = parseProvider(provider)
   const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
@@ -348,10 +349,10 @@ export function OAuthRequiredModal({
   }, [requiredScopes, newScopesSet])
 
   const handleConnectDirectly = async () => {
+    setError(null)
+
     try {
       const providerId = getProviderIdFromServiceId(serviceId)
-
-      onClose()
 
       logger.info('Linking OAuth2:', {
         providerId,
@@ -359,12 +360,13 @@ export function OAuthRequiredModal({
       })
 
       if (providerId === 'trello') {
+        onClose()
         window.location.href = '/api/auth/trello/authorize'
         return
       }
 
       if (providerId === 'shopify') {
-        // Pass the current URL so we can redirect back after OAuth
+        onClose()
         const returnUrl = encodeURIComponent(window.location.href)
         window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}`
         return
@@ -374,8 +376,10 @@ export function OAuthRequiredModal({
         providerId,
         callbackURL: window.location.href,
       })
-    } catch (error) {
-      logger.error('Error initiating OAuth flow:', { error })
+      onClose()
+    } catch (err) {
+      logger.error('Error initiating OAuth flow:', { error: err })
+      setError('Failed to connect. Please try again.')
     }
   }
 
@@ -425,10 +429,12 @@ export function OAuthRequiredModal({
                 </ul>
               </div>
             )}
+
+            {error && <p className='text-[12px] text-[var(--text-error)]'>{error}</p>}
           </div>
         </ModalBody>
         <ModalFooter>
-          <Button variant='active' onClick={onClose}>
+          <Button variant='default' onClick={onClose}>
             Cancel
           </Button>
           <Button variant='tertiary' type='button' onClick={handleConnectDirectly}>

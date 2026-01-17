@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Plus, Search, X } from 'lucide-react'
+import { ChevronDown, Plus, Search, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -77,10 +77,17 @@ interface EnvVarDropdownConfig {
   onClose: () => void
 }
 
+interface McpToolSchema {
+  type: 'object'
+  properties?: Record<string, unknown>
+  required?: string[]
+}
+
 interface McpTool {
   name: string
   description?: string
   serverId: string
+  inputSchema?: McpToolSchema
 }
 
 interface McpServer {
@@ -381,6 +388,7 @@ export function MCP({ initialServerId }: MCPProps) {
   const [refreshingServers, setRefreshingServers] = useState<
     Record<string, { status: 'refreshing' | 'refreshed'; workflowsUpdated?: number }>
   >({})
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set())
 
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [envSearchTerm, setEnvSearchTerm] = useState('')
@@ -669,6 +677,22 @@ export function MCP({ initialServerId }: MCPProps) {
    */
   const handleBackToList = useCallback(() => {
     setSelectedServerId(null)
+    setExpandedTools(new Set())
+  }, [])
+
+  /**
+   * Toggles the expanded state of a tool's parameters.
+   */
+  const toggleToolExpanded = useCallback((toolName: string) => {
+    setExpandedTools((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(toolName)) {
+        newSet.delete(toolName)
+      } else {
+        newSet.add(toolName)
+      }
+      return newSet
+    })
   }, [])
 
   /**
@@ -843,38 +867,113 @@ export function MCP({ initialServerId }: MCPProps) {
                   {tools.map((tool) => {
                     const issues = getStoredToolIssues(server.id, tool.name)
                     const affectedWorkflows = issues.map((i) => i.workflowName)
+                    const isExpanded = expandedTools.has(tool.name)
+                    const hasParams =
+                      tool.inputSchema?.properties &&
+                      Object.keys(tool.inputSchema.properties).length > 0
+                    const requiredParams = tool.inputSchema?.required || []
+
                     return (
                       <div
                         key={tool.name}
-                        className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
+                        className='overflow-hidden rounded-[6px] border bg-[var(--surface-3)]'
                       >
-                        <div className='flex items-center gap-[8px]'>
-                          <p className='font-medium text-[13px] text-[var(--text-primary)]'>
-                            {tool.name}
-                          </p>
-                          {issues.length > 0 && (
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <div>
-                                  <Badge
-                                    variant={getIssueBadgeVariant(issues[0].issue)}
-                                    size='sm'
-                                    className='cursor-help'
-                                  >
-                                    {getIssueBadgeLabel(issues[0].issue)}
-                                  </Badge>
-                                </div>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content>
-                                Update in: {affectedWorkflows.join(', ')}
-                              </Tooltip.Content>
-                            </Tooltip.Root>
+                        <button
+                          type='button'
+                          onClick={() => hasParams && toggleToolExpanded(tool.name)}
+                          className={cn(
+                            'flex w-full items-start justify-between px-[10px] py-[8px] text-left',
+                            hasParams && 'cursor-pointer hover:bg-[var(--surface-4)]'
                           )}
-                        </div>
-                        {tool.description && (
-                          <p className='mt-[4px] text-[13px] text-[var(--text-tertiary)]'>
-                            {tool.description}
-                          </p>
+                          disabled={!hasParams}
+                        >
+                          <div className='flex-1'>
+                            <div className='flex items-center gap-[8px]'>
+                              <p className='font-medium text-[13px] text-[var(--text-primary)]'>
+                                {tool.name}
+                              </p>
+                              {issues.length > 0 && (
+                                <Tooltip.Root>
+                                  <Tooltip.Trigger asChild>
+                                    <div>
+                                      <Badge
+                                        variant={getIssueBadgeVariant(issues[0].issue)}
+                                        size='sm'
+                                        className='cursor-help'
+                                      >
+                                        {getIssueBadgeLabel(issues[0].issue)}
+                                      </Badge>
+                                    </div>
+                                  </Tooltip.Trigger>
+                                  <Tooltip.Content>
+                                    Update in: {affectedWorkflows.join(', ')}
+                                  </Tooltip.Content>
+                                </Tooltip.Root>
+                              )}
+                            </div>
+                            {tool.description && (
+                              <p className='mt-[4px] text-[13px] text-[var(--text-tertiary)]'>
+                                {tool.description}
+                              </p>
+                            )}
+                          </div>
+                          {hasParams && (
+                            <ChevronDown
+                              className={cn(
+                                'mt-[2px] h-[14px] w-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
+                                isExpanded && 'rotate-180'
+                              )}
+                            />
+                          )}
+                        </button>
+
+                        {isExpanded && hasParams && (
+                          <div className='border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[10px] py-[8px]'>
+                            <p className='mb-[6px] font-medium text-[11px] text-[var(--text-muted)] uppercase tracking-wide'>
+                              Parameters
+                            </p>
+                            <div className='flex flex-col gap-[6px]'>
+                              {Object.entries(tool.inputSchema!.properties!).map(
+                                ([paramName, param]) => {
+                                  const isRequired = requiredParams.includes(paramName)
+                                  const paramType =
+                                    typeof param === 'object' && param !== null
+                                      ? (param as { type?: string }).type || 'any'
+                                      : 'any'
+                                  const paramDesc =
+                                    typeof param === 'object' && param !== null
+                                      ? (param as { description?: string }).description
+                                      : undefined
+
+                                  return (
+                                    <div
+                                      key={paramName}
+                                      className='rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-3)] px-[8px] py-[6px]'
+                                    >
+                                      <div className='flex items-center gap-[6px]'>
+                                        <span className='font-medium text-[12px] text-[var(--text-primary)]'>
+                                          {paramName}
+                                        </span>
+                                        <Badge variant='outline' size='sm'>
+                                          {paramType}
+                                        </Badge>
+                                        {isRequired && (
+                                          <Badge variant='default' size='sm'>
+                                            required
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      {paramDesc && (
+                                        <p className='mt-[3px] text-[11px] text-[var(--text-tertiary)] leading-relaxed'>
+                                          {paramDesc}
+                                        </p>
+                                      )}
+                                    </div>
+                                  )
+                                }
+                              )}
+                            </div>
+                          </div>
                         )}
                       </div>
                     )
@@ -1071,7 +1170,7 @@ export function MCP({ initialServerId }: MCPProps) {
       </div>
 
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete MCP Server</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>

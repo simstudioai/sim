@@ -28,7 +28,10 @@ interface WorkflowItemProps {
   workflow: WorkflowMetadata
   active: boolean
   level: number
+  dragDisabled?: boolean
   onWorkflowClick: (workflowId: string, shiftKey: boolean, metaKey: boolean) => void
+  onDragStart?: () => void
+  onDragEnd?: () => void
 }
 
 /**
@@ -38,7 +41,15 @@ interface WorkflowItemProps {
  * @param props - Component props
  * @returns Workflow item with drag and selection support
  */
-export function WorkflowItem({ workflow, active, level, onWorkflowClick }: WorkflowItemProps) {
+export function WorkflowItem({
+  workflow,
+  active,
+  level,
+  dragDisabled = false,
+  onWorkflowClick,
+  onDragStart: onDragStartProp,
+  onDragEnd: onDragEndProp,
+}: WorkflowItemProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const { selectedWorkflows } = useFolderStore()
@@ -52,8 +63,6 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
   const [workflowIdsToDelete, setWorkflowIdsToDelete] = useState<string[]>([])
   const [deleteModalNames, setDeleteModalNames] = useState<string | string[]>('')
   const [canDeleteCaptured, setCanDeleteCaptured] = useState(true)
-
-  const [hasAvatars, setHasAvatars] = useState(false)
 
   const capturedSelectionRef = useRef<{
     workflowIds: string[]
@@ -104,30 +113,7 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
     [workflow.id, updateWorkflow]
   )
 
-  /**
-   * Drag start handler - handles workflow dragging with multi-selection support
-   *
-   * @param e - React drag event
-   */
-  const onDragStart = useCallback(
-    (e: React.DragEvent) => {
-      if (isEditing) {
-        e.preventDefault()
-        return
-      }
-
-      const workflowIds =
-        isSelected && selectedWorkflows.size > 1 ? Array.from(selectedWorkflows) : [workflow.id]
-
-      e.dataTransfer.setData('workflow-ids', JSON.stringify(workflowIds))
-      e.dataTransfer.effectAllowed = 'move'
-    },
-    [isSelected, selectedWorkflows, workflow.id]
-  )
-
-  const { isDragging, shouldPreventClickRef, handleDragStart, handleDragEnd } = useItemDrag({
-    onDragStart,
-  })
+  const isEditingRef = useRef(false)
 
   const {
     isOpen: isContextMenuOpen,
@@ -232,6 +218,43 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
     itemId: workflow.id,
   })
 
+  isEditingRef.current = isEditing
+
+  const onDragStart = useCallback(
+    (e: React.DragEvent) => {
+      if (isEditingRef.current) {
+        e.preventDefault()
+        return
+      }
+
+      const currentSelection = useFolderStore.getState().selectedWorkflows
+      const isCurrentlySelected = currentSelection.has(workflow.id)
+      const workflowIds =
+        isCurrentlySelected && currentSelection.size > 1
+          ? Array.from(currentSelection)
+          : [workflow.id]
+
+      e.dataTransfer.setData('workflow-ids', JSON.stringify(workflowIds))
+      e.dataTransfer.effectAllowed = 'move'
+      onDragStartProp?.()
+    },
+    [workflow.id, onDragStartProp]
+  )
+
+  const {
+    isDragging,
+    shouldPreventClickRef,
+    handleDragStart,
+    handleDragEnd: handleDragEndBase,
+  } = useItemDrag({
+    onDragStart,
+  })
+
+  const handleDragEnd = useCallback(() => {
+    handleDragEndBase()
+    onDragEndProp?.()
+  }, [handleDragEndBase, onDragEndProp])
+
   /**
    * Handle double-click on workflow name to enter rename mode
    */
@@ -284,7 +307,7 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
             : '',
           isDragging ? 'opacity-50' : ''
         )}
-        draggable={!isEditing}
+        draggable={!isEditing && !dragDisabled}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onClick={handleClick}
@@ -294,48 +317,50 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
           className='h-[14px] w-[14px] flex-shrink-0 rounded-[4px]'
           style={{ backgroundColor: workflow.color }}
         />
-        <div className={clsx('min-w-0 flex-1', hasAvatars && 'pr-[8px]')}>
-          {isEditing ? (
-            <input
-              ref={inputRef}
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onBlur={handleInputBlur}
-              className={clsx(
-                'w-full border-0 bg-transparent p-0 font-medium text-[14px] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
-                active
-                  ? 'text-[var(--text-primary)]'
-                  : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
-              )}
-              maxLength={100}
-              disabled={isRenaming}
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-              }}
-              autoComplete='off'
-              autoCorrect='off'
-              autoCapitalize='off'
-              spellCheck='false'
-            />
-          ) : (
-            <div
-              className={clsx(
-                'truncate font-medium',
-                active
-                  ? 'text-[var(--text-primary)]'
-                  : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
-              )}
-              onDoubleClick={handleDoubleClick}
-            >
-              {workflow.name}
-            </div>
-          )}
+        <div className='min-w-0 flex-1'>
+          <div className='flex min-w-0 items-center gap-[8px]'>
+            {isEditing ? (
+              <input
+                ref={inputRef}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={handleInputBlur}
+                className={clsx(
+                  'w-full min-w-0 border-0 bg-transparent p-0 font-medium text-[14px] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
+                  active
+                    ? 'text-[var(--text-primary)]'
+                    : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+                )}
+                maxLength={100}
+                disabled={isRenaming}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                autoComplete='off'
+                autoCorrect='off'
+                autoCapitalize='off'
+                spellCheck='false'
+              />
+            ) : (
+              <div
+                className={clsx(
+                  'min-w-0 flex-1 truncate font-medium',
+                  active
+                    ? 'text-[var(--text-primary)]'
+                    : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+                )}
+                onDoubleClick={handleDoubleClick}
+              >
+                {workflow.name}
+              </div>
+            )}
+            {!isEditing && <Avatars workflowId={workflow.id} />}
+          </div>
         </div>
         {!isEditing && (
           <>
-            <Avatars workflowId={workflow.id} onPresenceChange={setHasAvatars} />
             <button
               type='button'
               onPointerDown={handleMorePointerDown}

@@ -1,7 +1,6 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useQuery } from '@tanstack/react-query'
 import { Loader2, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -38,6 +37,7 @@ import {
   FileUpload,
   LongInput,
   ProjectSelectorInput,
+  SheetSelectorInput,
   ShortInput,
   SlackSelectorInput,
   SliderInput,
@@ -53,7 +53,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tool-credential-selector'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import { useChildDeployment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks/use-child-deployment'
 import { getAllBlocks } from '@/blocks'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import {
@@ -61,7 +60,12 @@ import {
   useCustomTools,
 } from '@/hooks/queries/custom-tools'
 import { useForceRefreshMcpTools, useMcpServers, useStoredMcpTools } from '@/hooks/queries/mcp'
-import { useWorkflows } from '@/hooks/queries/workflows'
+import {
+  useChildDeploymentStatus,
+  useDeployChildWorkflow,
+  useWorkflowInputFields,
+  useWorkflows,
+} from '@/hooks/queries/workflows'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
 import { useSettingsModalStore } from '@/stores/modals/settings/store'
@@ -253,6 +257,43 @@ function FileSelectorSyncWrapper({
           title: paramId,
           serviceId: uiComponent.serviceId,
           mimeType: uiComponent.mimeType,
+          requiredScopes: uiComponent.requiredScopes || [],
+          placeholder: uiComponent.placeholder,
+          dependsOn: uiComponent.dependsOn,
+        }}
+        disabled={disabled}
+        previewContextValues={previewContextValues}
+      />
+    </GenericSyncWrapper>
+  )
+}
+
+function SheetSelectorSyncWrapper({
+  blockId,
+  paramId,
+  value,
+  onChange,
+  uiComponent,
+  disabled,
+  previewContextValues,
+}: {
+  blockId: string
+  paramId: string
+  value: string
+  onChange: (value: string) => void
+  uiComponent: any
+  disabled: boolean
+  previewContextValues?: Record<string, any>
+}) {
+  return (
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <SheetSelectorInput
+        blockId={blockId}
+        subBlock={{
+          id: paramId,
+          type: 'sheet-selector' as const,
+          title: paramId,
+          serviceId: uiComponent.serviceId,
           requiredScopes: uiComponent.requiredScopes || [],
           placeholder: uiComponent.placeholder,
           dependsOn: uiComponent.dependsOn,
@@ -551,7 +592,7 @@ function FileUploadSyncWrapper({
   )
 }
 
-function ChannelSelectorSyncWrapper({
+function SlackSelectorSyncWrapper({
   blockId,
   paramId,
   value,
@@ -559,6 +600,7 @@ function ChannelSelectorSyncWrapper({
   uiComponent,
   disabled,
   previewContextValues,
+  selectorType,
 }: {
   blockId: string
   paramId: string
@@ -567,6 +609,7 @@ function ChannelSelectorSyncWrapper({
   uiComponent: any
   disabled: boolean
   previewContextValues?: Record<string, any>
+  selectorType: 'channel-selector' | 'user-selector'
 }) {
   return (
     <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
@@ -574,7 +617,7 @@ function ChannelSelectorSyncWrapper({
         blockId={blockId}
         subBlock={{
           id: paramId,
-          type: 'channel-selector' as const,
+          type: selectorType,
           title: paramId,
           serviceId: uiComponent.serviceId,
           placeholder: uiComponent.placeholder,
@@ -642,56 +685,7 @@ function WorkflowInputMapperSyncWrapper({
   disabled: boolean
   workflowId: string
 }) {
-  const { data: workflowData, isLoading } = useQuery({
-    queryKey: ['workflow-input-fields', workflowId],
-    queryFn: async () => {
-      const response = await fetch(`/api/workflows/${workflowId}`)
-      if (!response.ok) throw new Error('Failed to fetch workflow')
-      const { data } = await response.json()
-      return data
-    },
-    enabled: Boolean(workflowId),
-    staleTime: 60 * 1000,
-  })
-
-  const inputFields = useMemo(() => {
-    if (!workflowData?.state?.blocks) return []
-
-    const blocks = workflowData.state.blocks as Record<string, any>
-
-    const triggerEntry = Object.entries(blocks).find(
-      ([, block]) =>
-        block.type === 'start_trigger' || block.type === 'input_trigger' || block.type === 'starter'
-    )
-
-    if (!triggerEntry) return []
-
-    const triggerBlock = triggerEntry[1]
-
-    const inputFormat = triggerBlock.subBlocks?.inputFormat?.value
-
-    if (Array.isArray(inputFormat)) {
-      return inputFormat
-        .filter((field: any) => field.name && typeof field.name === 'string')
-        .map((field: any) => ({
-          name: field.name,
-          type: field.type || 'string',
-        }))
-    }
-
-    const legacyFormat = triggerBlock.config?.params?.inputFormat
-
-    if (Array.isArray(legacyFormat)) {
-      return legacyFormat
-        .filter((field: any) => field.name && typeof field.name === 'string')
-        .map((field: any) => ({
-          name: field.name,
-          type: field.type || 'string',
-        }))
-    }
-
-    return []
-  }, [workflowData])
+  const { data: inputFields = [], isLoading } = useWorkflowInputFields(workflowId)
 
   const parsedValue = useMemo(() => {
     try {
@@ -803,37 +797,26 @@ function WorkflowToolDeployBadge({
   workflowId: string
   onDeploySuccess?: () => void
 }) {
-  const { isDeployed, needsRedeploy, isLoading, refetch } = useChildDeployment(workflowId)
-  const [isDeploying, setIsDeploying] = useState(false)
+  const { data, isLoading } = useChildDeploymentStatus(workflowId)
+  const deployMutation = useDeployChildWorkflow()
   const userPermissions = useUserPermissionsContext()
 
-  const deployWorkflow = useCallback(async () => {
+  const isDeployed = data?.isDeployed ?? null
+  const needsRedeploy = data?.needsRedeploy ?? false
+  const isDeploying = deployMutation.isPending
+
+  const deployWorkflow = useCallback(() => {
     if (isDeploying || !workflowId || !userPermissions.canAdmin) return
 
-    try {
-      setIsDeploying(true)
-      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+    deployMutation.mutate(
+      { workflowId },
+      {
+        onSuccess: () => {
+          onDeploySuccess?.()
         },
-        body: JSON.stringify({
-          deployChatEnabled: false,
-        }),
-      })
-
-      if (response.ok) {
-        refetch()
-        onDeploySuccess?.()
-      } else {
-        logger.error('Failed to deploy workflow')
       }
-    } catch (error) {
-      logger.error('Error deploying workflow:', error)
-    } finally {
-      setIsDeploying(false)
-    }
-  }, [isDeploying, workflowId, refetch, onDeploySuccess, userPermissions.canAdmin])
+    )
+  }, [isDeploying, workflowId, userPermissions.canAdmin, deployMutation, onDeploySuccess])
 
   if (isLoading || (isDeployed && !needsRedeploy)) {
     return null
@@ -1072,6 +1055,7 @@ export function ToolInput({
           block.type === 'api' ||
           block.type === 'webhook_request' ||
           block.type === 'workflow' ||
+          block.type === 'workflow_input' ||
           block.type === 'knowledge' ||
           block.type === 'function' ||
           block.type === 'table') &&
@@ -1798,7 +1782,7 @@ export function ToolInput({
           iconElement: createToolIcon('#6366F1', WorkflowIcon),
           onSelect: () => {
             const newTool: StoredTool = {
-              type: 'workflow',
+              type: 'workflow_input',
               title: 'Workflow',
               toolId: 'workflow_executor',
               params: {
@@ -2007,7 +1991,7 @@ export function ToolInput({
 
       case 'channel-selector':
         return (
-          <ChannelSelectorSyncWrapper
+          <SlackSelectorSyncWrapper
             blockId={blockId}
             paramId={param.id}
             value={value}
@@ -2015,6 +1999,21 @@ export function ToolInput({
             uiComponent={uiComponent}
             disabled={disabled}
             previewContextValues={currentToolParams as any}
+            selectorType='channel-selector'
+          />
+        )
+
+      case 'user-selector':
+        return (
+          <SlackSelectorSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
+            value={value}
+            onChange={onChange}
+            uiComponent={uiComponent}
+            disabled={disabled}
+            previewContextValues={currentToolParams as any}
+            selectorType='user-selector'
           />
         )
 
@@ -2052,6 +2051,19 @@ export function ToolInput({
       case 'file-selector':
         return (
           <FileSelectorSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
+            value={value}
+            onChange={onChange}
+            uiComponent={uiComponent}
+            disabled={disabled}
+            previewContextValues={currentToolParams as any}
+          />
+        )
+
+      case 'sheet-selector':
+        return (
+          <SheetSelectorSyncWrapper
             blockId={blockId}
             paramId={param.id}
             value={value}
@@ -2245,9 +2257,10 @@ export function ToolInput({
       {/* Selected Tools List */}
       {selectedTools.length > 0 &&
         selectedTools.map((tool, toolIndex) => {
-          // Handle custom tools and MCP tools differently
+          // Handle custom tools, MCP tools, and workflow tools differently
           const isCustomTool = tool.type === 'custom-tool'
           const isMcpTool = tool.type === 'mcp'
+          const isWorkflowTool = tool.type === 'workflow'
           const toolBlock =
             !isCustomTool && !isMcpTool
               ? toolBlocks.find((block) => block.type === tool.type)
@@ -2373,13 +2386,17 @@ export function ToolInput({
                         ? '#3B82F6'
                         : isMcpTool
                           ? mcpTool?.bgColor || '#6366F1'
-                          : toolBlock?.bgColor,
+                          : isWorkflowTool
+                            ? '#6366F1'
+                            : toolBlock?.bgColor,
                     }}
                   >
                     {isCustomTool ? (
                       <WrenchIcon className='h-[10px] w-[10px] text-white' />
                     ) : isMcpTool ? (
                       <IconComponent icon={McpIcon} className='h-[10px] w-[10px] text-white' />
+                    ) : isWorkflowTool ? (
+                      <IconComponent icon={WorkflowIcon} className='h-[10px] w-[10px] text-white' />
                     ) : (
                       <IconComponent
                         icon={toolBlock?.icon}
@@ -2419,9 +2436,10 @@ export function ToolInput({
                         </Tooltip.Root>
                       )
                     })()}
-                  {tool.type === 'workflow' && tool.params?.workflowId && (
-                    <WorkflowToolDeployBadge workflowId={tool.params.workflowId} />
-                  )}
+                  {(tool.type === 'workflow' || tool.type === 'workflow_input') &&
+                    tool.params?.workflowId && (
+                      <WorkflowToolDeployBadge workflowId={tool.params.workflowId} />
+                    )}
                 </div>
                 <div className='flex flex-shrink-0 items-center gap-[8px]'>
                   {supportsToolControl && !(isMcpTool && isMcpToolUnavailable(tool)) && (

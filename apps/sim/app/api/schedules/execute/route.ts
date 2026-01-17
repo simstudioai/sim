@@ -1,7 +1,7 @@
-import { db, workflowSchedule } from '@sim/db'
+import { db, workflowDeploymentVersion, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
-import { and, eq, isNull, lt, lte, not, or } from 'drizzle-orm'
+import { and, eq, isNull, lt, lte, not, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
@@ -37,7 +37,8 @@ export async function GET(request: NextRequest) {
           or(
             isNull(workflowSchedule.lastQueuedAt),
             lt(workflowSchedule.lastQueuedAt, workflowSchedule.nextRunAt)
-          )
+          ),
+          sql`${workflowSchedule.deploymentVersionId} = (select ${workflowDeploymentVersion.id} from ${workflowDeploymentVersion} where ${workflowDeploymentVersion.workflowId} = ${workflowSchedule.workflowId} and ${workflowDeploymentVersion.isActive} = true)`
         )
       )
       .returning({

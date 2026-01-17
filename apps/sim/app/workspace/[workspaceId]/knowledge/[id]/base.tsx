@@ -1523,15 +1523,16 @@ export function KnowledgeBase({
           <ModalHeader>Delete Knowledge Base</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete "{knowledgeBaseName}"? This will permanently delete
-              the knowledge base and all {pagination.total} document
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
+              This will permanently delete the knowledge base and all {pagination.total} document
               {pagination.total === 1 ? '' : 's'} within it.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>
             <Button
-              variant='active'
+              variant='default'
               onClick={() => setShowDeleteDialog(false)}
               disabled={isDeleting}
             >
@@ -1549,14 +1550,16 @@ export function KnowledgeBase({
           <ModalHeader>Delete Document</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete "
-              {documents.find((doc) => doc.id === documentToDelete)?.filename ?? 'this document'}"?{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {documents.find((doc) => doc.id === documentToDelete)?.filename ?? 'this document'}
+              </span>
+              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>
             <Button
-              variant='active'
+              variant='default'
               onClick={() => {
                 setShowDeleteDocumentModal(false)
                 setDocumentToDelete(null)
@@ -1582,7 +1585,7 @@ export function KnowledgeBase({
             </p>
           </ModalBody>
           <ModalFooter>
-            <Button variant='active' onClick={() => setShowBulkDeleteModal(false)}>
+            <Button variant='default' onClick={() => setShowBulkDeleteModal(false)}>
               Cancel
             </Button>
             <Button variant='destructive' onClick={confirmBulkDelete} disabled={isBulkOperating}>

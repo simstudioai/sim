@@ -8,6 +8,7 @@ import {
   extractFieldsFromSchema,
   parseResponseFormatSafely,
 } from '@/lib/core/utils/response-format'
+import { getToolOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { getBlock } from '@/blocks'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -128,6 +129,10 @@ export function OutputSelect({
           ? baselineWorkflow.blocks?.[block.id]?.subBlocks?.responseFormat?.value
           : subBlockValues?.[block.id]?.responseFormat
       const responseFormat = parseResponseFormatSafely(responseFormatValue, block.id)
+      const operationValue =
+        shouldUseBaseline && baselineWorkflow
+          ? baselineWorkflow.blocks?.[block.id]?.subBlocks?.operation?.value
+          : subBlockValues?.[block.id]?.operation
 
       let outputsToProcess: Record<string, unknown> = {}
 
@@ -141,7 +146,12 @@ export function OutputSelect({
           outputsToProcess = blockConfig?.outputs || {}
         }
       } else {
-        outputsToProcess = blockConfig?.outputs || {}
+        const toolOutputs =
+          blockConfig && typeof operationValue === 'string'
+            ? getToolOutputs(blockConfig, operationValue)
+            : {}
+        outputsToProcess =
+          Object.keys(toolOutputs).length > 0 ? toolOutputs : blockConfig?.outputs || {}
       }
 
       if (Object.keys(outputsToProcess).length === 0) return
@@ -321,13 +331,16 @@ export function OutputSelect({
   return (
     <Combobox
       size='sm'
-      className='!w-fit !py-[2px] [&>svg]:!ml-[4px] [&>svg]:!h-3 [&>svg]:!w-3 [&>span]:!text-[var(--text-secondary)] min-w-[100px] rounded-[6px] bg-transparent px-[9px] hover:bg-[var(--surface-5)] dark:hover:border-[var(--surface-6)] dark:hover:bg-transparent [&>span]:text-center'
+      className='!w-fit !py-[2px] min-w-[100px] rounded-[6px] px-[9px]'
       groups={comboboxGroups}
       options={[]}
       multiSelect
       multiSelectValues={normalizedSelectedValues}
       onMultiSelectChange={onOutputSelect}
       placeholder={selectedDisplayText}
+      overlayContent={
+        <span className='truncate text-[var(--text-primary)]'>{selectedDisplayText}</span>
+      }
       disabled={disabled || workflowOutputs.length === 0}
       align={align}
       maxHeight={maxHeight}

@@ -26,6 +26,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         { label: 'Send Message', id: 'send' },
         { label: 'Create Canvas', id: 'canvas' },
         { label: 'Read Messages', id: 'read' },
+        { label: 'Get Message', id: 'get_message' },
+        { label: 'Get Thread', id: 'get_thread' },
         { label: 'List Channels', id: 'list_channels' },
         { label: 'List Channel Members', id: 'list_members' },
         { label: 'List Users', id: 'list_users' },
@@ -316,6 +318,68 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       },
       required: true,
     },
+    // Get Message specific fields
+    {
+      id: 'getMessageTimestamp',
+      title: 'Message Timestamp',
+      type: 'short-input',
+      placeholder: 'Message timestamp (e.g., 1405894322.002768)',
+      condition: {
+        field: 'operation',
+        value: 'get_message',
+      },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Extract or generate a Slack message timestamp from the user's input.
+Slack message timestamps are in the format: XXXXXXXXXX.XXXXXX (seconds.microseconds since Unix epoch).
+Examples:
+- "1405894322.002768" -> 1405894322.002768 (already a valid timestamp)
+- "thread_ts from the trigger" -> The user wants to reference a variable, output the original text
+- A URL like "https://slack.com/archives/C123/p1405894322002768" -> Extract 1405894322.002768 (remove 'p' prefix, add decimal after 10th digit)
+
+If the input looks like a reference to another block's output (contains < and >) or a variable, return it as-is.
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Paste a Slack message URL or timestamp...',
+        generationType: 'timestamp',
+      },
+    },
+    // Get Thread specific fields
+    {
+      id: 'getThreadTimestamp',
+      title: 'Thread Timestamp',
+      type: 'short-input',
+      placeholder: 'Thread timestamp (thread_ts, e.g., 1405894322.002768)',
+      condition: {
+        field: 'operation',
+        value: 'get_thread',
+      },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Extract or generate a Slack thread timestamp from the user's input.
+Slack thread timestamps (thread_ts) are in the format: XXXXXXXXXX.XXXXXX (seconds.microseconds since Unix epoch).
+Examples:
+- "1405894322.002768" -> 1405894322.002768 (already a valid timestamp)
+- "thread_ts from the trigger" -> The user wants to reference a variable, output the original text
+- A URL like "https://slack.com/archives/C123/p1405894322002768" -> Extract 1405894322.002768 (remove 'p' prefix, add decimal after 10th digit)
+
+If the input looks like a reference to another block's output (contains < and >) or a variable, return it as-is.
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Paste a Slack thread URL or thread_ts...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'threadLimit',
+      title: 'Message Limit',
+      type: 'short-input',
+      placeholder: '100',
+      condition: {
+        field: 'operation',
+        value: 'get_thread',
+      },
+    },
     {
       id: 'oldest',
       title: 'Oldest Timestamp',
@@ -430,6 +494,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'slack_message',
       'slack_canvas',
       'slack_message_reader',
+      'slack_get_message',
+      'slack_get_thread',
       'slack_list_channels',
       'slack_list_members',
       'slack_list_users',
@@ -448,6 +514,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'slack_canvas'
           case 'read':
             return 'slack_message_reader'
+          case 'get_message':
+            return 'slack_get_message'
+          case 'get_thread':
+            return 'slack_get_thread'
           case 'list_channels':
             return 'slack_list_channels'
           case 'list_members':
@@ -498,6 +568,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           includeDeleted,
           userLimit,
           userId,
+          getMessageTimestamp,
+          getThreadTimestamp,
+          threadLimit,
           ...rest
         } = params
 
@@ -570,6 +643,27 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             baseParams.limit = parsedLimit
             if (oldest) {
               baseParams.oldest = oldest
+            }
+            break
+          }
+
+          case 'get_message':
+            if (!getMessageTimestamp) {
+              throw new Error('Message timestamp is required for get message operation')
+            }
+            baseParams.timestamp = getMessageTimestamp
+            break
+
+          case 'get_thread': {
+            if (!getThreadTimestamp) {
+              throw new Error('Thread timestamp is required for get thread operation')
+            }
+            baseParams.threadTs = getThreadTimestamp
+            if (threadLimit) {
+              const parsedLimit = Number.parseInt(threadLimit, 10)
+              if (!Number.isNaN(parsedLimit) && parsedLimit > 0) {
+                baseParams.limit = Math.min(parsedLimit, 200)
+              }
             }
             break
           }
@@ -679,6 +773,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     userLimit: { type: 'string', description: 'Maximum number of users to return' },
     // Get User inputs
     userId: { type: 'string', description: 'User ID to look up' },
+    // Get Message inputs
+    getMessageTimestamp: { type: 'string', description: 'Message timestamp to retrieve' },
+    // Get Thread inputs
+    getThreadTimestamp: { type: 'string', description: 'Thread timestamp to retrieve' },
+    threadLimit: {
+      type: 'string',
+      description: 'Maximum number of messages to return from thread',
+    },
   },
   outputs: {
     // slack_message outputs (send operation)
@@ -704,6 +806,24 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'json',
       description:
         'Array of message objects with comprehensive properties: text, user, timestamp, reactions, threads, files, attachments, blocks, stars, pins, and edit history',
+    },
+
+    // slack_get_thread outputs (get_thread operation)
+    parentMessage: {
+      type: 'json',
+      description: 'The thread parent message with all properties',
+    },
+    replies: {
+      type: 'json',
+      description: 'Array of reply messages in the thread (excluding the parent)',
+    },
+    replyCount: {
+      type: 'number',
+      description: 'Number of replies returned in this response',
+    },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether there are more messages in the thread',
     },
 
     // slack_list_channels outputs (list_channels operation)

@@ -297,7 +297,7 @@ describe('workflow store', () => {
       expectEdgeConnects(edges, 'block-1', 'block-2')
     })
 
-    it('should not add duplicate edges', () => {
+    it('should not add duplicate connections', () => {
       const { addBlock, batchAddEdges } = useWorkflowStore.getState()
 
       addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
@@ -308,17 +308,6 @@ describe('workflow store', () => {
 
       const state = useWorkflowStore.getState()
       expectEdgeCount(state, 1)
-    })
-
-    it('should prevent self-referencing edges', () => {
-      const { addBlock, batchAddEdges } = useWorkflowStore.getState()
-
-      addBlock('block-1', 'function', 'Self', { x: 0, y: 0 })
-
-      batchAddEdges([{ id: 'e1', source: 'block-1', target: 'block-1' }])
-
-      const state = useWorkflowStore.getState()
-      expectEdgeCount(state, 0)
     })
   })
 

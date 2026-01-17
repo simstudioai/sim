@@ -7,6 +7,7 @@ import postgres from 'postgres'
 import { env } from '@/lib/core/config/env'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { mergeSubBlockValues } from '@/lib/workflows/subblocks'
 import {
   BLOCK_OPERATIONS,
   BLOCKS_OPERATIONS,
@@ -396,6 +397,46 @@ async function handleBlockOperationTx(
       break
     }
 
+    case BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE: {
+      if (!payload.id || !payload.canonicalId || !payload.canonicalMode) {
+        throw new Error('Missing required fields for update canonical mode operation')
+      }
+
+      const existingBlock = await tx
+        .select({ data: workflowBlocks.data })
+        .from(workflowBlocks)
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .limit(1)
+
+      const currentData = (existingBlock?.[0]?.data as Record<string, unknown>) || {}
+      const currentCanonicalModes = (currentData.canonicalModes as Record<string, unknown>) || {}
+      const canonicalModes = {
+        ...currentCanonicalModes,
+        [payload.canonicalId]: payload.canonicalMode,
+      }
+
+      const updateResult = await tx
+        .update(workflowBlocks)
+        .set({
+          data: {
+            ...currentData,
+            canonicalModes,
+          },
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .returning({ id: workflowBlocks.id })
+
+      if (updateResult.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      logger.debug(
+        `Updated block canonical mode: ${payload.id} -> ${payload.canonicalId}: ${payload.canonicalMode}`
+      )
+      break
+    }
+
     case BLOCK_OPERATIONS.TOGGLE_HANDLES: {
       if (!payload.id || payload.horizontalHandles === undefined) {
         throw new Error('Missing required fields for toggle handles operation')
@@ -455,7 +496,7 @@ async function handleBlocksOperationTx(
     }
 
     case BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS: {
-      const { blocks, edges, loops, parallels } = payload
+      const { blocks, edges, loops, parallels, subBlockValues } = payload
 
       logger.info(`Batch adding blocks to workflow ${workflowId}`, {
         blockCount: blocks?.length || 0,
@@ -465,22 +506,30 @@ async function handleBlocksOperationTx(
       })
 
       if (blocks && blocks.length > 0) {
-        const blockValues = blocks.map((block: Record<string, unknown>) => ({
-          id: block.id as string,
-          workflowId,
-          type: block.type as string,
-          name: block.name as string,
-          positionX: (block.position as { x: number; y: number }).x,
-          positionY: (block.position as { x: number; y: number }).y,
-          data: (block.data as Record<string, unknown>) || {},
-          subBlocks: (block.subBlocks as Record<string, unknown>) || {},
-          outputs: (block.outputs as Record<string, unknown>) || {},
-          enabled: (block.enabled as boolean) ?? true,
-          horizontalHandles: (block.horizontalHandles as boolean) ?? true,
-          advancedMode: (block.advancedMode as boolean) ?? false,
-          triggerMode: (block.triggerMode as boolean) ?? false,
-          height: (block.height as number) || 0,
-        }))
+        const blockValues = blocks.map((block: Record<string, unknown>) => {
+          const blockId = block.id as string
+          const mergedSubBlocks = mergeSubBlockValues(
+            block.subBlocks as Record<string, unknown>,
+            subBlockValues?.[blockId]
+          )
+
+          return {
+            id: blockId,
+            workflowId,
+            type: block.type as string,
+            name: block.name as string,
+            positionX: (block.position as { x: number; y: number }).x,
+            positionY: (block.position as { x: number; y: number }).y,
+            data: (block.data as Record<string, unknown>) || {},
+            subBlocks: mergedSubBlocks,
+            outputs: (block.outputs as Record<string, unknown>) || {},
+            enabled: (block.enabled as boolean) ?? true,
+            horizontalHandles: (block.horizontalHandles as boolean) ?? true,
+            advancedMode: (block.advancedMode as boolean) ?? false,
+            triggerMode: (block.triggerMode as boolean) ?? false,
+            height: (block.height as number) || 0,
+          }
+        })
 
         await tx.insert(workflowBlocks).values(blockValues)
 
@@ -1125,7 +1174,6 @@ async function handleWorkflowOperationTx(
         parallelCount: Object.keys(parallels || {}).length,
       })
 
-      // Delete all existing blocks (this will cascade delete edges via ON DELETE CASCADE)
       await tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId))
 
       // Delete all existing subflows

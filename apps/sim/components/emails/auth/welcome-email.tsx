@@ -22,12 +22,20 @@ export function WelcomeEmail({ userName }: WelcomeEmailProps) {
         workflows in minutes.
       </Text>
 
-      <Link href={`${baseUrl}/w`} style={{ textDecoration: 'none' }}>
+      <Link href={`${baseUrl}/login`} style={{ textDecoration: 'none' }}>
         <Text style={baseStyles.button}>Get Started</Text>
       </Link>
 
       <Text style={baseStyles.paragraph}>
         If you have any questions or feedback, just reply to this email. I read every message!
+      </Text>
+
+      <Text style={baseStyles.paragraph}>
+        Want to chat?{' '}
+        <Link href={`${baseUrl}/team`} style={baseStyles.link}>
+          Schedule a call
+        </Link>{' '}
+        with our team.
       </Text>
 
       <Text style={baseStyles.paragraph}>- Emir, co-founder of {brand.name}</Text>
@@ -36,7 +44,7 @@ export function WelcomeEmail({ userName }: WelcomeEmailProps) {
       <div style={baseStyles.divider} />
 
       <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
-        You're on the free plan with $10 in credits to get started.
+        You're on the free plan with $20 in credits to get started.
       </Text>
     </EmailLayout>
   )

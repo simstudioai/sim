@@ -602,6 +602,68 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       return { id: file.id, label: file.name }
     },
   },
+  'google.sheets': {
+    key: 'google.sheets',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'google.sheets',
+      context.credentialId ?? 'none',
+      context.spreadsheetId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.credentialId && context.spreadsheetId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'google.sheets')
+      if (!context.spreadsheetId) {
+        throw new Error('Missing spreadsheet ID for google.sheets selector')
+      }
+      const data = await fetchJson<{ sheets: { id: string; name: string }[] }>(
+        '/api/tools/google_sheets/sheets',
+        {
+          searchParams: {
+            credentialId,
+            spreadsheetId: context.spreadsheetId,
+            workflowId: context.workflowId,
+          },
+        }
+      )
+      return (data.sheets || []).map((sheet) => ({
+        id: sheet.id,
+        label: sheet.name,
+      }))
+    },
+  },
+  'microsoft.excel.sheets': {
+    key: 'microsoft.excel.sheets',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'microsoft.excel.sheets',
+      context.credentialId ?? 'none',
+      context.spreadsheetId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.credentialId && context.spreadsheetId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'microsoft.excel.sheets')
+      if (!context.spreadsheetId) {
+        throw new Error('Missing spreadsheet ID for microsoft.excel.sheets selector')
+      }
+      const data = await fetchJson<{ sheets: { id: string; name: string }[] }>(
+        '/api/tools/microsoft_excel/sheets',
+        {
+          searchParams: {
+            credentialId,
+            spreadsheetId: context.spreadsheetId,
+            workflowId: context.workflowId,
+          },
+        }
+      )
+      return (data.sheets || []).map((sheet) => ({
+        id: sheet.id,
+        label: sheet.name,
+      }))
+    },
+  },
   'microsoft.excel': {
     key: 'microsoft.excel',
     staleTime: SELECTOR_STALE,

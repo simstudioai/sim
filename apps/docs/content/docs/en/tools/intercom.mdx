@@ -1,14 +1,35 @@
 ---
 title: Intercom
-description: Contact object with id, type, role, email, phone, name, external_id, created_at, updated_at
+description: Manage contacts, companies, conversations, tickets, and messages in Intercom
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="intercom_v2"
-  color="#F5F5F5"
+  color="#E0E0E0"
 />
+
+{/* MANUAL-CONTENT-START:intro */}
+Supercharge your customer communications and relationship management with [Intercom](https://www.intercom.com/) – the all-in-one messaging platform for engaging, supporting, and retaining your customers. Integrate Intercom into your workflows to centralize conversations, contacts, support tickets, and more, all seamlessly accessible via automation.
+
+With the Intercom tool, you can:
+
+- **Create and manage contacts**: Easily add, update, search, list, and delete contacts to maintain a clean, actionable customer database. 
+- **Organize companies**: Create, get, and list companies to understand and support your customer organizations at scale.
+- **Centralize customer conversations**: Retrieve, list, reply to, and search customer conversations to ensure no message slips through the cracks and support responses are always timely.
+- **Manage tickets and messages**: Create and fetch tickets, as well as compose outbound messages, to deliver proactive, high-quality support experiences.
+- **Automate and extend workflows**: Connect Intercom operations with your automations to trigger follow-ups, orchestrate customer journeys, and sync data with your stack.
+
+Intercom empowers sales, support, and success teams to deliver personalized, efficient, and scalable customer experiences—whether you need to onboard new users, troubleshoot issues, or engage your customer base in real time.
+
+Drive deeper relationships, faster response times, and smarter workflows by integrating Intercom with your automated processes today.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Intercom into the workflow. Can create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create and get tickets; and create messages.
 
 
 
@@ -40,6 +61,60 @@ Create a new contact in Intercom with email, external_id, or role. Returns API-a
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contact` | object | Created contact object |
+| ↳ `id` | string | Unique identifier for the contact |
+| ↳ `type` | string | List type |
+| ↳ `role` | string | Role of the contact \(user or lead\) |
+| ↳ `email` | string | Email address of the contact |
+| ↳ `phone` | string | Phone number of the contact |
+| ↳ `name` | string | Name of the contact |
+| ↳ `avatar` | string | Avatar URL of the contact |
+| ↳ `owner_id` | string | ID of the admin assigned to this contact |
+| ↳ `external_id` | string | External identifier for the contact |
+| ↳ `created_at` | number | Unix timestamp when contact was created |
+| ↳ `updated_at` | number | Unix timestamp when contact was last updated |
+| ↳ `signed_up_at` | number | Unix timestamp when user signed up |
+| ↳ `last_seen_at` | number | Unix timestamp when user was last seen |
+| ↳ `workspace_id` | string | Workspace ID the contact belongs to |
+| ↳ `custom_attributes` | object | Custom attributes set on the contact |
+| ↳ `tags` | object | Tags associated with the contact |
+|   ↳ `type` | string | List type |
+|   ↳ `url` | string | URL to fetch tags |
+|   ↳ `data` | array | Array of tag objects |
+|   ↳ `has_more` | boolean | Whether there are more tags |
+|   ↳ `total_count` | number | Total number of tags |
+| ↳ `url` | string | URL to fetch companies |
+| ↳ `data` | array | Array of social profile objects |
+| ↳ `has_more` | boolean | Whether there are more companies |
+| ↳ `total_count` | number | Total number of companies |
+| ↳ `notes` | object | Notes associated with the contact |
+|   ↳ `type` | string | List type |
+|   ↳ `url` | string | URL to fetch notes |
+|   ↳ `data` | array | Array of note objects |
+|   ↳ `has_more` | boolean | Whether there are more notes |
+|   ↳ `total_count` | number | Total number of notes |
+| ↳ `companies` | object | Companies associated with the contact |
+|   ↳ `type` | string | List type |
+|   ↳ `url` | string | URL to fetch companies |
+|   ↳ `data` | array | Array of company objects |
+|   ↳ `has_more` | boolean | Whether there are more companies |
+|   ↳ `total_count` | number | Total number of companies |
+| ↳ `location` | object | Location information for the contact |
+|   ↳ `type` | string | Location type |
+|   ↳ `city` | string | City |
+|   ↳ `region` | string | Region/State |
+|   ↳ `country` | string | Country |
+|   ↳ `country_code` | string | Country code |
+|   ↳ `continent_code` | string | Continent code |
+| ↳ `city` | string | City |
+| ↳ `region` | string | Region/State |
+| ↳ `country` | string | Country |
+| ↳ `country_code` | string | Country code |
+| ↳ `continent_code` | string | Continent code |
+| ↳ `social_profiles` | object | Social profiles of the contact |
+|   ↳ `type` | string | List type |
+|   ↳ `data` | array | Array of social profile objects |
+| ↳ `unsubscribed_from_emails` | boolean | Whether contact is unsubscribed from emails |
+| `contactId` | string | ID of the created contact |
 
 ### `intercom_get_contact`
 
@@ -56,6 +131,25 @@ Get a single contact by ID from Intercom. Returns API-aligned fields only.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contact` | object | Contact object |
+| ↳ `id` | string | Unique identifier for the contact |
+| ↳ `type` | string | Object type \(contact\) |
+| ↳ `role` | string | Role of the contact \(user or lead\) |
+| ↳ `email` | string | Email address of the contact |
+| ↳ `phone` | string | Phone number of the contact |
+| ↳ `name` | string | Name of the contact |
+| ↳ `avatar` | string | Avatar URL of the contact |
+| ↳ `owner_id` | string | ID of the admin assigned to this contact |
+| ↳ `external_id` | string | External identifier for the contact |
+| ↳ `created_at` | number | Unix timestamp when contact was created |
+| ↳ `updated_at` | number | Unix timestamp when contact was last updated |
+| ↳ `workspace_id` | string | Workspace ID the contact belongs to |
+| ↳ `custom_attributes` | object | Custom attributes set on the contact |
+| ↳ `tags` | object | Tags associated with the contact |
+| ↳ `notes` | object | Notes associated with the contact |
+| ↳ `companies` | object | Companies associated with the contact |
+| ↳ `location` | object | Location information for the contact |
+| ↳ `social_profiles` | object | Social profiles of the contact |
+| ↳ `unsubscribed_from_emails` | boolean | Whether contact is unsubscribed from emails |
 
 ### `intercom_update_contact`
 
@@ -84,6 +178,26 @@ Update an existing contact in Intercom. Returns API-aligned fields only.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contact` | object | Updated contact object |
+| ↳ `id` | string | Unique identifier for the contact |
+| ↳ `type` | string | Object type \(contact\) |
+| ↳ `role` | string | Role of the contact \(user or lead\) |
+| ↳ `email` | string | Email address of the contact |
+| ↳ `phone` | string | Phone number of the contact |
+| ↳ `name` | string | Name of the contact |
+| ↳ `avatar` | string | Avatar URL of the contact |
+| ↳ `owner_id` | string | ID of the admin assigned to this contact |
+| ↳ `external_id` | string | External identifier for the contact |
+| ↳ `created_at` | number | Unix timestamp when contact was created |
+| ↳ `updated_at` | number | Unix timestamp when contact was last updated |
+| ↳ `workspace_id` | string | Workspace ID the contact belongs to |
+| ↳ `custom_attributes` | object | Custom attributes set on the contact |
+| ↳ `tags` | object | Tags associated with the contact |
+| ↳ `notes` | object | Notes associated with the contact |
+| ↳ `companies` | object | Companies associated with the contact |
+| ↳ `location` | object | Location information for the contact |
+| ↳ `social_profiles` | object | Social profiles of the contact |
+| ↳ `unsubscribed_from_emails` | boolean | Whether contact is unsubscribed from emails |
+| `contactId` | string | ID of the updated contact |
 
 ### `intercom_list_contacts`
 
@@ -101,6 +215,25 @@ List all contacts from Intercom with pagination support
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contacts` | array | Array of contact objects |
+|   ↳ `id` | string | Unique identifier for the contact |
+|   ↳ `type` | string | Object type \(contact\) |
+|   ↳ `role` | string | Role of the contact \(user or lead\) |
+|   ↳ `email` | string | Email address of the contact |
+|   ↳ `phone` | string | Phone number of the contact |
+|   ↳ `name` | string | Name of the contact |
+|   ↳ `external_id` | string | External identifier for the contact |
+|   ↳ `created_at` | number | Unix timestamp when contact was created |
+|   ↳ `updated_at` | number | Unix timestamp when contact was last updated |
+|   ↳ `workspace_id` | string | Workspace ID the contact belongs to |
+|   ↳ `custom_attributes` | object | Custom attributes set on the contact |
+|   ↳ `tags` | object | Tags associated with the contact |
+|   ↳ `companies` | object | Companies associated with the contact |
+| `pages` | object | Pagination information |
+| ↳ `type` | string | Pages type identifier |
+| ↳ `page` | number | Current page number |
+| ↳ `per_page` | number | Number of results per page |
+| ↳ `total_pages` | number | Total number of pages |
+| `total_count` | number | Total number of contacts |
 
 ### `intercom_search_contacts`
 
@@ -121,6 +254,33 @@ Search for contacts in Intercom using a query
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contacts` | array | Array of matching contact objects |
+|   ↳ `id` | string | Unique identifier for the contact |
+|   ↳ `type` | string | Object type \(contact\) |
+|   ↳ `role` | string | Role of the contact \(user or lead\) |
+|   ↳ `email` | string | Email address of the contact |
+|   ↳ `phone` | string | Phone number of the contact |
+|   ↳ `name` | string | Name of the contact |
+|   ↳ `avatar` | string | Avatar URL of the contact |
+|   ↳ `owner_id` | string | ID of the admin assigned to this contact |
+|   ↳ `external_id` | string | External identifier for the contact |
+|   ↳ `created_at` | number | Unix timestamp when contact was created |
+|   ↳ `updated_at` | number | Unix timestamp when contact was last updated |
+|   ↳ `signed_up_at` | number | Unix timestamp when user signed up |
+|   ↳ `last_seen_at` | number | Unix timestamp when user was last seen |
+|   ↳ `workspace_id` | string | Workspace ID the contact belongs to |
+|   ↳ `custom_attributes` | object | Custom attributes set on the contact |
+|   ↳ `tags` | object | Tags associated with the contact |
+|   ↳ `notes` | object | Notes associated with the contact |
+|   ↳ `companies` | object | Companies associated with the contact |
+|   ↳ `location` | object | Location information for the contact |
+|   ↳ `social_profiles` | object | Social profiles of the contact |
+|   ↳ `unsubscribed_from_emails` | boolean | Whether contact is unsubscribed from emails |
+| `pages` | object | Pagination information |
+| ↳ `type` | string | Pages type identifier |
+| ↳ `page` | number | Current page number |
+| ↳ `per_page` | number | Number of results per page |
+| ↳ `total_pages` | number | Total number of pages |
+| `total_count` | number | Total number of matching contacts |
 
 ### `intercom_delete_contact`
 
@@ -162,6 +322,25 @@ Create or update a company in Intercom
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `company` | object | Created or updated company object |
+| ↳ `id` | string | Unique identifier for the company |
+| ↳ `type` | string | Segment list type |
+| ↳ `app_id` | string | Intercom app ID |
+| ↳ `company_id` | string | Your unique identifier for the company |
+| ↳ `name` | string | Name of the company |
+| ↳ `website` | string | Company website URL |
+| ↳ `plan` | object | Company plan information |
+| ↳ `size` | number | Number of employees |
+| ↳ `industry` | string | Industry the company operates in |
+| ↳ `monthly_spend` | number | Monthly revenue from this company |
+| ↳ `session_count` | number | Number of sessions |
+| ↳ `user_count` | number | Number of users in the company |
+| ↳ `created_at` | number | Unix timestamp when company was created |
+| ↳ `updated_at` | number | Unix timestamp when company was last updated |
+| ↳ `remote_created_at` | number | Unix timestamp when company was created by you |
+| ↳ `custom_attributes` | object | Custom attributes set on the company |
+| ↳ `tags` | array | Array of tag objects |
+| ↳ `segments` | array | Array of segment objects |
+| `companyId` | string | ID of the created/updated company |
 
 ### `intercom_get_company`
 
@@ -178,6 +357,23 @@ Retrieve a single company by ID from Intercom
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `company` | object | Company object |
+| ↳ `id` | string | Unique identifier for the company |
+| ↳ `type` | string | Object type \(company\) |
+| ↳ `app_id` | string | Intercom app ID |
+| ↳ `company_id` | string | Your unique identifier for the company |
+| ↳ `name` | string | Name of the company |
+| ↳ `website` | string | Company website URL |
+| ↳ `plan` | object | Company plan information |
+| ↳ `size` | number | Number of employees |
+| ↳ `industry` | string | Industry the company operates in |
+| ↳ `monthly_spend` | number | Monthly revenue from this company |
+| ↳ `session_count` | number | Number of sessions |
+| ↳ `user_count` | number | Number of users in the company |
+| ↳ `created_at` | number | Unix timestamp when company was created |
+| ↳ `updated_at` | number | Unix timestamp when company was last updated |
+| ↳ `custom_attributes` | object | Custom attributes set on the company |
+| ↳ `tags` | object | Tags associated with the company |
+| ↳ `segments` | object | Segments the company belongs to |
 
 ### `intercom_list_companies`
 
@@ -196,6 +392,28 @@ List all companies from Intercom with pagination support. Note: This endpoint ha
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `companies` | array | Array of company objects |
+|   ↳ `id` | string | Unique identifier for the company |
+|   ↳ `type` | string | Object type \(company\) |
+|   ↳ `app_id` | string | Intercom app ID |
+|   ↳ `company_id` | string | Your unique identifier for the company |
+|   ↳ `name` | string | Name of the company |
+|   ↳ `website` | string | Company website URL |
+|   ↳ `plan` | object | Company plan information |
+|   ↳ `monthly_spend` | number | Monthly revenue from this company |
+|   ↳ `session_count` | number | Number of sessions |
+|   ↳ `user_count` | number | Number of users in the company |
+|   ↳ `created_at` | number | Unix timestamp when company was created |
+|   ↳ `updated_at` | number | Unix timestamp when company was last updated |
+|   ↳ `custom_attributes` | object | Custom attributes set on the company |
+|   ↳ `tags` | object | Tags associated with the company |
+|   ↳ `segments` | object | Segments the company belongs to |
+| `pages` | object | Pagination information |
+| ↳ `type` | string | Pages type identifier |
+| ↳ `page` | number | Current page number |
+| ↳ `per_page` | number | Number of results per page |
+| ↳ `total_pages` | number | Total number of pages |
+| `total_count` | number | Total number of companies |
+| `success` | boolean | Operation success status |
 
 ### `intercom_get_conversation`
 
@@ -214,6 +432,26 @@ Retrieve a single conversation by ID from Intercom
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `conversation` | object | Conversation object |
+| ↳ `id` | string | Unique identifier for the conversation |
+| ↳ `type` | string | Object type \(conversation\) |
+| ↳ `title` | string | Title of the conversation |
+| ↳ `created_at` | number | Unix timestamp when conversation was created |
+| ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+| ↳ `waiting_since` | number | Unix timestamp when waiting for reply |
+| ↳ `snoozed_until` | number | Unix timestamp when snooze ends |
+| ↳ `open` | boolean | Whether the conversation is open |
+| ↳ `state` | string | State of the conversation |
+| ↳ `read` | boolean | Whether the conversation has been read |
+| ↳ `priority` | string | Priority of the conversation |
+| ↳ `admin_assignee_id` | number | ID of assigned admin |
+| ↳ `team_assignee_id` | string | ID of assigned team |
+| ↳ `tags` | object | Tags on the conversation |
+| ↳ `source` | object | Source of the conversation |
+| ↳ `contacts` | object | Contacts in the conversation |
+| ↳ `teammates` | object | Teammates in the conversation |
+| ↳ `conversation_parts` | object | Parts of the conversation |
+| ↳ `statistics` | object | Conversation statistics |
+| `success` | boolean | Operation success status |
 
 ### `intercom_list_conversations`
 
@@ -233,6 +471,28 @@ List all conversations from Intercom with pagination support
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `conversations` | array | Array of conversation objects |
+|   ↳ `id` | string | Unique identifier for the conversation |
+|   ↳ `type` | string | Object type \(conversation\) |
+|   ↳ `title` | string | Title of the conversation |
+|   ↳ `created_at` | number | Unix timestamp when conversation was created |
+|   ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+|   ↳ `waiting_since` | number | Unix timestamp when waiting for reply |
+|   ↳ `open` | boolean | Whether the conversation is open |
+|   ↳ `state` | string | State of the conversation |
+|   ↳ `read` | boolean | Whether the conversation has been read |
+|   ↳ `priority` | string | Priority of the conversation |
+|   ↳ `admin_assignee_id` | number | ID of assigned admin |
+|   ↳ `team_assignee_id` | string | ID of assigned team |
+|   ↳ `tags` | object | Tags on the conversation |
+|   ↳ `source` | object | Source of the conversation |
+|   ↳ `contacts` | object | Contacts in the conversation |
+| `pages` | object | Pagination information |
+| ↳ `type` | string | Pages type identifier |
+| ↳ `page` | number | Current page number |
+| ↳ `per_page` | number | Number of results per page |
+| ↳ `total_pages` | number | Total number of pages |
+| `total_count` | number | Total number of conversations |
+| `success` | boolean | Operation success status |
 
 ### `intercom_reply_conversation`
 
@@ -254,6 +514,24 @@ Reply to a conversation as an admin in Intercom
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `conversation` | object | Updated conversation object |
+| ↳ `id` | string | Unique identifier for the conversation |
+| ↳ `type` | string | Object type \(conversation\) |
+| ↳ `title` | string | Title of the conversation |
+| ↳ `created_at` | number | Unix timestamp when conversation was created |
+| ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+| ↳ `waiting_since` | number | Unix timestamp when waiting for reply |
+| ↳ `open` | boolean | Whether the conversation is open |
+| ↳ `state` | string | State of the conversation |
+| ↳ `read` | boolean | Whether the conversation has been read |
+| ↳ `priority` | string | Priority of the conversation |
+| ↳ `admin_assignee_id` | number | ID of assigned admin |
+| ↳ `team_assignee_id` | string | ID of assigned team |
+| ↳ `tags` | object | Tags on the conversation |
+| ↳ `source` | object | Source of the conversation |
+| ↳ `contacts` | object | Contacts in the conversation |
+| ↳ `conversation_parts` | object | Parts of the conversation |
+| `conversationId` | string | ID of the conversation |
+| `success` | boolean | Operation success status |
 
 ### `intercom_search_conversations`
 
@@ -274,6 +552,28 @@ Search for conversations in Intercom using a query. Returns API-aligned fields o
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `conversations` | array | Array of matching conversation objects |
+|   ↳ `id` | string | Unique identifier for the conversation |
+|   ↳ `type` | string | Object type \(conversation\) |
+|   ↳ `title` | string | Title of the conversation |
+|   ↳ `created_at` | number | Unix timestamp when conversation was created |
+|   ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+|   ↳ `waiting_since` | number | Unix timestamp when waiting for reply |
+|   ↳ `open` | boolean | Whether the conversation is open |
+|   ↳ `state` | string | State of the conversation |
+|   ↳ `read` | boolean | Whether the conversation has been read |
+|   ↳ `priority` | string | Priority of the conversation |
+|   ↳ `admin_assignee_id` | number | ID of assigned admin |
+|   ↳ `team_assignee_id` | string | ID of assigned team |
+|   ↳ `tags` | object | Tags on the conversation |
+|   ↳ `source` | object | Source of the conversation |
+|   ↳ `contacts` | object | Contacts in the conversation |
+| `pages` | object | Pagination information |
+| ↳ `type` | string | Pages type identifier |
+| ↳ `page` | number | Current page number |
+| ↳ `per_page` | number | Number of results per page |
+| ↳ `total_pages` | number | Total number of pages |
+| `total_count` | number | Total number of matching conversations |
+| `success` | boolean | Operation success status |
 
 ### `intercom_create_ticket`
 
@@ -296,6 +596,23 @@ Create a new ticket in Intercom. Returns API-aligned fields only.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ticket` | object | Created ticket object |
+| ↳ `id` | string | Unique identifier for the ticket |
+| ↳ `type` | string | Object type \(ticket\) |
+| ↳ `ticket_id` | string | Ticket ID |
+| ↳ `ticket_type` | object | Type of the ticket |
+| ↳ `ticket_attributes` | object | Attributes of the ticket |
+| ↳ `ticket_state` | string | State of the ticket |
+| ↳ `ticket_state_internal_label` | string | Internal label for ticket state |
+| ↳ `ticket_state_external_label` | string | External label for ticket state |
+| ↳ `created_at` | number | Unix timestamp when ticket was created |
+| ↳ `updated_at` | number | Unix timestamp when ticket was last updated |
+| ↳ `contacts` | object | Contacts associated with the ticket |
+| ↳ `admin_assignee_id` | string | ID of assigned admin |
+| ↳ `team_assignee_id` | string | ID of assigned team |
+| ↳ `is_shared` | boolean | Whether the ticket is shared |
+| ↳ `open` | boolean | Whether the ticket is open |
+| `ticketId` | string | ID of the created ticket |
+| `success` | boolean | Operation success status |
 
 ### `intercom_get_ticket`
 
@@ -312,6 +629,23 @@ Retrieve a single ticket by ID from Intercom. Returns API-aligned fields only.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ticket` | object | Ticket object |
+| ↳ `id` | string | Unique identifier for the ticket |
+| ↳ `type` | string | Object type \(ticket\) |
+| ↳ `ticket_id` | string | Ticket ID |
+| ↳ `ticket_type` | object | Type of the ticket |
+| ↳ `ticket_attributes` | object | Attributes of the ticket |
+| ↳ `ticket_state` | string | State of the ticket |
+| ↳ `ticket_state_internal_label` | string | Internal label for ticket state |
+| ↳ `ticket_state_external_label` | string | External label for ticket state |
+| ↳ `created_at` | number | Unix timestamp when ticket was created |
+| ↳ `updated_at` | number | Unix timestamp when ticket was last updated |
+| ↳ `contacts` | object | Contacts associated with the ticket |
+| ↳ `admin_assignee_id` | string | ID of assigned admin |
+| ↳ `team_assignee_id` | string | ID of assigned team |
+| ↳ `is_shared` | boolean | Whether the ticket is shared |
+| ↳ `open` | boolean | Whether the ticket is open |
+| `ticketId` | string | ID of the retrieved ticket |
+| `success` | boolean | Operation success status |
 
 ### `intercom_create_message`
 
@@ -336,5 +670,14 @@ Create and send a new admin-initiated message in Intercom. Returns API-aligned f
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | object | Created message object |
+| ↳ `id` | string | Unique identifier for the message |
+| ↳ `type` | string | Object type \(message\) |
+| ↳ `created_at` | number | Unix timestamp when message was created |
+| ↳ `body` | string | Body of the message |
+| ↳ `message_type` | string | Type of the message \(in_app or email\) |
+| ↳ `conversation_id` | string | ID of the conversation created |
+| ↳ `owner` | object | Owner of the message |
+| `messageId` | string | ID of the created message |
+| `success` | boolean | Operation success status |
 
 

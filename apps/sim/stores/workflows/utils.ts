@@ -1,6 +1,7 @@
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { mergeSubBlockValues, mergeSubblockStateWithValues } from '@/lib/workflows/subblocks'
 import { getBlock } from '@/blocks'
 import { normalizeName } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -17,6 +18,19 @@ import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 const WEBHOOK_SUBBLOCK_FIELDS = ['webhookId', 'triggerPath']
 
 export { normalizeName }
+
+export function filterNewEdges(edgesToAdd: Edge[], currentEdges: Edge[]): Edge[] {
+  return edgesToAdd.filter((edge) => {
+    if (edge.source === edge.target) return false
+    return !currentEdges.some(
+      (e) =>
+        e.source === edge.source &&
+        e.sourceHandle === edge.sourceHandle &&
+        e.target === edge.target &&
+        e.targetHandle === edge.targetHandle
+    )
+  })
+}
 
 export interface RegeneratedState {
   blocks: Record<string, BlockState>
@@ -187,27 +201,20 @@ export function prepareDuplicateBlockState(options: PrepareDuplicateBlockStateOp
     Object.entries(subBlockValues).filter(([key]) => !WEBHOOK_SUBBLOCK_FIELDS.includes(key))
   )
 
-  const mergedSubBlocks: Record<string, SubBlockState> = sourceBlock.subBlocks
+  const baseSubBlocks: Record<string, SubBlockState> = sourceBlock.subBlocks
     ? JSON.parse(JSON.stringify(sourceBlock.subBlocks))
     : {}
 
   WEBHOOK_SUBBLOCK_FIELDS.forEach((field) => {
-    if (field in mergedSubBlocks) {
-      delete mergedSubBlocks[field]
+    if (field in baseSubBlocks) {
+      delete baseSubBlocks[field]
     }
   })
 
-  Object.entries(filteredSubBlockValues).forEach(([subblockId, value]) => {
-    if (mergedSubBlocks[subblockId]) {
-      mergedSubBlocks[subblockId].value = value as SubBlockState['value']
-    } else {
-      mergedSubBlocks[subblockId] = {
-        id: subblockId,
-        type: 'short-input',
-        value: value as SubBlockState['value'],
-      }
-    }
-  })
+  const mergedSubBlocks = mergeSubBlockValues(baseSubBlocks, filteredSubBlockValues) as Record<
+    string,
+    SubBlockState
+  >
 
   const block: BlockState = {
     id: newId,
@@ -242,10 +249,15 @@ export function mergeSubblockState(
   workflowId?: string,
   blockId?: string
 ): Record<string, BlockState> {
-  const blocksToProcess = blockId ? { [blockId]: blocks[blockId] } : blocks
   const subBlockStore = useSubBlockStore.getState()
 
   const workflowSubblockValues = workflowId ? subBlockStore.workflowValues[workflowId] || {} : {}
+
+  if (workflowId) {
+    return mergeSubblockStateWithValues(blocks, workflowSubblockValues, blockId)
+  }
+
+  const blocksToProcess = blockId ? { [blockId]: blocks[blockId] } : blocks
 
   return Object.entries(blocksToProcess).reduce(
     (acc, [id, block]) => {
@@ -325,8 +337,14 @@ export async function mergeSubblockStateAsync(
   workflowId?: string,
   blockId?: string
 ): Promise<Record<string, BlockState>> {
-  const blocksToProcess = blockId ? { [blockId]: blocks[blockId] } : blocks
   const subBlockStore = useSubBlockStore.getState()
+
+  if (workflowId) {
+    const workflowValues = subBlockStore.workflowValues[workflowId] || {}
+    return mergeSubblockStateWithValues(blocks, workflowValues, blockId)
+  }
+
+  const blocksToProcess = blockId ? { [blockId]: blocks[blockId] } : blocks
 
   // Process blocks in parallel for better performance
   const processedBlockEntries = await Promise.all(
@@ -344,16 +362,7 @@ export async function mergeSubblockStateAsync(
             return null
           }
 
-          let storedValue = null
-
-          if (workflowId) {
-            const workflowValues = subBlockStore.workflowValues[workflowId]
-            if (workflowValues?.[id]) {
-              storedValue = workflowValues[id][subBlockId]
-            }
-          } else {
-            storedValue = subBlockStore.getValue(id, subBlockId)
-          }
+          const storedValue = subBlockStore.getValue(id, subBlockId)
 
           return [
             subBlockId,
@@ -371,23 +380,6 @@ export async function mergeSubblockStateAsync(
       const mergedSubBlocks = Object.fromEntries(
         subBlockEntries.filter((entry): entry is readonly [string, SubBlockState] => entry !== null)
       ) as Record<string, SubBlockState>
-
-      // Add any values that exist in the store but aren't in the block structure
-      // This handles cases where block config has been updated but values still exist
-      // IMPORTANT: This includes runtime subblock IDs like webhookId, triggerPath, etc.
-      if (workflowId) {
-        const workflowValues = subBlockStore.workflowValues[workflowId]
-        const blockValues = workflowValues?.[id] || {}
-        Object.entries(blockValues).forEach(([subBlockId, value]) => {
-          if (!mergedSubBlocks[subBlockId] && value !== null && value !== undefined) {
-            mergedSubBlocks[subBlockId] = {
-              id: subBlockId,
-              type: 'short-input',
-              value: value as SubBlockState['value'],
-            }
-          }
-        })
-      }
 
       // Return the full block state with updated subBlocks (including orphaned values)
       return [

@@ -50,6 +50,9 @@ Read tasks from Microsoft Planner - get all user tasks or all tasks from a speci
 | `success` | boolean | Whether tasks were retrieved successfully |
 | `tasks` | array | Array of task objects with filtered properties |
 | `metadata` | object | Metadata including planId, userId, and planUrl |
+| ↳ `planId` | string | Plan ID |
+| ↳ `userId` | string | User ID |
+| ↳ `planUrl` | string | Microsoft Graph API URL for the plan |
 
 ### `microsoft_planner_create_task`
 
@@ -73,6 +76,9 @@ Create a new task in Microsoft Planner
 | `success` | boolean | Whether the task was created successfully |
 | `task` | object | The created task object with all properties |
 | `metadata` | object | Metadata including planId, taskId, and taskUrl |
+| ↳ `planId` | string | Parent plan ID |
+| ↳ `taskId` | string | Created task ID |
+| ↳ `taskUrl` | string | Microsoft Graph API URL for the task |
 
 ### `microsoft_planner_update_task`
 
@@ -102,6 +108,9 @@ Update a task in Microsoft Planner
 | `taskId` | string | ID of the updated task |
 | `etag` | string | New ETag after update - use this for subsequent operations |
 | `metadata` | object | Metadata including taskId, planId, and taskUrl |
+| ↳ `taskId` | string | Updated task ID |
+| ↳ `planId` | string | Parent plan ID |
+| ↳ `taskUrl` | string | Microsoft Graph API URL for the task |
 
 ### `microsoft_planner_delete_task`
 
@@ -138,6 +147,8 @@ List all plans shared with the current user
 | `success` | boolean | Whether plans were retrieved successfully |
 | `plans` | array | Array of plan objects shared with the current user |
 | `metadata` | object | Metadata including userId and count |
+| ↳ `count` | number | Number of plans returned |
+| ↳ `userId` | string | User ID |
 
 ### `microsoft_planner_read_plan`
 
@@ -156,6 +167,8 @@ Get details of a specific Microsoft Planner plan
 | `success` | boolean | Whether the plan was retrieved successfully |
 | `plan` | object | The plan object with all properties |
 | `metadata` | object | Metadata including planId and planUrl |
+| ↳ `planId` | string | Plan ID |
+| ↳ `planUrl` | string | Microsoft Graph API URL for the plan |
 
 ### `microsoft_planner_list_buckets`
 
@@ -174,6 +187,8 @@ List all buckets in a Microsoft Planner plan
 | `success` | boolean | Whether buckets were retrieved successfully |
 | `buckets` | array | Array of bucket objects |
 | `metadata` | object | Metadata including planId and count |
+| ↳ `planId` | string | Plan ID |
+| ↳ `count` | number | Number of buckets returned |
 
 ### `microsoft_planner_read_bucket`
 
@@ -192,6 +207,8 @@ Get details of a specific bucket
 | `success` | boolean | Whether the bucket was retrieved successfully |
 | `bucket` | object | The bucket object with all properties |
 | `metadata` | object | Metadata including bucketId and planId |
+| ↳ `bucketId` | string | Bucket ID |
+| ↳ `planId` | string | Parent plan ID |
 
 ### `microsoft_planner_create_bucket`
 
@@ -211,6 +228,8 @@ Create a new bucket in a Microsoft Planner plan
 | `success` | boolean | Whether the bucket was created successfully |
 | `bucket` | object | The created bucket object with all properties |
 | `metadata` | object | Metadata including bucketId and planId |
+| ↳ `bucketId` | string | Created bucket ID |
+| ↳ `planId` | string | Parent plan ID |
 
 ### `microsoft_planner_update_bucket`
 
@@ -231,6 +250,8 @@ Update a bucket in Microsoft Planner
 | `success` | boolean | Whether the bucket was updated successfully |
 | `bucket` | object | The updated bucket object with all properties |
 | `metadata` | object | Metadata including bucketId and planId |
+| ↳ `bucketId` | string | Updated bucket ID |
+| ↳ `planId` | string | Parent plan ID |
 
 ### `microsoft_planner_delete_bucket`
 
@@ -269,6 +290,7 @@ Get detailed information about a task including checklist and references
 | `taskDetails` | object | The task details including description, checklist, and references |
 | `etag` | string | The ETag value for this task details - use this for update operations |
 | `metadata` | object | Metadata including taskId |
+| ↳ `taskId` | string | Task ID |
 
 ### `microsoft_planner_update_task_details`
 
@@ -292,5 +314,6 @@ Update task details including description, checklist items, and references in Mi
 | `success` | boolean | Whether the task details were updated successfully |
 | `taskDetails` | object | The updated task details object with all properties |
 | `metadata` | object | Metadata including taskId |
+| ↳ `taskId` | string | Task ID |
 
 

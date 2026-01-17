@@ -69,6 +69,22 @@ Create a new Zoom meeting
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `meeting` | object | The created meeting with all its properties |
+| ↳ `id` | number | Meeting ID |
+| ↳ `uuid` | string | Meeting UUID |
+| ↳ `host_id` | string | Host user ID |
+| ↳ `host_email` | string | Host email |
+| ↳ `topic` | string | Meeting topic |
+| ↳ `type` | number | Meeting type |
+| ↳ `status` | string | Meeting status |
+| ↳ `start_time` | string | Start time |
+| ↳ `duration` | number | Duration in minutes |
+| ↳ `timezone` | string | Timezone |
+| ↳ `agenda` | string | Meeting agenda |
+| ↳ `created_at` | string | Creation timestamp |
+| ↳ `start_url` | string | Host start URL |
+| ↳ `join_url` | string | Participant join URL |
+| ↳ `password` | string | Meeting password |
+| ↳ `settings` | object | Meeting settings |
 
 ### `zoom_list_meetings`
 
@@ -89,6 +105,11 @@ List all meetings for a Zoom user
 | --------- | ---- | ----------- |
 | `meetings` | array | List of meetings |
 | `pageInfo` | object | Pagination information |
+| ↳ `pageCount` | number | Total number of pages |
+| ↳ `pageNumber` | number | Current page number |
+| ↳ `pageSize` | number | Number of records per page |
+| ↳ `totalRecords` | number | Total number of records |
+| ↳ `nextPageToken` | string | Token for next page |
 
 ### `zoom_get_meeting`
 
@@ -107,6 +128,24 @@ Get details of a specific Zoom meeting
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `meeting` | object | The meeting details |
+| ↳ `id` | number | Meeting ID |
+| ↳ `uuid` | string | Meeting UUID |
+| ↳ `host_id` | string | Host user ID |
+| ↳ `host_email` | string | Host email |
+| ↳ `topic` | string | Meeting topic |
+| ↳ `type` | number | Meeting type |
+| ↳ `status` | string | Meeting status |
+| ↳ `start_time` | string | Start time |
+| ↳ `duration` | number | Duration in minutes |
+| ↳ `timezone` | string | Timezone |
+| ↳ `agenda` | string | Meeting agenda |
+| ↳ `created_at` | string | Creation timestamp |
+| ↳ `start_url` | string | Host start URL |
+| ↳ `join_url` | string | Participant join URL |
+| ↳ `password` | string | Meeting password |
+| ↳ `settings` | object | Meeting settings |
+| ↳ `recurrence` | object | Recurrence settings |
+| ↳ `occurrences` | array | Meeting occurrences |
 
 ### `zoom_update_meeting`
 
@@ -193,6 +232,11 @@ List all cloud recordings for a Zoom user
 | --------- | ---- | ----------- |
 | `recordings` | array | List of recordings |
 | `pageInfo` | object | Pagination information |
+| ↳ `from` | string | Start date of query range |
+| ↳ `to` | string | End date of query range |
+| ↳ `pageSize` | number | Number of records per page |
+| ↳ `totalRecords` | number | Total number of records |
+| ↳ `nextPageToken` | string | Token for next page |
 
 ### `zoom_get_meeting_recordings`
 
@@ -211,6 +255,14 @@ Get all recordings for a specific Zoom meeting
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recording` | object | The meeting recording with all files |
+| ↳ `uuid` | string | Meeting UUID |
+| ↳ `id` | number | Meeting ID |
+| ↳ `topic` | string | Meeting topic |
+| ↳ `start_time` | string | Meeting start time |
+| ↳ `duration` | number | Meeting duration in minutes |
+| ↳ `total_size` | number | Total size of recordings in bytes |
+| ↳ `share_url` | string | URL to share recordings |
+| ↳ `recording_files` | array | List of recording files |
 
 ### `zoom_delete_recording`
 
@@ -248,5 +300,8 @@ List participants from a past Zoom meeting
 | --------- | ---- | ----------- |
 | `participants` | array | List of meeting participants |
 | `pageInfo` | object | Pagination information |
+| ↳ `pageSize` | number | Number of records per page |
+| ↳ `totalRecords` | number | Total number of records |
+| ↳ `nextPageToken` | string | Token for next page |
 
 

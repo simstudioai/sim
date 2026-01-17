@@ -392,7 +392,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
 
       {/* Delete Confirmation Dialog */}
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete API key</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
@@ -414,7 +414,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
               Cancel
             </Button>
             <Button
-              variant='ghost'
+              variant='destructive'
               onClick={handleDeleteKey}
               disabled={deleteApiKeyMutation.isPending}
             >

@@ -226,17 +226,26 @@ export function {Service}Icon(props: SVGProps<SVGSVGElement>) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      {/* SVG paths from brand assets */}
+      {/* SVG paths from user-provided SVG */}
     </svg>
   )
 }
 ```
 
-### Finding Icons
-1. Check the service's brand/press kit page
-2. Download SVG logo
-3. Convert to React component
-4. Ensure it accepts and spreads props
+### Getting Icons
+**Do NOT search for icons yourself.** At the end of implementation, ask the user to provide the SVG:
+
+```
+I've completed the integration. Before I can add the icon, please provide the SVG for {Service}.
+You can usually find this in the service's brand/press kit page, or copy it from their website.
+
+Paste the SVG code here and I'll convert it to a React component.
+```
+
+Once the user provides the SVG:
+1. Extract the SVG paths/content
+2. Create a React component that spreads props
+3. Ensure viewBox is preserved from the original SVG
 
 ## Step 5: Create Triggers (Optional)
 
@@ -405,6 +414,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] If triggers: spread trigger subBlocks with `getTrigger()`
 
 ### Icon
+- [ ] Asked user to provide SVG
 - [ ] Added icon to `components/icons.tsx`
 - [ ] Icon spreads props correctly
 
@@ -433,11 +443,18 @@ You: I'll add the Stripe integration. Let me:
 1. First, research the Stripe API using Context7
 2. Create the tools for key operations (payments, subscriptions, etc.)
 3. Create the block with operation dropdown
-4. Add the Stripe icon
-5. Register everything
-6. Generate docs
+4. Register everything
+5. Generate docs
+6. Ask you for the Stripe icon SVG
 
 [Proceed with implementation...]
+
+[After completing steps 1-5...]
+
+I've completed the Stripe integration. Before I can add the icon, please provide the SVG for Stripe.
+You can usually find this in the service's brand/press kit page, or copy it from their website.
+
+Paste the SVG code here and I'll convert it to a React component.
 ```
 
 ## Common Gotchas

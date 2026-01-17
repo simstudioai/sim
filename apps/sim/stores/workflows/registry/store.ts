@@ -476,7 +476,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Use the server-generated ID
         const id = duplicatedWorkflow.id
 
-        // Generate new workflow metadata using the server-generated ID
         const newWorkflow: WorkflowMetadata = {
           id,
           name: `${sourceWorkflow.name} (Copy)`,
@@ -484,8 +483,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           createdAt: new Date(),
           description: sourceWorkflow.description,
           color: getNextWorkflowColor(),
-          workspaceId, // Include the workspaceId in the new workflow
-          folderId: sourceWorkflow.folderId, // Include the folderId from source workflow
+          workspaceId,
+          folderId: sourceWorkflow.folderId,
+          sortOrder: duplicatedWorkflow.sortOrder ?? 0,
         }
 
         // Get the current workflow state to copy from

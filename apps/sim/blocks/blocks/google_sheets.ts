@@ -3,11 +3,13 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { GoogleSheetsResponse } from '@/tools/google_sheets/types'
 
+// Legacy block - hidden from toolbar
 export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
   type: 'google_sheets',
-  name: 'Google Sheets',
+  name: 'Google Sheets (Legacy)',
   description: 'Read, write, and update data',
   authMode: AuthMode.OAuth,
+  hideFromToolbar: true,
   longDescription:
     'Integrate Google Sheets into the workflow. Can read, write, append, and update data.',
   docsLink: 'https://docs.sim.ai/tools/google_sheets',

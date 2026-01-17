@@ -22,7 +22,7 @@ import {
 import { Skeleton } from '@/components/ui'
 import type { AgentAuthentication, AgentCapabilities } from '@/lib/a2a/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import {
   useA2AAgentByWorkflow,
@@ -52,7 +52,10 @@ function isDefaultDescription(desc: string | null | undefined, workflowName: str
   if (!desc) return true
   const normalized = desc.toLowerCase().trim()
   return (
-    normalized === '' || normalized === 'new workflow' || normalized === workflowName.toLowerCase()
+    normalized === '' ||
+    normalized === 'new workflow' ||
+    normalized === 'your first workflow - start building here!' ||
+    normalized === workflowName.toLowerCase()
   )
 }
 
@@ -80,8 +83,7 @@ interface A2aDeployProps {
   workflowNeedsRedeployment?: boolean
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
-  onAgentExistsChange?: (exists: boolean) => void
-  onPublishedChange?: (published: boolean) => void
+  /** Callback for when republish status changes - depends on local form state */
   onNeedsRepublishChange?: (needsRepublish: boolean) => void
   onDeployWorkflow?: () => Promise<void>
 }
@@ -96,8 +98,6 @@ export function A2aDeploy({
   workflowNeedsRedeployment,
   onSubmittingChange,
   onCanSaveChange,
-  onAgentExistsChange,
-  onPublishedChange,
   onNeedsRepublishChange,
   onDeployWorkflow,
 }: A2aDeployProps) {
@@ -232,14 +232,6 @@ export function A2aDeploy({
       setSkillTags([])
     }
   }, [existingAgent, workflowName, workflowDescription])
-
-  useEffect(() => {
-    onAgentExistsChange?.(!!existingAgent)
-  }, [existingAgent, onAgentExistsChange])
-
-  useEffect(() => {
-    onPublishedChange?.(existingAgent?.isPublished ?? false)
-  }, [existingAgent?.isPublished, onPublishedChange])
 
   const hasFormChanges = useMemo(() => {
     if (!existingAgent) return false
@@ -685,9 +677,31 @@ console.log(data);`
       {/* Endpoint URL (shown when agent exists) */}
       {existingAgent && endpoint && (
         <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            URL
-          </Label>
+          <div className='mb-[6.5px] flex items-center justify-between'>
+            <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+              URL
+            </Label>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  onClick={() => {
+                    navigator.clipboard.writeText(endpoint)
+                    setUrlCopied(true)
+                    setTimeout(() => setUrlCopied(false), 2000)
+                  }}
+                  aria-label='Copy URL'
+                  className='!p-1.5 -my-1.5'
+                >
+                  {urlCopied ? <Check className='h-3 w-3' /> : <Clipboard className='h-3 w-3' />}
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content>
+                <span>{urlCopied ? 'Copied' : 'Copy'}</span>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          </div>
           <div className='relative flex items-stretch overflow-hidden rounded-[4px] border border-[var(--border-1)]'>
             <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-[6px] pl-[8px] font-medium text-[var(--text-secondary)] text-sm dark:bg-[var(--surface-5)]'>
               {baseUrl.replace(/^https?:\/\//, '')}/api/a2a/serve/
@@ -696,30 +710,8 @@ console.log(data);`
               <Input
                 value={existingAgent.id}
                 readOnly
-                className='rounded-none border-0 pr-[32px] pl-0 text-[var(--text-tertiary)] shadow-none'
+                className='rounded-none border-0 pl-0 text-[var(--text-tertiary)] shadow-none'
               />
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <button
-                    type='button'
-                    onClick={() => {
-                      navigator.clipboard.writeText(endpoint)
-                      setUrlCopied(true)
-                      setTimeout(() => setUrlCopied(false), 2000)
-                    }}
-                    className='-translate-y-1/2 absolute top-1/2 right-2'
-                  >
-                    {urlCopied ? (
-                      <Check className='h-3 w-3 text-[var(--brand-tertiary-2)]' />
-                    ) : (
-                      <Clipboard className='h-3 w-3 text-[var(--text-tertiary)]' />
-                    )}
-                  </button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <span>{urlCopied ? 'Copied' : 'Copy'}</span>
-                </Tooltip.Content>
-              </Tooltip.Root>
             </div>
           </div>
           <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>

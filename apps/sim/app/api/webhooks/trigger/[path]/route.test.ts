@@ -3,15 +3,92 @@
  *
  * @vitest-environment node
  */
-
-import { loggerMock } from '@sim/testing'
+import { createMockRequest, loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  createMockRequest,
-  globalMockData,
-  mockExecutionDependencies,
-  mockTriggerDevSdk,
-} from '@/app/api/__test-utils__/utils'
+
+/** Mock execution dependencies for webhook tests */
+function mockExecutionDependencies() {
+  vi.mock('@/lib/core/security/encryption', () => ({
+    decryptSecret: vi.fn().mockResolvedValue({ decrypted: 'decrypted-value' }),
+  }))
+
+  vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
+    buildTraceSpans: vi.fn().mockReturnValue({ traceSpans: [], totalDuration: 100 }),
+  }))
+
+  vi.mock('@/lib/workflows/utils', () => ({
+    updateWorkflowRunCounts: vi.fn().mockResolvedValue(undefined),
+  }))
+
+  vi.mock('@/serializer', () => ({
+    Serializer: vi.fn().mockImplementation(() => ({
+      serializeWorkflow: vi.fn().mockReturnValue({
+        version: '1.0',
+        blocks: [
+          {
+            id: 'starter-id',
+            metadata: { id: 'starter', name: 'Start' },
+            config: {},
+            inputs: {},
+            outputs: {},
+            position: { x: 100, y: 100 },
+            enabled: true,
+          },
+          {
+            id: 'agent-id',
+            metadata: { id: 'agent', name: 'Agent 1' },
+            config: {},
+            inputs: {},
+            outputs: {},
+            position: { x: 634, y: -167 },
+            enabled: true,
+          },
+        ],
+        edges: [
+          {
+            id: 'edge-1',
+            source: 'starter-id',
+            target: 'agent-id',
+            sourceHandle: 'source',
+            targetHandle: 'target',
+          },
+        ],
+        loops: {},
+        parallels: {},
+      }),
+    })),
+  }))
+}
+
+/** Mock Trigger.dev SDK */
+function mockTriggerDevSdk() {
+  vi.mock('@trigger.dev/sdk', () => ({
+    tasks: { trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }) },
+    task: vi.fn().mockReturnValue({}),
+  }))
+}
+
+/**
+ * Test data store - isolated per test via beforeEach reset
+ * This replaces the global mutable state pattern with local test data
+ */
+const testData = {
+  webhooks: [] as Array<{
+    id: string
+    provider: string
+    path: string
+    isActive: boolean
+    providerConfig?: Record<string, unknown>
+    workflowId: string
+    rateLimitCount?: number
+    rateLimitPeriod?: number
+  }>,
+  workflows: [] as Array<{
+    id: string
+    userId: string
+    workspaceId?: string
+  }>,
+}
 
 const {
   generateRequestHashMock,
@@ -159,8 +236,8 @@ vi.mock('@/lib/workflows/persistence/utils', () => ({
 
 vi.mock('@/lib/webhooks/processor', () => ({
   findAllWebhooksForPath: vi.fn().mockImplementation(async (options: { path: string }) => {
-    // Filter webhooks by path from globalMockData
-    const matchingWebhooks = globalMockData.webhooks.filter(
+    // Filter webhooks by path from testData
+    const matchingWebhooks = testData.webhooks.filter(
       (wh) => wh.path === options.path && wh.isActive
     )
 
@@ -170,7 +247,7 @@ vi.mock('@/lib/webhooks/processor', () => ({
 
     // Return array of {webhook, workflow} objects
     return matchingWebhooks.map((wh) => {
-      const matchingWorkflow = globalMockData.workflows.find((w) => w.id === wh.workflowId) || {
+      const matchingWorkflow = testData.workflows.find((w) => w.id === wh.workflowId) || {
         id: wh.workflowId || 'test-workflow-id',
         userId: 'test-user-id',
         workspaceId: 'test-workspace-id',
@@ -283,14 +360,15 @@ describe('Webhook Trigger API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    globalMockData.webhooks.length = 0
-    globalMockData.workflows.length = 0
-    globalMockData.schedules.length = 0
+    // Reset test data arrays
+    testData.webhooks.length = 0
+    testData.workflows.length = 0
 
     mockExecutionDependencies()
     mockTriggerDevSdk()
 
-    globalMockData.workflows.push({
+    // Set up default workflow for tests
+    testData.workflows.push({
       id: 'test-workflow-id',
       userId: 'test-user-id',
       workspaceId: 'test-workspace-id',
@@ -326,7 +404,7 @@ describe('Webhook Trigger API Route', () => {
 
   describe('Generic Webhook Authentication', () => {
     it('should process generic webhook without authentication', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -336,7 +414,7 @@ describe('Webhook Trigger API Route', () => {
         rateLimitCount: 100,
         rateLimitPeriod: 60,
       })
-      globalMockData.workflows.push({
+      testData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
         workspaceId: 'test-workspace-id',
@@ -354,7 +432,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should authenticate with Bearer token when no custom header is configured', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -362,7 +440,7 @@ describe('Webhook Trigger API Route', () => {
         providerConfig: { requireAuth: true, token: 'test-token-123' },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({
+      testData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
         workspaceId: 'test-workspace-id',
@@ -381,7 +459,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should authenticate with custom header when configured', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -393,7 +471,7 @@ describe('Webhook Trigger API Route', () => {
         },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({
+      testData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
         workspaceId: 'test-workspace-id',
@@ -412,7 +490,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should handle case insensitive Bearer token authentication', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -420,7 +498,7 @@ describe('Webhook Trigger API Route', () => {
         providerConfig: { requireAuth: true, token: 'case-test-token' },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({
+      testData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
         workspaceId: 'test-workspace-id',
@@ -454,7 +532,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should handle case insensitive custom header authentication', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -466,7 +544,7 @@ describe('Webhook Trigger API Route', () => {
         },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({
+      testData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
         workspaceId: 'test-workspace-id',
@@ -495,7 +573,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should reject wrong Bearer token', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -519,7 +597,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should reject wrong custom header token', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -547,7 +625,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should reject missing authentication when required', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -567,7 +645,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should reject Bearer token when custom header is configured', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -595,7 +673,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should reject wrong custom header name', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -623,7 +701,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should reject when auth is required but no token is configured', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -631,7 +709,7 @@ describe('Webhook Trigger API Route', () => {
         providerConfig: { requireAuth: true },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({ id: 'test-workflow-id', userId: 'test-user-id' })
+      testData.workflows.push({ id: 'test-workflow-id', userId: 'test-user-id' })
 
       const headers = {
         'Content-Type': 'application/json',

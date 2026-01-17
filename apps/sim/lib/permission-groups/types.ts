@@ -12,6 +12,12 @@ export interface PermissionGroupConfig {
   disableCustomTools: boolean
   hideTemplates: boolean
   disableInvitations: boolean
+  // Deploy Modal Tabs
+  hideDeployApi: boolean
+  hideDeployMcp: boolean
+  hideDeployA2a: boolean
+  hideDeployChatbot: boolean
+  hideDeployTemplate: boolean
 }
 
 export const DEFAULT_PERMISSION_GROUP_CONFIG: PermissionGroupConfig = {
@@ -27,6 +33,11 @@ export const DEFAULT_PERMISSION_GROUP_CONFIG: PermissionGroupConfig = {
   disableCustomTools: false,
   hideTemplates: false,
   disableInvitations: false,
+  hideDeployApi: false,
+  hideDeployMcp: false,
+  hideDeployA2a: false,
+  hideDeployChatbot: false,
+  hideDeployTemplate: false,
 }
 
 export function parsePermissionGroupConfig(config: unknown): PermissionGroupConfig {
@@ -50,5 +61,10 @@ export function parsePermissionGroupConfig(config: unknown): PermissionGroupConf
     disableCustomTools: typeof c.disableCustomTools === 'boolean' ? c.disableCustomTools : false,
     hideTemplates: typeof c.hideTemplates === 'boolean' ? c.hideTemplates : false,
     disableInvitations: typeof c.disableInvitations === 'boolean' ? c.disableInvitations : false,
+    hideDeployApi: typeof c.hideDeployApi === 'boolean' ? c.hideDeployApi : false,
+    hideDeployMcp: typeof c.hideDeployMcp === 'boolean' ? c.hideDeployMcp : false,
+    hideDeployA2a: typeof c.hideDeployA2a === 'boolean' ? c.hideDeployA2a : false,
+    hideDeployChatbot: typeof c.hideDeployChatbot === 'boolean' ? c.hideDeployChatbot : false,
+    hideDeployTemplate: typeof c.hideDeployTemplate === 'boolean' ? c.hideDeployTemplate : false,
   }
 }

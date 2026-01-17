@@ -14,8 +14,8 @@ import {
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
-import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
-import { isValidStartBlockType } from '@/lib/workflows/triggers/trigger-utils'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
+import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
 import type { InputFormatField } from '@/lib/workflows/types'
 import {
   useAddWorkflowMcpTool,
@@ -43,7 +43,6 @@ interface McpDeployProps {
   onAddedToServer?: () => void
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
-  onHasServersChange?: (hasServers: boolean) => void
 }
 
 /**
@@ -92,17 +91,12 @@ export function McpDeploy({
   onAddedToServer,
   onSubmittingChange,
   onCanSaveChange,
-  onHasServersChange,
 }: McpDeployProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const openSettingsModal = useSettingsModalStore((state) => state.openModal)
 
-  const {
-    data: servers = [],
-    isLoading: isLoadingServers,
-    refetch: refetchServers,
-  } = useWorkflowMcpServers(workspaceId)
+  const { data: servers = [], isLoading: isLoadingServers } = useWorkflowMcpServers(workspaceId)
   const addToolMutation = useAddWorkflowMcpTool()
   const deleteToolMutation = useDeleteWorkflowMcpTool()
   const updateToolMutation = useUpdateWorkflowMcpTool()
@@ -138,10 +132,12 @@ export function McpDeploy({
 
   const [toolName, setToolName] = useState(() => sanitizeToolName(workflowName))
   const [toolDescription, setToolDescription] = useState(() => {
+    const normalizedDesc = workflowDescription?.toLowerCase().trim()
     const isDefaultDescription =
       !workflowDescription ||
       workflowDescription === workflowName ||
-      workflowDescription.toLowerCase() === 'new workflow'
+      normalizedDesc === 'new workflow' ||
+      normalizedDesc === 'your first workflow - start building here!'
 
     return isDefaultDescription ? '' : workflowDescription
   })
@@ -193,10 +189,12 @@ export function McpDeploy({
         setToolName(toolInfo.tool.toolName)
 
         const loadedDescription = toolInfo.tool.toolDescription || ''
+        const normalizedLoadedDesc = loadedDescription.toLowerCase().trim()
         const isDefaultDescription =
           !loadedDescription ||
           loadedDescription === workflowName ||
-          loadedDescription.toLowerCase() === 'new workflow'
+          normalizedLoadedDesc === 'new workflow' ||
+          normalizedLoadedDesc === 'your first workflow - start building here!'
         setToolDescription(isDefaultDescription ? '' : loadedDescription)
 
         const schema = toolInfo.tool.parameterSchema as Record<string, unknown> | undefined
@@ -256,10 +254,6 @@ export function McpDeploy({
   useEffect(() => {
     onCanSaveChange?.(hasChanges && hasDeployedTools && !!toolName.trim())
   }, [hasChanges, hasDeployedTools, toolName, onCanSaveChange])
-
-  useEffect(() => {
-    onHasServersChange?.(servers.length > 0)
-  }, [servers.length, onHasServersChange])
 
   /**
    * Save tool configuration to all deployed servers
@@ -342,7 +336,6 @@ export function McpDeploy({
             toolDescription: toolDescription.trim() || undefined,
             parameterSchema,
           })
-          refetchServers()
           onAddedToServer?.()
           logger.info(`Added workflow ${workflowId} as tool to server ${serverId}`)
         } catch (error) {
@@ -371,7 +364,6 @@ export function McpDeploy({
               delete next[serverId]
               return next
             })
-            refetchServers()
           } catch (error) {
             logger.error('Failed to remove tool:', error)
           } finally {
@@ -394,7 +386,6 @@ export function McpDeploy({
       parameterSchema,
       addToolMutation,
       deleteToolMutation,
-      refetchServers,
       onAddedToServer,
     ]
   )

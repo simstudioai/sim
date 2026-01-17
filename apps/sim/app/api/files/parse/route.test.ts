@@ -1,12 +1,59 @@
 import path from 'path'
-import { NextRequest } from 'next/server'
 /**
  * Tests for file parse API route
  *
  * @vitest-environment node
  */
+import {
+  createMockRequest,
+  mockAuth,
+  mockCryptoUuid,
+  mockUuid,
+  setupCommonApiMocks,
+} from '@sim/testing'
+import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest, setupFileApiMocks } from '@/app/api/__test-utils__/utils'
+
+function setupFileApiMocks(
+  options: {
+    authenticated?: boolean
+    storageProvider?: 's3' | 'blob' | 'local'
+    cloudEnabled?: boolean
+  } = {}
+) {
+  const { authenticated = true, storageProvider = 's3', cloudEnabled = true } = options
+
+  setupCommonApiMocks()
+  mockUuid()
+  mockCryptoUuid()
+
+  const authMocks = mockAuth()
+  if (authenticated) {
+    authMocks.setAuthenticated()
+  } else {
+    authMocks.setUnauthenticated()
+  }
+
+  vi.doMock('@/lib/auth/hybrid', () => ({
+    checkHybridAuth: vi.fn().mockResolvedValue({
+      success: authenticated,
+      userId: authenticated ? 'test-user-id' : undefined,
+      error: authenticated ? undefined : 'Unauthorized',
+    }),
+  }))
+
+  vi.doMock('@/app/api/files/authorization', () => ({
+    verifyFileAccess: vi.fn().mockResolvedValue(true),
+    verifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
+  }))
+
+  vi.doMock('@/lib/uploads', () => ({
+    getStorageProvider: vi.fn().mockReturnValue(storageProvider),
+    isUsingCloudStorage: vi.fn().mockReturnValue(cloudEnabled),
+  }))
+
+  return { auth: authMocks }
+}
 
 const mockJoin = vi.fn((...args: string[]): string => {
   if (args[0] === '/test/uploads') {

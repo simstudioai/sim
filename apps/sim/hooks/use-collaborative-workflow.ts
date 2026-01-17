@@ -22,7 +22,7 @@ import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { mergeSubblockState, normalizeName } from '@/stores/workflows/utils'
+import { filterNewEdges, mergeSubblockState, normalizeName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState, Loop, Parallel, Position } from '@/stores/workflows/workflow/types'
 
@@ -203,6 +203,13 @@ export function useCollaborativeWorkflow() {
             case BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE:
               workflowStore.setBlockAdvancedMode(payload.id, payload.advancedMode)
               break
+            case BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE:
+              workflowStore.setBlockCanonicalMode(
+                payload.id,
+                payload.canonicalId,
+                payload.canonicalMode
+              )
+              break
           }
         } else if (target === OPERATION_TARGETS.BLOCKS) {
           switch (operation) {
@@ -242,7 +249,10 @@ export function useCollaborativeWorkflow() {
             case EDGES_OPERATIONS.BATCH_ADD_EDGES: {
               const { edges } = payload
               if (Array.isArray(edges) && edges.length > 0) {
-                workflowStore.batchAddEdges(edges)
+                const newEdges = filterNewEdges(edges, workflowStore.edges)
+                if (newEdges.length > 0) {
+                  workflowStore.batchAddEdges(newEdges)
+                }
               }
               break
             }
@@ -915,16 +925,26 @@ export function useCollaborativeWorkflow() {
 
   const collaborativeToggleBlockAdvancedMode = useCallback(
     (id: string) => {
-      const currentBlock = workflowStore.blocks[id]
-      if (!currentBlock) return
-
-      const newAdvancedMode = !currentBlock.advancedMode
-
+      const block = workflowStore.blocks[id]
+      if (!block) return
+      const newAdvancedMode = !block.advancedMode
       executeQueuedOperation(
         BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE,
         OPERATION_TARGETS.BLOCK,
         { id, advancedMode: newAdvancedMode },
-        () => workflowStore.toggleBlockAdvancedMode(id)
+        () => workflowStore.setBlockAdvancedMode(id, newAdvancedMode)
+      )
+    },
+    [executeQueuedOperation, workflowStore]
+  )
+
+  const collaborativeSetBlockCanonicalMode = useCallback(
+    (id: string, canonicalId: string, canonicalMode: 'basic' | 'advanced') => {
+      executeQueuedOperation(
+        BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE,
+        OPERATION_TARGETS.BLOCK,
+        { id, canonicalId, canonicalMode },
+        () => workflowStore.setBlockCanonicalMode(id, canonicalId, canonicalMode)
       )
     },
     [executeQueuedOperation, workflowStore]
@@ -976,6 +996,9 @@ export function useCollaborativeWorkflow() {
 
       if (edges.length === 0) return false
 
+      const newEdges = filterNewEdges(edges, workflowStore.edges)
+      if (newEdges.length === 0) return false
+
       const operationId = crypto.randomUUID()
 
       addToQueue({
@@ -983,16 +1006,16 @@ export function useCollaborativeWorkflow() {
         operation: {
           operation: EDGES_OPERATIONS.BATCH_ADD_EDGES,
           target: OPERATION_TARGETS.EDGES,
-          payload: { edges },
+          payload: { edges: newEdges },
         },
         workflowId: activeWorkflowId || '',
         userId: session?.user?.id || 'unknown',
       })
 
-      workflowStore.batchAddEdges(edges)
+      workflowStore.batchAddEdges(newEdges)
 
       if (!options?.skipUndoRedo) {
-        edges.forEach((edge) => undoRedo.recordAddEdge(edge.id))
+        newEdges.forEach((edge) => undoRedo.recordAddEdge(edge.id))
       }
 
       return true
@@ -1601,6 +1624,7 @@ export function useCollaborativeWorkflow() {
     collaborativeBatchToggleBlockEnabled,
     collaborativeBatchUpdateParent,
     collaborativeToggleBlockAdvancedMode,
+    collaborativeSetBlockCanonicalMode,
     collaborativeBatchToggleBlockHandles,
     collaborativeBatchAddBlocks,
     collaborativeBatchRemoveBlocks,

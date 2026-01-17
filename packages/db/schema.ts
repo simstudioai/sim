@@ -89,10 +89,9 @@ export const account = pgTable(
       table.accountId,
       table.providerId
     ),
-    uniqueUserProviderAccount: uniqueIndex('account_user_provider_account_unique').on(
+    uniqueUserProvider: uniqueIndex('account_user_provider_unique').on(
       table.userId,
-      table.providerId,
-      table.accountId
+      table.providerId
     ),
   })
 )
@@ -150,6 +149,7 @@ export const workflow = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     folderId: text('folder_id').references(() => workflowFolder.id, { onDelete: 'set null' }),
+    sortOrder: integer('sort_order').notNull().default(0),
     name: text('name').notNull(),
     description: text('description'),
     color: text('color').notNull().default('#3972F6'),
@@ -166,6 +166,7 @@ export const workflow = pgTable(
     userIdIdx: index('workflow_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workflow_workspace_id_idx').on(table.workspaceId),
     userWorkspaceIdx: index('workflow_user_workspace_idx').on(table.userId, table.workspaceId),
+    folderSortIdx: index('workflow_folder_sort_idx').on(table.folderId, table.sortOrder),
   })
 )
 
@@ -450,7 +451,7 @@ export const settings = pgTable('settings', {
     .unique(), // One settings record per user
 
   // General settings
-  theme: text('theme').notNull().default('system'),
+  theme: text('theme').notNull().default('dark'),
   autoConnect: boolean('auto_connect').notNull().default(true),
 
   // Privacy settings
@@ -473,6 +474,7 @@ export const settings = pgTable('settings', {
 
   // Canvas preferences
   snapToGridSize: integer('snap_to_grid_size').notNull().default(0), // 0 = off, 10-50 = grid size
+  showActionBar: boolean('show_action_bar').notNull().default(true),
 
   // Copilot preferences - maps model_id to enabled/disabled boolean
   copilotEnabledModels: jsonb('copilot_enabled_models').notNull().default('{}'),
@@ -490,7 +492,11 @@ export const workflowSchedule = pgTable(
     workflowId: text('workflow_id')
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
-    blockId: text('block_id').references(() => workflowBlocks.id, { onDelete: 'cascade' }),
+    deploymentVersionId: text('deployment_version_id').references(
+      () => workflowDeploymentVersion.id,
+      { onDelete: 'cascade' }
+    ),
+    blockId: text('block_id'),
     cronExpression: text('cron_expression'),
     nextRunAt: timestamp('next_run_at'),
     lastRanAt: timestamp('last_ran_at'),
@@ -505,9 +511,14 @@ export const workflowSchedule = pgTable(
   },
   (table) => {
     return {
-      workflowBlockUnique: uniqueIndex('workflow_schedule_workflow_block_unique').on(
+      workflowBlockUnique: uniqueIndex('workflow_schedule_workflow_block_deployment_unique').on(
         table.workflowId,
-        table.blockId
+        table.blockId,
+        table.deploymentVersionId
+      ),
+      workflowDeploymentIdx: index('workflow_schedule_workflow_deployment_idx').on(
+        table.workflowId,
+        table.deploymentVersionId
       ),
     }
   }
@@ -520,7 +531,11 @@ export const webhook = pgTable(
     workflowId: text('workflow_id')
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
-    blockId: text('block_id').references(() => workflowBlocks.id, { onDelete: 'cascade' }), // ID of the webhook trigger block (nullable for legacy starter block webhooks)
+    deploymentVersionId: text('deployment_version_id').references(
+      () => workflowDeploymentVersion.id,
+      { onDelete: 'cascade' }
+    ),
+    blockId: text('block_id'),
     path: text('path').notNull(),
     provider: text('provider'), // e.g., "whatsapp", "github", etc.
     providerConfig: json('provider_config'), // Store provider-specific configuration
@@ -535,12 +550,16 @@ export const webhook = pgTable(
   },
   (table) => {
     return {
-      // Ensure webhook paths are unique
-      pathIdx: uniqueIndex('path_idx').on(table.path),
+      // Ensure webhook paths are unique per deployment version
+      pathIdx: uniqueIndex('path_deployment_unique').on(table.path, table.deploymentVersionId),
       // Optimize queries for webhooks by workflow and block
       workflowBlockIdx: index('idx_webhook_on_workflow_id_block_id').on(
         table.workflowId,
         table.blockId
+      ),
+      workflowDeploymentIdx: index('webhook_workflow_deployment_idx').on(
+        table.workflowId,
+        table.deploymentVersionId
       ),
       // Optimize queries for credential set webhooks
       credentialSetIdIdx: index('webhook_credential_set_id_idx').on(table.credentialSetId),
@@ -1732,7 +1751,8 @@ export const ssoProvider = pgTable(
 
 /**
  * Workflow MCP Servers - User-created MCP servers that expose workflows as tools.
- * These servers are accessible by external MCP clients via API key authentication.
+ * These servers are accessible by external MCP clients via API key authentication,
+ * or publicly if isPublic is set to true.
  */
 export const workflowMcpServer = pgTable(
   'workflow_mcp_server',
@@ -1746,6 +1766,7 @@ export const workflowMcpServer = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     description: text('description'),
+    isPublic: boolean('is_public').notNull().default(false),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -2077,6 +2098,7 @@ export const permissionGroup = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    autoAddNewMembers: boolean('auto_add_new_members').notNull().default(false),
   },
   (table) => ({
     organizationIdIdx: index('permission_group_organization_id_idx').on(table.organizationId),
@@ -2085,6 +2107,9 @@ export const permissionGroup = pgTable(
       table.organizationId,
       table.name
     ),
+    autoAddNewMembersUnique: uniqueIndex('permission_group_org_auto_add_unique')
+      .on(table.organizationId)
+      .where(sql`auto_add_new_members = true`),
   })
 )
 

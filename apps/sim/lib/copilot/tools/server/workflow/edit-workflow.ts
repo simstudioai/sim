@@ -627,12 +627,9 @@ function createBlockFromParams(
 
       let sanitizedValue = value
 
-      // Special handling for inputFormat - ensure it's an array
-      if (key === 'inputFormat' && value !== null && value !== undefined) {
-        if (!Array.isArray(value)) {
-          // Invalid format, default to empty array
-          sanitizedValue = []
-        }
+      // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
+      if (shouldNormalizeArrayIds(key)) {
+        sanitizedValue = normalizeArrayWithIds(value)
       }
 
       // Special handling for tools - normalize and filter disallowed
@@ -718,6 +715,55 @@ function normalizeTools(tools: any[]): any[] {
       isExpanded: tool.isExpanded ?? true,
     }
   })
+}
+
+/** UUID v4 regex pattern for validation */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Subblock types that store arrays of objects with `id` fields.
+ * The LLM may generate arbitrary IDs which need to be converted to proper UUIDs.
+ */
+const ARRAY_WITH_ID_SUBBLOCK_TYPES = new Set([
+  'inputFormat', // input-format: Fields with id, name, type, value, collapsed
+  'headers', // table: Rows with id, cells (used for HTTP headers)
+  'params', // table: Rows with id, cells (used for query params)
+  'variables', // table or variables-input: Rows/assignments with id
+  'tagFilters', // knowledge-tag-filters: Filters with id, tagName, etc.
+  'documentTags', // document-tag-entry: Tags with id, tagName, etc.
+  'metrics', // eval-input: Metrics with id, name, description, range
+])
+
+/**
+ * Normalizes array subblock values by ensuring each item has a valid UUID.
+ * The LLM may generate arbitrary IDs like "input-desc-001" or "row-1" which need
+ * to be converted to proper UUIDs for consistency with UI-created items.
+ */
+function normalizeArrayWithIds(value: unknown): any[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.map((item: any) => {
+    if (!item || typeof item !== 'object') {
+      return item
+    }
+
+    // Check if id is missing or not a valid UUID
+    const hasValidUUID = typeof item.id === 'string' && UUID_REGEX.test(item.id)
+    if (!hasValidUUID) {
+      return { ...item, id: crypto.randomUUID() }
+    }
+
+    return item
+  })
+}
+
+/**
+ * Checks if a subblock key should have its array items normalized with UUIDs.
+ */
+function shouldNormalizeArrayIds(key: string): boolean {
+  return ARRAY_WITH_ID_SUBBLOCK_TYPES.has(key)
 }
 
 /**
@@ -832,6 +878,25 @@ function validateSourceHandleForBlock(
         error: `Invalid source handle "${sourceHandle}" for router block. Valid handles: source, ${EDGE.ROUTER_PREFIX}{targetId}, error`,
       }
 
+    case 'router_v2': {
+      if (!sourceHandle.startsWith(EDGE.ROUTER_PREFIX)) {
+        return {
+          valid: false,
+          error: `Invalid source handle "${sourceHandle}" for router_v2 block. Must start with "${EDGE.ROUTER_PREFIX}"`,
+        }
+      }
+
+      const routesValue = sourceBlock?.subBlocks?.routes?.value
+      if (!routesValue) {
+        return {
+          valid: false,
+          error: `Invalid router handle "${sourceHandle}" - no routes defined`,
+        }
+      }
+
+      return validateRouterHandle(sourceHandle, sourceBlock.id, routesValue)
+    }
+
     default:
       if (sourceHandle === 'source') {
         return { valid: true }
@@ -914,6 +979,85 @@ function validateConditionHandle(
   return {
     valid: false,
     error: `Invalid condition handle "${sourceHandle}". Valid handles: ${validOptionsStr}`,
+  }
+}
+
+/**
+ * Validates router handle references a valid route in the block.
+ * Accepts both internal IDs (router-{routeId}) and semantic keys (router-{blockId}-route-1)
+ */
+function validateRouterHandle(
+  sourceHandle: string,
+  blockId: string,
+  routesValue: string | any[]
+): EdgeHandleValidationResult {
+  let routes: any[]
+  if (typeof routesValue === 'string') {
+    try {
+      routes = JSON.parse(routesValue)
+    } catch {
+      return {
+        valid: false,
+        error: `Cannot validate router handle "${sourceHandle}" - routes is not valid JSON`,
+      }
+    }
+  } else if (Array.isArray(routesValue)) {
+    routes = routesValue
+  } else {
+    return {
+      valid: false,
+      error: `Cannot validate router handle "${sourceHandle}" - routes is not an array`,
+    }
+  }
+
+  if (!Array.isArray(routes) || routes.length === 0) {
+    return {
+      valid: false,
+      error: `Invalid router handle "${sourceHandle}" - no routes defined`,
+    }
+  }
+
+  const validHandles = new Set<string>()
+  const semanticPrefix = `router-${blockId}-`
+
+  for (let i = 0; i < routes.length; i++) {
+    const route = routes[i]
+
+    // Accept internal ID format: router-{uuid}
+    if (route.id) {
+      validHandles.add(`router-${route.id}`)
+    }
+
+    // Accept 1-indexed route number format: router-{blockId}-route-1, router-{blockId}-route-2, etc.
+    validHandles.add(`${semanticPrefix}route-${i + 1}`)
+
+    // Accept normalized title format: router-{blockId}-{normalized-title}
+    // Normalize: lowercase, replace spaces with dashes, remove special chars
+    if (route.title && typeof route.title === 'string') {
+      const normalizedTitle = route.title
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')
+      if (normalizedTitle) {
+        validHandles.add(`${semanticPrefix}${normalizedTitle}`)
+      }
+    }
+  }
+
+  if (validHandles.has(sourceHandle)) {
+    return { valid: true }
+  }
+
+  const validOptions = Array.from(validHandles).slice(0, 5)
+  const moreCount = validHandles.size - validOptions.length
+  let validOptionsStr = validOptions.join(', ')
+  if (moreCount > 0) {
+    validOptionsStr += `, ... and ${moreCount} more`
+  }
+
+  return {
+    valid: false,
+    error: `Invalid router handle "${sourceHandle}". Valid handles: ${validOptionsStr}`,
   }
 }
 
@@ -1360,12 +1504,9 @@ function applyOperationsToWorkflowState(
             }
             let sanitizedValue = value
 
-            // Special handling for inputFormat - ensure it's an array
-            if (key === 'inputFormat' && value !== null && value !== undefined) {
-              if (!Array.isArray(value)) {
-                // Invalid format, default to empty array
-                sanitizedValue = []
-              }
+            // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
+            if (shouldNormalizeArrayIds(key)) {
+              sanitizedValue = normalizeArrayWithIds(value)
             }
 
             // Special handling for tools - normalize and filter disallowed
@@ -2011,10 +2152,9 @@ function applyOperationsToWorkflowState(
 
               let sanitizedValue = value
 
-              if (key === 'inputFormat' && value !== null && value !== undefined) {
-                if (!Array.isArray(value)) {
-                  sanitizedValue = []
-                }
+              // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
+              if (shouldNormalizeArrayIds(key)) {
+                sanitizedValue = normalizeArrayWithIds(value)
               }
 
               // Special handling for tools - normalize and filter disallowed
@@ -2359,7 +2499,9 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
   async execute(params: EditWorkflowParams, context?: { userId: string }): Promise<any> {
     const logger = createLogger('EditWorkflowServerTool')
     const { operations, workflowId, currentUserWorkflow } = params
-    if (!operations || operations.length === 0) throw new Error('operations are required')
+    if (!Array.isArray(operations) || operations.length === 0) {
+      throw new Error('operations are required and must be an array')
+    }
     if (!workflowId) throw new Error('workflowId is required')
 
     logger.info('Executing edit_workflow', {

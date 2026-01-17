@@ -59,6 +59,7 @@ export type SubBlockType =
   | 'webhook-config' // Webhook configuration
   | 'schedule-info' // Schedule status display (next run, last ran, failure badge)
   | 'file-selector' // File selector for Google Drive, etc.
+  | 'sheet-selector' // Sheet/tab selector for Google Sheets, Microsoft Excel
   | 'project-selector' // Project selector for Jira, Discord, etc.
   | 'channel-selector' // Channel selector for Slack, Discord, etc.
   | 'user-selector' // User selector for Slack, etc.
@@ -74,6 +75,9 @@ export type SubBlockType =
   | 'response-format' // Response structure format
   | 'filter-builder' // Filter conditions builder
   | 'sort-builder' // Sort conditions builder
+  /**
+   * @deprecated Legacy trigger save subblock type.
+   */
   | 'trigger-save' // Trigger save button with validation
   | 'file-upload' // File uploader
   | 'input-mapping' // Map parent variables to child workflow input schema
@@ -94,6 +98,7 @@ export const SELECTOR_TYPES_HYDRATION_REQUIRED: SubBlockType[] = [
   'channel-selector',
   'user-selector',
   'file-selector',
+  'sheet-selector',
   'folder-selector',
   'project-selector',
   'knowledge-base-selector',

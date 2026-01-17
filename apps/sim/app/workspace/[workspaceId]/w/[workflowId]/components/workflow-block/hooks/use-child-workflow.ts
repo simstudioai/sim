@@ -1,6 +1,6 @@
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import { useChildDeployment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks/use-child-deployment'
 import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
+import { useChildDeploymentStatus } from '@/hooks/queries/workflows'
 
 /**
  * Return type for the useChildWorkflow hook
@@ -16,12 +16,12 @@ export interface UseChildWorkflowReturn {
   childNeedsRedeploy: boolean
   /** Whether the child version information is loading */
   isLoadingChildVersion: boolean
-  /** Function to manually refetch deployment status */
-  refetchDeployment: () => void
 }
 
 /**
- * Custom hook for managing child workflow information for workflow selector blocks
+ * Custom hook for managing child workflow information for workflow selector blocks.
+ * Cache invalidation is handled automatically by React Query when using
+ * the useDeployChildWorkflow mutation.
  *
  * @param blockId - The ID of the block
  * @param blockType - The type of the block
@@ -53,13 +53,14 @@ export function useChildWorkflow(
     }
   }
 
-  const {
-    activeVersion: childActiveVersion,
-    isDeployed: childIsDeployed,
-    needsRedeploy: childNeedsRedeploy,
-    isLoading: isLoadingChildVersion,
-    refetch: refetchDeployment,
-  } = useChildDeployment(isWorkflowSelector ? childWorkflowId : undefined)
+  const { data, isLoading, isPending } = useChildDeploymentStatus(
+    isWorkflowSelector ? childWorkflowId : undefined
+  )
+
+  const childActiveVersion = data?.activeVersion ?? null
+  const childIsDeployed = data?.isDeployed ?? null
+  const childNeedsRedeploy = data?.needsRedeploy ?? false
+  const isLoadingChildVersion = isLoading || isPending
 
   return {
     childWorkflowId,
@@ -67,6 +68,5 @@ export function useChildWorkflow(
     childIsDeployed,
     childNeedsRedeploy,
     isLoadingChildVersion,
-    refetchDeployment,
   }
 }

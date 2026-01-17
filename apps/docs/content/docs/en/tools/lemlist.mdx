@@ -10,6 +10,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#316BFF"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+Supercharge your sales outreach and engagement with [Lemlist](https://lemlist.com) – the personalized outreach automation platform trusted by thousands of sales teams. With Lemlist, you can automate multi-channel campaigns, nurture leads, and boost reply rates, all while keeping your communication highly personalized and authentic.
+
+With the Lemlist integration, you can:
+
+- **Automate outreach sequences:** Launch personalized email, LinkedIn, and calling campaigns at scale, tailored to each recipient.
+- **Track campaign activity:** Instantly monitor opens, clicks, replies, bounces, and every lead interaction for granular campaign insights.
+- **Centralize engagement data:** Fetch real-time activity and replies for each campaign or lead, and sync it directly into your workflow automation.
+- **Get lead details automatically:** Retrieve enriched lead information by email or ID to keep your CRM and processes up to date without manual data entry.
+- **Send targeted emails from your inbox:** Trigger bespoke emails to leads directly from the workflow, using up-to-date templates and data.
+- **Boost team collaboration and follow-up:** Assign leads, track outcomes, and ensure no prospect is lost thanks to Lemlist’s built-in tools—all accessible via automation.
+
+Lemlist empowers sales, marketing, and outbound teams to save time, personalize at scale, and convert more prospects. Automate and optimize your campaigns, integrate with your stack, and never miss a valuable opportunity.
+
+Drive more replies, book more meetings, and grow your pipeline by connecting Lemlist to your automated workflows today!
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Lemlist into your workflow. Retrieve campaign activities and replies, get lead information, and send emails through the Lemlist inbox.
@@ -39,6 +57,14 @@ Retrieves campaign activities and steps performed, including email opens, clicks
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `activities` | array | List of activities |
+|   ↳ `_id` | string | Activity ID |
+|   ↳ `type` | string | Activity type |
+|   ↳ `leadId` | string | Associated lead ID |
+|   ↳ `campaignId` | string | Campaign ID |
+|   ↳ `sequenceId` | string | Sequence ID |
+|   ↳ `stepId` | string | Step ID |
+|   ↳ `createdAt` | string | When the activity occurred |
+| `count` | number | Number of activities returned |
 
 ### `lemlist_get_lead`
 
@@ -49,8 +75,7 @@ Retrieves lead information by email address or lead ID.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Lemlist API key |
-| `email` | string | No | Lead email address \(use either email or id\) |
-| `id` | string | No | Lead ID \(use either email or id\) |
+| `leadIdentifier` | string | Yes | Lead email address or lead ID |
 
 #### Output
 

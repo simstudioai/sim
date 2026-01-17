@@ -381,6 +381,13 @@ export function VariablesInput({
                                 e.target.selectionStart ?? undefined
                               )
                             }
+                            onFocus={() => {
+                              if (!isPreview && !disabled && !assignment.value?.trim()) {
+                                setActiveFieldId(assignment.id)
+                                setCursorPosition(0)
+                                setShowTags(true)
+                              }
+                            }}
                             placeholder={
                               assignment.type === 'object'
                                 ? '{\n  "key": "value"\n}'
@@ -434,6 +441,13 @@ export function VariablesInput({
                                 e.target.selectionStart ?? undefined
                               )
                             }
+                            onFocus={() => {
+                              if (!isPreview && !disabled && !assignment.value?.trim()) {
+                                setActiveFieldId(assignment.id)
+                                setCursorPosition(0)
+                                setShowTags(true)
+                              }
+                            }}
                             placeholder={`${assignment.type} value`}
                             disabled={isPreview || disabled}
                             autoComplete='off'
@@ -475,6 +489,11 @@ export function VariablesInput({
                           inputValue={assignment.value || ''}
                           cursorPosition={cursorPosition}
                           onClose={() => setShowTags(false)}
+                          inputRef={
+                            {
+                              current: valueInputRefs.current[assignment.id] || null,
+                            } as React.RefObject<HTMLTextAreaElement | HTMLInputElement>
+                          }
                         />
                       )}
                     </div>

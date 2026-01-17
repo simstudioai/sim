@@ -5,7 +5,34 @@
  */
 import { loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest } from '@/app/api/__test-utils__/utils'
+
+/**
+ * Creates a mock NextRequest with cookies support for testing.
+ */
+function createMockNextRequest(
+  method = 'GET',
+  body?: unknown,
+  headers: Record<string, string> = {},
+  url = 'http://localhost:3000/api/test'
+): any {
+  const headersObj = new Headers({
+    'Content-Type': 'application/json',
+    ...headers,
+  })
+
+  return {
+    method,
+    headers: headersObj,
+    cookies: {
+      get: vi.fn().mockReturnValue(undefined),
+    },
+    json:
+      body !== undefined
+        ? vi.fn().mockResolvedValue(body)
+        : vi.fn().mockRejectedValue(new Error('No body')),
+    url,
+  }
+}
 
 const createMockStream = () => {
   return new ReadableStream({
@@ -71,10 +98,15 @@ vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn().mockReturnValue('test-request-id'),
 }))
 
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: vi.fn().mockResolvedValue({ decrypted: 'test-password' }),
+}))
+
 describe('Chat Identifier API Route', () => {
   const mockAddCorsHeaders = vi.fn().mockImplementation((response) => response)
   const mockValidateChatAuth = vi.fn().mockResolvedValue({ authorized: true })
   const mockSetChatAuthCookie = vi.fn()
+  const mockValidateAuthToken = vi.fn().mockReturnValue(false)
 
   const mockChatResult = [
     {
@@ -114,11 +146,16 @@ describe('Chat Identifier API Route', () => {
   beforeEach(() => {
     vi.resetModules()
 
-    vi.doMock('@/app/api/chat/utils', () => ({
+    vi.doMock('@/lib/core/security/deployment', () => ({
       addCorsHeaders: mockAddCorsHeaders,
+      validateAuthToken: mockValidateAuthToken,
+      setDeploymentAuthCookie: vi.fn(),
+      isEmailAllowed: vi.fn().mockReturnValue(false),
+    }))
+
+    vi.doMock('@/app/api/chat/utils', () => ({
       validateChatAuth: mockValidateChatAuth,
       setChatAuthCookie: mockSetChatAuthCookie,
-      validateAuthToken: vi.fn().mockReturnValue(true),
     }))
 
     // Mock logger - use loggerMock from @sim/testing
@@ -175,7 +212,7 @@ describe('Chat Identifier API Route', () => {
 
   describe('GET endpoint', () => {
     it('should return chat info for a valid identifier', async () => {
-      const req = createMockRequest('GET')
+      const req = createMockNextRequest('GET')
       const params = Promise.resolve({ identifier: 'test-chat' })
 
       const { GET } = await import('@/app/api/chat/[identifier]/route')
@@ -206,7 +243,7 @@ describe('Chat Identifier API Route', () => {
         }
       })
 
-      const req = createMockRequest('GET')
+      const req = createMockNextRequest('GET')
       const params = Promise.resolve({ identifier: 'nonexistent' })
 
       const { GET } = await import('@/app/api/chat/[identifier]/route')
@@ -240,7 +277,7 @@ describe('Chat Identifier API Route', () => {
         }
       })
 
-      const req = createMockRequest('GET')
+      const req = createMockNextRequest('GET')
       const params = Promise.resolve({ identifier: 'inactive-chat' })
 
       const { GET } = await import('@/app/api/chat/[identifier]/route')
@@ -261,7 +298,7 @@ describe('Chat Identifier API Route', () => {
         error: 'auth_required_password',
       }))
 
-      const req = createMockRequest('GET')
+      const req = createMockNextRequest('GET')
       const params = Promise.resolve({ identifier: 'password-protected-chat' })
 
       const { GET } = await import('@/app/api/chat/[identifier]/route')
@@ -282,7 +319,7 @@ describe('Chat Identifier API Route', () => {
 
   describe('POST endpoint', () => {
     it('should handle authentication requests without input', async () => {
-      const req = createMockRequest('POST', { password: 'test-password' })
+      const req = createMockNextRequest('POST', { password: 'test-password' })
       const params = Promise.resolve({ identifier: 'password-protected-chat' })
 
       const { POST } = await import('@/app/api/chat/[identifier]/route')
@@ -298,7 +335,7 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should return 400 for requests without input', async () => {
-      const req = createMockRequest('POST', {})
+      const req = createMockNextRequest('POST', {})
       const params = Promise.resolve({ identifier: 'test-chat' })
 
       const { POST } = await import('@/app/api/chat/[identifier]/route')
@@ -319,7 +356,7 @@ describe('Chat Identifier API Route', () => {
         error: 'Authentication required',
       }))
 
-      const req = createMockRequest('POST', { input: 'Hello' })
+      const req = createMockNextRequest('POST', { input: 'Hello' })
       const params = Promise.resolve({ identifier: 'protected-chat' })
 
       const { POST } = await import('@/app/api/chat/[identifier]/route')
@@ -350,7 +387,7 @@ describe('Chat Identifier API Route', () => {
         },
       })
 
-      const req = createMockRequest('POST', { input: 'Hello' })
+      const req = createMockNextRequest('POST', { input: 'Hello' })
       const params = Promise.resolve({ identifier: 'test-chat' })
 
       const { POST } = await import('@/app/api/chat/[identifier]/route')
@@ -369,7 +406,10 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should return streaming response for valid chat messages', async () => {
-      const req = createMockRequest('POST', { input: 'Hello world', conversationId: 'conv-123' })
+      const req = createMockNextRequest('POST', {
+        input: 'Hello world',
+        conversationId: 'conv-123',
+      })
       const params = Promise.resolve({ identifier: 'test-chat' })
 
       const { POST } = await import('@/app/api/chat/[identifier]/route')
@@ -401,7 +441,7 @@ describe('Chat Identifier API Route', () => {
     }, 10000)
 
     it('should handle streaming response body correctly', async () => {
-      const req = createMockRequest('POST', { input: 'Hello world' })
+      const req = createMockNextRequest('POST', { input: 'Hello world' })
       const params = Promise.resolve({ identifier: 'test-chat' })
 
       const { POST } = await import('@/app/api/chat/[identifier]/route')
@@ -431,7 +471,7 @@ describe('Chat Identifier API Route', () => {
         throw new Error('Execution failed')
       })
 
-      const req = createMockRequest('POST', { input: 'Trigger error' })
+      const req = createMockNextRequest('POST', { input: 'Trigger error' })
       const params = Promise.resolve({ identifier: 'test-chat' })
 
       const { POST } = await import('@/app/api/chat/[identifier]/route')
@@ -470,7 +510,7 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should pass conversationId to streaming execution when provided', async () => {
-      const req = createMockRequest('POST', {
+      const req = createMockNextRequest('POST', {
         input: 'Hello world',
         conversationId: 'test-conversation-123',
       })
@@ -492,7 +532,7 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should handle missing conversationId gracefully', async () => {
-      const req = createMockRequest('POST', { input: 'Hello world' })
+      const req = createMockNextRequest('POST', { input: 'Hello world' })
       const params = Promise.resolve({ identifier: 'test-chat' })
 
       const { POST } = await import('@/app/api/chat/[identifier]/route')

@@ -32,10 +32,13 @@ const logger = createLogger('FolderItem')
 interface FolderItemProps {
   folder: FolderTreeNode
   level: number
+  dragDisabled?: boolean
   hoverHandlers?: {
     onDragEnter?: (e: React.DragEvent<HTMLElement>) => void
     onDragLeave?: (e: React.DragEvent<HTMLElement>) => void
   }
+  onDragStart?: () => void
+  onDragEnd?: () => void
 }
 
 /**
@@ -46,7 +49,14 @@ interface FolderItemProps {
  * @param props - Component props
  * @returns Folder item with drag and expand support
  */
-export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
+export function FolderItem({
+  folder,
+  level,
+  dragDisabled = false,
+  hoverHandlers,
+  onDragStart: onDragStartProp,
+  onDragEnd: onDragEndProp,
+}: FolderItemProps) {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -135,11 +145,6 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
     }
   }, [createFolderMutation, workspaceId, folder.id, expandFolder])
 
-  /**
-   * Drag start handler - sets folder data for drag operation
-   *
-   * @param e - React drag event
-   */
   const onDragStart = useCallback(
     (e: React.DragEvent) => {
       if (isEditing) {
@@ -149,13 +154,24 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
 
       e.dataTransfer.setData('folder-id', folder.id)
       e.dataTransfer.effectAllowed = 'move'
+      onDragStartProp?.()
     },
-    [folder.id]
+    [folder.id, onDragStartProp]
   )
 
-  const { isDragging, shouldPreventClickRef, handleDragStart, handleDragEnd } = useItemDrag({
+  const {
+    isDragging,
+    shouldPreventClickRef,
+    handleDragStart,
+    handleDragEnd: handleDragEndBase,
+  } = useItemDrag({
     onDragStart,
   })
+
+  const handleDragEnd = useCallback(() => {
+    handleDragEndBase()
+    onDragEndProp?.()
+  }, [handleDragEndBase, onDragEndProp])
 
   const {
     isOpen: isContextMenuOpen,
@@ -280,7 +296,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
-        draggable={!isEditing}
+        draggable={!isEditing && !dragDisabled}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         {...hoverHandlers}
@@ -326,7 +342,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
             spellCheck='false'
           />
         ) : (
-          <>
+          <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
             <span
               className='min-w-0 flex-1 truncate font-medium text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
               onDoubleClick={handleDoubleClick}
@@ -341,7 +357,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
             >
               <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
             </button>
-          </>
+          </div>
         )}
       </div>
 

@@ -39,7 +39,7 @@ export function useMentionTokens({
   setSelectedContexts,
 }: UseMentionTokensProps) {
   /**
-   * Computes all mention ranges in the message
+   * Computes all mention ranges in the message (both @mentions and /commands)
    *
    * @returns Array of mention ranges sorted by start position
    */
@@ -55,8 +55,19 @@ export function useMentionTokens({
     const uniqueLabels = Array.from(new Set(labels))
 
     for (const label of uniqueLabels) {
-      // Space-wrapped token: " @label " (search from start)
-      const token = ` @${label} `
+      // Find matching context to determine if it's a slash command
+      const matchingContext = selectedContexts.find((c) => c.label === label)
+      const isSlashCommand = matchingContext?.kind === 'slash_command'
+      const prefix = isSlashCommand ? '/' : '@'
+
+      // Check for token at the very start of the message (no leading space)
+      const tokenAtStart = `${prefix}${label} `
+      if (message.startsWith(tokenAtStart)) {
+        ranges.push({ start: 0, end: tokenAtStart.length, label })
+      }
+
+      // Space-wrapped token: " @label " or " /label " (search from start)
+      const token = ` ${prefix}${label} `
       let fromIndex = 0
       while (fromIndex <= message.length) {
         const idx = message.indexOf(token, fromIndex)
@@ -64,6 +75,15 @@ export function useMentionTokens({
         // Include both leading and trailing spaces in the range
         ranges.push({ start: idx, end: idx + token.length, label })
         fromIndex = idx + token.length
+      }
+
+      // Token at end of message without trailing space: "@label" or " /label"
+      const tokenAtEnd = `${prefix}${label}`
+      if (message.endsWith(tokenAtEnd)) {
+        const idx = message.lastIndexOf(tokenAtEnd)
+        const hasLeadingSpace = idx > 0 && message[idx - 1] === ' '
+        const start = hasLeadingSpace ? idx - 1 : idx
+        ranges.push({ start, end: message.length, label })
       }
     }
 

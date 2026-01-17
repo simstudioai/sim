@@ -1,7 +1,6 @@
 import crypto from 'crypto'
 import {
   db,
-  webhook,
   workflow,
   workflowBlocks,
   workflowDeploymentVersion,
@@ -22,7 +21,6 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 const logger = createLogger('WorkflowDBHelpers')
 
 export type WorkflowDeploymentVersion = InferSelectModel<typeof workflowDeploymentVersion>
-type WebhookRecord = InferSelectModel<typeof webhook>
 type SubflowInsert = InferInsertModel<typeof workflowSubflows>
 
 export interface WorkflowDeploymentVersionResponse {
@@ -337,18 +335,6 @@ export async function saveWorkflowToNormalizedTables(
 
     // Start a transaction
     await db.transaction(async (tx) => {
-      // Snapshot existing webhooks before deletion to preserve them through the cycle
-      let existingWebhooks: WebhookRecord[] = []
-      try {
-        existingWebhooks = await tx.select().from(webhook).where(eq(webhook.workflowId, workflowId))
-      } catch (webhookError) {
-        // Webhook table might not be available in test environments
-        logger.debug('Could not load webhooks before save, skipping preservation', {
-          error: webhookError instanceof Error ? webhookError.message : String(webhookError),
-        })
-      }
-
-      // Clear existing data for this workflow
       await Promise.all([
         tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
         tx.delete(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
@@ -419,42 +405,6 @@ export async function saveWorkflowToNormalizedTables(
       if (subflowInserts.length > 0) {
         await tx.insert(workflowSubflows).values(subflowInserts)
       }
-
-      // Re-insert preserved webhooks if any exist and their blocks still exist
-      if (existingWebhooks.length > 0) {
-        try {
-          const webhookInserts = existingWebhooks
-            .filter((wh) => !!state.blocks?.[wh.blockId ?? ''])
-            .map((wh) => ({
-              id: wh.id,
-              workflowId: wh.workflowId,
-              blockId: wh.blockId,
-              path: wh.path,
-              provider: wh.provider,
-              providerConfig: wh.providerConfig,
-              credentialSetId: wh.credentialSetId,
-              isActive: wh.isActive,
-              createdAt: wh.createdAt,
-              updatedAt: new Date(),
-            }))
-
-          if (webhookInserts.length > 0) {
-            await tx.insert(webhook).values(webhookInserts)
-            logger.debug(`Preserved ${webhookInserts.length} webhook(s) through workflow save`, {
-              workflowId,
-            })
-          }
-        } catch (webhookInsertError) {
-          // Webhook preservation is optional - don't fail the entire save if it errors
-          logger.warn('Could not preserve webhooks during save', {
-            error:
-              webhookInsertError instanceof Error
-                ? webhookInsertError.message
-                : String(webhookInsertError),
-            workflowId,
-          })
-        }
-      }
     })
 
     return { success: true }
@@ -495,6 +445,7 @@ export async function deployWorkflow(params: {
 }): Promise<{
   success: boolean
   version?: number
+  deploymentVersionId?: string
   deployedAt?: Date
   currentState?: any
   error?: string
@@ -533,6 +484,7 @@ export async function deployWorkflow(params: {
         .where(eq(workflowDeploymentVersion.workflowId, workflowId))
 
       const nextVersion = Number(maxVersion) + 1
+      const deploymentVersionId = uuidv4()
 
       // Deactivate all existing versions
       await tx
@@ -542,7 +494,7 @@ export async function deployWorkflow(params: {
 
       // Create new deployment version
       await tx.insert(workflowDeploymentVersion).values({
-        id: uuidv4(),
+        id: deploymentVersionId,
         workflowId,
         version: nextVersion,
         state: currentState,
@@ -562,10 +514,10 @@ export async function deployWorkflow(params: {
       // Note: Templates are NOT automatically updated on deployment
       // Template updates must be done explicitly through the "Update Template" button
 
-      return nextVersion
+      return { version: nextVersion, deploymentVersionId }
     })
 
-    logger.info(`Deployed workflow ${workflowId} as v${deployedVersion}`)
+    logger.info(`Deployed workflow ${workflowId} as v${deployedVersion.version}`)
 
     if (workflowName) {
       try {
@@ -582,7 +534,7 @@ export async function deployWorkflow(params: {
           workflowName,
           blocksCount: Object.keys(currentState.blocks).length,
           edgesCount: currentState.edges.length,
-          version: deployedVersion,
+          version: deployedVersion.version,
           loopsCount: Object.keys(currentState.loops).length,
           parallelsCount: Object.keys(currentState.parallels).length,
           blockTypes: JSON.stringify(blockTypeCounts),
@@ -594,7 +546,8 @@ export async function deployWorkflow(params: {
 
     return {
       success: true,
-      version: deployedVersion,
+      version: deployedVersion.version,
+      deploymentVersionId: deployedVersion.deploymentVersionId,
       deployedAt: now,
       currentState,
     }

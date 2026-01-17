@@ -7,6 +7,7 @@ import {
   extractWorkflowsFromFiles,
   extractWorkflowsFromZip,
   parseWorkflowJson,
+  sanitizePathSegment,
 } from '@/lib/workflows/operations/import-export'
 import { folderKeys, useCreateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow, workflowKeys } from '@/hooks/queries/workflows'
@@ -40,7 +41,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
    * Import a single workflow
    */
   const importSingleWorkflow = useCallback(
-    async (content: string, filename: string, folderId?: string) => {
+    async (content: string, filename: string, folderId?: string, sortOrder?: number) => {
       const { data: workflowData, errors: parseErrors } = parseWorkflowJson(content)
 
       if (!workflowData || parseErrors.length > 0) {
@@ -60,6 +61,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
         description: workflowData.metadata?.description || 'Imported from JSON',
         workspaceId,
         folderId: folderId || undefined,
+        sortOrder,
       })
       const newWorkflowId = result.id
 
@@ -140,6 +142,55 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
           })
           const folderMap = new Map<string, string>()
 
+          if (metadata?.folders && metadata.folders.length > 0) {
+            type ExportedFolder = {
+              id: string
+              name: string
+              parentId: string | null
+              sortOrder?: number
+            }
+            const foldersById = new Map<string, ExportedFolder>(
+              metadata.folders.map((f) => [f.id, f])
+            )
+            const oldIdToNewId = new Map<string, string>()
+
+            const buildPath = (folderId: string): string => {
+              const pathParts: string[] = []
+              let currentId: string | null = folderId
+              while (currentId && foldersById.has(currentId)) {
+                const folder: ExportedFolder = foldersById.get(currentId)!
+                pathParts.unshift(sanitizePathSegment(folder.name))
+                currentId = folder.parentId
+              }
+              return pathParts.join('/')
+            }
+
+            const createFolderRecursive = async (folder: ExportedFolder): Promise<string> => {
+              if (oldIdToNewId.has(folder.id)) {
+                return oldIdToNewId.get(folder.id)!
+              }
+
+              let parentId = importFolder.id
+              if (folder.parentId && foldersById.has(folder.parentId)) {
+                parentId = await createFolderRecursive(foldersById.get(folder.parentId)!)
+              }
+
+              const newFolder = await createFolderMutation.mutateAsync({
+                name: folder.name,
+                workspaceId,
+                parentId,
+                sortOrder: folder.sortOrder,
+              })
+              oldIdToNewId.set(folder.id, newFolder.id)
+              folderMap.set(buildPath(folder.id), newFolder.id)
+              return newFolder.id
+            }
+
+            for (const folder of metadata.folders) {
+              await createFolderRecursive(folder)
+            }
+          }
+
           for (const workflow of extractedWorkflows) {
             try {
               let targetFolderId = importFolder.id
@@ -147,15 +198,17 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
               if (workflow.folderPath.length > 0) {
                 const folderPathKey = workflow.folderPath.join('/')
 
-                if (!folderMap.has(folderPathKey)) {
+                if (folderMap.has(folderPathKey)) {
+                  targetFolderId = folderMap.get(folderPathKey)!
+                } else {
                   let parentId = importFolder.id
-
                   for (let i = 0; i < workflow.folderPath.length; i++) {
                     const pathSegment = workflow.folderPath.slice(0, i + 1).join('/')
+                    const folderNameForSegment = workflow.folderPath[i]
 
                     if (!folderMap.has(pathSegment)) {
                       const subFolder = await createFolderMutation.mutateAsync({
-                        name: workflow.folderPath[i],
+                        name: folderNameForSegment,
                         workspaceId,
                         parentId,
                       })
@@ -165,15 +218,15 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
                       parentId = folderMap.get(pathSegment)!
                     }
                   }
+                  targetFolderId = folderMap.get(folderPathKey)!
                 }
-
-                targetFolderId = folderMap.get(folderPathKey)!
               }
 
               const workflowId = await importSingleWorkflow(
                 workflow.content,
                 workflow.name,
-                targetFolderId
+                targetFolderId,
+                workflow.sortOrder
               )
               if (workflowId) importedWorkflowIds.push(workflowId)
             } catch (error) {

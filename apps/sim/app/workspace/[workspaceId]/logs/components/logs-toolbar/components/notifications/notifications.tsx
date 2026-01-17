@@ -422,7 +422,8 @@ export function NotificationSettings({
       levelFilter: formData.levelFilter,
       triggerFilter: formData.triggerFilter,
       includeFinalOutput: formData.includeFinalOutput,
-      includeTraceSpans: formData.includeTraceSpans,
+      // Trace spans only available for webhooks (too large for email/Slack)
+      includeTraceSpans: activeTab === 'webhook' ? formData.includeTraceSpans : false,
       includeRateLimits: formData.includeRateLimits,
       includeUsageData: formData.includeUsageData,
       alertConfig,
@@ -633,7 +634,7 @@ export function NotificationSettings({
                   }}
                 />
                 {formErrors.webhookUrl && (
-                  <p className='text-[11px] text-[var(--text-error)]'>{formErrors.webhookUrl}</p>
+                  <p className='text-[12px] text-[var(--text-error)]'>{formErrors.webhookUrl}</p>
                 )}
               </div>
               <div className='flex flex-col gap-[8px]'>
@@ -659,7 +660,7 @@ export function NotificationSettings({
                 placeholderWithTags='Add email'
               />
               {formErrors.emailRecipients && (
-                <p className='text-[11px] text-[var(--text-error)]'>{formErrors.emailRecipients}</p>
+                <p className='text-[12px] text-[var(--text-error)]'>{formErrors.emailRecipients}</p>
               )}
             </div>
           )}
@@ -706,7 +707,7 @@ export function NotificationSettings({
                   />
                 )}
                 {formErrors.slackAccountId && (
-                  <p className='text-[11px] text-[var(--text-error)]'>
+                  <p className='text-[12px] text-[var(--text-error)]'>
                     {formErrors.slackAccountId}
                   </p>
                 )}
@@ -775,7 +776,7 @@ export function NotificationSettings({
               allOptionLabel='All levels'
             />
             {formErrors.levelFilter && (
-              <p className='text-[11px] text-[var(--text-error)]'>{formErrors.levelFilter}</p>
+              <p className='text-[12px] text-[var(--text-error)]'>{formErrors.levelFilter}</p>
             )}
           </div>
 
@@ -821,7 +822,7 @@ export function NotificationSettings({
               allOptionLabel='All triggers'
             />
             {formErrors.triggerFilter && (
-              <p className='text-[11px] text-[var(--text-error)]'>{formErrors.triggerFilter}</p>
+              <p className='text-[12px] text-[var(--text-error)]'>{formErrors.triggerFilter}</p>
             )}
           </div>
 
@@ -830,7 +831,10 @@ export function NotificationSettings({
             <Combobox
               options={[
                 { label: 'Final Output', value: 'includeFinalOutput' },
-                { label: 'Trace Spans', value: 'includeTraceSpans' },
+                // Trace spans only available for webhooks (too large for email/Slack)
+                ...(activeTab === 'webhook'
+                  ? [{ label: 'Trace Spans', value: 'includeTraceSpans' }]
+                  : []),
                 { label: 'Rate Limits', value: 'includeRateLimits' },
                 { label: 'Usage Data', value: 'includeUsageData' },
               ]}
@@ -838,7 +842,7 @@ export function NotificationSettings({
               multiSelectValues={
                 [
                   formData.includeFinalOutput && 'includeFinalOutput',
-                  formData.includeTraceSpans && 'includeTraceSpans',
+                  formData.includeTraceSpans && activeTab === 'webhook' && 'includeTraceSpans',
                   formData.includeRateLimits && 'includeRateLimits',
                   formData.includeUsageData && 'includeUsageData',
                 ].filter(Boolean) as string[]
@@ -862,7 +866,7 @@ export function NotificationSettings({
                 }
                 const selected = [
                   formData.includeFinalOutput && 'includeFinalOutput',
-                  formData.includeTraceSpans && 'includeTraceSpans',
+                  formData.includeTraceSpans && activeTab === 'webhook' && 'includeTraceSpans',
                   formData.includeRateLimits && 'includeRateLimits',
                   formData.includeUsageData && 'includeUsageData',
                 ].filter(Boolean) as string[]
@@ -934,7 +938,7 @@ export function NotificationSettings({
                 }
               />
               {formErrors.consecutiveFailures && (
-                <p className='text-[11px] text-[var(--text-error)]'>
+                <p className='text-[12px] text-[var(--text-error)]'>
                   {formErrors.consecutiveFailures}
                 </p>
               )}
@@ -958,7 +962,7 @@ export function NotificationSettings({
                   }
                 />
                 {formErrors.failureRatePercent && (
-                  <p className='text-[11px] text-[var(--text-error)]'>
+                  <p className='text-[12px] text-[var(--text-error)]'>
                     {formErrors.failureRatePercent}
                   </p>
                 )}
@@ -978,7 +982,7 @@ export function NotificationSettings({
                   }
                 />
                 {formErrors.windowHours && (
-                  <p className='text-[11px] text-[var(--text-error)]'>{formErrors.windowHours}</p>
+                  <p className='text-[12px] text-[var(--text-error)]'>{formErrors.windowHours}</p>
                 )}
               </div>
             </div>
@@ -1000,7 +1004,7 @@ export function NotificationSettings({
                 }
               />
               {formErrors.durationThresholdMs && (
-                <p className='text-[11px] text-[var(--text-error)]'>
+                <p className='text-[12px] text-[var(--text-error)]'>
                   {formErrors.durationThresholdMs}
                 </p>
               )}
@@ -1024,7 +1028,7 @@ export function NotificationSettings({
                   }
                 />
                 {formErrors.latencySpikePercent && (
-                  <p className='text-[11px] text-[var(--text-error)]'>
+                  <p className='text-[12px] text-[var(--text-error)]'>
                     {formErrors.latencySpikePercent}
                   </p>
                 )}
@@ -1044,7 +1048,7 @@ export function NotificationSettings({
                   }
                 />
                 {formErrors.windowHours && (
-                  <p className='text-[11px] text-[var(--text-error)]'>{formErrors.windowHours}</p>
+                  <p className='text-[12px] text-[var(--text-error)]'>{formErrors.windowHours}</p>
                 )}
               </div>
             </div>
@@ -1067,7 +1071,7 @@ export function NotificationSettings({
                 }
               />
               {formErrors.costThresholdDollars && (
-                <p className='text-[11px] text-[var(--text-error)]'>
+                <p className='text-[12px] text-[var(--text-error)]'>
                   {formErrors.costThresholdDollars}
                 </p>
               )}
@@ -1090,7 +1094,7 @@ export function NotificationSettings({
                 }
               />
               {formErrors.inactivityHours && (
-                <p className='text-[11px] text-[var(--text-error)]'>{formErrors.inactivityHours}</p>
+                <p className='text-[12px] text-[var(--text-error)]'>{formErrors.inactivityHours}</p>
               )}
             </div>
           )}
@@ -1112,7 +1116,7 @@ export function NotificationSettings({
                   }
                 />
                 {formErrors.errorCountThreshold && (
-                  <p className='text-[11px] text-[var(--text-error)]'>
+                  <p className='text-[12px] text-[var(--text-error)]'>
                     {formErrors.errorCountThreshold}
                   </p>
                 )}
@@ -1132,7 +1136,7 @@ export function NotificationSettings({
                   }
                 />
                 {formErrors.windowHours && (
-                  <p className='text-[11px] text-[var(--text-error)]'>{formErrors.windowHours}</p>
+                  <p className='text-[12px] text-[var(--text-error)]'>{formErrors.windowHours}</p>
                 )}
               </div>
             </div>
@@ -1257,7 +1261,7 @@ export function NotificationSettings({
       </Modal>
 
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete Notification</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>

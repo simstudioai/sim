@@ -194,6 +194,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         const matches = text.match(emailRegex) || []
         return [...new Set(matches.map((e) => e.toLowerCase()))]
       },
+      tooltip: 'Upload emails',
     }),
     [userPerms.canAdmin]
   )
@@ -606,7 +607,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         onOpenChange(newOpen)
       }}
     >
-      <ModalContent className='w-[500px]'>
+      <ModalContent size='md'>
         <ModalHeader>Invite members to {workspaceName || 'Workspace'}</ModalHeader>
 
         <form
@@ -739,7 +740,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
 
       {/* Remove Member Confirmation Dialog */}
       <Modal open={!!memberToRemove} onOpenChange={handleRemoveMemberCancel}>
-        <ModalContent>
+        <ModalContent size='sm'>
           <ModalHeader>Remove Member</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
@@ -772,7 +773,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
 
       {/* Remove Invitation Confirmation Dialog */}
       <Modal open={!!invitationToRemove} onOpenChange={handleRemoveInvitationCancel}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Cancel Invitation</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>

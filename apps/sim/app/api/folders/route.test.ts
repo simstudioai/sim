@@ -3,17 +3,46 @@
  *
  * @vitest-environment node
  */
+import { createMockRequest, mockAuth, mockConsoleLogger, setupCommonApiMocks } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  type CapturedFolderValues,
-  createMockRequest,
-  createMockTransaction,
-  mockAuth,
-  mockLogger,
-  setupCommonApiMocks,
-} from '@/app/api/__test-utils__/utils'
+
+interface CapturedFolderValues {
+  name?: string
+  color?: string
+  parentId?: string | null
+  isExpanded?: boolean
+  sortOrder?: number
+  updatedAt?: Date
+}
+
+function createMockTransaction(mockData: {
+  selectData?: Array<{ id: string; [key: string]: unknown }>
+  insertResult?: Array<{ id: string; [key: string]: unknown }>
+}) {
+  const { selectData = [], insertResult = [] } = mockData
+  return vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) => {
+    const tx = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            orderBy: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue(selectData),
+            }),
+          }),
+        }),
+      }),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          returning: vi.fn().mockReturnValue(insertResult),
+        }),
+      }),
+    }
+    return await callback(tx)
+  })
+}
 
 describe('Folders API Route', () => {
+  let mockLogger: ReturnType<typeof mockConsoleLogger>
   const mockFolders = [
     {
       id: 'folder-1',
@@ -41,7 +70,8 @@ describe('Folders API Route', () => {
     },
   ]
 
-  const { mockAuthenticatedUser, mockUnauthenticated } = mockAuth()
+  let mockAuthenticatedUser: () => void
+  let mockUnauthenticated: () => void
   const mockUUID = 'mock-uuid-12345678-90ab-cdef-1234-567890abcdef'
 
   const mockSelect = vi.fn()
@@ -63,6 +93,10 @@ describe('Folders API Route', () => {
     })
 
     setupCommonApiMocks()
+    mockLogger = mockConsoleLogger()
+    const auth = mockAuth()
+    mockAuthenticatedUser = auth.mockAuthenticatedUser
+    mockUnauthenticated = auth.mockUnauthenticated
 
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })

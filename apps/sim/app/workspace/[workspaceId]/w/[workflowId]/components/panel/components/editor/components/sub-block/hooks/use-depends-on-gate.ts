@@ -1,9 +1,16 @@
 'use client'
 
 import { useMemo } from 'react'
+import {
+  buildCanonicalIndex,
+  isNonEmptyValue,
+  resolveDependencyValue,
+} from '@/lib/workflows/subblocks/visibility'
+import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 type DependsOnConfig = string[] | { all?: string[]; any?: string[] }
 
@@ -50,6 +57,13 @@ export function useDependsOnGate(
   const previewContextValues = opts?.previewContextValues
 
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const blockState = useWorkflowStore((state) => state.blocks[blockId])
+  const blockConfig = blockState?.type ? getBlock(blockState.type) : null
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks]
+  )
+  const canonicalModeOverrides = blockState?.data?.canonicalModes
 
   // Parse dependsOn config to get all/any field lists
   const { allFields, anyFields, allDependsOnFields } = useMemo(
@@ -91,7 +105,13 @@ export function useDependsOnGate(
     if (previewContextValues) {
       const map: Record<string, unknown> = {}
       for (const key of allDependsOnFields) {
-        map[key] = normalizeDependencyValue(previewContextValues[key])
+        const resolvedValue = resolveDependencyValue(
+          key,
+          previewContextValues,
+          canonicalIndex,
+          canonicalModeOverrides
+        )
+        map[key] = normalizeDependencyValue(resolvedValue)
       }
       return map
     }
@@ -108,32 +128,25 @@ export function useDependsOnGate(
     const blockValues = (workflowValues as any)[blockId] || {}
     const map: Record<string, unknown> = {}
     for (const key of allDependsOnFields) {
-      map[key] = normalizeDependencyValue((blockValues as any)[key])
+      const resolvedValue = resolveDependencyValue(
+        key,
+        blockValues,
+        canonicalIndex,
+        canonicalModeOverrides
+      )
+      map[key] = normalizeDependencyValue(resolvedValue)
     }
     return map
   })
 
-  // For backward compatibility, also provide array of values
-  const dependencyValues = useMemo(
-    () => allDependsOnFields.map((key) => dependencyValuesMap[key]),
-    [allDependsOnFields, dependencyValuesMap]
-  ) as any[]
-
-  const isValueSatisfied = (value: unknown): boolean => {
-    if (value === null || value === undefined) return false
-    if (typeof value === 'string') return value.trim().length > 0
-    if (Array.isArray(value)) return value.length > 0
-    return value !== ''
-  }
-
   const depsSatisfied = useMemo(() => {
     // Check all fields (AND logic) - all must be satisfied
     const allSatisfied =
-      allFields.length === 0 || allFields.every((key) => isValueSatisfied(dependencyValuesMap[key]))
+      allFields.length === 0 || allFields.every((key) => isNonEmptyValue(dependencyValuesMap[key]))
 
     // Check any fields (OR logic) - at least one must be satisfied
     const anySatisfied =
-      anyFields.length === 0 || anyFields.some((key) => isValueSatisfied(dependencyValuesMap[key]))
+      anyFields.length === 0 || anyFields.some((key) => isNonEmptyValue(dependencyValuesMap[key]))
 
     return allSatisfied && anySatisfied
   }, [allFields, anyFields, dependencyValuesMap])
@@ -146,7 +159,6 @@ export function useDependsOnGate(
 
   return {
     dependsOn,
-    dependencyValues,
     depsSatisfied,
     blocked,
     finalDisabled,

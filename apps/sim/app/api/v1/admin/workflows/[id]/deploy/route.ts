@@ -1,6 +1,8 @@
 import { db, workflow } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { generateRequestId } from '@/lib/core/utils/request'
+import { cleanupWebhooksForWorkflow } from '@/lib/webhooks/deploy'
 import {
   deployWorkflow,
   loadWorkflowFromNormalizedTables,
@@ -58,7 +60,17 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       return internalErrorResponse(deployResult.error || 'Failed to deploy workflow')
     }
 
-    const scheduleResult = await createSchedulesForDeploy(workflowId, normalizedData.blocks, db)
+    if (!deployResult.deploymentVersionId) {
+      await undeployWorkflow({ workflowId })
+      return internalErrorResponse('Failed to resolve deployment version')
+    }
+
+    const scheduleResult = await createSchedulesForDeploy(
+      workflowId,
+      normalizedData.blocks,
+      db,
+      deployResult.deploymentVersionId
+    )
     if (!scheduleResult.success) {
       logger.warn(`Schedule creation failed for workflow ${workflowId}: ${scheduleResult.error}`)
     }
@@ -80,10 +92,11 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
 
 export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) => {
   const { id: workflowId } = await context.params
+  const requestId = generateRequestId()
 
   try {
     const [workflowRecord] = await db
-      .select({ id: workflow.id })
+      .select()
       .from(workflow)
       .where(eq(workflow.id, workflowId))
       .limit(1)
@@ -91,6 +104,13 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) 
     if (!workflowRecord) {
       return notFoundResponse('Workflow')
     }
+
+    // Clean up external webhook subscriptions before undeploying
+    await cleanupWebhooksForWorkflow(
+      workflowId,
+      workflowRecord as Record<string, unknown>,
+      requestId
+    )
 
     const result = await undeployWorkflow({ workflowId })
     if (!result.success) {
