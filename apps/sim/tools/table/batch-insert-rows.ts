@@ -1,3 +1,4 @@
+import { TABLE_LIMITS } from '@/lib/table'
 import type { ToolConfig } from '@/tools/types'
 import type { TableBatchInsertParams, TableBatchInsertResponse } from './types'
 
@@ -7,7 +8,7 @@ export const tableBatchInsertRowsTool: ToolConfig<
 > = {
   id: 'table_batch_insert_rows',
   name: 'Batch Insert Rows',
-  description: 'Insert multiple rows into a table at once (up to 1000 rows)',
+  description: `Insert multiple rows into a table at once (up to ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} rows)`,
   version: '1.0.0',
 
   params: {
@@ -20,7 +21,7 @@ export const tableBatchInsertRowsTool: ToolConfig<
     rows: {
       type: 'array',
       required: true,
-      description: 'Array of row data objects (max 1000 rows)',
+      description: `Array of row data objects (max ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} rows)`,
       visibility: 'user-or-llm',
     },
   },

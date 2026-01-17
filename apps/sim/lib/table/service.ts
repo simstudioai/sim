@@ -152,6 +152,9 @@ export async function createTable(
   const tableId = `tbl_${crypto.randomUUID().replace(/-/g, '')}`
   const now = new Date()
 
+  // Use provided maxRows (from billing plan) or fall back to default
+  const maxRows = data.maxRows ?? TABLE_LIMITS.MAX_ROWS_PER_TABLE
+
   const newTable = {
     id: tableId,
     name: data.name,
@@ -159,7 +162,7 @@ export async function createTable(
     schema: data.schema,
     workspaceId: data.workspaceId,
     createdBy: data.userId,
-    maxRows: TABLE_LIMITS.MAX_ROWS_PER_TABLE,
+    maxRows,
     createdAt: now,
     updatedAt: now,
   }

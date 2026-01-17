@@ -6,7 +6,14 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createTable, listTables, TABLE_LIMITS, type TableSchema } from '@/lib/table'
+import {
+  canCreateTable,
+  createTable,
+  getWorkspaceTableLimits,
+  listTables,
+  TABLE_LIMITS,
+  type TableSchema,
+} from '@/lib/table'
 import { normalizeColumn } from './utils'
 
 const logger = createLogger('TableAPI')
@@ -141,6 +148,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
+    // Check billing plan limits
+    const existingTables = await listTables(params.workspaceId)
+    const { canCreate, maxTables } = await canCreateTable(params.workspaceId, existingTables.length)
+
+    if (!canCreate) {
+      return NextResponse.json(
+        {
+          error: `Workspace has reached the maximum table limit (${maxTables}) for your plan. Please upgrade to create more tables.`,
+        },
+        { status: 403 }
+      )
+    }
+
+    // Get plan-based row limits
+    const planLimits = await getWorkspaceTableLimits(params.workspaceId)
+    const maxRowsPerTable = planLimits.maxRowsPerTable
+
     const normalizedSchema: TableSchema = {
       columns: params.schema.columns.map(normalizeColumn),
     }
@@ -152,6 +176,7 @@ export async function POST(request: NextRequest) {
         schema: normalizedSchema,
         workspaceId: params.workspaceId,
         userId: authResult.userId,
+        maxRows: maxRowsPerTable,
       },
       requestId
     )

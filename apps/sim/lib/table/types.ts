@@ -149,6 +149,8 @@ export interface CreateTableData {
   schema: TableSchema
   workspaceId: string
   userId: string
+  /** Optional max rows override based on billing plan. Defaults to TABLE_LIMITS.MAX_ROWS_PER_TABLE. */
+  maxRows?: number
 }
 
 export interface InsertRowData {

@@ -1,3 +1,4 @@
+import { TABLE_LIMITS } from '@/lib/table'
 import type { ToolConfig } from '@/tools/types'
 import type { TableQueryResponse, TableRowQueryParams } from './types'
 
@@ -30,7 +31,7 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
     limit: {
       type: 'number',
       required: false,
-      description: 'Maximum rows to return (default: 100, max: 1000)',
+      description: `Maximum rows to return (default: ${TABLE_LIMITS.DEFAULT_QUERY_LIMIT}, max: ${TABLE_LIMITS.MAX_QUERY_LIMIT})`,
       visibility: 'user-or-llm',
     },
     offset: {

@@ -1,3 +1,4 @@
+import { TABLE_LIMITS } from '@/lib/table'
 import type { ToolConfig } from '@/tools/types'
 import type { TableBulkOperationResponse, TableUpdateByFilterParams } from './types'
 
@@ -33,7 +34,7 @@ export const tableUpdateRowsByFilterTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      description: 'Maximum number of rows to update (default: no limit, max: 1000)',
+      description: `Maximum number of rows to update (default: no limit, max: ${TABLE_LIMITS.MAX_BULK_OPERATION_SIZE})`,
       visibility: 'user-or-llm',
     },
   },

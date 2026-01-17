@@ -6,6 +6,19 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TableUtils')
 
+export interface TableAccessResult {
+  hasAccess: true
+  table: TableDefinition
+}
+
+export interface TableAccessDenied {
+  hasAccess: false
+  notFound?: boolean
+  reason?: string
+}
+
+export type TableAccessCheck = TableAccessResult | TableAccessDenied
+
 export type AccessResult = { ok: true; table: TableDefinition } | { ok: false; status: 404 | 403 }
 
 export interface ApiErrorResponse {
@@ -13,6 +26,71 @@ export interface ApiErrorResponse {
   details?: unknown
 }
 
+/**
+ * Check if a user has read access to a table.
+ * Read access is granted if:
+ * 1. User created the table, OR
+ * 2. User has any permission on the table's workspace (read, write, or admin)
+ *
+ * Follows the same pattern as Knowledge Base access checks.
+ */
+export async function checkTableAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
+  const table = await getTableById(tableId)
+
+  if (!table) {
+    return { hasAccess: false, notFound: true }
+  }
+
+  // Case 1: User created the table
+  if (table.createdBy === userId) {
+    return { hasAccess: true, table }
+  }
+
+  // Case 2: Table belongs to a workspace the user has permissions for
+  const userPermission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
+  if (userPermission !== null) {
+    return { hasAccess: true, table }
+  }
+
+  return { hasAccess: false, reason: 'User does not have access to this table' }
+}
+
+/**
+ * Check if a user has write access to a table.
+ * Write access is granted if:
+ * 1. User created the table, OR
+ * 2. User has write or admin permissions on the table's workspace
+ *
+ * Follows the same pattern as Knowledge Base write access checks.
+ */
+export async function checkTableWriteAccess(
+  tableId: string,
+  userId: string
+): Promise<TableAccessCheck> {
+  const table = await getTableById(tableId)
+
+  if (!table) {
+    return { hasAccess: false, notFound: true }
+  }
+
+  // Case 1: User created the table
+  if (table.createdBy === userId) {
+    return { hasAccess: true, table }
+  }
+
+  // Case 2: Table belongs to a workspace and user has write/admin permissions
+  const userPermission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
+  if (userPermission === 'write' || userPermission === 'admin') {
+    return { hasAccess: true, table }
+  }
+
+  return { hasAccess: false, reason: 'User does not have write access to this table' }
+}
+
+/**
+ * @deprecated Use checkTableAccess or checkTableWriteAccess instead.
+ * Legacy access check function for backwards compatibility.
+ */
 export async function checkAccess(
   tableId: string,
   userId: string,
@@ -46,6 +124,21 @@ export function accessError(
   const message = result.status === 404 ? 'Table not found' : 'Access denied'
   logger.warn(`[${requestId}] ${message}${context ? `: ${context}` : ''}`)
   return NextResponse.json({ error: message }, { status: result.status })
+}
+
+/**
+ * Converts a TableAccessDenied result to an appropriate HTTP response.
+ * Use with checkTableAccess or checkTableWriteAccess.
+ */
+export function tableAccessError(
+  result: TableAccessDenied,
+  requestId: string,
+  context?: string
+): NextResponse {
+  const status = result.notFound ? 404 : 403
+  const message = result.notFound ? 'Table not found' : (result.reason ?? 'Access denied')
+  logger.warn(`[${requestId}] ${message}${context ? `: ${context}` : ''}`)
+  return NextResponse.json({ error: message }, { status })
 }
 
 export async function verifyTableWorkspace(tableId: string, workspaceId: string): Promise<boolean> {

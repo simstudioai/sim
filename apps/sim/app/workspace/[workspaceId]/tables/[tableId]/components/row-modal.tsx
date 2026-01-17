@@ -7,6 +7,7 @@ import { useParams } from 'next/navigation'
 import {
   Button,
   Checkbox,
+  Input,
   Label,
   Modal,
   ModalBody,
@@ -15,7 +16,6 @@ import {
   ModalHeader,
   Textarea,
 } from '@/components/emcn'
-import { Input } from '@/components/ui/input'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 
 const logger = createLogger('RowModal')

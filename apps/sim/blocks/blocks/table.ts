@@ -1,4 +1,5 @@
 import { TableIcon } from '@/components/icons'
+import { TABLE_LIMITS } from '@/lib/table'
 import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/converters'
 import type { BlockConfig } from '@/blocks/types'
 import type { TableQueryResponse } from '@/tools/table/types'
@@ -277,7 +278,7 @@ Return ONLY the data JSON:`,
 
 ### INSTRUCTION
 Return ONLY a valid JSON array of objects. Each object represents one row. No explanations or markdown.
-Maximum 1000 rows per batch.
+Maximum ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} rows per batch.
 
 IMPORTANT: Reference the table schema to know which columns exist and their types.
 

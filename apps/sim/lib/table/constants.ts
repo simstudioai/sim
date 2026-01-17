@@ -23,6 +23,35 @@ export const TABLE_LIMITS = {
   MAX_BULK_OPERATION_SIZE: 1000,
 } as const
 
+/**
+ * Plan-based table limits.
+ */
+export const TABLE_PLAN_LIMITS = {
+  free: {
+    maxTables: 3,
+    maxRowsPerTable: 1000,
+  },
+  pro: {
+    maxTables: 25,
+    maxRowsPerTable: 5000,
+  },
+  team: {
+    maxTables: 100,
+    maxRowsPerTable: 10000,
+  },
+  enterprise: {
+    maxTables: 10000,
+    maxRowsPerTable: 1000000,
+  },
+} as const
+
+export type PlanName = keyof typeof TABLE_PLAN_LIMITS
+
+export interface TablePlanLimits {
+  maxTables: number
+  maxRowsPerTable: number
+}
+
 export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as const
 
 export const NAME_PATTERN = /^[a-z_][a-z0-9_]*$/i
