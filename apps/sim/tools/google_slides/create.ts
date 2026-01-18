@@ -153,6 +153,24 @@ export const createTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesCreateRe
     metadata: {
       type: 'json',
       description: 'Created presentation metadata including ID, title, and URL',
+      properties: {
+        presentationId: {
+          type: 'string',
+          description: 'The presentation ID',
+        },
+        title: {
+          type: 'string',
+          description: 'The presentation title',
+        },
+        mimeType: {
+          type: 'string',
+          description: 'The mime type of the presentation',
+        },
+        url: {
+          type: 'string',
+          description: 'URL to open the presentation',
+        },
+      },
     },
   },
 }

@@ -164,6 +164,24 @@ export const replaceAllTextTool: ToolConfig<ReplaceAllTextParams, ReplaceAllText
     metadata: {
       type: 'json',
       description: 'Operation metadata including presentation ID and URL',
+      properties: {
+        presentationId: {
+          type: 'string',
+          description: 'The presentation ID',
+        },
+        findText: {
+          type: 'string',
+          description: 'The text that was searched for',
+        },
+        replaceText: {
+          type: 'string',
+          description: 'The text that replaced the matches',
+        },
+        url: {
+          type: 'string',
+          description: 'URL to open the presentation',
+        },
+      },
     },
   },
 }

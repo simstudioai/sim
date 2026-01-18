@@ -167,6 +167,24 @@ export const getThumbnailTool: ToolConfig<GetThumbnailParams, GetThumbnailRespon
     metadata: {
       type: 'json',
       description: 'Operation metadata including presentation ID and page object ID',
+      properties: {
+        presentationId: {
+          type: 'string',
+          description: 'The presentation ID',
+        },
+        pageObjectId: {
+          type: 'string',
+          description: 'The page object ID for the thumbnail',
+        },
+        thumbnailSize: {
+          type: 'string',
+          description: 'The requested thumbnail size',
+        },
+        mimeType: {
+          type: 'string',
+          description: 'The thumbnail MIME type',
+        },
+      },
     },
   },
 }
