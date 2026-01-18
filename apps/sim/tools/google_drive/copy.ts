@@ -97,6 +97,7 @@ export const copyTool: ToolConfig<GoogleDriveCopyParams, GoogleDriveCopyResponse
       description: 'The copied file metadata',
       properties: {
         id: { type: 'string', description: 'Google Drive file ID of the copy' },
+        kind: { type: 'string', description: 'Resource type identifier' },
         name: { type: 'string', description: 'File name' },
         mimeType: { type: 'string', description: 'MIME type' },
         webViewLink: { type: 'string', description: 'URL to view in browser' },

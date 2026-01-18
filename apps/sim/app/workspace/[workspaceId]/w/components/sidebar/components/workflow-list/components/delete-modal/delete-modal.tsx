@@ -97,6 +97,15 @@ export function DeleteModal({
       return 'Are you sure you want to delete this folder? This will permanently remove all associated workflows, logs, and knowledge bases.'
     }
 
+    if (isSingle && displayNames.length > 0) {
+      return (
+        <>
+          Are you sure you want to delete{' '}
+          <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
+          will permanently remove all associated workflows, folders, logs, and knowledge bases.
+        </>
+      )
+    }
     return 'Are you sure you want to delete this workspace? This will permanently remove all associated workflows, folders, logs, and knowledge bases.'
   }
 

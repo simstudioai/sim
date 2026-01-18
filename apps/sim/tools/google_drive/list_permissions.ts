@@ -8,6 +8,7 @@ interface GoogleDriveListPermissionsParams extends GoogleDriveToolParams {
 interface GoogleDriveListPermissionsResponse extends ToolResponse {
   output: {
     permissions: GoogleDrivePermission[]
+    nextPageToken?: string
   }
 }
 
@@ -48,7 +49,7 @@ export const listPermissionsTool: ToolConfig<
       url.searchParams.append('supportsAllDrives', 'true')
       url.searchParams.append(
         'fields',
-        'permissions(id,type,role,emailAddress,displayName,photoLink,domain,expirationTime,deleted,allowFileDiscovery,pendingOwner,permissionDetails)'
+        'nextPageToken,permissions(id,type,role,emailAddress,displayName,photoLink,domain,expirationTime,deleted,allowFileDiscovery,pendingOwner,permissionDetails)'
       )
       return url.toString()
     },
@@ -84,6 +85,7 @@ export const listPermissionsTool: ToolConfig<
       success: true,
       output: {
         permissions,
+        nextPageToken: data.nextPageToken,
       },
     }
   },
@@ -119,6 +121,10 @@ export const listPermissionsTool: ToolConfig<
           },
         },
       },
+    },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token for fetching the next page of permissions',
     },
   },
 }

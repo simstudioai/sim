@@ -124,17 +124,11 @@ export const deleteObjectTool: ToolConfig<DeleteObjectParams, DeleteObjectRespon
       description: 'The object ID that was deleted',
     },
     metadata: {
-      type: 'json',
+      type: 'object',
       description: 'Operation metadata including presentation ID and URL',
       properties: {
-        presentationId: {
-          type: 'string',
-          description: 'The presentation ID',
-        },
-        url: {
-          type: 'string',
-          description: 'URL to open the presentation',
-        },
+        presentationId: { type: 'string', description: 'The presentation ID' },
+        url: { type: 'string', description: 'URL to the presentation' },
       },
     },
   },

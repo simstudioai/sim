@@ -66,9 +66,9 @@ List files and folders in Google Drive with complete metadata
 | --------- | ---- | ----------- |
 | `files` | array | Array of file metadata objects from Google Drive |
 |   ↳ `id` | string | Google Drive file ID |
+|   ↳ `kind` | string | Resource type identifier |
 |   ↳ `name` | string | File name |
 |   ↳ `mimeType` | string | MIME type |
-|   ↳ `kind` | string | Resource type identifier |
 |   ↳ `description` | string | File description |
 |   ↳ `originalFilename` | string | Original uploaded filename |
 |   ↳ `fullFileExtension` | string | Full file extension |
@@ -135,6 +135,7 @@ Get metadata for a specific file in Google Drive by its ID
 | --------- | ---- | ----------- |
 | `file` | json | The file metadata |
 | ↳ `id` | string | Google Drive file ID |
+| ↳ `kind` | string | Resource type identifier |
 | ↳ `name` | string | File name |
 | ↳ `mimeType` | string | MIME type |
 | ↳ `description` | string | File description |
@@ -175,9 +176,9 @@ Create a new folder in Google Drive with complete metadata returned
 | --------- | ---- | ----------- |
 | `file` | object | Complete created folder metadata from Google Drive |
 | ↳ `id` | string | Google Drive folder ID |
+| ↳ `kind` | string | Resource type identifier |
 | ↳ `name` | string | Folder name |
 | ↳ `mimeType` | string | MIME type \(application/vnd.google-apps.folder\) |
-| ↳ `kind` | string | Resource type identifier |
 | ↳ `description` | string | Folder description |
 | ↳ `owners` | json | List of folder owners |
 | ↳ `permissions` | json | Folder permissions |
@@ -233,9 +234,9 @@ Upload a file to Google Drive with complete metadata returned
 | --------- | ---- | ----------- |
 | `file` | object | Complete uploaded file metadata from Google Drive |
 | ↳ `id` | string | Google Drive file ID |
+| ↳ `kind` | string | Resource type identifier |
 | ↳ `name` | string | File name |
 | ↳ `mimeType` | string | MIME type |
-| ↳ `kind` | string | Resource type identifier |
 | ↳ `description` | string | File description |
 | ↳ `originalFilename` | string | Original uploaded filename |
 | ↳ `fullFileExtension` | string | Full file extension |
@@ -309,9 +310,9 @@ Download a file from Google Drive with complete metadata (exports Google Workspa
 | ↳ `size` | number | File size in bytes |
 | `metadata` | object | Complete file metadata from Google Drive |
 | ↳ `id` | string | Google Drive file ID |
+| ↳ `kind` | string | Resource type identifier |
 | ↳ `name` | string | File name |
 | ↳ `mimeType` | string | MIME type |
-| ↳ `kind` | string | Resource type identifier |
 | ↳ `description` | string | File description |
 | ↳ `originalFilename` | string | Original uploaded filename |
 | ↳ `fullFileExtension` | string | Full file extension |
@@ -380,6 +381,7 @@ Create a copy of a file in Google Drive
 | --------- | ---- | ----------- |
 | `file` | json | The copied file metadata |
 | ↳ `id` | string | Google Drive file ID of the copy |
+| ↳ `kind` | string | Resource type identifier |
 | ↳ `name` | string | File name |
 | ↳ `mimeType` | string | MIME type |
 | ↳ `webViewLink` | string | URL to view in browser |
@@ -410,6 +412,7 @@ Update file metadata in Google Drive (rename, move, star, add description)
 | --------- | ---- | ----------- |
 | `file` | json | The updated file metadata |
 | ↳ `id` | string | Google Drive file ID |
+| ↳ `kind` | string | Resource type identifier |
 | ↳ `name` | string | File name |
 | ↳ `mimeType` | string | MIME type |
 | ↳ `description` | string | File description |
@@ -434,33 +437,12 @@ Move a file to the trash in Google Drive (can be restored later)
 | --------- | ---- | ----------- |
 | `file` | json | The trashed file metadata |
 | ↳ `id` | string | Google Drive file ID |
+| ↳ `kind` | string | Resource type identifier |
 | ↳ `name` | string | File name |
 | ↳ `mimeType` | string | MIME type |
 | ↳ `trashed` | boolean | Whether file is in trash \(should be true\) |
 | ↳ `trashedTime` | string | When file was trashed |
 | ↳ `webViewLink` | string | URL to view in browser |
-
-### `google_drive_untrash`
-
-Restore a file from the trash in Google Drive
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `fileId` | string | Yes | The ID of the file to restore from trash |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `file` | json | The restored file metadata |
-| ↳ `id` | string | Google Drive file ID |
-| ↳ `name` | string | File name |
-| ↳ `mimeType` | string | MIME type |
-| ↳ `trashed` | boolean | Whether file is in trash \(should be false\) |
-| ↳ `webViewLink` | string | URL to view in browser |
-| ↳ `parents` | json | Parent folder IDs |
 
 ### `google_drive_delete`
 
@@ -557,6 +539,7 @@ List all permissions (who has access) for a file in Google Drive
 |   ↳ `allowFileDiscovery` | boolean | Whether file is discoverable by grantee |
 |   ↳ `pendingOwner` | boolean | Whether ownership transfer is pending |
 |   ↳ `permissionDetails` | json | Details about inherited permissions |
+| `nextPageToken` | string | Token for fetching the next page of permissions |
 
 ### `google_drive_get_about`
 

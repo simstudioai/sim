@@ -76,6 +76,7 @@ export const trashTool: ToolConfig<GoogleDriveTrashParams, GoogleDriveTrashRespo
       description: 'The trashed file metadata',
       properties: {
         id: { type: 'string', description: 'Google Drive file ID' },
+        kind: { type: 'string', description: 'Resource type identifier' },
         name: { type: 'string', description: 'File name' },
         mimeType: { type: 'string', description: 'MIME type' },
         trashed: { type: 'boolean', description: 'Whether file is in trash (should be true)' },

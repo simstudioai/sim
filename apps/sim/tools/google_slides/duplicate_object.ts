@@ -145,21 +145,15 @@ export const duplicateObjectTool: ToolConfig<DuplicateObjectParams, DuplicateObj
       description: 'The object ID of the newly created duplicate',
     },
     metadata: {
-      type: 'json',
+      type: 'object',
       description: 'Operation metadata including presentation ID and source object ID',
       properties: {
-        presentationId: {
-          type: 'string',
-          description: 'The presentation ID',
-        },
+        presentationId: { type: 'string', description: 'The presentation ID' },
         sourceObjectId: {
           type: 'string',
-          description: 'The object ID that was duplicated',
+          description: 'The original object ID that was duplicated',
         },
-        url: {
-          type: 'string',
-          description: 'URL to open the presentation',
-        },
+        url: { type: 'string', description: 'URL to the presentation' },
       },
     },
   },

@@ -308,14 +308,30 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'update' },
     },
 
-    // Move Event Fields
+    // Move Event Fields - Destination calendar selector (basic mode)
     {
-      id: 'destinationCalendarId',
+      id: 'destinationCalendar',
+      title: 'Destination Calendar',
+      type: 'file-selector',
+      canonicalParamId: 'destinationCalendarId',
+      serviceId: 'google-calendar',
+      requiredScopes: ['https://www.googleapis.com/auth/calendar'],
+      placeholder: 'Select destination calendar',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'move' },
+      required: true,
+      mode: 'basic',
+    },
+    // Move Event Fields - Manual destination calendar ID (advanced mode)
+    {
+      id: 'manualDestinationCalendarId',
       title: 'Destination Calendar ID',
       type: 'short-input',
+      canonicalParamId: 'destinationCalendarId',
       placeholder: 'destination@group.calendar.google.com',
       condition: { field: 'operation', value: 'move' },
       required: true,
+      mode: 'advanced',
     },
 
     // Instances Fields
@@ -502,15 +518,29 @@ Return ONLY the natural language event text - no explanations.`,
           replaceExisting,
           calendarId,
           manualCalendarId,
+          destinationCalendar,
+          manualDestinationCalendarId,
           ...rest
         } = params
 
         // Handle calendar ID (selector or manual)
         const effectiveCalendarId = (calendarId || manualCalendarId || '').trim()
 
+        // Handle destination calendar ID for move operation (selector or manual)
+        const effectiveDestinationCalendarId = (
+          destinationCalendar ||
+          manualDestinationCalendarId ||
+          ''
+        ).trim()
+
         const processedParams: Record<string, any> = {
           ...rest,
           calendarId: effectiveCalendarId || 'primary',
+        }
+
+        // Add destination calendar ID for move operation
+        if (operation === 'move' && effectiveDestinationCalendarId) {
+          processedParams.destinationCalendarId = effectiveDestinationCalendarId
         }
 
         // Convert comma-separated attendees string to array, only if it has content
@@ -579,7 +609,8 @@ Return ONLY the natural language event text - no explanations.`,
     eventId: { type: 'string', description: 'Event identifier' },
 
     // Move operation inputs
-    destinationCalendarId: { type: 'string', description: 'Destination calendar ID' },
+    destinationCalendar: { type: 'string', description: 'Destination calendar selector' },
+    manualDestinationCalendarId: { type: 'string', description: 'Manual destination calendar ID' },
 
     // List Calendars operation inputs
     minAccessRole: { type: 'string', description: 'Minimum access role filter' },

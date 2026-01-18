@@ -30,7 +30,6 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         { label: 'Copy File', id: 'copy' },
         { label: 'Update File', id: 'update' },
         { label: 'Move to Trash', id: 'trash' },
-        { label: 'Restore from Trash', id: 'untrash' },
         { label: 'Delete Permanently', id: 'delete' },
         { label: 'Share File', id: 'share' },
         { label: 'Remove Sharing', id: 'unshare' },
@@ -524,16 +523,6 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'trash' },
       required: true,
     },
-    // Untrash File Fields
-    {
-      id: 'manualFileId',
-      title: 'File ID',
-      type: 'short-input',
-      canonicalParamId: 'fileId',
-      placeholder: 'Enter file ID to restore from trash',
-      condition: { field: 'operation', value: 'untrash' },
-      required: true,
-    },
     // Delete File Fields
     {
       id: 'fileSelector',
@@ -745,7 +734,6 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
       'google_drive_copy',
       'google_drive_update',
       'google_drive_trash',
-      'google_drive_untrash',
       'google_drive_delete',
       'google_drive_share',
       'google_drive_unshare',
@@ -772,8 +760,6 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
             return 'google_drive_update'
           case 'trash':
             return 'google_drive_trash'
-          case 'untrash':
-            return 'google_drive_untrash'
           case 'delete':
             return 'google_drive_delete'
           case 'share':
@@ -875,12 +861,22 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
     permissionId: { type: 'string', description: 'Permission ID to remove' },
   },
   outputs: {
-    file: { type: 'json', description: 'File metadata' },
+    file: { type: 'json', description: 'File metadata or downloaded file data' },
     files: { type: 'json', description: 'List of files' },
+    metadata: { type: 'json', description: 'Complete file metadata (from download)' },
+    content: { type: 'string', description: 'File content as text' },
+    nextPageToken: { type: 'string', description: 'Token for fetching the next page of results' },
     permission: { type: 'json', description: 'Permission details' },
     permissions: { type: 'json', description: 'List of permissions' },
     user: { type: 'json', description: 'User information' },
     storageQuota: { type: 'json', description: 'Storage quota information' },
+    canCreateDrives: { type: 'boolean', description: 'Whether user can create shared drives' },
+    importFormats: { type: 'json', description: 'Map of MIME types that can be imported' },
+    exportFormats: {
+      type: 'json',
+      description: 'Map of Google Workspace MIME types and export formats',
+    },
+    maxUploadSize: { type: 'string', description: 'Maximum upload size in bytes' },
     deleted: { type: 'boolean', description: 'Whether file was deleted' },
     removed: { type: 'boolean', description: 'Whether permission was removed' },
   },

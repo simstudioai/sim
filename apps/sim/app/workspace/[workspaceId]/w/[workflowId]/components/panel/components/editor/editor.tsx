@@ -7,8 +7,8 @@ import { useShallow } from 'zustand/react/shallow'
 import { Button, Tooltip } from '@/components/emcn'
 import {
   buildCanonicalIndex,
+  evaluateSubBlockCondition,
   hasAdvancedValues,
-  hasStandaloneAdvancedFields,
   isCanonicalPair,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
@@ -131,10 +131,24 @@ export function Editor() {
   )
   const displayAdvancedOptions = advancedMode || advancedValuesPresent
 
-  const hasAdvancedOnlyFields = useMemo(
-    () => hasStandaloneAdvancedFields(subBlocksForCanonical, canonicalIndex),
-    [subBlocksForCanonical, canonicalIndex]
-  )
+  const hasAdvancedOnlyFields = useMemo(() => {
+    for (const subBlock of subBlocksForCanonical) {
+      // Must be standalone advanced (mode: 'advanced' without canonicalParamId)
+      if (subBlock.mode !== 'advanced') continue
+      if (canonicalIndex.canonicalIdBySubBlockId[subBlock.id]) continue
+
+      // Check condition - skip if condition not met for current values
+      if (
+        subBlock.condition &&
+        !evaluateSubBlockCondition(subBlock.condition, blockSubBlockValues)
+      ) {
+        continue
+      }
+
+      return true
+    }
+    return false
+  }, [subBlocksForCanonical, canonicalIndex.canonicalIdBySubBlockId, blockSubBlockValues])
 
   // Get subblock layout using custom hook
   const { subBlocks, stateToUse: subBlockState } = useEditorSubblockLayout(
@@ -480,7 +494,9 @@ export function Editor() {
                         onClick={handleToggleAdvancedMode}
                         className='flex items-center gap-[6px] whitespace-nowrap font-medium text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                       >
-                        {displayAdvancedOptions ? 'Hide advanced fields' : 'Show advanced fields'}
+                        {displayAdvancedOptions
+                          ? 'Hide additional fields'
+                          : 'Show additional fields'}
                         <ChevronDown
                           className={`h-[14px] w-[14px] transition-transform duration-200 ${displayAdvancedOptions ? 'rotate-180' : ''}`}
                         />

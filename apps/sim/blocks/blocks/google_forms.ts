@@ -39,19 +39,40 @@ export const GoogleFormsBlock: BlockConfig = {
       requiredScopes: [
         'https://www.googleapis.com/auth/userinfo.email',
         'https://www.googleapis.com/auth/userinfo.profile',
+        'https://www.googleapis.com/auth/drive',
         'https://www.googleapis.com/auth/forms.body',
         'https://www.googleapis.com/auth/forms.responses.readonly',
       ],
       placeholder: 'Select Google account',
     },
-    // Form ID - required for most operations except create_form
+    // Form selector (basic mode)
     {
       id: 'formId',
+      title: 'Select Form',
+      type: 'file-selector',
+      canonicalParamId: 'formId',
+      serviceId: 'google-forms',
+      requiredScopes: [],
+      mimeType: 'application/vnd.google-apps.form',
+      placeholder: 'Select a form',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: {
+        field: 'operation',
+        value: 'create_form',
+        not: true,
+      },
+    },
+    // Manual form ID input (advanced mode)
+    {
+      id: 'manualFormId',
       title: 'Form ID',
       type: 'short-input',
+      canonicalParamId: 'formId',
       required: true,
       placeholder: 'Enter the Google Form ID',
       dependsOn: ['credential'],
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: 'create_form',
@@ -214,6 +235,7 @@ Example for "Add a required multiple choice question about favorite color":
           credential,
           operation,
           formId,
+          manualFormId,
           responseId,
           pageSize,
           title,
@@ -230,7 +252,7 @@ Example for "Add a required multiple choice question about favorite color":
         } = params
 
         const baseParams = { ...rest, credential }
-        const effectiveFormId = formId ? String(formId).trim() : undefined
+        const effectiveFormId = (formId || manualFormId || '').toString().trim() || undefined
 
         switch (operation) {
           case 'get_responses':
@@ -299,7 +321,8 @@ Example for "Add a required multiple choice question about favorite color":
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Google OAuth credential' },
-    formId: { type: 'string', description: 'Google Form ID' },
+    formId: { type: 'string', description: 'Google Form ID (from selector)' },
+    manualFormId: { type: 'string', description: 'Google Form ID (manual entry)' },
     responseId: { type: 'string', description: 'Specific response ID' },
     pageSize: { type: 'string', description: 'Max responses to retrieve' },
     title: { type: 'string', description: 'Form title for creation' },
@@ -314,13 +337,132 @@ Example for "Add a required multiple choice question about favorite color":
     watchId: { type: 'string', description: 'Watch ID' },
   },
   outputs: {
-    response: { type: 'json', description: 'Operation response data' },
-    formId: { type: 'string', description: 'Form ID' },
-    title: { type: 'string', description: 'Form title' },
-    responderUri: { type: 'string', description: 'Form responder URL' },
-    items: { type: 'json', description: 'Form items' },
-    responses: { type: 'json', description: 'Form responses' },
-    watches: { type: 'json', description: 'Form watches' },
+    responses: {
+      type: 'json',
+      description: 'Array of form responses',
+      condition: {
+        field: 'operation',
+        value: 'get_responses',
+        and: { field: 'responseId', value: ['', undefined, null] },
+      },
+    },
+    response: {
+      type: 'json',
+      description: 'Single form response',
+      condition: {
+        field: 'operation',
+        value: 'get_responses',
+        and: { field: 'responseId', value: ['', undefined, null], not: true },
+      },
+    },
+    // Get Form outputs
+    formId: {
+      type: 'string',
+      description: 'Form ID',
+      condition: { field: 'operation', value: ['get_form', 'create_form', 'set_publish_settings'] },
+    },
+    title: {
+      type: 'string',
+      description: 'Form title',
+      condition: { field: 'operation', value: ['get_form', 'create_form'] },
+    },
+    description: {
+      type: 'string',
+      description: 'Form description',
+      condition: { field: 'operation', value: 'get_form' },
+    },
+    documentTitle: {
+      type: 'string',
+      description: 'Document title in Drive',
+      condition: { field: 'operation', value: ['get_form', 'create_form'] },
+    },
+    responderUri: {
+      type: 'string',
+      description: 'Form responder URL',
+      condition: { field: 'operation', value: ['get_form', 'create_form'] },
+    },
+    linkedSheetId: {
+      type: 'string',
+      description: 'Linked Google Sheet ID',
+      condition: { field: 'operation', value: 'get_form' },
+    },
+    revisionId: {
+      type: 'string',
+      description: 'Form revision ID',
+      condition: { field: 'operation', value: ['get_form', 'create_form'] },
+    },
+    items: {
+      type: 'json',
+      description: 'Form items (questions, sections, etc.)',
+      condition: { field: 'operation', value: 'get_form' },
+    },
+    settings: {
+      type: 'json',
+      description: 'Form settings',
+      condition: { field: 'operation', value: 'get_form' },
+    },
+    publishSettings: {
+      type: 'json',
+      description: 'Form publish settings',
+      condition: { field: 'operation', value: ['get_form', 'set_publish_settings'] },
+    },
+    // Batch Update outputs
+    replies: {
+      type: 'json',
+      description: 'Replies from each update request',
+      condition: { field: 'operation', value: 'batch_update' },
+    },
+    writeControl: {
+      type: 'json',
+      description: 'Write control with revision IDs',
+      condition: { field: 'operation', value: 'batch_update' },
+    },
+    form: {
+      type: 'json',
+      description: 'Updated form (if includeFormInResponse is true)',
+      condition: { field: 'operation', value: 'batch_update' },
+    },
+    // Watch outputs
+    watches: {
+      type: 'json',
+      description: 'Array of form watches',
+      condition: { field: 'operation', value: 'list_watches' },
+    },
+    id: {
+      type: 'string',
+      description: 'Watch ID',
+      condition: { field: 'operation', value: ['create_watch', 'renew_watch'] },
+    },
+    eventType: {
+      type: 'string',
+      description: 'Watch event type',
+      condition: { field: 'operation', value: ['create_watch', 'renew_watch'] },
+    },
+    topicName: {
+      type: 'string',
+      description: 'Cloud Pub/Sub topic',
+      condition: { field: 'operation', value: 'create_watch' },
+    },
+    createTime: {
+      type: 'string',
+      description: 'Watch creation time',
+      condition: { field: 'operation', value: 'create_watch' },
+    },
+    expireTime: {
+      type: 'string',
+      description: 'Watch expiration time',
+      condition: { field: 'operation', value: ['create_watch', 'renew_watch'] },
+    },
+    state: {
+      type: 'string',
+      description: 'Watch state (ACTIVE, SUSPENDED)',
+      condition: { field: 'operation', value: ['create_watch', 'renew_watch'] },
+    },
+    deleted: {
+      type: 'boolean',
+      description: 'Whether the watch was deleted',
+      condition: { field: 'operation', value: 'delete_watch' },
+    },
   },
   triggers: {
     enabled: true,
