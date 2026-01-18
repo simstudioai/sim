@@ -45,8 +45,7 @@ Read data from a specific sheet in a Microsoft Excel spreadsheet
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet to read from |
-| `sheetName` | string | Yes | The name of the sheet/tab to read from |
-| `cellRange` | string | No | The cell range to read \(e.g., "A1:D10"\). If not specified, reads the entire used range. |
+| `range` | string | No | The range of cells to read from. Accepts "SheetName!A1:B2" for explicit ranges or just "SheetName" to read the used range of that sheet. If omitted, reads the used range of the first sheet. |
 
 #### Output
 
@@ -68,9 +67,8 @@ Write data to a specific sheet in a Microsoft Excel spreadsheet
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet to write to |
-| `sheetName` | string | Yes | The name of the sheet/tab to write to |
-| `cellRange` | string | No | The cell range to write to \(e.g., "A1:D10", "A1"\). Defaults to "A1" if not specified. |
-| `values` | array | Yes | The data to write as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
+| `range` | string | No | The range of cells to write to |
+| `values` | array | Yes | The data to write to the spreadsheet |
 | `valueInputOption` | string | No | The format of the data to write |
 | `includeValuesInResponse` | boolean | No | Whether to include the written values in the response |
 

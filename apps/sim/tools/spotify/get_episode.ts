@@ -37,11 +37,13 @@ export const spotifyGetEpisodeTool: ToolConfig<SpotifyGetEpisodeParams, SpotifyG
       episodeId: {
         type: 'string',
         required: true,
+        visibility: 'user-or-llm',
         description: 'The Spotify episode ID',
       },
       market: {
         type: 'string',
         required: false,
+        visibility: 'user-only',
         description: 'ISO country code for market',
       },
     },

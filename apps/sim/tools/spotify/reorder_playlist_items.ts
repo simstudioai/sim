@@ -34,27 +34,32 @@ export const spotifyReorderPlaylistItemsTool: ToolConfig<
     playlistId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The Spotify playlist ID',
     },
     range_start: {
       type: 'number',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Start index of items to reorder',
     },
     insert_before: {
       type: 'number',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Index to insert items before',
     },
     range_length: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       default: 1,
       description: 'Number of items to reorder',
     },
     snapshot_id: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Playlist snapshot ID for concurrency control',
     },
   },

@@ -1,9 +1,7 @@
-import { readTool } from '@/tools/microsoft_excel/read'
-import { readV2Tool } from '@/tools/microsoft_excel/read_v2'
+import { readTool, readV2Tool } from '@/tools/microsoft_excel/read'
 import { tableAddTool } from '@/tools/microsoft_excel/table_add'
 import { worksheetAddTool } from '@/tools/microsoft_excel/worksheet_add'
-import { writeTool } from '@/tools/microsoft_excel/write'
-import { writeV2Tool } from '@/tools/microsoft_excel/write_v2'
+import { writeTool, writeV2Tool } from '@/tools/microsoft_excel/write'
 
 // V1 exports
 export const microsoftExcelReadTool = readTool

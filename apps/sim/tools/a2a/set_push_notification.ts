@@ -14,24 +14,29 @@ export const a2aSetPushNotificationTool: ToolConfig<
     agentUrl: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The A2A agent endpoint URL',
     },
     taskId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Task ID to configure notifications for',
     },
     webhookUrl: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'HTTPS webhook URL to receive notifications',
     },
     token: {
       type: 'string',
+      visibility: 'user-only',
       description: 'Token for webhook validation',
     },
     apiKey: {
       type: 'string',
+      visibility: 'user-only',
       description: 'API key for authentication',
     },
   },

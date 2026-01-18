@@ -60,23 +60,27 @@ export const addSlideTool: ToolConfig<AddSlideParams, AddSlideResponse> = {
     presentationId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the presentation',
     },
     layout: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description:
         'The predefined layout for the slide (BLANK, TITLE, TITLE_AND_BODY, TITLE_ONLY, SECTION_HEADER, etc.). Defaults to BLANK.',
     },
     insertionIndex: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description:
         'The optional zero-based index indicating where to insert the slide. If not specified, the slide is added at the end.',
     },
     placeholderIdMappings: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description:
         'JSON array of placeholder mappings to assign custom object IDs to placeholders. Format: [{"layoutPlaceholder":{"type":"TITLE"},"objectId":"custom_title_id"}]',
     },

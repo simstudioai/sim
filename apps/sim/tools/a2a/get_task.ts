@@ -11,19 +11,23 @@ export const a2aGetTaskTool: ToolConfig<A2AGetTaskParams, A2AGetTaskResponse> = 
     agentUrl: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The A2A agent endpoint URL',
     },
     taskId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Task ID to query',
     },
     apiKey: {
       type: 'string',
+      visibility: 'user-only',
       description: 'API key for authentication',
     },
     historyLength: {
       type: 'number',
+      visibility: 'user-or-llm',
       description: 'Number of history messages to include',
     },
   },

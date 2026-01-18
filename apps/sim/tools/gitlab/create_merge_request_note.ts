@@ -17,21 +17,25 @@ export const gitlabCreateMergeRequestNoteTool: ToolConfig<
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'GitLab Personal Access Token',
     },
     projectId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Project ID or URL-encoded path',
     },
     mergeRequestIid: {
       type: 'number',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Merge request internal ID (IID)',
     },
     body: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Comment body (Markdown supported)',
     },
   },

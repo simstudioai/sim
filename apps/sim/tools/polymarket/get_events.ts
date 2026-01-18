@@ -30,31 +30,37 @@ export const polymarketGetEventsTool: ToolConfig<
       type: 'string',
       required: false,
       description: 'Filter by closed status (true/false). Use false for active events only.',
+      visibility: 'user-or-llm',
     },
     order: {
       type: 'string',
       required: false,
       description: 'Sort field (e.g., volume, liquidity, startDate, endDate, createdAt)',
+      visibility: 'user-or-llm',
     },
     ascending: {
       type: 'string',
       required: false,
       description: 'Sort direction (true for ascending, false for descending)',
+      visibility: 'user-or-llm',
     },
     tagId: {
       type: 'string',
       required: false,
       description: 'Filter by tag ID',
+      visibility: 'user-or-llm',
     },
     limit: {
       type: 'string',
       required: false,
       description: 'Number of results per page (max 50)',
+      visibility: 'user-or-llm',
     },
     offset: {
       type: 'string',
       required: false,
       description: 'Pagination offset (skip this many results)',
+      visibility: 'user-or-llm',
     },
   },
 

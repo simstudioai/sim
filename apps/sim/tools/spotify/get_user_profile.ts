@@ -34,6 +34,7 @@ export const spotifyGetUserProfileTool: ToolConfig<
     userId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The Spotify user ID',
     },
   },

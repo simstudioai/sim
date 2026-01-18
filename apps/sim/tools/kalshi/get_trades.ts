@@ -22,11 +22,13 @@ export const kalshiGetTradesTool: ToolConfig<KalshiGetTradesParams, KalshiGetTra
     limit: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Number of results (1-1000, default: 100)',
     },
     cursor: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Pagination cursor for next page',
     },
   },

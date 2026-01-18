@@ -51,36 +51,43 @@ export const addImageTool: ToolConfig<AddImageParams, AddImageResponse> = {
     presentationId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the presentation',
     },
     pageObjectId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The object ID of the slide/page to add the image to',
     },
     imageUrl: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The publicly accessible URL of the image (must be PNG, JPEG, or GIF, max 50MB)',
     },
     width: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Width of the image in points (default: 300)',
     },
     height: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Height of the image in points (default: 200)',
     },
     positionX: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description: 'X position from the left edge in points (default: 100)',
     },
     positionY: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Y position from the top edge in points (default: 100)',
     },
   },

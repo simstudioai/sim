@@ -40,11 +40,13 @@ export const spotifyGetEpisodesTool: ToolConfig<
     episodeIds: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Comma-separated episode IDs (max 50)',
     },
     market: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'ISO country code for market',
     },
   },

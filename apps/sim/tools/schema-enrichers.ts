@@ -18,8 +18,6 @@ function mapFieldTypeToSchemaType(fieldType: string): string {
       return 'number'
     case 'boolean':
       return 'boolean'
-    case 'date':
-    case 'text':
     default:
       return 'string'
   }

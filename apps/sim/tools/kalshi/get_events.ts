@@ -26,26 +26,31 @@ export const kalshiGetEventsTool: ToolConfig<KalshiGetEventsParams, KalshiGetEve
     status: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Filter by status (open, closed, settled)',
     },
     seriesTicker: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Filter by series ticker',
     },
     withNestedMarkets: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Include nested markets in response (true/false)',
     },
     limit: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Number of results (1-200, default: 200)',
     },
     cursor: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Pagination cursor for next page',
     },
   },

@@ -30,26 +30,31 @@ export const kalshiGetCandlesticksTool: ToolConfig<
     seriesTicker: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Series ticker',
     },
     ticker: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Market ticker (e.g., KXBTC-24DEC31)',
     },
     startTs: {
       type: 'number',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Start timestamp (Unix seconds)',
     },
     endTs: {
       type: 'number',
       required: true,
+      visibility: 'user-or-llm',
       description: 'End timestamp (Unix seconds)',
     },
     periodInterval: {
       type: 'number',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Period interval: 1 (1min), 60 (1hour), or 1440 (1day)',
     },
   },

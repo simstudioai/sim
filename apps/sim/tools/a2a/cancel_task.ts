@@ -11,15 +11,18 @@ export const a2aCancelTaskTool: ToolConfig<A2ACancelTaskParams, A2ACancelTaskRes
     agentUrl: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The A2A agent endpoint URL',
     },
     taskId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Task ID to cancel',
     },
     apiKey: {
       type: 'string',
+      visibility: 'user-only',
       description: 'API key for authentication',
     },
   },

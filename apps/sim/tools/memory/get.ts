@@ -11,12 +11,14 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
     conversationId: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description:
         'Conversation identifier (e.g., user-123, session-abc). Returns memories for this conversation.',
     },
     id: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description:
         'Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility.',
     },

@@ -1535,4 +1535,800 @@ Delete a GitHub Project V2. This action is permanent and cannot be undone. Requi
 | `number` | number | Deleted project number |
 | `url` | string | Deleted project URL |
 
+### `github_search_code`
+
+Search for code across GitHub repositories. Use qualifiers like repo:owner/name, language:js, path:src, extension:py
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Yes | Search query with optional qualifiers \(repo:, language:, path:, extension:, user:, org:\) |
+| `sort` | string | No | Sort by indexed date \(default: best match\) |
+| `order` | string | No | Sort order: asc or desc \(default: desc\) |
+| `per_page` | number | No | Results per page \(max 100, default: 30\) |
+| `page` | number | No | Page number \(default: 1\) |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total_count` | number | Total matching results |
+| `incomplete_results` | boolean | Whether results are incomplete |
+| `items` | array | Array of code matches from GitHub API |
+|   ↳ `name` | string | File name |
+|   ↳ `path` | string | File path |
+|   ↳ `sha` | string | Blob SHA |
+|   ↳ `html_url` | string | GitHub web URL |
+|   ↳ `repository` | object | Repository object |
+
+### `github_search_commits`
+
+Search for commits across GitHub. Use qualifiers like repo:owner/name, author:user, committer:user, author-date:>2023-01-01
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Yes | Search query with optional qualifiers \(repo:, author:, committer:, author-date:, committer-date:, merge:true/false\) |
+| `sort` | string | No | Sort by: author-date or committer-date \(default: best match\) |
+| `order` | string | No | Sort order: asc or desc \(default: desc\) |
+| `per_page` | number | No | Results per page \(max 100, default: 30\) |
+| `page` | number | No | Page number \(default: 1\) |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total_count` | number | Total matching results |
+| `incomplete_results` | boolean | Whether results are incomplete |
+| `items` | array | Array of commit objects from GitHub API |
+|   ↳ `sha` | string | Commit SHA |
+|   ↳ `html_url` | string | Web URL |
+|   ↳ `commit` | object | Commit data |
+|   ↳ `author` | object | GitHub user |
+|   ↳ `committer` | object | GitHub user |
+|   ↳ `repository` | object | Repository |
+
+### `github_search_issues`
+
+Search for issues and pull requests across GitHub. Use qualifiers like repo:owner/name, is:issue, is:pr, state:open, label:bug, author:user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Yes | Search query with optional qualifiers \(repo:, is:issue, is:pr, state:, label:, author:, assignee:\) |
+| `sort` | string | No | Sort by: comments, reactions, created, updated, interactions \(default: best match\) |
+| `order` | string | No | Sort order: asc or desc \(default: desc\) |
+| `per_page` | number | No | Results per page \(max 100, default: 30\) |
+| `page` | number | No | Page number \(default: 1\) |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total_count` | number | Total matching results |
+| `incomplete_results` | boolean | Whether results are incomplete |
+| `items` | array | Array of issue/PR objects from GitHub API |
+|   ↳ `id` | number | Issue ID |
+|   ↳ `number` | number | Issue number |
+|   ↳ `title` | string | Title |
+|   ↳ `state` | string | State |
+|   ↳ `html_url` | string | Web URL |
+|   ↳ `body` | string | Body text |
+|   ↳ `user` | object | Author |
+|   ↳ `labels` | array | Labels |
+|   ↳ `assignees` | array | Assignees |
+|   ↳ `created_at` | string | Creation date |
+|   ↳ `updated_at` | string | Update date |
+|   ↳ `closed_at` | string | Close date |
+
+### `github_search_repos`
+
+Search for repositories across GitHub. Use qualifiers like language:python, stars:>1000, topic:react, user:owner, org:name
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Yes | Search query with optional qualifiers \(language:, stars:, forks:, topic:, user:, org:, in:name,description,readme\) |
+| `sort` | string | No | Sort by: stars, forks, help-wanted-issues, updated \(default: best match\) |
+| `order` | string | No | Sort order: asc or desc \(default: desc\) |
+| `per_page` | number | No | Results per page \(max 100, default: 30\) |
+| `page` | number | No | Page number \(default: 1\) |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total_count` | number | Total matching results |
+| `incomplete_results` | boolean | Whether results are incomplete |
+| `items` | array | Array of repository objects from GitHub API |
+|   ↳ `id` | number | Repository ID |
+|   ↳ `full_name` | string | Full name |
+|   ↳ `description` | string | Description |
+|   ↳ `html_url` | string | Web URL |
+|   ↳ `stargazers_count` | number | Stars |
+|   ↳ `forks_count` | number | Forks |
+|   ↳ `open_issues_count` | number | Open issues |
+|   ↳ `language` | string | Language |
+|   ↳ `topics` | array | Topics |
+|   ↳ `owner` | object | Owner |
+
+### `github_search_users`
+
+Search for users and organizations on GitHub. Use qualifiers like type:user, type:org, followers:>1000, repos:>10, location:city
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Yes | Search query with optional qualifiers \(type:user/org, followers:, repos:, location:, language:, created:\) |
+| `sort` | string | No | Sort by: followers, repositories, joined \(default: best match\) |
+| `order` | string | No | Sort order: asc or desc \(default: desc\) |
+| `per_page` | number | No | Results per page \(max 100, default: 30\) |
+| `page` | number | No | Page number \(default: 1\) |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total_count` | number | Total matching results |
+| `incomplete_results` | boolean | Whether results are incomplete |
+| `items` | array | Array of user objects from GitHub API |
+|   ↳ `id` | number | User ID |
+|   ↳ `login` | string | Username |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `avatar_url` | string | Avatar URL |
+|   ↳ `type` | string | User or Organization |
+|   ↳ `site_admin` | boolean | Is site admin |
+
+### `github_list_commits`
+
+List commits in a repository with optional filtering by SHA, path, author, committer, or date range
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `sha` | string | No | SHA or branch to start listing commits from |
+| `path` | string | No | Only commits containing this file path |
+| `author` | string | No | GitHub login or email address to filter by author |
+| `committer` | string | No | GitHub login or email address to filter by committer |
+| `since` | string | No | Only commits after this date \(ISO 8601 format\) |
+| `until` | string | No | Only commits before this date \(ISO 8601 format\) |
+| `per_page` | number | No | Results per page \(max 100, default: 30\) |
+| `page` | number | No | Page number \(default: 1\) |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of commit objects from GitHub API |
+|   ↳ `sha` | string | Commit SHA |
+|   ↳ `html_url` | string | Web URL |
+|   ↳ `commit` | object | Commit data |
+|   ↳ `author` | object | GitHub user |
+|   ↳ `committer` | object | GitHub user |
+|   ↳ `parents` | array | Parent commits |
+| `count` | number | Number of commits returned |
+
+### `github_get_commit`
+
+Get detailed information about a specific commit including files changed and stats
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `ref` | string | Yes | Commit SHA, branch name, or tag name |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sha` | string | Commit SHA |
+| `html_url` | string | Web URL |
+| `commit` | object | Commit data |
+| `author` | object | GitHub user |
+| `committer` | object | GitHub user |
+| `stats` | object | Change stats |
+| `files` | array | Changed files |
+| `parents` | array | Parent commits |
+
+### `github_compare_commits`
+
+Compare two commits or branches to see the diff, commits between them, and changed files
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `base` | string | Yes | Base branch/tag/SHA for comparison |
+| `head` | string | Yes | Head branch/tag/SHA for comparison |
+| `per_page` | number | No | Results per page for files \(max 100, default: 30\) |
+| `page` | number | No | Page number for files \(default: 1\) |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Comparison status |
+| `ahead_by` | number | Commits ahead |
+| `behind_by` | number | Commits behind |
+| `total_commits` | number | Total commits |
+| `html_url` | string | Web URL |
+| `diff_url` | string | Diff URL |
+| `patch_url` | string | Patch URL |
+| `base_commit` | object | Base commit |
+| `merge_base_commit` | object | Merge base |
+| `commits` | array | Commits between |
+| `files` | array | Changed files |
+
+### `github_create_gist`
+
+Create a new gist with one or more files
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `description` | string | No | Description of the gist |
+| `files` | json | Yes | JSON object with filenames as keys and content as values. Example: \{"file.txt": \{"content": "Hello"\}\} |
+| `Example` | string | No | No description |
+| `public` | boolean | No | Whether the gist is public \(default: false\) |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Gist ID |
+| `html_url` | string | Web URL |
+| `git_pull_url` | string | Git pull URL |
+| `git_push_url` | string | Git push URL |
+| `description` | string | Description |
+| `public` | boolean | Is public |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `files` | object | Files in gist |
+| `owner` | object | Owner info |
+
+### `github_get_gist`
+
+Get a gist by ID including its file contents
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | Yes | The gist ID |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Gist ID |
+| `html_url` | string | Web URL |
+| `description` | string | Description |
+| `public` | boolean | Is public |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `files` | object | Files with content |
+| `owner` | object | Owner info |
+| `comments` | number | Comment count |
+
+### `github_list_gists`
+
+List gists for a user or the authenticated user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `username` | string | No | GitHub username \(omit for authenticated user's gists\) |
+| `since` | string | No | Only gists updated after this time \(ISO 8601\) |
+| `per_page` | number | No | Results per page \(max 100, default: 30\) |
+| `page` | number | No | Page number \(default: 1\) |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of gist objects from GitHub API |
+|   ↳ `id` | string | Gist ID |
+|   ↳ `html_url` | string | Web URL |
+|   ↳ `description` | string | Description |
+|   ↳ `public` | boolean | Is public |
+|   ↳ `files` | object | Files |
+|   ↳ `owner` | object | Owner |
+| `count` | number | Number of gists returned |
+
+### `github_update_gist`
+
+Update a gist description or files. To delete a file, set its value to null in files object
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | Yes | The gist ID to update |
+| `description` | string | No | New description for the gist |
+| `files` | json | No | JSON object with filenames as keys. Set to null to delete, or provide content to update/add |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Gist ID |
+| `html_url` | string | Web URL |
+| `description` | string | Description |
+| `public` | boolean | Is public |
+| `updated_at` | string | Update date |
+| `files` | object | Current files |
+
+### `github_delete_gist`
+
+Delete a gist by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | Yes | The gist ID to delete |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether deletion succeeded |
+| `gist_id` | string | The deleted gist ID |
+
+### `github_fork_gist`
+
+Fork a gist to create your own copy
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | Yes | The gist ID to fork |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | New gist ID |
+| `html_url` | string | Web URL |
+| `description` | string | Description |
+| `public` | boolean | Is public |
+| `created_at` | string | Creation date |
+| `owner` | object | Owner info |
+| `files` | object | Files |
+
+### `github_star_gist`
+
+Star a gist
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | Yes | The gist ID to star |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `starred` | boolean | Whether starring succeeded |
+| `gist_id` | string | The gist ID |
+
+### `github_unstar_gist`
+
+Unstar a gist
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | Yes | The gist ID to unstar |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `unstarred` | boolean | Whether unstarring succeeded |
+| `gist_id` | string | The gist ID |
+
+### `github_fork_repo`
+
+Fork a repository to your account or an organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner to fork from |
+| `repo` | string | Yes | Repository name to fork |
+| `organization` | string | No | Organization to fork into \(omit to fork to your account\) |
+| `name` | string | No | Custom name for the forked repository |
+| `default_branch_only` | boolean | No | Only fork the default branch \(default: false\) |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Repository ID |
+| `full_name` | string | Full name |
+| `html_url` | string | Web URL |
+| `clone_url` | string | Clone URL |
+| `ssh_url` | string | SSH URL |
+| `default_branch` | string | Default branch |
+| `fork` | boolean | Is a fork |
+| `parent` | object | Parent repository |
+| `owner` | object | Owner |
+
+### `github_list_forks`
+
+List forks of a repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `sort` | string | No | Sort by: newest, oldest, stargazers, watchers \(default: newest\) |
+| `per_page` | number | No | Results per page \(max 100, default: 30\) |
+| `page` | number | No | Page number \(default: 1\) |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of fork repository objects from GitHub API |
+|   ↳ `id` | number | Repository ID |
+|   ↳ `full_name` | string | Full name |
+|   ↳ `html_url` | string | Web URL |
+|   ↳ `owner` | object | Owner |
+|   ↳ `stargazers_count` | number | Stars |
+|   ↳ `forks_count` | number | Forks |
+| `count` | number | Number of forks returned |
+
+### `github_create_milestone`
+
+Create a milestone in a repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `title` | string | Yes | Milestone title |
+| `state` | string | No | State: open or closed \(default: open\) |
+| `description` | string | No | Milestone description |
+| `due_on` | string | No | Due date \(ISO 8601 format, e.g., 2024-12-31T23:59:59Z\) |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `number` | number | Milestone number |
+| `title` | string | Title |
+| `description` | string | Description |
+| `state` | string | State |
+| `html_url` | string | Web URL |
+| `due_on` | string | Due date |
+| `open_issues` | number | Open issues |
+| `closed_issues` | number | Closed issues |
+| `creator` | object | Creator |
+
+### `github_get_milestone`
+
+Get a specific milestone by number
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `milestone_number` | number | Yes | Milestone number |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `number` | number | Milestone number |
+| `title` | string | Title |
+| `description` | string | Description |
+| `state` | string | State |
+| `html_url` | string | Web URL |
+| `due_on` | string | Due date |
+| `open_issues` | number | Open issues |
+| `closed_issues` | number | Closed issues |
+| `closed_at` | string | Close date |
+| `creator` | object | Creator |
+
+### `github_list_milestones`
+
+List milestones in a repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `state` | string | No | Filter by state: open, closed, all \(default: open\) |
+| `sort` | string | No | Sort by: due_on or completeness \(default: due_on\) |
+| `direction` | string | No | Sort direction: asc or desc \(default: asc\) |
+| `per_page` | number | No | Results per page \(max 100, default: 30\) |
+| `page` | number | No | Page number \(default: 1\) |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of milestone objects from GitHub API |
+|   ↳ `number` | number | Milestone number |
+|   ↳ `title` | string | Title |
+|   ↳ `state` | string | State |
+|   ↳ `html_url` | string | Web URL |
+|   ↳ `open_issues` | number | Open issues |
+|   ↳ `closed_issues` | number | Closed issues |
+| `count` | number | Number of milestones returned |
+
+### `github_update_milestone`
+
+Update a milestone in a repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `milestone_number` | number | Yes | Milestone number to update |
+| `title` | string | No | New milestone title |
+| `state` | string | No | New state: open or closed |
+| `description` | string | No | New description |
+| `due_on` | string | No | New due date \(ISO 8601 format\) |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `number` | number | Milestone number |
+| `title` | string | Title |
+| `description` | string | Description |
+| `state` | string | State |
+| `html_url` | string | Web URL |
+| `due_on` | string | Due date |
+| `open_issues` | number | Open issues |
+| `closed_issues` | number | Closed issues |
+
+### `github_delete_milestone`
+
+Delete a milestone from a repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `milestone_number` | number | Yes | Milestone number to delete |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether deletion succeeded |
+| `milestone_number` | number | The deleted milestone number |
+
+### `github_create_issue_reaction`
+
+Add a reaction to an issue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `issue_number` | number | Yes | Issue number |
+| `content` | string | Yes | Reaction type: +1 \(thumbs up\), -1 \(thumbs down\), laugh, confused, heart, hooray, rocket, eyes |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Reaction ID |
+| `user` | object | User who reacted |
+| `content` | string | Reaction type |
+| `created_at` | string | Creation date |
+
+### `github_delete_issue_reaction`
+
+Remove a reaction from an issue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `issue_number` | number | Yes | Issue number |
+| `reaction_id` | number | Yes | Reaction ID to delete |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether deletion succeeded |
+| `reaction_id` | number | The deleted reaction ID |
+
+### `github_create_comment_reaction`
+
+Add a reaction to an issue comment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `comment_id` | number | Yes | Comment ID |
+| `content` | string | Yes | Reaction type: +1 \(thumbs up\), -1 \(thumbs down\), laugh, confused, heart, hooray, rocket, eyes |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Reaction ID |
+| `user` | object | User who reacted |
+| `content` | string | Reaction type |
+| `created_at` | string | Creation date |
+
+### `github_delete_comment_reaction`
+
+Remove a reaction from an issue comment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `comment_id` | number | Yes | Comment ID |
+| `reaction_id` | number | Yes | Reaction ID to delete |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether deletion succeeded |
+| `reaction_id` | number | The deleted reaction ID |
+
+### `github_star_repo`
+
+Star a repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `starred` | boolean | Whether starring succeeded |
+| `owner` | string | Repository owner |
+| `repo` | string | Repository name |
+
+### `github_unstar_repo`
+
+Remove star from a repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `unstarred` | boolean | Whether unstarring succeeded |
+| `owner` | string | Repository owner |
+| `repo` | string | Repository name |
+
+### `github_check_star`
+
+Check if you have starred a repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `starred` | boolean | Whether you have starred the repo |
+| `owner` | string | Repository owner |
+| `repo` | string | Repository name |
+
+### `github_list_stargazers`
+
+List users who have starred a repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `per_page` | number | No | Results per page \(max 100, default: 30\) |
+| `page` | number | No | Page number \(default: 1\) |
+| `apiKey` | string | Yes | GitHub API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of user objects from GitHub API |
+|   ↳ `login` | string | Username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `type` | string | User or Organization |
+| `count` | number | Number of stargazers returned |
+
 

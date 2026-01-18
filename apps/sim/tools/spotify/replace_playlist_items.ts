@@ -31,11 +31,13 @@ export const spotifyReplacePlaylistItemsTool: ToolConfig<
     playlistId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The Spotify playlist ID',
     },
     uris: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Comma-separated Spotify URIs (max 100)',
     },
   },

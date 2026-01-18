@@ -53,22 +53,26 @@ export const getThumbnailTool: ToolConfig<GetThumbnailParams, GetThumbnailRespon
     presentationId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the presentation',
     },
     pageObjectId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The object ID of the slide/page to get a thumbnail for',
     },
     thumbnailSize: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description:
         'The size of the thumbnail: SMALL (200px), MEDIUM (800px), or LARGE (1600px). Defaults to MEDIUM.',
     },
     mimeType: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'The MIME type of the thumbnail image: PNG or GIF. Defaults to PNG.',
     },
   },

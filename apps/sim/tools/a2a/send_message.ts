@@ -11,31 +11,38 @@ export const a2aSendMessageTool: ToolConfig<A2ASendMessageParams, A2ASendMessage
     agentUrl: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The A2A agent endpoint URL',
     },
     message: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Message to send to the agent',
     },
     taskId: {
       type: 'string',
+      visibility: 'user-or-llm',
       description: 'Task ID for continuing an existing task',
     },
     contextId: {
       type: 'string',
+      visibility: 'user-or-llm',
       description: 'Context ID for conversation continuity',
     },
     data: {
       type: 'string',
+      visibility: 'user-or-llm',
       description: 'Structured data to include with the message (JSON string)',
     },
     files: {
       type: 'array',
+      visibility: 'user-only',
       description: 'Files to include with the message',
     },
     apiKey: {
       type: 'string',
+      visibility: 'user-only',
       description: 'API key for authentication',
     },
   },

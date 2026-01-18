@@ -26,26 +26,31 @@ export const kalshiGetMarketsTool: ToolConfig<KalshiGetMarketsParams, KalshiGetM
     status: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Filter by status (unopened, open, closed, settled)',
     },
     seriesTicker: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Filter by series ticker',
     },
     eventTicker: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Filter by event ticker',
     },
     limit: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Number of results (1-1000, default: 100)',
     },
     cursor: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Pagination cursor for next page',
     },
   },

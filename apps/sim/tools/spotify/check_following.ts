@@ -29,11 +29,13 @@ export const spotifyCheckFollowingTool: ToolConfig<
     type: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Type to check: "artist" or "user"',
     },
     ids: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Comma-separated artist or user IDs (max 50)',
     },
   },

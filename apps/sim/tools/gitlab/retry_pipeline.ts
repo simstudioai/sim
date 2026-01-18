@@ -14,16 +14,19 @@ export const gitlabRetryPipelineTool: ToolConfig<
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'GitLab Personal Access Token',
     },
     projectId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Project ID or URL-encoded path',
     },
     pipelineId: {
       type: 'number',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Pipeline ID',
     },
   },

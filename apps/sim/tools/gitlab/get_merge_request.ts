@@ -17,16 +17,19 @@ export const gitlabGetMergeRequestTool: ToolConfig<
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'GitLab Personal Access Token',
     },
     projectId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Project ID or URL-encoded path',
     },
     mergeRequestIid: {
       type: 'number',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Merge request internal ID (IID)',
     },
   },

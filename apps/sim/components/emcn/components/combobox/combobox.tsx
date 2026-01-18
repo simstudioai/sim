@@ -587,9 +587,14 @@ const Combobox = memo(
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setOpen(false)
-                        setSearchQuery('')
+                      // Forward navigation keys to main handler
+                      if (
+                        e.key === 'ArrowDown' ||
+                        e.key === 'ArrowUp' ||
+                        e.key === 'Enter' ||
+                        e.key === 'Escape'
+                      ) {
+                        handleKeyDown(e as unknown as KeyboardEvent<HTMLDivElement>)
                       }
                     }}
                   />
