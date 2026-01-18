@@ -2,8 +2,8 @@ import type {
   GoogleFormsCreateWatchParams,
   GoogleFormsCreateWatchResponse,
   GoogleFormsWatch,
-} from '@/tools/google_form/types'
-import { buildCreateWatchUrl } from '@/tools/google_form/utils'
+} from '@/tools/google_forms/types'
+import { buildCreateWatchUrl } from '@/tools/google_forms/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createWatchTool: ToolConfig<

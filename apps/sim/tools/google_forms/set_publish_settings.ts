@@ -2,8 +2,8 @@ import type {
   GoogleFormsPublishSettings,
   GoogleFormsSetPublishSettingsParams,
   GoogleFormsSetPublishSettingsResponse,
-} from '@/tools/google_form/types'
-import { buildSetPublishSettingsUrl } from '@/tools/google_form/utils'
+} from '@/tools/google_forms/types'
+import { buildSetPublishSettingsUrl } from '@/tools/google_forms/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface SetPublishSettingsApiResponse {

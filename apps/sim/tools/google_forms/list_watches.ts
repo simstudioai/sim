@@ -2,8 +2,8 @@ import type {
   GoogleFormsListWatchesParams,
   GoogleFormsListWatchesResponse,
   GoogleFormsWatch,
-} from '@/tools/google_form/types'
-import { buildListWatchesUrl } from '@/tools/google_form/utils'
+} from '@/tools/google_forms/types'
+import { buildListWatchesUrl } from '@/tools/google_forms/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface ListWatchesApiResponse {

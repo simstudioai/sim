@@ -2,8 +2,8 @@ import type {
   GoogleFormsGetResponsesParams,
   GoogleFormsResponse,
   GoogleFormsResponseList,
-} from '@/tools/google_form/types'
-import { buildGetResponseUrl, buildListResponsesUrl } from '@/tools/google_form/utils'
+} from '@/tools/google_forms/types'
+import { buildGetResponseUrl, buildListResponsesUrl } from '@/tools/google_forms/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {

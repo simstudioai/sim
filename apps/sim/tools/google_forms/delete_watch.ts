@@ -1,8 +1,8 @@
 import type {
   GoogleFormsDeleteWatchParams,
   GoogleFormsDeleteWatchResponse,
-} from '@/tools/google_form/types'
-import { buildDeleteWatchUrl } from '@/tools/google_form/utils'
+} from '@/tools/google_forms/types'
+import { buildDeleteWatchUrl } from '@/tools/google_forms/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteWatchTool: ToolConfig<

@@ -492,7 +492,7 @@ import {
   googleFormsListWatchesTool,
   googleFormsRenewWatchTool,
   googleFormsSetPublishSettingsTool,
-} from '@/tools/google_form'
+} from '@/tools/google_forms'
 import {
   googleGroupsAddAliasTool,
   googleGroupsAddMemberTool,

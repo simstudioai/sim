@@ -2,8 +2,8 @@ import type {
   GoogleFormsRenewWatchParams,
   GoogleFormsRenewWatchResponse,
   GoogleFormsWatch,
-} from '@/tools/google_form/types'
-import { buildRenewWatchUrl } from '@/tools/google_form/utils'
+} from '@/tools/google_forms/types'
+import { buildRenewWatchUrl } from '@/tools/google_forms/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const renewWatchTool: ToolConfig<

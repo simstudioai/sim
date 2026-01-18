@@ -2,8 +2,8 @@ import type {
   GoogleForm,
   GoogleFormsBatchUpdateParams,
   GoogleFormsBatchUpdateResponse,
-} from '@/tools/google_form/types'
-import { buildBatchUpdateUrl } from '@/tools/google_form/utils'
+} from '@/tools/google_forms/types'
+import { buildBatchUpdateUrl } from '@/tools/google_forms/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface BatchUpdateApiResponse {
