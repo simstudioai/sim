@@ -321,6 +321,7 @@ export class AgentBlockHandler implements BlockHandler {
             _context: {
               workflowId: ctx.workflowId,
               workspaceId: ctx.workspaceId,
+              isDeployedContext: ctx.isDeployedContext,
             },
           },
           false,
@@ -1074,6 +1075,7 @@ export class AgentBlockHandler implements BlockHandler {
       workflowVariables: ctx.workflowVariables || {},
       blockData,
       blockNameMapping,
+      isDeployedContext: ctx.isDeployedContext,
     })
 
     return this.processProviderResponse(response, block, responseFormat)

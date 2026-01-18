@@ -15,6 +15,7 @@ interface DocumentSelectorProps {
   onDocumentSelect?: (documentId: string) => void
   isPreview?: boolean
   previewValue?: string | null
+  previewContextValues?: Record<string, unknown>
 }
 
 export function DocumentSelector({
@@ -24,9 +25,15 @@ export function DocumentSelector({
   onDocumentSelect,
   isPreview = false,
   previewValue,
+  previewContextValues,
 }: DocumentSelectorProps) {
-  const { finalDisabled } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
-  const [knowledgeBaseIdValue] = useSubBlockValue(blockId, 'knowledgeBaseId')
+  const { finalDisabled } = useDependsOnGate(blockId, subBlock, {
+    disabled,
+    isPreview,
+    previewContextValues,
+  })
+  const [knowledgeBaseIdFromStore] = useSubBlockValue(blockId, 'knowledgeBaseId')
+  const knowledgeBaseIdValue = previewContextValues?.knowledgeBaseId ?? knowledgeBaseIdFromStore
   const normalizedKnowledgeBaseId =
     typeof knowledgeBaseIdValue === 'string' && knowledgeBaseIdValue.trim().length > 0
       ? knowledgeBaseIdValue
