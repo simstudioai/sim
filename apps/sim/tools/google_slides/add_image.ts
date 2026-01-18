@@ -200,6 +200,24 @@ export const addImageTool: ToolConfig<AddImageParams, AddImageResponse> = {
     metadata: {
       type: 'json',
       description: 'Operation metadata including presentation ID and image URL',
+      properties: {
+        presentationId: {
+          type: 'string',
+          description: 'The presentation ID',
+        },
+        pageObjectId: {
+          type: 'string',
+          description: 'The page object ID where the image was inserted',
+        },
+        imageUrl: {
+          type: 'string',
+          description: 'The source image URL',
+        },
+        url: {
+          type: 'string',
+          description: 'URL to open the presentation',
+        },
+      },
     },
   },
 }

@@ -162,6 +162,16 @@ export const updateSlidesPositionTool: ToolConfig<
     metadata: {
       type: 'json',
       description: 'Operation metadata including presentation ID and URL',
+      properties: {
+        presentationId: {
+          type: 'string',
+          description: 'The presentation ID',
+        },
+        url: {
+          type: 'string',
+          description: 'URL to open the presentation',
+        },
+      },
     },
   },
 }
