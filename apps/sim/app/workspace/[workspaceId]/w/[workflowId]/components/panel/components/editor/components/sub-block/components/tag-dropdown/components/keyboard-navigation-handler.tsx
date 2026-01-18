@@ -53,7 +53,6 @@ const findFolderInfoForTag = (
   nestedTag: NestedTag
 } | null => {
   for (const nestedTag of nestedTags) {
-    // Check if this tag is a folder (has children or nestedChildren)
     if (
       nestedTag.parentTag === targetTag &&
       (nestedTag.children?.length || nestedTag.nestedChildren?.length)
@@ -228,6 +227,17 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
         }
       }
 
+      const scrollIntoView = () => {
+        setTimeout(() => {
+          const selectedItem = document.querySelector<HTMLElement>(
+            '[data-radix-popper-content-wrapper] [aria-selected="true"]'
+          )
+          if (selectedItem) {
+            selectedItem.scrollIntoView({ behavior: 'auto', block: 'nearest' })
+          }
+        }, 0)
+      }
+
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
@@ -235,11 +245,16 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
           setKeyboardNav(true)
           if (visibleIndices.length > 0) {
             const currentVisibleIndex = visibleIndices.indexOf(selectedIndex)
+            let newIndex: number
             if (currentVisibleIndex === -1) {
-              setSelectedIndex(visibleIndices[0])
+              newIndex = visibleIndices[0]
             } else if (currentVisibleIndex < visibleIndices.length - 1) {
-              setSelectedIndex(visibleIndices[currentVisibleIndex + 1])
+              newIndex = visibleIndices[currentVisibleIndex + 1]
+            } else {
+              newIndex = visibleIndices[0]
             }
+            setSelectedIndex(newIndex)
+            scrollIntoView()
           }
           break
         case 'ArrowUp':
@@ -248,11 +263,16 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
           setKeyboardNav(true)
           if (visibleIndices.length > 0) {
             const currentVisibleIndex = visibleIndices.indexOf(selectedIndex)
+            let newIndex: number
             if (currentVisibleIndex === -1) {
-              setSelectedIndex(visibleIndices[0])
+              newIndex = visibleIndices[visibleIndices.length - 1]
             } else if (currentVisibleIndex > 0) {
-              setSelectedIndex(visibleIndices[currentVisibleIndex - 1])
+              newIndex = visibleIndices[currentVisibleIndex - 1]
+            } else {
+              newIndex = visibleIndices[visibleIndices.length - 1]
             }
+            setSelectedIndex(newIndex)
+            scrollIntoView()
           }
           break
         case 'Enter':
