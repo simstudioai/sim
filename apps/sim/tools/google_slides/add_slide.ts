@@ -186,6 +186,25 @@ export const addSlideTool: ToolConfig<AddSlideParams, AddSlideResponse> = {
     metadata: {
       type: 'json',
       description: 'Operation metadata including presentation ID, layout, and URL',
+      properties: {
+        presentationId: {
+          type: 'string',
+          description: 'The presentation ID',
+        },
+        layout: {
+          type: 'string',
+          description: 'The layout used for the new slide',
+        },
+        insertionIndex: {
+          type: 'number',
+          description: 'The zero-based index where the slide was inserted',
+          optional: true,
+        },
+        url: {
+          type: 'string',
+          description: 'URL to open the presentation',
+        },
+      },
     },
   },
 }
