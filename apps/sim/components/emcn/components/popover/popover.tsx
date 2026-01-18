@@ -433,17 +433,14 @@ const PopoverContent = React.forwardRef<
 
     const effectiveSideOffset = sideOffset ?? (side === 'top' ? 20 : 14)
 
-    // Switch to mouse mode when mouse moves
     const handleMouseMove = React.useCallback(() => {
       if (context?.isKeyboardNav) {
         context.setKeyboardNav(false)
       }
     }, [context])
 
-    // Track menu items for keyboard navigation
     const contentRef = React.useRef<HTMLDivElement>(null)
 
-    // Merge refs
     const mergedRef = React.useCallback(
       (node: HTMLDivElement | null) => {
         contentRef.current = node
@@ -456,12 +453,10 @@ const PopoverContent = React.forwardRef<
       [ref]
     )
 
-    // Keyboard navigation handler - use window listener to ensure events are captured
     React.useEffect(() => {
       if (!context) return
 
       const handleKeyDown = (e: KeyboardEvent) => {
-        // Get content element inside handler to ensure it's current
         const content = contentRef.current
         if (!content) return
 
@@ -477,7 +472,6 @@ const PopoverContent = React.forwardRef<
             e.preventDefault()
             e.stopPropagation()
             context.setKeyboardNav(true)
-            // If no selection, start at first item; otherwise move down
             if (currentIndex < 0) {
               context.setSelectedIndex(0)
             } else {
@@ -488,7 +482,6 @@ const PopoverContent = React.forwardRef<
             e.preventDefault()
             e.stopPropagation()
             context.setKeyboardNav(true)
-            // If no selection, start at last item; otherwise move up
             if (currentIndex < 0) {
               context.setSelectedIndex(items.length - 1)
             } else {
@@ -509,12 +502,10 @@ const PopoverContent = React.forwardRef<
         }
       }
 
-      // Use capture phase to ensure we get the event
       window.addEventListener('keydown', handleKeyDown, true)
       return () => window.removeEventListener('keydown', handleKeyDown, true)
     }, [context])
 
-    // Scroll selected item into view
     React.useEffect(() => {
       const content = contentRef.current
       if (!content || !context?.isKeyboardNav || context.selectedIndex < 0) return
@@ -684,7 +675,6 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
     const itemRef = React.useRef<HTMLDivElement>(null)
     const [itemIndex, setItemIndex] = React.useState(-1)
 
-    // Merge refs
     const mergedRef = React.useCallback(
       (node: HTMLDivElement | null) => {
         itemRef.current = node
@@ -697,7 +687,6 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
       [ref]
     )
 
-    // Calculate item index on mount and when siblings change
     React.useEffect(() => {
       if (!itemRef.current) return
       const content = itemRef.current.closest('[data-radix-popper-content-wrapper]')
@@ -718,9 +707,7 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
     }
 
     const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
-      // Clear last hovered item to close any open hover submenus
       context?.setLastHoveredItem(null)
-      // Update selected index to this item's position
       if (itemIndex >= 0 && context) {
         context.setSelectedIndex(itemIndex)
       }
@@ -863,10 +850,8 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
     const triggerRef = React.useRef<HTMLDivElement>(null)
     const [itemIndex, setItemIndex] = React.useState(-1)
 
-    // Submenu is open when this folder is the last hovered item (for expandOnHover mode)
     const isHoverOpen = expandOnHover && lastHoveredItem === id
 
-    // Merge refs
     const mergedRef = React.useCallback(
       (node: HTMLDivElement | null) => {
         triggerRef.current = node
@@ -879,7 +864,6 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
       [ref]
     )
 
-    // Calculate item index on mount
     React.useEffect(() => {
       if (!triggerRef.current) return
       const content = triggerRef.current.closest('[data-radix-popper-content-wrapper]')
@@ -889,9 +873,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
       setItemIndex(index)
     }, [])
 
-    // If we're in a folder and this isn't the current one, hide
     if (isInFolder && currentFolder !== id) return null
-    // If this folder is open via click (inline mode), render children directly
     if (currentFolder === id) return <>{children}</>
 
     const handleClickOpen = () => {
@@ -901,27 +883,23 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
     const handleClick = (e: React.MouseEvent) => {
       e.stopPropagation()
       if (expandOnHover) {
-        // In hover mode, clicking opens inline and clears hover state
         setLastHoveredItem(null)
       }
       handleClickOpen()
     }
 
     const handleMouseEnter = () => {
-      // Update selected index for keyboard navigation
       if (itemIndex >= 0) {
         setSelectedIndex(itemIndex)
       }
 
       if (!expandOnHover) return
 
-      // Calculate position for submenu
       if (triggerRef.current) {
         const rect = triggerRef.current.getBoundingClientRect()
         const parentPopover = triggerRef.current.closest('[data-radix-popper-content-wrapper]')
         const parentRect = parentPopover?.getBoundingClientRect()
 
-        // Position to the right of the parent popover with a small gap
         setSubmenuPosition({
           top: rect.top,
           left: parentRect ? parentRect.right + 4 : rect.right + 4,
@@ -932,7 +910,6 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
       onOpen?.()
     }
 
-    // Determine if this folder is active (for keyboard navigation highlight)
     const isActive = active !== undefined ? active : itemIndex >= 0 && selectedIndex === itemIndex
 
     // Suppress hover when in keyboard mode to prevent dual highlights

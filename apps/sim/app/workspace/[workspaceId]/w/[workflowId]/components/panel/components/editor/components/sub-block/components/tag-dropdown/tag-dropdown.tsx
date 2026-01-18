@@ -340,12 +340,10 @@ interface TagTreeNode {
 const buildNestedTagTree = (tags: string[], blockName: string): NestedTag[] => {
   const root: TagTreeNode = { key: 'root', children: new Map() }
 
-  // Build tree from tags
   for (const tag of tags) {
     const parts = tag.split('.')
-    if (parts.length < 2) continue // Skip root-only tags
+    if (parts.length < 2) continue
 
-    // Skip the blockname part, start from the first property
     const pathParts = parts.slice(1)
     let current = root
 
@@ -359,7 +357,6 @@ const buildNestedTagTree = (tags: string[], blockName: string): NestedTag[] => {
       }
       const node = current.children.get(part)!
 
-      // If this is the last part, store the full tag
       if (i === pathParts.length - 1) {
         node.fullTag = tag
       }
@@ -367,7 +364,6 @@ const buildNestedTagTree = (tags: string[], blockName: string): NestedTag[] => {
     }
   }
 
-  // Convert tree to NestedTag array
   const convertToNestedTags = (
     node: TagTreeNode,
     parentPath: string,
@@ -380,17 +376,14 @@ const buildNestedTagTree = (tags: string[], blockName: string): NestedTag[] => {
       const parentTag = `${blockPrefix}.${currentPath}`
 
       if (child.children.size === 0) {
-        // Leaf node
         result.push({
           key: currentPath,
           display: key,
           fullTag: child.fullTag || parentTag,
         })
       } else {
-        // Folder node - may have both leaf value and children
         const nestedChildren = convertToNestedTags(child, currentPath, blockPrefix)
 
-        // Separate leaf children from nested folders
         const leafChildren: NestedTagChild[] = []
         const folders: NestedTag[] = []
 
@@ -483,10 +476,8 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
   nestedTag,
   onNavigateIn,
 }) => {
-  // Get the current folder based on nested path
   const currentNestedTag = nestedPath.length > 0 ? nestedPath[nestedPath.length - 1] : nestedTag
 
-  // Find parent tag index for highlighting
   const parentTagIndex = currentNestedTag.parentTag
     ? flatTagList.findIndex((item) => item.tag === currentNestedTag.parentTag)
     : -1
@@ -609,7 +600,6 @@ const FolderContents: React.FC<NestedTagRendererProps> = (props) => {
 
   const nestedPath = nestedNav?.nestedPath ?? []
 
-  // Register this folder when it becomes active
   useEffect(() => {
     if (nestedNav && currentFolder) {
       const folderId = `${props.group.blockId}-${props.nestedTag.key}`
@@ -647,7 +637,6 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
   const hasChildren = nestedTag.children && nestedTag.children.length > 0
   const hasNestedChildren = nestedTag.nestedChildren && nestedTag.nestedChildren.length > 0
 
-  // If this tag has children (leaf or nested), render as a folder
   if (hasChildren || hasNestedChildren) {
     const folderId = `${group.blockId}-${nestedTag.key}`
 
@@ -863,7 +852,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   const [selectedIndex, setSelectedIndex] = useState(0)
   const itemRefs = useRef<Map<number, HTMLElement>>(new Map())
 
-  // Nested navigation state - supports unlimited nesting depth
   const [nestedPath, setNestedPath] = useState<NestedTag[]>([])
   const baseFolderRef = useRef<{
     id: string
@@ -1578,31 +1566,25 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       list.push({ tag })
     })
 
-    // Recursively flatten nested tags
     const flattenNestedTag = (nestedTag: NestedTag, group: BlockTagGroup, rootTag: string) => {
-      // Skip if this is the root tag (already added)
       if (nestedTag.fullTag === rootTag) {
         return
       }
 
-      // Add parent tag for folders
       if (nestedTag.parentTag) {
         list.push({ tag: nestedTag.parentTag, group })
       }
 
-      // Add the tag itself if it's a leaf
       if (nestedTag.fullTag && !nestedTag.children && !nestedTag.nestedChildren) {
         list.push({ tag: nestedTag.fullTag, group })
       }
 
-      // Add leaf children
       if (nestedTag.children) {
         nestedTag.children.forEach((child) => {
           list.push({ tag: child.fullTag, group })
         })
       }
 
-      // Recursively process nested children
       if (nestedTag.nestedChildren) {
         nestedTag.nestedChildren.forEach((nestedChild) => {
           flattenNestedTag(nestedChild, group, rootTag)
@@ -1727,15 +1709,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     [inputValue, cursorPosition, workflowVariables, onSelect, onClose, getMergedSubBlocks]
   )
 
-  // Keep ref updated for nested navigation
   handleTagSelectRef.current = handleTagSelect
 
-  // Get popover context for nested navigation (will be available inside Popover)
   const popoverContextRef = useRef<{
     openFolder: (id: string, title: string, onLoad?: () => void, onSelect?: () => void) => void
   } | null>(null)
 
-  // Create nested navigation context value
   const nestedNavigationValue = useMemo<NestedNavigationContextValue>(
     () => ({
       nestedPath,
@@ -1745,12 +1724,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
         setNestedPath((prev) => [...prev, tag])
 
-        // Reset scroll to top when navigating into a folder
         if (scrollAreaRef.current) {
           scrollAreaRef.current.scrollTop = 0
         }
 
-        // Update popover's folder title to show current nested folder
         const selectionCallback = () => {
           if (tag.parentTag && handleTagSelectRef.current) {
             handleTagSelectRef.current(tag.parentTag, group)
@@ -1772,7 +1749,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         setNestedPath(newPath)
 
         if (newPath.length === 0) {
-          // Going back to root folder level
           const selectionCallback = () => {
             if (baseFolder.baseTag.parentTag && handleTagSelectRef.current) {
               handleTagSelectRef.current(baseFolder.baseTag.parentTag, baseFolder.group)
@@ -1785,7 +1761,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             selectionCallback
           )
         } else {
-          // Going back to a nested folder
           const parentTag = newPath[newPath.length - 1]
           const selectionCallback = () => {
             if (parentTag.parentTag && handleTagSelectRef.current) {
@@ -1803,7 +1778,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       },
       registerFolder: (folderId, folderTitle, baseTag, group) => {
         baseFolderRef.current = { id: folderId, title: folderTitle, baseTag, group }
-        // Reset scroll to top when entering a folder
         if (scrollAreaRef.current) {
           scrollAreaRef.current.scrollTop = 0
         }
@@ -1812,7 +1786,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     [nestedPath]
   )
 
-  // Reset nested path when popover closes
   useEffect(() => {
     if (!visible) {
       setNestedPath([])

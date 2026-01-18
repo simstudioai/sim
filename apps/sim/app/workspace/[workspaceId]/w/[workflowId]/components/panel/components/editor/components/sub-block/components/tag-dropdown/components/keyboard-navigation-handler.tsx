@@ -29,7 +29,6 @@ const findFolderInNested = (
     if (folderId === targetFolderId) {
       return nestedTag
     }
-    // Recursively search in nested children
     if (nestedTag.nestedChildren) {
       const found = findFolderInNested(nestedTag.nestedChildren, blockId, targetFolderId)
       if (found) return found
@@ -67,7 +66,6 @@ const findFolderInfoForTag = (
         nestedTag,
       }
     }
-    // Recursively search in nested children
     if (nestedTag.nestedChildren) {
       const found = findFolderInfoForTag(nestedTag.nestedChildren, targetTag, group)
       if (found) return found
@@ -82,7 +80,6 @@ const findFolderInfoForTag = (
  */
 const isChildOfAnyFolder = (nestedTags: NestedTag[], tag: string): boolean => {
   for (const nestedTag of nestedTags) {
-    // Check in leaf children
     if (nestedTag.children) {
       for (const child of nestedTag.children) {
         if (child.fullTag === tag) {
@@ -90,14 +87,12 @@ const isChildOfAnyFolder = (nestedTags: NestedTag[], tag: string): boolean => {
         }
       }
     }
-    // Check if this is a nested folder's parent tag (should be hidden at root)
     if (nestedTag.nestedChildren) {
       for (const nestedChild of nestedTag.nestedChildren) {
         if (nestedChild.parentTag === tag) {
           return true
         }
       }
-      // Recursively check deeper nested children
       if (isChildOfAnyFolder(nestedTag.nestedChildren, tag)) {
         return true
       }
@@ -122,14 +117,11 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
     const nestedPath = nestedNav?.nestedPath ?? []
 
     if (isInFolder && currentFolder) {
-      // Determine the current folder to show based on nested navigation
       let currentNestedTag: NestedTag | null = null
 
       if (nestedPath.length > 0) {
-        // We're in nested navigation - use the deepest nested tag
         currentNestedTag = nestedPath[nestedPath.length - 1]
       } else {
-        // At base folder level - find the folder from currentFolder ID
         for (const group of nestedBlockTagGroups) {
           const folder = findFolderInNested(group.nestedTags, group.blockId, currentFolder)
           if (folder) {
@@ -140,7 +132,6 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
       }
 
       if (currentNestedTag) {
-        // First, add the parent tag itself (so it's navigable as the first item)
         if (currentNestedTag.parentTag) {
           const parentIdx = flatTagList.findIndex(
             (item) => item.tag === currentNestedTag!.parentTag
@@ -149,7 +140,6 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
             indices.push(parentIdx)
           }
         }
-        // Add all leaf children
         if (currentNestedTag.children) {
           for (const child of currentNestedTag.children) {
             const idx = flatTagList.findIndex((item) => item.tag === child.fullTag)
@@ -158,7 +148,6 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
             }
           }
         }
-        // Add nested children parent tags (for subfolder navigation)
         if (currentNestedTag.nestedChildren) {
           for (const nestedChild of currentNestedTag.nestedChildren) {
             if (nestedChild.parentTag) {
@@ -171,12 +160,9 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
         }
       }
     } else {
-      // We're at root level, show all non-child items
-      // (variables and parent tags, but not their children)
       for (let i = 0; i < flatTagList.length; i++) {
         const tag = flatTagList[i].tag
 
-        // Check if this is a child of a parent folder
         let isChild = false
         for (const group of nestedBlockTagGroups) {
           if (isChildOfAnyFolder(group.nestedTags, tag)) {
@@ -194,15 +180,11 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
     return indices
   }, [isInFolder, currentFolder, flatTagList, nestedBlockTagGroups, nestedNav])
 
-  // Track nested path length for dependency
   const nestedPathLength = nestedNav?.nestedPath.length ?? 0
 
-  // Auto-select first visible item when entering/exiting folders or navigating nested
-  // This effect only runs when folder navigation state changes, not on every render
   useEffect(() => {
     if (!visible || visibleIndices.length === 0) return
 
-    // Select first visible item when entering a folder or navigating nested
     setSelectedIndex(visibleIndices[0])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, isInFolder, currentFolder, nestedPathLength])
@@ -237,7 +219,6 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
       } | null = null
 
       if (selected) {
-        // Find if selected tag can be expanded (is a folder)
         for (const group of nestedBlockTagGroups) {
           const folderInfo = findFolderInfoForTag(group.nestedTags, selected.tag, group)
           if (folderInfo) {
@@ -278,8 +259,6 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
           e.preventDefault()
           e.stopPropagation()
           if (selected && selectedIndex >= 0 && selectedIndex < flatTagList.length) {
-            // Always select the tag, even for folders
-            // Use Arrow Right to navigate into folders
             handleTagSelect(selected.tag, selected.group)
           }
           break
@@ -288,10 +267,8 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
             e.preventDefault()
             e.stopPropagation()
             if (isInFolder && nestedNav) {
-              // Already in a folder - use nested navigation to go deeper
               nestedNav.navigateIn(currentFolderInfo.nestedTag, currentFolderInfo.group)
             } else {
-              // At root level - open the folder normally
               openFolderWithSelection(
                 currentFolderInfo.id,
                 currentFolderInfo.title,
@@ -305,13 +282,9 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
           if (isInFolder) {
             e.preventDefault()
             e.stopPropagation()
-            // Try to navigate back in nested path first
             if (nestedNav?.navigateBack()) {
-              // Successfully navigated back one level in nested navigation
-              // Selection will be handled by the auto-select effect
               return
             }
-            // At root folder level, close the folder entirely
             closeFolder()
             let firstRootIndex = 0
             for (let i = 0; i < flatTagList.length; i++) {

@@ -34,16 +34,13 @@ function ColorGrid({
   const gridRef = useRef<HTMLDivElement>(null)
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([])
 
-  // Focus the grid when entering the folder
   useEffect(() => {
     if (isInFolder && gridRef.current) {
-      // Find the currently selected color or default to first
       const selectedIndex = WORKFLOW_COLORS.findIndex(
         ({ color }) => color.toLowerCase() === hexInput.toLowerCase()
       )
       const initialIndex = selectedIndex >= 0 ? selectedIndex : 0
       setFocusedIndex(initialIndex)
-      // Small delay to let the folder animation complete
       setTimeout(() => {
         buttonRefs.current[initialIndex]?.focus()
       }, 50)
