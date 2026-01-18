@@ -91,6 +91,25 @@ describe('transformTable', () => {
       enabled: false,
     })
   })
+
+  it.concurrent('should parse JSON string inputs and transform rows', () => {
+    const table = [
+      { id: '1', cells: { Key: 'city', Value: 'SF' } },
+      { id: '2', cells: { Key: 'temp', Value: 64 } },
+    ]
+    const result = transformTable(JSON.stringify(table))
+
+    expect(result).toEqual({
+      city: 'SF',
+      temp: 64,
+    })
+  })
+
+  it.concurrent('should parse JSON string object inputs', () => {
+    const result = transformTable(JSON.stringify({ a: 1, b: 'two' }))
+
+    expect(result).toEqual({ a: 1, b: 'two' })
+  })
 })
 
 describe('formatRequestParams', () => {
