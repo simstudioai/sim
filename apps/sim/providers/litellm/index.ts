@@ -271,6 +271,7 @@ export const litellmProvider: ProviderConfig = {
 
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
+      let hasUsedForcedTool = false
 
       const checkForForcedToolUsage = (
         response: any,
@@ -312,8 +313,6 @@ export const litellmProvider: ProviderConfig = {
 
       let modelTime = firstResponseTime
       let toolsTime = 0
-
-      let hasUsedForcedTool = false
 
       const timeSegments: TimeSegment[] = [
         {
