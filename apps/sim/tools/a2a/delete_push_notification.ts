@@ -14,20 +14,24 @@ export const a2aDeletePushNotificationTool: ToolConfig<
     agentUrl: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The A2A agent endpoint URL',
     },
     taskId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Task ID to delete notification config for',
     },
     pushNotificationConfigId: {
       type: 'string',
+      visibility: 'user-or-llm',
       description:
         'Push notification configuration ID to delete (optional - server can derive from taskId)',
     },
     apiKey: {
       type: 'string',
+      visibility: 'user-only',
       description: 'API key for authentication',
     },
   },

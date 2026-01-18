@@ -167,6 +167,7 @@ export interface ProviderRequest {
   reasoningEffort?: string
   verbosity?: string
   thinkingLevel?: string
+  isDeployedContext?: boolean
 }
 
 export const providers: Record<string, ProviderConfig> = {}

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { isTest } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { transformTable } from '@/tools/shared/table'
 import type { TableRow } from '@/tools/types'
 
 const logger = createLogger('HTTPRequestUtils')
@@ -118,29 +119,4 @@ export const shouldUseProxy = (url: string): boolean => {
     logger.warn('URL parsing failed:', e)
     return false
   }
-}
-
-/**
- * Transforms a table from the store format to a key-value object
- * Local copy of the function to break circular dependencies
- * @param table Array of table rows from the store
- * @returns Record of key-value pairs
- */
-export const transformTable = (table: TableRow[] | null): Record<string, any> => {
-  if (!table) return {}
-
-  return table.reduce(
-    (acc, row) => {
-      if (row.cells?.Key && row.cells?.Value !== undefined) {
-        // Extract the Value cell as is - it should already be properly resolved
-        // by the InputResolver based on variable type (number, string, boolean etc.)
-        const value = row.cells.Value
-
-        // Store the correctly typed value in the result object
-        acc[row.cells.Key] = value
-      }
-      return acc
-    },
-    {} as Record<string, any>
-  )
 }

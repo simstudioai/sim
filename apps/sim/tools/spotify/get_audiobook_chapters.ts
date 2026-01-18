@@ -42,23 +42,27 @@ export const spotifyGetAudiobookChaptersTool: ToolConfig<
     audiobookId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The Spotify audiobook ID',
     },
     limit: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       default: 20,
       description: 'Number of chapters to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       default: 0,
       description: 'Index of first chapter to return',
     },
     market: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'ISO country code for market',
     },
   },

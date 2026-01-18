@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { isEqual } from 'lodash'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { Button, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
@@ -225,14 +226,18 @@ export function MessagesInput({
     [wandHook]
   )
 
-  /**
-   * Initialize local state from stored or preview value
-   */
+  const localMessagesRef = useRef(localMessages)
+  localMessagesRef.current = localMessages
+
   useEffect(() => {
     if (isPreview && previewValue && Array.isArray(previewValue)) {
-      setLocalMessages(previewValue)
+      if (!isEqual(localMessagesRef.current, previewValue)) {
+        setLocalMessages(previewValue)
+      }
     } else if (messages && Array.isArray(messages) && messages.length > 0) {
-      setLocalMessages(messages)
+      if (!isEqual(localMessagesRef.current, messages)) {
+        setLocalMessages(messages)
+      }
     }
   }, [isPreview, previewValue, messages])
 

@@ -11,11 +11,13 @@ export const gitlabGetProjectTool: ToolConfig<GitLabGetProjectParams, GitLabGetP
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'GitLab Personal Access Token',
     },
     projectId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Project ID or URL-encoded path (e.g., "namespace/project")',
     },
   },

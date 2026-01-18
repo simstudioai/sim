@@ -25,11 +25,13 @@ export const polymarketGetSeriesTool: ToolConfig<
       type: 'string',
       required: false,
       description: 'Number of results per page (max 50)',
+      visibility: 'user-or-llm',
     },
     offset: {
       type: 'string',
       required: false,
       description: 'Pagination offset (skip this many results)',
+      visibility: 'user-or-llm',
     },
   },
 

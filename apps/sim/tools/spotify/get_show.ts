@@ -36,11 +36,13 @@ export const spotifyGetShowTool: ToolConfig<SpotifyGetShowParams, SpotifyGetShow
     showId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The Spotify show ID',
     },
     market: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'ISO country code for market',
     },
   },

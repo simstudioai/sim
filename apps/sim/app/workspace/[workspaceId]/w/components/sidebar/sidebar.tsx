@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Database, HelpCircle, Layout, Plus, Search, Settings } from 'lucide-react'
 import Link from 'next/link'
@@ -60,7 +60,7 @@ export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
  *
  * @returns Sidebar with workflows panel
  */
-export function Sidebar() {
+export const Sidebar = memo(function Sidebar() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined
@@ -142,11 +142,9 @@ export function Sidebar() {
       window.removeEventListener(SIDEBAR_SCROLL_EVENT, handleScrollToItem as EventListener)
   }, [])
 
-  const {
-    isOpen: isSearchModalOpen,
-    setOpen: setIsSearchModalOpen,
-    open: openSearchModal,
-  } = useSearchModalStore()
+  const isSearchModalOpen = useSearchModalStore((state) => state.isOpen)
+  const setIsSearchModalOpen = useSearchModalStore((state) => state.setOpen)
+  const openSearchModal = useSearchModalStore((state) => state.open)
 
   const {
     workspaces,
@@ -176,7 +174,6 @@ export function Sidebar() {
     workspaceId,
   })
 
-  /** Context menu state for navigation items */
   const [activeNavItemHref, setActiveNavItemHref] = useState<string | null>(null)
   const {
     isOpen: isNavContextMenuOpen,
@@ -285,7 +282,6 @@ export function Sidebar() {
   const isLoading = workflowsLoading || sessionLoading
   const initialScrollDoneRef = useRef(false)
 
-  /** Scrolls to active workflow on initial page load only */
   useEffect(() => {
     if (!workflowId || workflowsLoading || initialScrollDoneRef.current) return
     initialScrollDoneRef.current = true
@@ -296,7 +292,6 @@ export function Sidebar() {
     })
   }, [workflowId, workflowsLoading])
 
-  /** Forces sidebar to minimum width and ensures it's expanded when not on a workflow page */
   useEffect(() => {
     if (!isOnWorkflowPage) {
       if (isCollapsed) {
@@ -306,7 +301,6 @@ export function Sidebar() {
     }
   }, [isOnWorkflowPage, isCollapsed, setIsCollapsed, setSidebarWidth])
 
-  /** Creates a workflow and scrolls to it */
   const handleCreateWorkflow = useCallback(async () => {
     const workflowId = await createWorkflow()
     if (workflowId) {
@@ -316,7 +310,6 @@ export function Sidebar() {
     }
   }, [createWorkflow])
 
-  /** Creates a folder and scrolls to it */
   const handleCreateFolder = useCallback(async () => {
     const folderId = await createFolder()
     if (folderId) {
@@ -324,12 +317,10 @@ export function Sidebar() {
     }
   }, [createFolder])
 
-  /** Triggers file input for workflow import */
   const handleImportWorkflow = useCallback(() => {
     fileInputRef.current?.click()
   }, [])
 
-  /** Handles workspace switch from popover menu */
   const handleWorkspaceSwitch = useCallback(
     async (workspace: { id: string; name: string; ownerId: string; role?: string }) => {
       if (workspace.id === workspaceId) {
@@ -342,12 +333,10 @@ export function Sidebar() {
     [workspaceId, switchWorkspace]
   )
 
-  /** Toggles sidebar collapse state */
   const handleToggleCollapse = useCallback(() => {
     setIsCollapsed(!isCollapsed)
   }, [isCollapsed, setIsCollapsed])
 
-  /** Reverts to active workflow selection when clicking sidebar background */
   const handleSidebarClick = useCallback(
     (e: React.MouseEvent<HTMLElement>) => {
       const target = e.target as HTMLElement
@@ -360,7 +349,6 @@ export function Sidebar() {
     [workflowId]
   )
 
-  /** Renames a workspace */
   const handleRenameWorkspace = useCallback(
     async (workspaceIdToRename: string, newName: string) => {
       await updateWorkspaceName(workspaceIdToRename, newName)
@@ -368,7 +356,6 @@ export function Sidebar() {
     [updateWorkspaceName]
   )
 
-  /** Deletes a workspace */
   const handleDeleteWorkspace = useCallback(
     async (workspaceIdToDelete: string) => {
       const workspaceToDelete = workspaces.find((w) => w.id === workspaceIdToDelete)
@@ -379,7 +366,6 @@ export function Sidebar() {
     [workspaces, confirmDeleteWorkspace]
   )
 
-  /** Leaves a workspace */
   const handleLeaveWorkspaceWrapper = useCallback(
     async (workspaceIdToLeave: string) => {
       const workspaceToLeave = workspaces.find((w) => w.id === workspaceIdToLeave)
@@ -390,7 +376,6 @@ export function Sidebar() {
     [workspaces, handleLeaveWorkspace]
   )
 
-  /** Duplicates a workspace */
   const handleDuplicateWorkspace = useCallback(
     async (_workspaceIdToDuplicate: string, workspaceName: string) => {
       await duplicateWorkspace(workspaceName)
@@ -398,7 +383,6 @@ export function Sidebar() {
     [duplicateWorkspace]
   )
 
-  /** Exports a workspace */
   const handleExportWorkspace = useCallback(
     async (workspaceIdToExport: string, workspaceName: string) => {
       await exportWorkspace(workspaceIdToExport, workspaceName)
@@ -406,12 +390,10 @@ export function Sidebar() {
     [exportWorkspace]
   )
 
-  /** Triggers file input for workspace import */
   const handleImportWorkspace = useCallback(() => {
     workspaceFileInputRef.current?.click()
   }, [])
 
-  /** Handles workspace import file selection */
   const handleWorkspaceFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const files = event.target.files
@@ -427,7 +409,6 @@ export function Sidebar() {
     [importWorkspace]
   )
 
-  /** Resolves workspace ID from params or URL path */
   const resolveWorkspaceIdFromPath = useCallback((): string | undefined => {
     if (workspaceId) return workspaceId
     if (typeof window === 'undefined') return undefined
@@ -439,7 +420,6 @@ export function Sidebar() {
     return parts[idx + 1]
   }, [workspaceId])
 
-  /** Registers global sidebar commands with the central commands registry */
   useRegisterGlobalCommands(() =>
     createCommands([
       {
@@ -772,4 +752,4 @@ export function Sidebar() {
       />
     </>
   )
-}
+})

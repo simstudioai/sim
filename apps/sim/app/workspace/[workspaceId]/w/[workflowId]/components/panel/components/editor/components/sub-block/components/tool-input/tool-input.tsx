@@ -1,5 +1,5 @@
 import type React from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Loader2, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -35,6 +35,7 @@ import {
   Code,
   FileSelectorInput,
   FileUpload,
+  FolderSelectorInput,
   LongInput,
   ProjectSelectorInput,
   SheetSelectorInput,
@@ -45,7 +46,9 @@ import {
   TimeInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
 import { DocumentSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/document-selector/document-selector'
+import { DocumentTagEntry } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/document-tag-entry/document-tag-entry'
 import { KnowledgeBaseSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/knowledge-base-selector/knowledge-base-selector'
+import { KnowledgeTagFilters } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/knowledge-tag-filters/knowledge-tag-filters'
 import {
   type CustomTool,
   CustomToolModal,
@@ -75,6 +78,13 @@ import {
   isPasswordParameter,
   type ToolParameterConfig,
 } from '@/tools/params'
+import {
+  buildCanonicalIndex,
+  buildPreviewContextValues,
+  type CanonicalIndex,
+  evaluateSubBlockCondition,
+  type SubBlockCondition,
+} from '@/tools/params-resolver'
 
 const logger = createLogger('ToolInput')
 
@@ -304,6 +314,42 @@ function SheetSelectorSyncWrapper({
   )
 }
 
+function FolderSelectorSyncWrapper({
+  blockId,
+  paramId,
+  value,
+  onChange,
+  uiComponent,
+  disabled,
+  previewContextValues,
+}: {
+  blockId: string
+  paramId: string
+  value: string
+  onChange: (value: string) => void
+  uiComponent: any
+  disabled: boolean
+  previewContextValues?: Record<string, any>
+}) {
+  return (
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <FolderSelectorInput
+        blockId={blockId}
+        subBlock={{
+          id: paramId,
+          type: 'folder-selector' as const,
+          title: paramId,
+          serviceId: uiComponent.serviceId,
+          requiredScopes: uiComponent.requiredScopes || [],
+          placeholder: uiComponent.placeholder,
+          dependsOn: uiComponent.dependsOn,
+        }}
+        disabled={disabled}
+      />
+    </GenericSyncWrapper>
+  )
+}
+
 function KnowledgeBaseSelectorSyncWrapper({
   blockId,
   paramId,
@@ -342,6 +388,7 @@ function DocumentSelectorSyncWrapper({
   onChange,
   uiComponent,
   disabled,
+  previewContextValues,
 }: {
   blockId: string
   paramId: string
@@ -349,6 +396,7 @@ function DocumentSelectorSyncWrapper({
   onChange: (value: string) => void
   uiComponent: any
   disabled: boolean
+  previewContextValues?: Record<string, any>
 }) {
   return (
     <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
@@ -361,6 +409,67 @@ function DocumentSelectorSyncWrapper({
           dependsOn: ['knowledgeBaseId'],
         }}
         disabled={disabled}
+        previewContextValues={previewContextValues}
+      />
+    </GenericSyncWrapper>
+  )
+}
+
+function DocumentTagEntrySyncWrapper({
+  blockId,
+  paramId,
+  value,
+  onChange,
+  disabled,
+  previewContextValues,
+}: {
+  blockId: string
+  paramId: string
+  value: string
+  onChange: (value: string) => void
+  disabled: boolean
+  previewContextValues?: Record<string, any>
+}) {
+  return (
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <DocumentTagEntry
+        blockId={blockId}
+        subBlock={{
+          id: paramId,
+          type: 'document-tag-entry',
+        }}
+        disabled={disabled}
+        previewContextValues={previewContextValues}
+      />
+    </GenericSyncWrapper>
+  )
+}
+
+function KnowledgeTagFiltersSyncWrapper({
+  blockId,
+  paramId,
+  value,
+  onChange,
+  disabled,
+  previewContextValues,
+}: {
+  blockId: string
+  paramId: string
+  value: string
+  onChange: (value: string) => void
+  disabled: boolean
+  previewContextValues?: Record<string, any>
+}) {
+  return (
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <KnowledgeTagFilters
+        blockId={blockId}
+        subBlock={{
+          id: paramId,
+          type: 'knowledge-tag-filters',
+        }}
+        disabled={disabled}
+        previewContextValues={previewContextValues}
       />
     </GenericSyncWrapper>
   )
@@ -497,11 +606,15 @@ function CheckboxListSyncWrapper({
 }
 
 function ComboboxSyncWrapper({
+  blockId,
+  paramId,
   value,
   onChange,
   uiComponent,
   disabled,
 }: {
+  blockId: string
+  paramId: string
   value: string
   onChange: (value: string) => void
   uiComponent: any
@@ -512,13 +625,15 @@ function ComboboxSyncWrapper({
   )
 
   return (
-    <Combobox
-      options={options}
-      value={value}
-      onChange={onChange}
-      placeholder={uiComponent.placeholder || 'Select option'}
-      disabled={disabled}
-    />
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <Combobox
+        options={options}
+        value={value}
+        onChange={onChange}
+        placeholder={uiComponent.placeholder || 'Select option'}
+        disabled={disabled}
+      />
+    </GenericSyncWrapper>
   )
 }
 
@@ -597,6 +712,8 @@ function SlackSelectorSyncWrapper({
 }
 
 function WorkflowSelectorSyncWrapper({
+  blockId,
+  paramId,
   value,
   onChange,
   uiComponent,
@@ -604,6 +721,8 @@ function WorkflowSelectorSyncWrapper({
   workspaceId,
   currentWorkflowId,
 }: {
+  blockId: string
+  paramId: string
   value: string
   onChange: (value: string) => void
   uiComponent: any
@@ -623,15 +742,17 @@ function WorkflowSelectorSyncWrapper({
   }))
 
   return (
-    <Combobox
-      options={options}
-      value={value}
-      onChange={onChange}
-      placeholder={uiComponent.placeholder || 'Select workflow'}
-      disabled={disabled || isLoading}
-      searchable
-      searchPlaceholder='Search workflows...'
-    />
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <Combobox
+        options={options}
+        value={value}
+        onChange={onChange}
+        placeholder={uiComponent.placeholder || 'Select workflow'}
+        disabled={disabled || isLoading}
+        searchable
+        searchPlaceholder='Search workflows...'
+      />
+    </GenericSyncWrapper>
   )
 }
 
@@ -877,7 +998,7 @@ function createToolIcon(bgColor: string, IconComponent: any) {
  * - Allows drag-and-drop reordering of selected tools
  * - Supports tool usage control (auto/force/none) for compatible LLM providers
  */
-export function ToolInput({
+export const ToolInput = memo(function ToolInput({
   blockId,
   subBlockId,
   isPreview = false,
@@ -1792,57 +1913,13 @@ export function ToolInput({
     return toolParams?.toolConfig?.oauth
   }
 
-  /**
-   * Evaluates parameter conditions to determine if a parameter should be visible.
-   *
-   * @remarks
-   * Supports field value matching with arrays, negation via `not`, and
-   * compound conditions via `and`. Used for conditional parameter visibility.
-   *
-   * @param param - The parameter configuration with optional condition
-   * @param tool - The current tool instance with its parameter values
-   * @returns `true` if the parameter should be shown based on its condition
-   */
   const evaluateParameterCondition = (param: any, tool: StoredTool): boolean => {
     if (!('uiComponent' in param) || !param.uiComponent?.condition) return true
-
-    const condition = param.uiComponent.condition
-    const currentValues: Record<string, any> = {
-      operation: tool.operation,
-      ...tool.params,
-    }
-
-    const fieldValue = currentValues[condition.field]
-    let result = false
-
-    if (Array.isArray(condition.value)) {
-      result = condition.value.includes(fieldValue)
-    } else {
-      result = fieldValue === condition.value
-    }
-
-    if (condition.not) {
-      result = !result
-    }
-
-    if (condition.and) {
-      const andFieldValue = currentValues[condition.and.field]
-      let andResult = false
-
-      if (Array.isArray(condition.and.value)) {
-        andResult = condition.and.value.includes(andFieldValue)
-      } else {
-        andResult = andFieldValue === condition.and.value
-      }
-
-      if (condition.and.not) {
-        andResult = !andResult
-      }
-
-      result = result && andResult
-    }
-
-    return result
+    const currentValues: Record<string, any> = { operation: tool.operation, ...tool.params }
+    return evaluateSubBlockCondition(
+      param.uiComponent.condition as SubBlockCondition,
+      currentValues
+    )
   }
 
   /**
@@ -1961,7 +2038,7 @@ export function ToolInput({
             onChange={onChange}
             uiComponent={uiComponent}
             disabled={disabled}
-            previewContextValues={currentToolParams as any}
+            previewContextValues={currentToolParams}
             selectorType='channel-selector'
           />
         )
@@ -1975,7 +2052,7 @@ export function ToolInput({
             onChange={onChange}
             uiComponent={uiComponent}
             disabled={disabled}
-            previewContextValues={currentToolParams as any}
+            previewContextValues={currentToolParams}
             selectorType='user-selector'
           />
         )
@@ -1995,7 +2072,7 @@ export function ToolInput({
             }}
             onProjectSelect={onChange}
             disabled={disabled}
-            previewContextValues={currentToolParams as any}
+            previewContextValues={currentToolParams}
           />
         )
 
@@ -2020,7 +2097,7 @@ export function ToolInput({
             onChange={onChange}
             uiComponent={uiComponent}
             disabled={disabled}
-            previewContextValues={currentToolParams as any}
+            previewContextValues={currentToolParams}
           />
         )
 
@@ -2033,7 +2110,20 @@ export function ToolInput({
             onChange={onChange}
             uiComponent={uiComponent}
             disabled={disabled}
-            previewContextValues={currentToolParams as any}
+            previewContextValues={currentToolParams}
+          />
+        )
+
+      case 'folder-selector':
+        return (
+          <FolderSelectorSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
+            value={value}
+            onChange={onChange}
+            uiComponent={uiComponent}
+            disabled={disabled}
+            previewContextValues={currentToolParams}
           />
         )
 
@@ -2052,6 +2142,8 @@ export function ToolInput({
       case 'combobox':
         return (
           <ComboboxSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
             value={value}
             onChange={onChange}
             uiComponent={uiComponent}
@@ -2110,6 +2202,8 @@ export function ToolInput({
       case 'workflow-selector':
         return (
           <WorkflowSelectorSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
             value={value}
             onChange={onChange}
             uiComponent={uiComponent}
@@ -2167,6 +2261,31 @@ export function ToolInput({
             onChange={onChange}
             uiComponent={uiComponent}
             disabled={disabled}
+            previewContextValues={currentToolParams}
+          />
+        )
+
+      case 'document-tag-entry':
+        return (
+          <DocumentTagEntrySyncWrapper
+            blockId={blockId}
+            paramId={param.id}
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            previewContextValues={currentToolParams}
+          />
+        )
+
+      case 'knowledge-tag-filters':
+        return (
+          <KnowledgeTagFiltersSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            previewContextValues={currentToolParams}
           />
         )
 
@@ -2225,8 +2344,26 @@ export function ToolInput({
           // Get tool parameters using the new utility with block type for UI components
           const toolParams =
             !isCustomTool && !isMcpTool && currentToolId
-              ? getToolParametersConfig(currentToolId, tool.type)
+              ? getToolParametersConfig(currentToolId, tool.type, {
+                  operation: tool.operation,
+                  ...tool.params,
+                })
               : null
+
+          // Build canonical index for proper dependency resolution
+          const toolCanonicalIndex: CanonicalIndex | null = toolBlock?.subBlocks
+            ? buildCanonicalIndex(toolBlock.subBlocks)
+            : null
+
+          // Build preview context with canonical resolution
+          const toolContextValues = toolCanonicalIndex
+            ? buildPreviewContextValues(tool.params || {}, {
+                blockType: tool.type,
+                subBlocks: toolBlock!.subBlocks,
+                canonicalIndex: toolCanonicalIndex,
+                values: { operation: tool.operation, ...tool.params },
+              })
+            : tool.params || {}
 
           // For custom tools, resolve from reference (new format) or use inline (legacy)
           const resolvedCustomTool = isCustomTool
@@ -2590,7 +2727,7 @@ export function ToolInput({
                             {param.required && param.visibility === 'user-only' && (
                               <span className='ml-1'>*</span>
                             )}
-                            {(!param.required || param.visibility !== 'user-only') && (
+                            {param.visibility === 'user-or-llm' && (
                               <span className='ml-[6px] text-[12px] text-[var(--text-tertiary)]'>
                                 (optional)
                               </span>
@@ -2603,7 +2740,7 @@ export function ToolInput({
                                 tool.params?.[param.id] || '',
                                 (value) => handleParamChange(toolIndex, param.id, value),
                                 toolIndex,
-                                tool.params || {}
+                                toolContextValues as Record<string, string>
                               )
                             ) : (
                               <ShortInput
@@ -2682,4 +2819,4 @@ export function ToolInput({
       />
     </div>
   )
-}
+})

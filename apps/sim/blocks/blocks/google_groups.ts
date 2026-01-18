@@ -30,6 +30,11 @@ export const GoogleGroupsBlock: BlockConfig = {
         { label: 'Update Member Role', id: 'update_member' },
         { label: 'Remove Member', id: 'remove_member' },
         { label: 'Check Membership', id: 'has_member' },
+        { label: 'List Aliases', id: 'list_aliases' },
+        { label: 'Add Alias', id: 'add_alias' },
+        { label: 'Remove Alias', id: 'remove_alias' },
+        { label: 'Get Settings', id: 'get_settings' },
+        { label: 'Update Settings', id: 'update_settings' },
       ],
       value: () => 'list_groups',
     },
@@ -112,7 +117,34 @@ Return ONLY the query string - no explanations, no quotes, no extra text.`,
           'update_member',
           'remove_member',
           'has_member',
+          'list_aliases',
+          'add_alias',
+          'remove_alias',
         ],
+      },
+    },
+
+    {
+      id: 'groupEmail',
+      title: 'Group Email',
+      type: 'short-input',
+      placeholder: 'group@example.com',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['get_settings', 'update_settings'],
+      },
+    },
+
+    {
+      id: 'alias',
+      title: 'Alias Email',
+      type: 'short-input',
+      placeholder: 'alias@example.com',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['add_alias', 'remove_alias'],
       },
     },
 
@@ -233,6 +265,11 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
       'google_groups_remove_member',
       'google_groups_update_member',
       'google_groups_has_member',
+      'google_groups_list_aliases',
+      'google_groups_add_alias',
+      'google_groups_remove_alias',
+      'google_groups_get_settings',
+      'google_groups_update_settings',
     ],
     config: {
       tool: (params) => {
@@ -259,6 +296,16 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
             return 'google_groups_remove_member'
           case 'has_member':
             return 'google_groups_has_member'
+          case 'list_aliases':
+            return 'google_groups_list_aliases'
+          case 'add_alias':
+            return 'google_groups_add_alias'
+          case 'remove_alias':
+            return 'google_groups_remove_alias'
+          case 'get_settings':
+            return 'google_groups_get_settings'
+          case 'update_settings':
+            return 'google_groups_update_settings'
           default:
             throw new Error(`Invalid Google Groups operation: ${params.operation}`)
         }
@@ -330,6 +377,33 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
               groupKey: rest.groupKey,
               memberKey: rest.memberKey,
             }
+          case 'list_aliases':
+            return {
+              credential,
+              groupKey: rest.groupKey,
+            }
+          case 'add_alias':
+            return {
+              credential,
+              groupKey: rest.groupKey,
+              alias: rest.alias,
+            }
+          case 'remove_alias':
+            return {
+              credential,
+              groupKey: rest.groupKey,
+              alias: rest.alias,
+            }
+          case 'get_settings':
+            return {
+              credential,
+              groupEmail: rest.groupEmail,
+            }
+          case 'update_settings':
+            return {
+              credential,
+              groupEmail: rest.groupEmail,
+            }
           default:
             return { credential, ...rest }
         }
@@ -353,6 +427,8 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
     memberEmail: { type: 'string', description: 'Email of member to add' },
     role: { type: 'string', description: 'Member role (MEMBER, MANAGER, OWNER)' },
     roles: { type: 'string', description: 'Filter by roles for list members' },
+    alias: { type: 'string', description: 'Alias email address' },
+    groupEmail: { type: 'string', description: 'Group email address for settings operations' },
   },
   outputs: {
     groups: { type: 'json', description: 'Array of group objects (for list_groups)' },
@@ -362,5 +438,8 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
     isMember: { type: 'boolean', description: 'Membership check result (for has_member)' },
     message: { type: 'string', description: 'Success message (for delete/remove operations)' },
     nextPageToken: { type: 'string', description: 'Token for fetching next page of results' },
+    aliases: { type: 'json', description: 'Array of alias objects (for list_aliases)' },
+    settings: { type: 'json', description: 'Group settings object (for get/update_settings)' },
+    deleted: { type: 'boolean', description: 'Deletion result (for remove_alias)' },
   },
 }

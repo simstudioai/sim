@@ -11,10 +11,12 @@ export const a2aGetAgentCardTool: ToolConfig<A2AGetAgentCardParams, A2AGetAgentC
     agentUrl: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The A2A agent endpoint URL',
     },
     apiKey: {
       type: 'string',
+      visibility: 'user-only',
       description: 'API key for authentication (if required)',
     },
   },

@@ -52,8 +52,8 @@ export function WorkflowItem({
 }: WorkflowItemProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const { selectedWorkflows } = useFolderStore()
-  const { updateWorkflow, workflows } = useWorkflowRegistry()
+  const selectedWorkflows = useFolderStore((state) => state.selectedWorkflows)
+  const updateWorkflow = useWorkflowRegistry((state) => state.updateWorkflow)
   const userPermissions = useUserPermissionsContext()
   const isSelected = selectedWorkflows.has(workflow.id)
 
@@ -141,6 +141,7 @@ export function WorkflowItem({
     const workflowIds =
       finalIsSelected && finalSelection.size > 1 ? Array.from(finalSelection) : [workflow.id]
 
+    const { workflows } = useWorkflowRegistry.getState()
     const workflowNames = workflowIds
       .map((id) => workflows[id]?.name)
       .filter((name): name is string => !!name)
@@ -151,7 +152,7 @@ export function WorkflowItem({
     }
 
     setCanDeleteCaptured(canDeleteWorkflows(workflowIds))
-  }, [workflow.id, workflows, canDeleteWorkflows])
+  }, [workflow.id, canDeleteWorkflows])
 
   /**
    * Handle right-click - ensure proper selection behavior and capture selection state

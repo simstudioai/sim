@@ -846,7 +846,11 @@ export function DeployModal({
           <ModalHeader>Delete A2A Agent</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete this agent?{' '}
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {existingA2aAgent?.name || 'this agent'}
+              </span>
+              ?{' '}
               <span className='text-[var(--text-error)]'>
                 This will permanently remove the agent configuration.
               </span>

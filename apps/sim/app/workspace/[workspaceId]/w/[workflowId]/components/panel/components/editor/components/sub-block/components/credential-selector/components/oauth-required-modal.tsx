@@ -41,6 +41,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/calendar': 'View and manage calendar',
   'https://www.googleapis.com/auth/userinfo.email': 'View email address',
   'https://www.googleapis.com/auth/userinfo.profile': 'View basic profile info',
+  'https://www.googleapis.com/auth/forms.body': 'View and manage Google Forms',
   'https://www.googleapis.com/auth/forms.responses.readonly': 'View responses to Google Forms',
   'https://www.googleapis.com/auth/ediscovery': 'Access Google Vault for eDiscovery',
   'https://www.googleapis.com/auth/devstorage.read_only': 'Read files from Google Cloud Storage',

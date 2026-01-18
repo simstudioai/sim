@@ -53,22 +53,26 @@ export const getThumbnailTool: ToolConfig<GetThumbnailParams, GetThumbnailRespon
     presentationId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the presentation',
     },
     pageObjectId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The object ID of the slide/page to get a thumbnail for',
     },
     thumbnailSize: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description:
         'The size of the thumbnail: SMALL (200px), MEDIUM (800px), or LARGE (1600px). Defaults to MEDIUM.',
     },
     mimeType: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'The MIME type of the thumbnail image: PNG or GIF. Defaults to PNG.',
     },
   },
@@ -163,6 +167,24 @@ export const getThumbnailTool: ToolConfig<GetThumbnailParams, GetThumbnailRespon
     metadata: {
       type: 'json',
       description: 'Operation metadata including presentation ID and page object ID',
+      properties: {
+        presentationId: {
+          type: 'string',
+          description: 'The presentation ID',
+        },
+        pageObjectId: {
+          type: 'string',
+          description: 'The page object ID for the thumbnail',
+        },
+        thumbnailSize: {
+          type: 'string',
+          description: 'The requested thumbnail size',
+        },
+        mimeType: {
+          type: 'string',
+          description: 'The thumbnail MIME type',
+        },
+      },
     },
   },
 }

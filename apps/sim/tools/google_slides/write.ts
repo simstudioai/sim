@@ -23,16 +23,19 @@ export const writeTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesWriteResp
     presentationId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the presentation to write to',
     },
     content: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The content to write to the slide',
     },
     slideIndex: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description: 'The index of the slide to write to (defaults to first slide)',
     },
   },
@@ -89,11 +92,39 @@ export const writeTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesWriteResp
         }
       ).then((res) => res.json())
 
-      const slideIndex = params.slideIndex || 0
+      const metadata = {
+        presentationId,
+        title: presentationData.title || 'Updated Presentation',
+        mimeType: 'application/vnd.google-apps.presentation',
+        url: `https://docs.google.com/presentation/d/${presentationId}/edit`,
+      }
+
+      const slideIndex =
+        typeof params.slideIndex === 'string'
+          ? Number.parseInt(params.slideIndex, 10)
+          : (params.slideIndex ?? 0)
       const slide = presentationData.slides?.[slideIndex]
 
+      if (Number.isNaN(slideIndex) || slideIndex < 0) {
+        return {
+          success: false,
+          error: 'Slide index must be a non-negative number',
+          output: {
+            updatedContent: false,
+            metadata,
+          },
+        }
+      }
+
       if (!slide) {
-        throw new Error(`Slide at index ${slideIndex} not found`)
+        return {
+          success: false,
+          error: `Slide at index ${slideIndex} not found`,
+          output: {
+            updatedContent: false,
+            metadata,
+          },
+        }
       }
 
       // Create requests to add content to the slide
@@ -150,15 +181,14 @@ export const writeTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesWriteResp
       if (!updateResponse.ok) {
         const errorText = await updateResponse.text()
         logger.error('Failed to update presentation:', { errorText })
-        throw new Error('Failed to update presentation')
-      }
-
-      // Create presentation metadata
-      const metadata = {
-        presentationId,
-        title: presentationData.title || 'Updated Presentation',
-        mimeType: 'application/vnd.google-apps.presentation',
-        url: `https://docs.google.com/presentation/d/${presentationId}/edit`,
+        return {
+          success: false,
+          error: 'Failed to update presentation',
+          output: {
+            updatedContent: false,
+            metadata,
+          },
+        }
       }
 
       return {
@@ -182,6 +212,24 @@ export const writeTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesWriteResp
     metadata: {
       type: 'json',
       description: 'Updated presentation metadata including ID, title, and URL',
+      properties: {
+        presentationId: {
+          type: 'string',
+          description: 'The presentation ID',
+        },
+        title: {
+          type: 'string',
+          description: 'The presentation title',
+        },
+        mimeType: {
+          type: 'string',
+          description: 'The mime type of the presentation',
+        },
+        url: {
+          type: 'string',
+          description: 'URL to open the presentation',
+        },
+      },
     },
   },
 

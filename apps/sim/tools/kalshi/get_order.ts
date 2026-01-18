@@ -35,6 +35,7 @@ export const kalshiGetOrderTool: ToolConfig<KalshiGetOrderParams, KalshiGetOrder
     orderId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The order ID to retrieve',
     },
   },

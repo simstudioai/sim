@@ -23,11 +23,13 @@ export const polymarketGetTagsTool: ToolConfig<PolymarketGetTagsParams, Polymark
         type: 'string',
         required: false,
         description: 'Number of results per page (max 50)',
+        visibility: 'user-or-llm',
       },
       offset: {
         type: 'string',
         required: false,
         description: 'Pagination offset (skip this many results)',
+        visibility: 'user-or-llm',
       },
     },
 

@@ -44,31 +44,37 @@ export const kalshiGetFillsTool: ToolConfig<KalshiGetFillsParams, KalshiGetFills
     ticker: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Filter by market ticker',
     },
     orderId: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Filter by order ID',
     },
     minTs: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Minimum timestamp (Unix milliseconds)',
     },
     maxTs: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Maximum timestamp (Unix milliseconds)',
     },
     limit: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Number of results (1-1000, default: 100)',
     },
     cursor: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Pagination cursor for next page',
     },
   },

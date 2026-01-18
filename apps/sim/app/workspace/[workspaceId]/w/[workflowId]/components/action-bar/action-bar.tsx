@@ -48,17 +48,17 @@ export const ActionBar = memo(
       collaborativeBatchToggleBlockEnabled,
       collaborativeBatchToggleBlockHandles,
     } = useCollaborativeWorkflow()
-    const { activeWorkflowId } = useWorkflowRegistry()
-    const blocks = useWorkflowStore((state) => state.blocks)
-    const subBlockStore = useSubBlockStore()
+    const { activeWorkflowId, setPendingSelection } = useWorkflowRegistry()
 
     const handleDuplicateBlock = useCallback(() => {
+      const blocks = useWorkflowStore.getState().blocks
       const sourceBlock = blocks[blockId]
       if (!sourceBlock) return
 
       const newId = crypto.randomUUID()
       const newName = getUniqueBlockName(sourceBlock.name, blocks)
-      const subBlockValues = subBlockStore.workflowValues[activeWorkflowId || '']?.[blockId] || {}
+      const subBlockValues =
+        useSubBlockStore.getState().workflowValues[activeWorkflowId || '']?.[blockId] || {}
 
       const { block, subBlockValues: filteredValues } = prepareDuplicateBlockState({
         sourceBlock,
@@ -68,18 +68,10 @@ export const ActionBar = memo(
         subBlockValues,
       })
 
+      setPendingSelection([newId])
       collaborativeBatchAddBlocks([block], [], {}, {}, { [newId]: filteredValues })
-    }, [
-      blockId,
-      blocks,
-      activeWorkflowId,
-      subBlockStore.workflowValues,
-      collaborativeBatchAddBlocks,
-    ])
+    }, [blockId, activeWorkflowId, collaborativeBatchAddBlocks, setPendingSelection])
 
-    /**
-     * Optimized single store subscription for all block data
-     */
     const { isEnabled, horizontalHandles, parentId, parentType } = useWorkflowStore(
       useCallback(
         (state) => {

@@ -4,13 +4,13 @@ import type React from 'react'
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useUserPermissions, type WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import {
   useWorkspacePermissions,
   type WorkspacePermissions,
 } from '@/hooks/use-workspace-permissions'
 import { useNotificationStore } from '@/stores/notifications'
+import { useOperationQueueStore } from '@/stores/operation-queue/store'
 
 const logger = createLogger('WorkspacePermissionsProvider')
 
@@ -64,8 +64,8 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
   // Track whether we've already surfaced an offline notification to avoid duplicates
   const [hasShownOfflineNotification, setHasShownOfflineNotification] = useState(false)
 
-  // Get operation error state from collaborative workflow
-  const { hasOperationError } = useCollaborativeWorkflow()
+  // Get operation error state directly from the store (avoid full useCollaborativeWorkflow subscription)
+  const hasOperationError = useOperationQueueStore((state) => state.hasOperationError)
 
   const addNotification = useNotificationStore((state) => state.addNotification)
 

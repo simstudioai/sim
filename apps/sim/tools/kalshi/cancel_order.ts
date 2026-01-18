@@ -37,6 +37,7 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
       orderId: {
         type: 'string',
         required: true,
+        visibility: 'user-or-llm',
         description: 'The order ID to cancel',
       },
     },

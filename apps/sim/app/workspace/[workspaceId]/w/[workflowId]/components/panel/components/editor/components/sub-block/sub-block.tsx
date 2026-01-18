@@ -1,4 +1,5 @@
 import { type JSX, type MouseEvent, memo, useRef, useState } from 'react'
+import { isEqual } from 'lodash'
 import { AlertTriangle, ArrowLeftRight, ArrowUp } from 'lucide-react'
 import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'
@@ -168,6 +169,8 @@ const getPreviewValue = (
  * @param isValidJson - Whether the JSON content is valid (for code blocks)
  * @param subBlockValues - Current values of all subblocks for evaluating conditional requirements
  * @param wandState - Optional state and handlers for the AI wand feature
+ * @param canonicalToggle - Optional canonical toggle metadata and handlers
+ * @param canonicalToggleIsDisabled - Whether the canonical toggle is disabled
  * @returns The label JSX element, or `null` for switch types or when no title is defined
  */
 const renderLabel = (
@@ -192,7 +195,8 @@ const renderLabel = (
     mode: 'basic' | 'advanced'
     disabled?: boolean
     onToggle?: () => void
-  }
+  },
+  canonicalToggleIsDisabled?: boolean
 ): JSX.Element | null => {
   if (config.type === 'switch') return null
   if (!config.title) return null
@@ -200,28 +204,28 @@ const renderLabel = (
   const required = isFieldRequired(config, subBlockValues)
   const showWand = wandState?.isWandEnabled && !wandState.isPreview && !wandState.disabled
   const showCanonicalToggle = !!canonicalToggle && !wandState?.isPreview
-  const canonicalToggleDisabled = wandState?.disabled || canonicalToggle?.disabled
+  const canonicalToggleDisabledResolved = canonicalToggleIsDisabled ?? canonicalToggle?.disabled
 
   return (
     <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
       <Label className='flex items-center gap-[6px] whitespace-nowrap'>
         {config.title}
         {required && <span className='ml-0.5'>*</span>}
-        {config.type === 'code' && config.language === 'json' && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <AlertTriangle
-                className={cn(
-                  'h-4 w-4 cursor-pointer text-destructive',
-                  !isValidJson ? 'opacity-100' : 'opacity-0'
-                )}
-              />
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              <p>Invalid JSON</p>
-            </Tooltip.Content>
-          </Tooltip.Root>
-        )}
+        {config.type === 'code' &&
+          config.language === 'json' &&
+          !isValidJson &&
+          !wandState?.isStreaming && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <span className='inline-flex'>
+                  <AlertTriangle className='h-3 w-3 flex-shrink-0 cursor-pointer text-destructive' />
+                </span>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
+                <p>Invalid JSON</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          )}
       </Label>
       <div className='flex items-center gap-[6px]'>
         {showWand && (
@@ -239,9 +243,11 @@ const renderLabel = (
                 <Input
                   ref={wandState.searchInputRef}
                   value={wandState.isStreaming ? 'Generating...' : wandState.searchQuery}
-                  onChange={(e) => wandState.onSearchChange(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    wandState.onSearchChange(e.target.value)
+                  }
                   onBlur={wandState.onSearchBlur}
-                  onKeyDown={(e) => {
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                     if (
                       e.key === 'Enter' &&
                       wandState.searchQuery.trim() &&
@@ -262,11 +268,11 @@ const renderLabel = (
                 <Button
                   variant='tertiary'
                   disabled={!wandState.searchQuery.trim() || wandState.isStreaming}
-                  onMouseDown={(e) => {
+                  onMouseDown={(e: React.MouseEvent) => {
                     e.preventDefault()
                     e.stopPropagation()
                   }}
-                  onClick={(e) => {
+                  onClick={(e: React.MouseEvent) => {
                     e.stopPropagation()
                     wandState.onSearchSubmit()
                   }}
@@ -283,7 +289,7 @@ const renderLabel = (
             type='button'
             className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
             onClick={canonicalToggle?.onToggle}
-            disabled={canonicalToggleDisabled}
+            disabled={canonicalToggleDisabledResolved}
             aria-label={canonicalToggle?.mode === 'advanced' ? 'Use selector' : 'Enter manual ID'}
           >
             <ArrowLeftRight
@@ -302,22 +308,27 @@ const renderLabel = (
 }
 
 /**
- * Compares props to prevent unnecessary re-renders.
- *
- * @remarks
- * Used with React.memo to optimize performance by skipping re-renders
- * when props haven't meaningfully changed.
+ * Compares props for memo equality check.
  *
  * @param prevProps - Previous component props
  * @param nextProps - Next component props
  * @returns `true` if props are equal and re-render should be skipped
  */
 const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): boolean => {
+  const subBlockId = prevProps.config.id
+  const prevValue = prevProps.subBlockValues?.[subBlockId]?.value
+  const nextValue = nextProps.subBlockValues?.[subBlockId]?.value
+
+  const valueEqual = prevValue === nextValue || isEqual(prevValue, nextValue)
+
+  const configEqual =
+    prevProps.config.id === nextProps.config.id && prevProps.config.type === nextProps.config.type
+
   return (
     prevProps.blockId === nextProps.blockId &&
-    prevProps.config === nextProps.config &&
+    configEqual &&
     prevProps.isPreview === nextProps.isPreview &&
-    prevProps.subBlockValues === nextProps.subBlockValues &&
+    valueEqual &&
     prevProps.disabled === nextProps.disabled &&
     prevProps.fieldDiffStatus === nextProps.fieldDiffStatus &&
     prevProps.allowExpandInPreview === nextProps.allowExpandInPreview &&
@@ -941,7 +952,8 @@ function SubBlockComponent({
           onSearchCancel: handleSearchCancel,
           searchInputRef,
         },
-        canonicalToggle
+        canonicalToggle,
+        Boolean(canonicalToggle?.disabled || disabled || isPreview)
       )}
       {renderInput()}
     </div>

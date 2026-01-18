@@ -5,7 +5,7 @@ import { useCustomToolsStore } from '@/stores/custom-tools'
 import { useEnvironmentStore } from '@/stores/settings/environment'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import { tools } from '@/tools/registry'
-import type { TableRow, ToolConfig, ToolResponse } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 const logger = createLogger('ToolsUtils')
 
@@ -68,30 +68,6 @@ export function resolveToolId(toolName: string): string {
   }
 
   return toolName
-}
-
-/**
- * Transforms a table from the store format to a key-value object
- * @param table Array of table rows from the store
- * @returns Record of key-value pairs
- */
-export const transformTable = (table: TableRow[] | null): Record<string, any> => {
-  if (!table) return {}
-
-  return table.reduce(
-    (acc, row) => {
-      if (row.cells?.Key && row.cells?.Value !== undefined) {
-        // Extract the Value cell as is - it should already be properly resolved
-        // by the InputResolver based on variable type (number, string, boolean etc.)
-        const value = row.cells.Value
-
-        // Store the correctly typed value in the result object
-        acc[row.cells.Key] = value
-      }
-      return acc
-    },
-    {} as Record<string, any>
-  )
 }
 
 interface RequestParams {

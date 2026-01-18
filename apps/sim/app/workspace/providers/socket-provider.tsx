@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -739,38 +740,60 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     eventHandlers.current.operationFailed = handler
   }, [])
 
-  return (
-    <SocketContext.Provider
-      value={{
-        socket,
-        isConnected,
-        isConnecting,
-        currentWorkflowId,
-        currentSocketId,
-        presenceUsers,
-        joinWorkflow,
-        leaveWorkflow,
-        emitWorkflowOperation,
-        emitSubblockUpdate,
-        emitVariableUpdate,
-
-        emitCursorUpdate,
-        emitSelectionUpdate,
-        onWorkflowOperation,
-        onSubblockUpdate,
-        onVariableUpdate,
-
-        onCursorUpdate,
-        onSelectionUpdate,
-        onUserJoined,
-        onUserLeft,
-        onWorkflowDeleted,
-        onWorkflowReverted,
-        onOperationConfirmed,
-        onOperationFailed,
-      }}
-    >
-      {children}
-    </SocketContext.Provider>
+  const contextValue = useMemo(
+    () => ({
+      socket,
+      isConnected,
+      isConnecting,
+      currentWorkflowId,
+      currentSocketId,
+      presenceUsers,
+      joinWorkflow,
+      leaveWorkflow,
+      emitWorkflowOperation,
+      emitSubblockUpdate,
+      emitVariableUpdate,
+      emitCursorUpdate,
+      emitSelectionUpdate,
+      onWorkflowOperation,
+      onSubblockUpdate,
+      onVariableUpdate,
+      onCursorUpdate,
+      onSelectionUpdate,
+      onUserJoined,
+      onUserLeft,
+      onWorkflowDeleted,
+      onWorkflowReverted,
+      onOperationConfirmed,
+      onOperationFailed,
+    }),
+    [
+      socket,
+      isConnected,
+      isConnecting,
+      currentWorkflowId,
+      currentSocketId,
+      presenceUsers,
+      joinWorkflow,
+      leaveWorkflow,
+      emitWorkflowOperation,
+      emitSubblockUpdate,
+      emitVariableUpdate,
+      emitCursorUpdate,
+      emitSelectionUpdate,
+      onWorkflowOperation,
+      onSubblockUpdate,
+      onVariableUpdate,
+      onCursorUpdate,
+      onSelectionUpdate,
+      onUserJoined,
+      onUserLeft,
+      onWorkflowDeleted,
+      onWorkflowReverted,
+      onOperationConfirmed,
+      onOperationFailed,
+    ]
   )
+
+  return <SocketContext.Provider value={contextValue}>{children}</SocketContext.Provider>
 }

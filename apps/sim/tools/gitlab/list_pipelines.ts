@@ -14,42 +14,50 @@ export const gitlabListPipelinesTool: ToolConfig<
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'GitLab Personal Access Token',
     },
     projectId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Project ID or URL-encoded path',
     },
     ref: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Filter by ref (branch or tag)',
     },
     status: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description:
         'Filter by status (created, waiting_for_resource, preparing, pending, running, success, failed, canceled, skipped, manual, scheduled)',
     },
     orderBy: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Order by field (id, status, ref, updated_at, user_id)',
     },
     sort: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Sort direction (asc, desc)',
     },
     perPage: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Number of results per page (default 20, max 100)',
     },
     page: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Page number for pagination',
     },
   },

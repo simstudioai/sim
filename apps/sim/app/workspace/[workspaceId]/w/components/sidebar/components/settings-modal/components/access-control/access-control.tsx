@@ -1078,7 +1078,7 @@ export function AccessControl() {
             </ModalBody>
             <ModalFooter>
               <Button
-                variant='default'
+                variant='destructive'
                 onClick={() => {
                   setShowUnsavedChanges(false)
                   setShowConfigModal(false)

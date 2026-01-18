@@ -10,14 +10,27 @@ export interface BlockTagGroup {
 }
 
 /**
- * Nested tag structure for hierarchical display
+ * Child tag within a nested structure
+ */
+export interface NestedTagChild {
+  key: string
+  display: string
+  fullTag: string
+}
+
+/**
+ * Nested tag structure for hierarchical display.
+ * Supports recursive nesting for deeply nested object structures.
  */
 export interface NestedTag {
   key: string
   display: string
   fullTag?: string
-  parentTag?: string // Tag for the parent object when it has children
-  children?: Array<{ key: string; display: string; fullTag: string }>
+  parentTag?: string
+  /** Leaf children (no further nesting) */
+  children?: NestedTagChild[]
+  /** Recursively nested folders */
+  nestedChildren?: NestedTag[]
 }
 
 /**

@@ -135,7 +135,13 @@ export interface OutputCondition {
   not?: boolean
   and?: {
     field: string
-    value: string | number | boolean | Array<string | number | boolean> | undefined
+    value:
+      | string
+      | number
+      | boolean
+      | Array<string | number | boolean | undefined | null>
+      | undefined
+      | null
     not?: boolean
   }
 }

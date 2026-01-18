@@ -28,21 +28,25 @@ export const polymarketGetTradesTool: ToolConfig<
       type: 'string',
       required: false,
       description: 'User wallet address to filter trades',
+      visibility: 'user-or-llm',
     },
     market: {
       type: 'string',
       required: false,
       description: 'Market ID to filter trades',
+      visibility: 'user-or-llm',
     },
     limit: {
       type: 'string',
       required: false,
       description: 'Number of results per page (max 50)',
+      visibility: 'user-or-llm',
     },
     offset: {
       type: 'string',
       required: false,
       description: 'Pagination offset (skip this many results)',
+      visibility: 'user-or-llm',
     },
   },
 

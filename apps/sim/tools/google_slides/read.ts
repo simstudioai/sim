@@ -79,6 +79,39 @@ export const readTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesReadRespon
     metadata: {
       type: 'json',
       description: 'Presentation metadata including ID, title, and URL',
+      properties: {
+        presentationId: {
+          type: 'string',
+          description: 'The presentation ID',
+        },
+        title: {
+          type: 'string',
+          description: 'The presentation title',
+        },
+        pageSize: {
+          type: 'object',
+          description: 'Presentation page size',
+          optional: true,
+          properties: {
+            width: {
+              type: 'json',
+              description: 'Page width as a Dimension object',
+            },
+            height: {
+              type: 'json',
+              description: 'Page height as a Dimension object',
+            },
+          },
+        },
+        mimeType: {
+          type: 'string',
+          description: 'The mime type of the presentation',
+        },
+        url: {
+          type: 'string',
+          description: 'URL to open the presentation',
+        },
+      },
     },
   },
 }

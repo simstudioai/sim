@@ -21,18 +21,22 @@ export const webhookRequestTool: ToolConfig<WebhookRequestParams, RequestRespons
     url: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The webhook URL to send the request to',
     },
     body: {
       type: 'object',
+      visibility: 'user-or-llm',
       description: 'JSON payload to send',
     },
     secret: {
       type: 'string',
+      visibility: 'user-or-llm',
       description: 'Optional secret for HMAC-SHA256 signature',
     },
     headers: {
       type: 'object',
+      visibility: 'user-or-llm',
       description: 'Additional headers to include',
     },
   },
@@ -46,7 +50,6 @@ export const webhookRequestTool: ToolConfig<WebhookRequestParams, RequestRespons
       const timestamp = Date.now()
       const deliveryId = uuidv4()
 
-      // Start with webhook-specific headers
       const webhookHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         'X-Webhook-Timestamp': timestamp.toString(),
@@ -54,7 +57,6 @@ export const webhookRequestTool: ToolConfig<WebhookRequestParams, RequestRespons
         'Idempotency-Key': deliveryId,
       }
 
-      // Add signature if secret is provided
       if (params.secret) {
         const bodyString =
           typeof params.body === 'string' ? params.body : JSON.stringify(params.body || {})
@@ -62,7 +64,6 @@ export const webhookRequestTool: ToolConfig<WebhookRequestParams, RequestRespons
         webhookHeaders['X-Webhook-Signature'] = `t=${timestamp},v1=${signature}`
       }
 
-      // Merge with user-provided headers (user headers take precedence)
       const userHeaders = params.headers || {}
 
       return { ...webhookHeaders, ...userHeaders }
@@ -83,7 +84,6 @@ export const webhookRequestTool: ToolConfig<WebhookRequestParams, RequestRespons
       ? response.json()
       : response.text())
 
-    // Check if this is a proxy response
     if (
       contentType.includes('application/json') &&
       typeof data === 'object' &&

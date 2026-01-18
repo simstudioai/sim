@@ -1,12 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isEqual } from 'lodash'
 import { BookOpen, Check, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { Button, Tooltip } from '@/components/emcn'
 import {
   buildCanonicalIndex,
+  evaluateSubBlockCondition,
   hasAdvancedValues,
-  hasStandaloneAdvancedFields,
   isCanonicalPair,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
@@ -33,6 +35,9 @@ import { usePanelEditorStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
+/** Stable empty object to avoid creating new references */
+const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
+
 /**
  * Icon component for rendering block icons.
  *
@@ -58,7 +63,15 @@ export function Editor() {
     toggleConnectionsCollapsed,
     shouldFocusRename,
     setShouldFocusRename,
-  } = usePanelEditorStore()
+  } = usePanelEditorStore(
+    useShallow((state) => ({
+      currentBlockId: state.currentBlockId,
+      connectionsHeight: state.connectionsHeight,
+      toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
+      shouldFocusRename: state.shouldFocusRename,
+      setShouldFocusRename: state.setShouldFocusRename,
+    }))
+  )
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
@@ -86,15 +99,15 @@ export function Editor() {
     currentWorkflow.isSnapshotView
   )
 
-  // Subscribe to block's subblock values
   const blockSubBlockValues = useSubBlockStore(
     useCallback(
       (state) => {
-        if (!activeWorkflowId || !currentBlockId) return {}
-        return state.workflowValues[activeWorkflowId]?.[currentBlockId] || {}
+        if (!activeWorkflowId || !currentBlockId) return EMPTY_SUBBLOCK_VALUES
+        return state.workflowValues[activeWorkflowId]?.[currentBlockId] ?? EMPTY_SUBBLOCK_VALUES
       },
       [activeWorkflowId, currentBlockId]
-    )
+    ),
+    isEqual
   )
 
   const subBlocksForCanonical = useMemo(() => {
@@ -118,10 +131,24 @@ export function Editor() {
   )
   const displayAdvancedOptions = advancedMode || advancedValuesPresent
 
-  const hasAdvancedOnlyFields = useMemo(
-    () => hasStandaloneAdvancedFields(subBlocksForCanonical, canonicalIndex),
-    [subBlocksForCanonical, canonicalIndex]
-  )
+  const hasAdvancedOnlyFields = useMemo(() => {
+    for (const subBlock of subBlocksForCanonical) {
+      // Must be standalone advanced (mode: 'advanced' without canonicalParamId)
+      if (subBlock.mode !== 'advanced') continue
+      if (canonicalIndex.canonicalIdBySubBlockId[subBlock.id]) continue
+
+      // Check condition - skip if condition not met for current values
+      if (
+        subBlock.condition &&
+        !evaluateSubBlockCondition(subBlock.condition, blockSubBlockValues)
+      ) {
+        continue
+      }
+
+      return true
+    }
+    return false
+  }, [subBlocksForCanonical, canonicalIndex.canonicalIdBySubBlockId, blockSubBlockValues])
 
   // Get subblock layout using custom hook
   const { subBlocks, stateToUse: subBlockState } = useEditorSubblockLayout(
@@ -467,7 +494,9 @@ export function Editor() {
                         onClick={handleToggleAdvancedMode}
                         className='flex items-center gap-[6px] whitespace-nowrap font-medium text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                       >
-                        {displayAdvancedOptions ? 'Hide advanced fields' : 'Show advanced fields'}
+                        {displayAdvancedOptions
+                          ? 'Hide additional fields'
+                          : 'Show additional fields'}
                         <ChevronDown
                           className={`h-[14px] w-[14px] transition-transform duration-200 ${displayAdvancedOptions ? 'rotate-180' : ''}`}
                         />

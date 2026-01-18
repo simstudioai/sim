@@ -28,6 +28,7 @@ export const spotifyRemoveSavedAudiobooksTool: ToolConfig<
     audiobookIds: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Comma-separated audiobook IDs (max 50)',
     },
   },

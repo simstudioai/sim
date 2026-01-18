@@ -27,11 +27,13 @@ export const polymarketGetPriceTool: ToolConfig<
       type: 'string',
       required: true,
       description: 'The CLOB token ID (from market clobTokenIds)',
+      visibility: 'user-or-llm',
     },
     side: {
       type: 'string',
       required: true,
       description: 'Order side: buy or sell',
+      visibility: 'user-or-llm',
     },
   },
 

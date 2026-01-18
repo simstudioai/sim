@@ -334,7 +334,7 @@ export function Copilot() {
               Cancel
             </Button>
             <Button
-              variant='ghost'
+              variant='destructive'
               onClick={handleDeleteKey}
               disabled={deleteKeyMutation.isPending}
             >

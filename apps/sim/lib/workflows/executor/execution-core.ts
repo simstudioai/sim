@@ -318,7 +318,7 @@ export async function executeWorkflowCore(
       executionId,
       workspaceId: providedWorkspaceId,
       userId,
-      isDeployedContext: triggerType !== 'manual',
+      isDeployedContext: !metadata.isClientSession,
       onBlockStart,
       onBlockComplete: wrappedOnBlockComplete,
       onStream,

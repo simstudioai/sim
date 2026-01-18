@@ -53,22 +53,27 @@ const SUBFLOW_CONFIG = {
  * @returns Subflow editor state and handlers
  */
 export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId: string | null) {
-  const workflowStore = useWorkflowStore()
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
 
-  // State
   const [tempInputValue, setTempInputValue] = useState<string | null>(null)
   const [showTagDropdown, setShowTagDropdown] = useState(false)
   const [cursorPosition, setCursorPosition] = useState(0)
 
-  // Check if current block is a subflow
   const isSubflow =
     currentBlock && (currentBlock.type === 'loop' || currentBlock.type === 'parallel')
 
-  // Get subflow configuration
   const subflowConfig = isSubflow ? SUBFLOW_CONFIG[currentBlock.type as 'loop' | 'parallel'] : null
-  const nodeConfig = isSubflow ? workflowStore[subflowConfig!.storeKey][currentBlockId!] : null
+
+  const nodeConfig = useWorkflowStore(
+    useCallback(
+      (state) => {
+        if (!isSubflow || !subflowConfig || !currentBlockId) return null
+        return state[subflowConfig.storeKey][currentBlockId] ?? null
+      },
+      [isSubflow, subflowConfig, currentBlockId]
+    )
+  )
 
   // Get block data for fallback values
   const blockData = isSubflow ? currentBlock?.data : null

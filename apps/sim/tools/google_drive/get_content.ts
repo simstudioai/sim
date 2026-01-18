@@ -212,9 +212,9 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
       properties: {
         // Basic Info
         id: { type: 'string', description: 'Google Drive file ID' },
+        kind: { type: 'string', description: 'Resource type identifier' },
         name: { type: 'string', description: 'File name' },
         mimeType: { type: 'string', description: 'MIME type' },
-        kind: { type: 'string', description: 'Resource type identifier' },
         description: { type: 'string', description: 'File description' },
         originalFilename: { type: 'string', description: 'Original uploaded filename' },
         fullFileExtension: { type: 'string', description: 'Full file extension' },

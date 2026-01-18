@@ -43,26 +43,31 @@ export const kalshiGetOrdersTool: ToolConfig<KalshiGetOrdersParams, KalshiGetOrd
     ticker: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Filter by market ticker',
     },
     eventTicker: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Filter by event ticker (max 10 comma-separated)',
     },
     status: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Filter by status (resting, canceled, executed)',
     },
     limit: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Number of results (1-200, default: 100)',
     },
     cursor: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Pagination cursor for next page',
     },
   },

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import 'prismjs/components/prism-python'
@@ -170,7 +170,7 @@ interface CodeProps {
   hideInternalWand?: boolean
 }
 
-export function Code({
+export const Code = memo(function Code({
   blockId,
   subBlockId,
   placeholder = 'Write JavaScript...',
@@ -206,6 +206,8 @@ export function Code({
   const handleGeneratedContentRef = useRef<(generatedCode: string) => void>(() => {})
   const handleStreamChunkRef = useRef<(chunk: string) => void>(() => {})
   const hasEditedSinceFocusRef = useRef(false)
+  const codeRef = useRef(code)
+  codeRef.current = code
 
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const emitTagSelection = useTagSelection(blockId, subBlockId)
@@ -307,25 +309,18 @@ export function Code({
         ? getDefaultValueString()
         : storeValue
 
-  const lastValidationStatus = useRef<boolean>(true)
-
   useEffect(() => {
     if (!onValidationChange) return
 
-    const nextStatus = shouldValidateJson ? isValidJson : true
-    if (lastValidationStatus.current === nextStatus) {
-      return
-    }
+    const isValid = !shouldValidateJson || isValidJson
 
-    lastValidationStatus.current = nextStatus
-
-    if (!shouldValidateJson) {
-      onValidationChange(nextStatus)
+    if (isValid) {
+      onValidationChange(true)
       return
     }
 
     const timeoutId = setTimeout(() => {
-      onValidationChange(nextStatus)
+      onValidationChange(false)
     }, 150)
 
     return () => clearTimeout(timeoutId)
@@ -337,7 +332,7 @@ export function Code({
     }
 
     handleStreamChunkRef.current = (chunk: string) => {
-      setCode((prev) => prev + chunk)
+      setCode((prev: string) => prev + chunk)
     }
 
     handleGeneratedContentRef.current = (generatedCode: string) => {
@@ -434,12 +429,12 @@ export function Code({
       `
       document.body.appendChild(tempContainer)
 
-      lines.forEach((line) => {
+      lines.forEach((line: string) => {
         const lineDiv = document.createElement('div')
 
         if (line.includes('<') && line.includes('>')) {
           const parts = line.split(/(<[^>]+>)/g)
-          parts.forEach((part) => {
+          parts.forEach((part: string) => {
             const span = document.createElement('span')
             span.textContent = part
             lineDiv.appendChild(span)
@@ -472,7 +467,6 @@ export function Code({
     }
   }, [code])
 
-  // Event Handlers
   /**
    * Handles drag-and-drop events for inserting reference tags into the code editor.
    * @param e - The drag event
@@ -500,7 +494,6 @@ export function Code({
           textarea.selectionStart = newCursorPosition
           textarea.selectionEnd = newCursorPosition
 
-          // Show tag dropdown after cursor is positioned
           setShowTags(true)
           if (data.connectionData?.sourceBlockId) {
             setActiveSourceBlockId(data.connectionData.sourceBlockId)
@@ -559,44 +552,45 @@ export function Code({
     }
   }
 
-  // Helper Functions
   /**
    * Determines whether a `<...>` segment should be highlighted as a reference.
    * @param part - The code segment to check
    * @returns True if the segment should be highlighted as a reference
    */
-  const shouldHighlightReference = (part: string): boolean => {
-    if (!part.startsWith('<') || !part.endsWith('>')) {
-      return false
-    }
+  const shouldHighlightReference = useCallback(
+    (part: string): boolean => {
+      if (!part.startsWith('<') || !part.endsWith('>')) {
+        return false
+      }
 
-    if (!isLikelyReferenceSegment(part)) {
-      return false
-    }
+      if (!isLikelyReferenceSegment(part)) {
+        return false
+      }
 
-    const split = splitReferenceSegment(part)
-    if (!split) {
-      return false
-    }
+      const split = splitReferenceSegment(part)
+      if (!split) {
+        return false
+      }
 
-    const reference = split.reference
+      const reference = split.reference
 
-    if (!accessiblePrefixes) {
-      return true
-    }
+      if (!accessiblePrefixes) {
+        return true
+      }
 
-    const inner = reference.slice(1, -1)
-    const [prefix] = inner.split('.')
-    const normalizedPrefix = normalizeName(prefix)
+      const inner = reference.slice(1, -1)
+      const [prefix] = inner.split('.')
+      const normalizedPrefix = normalizeName(prefix)
 
-    if (SYSTEM_REFERENCE_PREFIXES.has(normalizedPrefix)) {
-      return true
-    }
+      if (SYSTEM_REFERENCE_PREFIXES.has(normalizedPrefix)) {
+        return true
+      }
 
-    return accessiblePrefixes.has(normalizedPrefix)
-  }
+      return accessiblePrefixes.has(normalizedPrefix)
+    },
+    [accessiblePrefixes]
+  )
 
-  // Expose wand control handlers to parent via ref
   useImperativeHandle(
     wandControlRef,
     () => ({
@@ -609,6 +603,62 @@ export function Code({
     [generateCodeStream, isPromptVisible, isAiStreaming]
   )
 
+  const highlightCode = useMemo(
+    () => createHighlightFunction(effectiveLanguage, shouldHighlightReference),
+    [effectiveLanguage, shouldHighlightReference]
+  )
+
+  const handleValueChange = useCallback(
+    (newCode: string) => {
+      if (!isAiStreaming && !isPreview && !disabled && !readOnly) {
+        hasEditedSinceFocusRef.current = true
+        setCode(newCode)
+        setStoreValue(newCode)
+
+        const textarea = editorRef.current?.querySelector('textarea')
+        if (textarea) {
+          const pos = textarea.selectionStart
+          setCursorPosition(pos)
+
+          const tagTrigger = checkTagTrigger(newCode, pos)
+          setShowTags(tagTrigger.show)
+          if (!tagTrigger.show) {
+            setActiveSourceBlockId(null)
+          }
+
+          const envVarTrigger = checkEnvVarTrigger(newCode, pos)
+          setShowEnvVars(envVarTrigger.show)
+          setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
+        }
+      }
+    },
+    [isAiStreaming, isPreview, disabled, readOnly, setStoreValue]
+  )
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement | HTMLTextAreaElement>) => {
+      if (e.key === 'Escape') {
+        setShowTags(false)
+        setShowEnvVars(false)
+      }
+      if (isAiStreaming) {
+        e.preventDefault()
+      }
+      if (e.key === 'z' && (e.metaKey || e.ctrlKey) && !hasEditedSinceFocusRef.current) {
+        e.preventDefault()
+      }
+    },
+    [isAiStreaming]
+  )
+
+  const handleEditorFocus = useCallback(() => {
+    hasEditedSinceFocusRef.current = false
+    if (!isPreview && !disabled && !readOnly && codeRef.current.trim() === '') {
+      setShowTags(true)
+      setCursorPosition(0)
+    }
+  }, [isPreview, disabled, readOnly])
+
   /**
    * Renders the line numbers, aligned with wrapped visual lines and highlighting the active line.
    * @returns Array of React elements representing the line numbers
@@ -617,7 +667,7 @@ export function Code({
     const numbers: ReactElement[] = []
     let lineNumber = 1
 
-    visualLineHeights.forEach((height) => {
+    visualLineHeights.forEach((height: number) => {
       const isActive = lineNumber === activeLineNumber
       numbers.push(
         <div
@@ -724,50 +774,10 @@ export function Code({
 
           <Editor
             value={code}
-            onValueChange={(newCode) => {
-              if (!isAiStreaming && !isPreview && !disabled && !readOnly) {
-                hasEditedSinceFocusRef.current = true
-                setCode(newCode)
-                setStoreValue(newCode)
-
-                const textarea = editorRef.current?.querySelector('textarea')
-                if (textarea) {
-                  const pos = textarea.selectionStart
-                  setCursorPosition(pos)
-
-                  const tagTrigger = checkTagTrigger(newCode, pos)
-                  setShowTags(tagTrigger.show)
-                  if (!tagTrigger.show) {
-                    setActiveSourceBlockId(null)
-                  }
-
-                  const envVarTrigger = checkEnvVarTrigger(newCode, pos)
-                  setShowEnvVars(envVarTrigger.show)
-                  setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
-                }
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setShowTags(false)
-                setShowEnvVars(false)
-              }
-              if (isAiStreaming) {
-                e.preventDefault()
-              }
-              if (e.key === 'z' && (e.metaKey || e.ctrlKey) && !hasEditedSinceFocusRef.current) {
-                e.preventDefault()
-              }
-            }}
-            onFocus={() => {
-              hasEditedSinceFocusRef.current = false
-              // Show tag dropdown on focus when code is empty
-              if (!isPreview && !disabled && !readOnly && code.trim() === '') {
-                setShowTags(true)
-                setCursorPosition(0)
-              }
-            }}
-            highlight={createHighlightFunction(effectiveLanguage, shouldHighlightReference)}
+            onValueChange={handleValueChange}
+            onKeyDown={handleKeyDown}
+            onFocus={handleEditorFocus}
+            highlight={highlightCode}
             {...getCodeEditorProps({ isStreaming: isAiStreaming, isPreview, disabled })}
           />
 
@@ -810,4 +820,4 @@ export function Code({
       </CodeEditor.Container>
     </>
   )
-}
+})

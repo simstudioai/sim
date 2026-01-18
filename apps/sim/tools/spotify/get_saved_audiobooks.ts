@@ -43,12 +43,14 @@ export const spotifyGetSavedAudiobooksTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       default: 20,
       description: 'Number of audiobooks to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       default: 0,
       description: 'Index of first audiobook to return',
     },
