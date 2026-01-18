@@ -476,6 +476,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
   nestedTag,
   onNavigateIn,
 }) => {
+  const { isKeyboardNav, setKeyboardNav } = usePopoverContext()
   const currentNestedTag = nestedPath.length > 0 ? nestedPath[nestedPath.length - 1] : nestedTag
 
   const parentTagIndex = currentNestedTag.parentTag
@@ -489,6 +490,9 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
         <PopoverItem
           active={parentTagIndex === selectedIndex && parentTagIndex >= 0}
           onMouseEnter={() => {
+            // Skip selection update during keyboard navigation to prevent scroll-triggered selection changes
+            if (isKeyboardNav) return
+            setKeyboardNav(false)
             if (parentTagIndex >= 0) setSelectedIndex(parentTagIndex)
           }}
           onMouseDown={(e) => {
@@ -533,6 +537,8 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             key={child.key}
             active={childGlobalIndex === selectedIndex && childGlobalIndex >= 0}
             onMouseEnter={() => {
+              if (isKeyboardNav) return
+              setKeyboardNav(false)
               if (childGlobalIndex >= 0) setSelectedIndex(childGlobalIndex)
             }}
             onMouseDown={(e) => {
@@ -567,6 +573,8 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             key={`${group.blockId}-${nestedChild.key}`}
             active={parentGlobalIndex === selectedIndex && parentGlobalIndex >= 0}
             onMouseEnter={() => {
+              if (isKeyboardNav) return
+              setKeyboardNav(false)
               if (parentGlobalIndex >= 0) setSelectedIndex(parentGlobalIndex)
             }}
             onMouseDown={(e) => {
@@ -634,6 +642,7 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
   blocks,
   getMergedSubBlocks,
 }) => {
+  const { isKeyboardNav, setKeyboardNav } = usePopoverContext()
   const hasChildren = nestedTag.children && nestedTag.children.length > 0
   const hasNestedChildren = nestedTag.nestedChildren && nestedTag.nestedChildren.length > 0
 
@@ -656,6 +665,8 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
           }
         }}
         onMouseEnter={() => {
+          if (isKeyboardNav) return
+          setKeyboardNav(false)
           if (parentGlobalIndex >= 0) {
             setSelectedIndex(parentGlobalIndex)
           }
@@ -725,6 +736,8 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
       rootOnly
       active={globalIndex === selectedIndex && globalIndex >= 0}
       onMouseEnter={() => {
+        if (isKeyboardNav) return
+        setKeyboardNav(false)
         if (globalIndex >= 0) setSelectedIndex(globalIndex)
       }}
       onMouseDown={(e) => {
@@ -746,6 +759,126 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
           {tagDescription}
         </span>
       )}
+    </PopoverItem>
+  )
+}
+
+/**
+ * Hook to get mouse enter handler that respects keyboard navigation mode.
+ * Returns a handler that only updates selection if not in keyboard mode.
+ */
+const useKeyboardAwareMouseEnter = (
+  setSelectedIndex: (index: number) => void
+): ((index: number) => void) => {
+  const { isKeyboardNav, setKeyboardNav } = usePopoverContext()
+
+  return useCallback(
+    (index: number) => {
+      if (isKeyboardNav) return
+      setKeyboardNav(false)
+      if (index >= 0) setSelectedIndex(index)
+    },
+    [isKeyboardNav, setKeyboardNav, setSelectedIndex]
+  )
+}
+
+/**
+ * Wrapper for variable tag items that has access to popover context
+ */
+const VariableTagItem: React.FC<{
+  tag: string
+  globalIndex: number
+  selectedIndex: number
+  setSelectedIndex: (index: number) => void
+  handleTagSelect: (tag: string) => void
+  itemRefs: React.RefObject<Map<number, HTMLElement>>
+  variableInfo: { type: string; id: string } | null
+}> = ({
+  tag,
+  globalIndex,
+  selectedIndex,
+  setSelectedIndex,
+  handleTagSelect,
+  itemRefs,
+  variableInfo,
+}) => {
+  const handleMouseEnter = useKeyboardAwareMouseEnter(setSelectedIndex)
+
+  return (
+    <PopoverItem
+      key={tag}
+      rootOnly
+      active={globalIndex === selectedIndex && globalIndex >= 0}
+      onMouseEnter={() => handleMouseEnter(globalIndex)}
+      onMouseDown={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        handleTagSelect(tag)
+      }}
+      ref={(el) => {
+        if (el && globalIndex >= 0) {
+          itemRefs.current?.set(globalIndex, el)
+        }
+      }}
+    >
+      <span className='flex-1 truncate'>
+        {tag.startsWith(TAG_PREFIXES.VARIABLE) ? tag.substring(TAG_PREFIXES.VARIABLE.length) : tag}
+      </span>
+      {variableInfo && (
+        <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>
+          {variableInfo.type}
+        </span>
+      )}
+    </PopoverItem>
+  )
+}
+
+/**
+ * Wrapper for block root tag items that has access to popover context
+ */
+const BlockRootTagItem: React.FC<{
+  rootTag: string
+  rootTagGlobalIndex: number
+  selectedIndex: number
+  setSelectedIndex: (index: number) => void
+  handleTagSelect: (tag: string, group?: BlockTagGroup) => void
+  itemRefs: React.RefObject<Map<number, HTMLElement>>
+  group: BlockTagGroup
+  tagIcon: string | React.ComponentType<{ className?: string }>
+  blockColor: string
+  blockName: string
+}> = ({
+  rootTag,
+  rootTagGlobalIndex,
+  selectedIndex,
+  setSelectedIndex,
+  handleTagSelect,
+  itemRefs,
+  group,
+  tagIcon,
+  blockColor,
+  blockName,
+}) => {
+  const handleMouseEnter = useKeyboardAwareMouseEnter(setSelectedIndex)
+
+  return (
+    <PopoverItem
+      rootOnly
+      active={rootTagGlobalIndex === selectedIndex && rootTagGlobalIndex >= 0}
+      onMouseEnter={() => handleMouseEnter(rootTagGlobalIndex)}
+      onMouseDown={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        handleTagSelect(rootTag, group)
+      }}
+      ref={(el) => {
+        if (el && rootTagGlobalIndex >= 0) {
+          itemRefs.current?.set(rootTagGlobalIndex, el)
+        }
+      }}
+    >
+      <TagIcon icon={tagIcon} color={blockColor} />
+      <span className='flex-1 truncate font-medium'>{blockName}</span>
     </PopoverItem>
   )
 }
@@ -1613,7 +1746,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     const element = itemRefs.current.get(selectedIndex)
     if (element) {
       element.scrollIntoView({
-        behavior: 'smooth',
+        behavior: 'auto',
         block: 'nearest',
       })
     }
@@ -1888,35 +2021,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                       const globalIndex = flatTagList.findIndex((item) => item.tag === tag)
 
                       return (
-                        <PopoverItem
+                        <VariableTagItem
                           key={tag}
-                          rootOnly
-                          active={globalIndex === selectedIndex && globalIndex >= 0}
-                          onMouseEnter={() => {
-                            if (globalIndex >= 0) setSelectedIndex(globalIndex)
-                          }}
-                          onMouseDown={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            handleTagSelect(tag)
-                          }}
-                          ref={(el) => {
-                            if (el && globalIndex >= 0) {
-                              itemRefs.current.set(globalIndex, el)
-                            }
-                          }}
-                        >
-                          <span className='flex-1 truncate'>
-                            {tag.startsWith(TAG_PREFIXES.VARIABLE)
-                              ? tag.substring(TAG_PREFIXES.VARIABLE.length)
-                              : tag}
-                          </span>
-                          {variableInfo && (
-                            <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>
-                              {variableInfo.type}
-                            </span>
-                          )}
-                        </PopoverItem>
+                          tag={tag}
+                          globalIndex={globalIndex}
+                          selectedIndex={selectedIndex}
+                          setSelectedIndex={setSelectedIndex}
+                          handleTagSelect={handleTagSelect}
+                          itemRefs={itemRefs}
+                          variableInfo={variableInfo}
+                        />
                       )
                     })}
                     {nestedBlockTagGroups.length > 0 && <PopoverDivider rootOnly />}
@@ -1951,26 +2065,18 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
                   return (
                     <div key={group.blockId}>
-                      <PopoverItem
-                        rootOnly
-                        active={rootTagGlobalIndex === selectedIndex && rootTagGlobalIndex >= 0}
-                        onMouseEnter={() => {
-                          if (rootTagGlobalIndex >= 0) setSelectedIndex(rootTagGlobalIndex)
-                        }}
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          handleTagSelect(rootTag, group)
-                        }}
-                        ref={(el) => {
-                          if (el && rootTagGlobalIndex >= 0) {
-                            itemRefs.current.set(rootTagGlobalIndex, el)
-                          }
-                        }}
-                      >
-                        <TagIcon icon={tagIcon} color={blockColor} />
-                        <span className='flex-1 truncate font-medium'>{group.blockName}</span>
-                      </PopoverItem>
+                      <BlockRootTagItem
+                        rootTag={rootTag}
+                        rootTagGlobalIndex={rootTagGlobalIndex}
+                        selectedIndex={selectedIndex}
+                        setSelectedIndex={setSelectedIndex}
+                        handleTagSelect={handleTagSelect}
+                        itemRefs={itemRefs}
+                        group={group}
+                        tagIcon={tagIcon}
+                        blockColor={blockColor}
+                        blockName={group.blockName}
+                      />
                       {group.nestedTags.map((nestedTag) => {
                         if (nestedTag.fullTag === rootTag) {
                           return null
