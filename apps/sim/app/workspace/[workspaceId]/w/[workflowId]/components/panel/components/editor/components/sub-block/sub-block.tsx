@@ -169,6 +169,8 @@ const getPreviewValue = (
  * @param isValidJson - Whether the JSON content is valid (for code blocks)
  * @param subBlockValues - Current values of all subblocks for evaluating conditional requirements
  * @param wandState - Optional state and handlers for the AI wand feature
+ * @param canonicalToggle - Optional canonical toggle metadata and handlers
+ * @param canonicalToggleIsDisabled - Whether the canonical toggle is disabled
  * @returns The label JSX element, or `null` for switch types or when no title is defined
  */
 const renderLabel = (
@@ -193,7 +195,8 @@ const renderLabel = (
     mode: 'basic' | 'advanced'
     disabled?: boolean
     onToggle?: () => void
-  }
+  },
+  canonicalToggleIsDisabled?: boolean
 ): JSX.Element | null => {
   if (config.type === 'switch') return null
   if (!config.title) return null
@@ -201,7 +204,7 @@ const renderLabel = (
   const required = isFieldRequired(config, subBlockValues)
   const showWand = wandState?.isWandEnabled && !wandState.isPreview && !wandState.disabled
   const showCanonicalToggle = !!canonicalToggle && !wandState?.isPreview
-  const canonicalToggleDisabled = wandState?.disabled || canonicalToggle?.disabled
+  const canonicalToggleDisabledResolved = canonicalToggleIsDisabled ?? canonicalToggle?.disabled
 
   return (
     <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
@@ -286,7 +289,7 @@ const renderLabel = (
             type='button'
             className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
             onClick={canonicalToggle?.onToggle}
-            disabled={canonicalToggleDisabled}
+            disabled={canonicalToggleDisabledResolved}
             aria-label={canonicalToggle?.mode === 'advanced' ? 'Use selector' : 'Enter manual ID'}
           >
             <ArrowLeftRight
@@ -949,7 +952,8 @@ function SubBlockComponent({
           onSearchCancel: handleSearchCancel,
           searchInputRef,
         },
-        canonicalToggle
+        canonicalToggle,
+        Boolean(canonicalToggle?.disabled || disabled || isPreview)
       )}
       {renderInput()}
     </div>
