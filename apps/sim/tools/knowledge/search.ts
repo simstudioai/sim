@@ -1,6 +1,6 @@
 import type { KnowledgeSearchResponse } from '@/tools/knowledge/types'
-import { parseTagFilters } from '@/tools/params'
 import { enrichKBTagFiltersSchema } from '@/tools/schema-enrichers'
+import { parseTagFilters } from '@/tools/shared/tags'
 import type { ToolConfig } from '@/tools/types'
 
 export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
