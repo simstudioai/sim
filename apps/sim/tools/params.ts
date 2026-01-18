@@ -324,12 +324,6 @@ export interface ToolWithParameters {
 
 let blockConfigCache: Record<string, BlockConfig> | null = null
 
-const workflowInputFieldsCache = new Map<
-  string,
-  { fields: Array<{ name: string; type: string }>; timestamp: number }
->()
-const WORKFLOW_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
-
 function getBlockConfigurations(): Record<string, BlockConfig> {
   if (!blockConfigCache) {
     try {
@@ -726,18 +720,12 @@ async function applyDynamicSchemaForWorkflow(
 }
 
 /**
- * Helper function to fetch workflow input fields with caching
+ * Fetches workflow input fields from the API.
+ * No local caching - relies on React Query caching on the client side.
  */
 async function fetchWorkflowInputFields(
   workflowId: string
 ): Promise<Array<{ name: string; type: string }>> {
-  const cached = workflowInputFieldsCache.get(workflowId)
-  const now = Date.now()
-
-  if (cached && now - cached.timestamp < WORKFLOW_CACHE_TTL) {
-    return cached.fields
-  }
-
   try {
     const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
 
@@ -750,10 +738,7 @@ async function fetchWorkflowInputFields(
     }
 
     const { data } = await response.json()
-    const fields = extractInputFieldsFromBlocks(data?.state?.blocks)
-    workflowInputFieldsCache.set(workflowId, { fields, timestamp: now })
-
-    return fields
+    return extractInputFieldsFromBlocks(data?.state?.blocks)
   } catch (error) {
     logger.error('Error fetching workflow input fields:', error)
     return []

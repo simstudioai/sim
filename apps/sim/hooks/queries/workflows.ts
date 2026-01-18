@@ -52,7 +52,8 @@ export function useWorkflowInputFields(workflowId: string | undefined) {
     queryKey: workflowKeys.inputFields(workflowId),
     queryFn: () => fetchWorkflowInputFields(workflowId!),
     enabled: Boolean(workflowId),
-    staleTime: 60 * 1000, // 1 minute cache
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 }
 
