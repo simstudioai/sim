@@ -127,6 +127,7 @@ export const updateTool: ToolConfig<GoogleDriveUpdateParams, GoogleDriveUpdateRe
       description: 'The updated file metadata',
       properties: {
         id: { type: 'string', description: 'Google Drive file ID' },
+        kind: { type: 'string', description: 'Resource type identifier' },
         name: { type: 'string', description: 'File name' },
         mimeType: { type: 'string', description: 'MIME type' },
         description: { type: 'string', description: 'File description', optional: true },

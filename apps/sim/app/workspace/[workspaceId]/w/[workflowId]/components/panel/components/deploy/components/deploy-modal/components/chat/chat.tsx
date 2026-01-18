@@ -409,7 +409,11 @@ export function ChatDeploy({
           <ModalHeader>Delete Chat</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete this chat?{' '}
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {existingChat?.title || 'this chat'}
+              </span>
+              ?{' '}
               <span className='text-[var(--text-error)]'>
                 This will remove the chat at "{getEmailDomain()}/chat/{existingChat?.identifier}"
                 and make it unavailable to all users.

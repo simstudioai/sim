@@ -22,11 +22,10 @@ import {
 import { useSession } from '@/lib/auth/auth-client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
-import { useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
+import { useShowActionBar, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
-import { useGeneralStore } from '@/stores/settings/general'
 import { useTerminalStore } from '@/stores/terminal'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -41,7 +40,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
   const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
   const { mode, setMode } = useCanvasModeStore()
   const { undo, redo } = useCollaborativeWorkflow()
-  const showWorkflowControls = useGeneralStore((s) => s.showActionBar)
+  const showWorkflowControls = useShowActionBar()
   const updateSetting = useUpdateGeneralSetting()
   const isTerminalResizing = useTerminalStore((state) => state.isResizing)
 

@@ -134,9 +134,9 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
       properties: {
         // Basic Info
         id: { type: 'string', description: 'Google Drive folder ID' },
+        kind: { type: 'string', description: 'Resource type identifier' },
         name: { type: 'string', description: 'Folder name' },
         mimeType: { type: 'string', description: 'MIME type (application/vnd.google-apps.folder)' },
-        kind: { type: 'string', description: 'Resource type identifier' },
         description: { type: 'string', description: 'Folder description' },
         // Ownership & Sharing
         owners: { type: 'json', description: 'List of folder owners' },

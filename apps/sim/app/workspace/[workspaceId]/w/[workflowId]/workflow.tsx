@@ -63,6 +63,7 @@ import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
+import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-settings'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -74,7 +75,6 @@ import { useExecutionStore } from '@/stores/execution'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useNotificationStore } from '@/stores/notifications'
 import { useCopilotStore, usePanelEditorStore } from '@/stores/panel'
-import { useGeneralStore } from '@/stores/settings/general'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
@@ -308,8 +308,14 @@ const WorkflowContent = React.memo(() => {
 
   const showTrainingModal = useCopilotTrainingStore((state) => state.showModal)
 
-  const snapToGridSize = useGeneralStore((state) => state.snapToGridSize)
+  const snapToGridSize = useSnapToGridSize()
   const snapToGrid = snapToGridSize > 0
+
+  const isAutoConnectEnabled = useAutoConnect()
+  const autoConnectRef = useRef(isAutoConnectEnabled)
+  useEffect(() => {
+    autoConnectRef.current = isAutoConnectEnabled
+  }, [isAutoConnectEnabled])
 
   // Panel open states for context menu
   const isVariablesOpen = useVariablesStore((state) => state.isOpen)
@@ -1217,8 +1223,7 @@ const WorkflowContent = React.memo(() => {
         containerId?: string
       }
     ): Edge | undefined => {
-      const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-      if (!isAutoConnectEnabled) return undefined
+      if (!autoConnectRef.current) return undefined
 
       // Don't auto-connect starter or annotation-only blocks
       if (options.blockType === 'starter' || isAnnotationOnlyBlock(options.blockType)) {
