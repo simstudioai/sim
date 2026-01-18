@@ -194,9 +194,14 @@ Get detailed information about a specific slide/page in a Google Slides presenta
 | --------- | ---- | ----------- |
 | `objectId` | string | The object ID of the page |
 | `pageType` | string | The type of page \(SLIDE, MASTER, LAYOUT, NOTES, NOTES_MASTER\) |
-| `pageElements` | json | Array of page elements \(shapes, images, tables, etc.\) on this page |
-| `slideProperties` | json | Properties specific to slides \(layout, master, notes\) |
-| `metadata` | json | Operation metadata including presentation ID and URL |
+| `pageElements` | array | Array of page elements \(shapes, images, tables, etc.\) on this page |
+| `slideProperties` | object | Properties specific to slides \(layout, master, notes\) |
+| ↳ `layoutObjectId` | string | Object ID of the layout this slide is based on |
+| ↳ `masterObjectId` | string | Object ID of the master this slide is based on |
+| ↳ `notesPage` | json | The notes page associated with the slide |
+| `metadata` | object | Operation metadata including presentation ID and URL |
+| ↳ `presentationId` | string | The presentation ID |
+| ↳ `url` | string | URL to the presentation |
 
 ### `google_slides_delete_object`
 
@@ -215,7 +220,9 @@ Delete a page element (shape, image, table, etc.) or an entire slide from a Goog
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the object was successfully deleted |
 | `objectId` | string | The object ID that was deleted |
-| `metadata` | json | Operation metadata including presentation ID and URL |
+| `metadata` | object | Operation metadata including presentation ID and URL |
+| ↳ `presentationId` | string | The presentation ID |
+| ↳ `url` | string | URL to the presentation |
 
 ### `google_slides_duplicate_object`
 
@@ -235,7 +242,10 @@ Duplicate an object (slide, shape, image, table, etc.) in a Google Slides presen
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `duplicatedObjectId` | string | The object ID of the newly created duplicate |
-| `metadata` | json | Operation metadata including presentation ID and source object ID |
+| `metadata` | object | Operation metadata including presentation ID and source object ID |
+| ↳ `presentationId` | string | The presentation ID |
+| ↳ `sourceObjectId` | string | The original object ID that was duplicated |
+| ↳ `url` | string | URL to the presentation |
 
 ### `google_slides_update_slides_position`
 
@@ -256,7 +266,9 @@ Move one or more slides to a new position in a Google Slides presentation
 | `moved` | boolean | Whether the slides were successfully moved |
 | `slideObjectIds` | array | The slide object IDs that were moved |
 | `insertionIndex` | number | The index where the slides were moved to |
-| `metadata` | json | Operation metadata including presentation ID and URL |
+| `metadata` | object | Operation metadata including presentation ID and URL |
+| ↳ `presentationId` | string | The presentation ID |
+| ↳ `url` | string | URL to the presentation |
 
 ### `google_slides_create_table`
 
@@ -282,7 +294,10 @@ Create a new table on a slide in a Google Slides presentation
 | `tableId` | string | The object ID of the newly created table |
 | `rows` | number | Number of rows in the table |
 | `columns` | number | Number of columns in the table |
-| `metadata` | json | Operation metadata including presentation ID and page object ID |
+| `metadata` | object | Operation metadata including presentation ID and page object ID |
+| ↳ `presentationId` | string | The presentation ID |
+| ↳ `pageObjectId` | string | The page object ID where the table was created |
+| ↳ `url` | string | URL to the presentation |
 
 ### `google_slides_create_shape`
 
@@ -306,7 +321,10 @@ Create a shape (rectangle, ellipse, text box, arrow, etc.) on a slide in a Googl
 | --------- | ---- | ----------- |
 | `shapeId` | string | The object ID of the newly created shape |
 | `shapeType` | string | The type of shape that was created |
-| `metadata` | json | Operation metadata including presentation ID and page object ID |
+| `metadata` | object | Operation metadata including presentation ID and page object ID |
+| ↳ `presentationId` | string | The presentation ID |
+| ↳ `pageObjectId` | string | The page object ID where the shape was created |
+| ↳ `url` | string | URL to the presentation |
 
 ### `google_slides_insert_text`
 
@@ -328,6 +346,8 @@ Insert text into a shape or table cell in a Google Slides presentation. Use this
 | `inserted` | boolean | Whether the text was successfully inserted |
 | `objectId` | string | The object ID where text was inserted |
 | `text` | string | The text that was inserted |
-| `metadata` | json | Operation metadata including presentation ID and URL |
+| `metadata` | object | Operation metadata including presentation ID and URL |
+| ↳ `presentationId` | string | The presentation ID |
+| ↳ `url` | string | URL to the presentation |
 
 

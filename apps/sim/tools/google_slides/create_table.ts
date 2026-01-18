@@ -220,8 +220,16 @@ export const createTableTool: ToolConfig<CreateTableParams, CreateTableResponse>
       description: 'Number of columns in the table',
     },
     metadata: {
-      type: 'json',
+      type: 'object',
       description: 'Operation metadata including presentation ID and page object ID',
+      properties: {
+        presentationId: { type: 'string', description: 'The presentation ID' },
+        pageObjectId: {
+          type: 'string',
+          description: 'The page object ID where the table was created',
+        },
+        url: { type: 'string', description: 'URL to the presentation' },
+      },
     },
   },
 }

@@ -165,4 +165,43 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
       } as unknown as Record<string, unknown>,
     }
   },
+
+  outputs: {
+    responses: {
+      type: 'array',
+      description: 'Array of form responses (when no responseId provided)',
+      items: {
+        type: 'object',
+        properties: {
+          responseId: { type: 'string', description: 'Unique response ID' },
+          createTime: { type: 'string', description: 'When the response was created' },
+          lastSubmittedTime: {
+            type: 'string',
+            description: 'When the response was last submitted',
+          },
+          answers: {
+            type: 'json',
+            description: 'Map of question IDs to answer values',
+          },
+        },
+      },
+    },
+    response: {
+      type: 'object',
+      description: 'Single form response (when responseId is provided)',
+      properties: {
+        responseId: { type: 'string', description: 'Unique response ID' },
+        createTime: { type: 'string', description: 'When the response was created' },
+        lastSubmittedTime: { type: 'string', description: 'When the response was last submitted' },
+        answers: {
+          type: 'json',
+          description: 'Map of question IDs to answer values',
+        },
+      },
+    },
+    raw: {
+      type: 'json',
+      description: 'Raw API response data',
+    },
+  },
 }

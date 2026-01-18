@@ -96,13 +96,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
       'google-forms': {
         name: 'Google Forms',
-        description: 'Retrieve Google Form responses.',
+        description: 'Create, modify, and read Google Forms.',
         providerId: 'google-forms',
         icon: GoogleFormsIcon,
         baseProviderIcon: GoogleIcon,
         scopes: [
           'https://www.googleapis.com/auth/userinfo.email',
           'https://www.googleapis.com/auth/userinfo.profile',
+          'https://www.googleapis.com/auth/drive',
+          'https://www.googleapis.com/auth/forms.body',
           'https://www.googleapis.com/auth/forms.responses.readonly',
         ],
       },

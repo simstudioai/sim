@@ -351,8 +351,16 @@ export const createShapeTool: ToolConfig<CreateShapeParams, CreateShapeResponse>
       description: 'The type of shape that was created',
     },
     metadata: {
-      type: 'json',
+      type: 'object',
       description: 'Operation metadata including presentation ID and page object ID',
+      properties: {
+        presentationId: { type: 'string', description: 'The presentation ID' },
+        pageObjectId: {
+          type: 'string',
+          description: 'The page object ID where the shape was created',
+        },
+        url: { type: 'string', description: 'URL to the presentation' },
+      },
     },
   },
 }

@@ -241,16 +241,94 @@ export const compareCommitsV2Tool: ToolConfig<CompareCommitsParams, any> = {
   },
 
   outputs: {
-    status: { type: 'string', description: 'Comparison status' },
-    ahead_by: { type: 'number', description: 'Commits ahead' },
-    behind_by: { type: 'number', description: 'Commits behind' },
-    total_commits: { type: 'number', description: 'Total commits' },
-    html_url: { type: 'string', description: 'Web URL' },
-    diff_url: { type: 'string', description: 'Diff URL' },
-    patch_url: { type: 'string', description: 'Patch URL' },
-    base_commit: { type: 'object', description: 'Base commit' },
-    merge_base_commit: { type: 'object', description: 'Merge base' },
-    commits: { type: 'array', description: 'Commits between' },
-    files: { type: 'array', description: 'Changed files' },
+    url: { type: 'string', description: 'API URL' },
+    html_url: { type: 'string', description: 'GitHub web URL' },
+    permalink_url: { type: 'string', description: 'Permanent link URL' },
+    diff_url: { type: 'string', description: 'Diff download URL' },
+    patch_url: { type: 'string', description: 'Patch download URL' },
+    status: {
+      type: 'string',
+      description: 'Comparison status (ahead, behind, identical, diverged)',
+    },
+    ahead_by: { type: 'number', description: 'Commits head is ahead of base' },
+    behind_by: { type: 'number', description: 'Commits head is behind base' },
+    total_commits: { type: 'number', description: 'Total commits in comparison' },
+    base_commit: {
+      type: 'object',
+      description: 'Base commit object',
+      properties: {
+        sha: { type: 'string', description: 'Commit SHA' },
+        html_url: { type: 'string', description: 'Web URL' },
+        commit: {
+          type: 'object',
+          description: 'Commit data',
+          properties: {
+            message: { type: 'string', description: 'Commit message' },
+            author: { type: 'object', description: 'Git author (name, email, date)' },
+            committer: { type: 'object', description: 'Git committer (name, email, date)' },
+          },
+        },
+        author: { type: 'object', description: 'GitHub user (author)', optional: true },
+        committer: { type: 'object', description: 'GitHub user (committer)', optional: true },
+      },
+    },
+    merge_base_commit: {
+      type: 'object',
+      description: 'Merge base commit object',
+      properties: {
+        sha: { type: 'string', description: 'Commit SHA' },
+        html_url: { type: 'string', description: 'Web URL' },
+      },
+    },
+    commits: {
+      type: 'array',
+      description: 'Commits between base and head',
+      items: {
+        type: 'object',
+        properties: {
+          sha: { type: 'string', description: 'Commit SHA' },
+          html_url: { type: 'string', description: 'Web URL' },
+          commit: {
+            type: 'object',
+            description: 'Commit data',
+            properties: {
+              message: { type: 'string', description: 'Commit message' },
+              author: { type: 'object', description: 'Git author (name, email, date)' },
+              committer: { type: 'object', description: 'Git committer (name, email, date)' },
+            },
+          },
+          author: { type: 'object', description: 'GitHub user', optional: true },
+          committer: { type: 'object', description: 'GitHub user', optional: true },
+        },
+      },
+    },
+    files: {
+      type: 'array',
+      description: 'Changed files (diff entries)',
+      items: {
+        type: 'object',
+        properties: {
+          sha: { type: 'string', description: 'Blob SHA', optional: true },
+          filename: { type: 'string', description: 'File path' },
+          status: {
+            type: 'string',
+            description:
+              'Change status (added, removed, modified, renamed, copied, changed, unchanged)',
+          },
+          additions: { type: 'number', description: 'Lines added' },
+          deletions: { type: 'number', description: 'Lines deleted' },
+          changes: { type: 'number', description: 'Total changes' },
+          blob_url: { type: 'string', description: 'Blob URL' },
+          raw_url: { type: 'string', description: 'Raw file URL' },
+          contents_url: { type: 'string', description: 'Contents API URL' },
+          patch: { type: 'string', description: 'Diff patch', optional: true },
+          previous_filename: {
+            type: 'string',
+            description: 'Previous filename (for renames)',
+            optional: true,
+          },
+        },
+      },
+    },
   },
 }

@@ -191,12 +191,128 @@ export const getCommitV2Tool: ToolConfig<GetCommitParams, any> = {
 
   outputs: {
     sha: { type: 'string', description: 'Commit SHA' },
-    html_url: { type: 'string', description: 'Web URL' },
-    commit: { type: 'object', description: 'Commit data' },
-    author: { type: 'object', description: 'GitHub user', optional: true },
-    committer: { type: 'object', description: 'GitHub user', optional: true },
-    stats: { type: 'object', description: 'Change stats', optional: true },
-    files: { type: 'array', description: 'Changed files' },
-    parents: { type: 'array', description: 'Parent commits' },
+    node_id: { type: 'string', description: 'GraphQL node ID' },
+    html_url: { type: 'string', description: 'GitHub web URL' },
+    url: { type: 'string', description: 'API URL' },
+    comments_url: { type: 'string', description: 'Comments API URL' },
+    commit: {
+      type: 'object',
+      description: 'Core commit data',
+      properties: {
+        url: { type: 'string', description: 'Commit API URL' },
+        message: { type: 'string', description: 'Commit message' },
+        comment_count: { type: 'number', description: 'Number of comments' },
+        author: {
+          type: 'object',
+          description: 'Git author',
+          properties: {
+            name: { type: 'string', description: 'Author name' },
+            email: { type: 'string', description: 'Author email' },
+            date: { type: 'string', description: 'Author date (ISO 8601)' },
+          },
+        },
+        committer: {
+          type: 'object',
+          description: 'Git committer',
+          properties: {
+            name: { type: 'string', description: 'Committer name' },
+            email: { type: 'string', description: 'Committer email' },
+            date: { type: 'string', description: 'Commit date (ISO 8601)' },
+          },
+        },
+        tree: {
+          type: 'object',
+          description: 'Tree object',
+          properties: {
+            sha: { type: 'string', description: 'Tree SHA' },
+            url: { type: 'string', description: 'Tree API URL' },
+          },
+        },
+        verification: {
+          type: 'object',
+          description: 'Signature verification',
+          properties: {
+            verified: { type: 'boolean', description: 'Whether signature is verified' },
+            reason: { type: 'string', description: 'Verification reason' },
+            signature: { type: 'string', description: 'GPG signature', optional: true },
+            payload: { type: 'string', description: 'Signed payload', optional: true },
+          },
+        },
+      },
+    },
+    author: {
+      type: 'object',
+      description: 'GitHub user (author)',
+      optional: true,
+      properties: {
+        login: { type: 'string', description: 'Username' },
+        id: { type: 'number', description: 'User ID' },
+        avatar_url: { type: 'string', description: 'Avatar URL' },
+        html_url: { type: 'string', description: 'Profile URL' },
+        type: { type: 'string', description: 'User or Organization' },
+      },
+    },
+    committer: {
+      type: 'object',
+      description: 'GitHub user (committer)',
+      optional: true,
+      properties: {
+        login: { type: 'string', description: 'Username' },
+        id: { type: 'number', description: 'User ID' },
+        avatar_url: { type: 'string', description: 'Avatar URL' },
+        html_url: { type: 'string', description: 'Profile URL' },
+        type: { type: 'string', description: 'User or Organization' },
+      },
+    },
+    stats: {
+      type: 'object',
+      description: 'Change statistics',
+      optional: true,
+      properties: {
+        additions: { type: 'number', description: 'Lines added' },
+        deletions: { type: 'number', description: 'Lines deleted' },
+        total: { type: 'number', description: 'Total changes' },
+      },
+    },
+    files: {
+      type: 'array',
+      description: 'Changed files (diff entries)',
+      items: {
+        type: 'object',
+        properties: {
+          sha: { type: 'string', description: 'Blob SHA', optional: true },
+          filename: { type: 'string', description: 'File path' },
+          status: {
+            type: 'string',
+            description:
+              'Change status (added, removed, modified, renamed, copied, changed, unchanged)',
+          },
+          additions: { type: 'number', description: 'Lines added' },
+          deletions: { type: 'number', description: 'Lines deleted' },
+          changes: { type: 'number', description: 'Total changes' },
+          blob_url: { type: 'string', description: 'Blob URL' },
+          raw_url: { type: 'string', description: 'Raw file URL' },
+          contents_url: { type: 'string', description: 'Contents API URL' },
+          patch: { type: 'string', description: 'Diff patch', optional: true },
+          previous_filename: {
+            type: 'string',
+            description: 'Previous filename (for renames)',
+            optional: true,
+          },
+        },
+      },
+    },
+    parents: {
+      type: 'array',
+      description: 'Parent commits',
+      items: {
+        type: 'object',
+        properties: {
+          sha: { type: 'string', description: 'Parent SHA' },
+          url: { type: 'string', description: 'Parent API URL' },
+          html_url: { type: 'string', description: 'Parent web URL' },
+        },
+      },
+    },
   },
 }

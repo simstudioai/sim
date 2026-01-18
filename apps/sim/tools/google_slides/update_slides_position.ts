@@ -160,8 +160,12 @@ export const updateSlidesPositionTool: ToolConfig<
       description: 'The index where the slides were moved to',
     },
     metadata: {
-      type: 'json',
+      type: 'object',
       description: 'Operation metadata including presentation ID and URL',
+      properties: {
+        presentationId: { type: 'string', description: 'The presentation ID' },
+        url: { type: 'string', description: 'URL to the presentation' },
+      },
     },
   },
 }

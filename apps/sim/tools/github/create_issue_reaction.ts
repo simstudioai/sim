@@ -131,8 +131,26 @@ export const createIssueReactionV2Tool: ToolConfig<CreateIssueReactionParams, an
 
   outputs: {
     id: { type: 'number', description: 'Reaction ID' },
-    user: { type: 'object', description: 'User who reacted' },
-    content: { type: 'string', description: 'Reaction type' },
-    created_at: { type: 'string', description: 'Creation date' },
+    node_id: { type: 'string', description: 'GraphQL node ID' },
+    content: {
+      type: 'string',
+      description: 'Reaction type (+1, -1, laugh, confused, heart, hooray, rocket, eyes)',
+    },
+    created_at: { type: 'string', description: 'Creation timestamp' },
+    user: {
+      type: 'object',
+      description: 'User who reacted',
+      optional: true,
+      properties: {
+        login: { type: 'string', description: 'Username' },
+        id: { type: 'number', description: 'User ID' },
+        node_id: { type: 'string', description: 'GraphQL node ID' },
+        avatar_url: { type: 'string', description: 'Avatar image URL' },
+        url: { type: 'string', description: 'API URL' },
+        html_url: { type: 'string', description: 'Profile page URL' },
+        type: { type: 'string', description: 'User or Organization' },
+        site_admin: { type: 'boolean', description: 'GitHub staff indicator' },
+      },
+    },
   },
 }

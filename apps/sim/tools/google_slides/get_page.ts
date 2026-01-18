@@ -126,17 +126,39 @@ export const getPageTool: ToolConfig<GetPageParams, GetPageResponse> = {
       description: 'The type of page (SLIDE, MASTER, LAYOUT, NOTES, NOTES_MASTER)',
     },
     pageElements: {
-      type: 'json',
+      type: 'array',
       description: 'Array of page elements (shapes, images, tables, etc.) on this page',
+      items: {
+        type: 'json',
+      },
     },
     slideProperties: {
-      type: 'json',
+      type: 'object',
       description: 'Properties specific to slides (layout, master, notes)',
       optional: true,
+      properties: {
+        layoutObjectId: {
+          type: 'string',
+          description: 'Object ID of the layout this slide is based on',
+        },
+        masterObjectId: {
+          type: 'string',
+          description: 'Object ID of the master this slide is based on',
+        },
+        notesPage: {
+          type: 'json',
+          description: 'The notes page associated with the slide',
+          optional: true,
+        },
+      },
     },
     metadata: {
-      type: 'json',
+      type: 'object',
       description: 'Operation metadata including presentation ID and URL',
+      properties: {
+        presentationId: { type: 'string', description: 'The presentation ID' },
+        url: { type: 'string', description: 'URL to the presentation' },
+      },
     },
   },
 }

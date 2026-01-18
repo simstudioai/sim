@@ -170,6 +170,18 @@ interface PopoverContextValue {
   /** ID of the last hovered item (for hover submenus) */
   lastHoveredItem: string | null
   setLastHoveredItem: (id: string | null) => void
+  /** Whether keyboard navigation is active. When true, hover styles are suppressed. */
+  isKeyboardNav: boolean
+  setKeyboardNav: (value: boolean) => void
+  /** Currently selected item index for keyboard navigation */
+  selectedIndex: number
+  setSelectedIndex: (index: number) => void
+  /** Register a menu item and get its index. Returns a cleanup function. */
+  registerItem: (id: string) => number
+  /** Unregister a menu item */
+  unregisterItem: (id: string) => void
+  /** Get the total number of registered items */
+  itemCount: number
 }
 
 const PopoverContext = React.createContext<PopoverContextValue | null>(null)
@@ -220,6 +232,23 @@ const Popover: React.FC<PopoverProps> = ({
   const [onFolderSelect, setOnFolderSelect] = React.useState<(() => void) | null>(null)
   const [searchQuery, setSearchQuery] = React.useState<string>('')
   const [lastHoveredItem, setLastHoveredItem] = React.useState<string | null>(null)
+  const [isKeyboardNav, setIsKeyboardNav] = React.useState(false)
+  const [selectedIndex, setSelectedIndex] = React.useState(-1)
+  const registeredItemsRef = React.useRef<string[]>([])
+
+  const registerItem = React.useCallback((id: string) => {
+    if (!registeredItemsRef.current.includes(id)) {
+      registeredItemsRef.current.push(id)
+    }
+    return registeredItemsRef.current.indexOf(id)
+  }, [])
+
+  const unregisterItem = React.useCallback((id: string) => {
+    const index = registeredItemsRef.current.indexOf(id)
+    if (index !== -1) {
+      registeredItemsRef.current.splice(index, 1)
+    }
+  }, [])
 
   React.useEffect(() => {
     if (open === false) {
@@ -228,6 +257,9 @@ const Popover: React.FC<PopoverProps> = ({
       setOnFolderSelect(null)
       setSearchQuery('')
       setLastHoveredItem(null)
+      setIsKeyboardNav(false)
+      setSelectedIndex(-1)
+      registeredItemsRef.current = []
     }
   }, [open])
 
@@ -249,6 +281,12 @@ const Popover: React.FC<PopoverProps> = ({
     setOnFolderSelect(null)
   }, [])
 
+  const setKeyboardNav = React.useCallback((value: boolean) => {
+    setIsKeyboardNav(value)
+  }, [])
+
+  const itemCount = registeredItemsRef.current.length
+
   const contextValue = React.useMemo<PopoverContextValue>(
     () => ({
       openFolder,
@@ -264,6 +302,13 @@ const Popover: React.FC<PopoverProps> = ({
       setSearchQuery,
       lastHoveredItem,
       setLastHoveredItem,
+      isKeyboardNav,
+      setKeyboardNav,
+      selectedIndex,
+      setSelectedIndex,
+      registerItem,
+      unregisterItem,
+      itemCount,
     }),
     [
       openFolder,
@@ -276,6 +321,12 @@ const Popover: React.FC<PopoverProps> = ({
       colorScheme,
       searchQuery,
       lastHoveredItem,
+      isKeyboardNav,
+      setKeyboardNav,
+      selectedIndex,
+      registerItem,
+      unregisterItem,
+      itemCount,
     ]
   )
 
@@ -382,6 +433,101 @@ const PopoverContent = React.forwardRef<
 
     const effectiveSideOffset = sideOffset ?? (side === 'top' ? 20 : 14)
 
+    // Switch to mouse mode when mouse moves
+    const handleMouseMove = React.useCallback(() => {
+      if (context?.isKeyboardNav) {
+        context.setKeyboardNav(false)
+      }
+    }, [context])
+
+    // Track menu items for keyboard navigation
+    const contentRef = React.useRef<HTMLDivElement>(null)
+
+    // Merge refs
+    const mergedRef = React.useCallback(
+      (node: HTMLDivElement | null) => {
+        contentRef.current = node
+        if (typeof ref === 'function') {
+          ref(node)
+        } else if (ref) {
+          ref.current = node
+        }
+      },
+      [ref]
+    )
+
+    // Keyboard navigation handler - use window listener to ensure events are captured
+    React.useEffect(() => {
+      if (!context) return
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        // Get content element inside handler to ensure it's current
+        const content = contentRef.current
+        if (!content) return
+
+        const items = content.querySelectorAll<HTMLElement>(
+          '[role="menuitem"]:not([aria-disabled="true"])'
+        )
+        if (items.length === 0) return
+
+        const currentIndex = context.selectedIndex
+
+        switch (e.key) {
+          case 'ArrowDown':
+            e.preventDefault()
+            e.stopPropagation()
+            context.setKeyboardNav(true)
+            // If no selection, start at first item; otherwise move down
+            if (currentIndex < 0) {
+              context.setSelectedIndex(0)
+            } else {
+              context.setSelectedIndex(currentIndex < items.length - 1 ? currentIndex + 1 : 0)
+            }
+            break
+          case 'ArrowUp':
+            e.preventDefault()
+            e.stopPropagation()
+            context.setKeyboardNav(true)
+            // If no selection, start at last item; otherwise move up
+            if (currentIndex < 0) {
+              context.setSelectedIndex(items.length - 1)
+            } else {
+              context.setSelectedIndex(currentIndex > 0 ? currentIndex - 1 : items.length - 1)
+            }
+            break
+          case 'Enter':
+          case ' ':
+            if (currentIndex >= 0) {
+              e.preventDefault()
+              e.stopPropagation()
+              const selectedItem = items[currentIndex]
+              if (selectedItem) {
+                selectedItem.click()
+              }
+            }
+            break
+        }
+      }
+
+      // Use capture phase to ensure we get the event
+      window.addEventListener('keydown', handleKeyDown, true)
+      return () => window.removeEventListener('keydown', handleKeyDown, true)
+    }, [context])
+
+    // Scroll selected item into view
+    React.useEffect(() => {
+      const content = contentRef.current
+      if (!content || !context?.isKeyboardNav || context.selectedIndex < 0) return
+
+      const items = content.querySelectorAll<HTMLElement>(
+        '[role="menuitem"]:not([aria-disabled="true"])'
+      )
+      const selectedItem = items[context.selectedIndex]
+      if (selectedItem) {
+        selectedItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }, [context?.selectedIndex, context?.isKeyboardNav])
+
     const hasUserWidthConstraint =
       maxWidth !== undefined ||
       minWidth !== undefined ||
@@ -425,7 +571,7 @@ const PopoverContent = React.forwardRef<
 
     const content = (
       <PopoverPrimitive.Content
-        ref={ref}
+        ref={mergedRef}
         side={side}
         align={align}
         sideOffset={effectiveSideOffset}
@@ -434,6 +580,7 @@ const PopoverContent = React.forwardRef<
         sticky='partial'
         hideWhenDetached={false}
         onWheel={handleWheel}
+        onMouseMove={handleMouseMove}
         onOpenAutoFocus={handleOpenAutoFocus}
         onCloseAutoFocus={handleCloseAutoFocus}
         {...restProps}
@@ -534,6 +681,31 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
     const variant = context?.variant || 'default'
     const size = context?.size || 'md'
     const colorScheme = context?.colorScheme || 'default'
+    const itemRef = React.useRef<HTMLDivElement>(null)
+    const [itemIndex, setItemIndex] = React.useState(-1)
+
+    // Merge refs
+    const mergedRef = React.useCallback(
+      (node: HTMLDivElement | null) => {
+        itemRef.current = node
+        if (typeof ref === 'function') {
+          ref(node)
+        } else if (ref) {
+          ref.current = node
+        }
+      },
+      [ref]
+    )
+
+    // Calculate item index on mount and when siblings change
+    React.useEffect(() => {
+      if (!itemRef.current) return
+      const content = itemRef.current.closest('[data-radix-popper-content-wrapper]')
+      if (!content) return
+      const items = content.querySelectorAll('[role="menuitem"]:not([aria-disabled="true"])')
+      const index = Array.from(items).indexOf(itemRef.current)
+      setItemIndex(index)
+    }, [])
 
     if (rootOnly && context?.isInFolder) return null
 
@@ -548,22 +720,36 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
     const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
       // Clear last hovered item to close any open hover submenus
       context?.setLastHoveredItem(null)
+      // Update selected index to this item's position
+      if (itemIndex >= 0 && context) {
+        context.setSelectedIndex(itemIndex)
+      }
       onMouseEnter?.(e)
     }
 
+    // Determine if this item is active:
+    // - Use explicit `active` prop if provided
+    // - Otherwise use context selectedIndex match
+    const isActive =
+      active !== undefined ? active : itemIndex >= 0 && context?.selectedIndex === itemIndex
+
+    // Suppress hover when in keyboard mode to prevent dual highlights
+    const suppressHover = context?.isKeyboardNav && !isActive
+
     return (
       <div
+        ref={mergedRef}
         className={cn(
           STYLES.itemBase,
           STYLES.colorScheme[colorScheme].text,
           STYLES.size[size].item,
-          getItemStateClasses(variant, colorScheme, !!active),
+          getItemStateClasses(variant, colorScheme, !!isActive),
+          suppressHover && 'hover:!bg-transparent',
           disabled && 'pointer-events-none cursor-not-allowed opacity-50',
           className
         )}
-        ref={ref}
         role='menuitem'
-        aria-selected={active}
+        aria-selected={isActive}
         aria-disabled={disabled}
         onClick={handleClick}
         onMouseEnter={handleMouseEnter}
@@ -666,12 +852,16 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
       colorScheme,
       lastHoveredItem,
       setLastHoveredItem,
+      isKeyboardNav,
+      selectedIndex,
+      setSelectedIndex,
     } = usePopoverContext()
     const [submenuPosition, setSubmenuPosition] = React.useState<{ top: number; left: number }>({
       top: 0,
       left: 0,
     })
     const triggerRef = React.useRef<HTMLDivElement>(null)
+    const [itemIndex, setItemIndex] = React.useState(-1)
 
     // Submenu is open when this folder is the last hovered item (for expandOnHover mode)
     const isHoverOpen = expandOnHover && lastHoveredItem === id
@@ -688,6 +878,16 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
       },
       [ref]
     )
+
+    // Calculate item index on mount
+    React.useEffect(() => {
+      if (!triggerRef.current) return
+      const content = triggerRef.current.closest('[data-radix-popper-content-wrapper]')
+      if (!content) return
+      const items = content.querySelectorAll('[role="menuitem"]:not([aria-disabled="true"])')
+      const index = Array.from(items).indexOf(triggerRef.current)
+      setItemIndex(index)
+    }, [])
 
     // If we're in a folder and this isn't the current one, hide
     if (isInFolder && currentFolder !== id) return null
@@ -708,6 +908,11 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
     }
 
     const handleMouseEnter = () => {
+      // Update selected index for keyboard navigation
+      if (itemIndex >= 0) {
+        setSelectedIndex(itemIndex)
+      }
+
       if (!expandOnHover) return
 
       // Calculate position for submenu
@@ -727,6 +932,12 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
       onOpen?.()
     }
 
+    // Determine if this folder is active (for keyboard navigation highlight)
+    const isActive = active !== undefined ? active : itemIndex >= 0 && selectedIndex === itemIndex
+
+    // Suppress hover when in keyboard mode to prevent dual highlights
+    const suppressHover = isKeyboardNav && !isActive && !isHoverOpen
+
     return (
       <>
         <div
@@ -735,12 +946,14 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
             STYLES.itemBase,
             STYLES.colorScheme[colorScheme].text,
             STYLES.size[size].item,
-            getItemStateClasses(variant, colorScheme, !!active || isHoverOpen),
+            getItemStateClasses(variant, colorScheme, isActive || isHoverOpen),
+            suppressHover && 'hover:!bg-transparent',
             className
           )}
           role='menuitem'
           aria-haspopup='true'
           aria-expanded={isHoverOpen}
+          aria-selected={isActive}
           onClick={handleClick}
           onMouseEnter={handleMouseEnter}
           {...props}
