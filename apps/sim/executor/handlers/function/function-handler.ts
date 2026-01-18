@@ -38,6 +38,7 @@ export class FunctionBlockHandler implements BlockHandler {
         _context: {
           workflowId: ctx.workflowId,
           workspaceId: ctx.workspaceId,
+          isDeployedContext: ctx.isDeployedContext,
         },
       },
       false,

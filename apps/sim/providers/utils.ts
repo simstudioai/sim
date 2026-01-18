@@ -981,6 +981,7 @@ export function prepareToolExecution(
     workflowVariables?: Record<string, any>
     blockData?: Record<string, any>
     blockNameMapping?: Record<string, string>
+    isDeployedContext?: boolean
   }
 ): {
   toolParams: Record<string, any>
@@ -998,6 +999,9 @@ export function prepareToolExecution(
             ...(request.workspaceId ? { workspaceId: request.workspaceId } : {}),
             ...(request.chatId ? { chatId: request.chatId } : {}),
             ...(request.userId ? { userId: request.userId } : {}),
+            ...(request.isDeployedContext !== undefined
+              ? { isDeployedContext: request.isDeployedContext }
+              : {}),
           },
         }
       : {}),
