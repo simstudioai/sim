@@ -1,4 +1,5 @@
 import { type JSX, type MouseEvent, memo, useRef, useState } from 'react'
+import { isEqual } from 'lodash'
 import { AlertTriangle, ArrowLeftRight, ArrowUp } from 'lucide-react'
 import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'
@@ -304,22 +305,27 @@ const renderLabel = (
 }
 
 /**
- * Compares props to prevent unnecessary re-renders.
- *
- * @remarks
- * Used with React.memo to optimize performance by skipping re-renders
- * when props haven't meaningfully changed.
+ * Compares props for memo equality check.
  *
  * @param prevProps - Previous component props
  * @param nextProps - Next component props
  * @returns `true` if props are equal and re-render should be skipped
  */
 const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): boolean => {
+  const subBlockId = prevProps.config.id
+  const prevValue = prevProps.subBlockValues?.[subBlockId]?.value
+  const nextValue = nextProps.subBlockValues?.[subBlockId]?.value
+
+  const valueEqual = prevValue === nextValue || isEqual(prevValue, nextValue)
+
+  const configEqual =
+    prevProps.config.id === nextProps.config.id && prevProps.config.type === nextProps.config.type
+
   return (
     prevProps.blockId === nextProps.blockId &&
-    prevProps.config === nextProps.config &&
+    configEqual &&
     prevProps.isPreview === nextProps.isPreview &&
-    prevProps.subBlockValues === nextProps.subBlockValues &&
+    valueEqual &&
     prevProps.disabled === nextProps.disabled &&
     prevProps.fieldDiffStatus === nextProps.fieldDiffStatus &&
     prevProps.allowExpandInPreview === nextProps.allowExpandInPreview &&

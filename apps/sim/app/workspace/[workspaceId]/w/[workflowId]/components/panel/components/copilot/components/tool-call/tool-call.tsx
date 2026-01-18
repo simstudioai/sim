@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronUp, LayoutList } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
@@ -530,7 +530,7 @@ function splitActionVerb(text: string): [string | null, string] {
  * For special tool calls, uses a gradient color. For normal tools, highlights action verbs
  * in a lighter color with the rest in default gray.
  */
-function ShimmerOverlayText({
+const ShimmerOverlayText = memo(function ShimmerOverlayText({
   text,
   active = false,
   className,
@@ -622,256 +622,7 @@ function ShimmerOverlayText({
       `}</style>
     </span>
   )
-}
-
-/**
- * SubAgentToolCall renders a nested tool call from a subagent in a muted/thinking style.
- */
-function SubAgentToolCall({ toolCall: toolCallProp }: { toolCall: CopilotToolCall }) {
-  // Get live toolCall from store to ensure we have the latest state and params
-  const liveToolCall = useCopilotStore((s) =>
-    toolCallProp.id ? s.toolCallsById[toolCallProp.id] : undefined
-  )
-  const toolCall = liveToolCall || toolCallProp
-
-  const displayName = getDisplayNameForSubAgent(toolCall)
-
-  const isLoading =
-    toolCall.state === ClientToolCallState.generating ||
-    toolCall.state === ClientToolCallState.pending ||
-    toolCall.state === ClientToolCallState.executing
-
-  const showButtons = shouldShowRunSkipButtons(toolCall)
-  const isSpecial = isSpecialToolCall(toolCall)
-
-  // Get params for table rendering
-  const params =
-    (toolCall as any).parameters || (toolCall as any).input || (toolCall as any).params || {}
-
-  // Render table for tools that support it
-  const renderSubAgentTable = () => {
-    if (toolCall.name === 'set_environment_variables') {
-      const variables = params.variables || params.env_vars || {}
-      const entries = Array.isArray(variables)
-        ? variables.map((v: any, i: number) => [v.name || `var_${i}`, v.value || ''])
-        : Object.entries(variables).map(([key, val]) => {
-            if (typeof val === 'object' && val !== null && 'value' in (val as any)) {
-              return [key, (val as any).value]
-            }
-            return [key, val]
-          })
-      if (entries.length === 0) return null
-      return (
-        <div className='mt-1.5 w-full overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)]'>
-          <table className='w-full table-fixed bg-transparent'>
-            <thead className='bg-transparent'>
-              <tr className='border-[var(--border-1)] border-b bg-transparent'>
-                <th className='w-[36%] border-[var(--border-1)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[12px] text-[var(--text-tertiary)]'>
-                  Variable
-                </th>
-                <th className='w-[64%] bg-transparent px-[10px] py-[5px] text-left font-medium text-[12px] text-[var(--text-tertiary)]'>
-                  Value
-                </th>
-              </tr>
-            </thead>
-            <tbody className='bg-transparent'>
-              {entries.map((entry) => {
-                const [key, value] = entry as [string, any]
-                return (
-                  <tr key={key} className='border-[var(--border-1)] border-t bg-transparent'>
-                    <td className='w-[36%] border-[var(--border-1)] border-r bg-transparent px-[10px] py-[6px]'>
-                      <span className='truncate font-medium text-[var(--text-primary)] text-xs'>
-                        {key}
-                      </span>
-                    </td>
-                    <td className='w-[64%] bg-transparent px-[10px] py-[6px]'>
-                      <span className='font-mono text-[var(--text-muted)] text-xs'>
-                        {String(value)}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )
-    }
-
-    if (toolCall.name === 'set_global_workflow_variables') {
-      const ops = Array.isArray(params.operations) ? (params.operations as any[]) : []
-      if (ops.length === 0) return null
-      return (
-        <div className='mt-1.5 w-full overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)]'>
-          <div className='grid grid-cols-3 gap-0 border-[var(--border-1)] border-b bg-[var(--surface-4)] py-1.5'>
-            <div className='self-start px-2 font-medium font-season text-[10px] text-[var(--text-secondary)] uppercase tracking-wide'>
-              Name
-            </div>
-            <div className='self-start px-2 font-medium font-season text-[10px] text-[var(--text-secondary)] uppercase tracking-wide'>
-              Type
-            </div>
-            <div className='self-start px-2 font-medium font-season text-[10px] text-[var(--text-secondary)] uppercase tracking-wide'>
-              Value
-            </div>
-          </div>
-          <div className='divide-y divide-[var(--border-1)]'>
-            {ops.map((op, idx) => (
-              <div key={idx} className='grid grid-cols-3 gap-0 py-1.5'>
-                <div className='min-w-0 self-start px-2'>
-                  <span className='font-season text-[var(--text-primary)] text-xs'>
-                    {String(op.name || '')}
-                  </span>
-                </div>
-                <div className='self-start px-2'>
-                  <span className='rounded border border-[var(--border-1)] px-1 py-0.5 font-[470] font-season text-[10px] text-[var(--text-primary)]'>
-                    {String(op.type || '')}
-                  </span>
-                </div>
-                <div className='min-w-0 self-start px-2'>
-                  <span className='font-[470] font-mono text-[var(--text-muted)] text-xs'>
-                    {op.value !== undefined ? String(op.value) : '—'}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )
-    }
-
-    if (toolCall.name === 'run_workflow') {
-      let inputs = params.input || params.inputs || params.workflow_input
-      if (typeof inputs === 'string') {
-        try {
-          inputs = JSON.parse(inputs)
-        } catch {
-          inputs = {}
-        }
-      }
-      if (params.workflow_input && typeof params.workflow_input === 'object') {
-        inputs = params.workflow_input
-      }
-      if (!inputs || typeof inputs !== 'object') {
-        const { workflowId, workflow_input, ...rest } = params
-        inputs = rest
-      }
-      const safeInputs = inputs && typeof inputs === 'object' ? inputs : {}
-      const inputEntries = Object.entries(safeInputs)
-      if (inputEntries.length === 0) return null
-
-      /**
-       * Format a value for display - handles objects, arrays, and primitives
-       */
-      const formatValue = (value: unknown): string => {
-        if (value === null || value === undefined) return '-'
-        if (typeof value === 'string') return value || '-'
-        if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-        try {
-          return JSON.stringify(value, null, 2)
-        } catch {
-          return String(value)
-        }
-      }
-
-      /**
-       * Check if a value is a complex type (object or array)
-       */
-      const isComplex = (value: unknown): boolean => {
-        return typeof value === 'object' && value !== null
-      }
-
-      return (
-        <div className='mt-1.5 w-full overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-1)]'>
-          {/* Header */}
-          <div className='flex items-center gap-[8px] border-[var(--border-1)] border-b bg-[var(--surface-2)] p-[8px]'>
-            <span className='font-medium text-[12px] text-[var(--text-primary)]'>Input</span>
-            <span className='flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
-              {inputEntries.length}
-            </span>
-          </div>
-          {/* Input entries */}
-          <div className='flex flex-col'>
-            {inputEntries.map(([key, value], index) => {
-              const formattedValue = formatValue(value)
-              const needsCodeViewer = isComplex(value)
-
-              return (
-                <div
-                  key={key}
-                  className={clsx(
-                    'flex flex-col gap-1 px-[10px] py-[6px]',
-                    index > 0 && 'border-[var(--border-1)] border-t'
-                  )}
-                >
-                  {/* Input key */}
-                  <span className='font-medium text-[11px] text-[var(--text-primary)]'>{key}</span>
-                  {/* Value display */}
-                  {needsCodeViewer ? (
-                    <Code.Viewer
-                      code={formattedValue}
-                      language='json'
-                      showGutter={false}
-                      className='max-h-[80px] min-h-0'
-                    />
-                  ) : (
-                    <span className='font-mono text-[11px] text-[var(--text-muted)] leading-[1.3]'>
-                      {formattedValue}
-                    </span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )
-    }
-
-    return null
-  }
-
-  // For edit_workflow, only show the WorkflowEditSummary component (replaces text display)
-  const isEditWorkflow = toolCall.name === 'edit_workflow'
-  const hasOperations = Array.isArray(params.operations) && params.operations.length > 0
-
-  return (
-    <div className='py-0.5'>
-      {/* Hide text display for edit_workflow when we have operations to show in summary */}
-      {!(isEditWorkflow && hasOperations) && (
-        <ShimmerOverlayText
-          text={displayName}
-          active={isLoading && !showButtons}
-          isSpecial={isSpecial}
-          className='font-[470] font-season text-[12px] text-[var(--text-tertiary)]'
-        />
-      )}
-      {renderSubAgentTable()}
-      {/* WorkflowEditSummary is rendered outside SubAgentContent for edit subagent */}
-      {showButtons && <RunSkipButtons toolCall={toolCall} />}
-    </div>
-  )
-}
-
-/**
- * Get display name for subagent tool calls
- */
-function getDisplayNameForSubAgent(toolCall: CopilotToolCall): string {
-  const fromStore = toolCall.display?.text
-  if (fromStore) return fromStore
-
-  const stateVerb = getStateVerb(toolCall.state)
-  const formattedName = formatToolName(toolCall.name)
-  return `${stateVerb} ${formattedName}`
-}
-
-/**
- * Max height for subagent content before internal scrolling kicks in
- */
-const SUBAGENT_MAX_HEIGHT = 200
-
-/**
- * Interval for auto-scroll during streaming (ms)
- */
-const SUBAGENT_SCROLL_INTERVAL = 100
+})
 
 /**
  * Get the outer collapse header label for completed subagent tools.
@@ -880,236 +631,6 @@ const SUBAGENT_SCROLL_INTERVAL = 100
 function getSubagentCompletionLabel(toolName: string): string {
   const labels = getSubagentLabelsFromConfig(toolName, false)
   return labels?.completed ?? 'Thought'
-}
-
-/**
- * Get display labels for subagent tools.
- * Uses the tool's UI config.
- */
-function getSubagentLabels(toolName: string, isStreaming: boolean): string {
-  const labels = getSubagentLabelsFromConfig(toolName, isStreaming)
-  if (labels) {
-    return isStreaming ? labels.streaming : labels.completed
-  }
-  return isStreaming ? 'Processing' : 'Processed'
-}
-
-/**
- * SubAgentContent renders the streamed content and tool calls from a subagent
- * with thinking-style styling (same as ThinkingBlock).
- * Auto-collapses when streaming ends and has internal scrolling for long content.
- */
-function SubAgentContent({
-  blocks,
-  isStreaming = false,
-  toolName = 'debug',
-}: {
-  blocks?: SubAgentContentBlock[]
-  isStreaming?: boolean
-  toolName?: string
-}) {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const [userHasScrolledAway, setUserHasScrolledAway] = useState(false)
-  const userCollapsedRef = useRef<boolean>(false)
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const lastScrollTopRef = useRef(0)
-  const programmaticScrollRef = useRef(false)
-
-  // Check if there are any tool calls (which means thinking should close)
-  const hasToolCalls = useMemo(() => {
-    if (!blocks) return false
-    return blocks.some((b) => b.type === 'subagent_tool_call' && b.toolCall)
-  }, [blocks])
-
-  // Auto-expand when streaming with content, auto-collapse when done or when tool call comes in
-  useEffect(() => {
-    if (!isStreaming || hasToolCalls) {
-      setIsExpanded(false)
-      userCollapsedRef.current = false
-      setUserHasScrolledAway(false)
-      return
-    }
-
-    if (!userCollapsedRef.current && blocks && blocks.length > 0) {
-      setIsExpanded(true)
-    }
-  }, [isStreaming, blocks, hasToolCalls])
-
-  // Handle scroll events to detect user scrolling away
-  useEffect(() => {
-    const container = scrollContainerRef.current
-    if (!container || !isExpanded) return
-
-    const handleScroll = () => {
-      if (programmaticScrollRef.current) return
-
-      const { scrollTop, scrollHeight, clientHeight } = container
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-      const isNearBottom = distanceFromBottom <= 20
-
-      const delta = scrollTop - lastScrollTopRef.current
-      const movedUp = delta < -2
-
-      if (movedUp && !isNearBottom) {
-        setUserHasScrolledAway(true)
-      }
-
-      // Re-stick if user scrolls back to bottom
-      if (userHasScrolledAway && isNearBottom) {
-        setUserHasScrolledAway(false)
-      }
-
-      lastScrollTopRef.current = scrollTop
-    }
-
-    container.addEventListener('scroll', handleScroll, { passive: true })
-    lastScrollTopRef.current = container.scrollTop
-
-    return () => container.removeEventListener('scroll', handleScroll)
-  }, [isExpanded, userHasScrolledAway])
-
-  // Smart auto-scroll: only scroll if user hasn't scrolled away
-  useEffect(() => {
-    if (!isStreaming || !isExpanded || userHasScrolledAway) return
-
-    const intervalId = window.setInterval(() => {
-      const container = scrollContainerRef.current
-      if (!container) return
-
-      const { scrollTop, scrollHeight, clientHeight } = container
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-      const isNearBottom = distanceFromBottom <= 50
-
-      if (isNearBottom) {
-        programmaticScrollRef.current = true
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: 'smooth',
-        })
-        window.setTimeout(() => {
-          programmaticScrollRef.current = false
-        }, 150)
-      }
-    }, SUBAGENT_SCROLL_INTERVAL)
-
-    return () => window.clearInterval(intervalId)
-  }, [isStreaming, isExpanded, userHasScrolledAway])
-
-  if (!blocks || blocks.length === 0) return null
-
-  const hasContent = blocks.length > 0
-  // Show "done" label when streaming ends OR when tool calls are present
-  const isThinkingDone = !isStreaming || hasToolCalls
-  const label = getSubagentLabels(toolName, !isThinkingDone)
-
-  return (
-    <div>
-      {/* Define shimmer keyframes */}
-      {!isThinkingDone && (
-        <style>{`
-          @keyframes thinking-shimmer {
-            0% { background-position: 150% 0; }
-            50% { background-position: 0% 0; }
-            100% { background-position: -150% 0; }
-          }
-        `}</style>
-      )}
-      <button
-        onClick={() => {
-          setIsExpanded((v) => {
-            const next = !v
-            if (!next && isStreaming) userCollapsedRef.current = true
-            return next
-          })
-        }}
-        className='group inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
-        type='button'
-        disabled={!hasContent}
-      >
-        <span className='relative inline-block'>
-          <span className='text-[var(--text-tertiary)]'>{label}</span>
-          {!isThinkingDone && (
-            <span
-              aria-hidden='true'
-              className='pointer-events-none absolute inset-0 select-none overflow-hidden'
-            >
-              <span
-                className='block text-transparent'
-                style={{
-                  backgroundImage:
-                    'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0) 100%)',
-                  backgroundSize: '200% 100%',
-                  backgroundRepeat: 'no-repeat',
-                  WebkitBackgroundClip: 'text',
-                  backgroundClip: 'text',
-                  animation: 'thinking-shimmer 1.4s ease-in-out infinite',
-                  mixBlendMode: 'screen',
-                }}
-              >
-                {label}
-              </span>
-            </span>
-          )}
-        </span>
-        {hasContent && (
-          <ChevronUp
-            className={clsx(
-              'h-3 w-3 transition-all group-hover:opacity-100',
-              isExpanded ? 'rotate-180 opacity-100' : 'rotate-90 opacity-0'
-            )}
-            aria-hidden='true'
-          />
-        )}
-      </button>
-
-      <div
-        ref={scrollContainerRef}
-        className={clsx(
-          'overflow-y-auto transition-all duration-150 ease-out',
-          isExpanded ? 'mt-1.5 max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
-        )}
-      >
-        {blocks.map((block, index) => {
-          if (block.type === 'subagent_text' && block.content) {
-            const isLastBlock = index === blocks.length - 1
-            // Strip special tags from display (they're rendered separately)
-            const parsed = parseSpecialTags(block.content)
-            const displayContent = parsed.cleanContent
-            if (!displayContent) return null
-            return (
-              <pre
-                key={`subagent-text-${index}`}
-                className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-tertiary)] leading-[1.15rem]'
-              >
-                {displayContent}
-                {!isThinkingDone && isLastBlock && (
-                  <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[var(--text-tertiary)]' />
-                )}
-              </pre>
-            )
-          }
-
-          // All tool calls are rendered at top level, skip here
-          return null
-        })}
-      </div>
-
-      {/* Render PlanSteps for plan subagent when content contains <plan> tag */}
-      {toolName === 'plan' &&
-        (() => {
-          // Combine all text content from blocks
-          const allText = blocks
-            .filter((b) => b.type === 'subagent_text' && b.content)
-            .map((b) => b.content)
-            .join('')
-          const parsed = parseSpecialTags(allText)
-          if (parsed.plan && Object.keys(parsed.plan).length > 0) {
-            return <PlanSteps steps={parsed.plan} streaming={!isThinkingDone} />
-          }
-          return null
-        })()}
-    </div>
-  )
 }
 
 /**
@@ -1123,7 +644,6 @@ function SubAgentThinkingContent({
   blocks: SubAgentContentBlock[]
   isStreaming?: boolean
 }) {
-  // Combine all text content from blocks
   let allRawText = ''
   let cleanText = ''
   for (const block of blocks) {
@@ -1134,12 +654,10 @@ function SubAgentThinkingContent({
     }
   }
 
-  // Parse plan from all text
   const allParsed = parseSpecialTags(allRawText)
 
   if (!cleanText.trim() && !allParsed.plan) return null
 
-  // Check if special tags are present
   const hasSpecialTags = !!(allParsed.plan && Object.keys(allParsed.plan).length > 0)
 
   return (
@@ -1172,7 +690,7 @@ const COLLAPSIBLE_SUBAGENTS = new Set(['plan', 'debug', 'research'])
  * - When done (not streaming): Most subagents stay expanded, only specific ones collapse
  * - Exception: plan, debug, research, info subagents collapse into a header
  */
-function SubagentContentRenderer({
+const SubagentContentRenderer = memo(function SubagentContentRenderer({
   toolCall,
   shouldCollapse,
 }: {
@@ -1182,36 +700,26 @@ function SubagentContentRenderer({
   const [isExpanded, setIsExpanded] = useState(true)
   const [duration, setDuration] = useState(0)
   const startTimeRef = useRef<number>(Date.now())
+  const wasStreamingRef = useRef(false)
 
   const isStreaming = !!toolCall.subAgentStreaming
 
-  // Reset start time when streaming begins
   useEffect(() => {
-    if (isStreaming) {
+    if (isStreaming && !wasStreamingRef.current) {
       startTimeRef.current = Date.now()
-      setDuration(0)
+      wasStreamingRef.current = true
+    } else if (!isStreaming && wasStreamingRef.current) {
+      setDuration(Date.now() - startTimeRef.current)
+      wasStreamingRef.current = false
     }
   }, [isStreaming])
 
-  // Update duration timer during streaming
-  useEffect(() => {
-    if (!isStreaming) return
-
-    const interval = setInterval(() => {
-      setDuration(Date.now() - startTimeRef.current)
-    }, 100)
-
-    return () => clearInterval(interval)
-  }, [isStreaming])
-
-  // Auto-collapse when streaming ends (only for collapsible subagents)
   useEffect(() => {
     if (!isStreaming && shouldCollapse) {
       setIsExpanded(false)
     }
   }, [isStreaming, shouldCollapse])
 
-  // Build segments: each segment is either text content or a tool call
   const segments: Array<
     { type: 'text'; content: string } | { type: 'tool'; block: SubAgentContentBlock }
   > = []
@@ -1235,7 +743,6 @@ function SubagentContentRenderer({
     segments.push({ type: 'text', content: currentText })
   }
 
-  // Parse plan and options
   const allParsed = parseSpecialTags(allRawText)
   const hasSpecialTags = !!(
     (allParsed.plan && Object.keys(allParsed.plan).length > 0) ||
@@ -1247,15 +754,11 @@ function SubagentContentRenderer({
     return `${seconds}s`
   }
 
-  // Outer header uses subagent-specific label
   const outerLabel = getSubagentCompletionLabel(toolCall.name)
   const durationText = `${outerLabel} for ${formatDuration(duration)}`
 
-  // Check if we have a plan to render outside the collapsible
   const hasPlan = allParsed.plan && Object.keys(allParsed.plan).length > 0
 
-  // Render the collapsible content (thinking blocks + tool calls, NOT plan)
-  // Inner thinking text always uses "Thought" label
   const renderCollapsibleContent = () => (
     <>
       {segments.map((segment, index) => {
@@ -1275,7 +778,6 @@ function SubagentContentRenderer({
           )
         }
         if (segment.type === 'tool' && segment.block.toolCall) {
-          // For edit subagent's edit_workflow tool: only show the diff summary, skip the tool call header
           if (toolCall.name === 'edit' && segment.block.toolCall.name === 'edit_workflow') {
             return (
               <div key={`tool-${segment.block.toolCall.id || index}`}>
@@ -1294,7 +796,6 @@ function SubagentContentRenderer({
     </>
   )
 
-  // During streaming OR for non-collapsible subagents: show content at top level
   if (isStreaming || !shouldCollapse) {
     return (
       <div className='w-full space-y-1.5'>
@@ -1304,8 +805,6 @@ function SubagentContentRenderer({
     )
   }
 
-  // Completed collapsible subagent (plan, debug, research, info): show collapsible header
-  // Plan artifact stays outside the collapsible
   return (
     <div className='w-full'>
       <button
@@ -1336,7 +835,7 @@ function SubagentContentRenderer({
       {hasPlan && <PlanSteps steps={allParsed.plan!} />}
     </div>
   )
-}
+})
 
 /**
  * Determines if a tool call is "special" and should display with gradient styling.
@@ -1351,15 +850,15 @@ function isSpecialToolCall(toolCall: CopilotToolCall): boolean {
  * Displays: workflow name with stats (+N green, N orange, -N red)
  * Expands inline on click to show individual blocks with their icons.
  */
-function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
-  // Get block data from current workflow state
+const WorkflowEditSummary = memo(function WorkflowEditSummary({
+  toolCall,
+}: {
+  toolCall: CopilotToolCall
+}) {
   const blocks = useWorkflowStore((s) => s.blocks)
 
-  // Cache block info on first render (before diff is applied) so we can show
-  // deleted blocks properly even after they're removed from the workflow
   const cachedBlockInfoRef = useRef<Record<string, { name: string; type: string }>>({})
 
-  // Update cache with current block info (only add, never remove)
   useEffect(() => {
     for (const [blockId, block] of Object.entries(blocks)) {
       if (!cachedBlockInfoRef.current[blockId]) {
@@ -1371,22 +870,18 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
     }
   }, [blocks])
 
-  // Show for edit_workflow regardless of state
   if (toolCall.name !== 'edit_workflow') {
     return null
   }
 
-  // Extract operations from tool call params
   const params =
     (toolCall as any).parameters || (toolCall as any).input || (toolCall as any).params || {}
   let operations = Array.isArray(params.operations) ? params.operations : []
 
-  // Fallback: check if operations are at top level of toolCall
   if (operations.length === 0 && Array.isArray((toolCall as any).operations)) {
     operations = (toolCall as any).operations
   }
 
-  // Group operations by type with block info
   interface SubBlockPreview {
     id: string
     title: string
@@ -1412,25 +907,20 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
     const blockId = op.block_id
     if (!blockId) continue
 
-    // Get block info from current workflow state, cached state, or operation params
     const currentBlock = blocks[blockId]
     const cachedBlock = cachedBlockInfoRef.current[blockId]
     let blockName = currentBlock?.name || cachedBlock?.name || ''
     let blockType = currentBlock?.type || cachedBlock?.type || ''
 
-    // For add operations, get info from params (type is stored as params.type)
     if (op.operation_type === 'add' && op.params) {
       blockName = blockName || op.params.name || ''
       blockType = blockType || op.params.type || ''
     }
 
-    // For edit operations, also check params.type if block not in current state
     if (op.operation_type === 'edit' && op.params && !blockType) {
       blockType = op.params.type || ''
     }
 
-    // Skip edge-only edit operations (like how we don't highlight blocks on canvas for edge changes)
-    // An edit is edge-only if params only contains 'connections' and nothing else meaningful
     if (op.operation_type === 'edit' && op.params) {
       const paramKeys = Object.keys(op.params)
       const isEdgeOnlyEdit = paramKeys.length === 1 && paramKeys[0] === 'connections'
@@ -1439,9 +929,7 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
       }
     }
 
-    // For delete operations, check if block info was provided in operation
     if (op.operation_type === 'delete') {
-      // Some delete operations may include block_name and block_type
       blockName = blockName || op.block_name || ''
       blockType = blockType || op.block_type || ''
     }
@@ -1453,16 +941,12 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
 
     const change: BlockChange = { blockId, blockName, blockType }
 
-    // Extract subblock info from operation params, ordered by block config
     if (op.params?.inputs && typeof op.params.inputs === 'object') {
       const inputs = op.params.inputs as Record<string, unknown>
       const blockConfig = getBlock(blockType)
 
-      // Build subBlocks array
       const subBlocks: SubBlockPreview[] = []
 
-      // Special handling for condition blocks - parse conditions JSON and render as separate rows
-      // This matches how the canvas renders condition blocks with "if", "else if", "else" rows
       if (blockType === 'condition' && 'conditions' in inputs) {
         const conditionsValue = inputs.conditions
         const raw = typeof conditionsValue === 'string' ? conditionsValue : undefined
@@ -1484,35 +968,26 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
             }
           }
         } catch {
-          // Fallback: show default if/else
           subBlocks.push({ id: 'if', title: 'if', value: '', isPassword: false })
           subBlocks.push({ id: 'else', title: 'else', value: '', isPassword: false })
         }
       } else {
-        // Filter visible subblocks from config (same logic as canvas preview)
         const visibleSubBlocks =
           blockConfig?.subBlocks?.filter((sb) => {
-            // Skip hidden subblocks
             if (sb.hidden) return false
             if (sb.hideFromPreview) return false
-            // Skip advanced mode subblocks (not visible by default)
             if (sb.mode === 'advanced') return false
-            // Skip trigger mode subblocks
             if (sb.mode === 'trigger') return false
             return true
           }) ?? []
 
-        // Track seen ids to dedupe (same pattern as canvas preview using id as key)
         const seenIds = new Set<string>()
 
-        // Add subblocks that are visible in config, in config order (first config per id wins)
         for (const subBlockConfig of visibleSubBlocks) {
-          // Skip if we've already added this id (handles configs with same id but different conditions)
           if (seenIds.has(subBlockConfig.id)) continue
 
           if (subBlockConfig.id in inputs) {
             const value = inputs[subBlockConfig.id]
-            // Skip empty values and connections
             if (value === null || value === undefined || value === '') continue
             seenIds.add(subBlockConfig.id)
             subBlocks.push({
@@ -1553,12 +1028,10 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
     return null
   }
 
-  // Get block config by type (for icon and bgColor)
   const getBlockConfig = (blockType: string) => {
     return getBlock(blockType)
   }
 
-  // Render a single block item with action icon and details
   const renderBlockItem = (change: BlockChange, type: 'add' | 'edit' | 'delete') => {
     const blockConfig = getBlockConfig(change.blockType)
     const Icon = blockConfig?.icon
@@ -1631,23 +1104,20 @@ function WorkflowEditSummary({ toolCall }: { toolCall: CopilotToolCall }) {
       {deletedBlocks.map((change) => renderBlockItem(change, 'delete'))}
     </div>
   )
-}
+})
 
 /**
  * Checks if a tool is an integration tool (server-side executed, not a client tool)
  */
 function isIntegrationTool(toolName: string): boolean {
-  // Any tool NOT in CLASS_TOOL_METADATA is an integration tool (server-side execution)
   return !CLASS_TOOL_METADATA[toolName]
 }
 
 function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
-  // First check UI config for interrupt
   if (hasInterruptFromConfig(toolCall.name) && toolCall.state === 'pending') {
     return true
   }
 
-  // Then check instance-level interrupt
   const instance = getClientTool(toolCall.id)
   let hasInterrupt = !!instance?.getInterruptDisplays?.()
   if (!hasInterrupt) {
@@ -1662,12 +1132,10 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
     } catch {}
   }
 
-  // Show buttons for client tools with interrupts
   if (hasInterrupt && toolCall.state === 'pending') {
     return true
   }
 
-  // Always show buttons for integration tools in pending state (they need user confirmation)
   const mode = useCopilotStore.getState().mode
   if (mode === 'build' && isIntegrationTool(toolCall.name) && toolCall.state === 'pending') {
     return true
@@ -1684,19 +1152,14 @@ async function handleRun(
 ) {
   const instance = getClientTool(toolCall.id)
 
-  // Handle integration tools (server-side execution)
   if (!instance && isIntegrationTool(toolCall.name)) {
-    // Set executing state immediately for UI feedback
     setToolCallState(toolCall, 'executing')
     onStateChange?.('executing')
     try {
       await useCopilotStore.getState().executeIntegrationTool(toolCall.id)
-      // Note: executeIntegrationTool handles success/error state updates internally
     } catch (e) {
-      // If executeIntegrationTool throws, ensure we update state to error
       setToolCallState(toolCall, 'error', { error: e instanceof Error ? e.message : String(e) })
       onStateChange?.('error')
-      // Notify backend about the error so agent doesn't hang
       try {
         await fetch('/api/copilot/tools/mark-complete', {
           method: 'POST',
@@ -1710,7 +1173,6 @@ async function handleRun(
           }),
         })
       } catch {
-        // Last resort: log error if we can't notify backend
         console.error('[handleRun] Failed to notify backend of tool error:', toolCall.id)
       }
     }
@@ -1735,13 +1197,10 @@ async function handleRun(
 async function handleSkip(toolCall: CopilotToolCall, setToolCallState: any, onStateChange?: any) {
   const instance = getClientTool(toolCall.id)
 
-  // Handle integration tools (skip by marking as rejected and notifying backend)
   if (!instance && isIntegrationTool(toolCall.name)) {
     setToolCallState(toolCall, 'rejected')
     onStateChange?.('rejected')
 
-    // Notify backend that tool was skipped - this is CRITICAL for the agent to continue
-    // Retry up to 3 times if the notification fails
     let notified = false
     for (let attempt = 0; attempt < 3 && !notified; attempt++) {
       try {
@@ -1760,7 +1219,6 @@ async function handleSkip(toolCall: CopilotToolCall, setToolCallState: any, onSt
           notified = true
         }
       } catch (e) {
-        // Wait briefly before retry
         if (attempt < 2) {
           await new Promise((resolve) => setTimeout(resolve, 500))
         }
@@ -1783,7 +1241,6 @@ async function handleSkip(toolCall: CopilotToolCall, setToolCallState: any, onSt
 }
 
 function getDisplayName(toolCall: CopilotToolCall): string {
-  // Prefer display resolved in the copilot store (SSOT)
   const fromStore = (toolCall as any).display?.text
   if (fromStore) return fromStore
   try {
@@ -1792,8 +1249,6 @@ function getDisplayName(toolCall: CopilotToolCall): string {
     if (byState?.text) return byState.text
   } catch {}
 
-  // For integration tools, format the tool name nicely
-  // e.g., "google_calendar_list_events" -> "Running Google Calendar List Events"
   const stateVerb = getStateVerb(toolCall.state)
   const formattedName = formatToolName(toolCall.name)
   return `${stateVerb} ${formattedName}`
@@ -2308,11 +1763,9 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     }
 
     if (toolCall.name === 'run_workflow') {
-      // Get inputs - could be in multiple locations
       let inputs = editedParams.input || editedParams.inputs || editedParams.workflow_input
       let isNestedInWorkflowInput = false
 
-      // If input is a JSON string, parse it
       if (typeof inputs === 'string') {
         try {
           inputs = JSON.parse(inputs)
@@ -2321,13 +1774,11 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
         }
       }
 
-      // Check if workflow_input exists and contains the actual inputs
       if (editedParams.workflow_input && typeof editedParams.workflow_input === 'object') {
         inputs = editedParams.workflow_input
         isNestedInWorkflowInput = true
       }
 
-      // If no inputs object found, treat base editedParams as inputs (excluding system fields)
       if (!inputs || typeof inputs !== 'object') {
         const { workflowId, workflow_input, ...rest } = editedParams
         inputs = rest
@@ -2336,7 +1787,6 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
       const safeInputs = inputs && typeof inputs === 'object' ? inputs : {}
       const inputEntries = Object.entries(safeInputs)
 
-      // Don't show the section if there are no inputs
       if (inputEntries.length === 0) {
         return null
       }
@@ -2348,7 +1798,6 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
         if (value === null || value === undefined) return ''
         if (typeof value === 'string') return value
         if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-        // For objects and arrays, use JSON.stringify with formatting
         try {
           return JSON.stringify(value, null, 2)
         } catch {
@@ -2360,11 +1809,9 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
        * Parse a string value back to its original type if possible
        */
       const parseInputValue = (value: string, originalValue: unknown): unknown => {
-        // If original was a primitive, keep as string
         if (typeof originalValue !== 'object' || originalValue === null) {
           return value
         }
-        // Try to parse as JSON for objects/arrays
         try {
           return JSON.parse(value)
         } catch {
@@ -2473,7 +1920,6 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     return null
   }
 
-  // Special handling for tools with alwaysExpanded config (e.g., set_environment_variables)
   const isAlwaysExpanded = toolUIConfig?.alwaysExpanded
   if (
     (isAlwaysExpanded || toolCall.name === 'set_environment_variables') &&
@@ -2531,7 +1977,6 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     )
   }
 
-  // Special rendering for tools with 'code' customRenderer (e.g., function_execute)
   if (toolUIConfig?.customRenderer === 'code' || toolCall.name === 'function_execute') {
     const code = params.code || ''
     const isFunctionExecuteClickable = isAutoAllowed
@@ -2593,7 +2038,6 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     )
   }
 
-  // Determine if tool name should be clickable (expandable tools or auto-allowed integration tools)
   const isToolNameClickable = isExpandableTool || isAutoAllowed
 
   const handleToolNameClick = () => {
@@ -2604,7 +2048,6 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     }
   }
 
-  // For edit_workflow, hide text display when we have operations (WorkflowEditSummary replaces it)
   const isEditWorkflow = toolCall.name === 'edit_workflow'
   const hasOperations = Array.isArray(params.operations) && params.operations.length > 0
   const hideTextForEditWorkflow = isEditWorkflow && hasOperations
@@ -2649,13 +2092,11 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             onClick={async () => {
               try {
                 const instance = getClientTool(toolCall.id)
-                // Transition to background state locally so UI updates immediately
                 instance?.setState?.((ClientToolCallState as any).background)
                 await instance?.markToolComplete?.(
                   200,
                   'The user has chosen to move the workflow execution to the background. Check back with them later to know when the workflow execution is complete'
                 )
-                // Optionally force a re-render; store should sync state from server
                 forceUpdate({})
                 onStateChange?.('background')
               } catch {}
@@ -2672,21 +2113,16 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             onClick={async () => {
               try {
                 const instance = getClientTool(toolCall.id)
-                // Get elapsed seconds before waking
                 const elapsedSeconds = instance?.getElapsedSeconds?.() || 0
-                // Transition to background state locally so UI updates immediately
-                // Pass elapsed seconds in the result so dynamic text can use it
                 instance?.setState?.((ClientToolCallState as any).background, {
                   result: { _elapsedSeconds: elapsedSeconds },
                 })
-                // Update the tool call params in the store to include elapsed time for display
                 const { updateToolCallParams } = useCopilotStore.getState()
                 updateToolCallParams?.(toolCall.id, { _elapsedSeconds: Math.round(elapsedSeconds) })
                 await instance?.markToolComplete?.(
                   200,
                   `User woke you up after ${Math.round(elapsedSeconds)} seconds`
                 )
-                // Optionally force a re-render; store should sync state from server
                 forceUpdate({})
                 onStateChange?.('background')
               } catch {}

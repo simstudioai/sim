@@ -40,7 +40,6 @@ export function usePermissionConfig(): PermissionConfigResult {
 
   const isBlockAllowed = useMemo(() => {
     return (blockType: string) => {
-      // start_trigger should always be allowed (it should never be disabled)
       if (blockType === 'start_trigger') return true
       if (config.allowedIntegrations === null) return true
       return config.allowedIntegrations.includes(blockType)
@@ -57,7 +56,6 @@ export function usePermissionConfig(): PermissionConfigResult {
   const filterBlocks = useMemo(() => {
     return <T extends { type: string }>(blocks: T[]): T[] => {
       if (config.allowedIntegrations === null) return blocks
-      // start_trigger should always be included (it should never be disabled)
       return blocks.filter(
         (block) =>
           block.type === 'start_trigger' || config.allowedIntegrations!.includes(block.type)
@@ -77,14 +75,26 @@ export function usePermissionConfig(): PermissionConfigResult {
     return featureFlagDisabled || config.disableInvitations
   }, [config.disableInvitations])
 
-  return {
-    config,
-    isLoading,
-    isInPermissionGroup,
-    filterBlocks,
-    filterProviders,
-    isBlockAllowed,
-    isProviderAllowed,
-    isInvitationsDisabled,
-  }
+  return useMemo(
+    () => ({
+      config,
+      isLoading,
+      isInPermissionGroup,
+      filterBlocks,
+      filterProviders,
+      isBlockAllowed,
+      isProviderAllowed,
+      isInvitationsDisabled,
+    }),
+    [
+      config,
+      isLoading,
+      isInPermissionGroup,
+      filterBlocks,
+      filterProviders,
+      isBlockAllowed,
+      isProviderAllowed,
+      isInvitationsDisabled,
+    ]
+  )
 }

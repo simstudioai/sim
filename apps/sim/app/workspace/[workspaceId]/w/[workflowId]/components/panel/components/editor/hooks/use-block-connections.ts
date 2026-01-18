@@ -43,13 +43,12 @@ export function useBlockConnections(blockId: string) {
   )
 
   const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const workflowSubBlockValues = useSubBlockStore((state) =>
-    workflowId ? (state.workflowValues[workflowId] ?? {}) : {}
-  )
 
-  // Helper function to merge block subBlocks with live values from subblock store
   const getMergedSubBlocks = (sourceBlockId: string): Record<string, any> => {
     const base = blocks[sourceBlockId]?.subBlocks || {}
+    const workflowSubBlockValues = workflowId
+      ? (useSubBlockStore.getState().workflowValues[workflowId] ?? {})
+      : {}
     const live = workflowSubBlockValues?.[sourceBlockId] || {}
     const merged: Record<string, any> = { ...base }
     for (const [subId, liveVal] of Object.entries(live)) {

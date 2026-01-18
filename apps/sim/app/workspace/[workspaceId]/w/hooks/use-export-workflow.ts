@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   downloadFile,
@@ -23,8 +23,10 @@ interface UseExportWorkflowProps {
  * Hook for managing workflow export to JSON or ZIP.
  */
 export function useExportWorkflow({ onSuccess }: UseExportWorkflowProps = {}) {
-  const { workflows } = useWorkflowRegistry()
   const [isExporting, setIsExporting] = useState(false)
+
+  const onSuccessRef = useRef(onSuccess)
+  onSuccessRef.current = onSuccess
 
   /**
    * Export the workflow(s) to JSON or ZIP
@@ -50,6 +52,7 @@ export function useExportWorkflow({ onSuccess }: UseExportWorkflowProps = {}) {
           count: workflowIdsToExport.length,
         })
 
+        const { workflows } = useWorkflowRegistry.getState()
         const exportedWorkflows = []
 
         for (const workflowId of workflowIdsToExport) {
@@ -96,7 +99,7 @@ export function useExportWorkflow({ onSuccess }: UseExportWorkflowProps = {}) {
           format: exportedWorkflows.length === 1 ? 'JSON' : 'ZIP',
         })
 
-        onSuccess?.()
+        onSuccessRef.current?.()
       } catch (error) {
         logger.error('Error exporting workflow(s):', { error })
         throw error
@@ -104,7 +107,7 @@ export function useExportWorkflow({ onSuccess }: UseExportWorkflowProps = {}) {
         setIsExporting(false)
       }
     },
-    [isExporting, workflows, onSuccess]
+    [isExporting]
   )
 
   return {
