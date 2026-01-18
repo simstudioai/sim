@@ -1,5 +1,6 @@
 import type { RequestParams, RequestResponse } from '@/tools/http/types'
-import { getDefaultHeaders, processUrl, transformTable } from '@/tools/http/utils'
+import { getDefaultHeaders, processUrl } from '@/tools/http/utils'
+import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
 
 export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
