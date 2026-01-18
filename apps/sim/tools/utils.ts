@@ -7,8 +7,6 @@ import { extractErrorMessage } from '@/tools/error-extractors'
 import { tools } from '@/tools/registry'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
-export { transformTable } from '@/tools/shared/table'
-
 const logger = createLogger('ToolsUtils')
 
 /**

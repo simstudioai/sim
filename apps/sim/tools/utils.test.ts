@@ -1,5 +1,6 @@
 import { createMockFetch, loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
 import {
   createCustomToolRequestBody,
@@ -7,7 +8,6 @@ import {
   executeRequest,
   formatRequestParams,
   getClientEnvVars,
-  transformTable,
   validateRequiredParametersAfterMerge,
 } from '@/tools/utils'
 
