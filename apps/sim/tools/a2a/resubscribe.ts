@@ -11,15 +11,18 @@ export const a2aResubscribeTool: ToolConfig<A2AResubscribeParams, A2AResubscribe
     agentUrl: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The A2A agent endpoint URL',
     },
     taskId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Task ID to resubscribe to',
     },
     apiKey: {
       type: 'string',
+      visibility: 'user-only',
       description: 'API key for authentication',
     },
   },

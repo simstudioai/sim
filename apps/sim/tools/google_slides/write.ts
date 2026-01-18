@@ -23,16 +23,19 @@ export const writeTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesWriteResp
     presentationId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the presentation to write to',
     },
     content: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The content to write to the slide',
     },
     slideIndex: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description: 'The index of the slide to write to (defaults to first slide)',
     },
   },

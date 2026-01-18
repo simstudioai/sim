@@ -1,13 +1,13 @@
 import type {
-  GoogleSheetsV2ReadResponse,
-  GoogleSheetsV2ToolParams,
+  GoogleSheetsV2ClearParams,
+  GoogleSheetsV2ClearResponse,
 } from '@/tools/google_sheets/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2ReadResponse> = {
-  id: 'google_sheets_read_v2',
-  name: 'Read from Google Sheets V2',
-  description: 'Read data from a specific sheet in a Google Sheets spreadsheet',
+export const clearV2Tool: ToolConfig<GoogleSheetsV2ClearParams, GoogleSheetsV2ClearResponse> = {
+  id: 'google_sheets_clear_v2',
+  name: 'Clear Google Sheets Range V2',
+  description: 'Clear values from a specific range in a Google Sheets spreadsheet',
   version: '2.0.0',
 
   oauth: {
@@ -32,14 +32,13 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The name of the sheet/tab to read from',
+      description: 'The name of the sheet/tab to clear',
     },
     cellRange: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'The cell range to read (e.g. "A1:D10"). Defaults to "A1:Z1000" if not specified.',
+      description: 'The cell range to clear (e.g. "A1:D10"). Clears entire sheet if not specified.',
     },
   },
 
@@ -55,12 +54,12 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
         throw new Error('Sheet name is required')
       }
 
-      const cellRange = params.cellRange?.trim() || 'A1:Z1000'
-      const fullRange = `${sheetName}!${cellRange}`
+      const cellRange = params.cellRange?.trim()
+      const fullRange = cellRange ? `${sheetName}!${cellRange}` : sheetName
 
-      return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(fullRange)}`
+      return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(fullRange)}:clear`
     },
-    method: 'GET',
+    method: 'POST',
     headers: (params) => {
       if (!params.accessToken) {
         throw new Error('Access token is required')
@@ -68,16 +67,16 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
 
       return {
         Authorization: `Bearer ${params.accessToken}`,
+        'Content-Type': 'application/json',
       }
     },
+    body: () => ({}),
   },
 
-  transformResponse: async (response: Response, params?: GoogleSheetsV2ToolParams) => {
+  transformResponse: async (response: Response, params?: GoogleSheetsV2ClearParams) => {
     const data = await response.json()
 
-    const urlParts = typeof response.url === 'string' ? response.url.split('/spreadsheets/') : []
-    const spreadsheetId = urlParts[1]?.split('/')[0] || ''
-
+    const spreadsheetId = params?.spreadsheetId ?? ''
     const metadata = {
       spreadsheetId,
       spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
@@ -86,9 +85,8 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
     return {
       success: true,
       output: {
+        clearedRange: data.clearedRange ?? '',
         sheetName: params?.sheetName ?? '',
-        range: data.range ?? '',
-        values: data.values ?? [],
         metadata: {
           spreadsheetId: metadata.spreadsheetId,
           spreadsheetUrl: metadata.spreadsheetUrl,
@@ -98,9 +96,8 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
   },
 
   outputs: {
-    sheetName: { type: 'string', description: 'Name of the sheet that was read' },
-    range: { type: 'string', description: 'The range of cells that was read' },
-    values: { type: 'array', description: 'The cell values as a 2D array' },
+    clearedRange: { type: 'string', description: 'The range that was cleared' },
+    sheetName: { type: 'string', description: 'Name of the sheet that was cleared' },
     metadata: {
       type: 'json',
       description: 'Spreadsheet metadata including ID and URL',

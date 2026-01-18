@@ -13,31 +13,38 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     url: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The URL to send the request to',
     },
     method: {
       type: 'string',
       default: 'GET',
+      visibility: 'user-or-llm',
       description: 'HTTP method (GET, POST, PUT, PATCH, DELETE)',
     },
     headers: {
       type: 'object',
+      visibility: 'user-or-llm',
       description: 'HTTP headers to include',
     },
     body: {
       type: 'object',
+      visibility: 'user-or-llm',
       description: 'Request body (for POST, PUT, PATCH)',
     },
     params: {
       type: 'object',
+      visibility: 'user-or-llm',
       description: 'URL query parameters to append',
     },
     pathParams: {
       type: 'object',
+      visibility: 'user-or-llm',
       description: 'URL path parameters to replace (e.g., :id in /users/:id)',
     },
     formData: {
       type: 'object',
+      visibility: 'user-or-llm',
       description: 'Form data to send (will set appropriate Content-Type)',
     },
   },

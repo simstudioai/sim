@@ -1,6 +1,6 @@
 ---
 title: Google Forms
-description: Read responses from a Google Form
+description: Manage Google Forms and responses
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -29,7 +29,7 @@ In Sim, the Google Forms integration enables your agents to programmatically acc
 
 ## Usage Instructions
 
-Integrate Google Forms into your workflow. Provide a Form ID to list responses, or specify a Response ID to fetch a single response. Requires OAuth.
+Integrate Google Forms into your workflow. Read form structure, get responses, create forms, update content, and manage notification watches.
 
 
 
@@ -46,6 +46,164 @@ Integrate Google Forms into your workflow. Provide a Form ID to list responses, 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `data` | json | Response or list of responses |
+| `response` | json | Operation response data |
+| `formId` | string | Form ID |
+| `title` | string | Form title |
+| `responderUri` | string | Form responder URL |
+| `items` | json | Form items |
+| `responses` | json | Form responses |
+| `watches` | json | Form watches |
+
+### `google_forms_get_form`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `response` | json | Operation response data |
+| `formId` | string | Form ID |
+| `title` | string | Form title |
+| `responderUri` | string | Form responder URL |
+| `items` | json | Form items |
+| `responses` | json | Form responses |
+| `watches` | json | Form watches |
+
+### `google_forms_create_form`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `response` | json | Operation response data |
+| `formId` | string | Form ID |
+| `title` | string | Form title |
+| `responderUri` | string | Form responder URL |
+| `items` | json | Form items |
+| `responses` | json | Form responses |
+| `watches` | json | Form watches |
+
+### `google_forms_batch_update`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `response` | json | Operation response data |
+| `formId` | string | Form ID |
+| `title` | string | Form title |
+| `responderUri` | string | Form responder URL |
+| `items` | json | Form items |
+| `responses` | json | Form responses |
+| `watches` | json | Form watches |
+
+### `google_forms_set_publish_settings`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `response` | json | Operation response data |
+| `formId` | string | Form ID |
+| `title` | string | Form title |
+| `responderUri` | string | Form responder URL |
+| `items` | json | Form items |
+| `responses` | json | Form responses |
+| `watches` | json | Form watches |
+
+### `google_forms_create_watch`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `response` | json | Operation response data |
+| `formId` | string | Form ID |
+| `title` | string | Form title |
+| `responderUri` | string | Form responder URL |
+| `items` | json | Form items |
+| `responses` | json | Form responses |
+| `watches` | json | Form watches |
+
+### `google_forms_list_watches`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `response` | json | Operation response data |
+| `formId` | string | Form ID |
+| `title` | string | Form title |
+| `responderUri` | string | Form responder URL |
+| `items` | json | Form items |
+| `responses` | json | Form responses |
+| `watches` | json | Form watches |
+
+### `google_forms_delete_watch`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `response` | json | Operation response data |
+| `formId` | string | Form ID |
+| `title` | string | Form title |
+| `responderUri` | string | Form responder URL |
+| `items` | json | Form items |
+| `responses` | json | Form responses |
+| `watches` | json | Form watches |
+
+### `google_forms_renew_watch`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `response` | json | Operation response data |
+| `formId` | string | Form ID |
+| `title` | string | Form title |
+| `responderUri` | string | Form responder URL |
+| `items` | json | Form items |
+| `responses` | json | Form responses |
+| `watches` | json | Form watches |
 
 

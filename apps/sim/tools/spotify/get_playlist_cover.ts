@@ -34,6 +34,7 @@ export const spotifyGetPlaylistCoverTool: ToolConfig<
     playlistId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The Spotify playlist ID',
     },
   },

@@ -29,11 +29,13 @@ export const spotifyAddPlaylistCoverTool: ToolConfig<
     playlistId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The Spotify playlist ID',
     },
     imageBase64: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Base64-encoded JPEG image (max 256KB)',
     },
   },

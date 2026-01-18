@@ -28,6 +28,7 @@ export const spotifyUnfollowPlaylistTool: ToolConfig<
     playlistId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The Spotify playlist ID',
     },
   },

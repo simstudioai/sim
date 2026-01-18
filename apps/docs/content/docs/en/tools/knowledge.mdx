@@ -51,6 +51,7 @@ Search for similar content in a knowledge base using vector similarity
 | `properties` | string | No | No description |
 | `tagName` | string | No | No description |
 | `tagValue` | string | No | No description |
+| `tagFilters` | string | No | No description |
 
 #### Output
 
@@ -108,19 +109,8 @@ Create a new document in a knowledge base
 | `knowledgeBaseId` | string | Yes | ID of the knowledge base containing the document |
 | `name` | string | Yes | Name of the document |
 | `content` | string | Yes | Content of the document |
-| `tag1` | string | No | Tag 1 value for the document |
-| `tag2` | string | No | Tag 2 value for the document |
-| `tag3` | string | No | Tag 3 value for the document |
-| `tag4` | string | No | Tag 4 value for the document |
-| `tag5` | string | No | Tag 5 value for the document |
-| `tag6` | string | No | Tag 6 value for the document |
-| `tag7` | string | No | Tag 7 value for the document |
-| `documentTagsData` | array | No | Structured tag data with names, types, and values |
-| `items` | object | No | No description |
-| `properties` | string | No | No description |
-| `tagName` | string | No | No description |
-| `tagValue` | string | No | No description |
-| `tagType` | string | No | No description |
+| `documentTags` | object | No | Document tags |
+| `documentTags` | string | No | No description |
 
 #### Output
 
