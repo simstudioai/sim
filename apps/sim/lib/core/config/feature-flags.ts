@@ -118,6 +118,12 @@ export const isInvitationsDisabled = isTruthy(env.DISABLE_INVITATIONS)
 export const isReactGrabEnabled = isDev && isTruthy(env.REACT_GRAB_ENABLED)
 
 /**
+ * Is React Scan enabled for performance debugging
+ * When true and in development mode, enables React Scan for detecting render performance issues
+ */
+export const isReactScanEnabled = isDev && isTruthy(env.REACT_SCAN_ENABLED)
+
+/**
  * Get cost multiplier based on environment
  */
 export function getCostMultiplier(): number {

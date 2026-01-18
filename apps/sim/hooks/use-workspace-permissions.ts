@@ -76,9 +76,9 @@ export function useWorkspacePermissions(workspaceId: string | null): UseWorkspac
     }
   }
 
-  const updatePermissions = (newPermissions: WorkspacePermissions): void => {
+  const updatePermissions = useCallback((newPermissions: WorkspacePermissions): void => {
     setPermissions(newPermissions)
-  }
+  }, [])
 
   useEffect(() => {
     if (workspaceId) {

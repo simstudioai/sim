@@ -1,5 +1,5 @@
 import type React from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Loader2, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -877,7 +877,7 @@ function createToolIcon(bgColor: string, IconComponent: any) {
  * - Allows drag-and-drop reordering of selected tools
  * - Supports tool usage control (auto/force/none) for compatible LLM providers
  */
-export function ToolInput({
+export const ToolInput = memo(function ToolInput({
   blockId,
   subBlockId,
   isPreview = false,
@@ -2682,4 +2682,4 @@ export function ToolInput({
       />
     </div>
   )
-}
+})

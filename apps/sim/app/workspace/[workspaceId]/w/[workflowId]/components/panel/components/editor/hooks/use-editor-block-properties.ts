@@ -1,4 +1,5 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
+import { shallow } from 'zustand/shallow'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -11,27 +12,36 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
  * @returns Block display properties (advanced mode, trigger mode)
  */
 export function useEditorBlockProperties(blockId: string | null, isSnapshotView: boolean) {
-  const normalBlocks = useWorkflowStore(useCallback((state) => state.blocks, []))
-  const baselineBlocks = useWorkflowDiffStore(
-    useCallback((state) => state.baselineWorkflow?.blocks || {}, [])
+  const normalBlockProps = useWorkflowStore(
+    useCallback(
+      (state) => {
+        if (!blockId) return { advancedMode: false, triggerMode: false }
+        const block = state.blocks?.[blockId]
+        return {
+          advancedMode: block?.advancedMode ?? false,
+          triggerMode: block?.triggerMode ?? false,
+        }
+      },
+      [blockId]
+    ),
+    shallow
   )
 
-  const blockProperties = useMemo(() => {
-    if (!blockId) {
-      return {
-        advancedMode: false,
-        triggerMode: false,
-      }
-    }
+  const baselineBlockProps = useWorkflowDiffStore(
+    useCallback(
+      (state) => {
+        if (!blockId) return { advancedMode: false, triggerMode: false }
+        const block = state.baselineWorkflow?.blocks?.[blockId]
+        return {
+          advancedMode: block?.advancedMode ?? false,
+          triggerMode: block?.triggerMode ?? false,
+        }
+      },
+      [blockId]
+    ),
+    shallow
+  )
 
-    const blocks = isSnapshotView ? baselineBlocks : normalBlocks
-    const block = blocks?.[blockId]
-
-    return {
-      advancedMode: block?.advancedMode ?? false,
-      triggerMode: block?.triggerMode ?? false,
-    }
-  }, [blockId, isSnapshotView, normalBlocks, baselineBlocks])
-
-  return blockProperties
+  // Use the appropriate props based on view mode
+  return isSnapshotView ? baselineBlockProps : normalBlockProps
 }

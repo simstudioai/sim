@@ -6,6 +6,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Code, Tooltip } from '@/components/emcn'
 
+const REMARK_PLUGINS = [remarkGfm]
+
 /**
  * Recursively extracts text content from React elements
  * @param element - React node to extract text from
@@ -149,14 +151,12 @@ interface CopilotMarkdownRendererProps {
  * Tighter spacing compared to traditional prose for better chat UX
  */
 const markdownComponents = {
-  // Paragraphs - tight spacing, no margin on last
   p: ({ children }: React.HTMLAttributes<HTMLParagraphElement>) => (
     <p className='mb-1.5 font-base font-season text-[var(--text-primary)] text-sm leading-[1.4] last:mb-0 dark:font-[470]'>
       {children}
     </p>
   ),
 
-  // Headings - minimal margins for chat context
   h1: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
     <h1 className='mt-2 mb-1 font-season font-semibold text-[var(--text-primary)] text-base first:mt-0'>
       {children}
@@ -178,7 +178,6 @@ const markdownComponents = {
     </h4>
   ),
 
-  // Lists - compact spacing
   ul: ({ children }: React.HTMLAttributes<HTMLUListElement>) => (
     <ul
       className='my-1 space-y-0.5 pl-5 font-base font-season text-[var(--text-primary)] dark:font-[470]'
@@ -204,7 +203,6 @@ const markdownComponents = {
     </li>
   ),
 
-  // Code blocks - handled by CodeBlock component
   pre: ({ children }: React.HTMLAttributes<HTMLPreElement>) => {
     let codeContent: React.ReactNode = children
     let language = 'code'
@@ -243,7 +241,6 @@ const markdownComponents = {
     return <CodeBlock code={actualCodeText} language={language} />
   },
 
-  // Inline code
   code: ({
     className,
     children,
@@ -257,7 +254,6 @@ const markdownComponents = {
     </code>
   ),
 
-  // Text formatting
   strong: ({ children }: React.HTMLAttributes<HTMLElement>) => (
     <strong className='font-semibold text-[var(--text-primary)]'>{children}</strong>
   ),
@@ -271,22 +267,18 @@ const markdownComponents = {
     <i className='text-[var(--text-primary)] italic'>{children}</i>
   ),
 
-  // Blockquote - compact
   blockquote: ({ children }: React.HTMLAttributes<HTMLQuoteElement>) => (
     <blockquote className='my-1.5 border-[var(--border-1)] border-l-2 py-0.5 pl-3 font-season text-[var(--text-secondary)] text-sm italic'>
       {children}
     </blockquote>
   ),
 
-  // Horizontal rule
   hr: () => <hr className='my-3 border-[var(--divider)] border-t' />,
 
-  // Links
   a: ({ href, children }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
     <LinkWithPreview href={href || '#'}>{children}</LinkWithPreview>
   ),
 
-  // Tables - compact
   table: ({ children }: React.TableHTMLAttributes<HTMLTableElement>) => (
     <div className='my-2 max-w-full overflow-x-auto'>
       <table className='min-w-full table-auto border border-[var(--border-1)] font-season text-xs'>
@@ -314,7 +306,6 @@ const markdownComponents = {
     </td>
   ),
 
-  // Images
   img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
     <img src={src} alt={alt || 'Image'} className='my-2 h-auto max-w-full rounded-md' {...props} />
   ),
@@ -330,7 +321,7 @@ const markdownComponents = {
 function CopilotMarkdownRenderer({ content }: CopilotMarkdownRendererProps) {
   return (
     <div className='max-w-full break-words font-base font-season text-[var(--text-primary)] text-sm leading-[1.4] dark:font-[470] [&_*]:max-w-full [&_a]:break-all [&_code:not(pre_code)]:break-words [&_li]:break-words [&_p]:break-words'>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={markdownComponents}>
         {content}
       </ReactMarkdown>
     </div>

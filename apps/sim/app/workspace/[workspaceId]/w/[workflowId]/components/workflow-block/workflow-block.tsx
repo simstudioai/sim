@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
+import { isEqual } from 'lodash'
 import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge, Tooltip } from '@/components/emcn'
@@ -45,6 +46,9 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { wouldCreateCycle } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowBlock')
+
+/** Stable empty object to avoid creating new references */
+const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
 
 /**
  * Type guard for table row structure
@@ -320,23 +324,7 @@ export const getDisplayValue = (value: unknown): string => {
   return stringValue.trim().length > 0 ? stringValue : '-'
 }
 
-/**
- * Renders a single subblock row with title and optional value.
- * Automatically hydrates IDs to display names for all selector types.
- */
-const SubBlockRow = ({
-  title,
-  value,
-  subBlock,
-  rawValue,
-  workspaceId,
-  workflowId,
-  blockId,
-  allSubBlockValues,
-  displayAdvancedOptions,
-  canonicalIndex,
-  canonicalModeOverrides,
-}: {
+interface SubBlockRowProps {
   title: string
   value?: string
   subBlock?: SubBlockConfig
@@ -348,7 +336,53 @@ const SubBlockRow = ({
   displayAdvancedOptions?: boolean
   canonicalIndex?: ReturnType<typeof buildCanonicalIndex>
   canonicalModeOverrides?: Record<string, 'basic' | 'advanced'>
-}) => {
+}
+
+/**
+ * Compares SubBlockRow props for memo equality check.
+ */
+const areSubBlockRowPropsEqual = (
+  prevProps: SubBlockRowProps,
+  nextProps: SubBlockRowProps
+): boolean => {
+  const subBlockId = prevProps.subBlock?.id
+  const prevValue = subBlockId ? prevProps.allSubBlockValues?.[subBlockId]?.value : undefined
+  const nextValue = subBlockId ? nextProps.allSubBlockValues?.[subBlockId]?.value : undefined
+  const valueEqual = prevValue === nextValue || isEqual(prevValue, nextValue)
+
+  return (
+    prevProps.title === nextProps.title &&
+    prevProps.value === nextProps.value &&
+    prevProps.subBlock === nextProps.subBlock &&
+    prevProps.rawValue === nextProps.rawValue &&
+    prevProps.workspaceId === nextProps.workspaceId &&
+    prevProps.workflowId === nextProps.workflowId &&
+    prevProps.blockId === nextProps.blockId &&
+    valueEqual &&
+    prevProps.displayAdvancedOptions === nextProps.displayAdvancedOptions &&
+    prevProps.canonicalIndex === nextProps.canonicalIndex &&
+    prevProps.canonicalModeOverrides === nextProps.canonicalModeOverrides
+  )
+}
+
+/**
+ * Renders a single subblock row with title and optional value.
+ * Automatically hydrates IDs to display names for all selector types.
+ * Memoized to prevent excessive re-renders when parent components update.
+ */
+const SubBlockRow = memo(function SubBlockRow({
+  title,
+  value,
+  subBlock,
+  rawValue,
+  workspaceId,
+  workflowId,
+  blockId,
+  allSubBlockValues,
+  displayAdvancedOptions,
+  canonicalIndex,
+  canonicalModeOverrides,
+}: SubBlockRowProps) {
   const getStringValue = useCallback(
     (key?: string): string | undefined => {
       if (!key || !allSubBlockValues) return undefined
@@ -486,21 +520,34 @@ const SubBlockRow = ({
       : `${baseUrl}/api/webhooks/trigger/${blockId}`
   }, [subBlock?.id, blockId, allSubBlockValues])
 
-  const allVariables = useVariablesStore((state) => state.variables)
+  /**
+   * Subscribe only to variables for this workflow to avoid re-renders from other workflows.
+   * Uses isEqual for deep comparison since Object.fromEntries creates a new object each time.
+   */
+  const workflowVariables = useVariablesStore(
+    useCallback(
+      (state) => {
+        if (!workflowId) return {}
+        return Object.fromEntries(
+          Object.entries(state.variables).filter(([, v]) => v.workflowId === workflowId)
+        )
+      },
+      [workflowId]
+    ),
+    isEqual
+  )
 
   const variablesDisplayValue = useMemo(() => {
     if (subBlock?.type !== 'variables-input' || !isVariableAssignmentsArray(rawValue)) {
       return null
     }
 
-    const workflowVariables = Object.values(allVariables).filter(
-      (v: any) => v.workflowId === workflowId
-    )
+    const variablesArray = Object.values(workflowVariables)
 
     const names = rawValue
       .map((a) => {
         if (a.variableId) {
-          const variable = workflowVariables.find((v: any) => v.id === a.variableId)
+          const variable = variablesArray.find((v: any) => v.id === a.variableId)
           return variable?.name
         }
         if (a.variableName) return a.variableName
@@ -512,7 +559,7 @@ const SubBlockRow = ({
     if (names.length === 1) return names[0]
     if (names.length === 2) return `${names[0]}, ${names[1]}`
     return `${names[0]}, ${names[1]} +${names.length - 2}`
-  }, [subBlock?.type, rawValue, workflowId, allVariables])
+  }, [subBlock?.type, rawValue, workflowVariables])
 
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
@@ -548,7 +595,7 @@ const SubBlockRow = ({
       )}
     </div>
   )
-}
+}, areSubBlockRowPropsEqual)
 
 export const WorkflowBlock = memo(function WorkflowBlock({
   id,
@@ -626,18 +673,15 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const isStarterBlock = type === 'starter'
   const isWebhookTriggerBlock = type === 'webhook' || type === 'generic_webhook'
 
-  /**
-   * Subscribe to this block's subblock values to track changes for conditional rendering
-   * of subblocks based on their conditions.
-   */
   const blockSubBlockValues = useSubBlockStore(
     useCallback(
       (state) => {
-        if (!activeWorkflowId) return {}
-        return state.workflowValues[activeWorkflowId]?.[id] || {}
+        if (!activeWorkflowId) return EMPTY_SUBBLOCK_VALUES
+        return state.workflowValues[activeWorkflowId]?.[id] ?? EMPTY_SUBBLOCK_VALUES
       },
       [activeWorkflowId, id]
-    )
+    ),
+    isEqual
   )
   const canonicalIndex = useMemo(() => buildCanonicalIndex(config.subBlocks), [config.subBlocks])
   const canonicalModeOverrides = currentStoreBlock?.data?.canonicalModes

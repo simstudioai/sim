@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import 'prismjs/components/prism-python'
@@ -170,7 +170,7 @@ interface CodeProps {
   hideInternalWand?: boolean
 }
 
-export function Code({
+export const Code = memo(function Code({
   blockId,
   subBlockId,
   placeholder = 'Write JavaScript...',
@@ -206,6 +206,8 @@ export function Code({
   const handleGeneratedContentRef = useRef<(generatedCode: string) => void>(() => {})
   const handleStreamChunkRef = useRef<(chunk: string) => void>(() => {})
   const hasEditedSinceFocusRef = useRef(false)
+  const codeRef = useRef(code)
+  codeRef.current = code
 
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const emitTagSelection = useTagSelection(blockId, subBlockId)
@@ -555,36 +557,39 @@ export function Code({
    * @param part - The code segment to check
    * @returns True if the segment should be highlighted as a reference
    */
-  const shouldHighlightReference = (part: string): boolean => {
-    if (!part.startsWith('<') || !part.endsWith('>')) {
-      return false
-    }
+  const shouldHighlightReference = useCallback(
+    (part: string): boolean => {
+      if (!part.startsWith('<') || !part.endsWith('>')) {
+        return false
+      }
 
-    if (!isLikelyReferenceSegment(part)) {
-      return false
-    }
+      if (!isLikelyReferenceSegment(part)) {
+        return false
+      }
 
-    const split = splitReferenceSegment(part)
-    if (!split) {
-      return false
-    }
+      const split = splitReferenceSegment(part)
+      if (!split) {
+        return false
+      }
 
-    const reference = split.reference
+      const reference = split.reference
 
-    if (!accessiblePrefixes) {
-      return true
-    }
+      if (!accessiblePrefixes) {
+        return true
+      }
 
-    const inner = reference.slice(1, -1)
-    const [prefix] = inner.split('.')
-    const normalizedPrefix = normalizeName(prefix)
+      const inner = reference.slice(1, -1)
+      const [prefix] = inner.split('.')
+      const normalizedPrefix = normalizeName(prefix)
 
-    if (SYSTEM_REFERENCE_PREFIXES.has(normalizedPrefix)) {
-      return true
-    }
+      if (SYSTEM_REFERENCE_PREFIXES.has(normalizedPrefix)) {
+        return true
+      }
 
-    return accessiblePrefixes.has(normalizedPrefix)
-  }
+      return accessiblePrefixes.has(normalizedPrefix)
+    },
+    [accessiblePrefixes]
+  )
 
   useImperativeHandle(
     wandControlRef,
@@ -597,6 +602,62 @@ export function Code({
     }),
     [generateCodeStream, isPromptVisible, isAiStreaming]
   )
+
+  const highlightCode = useMemo(
+    () => createHighlightFunction(effectiveLanguage, shouldHighlightReference),
+    [effectiveLanguage, shouldHighlightReference]
+  )
+
+  const handleValueChange = useCallback(
+    (newCode: string) => {
+      if (!isAiStreaming && !isPreview && !disabled && !readOnly) {
+        hasEditedSinceFocusRef.current = true
+        setCode(newCode)
+        setStoreValue(newCode)
+
+        const textarea = editorRef.current?.querySelector('textarea')
+        if (textarea) {
+          const pos = textarea.selectionStart
+          setCursorPosition(pos)
+
+          const tagTrigger = checkTagTrigger(newCode, pos)
+          setShowTags(tagTrigger.show)
+          if (!tagTrigger.show) {
+            setActiveSourceBlockId(null)
+          }
+
+          const envVarTrigger = checkEnvVarTrigger(newCode, pos)
+          setShowEnvVars(envVarTrigger.show)
+          setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
+        }
+      }
+    },
+    [isAiStreaming, isPreview, disabled, readOnly, setStoreValue]
+  )
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement | HTMLTextAreaElement>) => {
+      if (e.key === 'Escape') {
+        setShowTags(false)
+        setShowEnvVars(false)
+      }
+      if (isAiStreaming) {
+        e.preventDefault()
+      }
+      if (e.key === 'z' && (e.metaKey || e.ctrlKey) && !hasEditedSinceFocusRef.current) {
+        e.preventDefault()
+      }
+    },
+    [isAiStreaming]
+  )
+
+  const handleEditorFocus = useCallback(() => {
+    hasEditedSinceFocusRef.current = false
+    if (!isPreview && !disabled && !readOnly && codeRef.current.trim() === '') {
+      setShowTags(true)
+      setCursorPosition(0)
+    }
+  }, [isPreview, disabled, readOnly])
 
   /**
    * Renders the line numbers, aligned with wrapped visual lines and highlighting the active line.
@@ -713,49 +774,10 @@ export function Code({
 
           <Editor
             value={code}
-            onValueChange={(newCode: string) => {
-              if (!isAiStreaming && !isPreview && !disabled && !readOnly) {
-                hasEditedSinceFocusRef.current = true
-                setCode(newCode)
-                setStoreValue(newCode)
-
-                const textarea = editorRef.current?.querySelector('textarea')
-                if (textarea) {
-                  const pos = textarea.selectionStart
-                  setCursorPosition(pos)
-
-                  const tagTrigger = checkTagTrigger(newCode, pos)
-                  setShowTags(tagTrigger.show)
-                  if (!tagTrigger.show) {
-                    setActiveSourceBlockId(null)
-                  }
-
-                  const envVarTrigger = checkEnvVarTrigger(newCode, pos)
-                  setShowEnvVars(envVarTrigger.show)
-                  setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
-                }
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setShowTags(false)
-                setShowEnvVars(false)
-              }
-              if (isAiStreaming) {
-                e.preventDefault()
-              }
-              if (e.key === 'z' && (e.metaKey || e.ctrlKey) && !hasEditedSinceFocusRef.current) {
-                e.preventDefault()
-              }
-            }}
-            onFocus={() => {
-              hasEditedSinceFocusRef.current = false
-              if (!isPreview && !disabled && !readOnly && code.trim() === '') {
-                setShowTags(true)
-                setCursorPosition(0)
-              }
-            }}
-            highlight={createHighlightFunction(effectiveLanguage, shouldHighlightReference)}
+            onValueChange={handleValueChange}
+            onKeyDown={handleKeyDown}
+            onFocus={handleEditorFocus}
+            highlight={highlightCode}
             {...getCodeEditorProps({ isStreaming: isAiStreaming, isPreview, disabled })}
           />
 
@@ -798,4 +820,4 @@ export function Code({
       </CodeEditor.Container>
     </>
   )
-}
+})

@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isEqual } from 'lodash'
 import { BookOpen, Check, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { Button, Tooltip } from '@/components/emcn'
 import {
   buildCanonicalIndex,
@@ -33,6 +35,9 @@ import { usePanelEditorStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
+/** Stable empty object to avoid creating new references */
+const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
+
 /**
  * Icon component for rendering block icons.
  *
@@ -58,7 +63,15 @@ export function Editor() {
     toggleConnectionsCollapsed,
     shouldFocusRename,
     setShouldFocusRename,
-  } = usePanelEditorStore()
+  } = usePanelEditorStore(
+    useShallow((state) => ({
+      currentBlockId: state.currentBlockId,
+      connectionsHeight: state.connectionsHeight,
+      toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
+      shouldFocusRename: state.shouldFocusRename,
+      setShouldFocusRename: state.setShouldFocusRename,
+    }))
+  )
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
@@ -86,15 +99,15 @@ export function Editor() {
     currentWorkflow.isSnapshotView
   )
 
-  // Subscribe to block's subblock values
   const blockSubBlockValues = useSubBlockStore(
     useCallback(
       (state) => {
-        if (!activeWorkflowId || !currentBlockId) return {}
-        return state.workflowValues[activeWorkflowId]?.[currentBlockId] || {}
+        if (!activeWorkflowId || !currentBlockId) return EMPTY_SUBBLOCK_VALUES
+        return state.workflowValues[activeWorkflowId]?.[currentBlockId] ?? EMPTY_SUBBLOCK_VALUES
       },
       [activeWorkflowId, currentBlockId]
-    )
+    ),
+    isEqual
   )
 
   const subBlocksForCanonical = useMemo(() => {

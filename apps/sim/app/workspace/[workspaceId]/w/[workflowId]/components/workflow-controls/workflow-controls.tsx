@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { memo, useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { Scan } from 'lucide-react'
@@ -33,7 +33,10 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('WorkflowControls')
 
-export function WorkflowControls() {
+/**
+ * Floating controls for canvas mode, undo/redo, and fit-to-view.
+ */
+export const WorkflowControls = memo(function WorkflowControls() {
   const reactFlowInstance = useReactFlow()
   const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
   const { mode, setMode } = useCanvasModeStore()
@@ -42,7 +45,7 @@ export function WorkflowControls() {
   const updateSetting = useUpdateGeneralSetting()
   const isTerminalResizing = useTerminalStore((state) => state.isResizing)
 
-  const { activeWorkflowId } = useWorkflowRegistry()
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const { data: session } = useSession()
   const userId = session?.user?.id || 'unknown'
   const stacks = useUndoRedoStore((s) => s.stacks)
@@ -222,4 +225,4 @@ export function WorkflowControls() {
       </Popover>
     </>
   )
-}
+})

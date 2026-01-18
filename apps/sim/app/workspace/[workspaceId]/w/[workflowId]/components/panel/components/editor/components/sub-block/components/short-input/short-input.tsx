@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Wand2 } from 'lucide-react'
 import { useReactFlow } from 'reactflow'
 import { Input } from '@/components/emcn'
@@ -62,7 +62,7 @@ interface ShortInputProps {
  * - Copy to clipboard functionality
  * - Integrates with ReactFlow for zoom control
  */
-export function ShortInput({
+export const ShortInput = memo(function ShortInput({
   blockId,
   subBlockId,
   placeholder,
@@ -445,4 +445,4 @@ export function ShortInput({
       </div>
     </>
   )
-}
+})
