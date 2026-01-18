@@ -10,6 +10,7 @@ import {
   type Resolver,
 } from '@/executor/variables/resolvers/reference'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import { getTool } from '@/tools/utils'
 
 function isPathInOutputSchema(
   outputs: Record<string, any> | undefined,
@@ -168,8 +169,11 @@ export class BlockResolver implements Resolver {
       }
     }
 
-    const schemaFields = getSchemaFieldNames(block?.outputs)
-    if (schemaFields.length > 0 && !isPathInOutputSchema(block?.outputs, pathParts)) {
+    const toolId = block?.config?.tool
+    const toolConfig = toolId ? getTool(toolId) : undefined
+    const outputSchema = toolConfig?.outputs ?? block?.outputs
+    const schemaFields = getSchemaFieldNames(outputSchema)
+    if (schemaFields.length > 0 && !isPathInOutputSchema(outputSchema, pathParts)) {
       throw new Error(
         `"${pathParts.join('.')}" doesn't exist on block "${blockName}". ` +
           `Available fields: ${schemaFields.join(', ')}`
