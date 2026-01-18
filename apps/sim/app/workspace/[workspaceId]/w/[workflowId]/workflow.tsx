@@ -234,6 +234,7 @@ const WorkflowContent = React.memo(() => {
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
   const [selectedEdges, setSelectedEdges] = useState<SelectedEdgesMap>(new Map())
   const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
+  const selectedIdsRef = useRef<string[] | null>(null)
   const canvasMode = useCanvasModeStore((state) => state.mode)
   const isHandMode = canvasMode === 'hand'
   const { handleCanvasMouseDown, selectionProps } = useShiftSelectionLock({ isHandMode })
@@ -864,7 +865,7 @@ const WorkflowContent = React.memo(() => {
     handlePaneContextMenu,
     handleSelectionContextMenu,
     closeMenu: closeContextMenu,
-  } = useCanvasContextMenu({ blocks, getNodes })
+  } = useCanvasContextMenu({ blocks, getNodes, setNodes })
 
   const handleContextCopy = useCallback(() => {
     const blockIds = contextMenuBlocks.map((b) => b.id)
@@ -2153,11 +2154,22 @@ const WorkflowContent = React.memo(() => {
   /** Handles node changes - applies changes and resolves parent-child selection conflicts. */
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
+      selectedIdsRef.current = null
       setDisplayNodes((nds) => {
         const updated = applyNodeChanges(changes, nds)
         const hasSelectionChange = changes.some((c) => c.type === 'select')
-        return hasSelectionChange ? resolveParentChildSelectionConflicts(updated, blocks) : updated
+        if (!hasSelectionChange) return updated
+        const resolved = resolveParentChildSelectionConflicts(updated, blocks)
+        selectedIdsRef.current = resolved.filter((node) => node.selected).map((node) => node.id)
+        return resolved
       })
+      const selectedIds = selectedIdsRef.current as string[] | null
+      if (selectedIds !== null) {
+        const { currentBlockId, clearCurrentBlock } = usePanelEditorStore.getState()
+        if (currentBlockId && selectedIds.indexOf(currentBlockId) === -1) {
+          clearCurrentBlock()
+        }
+      }
     },
     [blocks]
   )
