@@ -35,6 +35,7 @@ import {
   Code,
   FileSelectorInput,
   FileUpload,
+  FolderSelectorInput,
   LongInput,
   ProjectSelectorInput,
   SheetSelectorInput,
@@ -313,6 +314,42 @@ function SheetSelectorSyncWrapper({
   )
 }
 
+function FolderSelectorSyncWrapper({
+  blockId,
+  paramId,
+  value,
+  onChange,
+  uiComponent,
+  disabled,
+  previewContextValues,
+}: {
+  blockId: string
+  paramId: string
+  value: string
+  onChange: (value: string) => void
+  uiComponent: any
+  disabled: boolean
+  previewContextValues?: Record<string, any>
+}) {
+  return (
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <FolderSelectorInput
+        blockId={blockId}
+        subBlock={{
+          id: paramId,
+          type: 'folder-selector' as const,
+          title: paramId,
+          serviceId: uiComponent.serviceId,
+          requiredScopes: uiComponent.requiredScopes || [],
+          placeholder: uiComponent.placeholder,
+          dependsOn: uiComponent.dependsOn,
+        }}
+        disabled={disabled}
+      />
+    </GenericSyncWrapper>
+  )
+}
+
 function KnowledgeBaseSelectorSyncWrapper({
   blockId,
   paramId,
@@ -569,11 +606,15 @@ function CheckboxListSyncWrapper({
 }
 
 function ComboboxSyncWrapper({
+  blockId,
+  paramId,
   value,
   onChange,
   uiComponent,
   disabled,
 }: {
+  blockId: string
+  paramId: string
   value: string
   onChange: (value: string) => void
   uiComponent: any
@@ -584,13 +625,15 @@ function ComboboxSyncWrapper({
   )
 
   return (
-    <Combobox
-      options={options}
-      value={value}
-      onChange={onChange}
-      placeholder={uiComponent.placeholder || 'Select option'}
-      disabled={disabled}
-    />
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <Combobox
+        options={options}
+        value={value}
+        onChange={onChange}
+        placeholder={uiComponent.placeholder || 'Select option'}
+        disabled={disabled}
+      />
+    </GenericSyncWrapper>
   )
 }
 
@@ -669,6 +712,8 @@ function SlackSelectorSyncWrapper({
 }
 
 function WorkflowSelectorSyncWrapper({
+  blockId,
+  paramId,
   value,
   onChange,
   uiComponent,
@@ -676,6 +721,8 @@ function WorkflowSelectorSyncWrapper({
   workspaceId,
   currentWorkflowId,
 }: {
+  blockId: string
+  paramId: string
   value: string
   onChange: (value: string) => void
   uiComponent: any
@@ -695,15 +742,17 @@ function WorkflowSelectorSyncWrapper({
   }))
 
   return (
-    <Combobox
-      options={options}
-      value={value}
-      onChange={onChange}
-      placeholder={uiComponent.placeholder || 'Select workflow'}
-      disabled={disabled || isLoading}
-      searchable
-      searchPlaceholder='Search workflows...'
-    />
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <Combobox
+        options={options}
+        value={value}
+        onChange={onChange}
+        placeholder={uiComponent.placeholder || 'Select workflow'}
+        disabled={disabled || isLoading}
+        searchable
+        searchPlaceholder='Search workflows...'
+      />
+    </GenericSyncWrapper>
   )
 }
 
@@ -2065,6 +2114,19 @@ export function ToolInput({
           />
         )
 
+      case 'folder-selector':
+        return (
+          <FolderSelectorSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
+            value={value}
+            onChange={onChange}
+            uiComponent={uiComponent}
+            disabled={disabled}
+            previewContextValues={currentToolParams}
+          />
+        )
+
       case 'table':
         return (
           <TableSyncWrapper
@@ -2080,6 +2142,8 @@ export function ToolInput({
       case 'combobox':
         return (
           <ComboboxSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
             value={value}
             onChange={onChange}
             uiComponent={uiComponent}
@@ -2138,6 +2202,8 @@ export function ToolInput({
       case 'workflow-selector':
         return (
           <WorkflowSelectorSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
             value={value}
             onChange={onChange}
             uiComponent={uiComponent}

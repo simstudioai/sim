@@ -5,11 +5,22 @@ import {
   type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
+import { isEmptyTagValue } from '@/tools/tag-utils'
 import type { ParameterVisibility, ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 
+// Re-export for backwards compatibility
+export { isEmptyTagValue } from '@/tools/tag-utils'
+
 const logger = createLogger('ToolsParams')
 type ToolParamDefinition = ToolConfig['params'][string]
+
+/**
+ * Checks if a value is non-empty (not undefined, null, or empty string)
+ */
+export function isNonEmpty(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== ''
+}
 
 export interface Option {
   label: string
@@ -455,13 +466,8 @@ export async function createLLMToolSchema(
     }
 
     if (!isWorkflowInputMapping) {
-      const isUserProvided =
-        userProvidedParams[paramId] !== undefined &&
-        userProvidedParams[paramId] !== null &&
-        userProvidedParams[paramId] !== ''
-
       // Skip parameters that user has already provided
-      if (isUserProvided) {
+      if (isNonEmpty(userProvidedParams[paramId])) {
         continue
       }
 
@@ -606,28 +612,6 @@ export function createExecutionToolSchema(toolConfig: ToolConfig): ToolSchema {
 }
 
 /**
- * Checks if a tag-based value is effectively empty (only contains default/unfilled entries)
- * Works for both documentTags and tagFilters parameters
- */
-export function isEmptyTagValue(value: unknown): boolean {
-  if (!value) return true
-  if (typeof value !== 'string') return false
-
-  try {
-    const parsed = JSON.parse(value)
-    if (!Array.isArray(parsed)) return false
-    if (parsed.length === 0) return true
-
-    // Check if all entries have empty tagName (unfilled)
-    return parsed.every(
-      (entry: { tagName?: string }) => !entry.tagName || entry.tagName.trim() === ''
-    )
-  } catch {
-    return false
-  }
-}
-
-/**
  * Deep merges inputMapping objects, where LLM values fill in empty/missing user values.
  * User-provided non-empty values take precedence.
  */
@@ -665,8 +649,7 @@ export function deepMergeInputMapping(
 
   for (const [key, userValue] of Object.entries(parsedUserMapping)) {
     // Only override LLM value if user provided a non-empty value
-    // Note: Using strict inequality (!==) so 0 and false are correctly preserved
-    if (userValue !== undefined && userValue !== null && userValue !== '') {
+    if (isNonEmpty(userValue)) {
       merged[key] = userValue
     }
   }
@@ -686,11 +669,11 @@ export function mergeToolParameters(
   userProvidedParams: Record<string, unknown>,
   llmGeneratedParams: Record<string, unknown>
 ): Record<string, unknown> {
-  // Filter out empty strings and empty tag values from user-provided params
+  // Filter out empty and effectively-empty values from user-provided params
   // so that cleared fields don't override LLM values
   const filteredUserParams: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(userProvidedParams)) {
-    if (value !== undefined && value !== null && value !== '') {
+    if (isNonEmpty(value)) {
       // Skip tag-based params if they're effectively empty (only default/unfilled entries)
       if ((key === 'documentTags' || key === 'tagFilters') && isEmptyTagValue(value)) {
         continue
@@ -742,11 +725,7 @@ export function filterSchemaForLLM(
 
   // Remove user-provided parameters from the schema
   Object.keys(userProvidedParams).forEach((paramKey) => {
-    if (
-      userProvidedParams[paramKey] !== undefined &&
-      userProvidedParams[paramKey] !== null &&
-      userProvidedParams[paramKey] !== ''
-    ) {
+    if (isNonEmpty(userProvidedParams[paramKey])) {
       delete filteredProperties[paramKey]
       const reqIndex = filteredRequired.indexOf(paramKey)
       if (reqIndex > -1) {

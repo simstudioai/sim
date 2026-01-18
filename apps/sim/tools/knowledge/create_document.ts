@@ -1,5 +1,6 @@
 import type { KnowledgeCreateDocumentResponse } from '@/tools/knowledge/types'
 import { enrichKBTagsSchema } from '@/tools/schema-enrichers'
+import { formatDocumentTagsForAPI, parseDocumentTags } from '@/tools/tag-utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumentResponse> = {
@@ -76,42 +77,9 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
 
       const dataUri = `data:text/plain;base64,${base64Content}`
 
-      const tagData: Record<string, string> = {}
-
-      if (params.documentTags) {
-        let tagsArray: Array<{ tagName: string; value: string }> = []
-
-        // Handle object format from LLM: { "Category": "foo", "Priority": 5 }
-        if (
-          typeof params.documentTags === 'object' &&
-          !Array.isArray(params.documentTags) &&
-          params.documentTags !== null
-        ) {
-          tagsArray = Object.entries(params.documentTags).map(([tagName, value]) => ({
-            tagName,
-            value: String(value),
-          }))
-        }
-        // Handle string (JSON) format from standalone block
-        else if (typeof params.documentTags === 'string') {
-          try {
-            const parsed = JSON.parse(params.documentTags)
-            if (Array.isArray(parsed)) {
-              tagsArray = parsed
-            }
-          } catch {
-            // Ignore parse errors
-          }
-        }
-        // Handle array format directly
-        else if (Array.isArray(params.documentTags)) {
-          tagsArray = params.documentTags
-        }
-
-        if (tagsArray.length > 0) {
-          tagData.documentTagsData = JSON.stringify(tagsArray)
-        }
-      }
+      // Parse document tags from various formats (object, array, JSON string)
+      const parsedTags = parseDocumentTags(params.documentTags)
+      const tagData = formatDocumentTagsForAPI(parsedTags)
 
       const documents = [
         {
