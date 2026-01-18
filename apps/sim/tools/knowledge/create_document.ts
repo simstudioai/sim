@@ -1,6 +1,6 @@
 import type { KnowledgeCreateDocumentResponse } from '@/tools/knowledge/types'
+import { formatDocumentTagsForAPI, parseDocumentTags } from '@/tools/params'
 import { enrichKBTagsSchema } from '@/tools/schema-enrichers'
-import { formatDocumentTagsForAPI, parseDocumentTags } from '@/tools/tag-utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumentResponse> = {
