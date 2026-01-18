@@ -2165,8 +2165,11 @@ const WorkflowContent = React.memo(() => {
       })
       const selectedIds = selectedIdsRef.current as string[] | null
       if (selectedIds !== null) {
-        const { currentBlockId, clearCurrentBlock } = usePanelEditorStore.getState()
-        if (currentBlockId && selectedIds.indexOf(currentBlockId) === -1) {
+        const { currentBlockId, clearCurrentBlock, setCurrentBlockId } =
+          usePanelEditorStore.getState()
+        if (selectedIds.length === 1 && selectedIds[0] !== currentBlockId) {
+          setCurrentBlockId(selectedIds[0])
+        } else if (selectedIds.length === 0 && currentBlockId) {
           clearCurrentBlock()
         }
       }
