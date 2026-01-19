@@ -31,7 +31,7 @@ export function FreeTierUpgradeEmail({
   const previewText = `${brand.name}: You've used ${percentUsed}% of your free credits`
 
   return (
-    <EmailLayout preview={previewText}>
+    <EmailLayout preview={previewText} showUnsubscribe={true}>
       <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
         {userName ? `Hi ${userName},` : 'Hi,'}
       </Text>

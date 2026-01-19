@@ -13,7 +13,7 @@ export function WelcomeEmail({ userName }: WelcomeEmailProps) {
   const baseUrl = getBaseUrl()
 
   return (
-    <EmailLayout preview={`Welcome to ${brand.name}`}>
+    <EmailLayout preview={`Welcome to ${brand.name}`} showUnsubscribe={false}>
       <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
         {userName ? `Hey ${userName},` : 'Hey,'}
       </Text>
