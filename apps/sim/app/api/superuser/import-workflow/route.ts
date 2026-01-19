@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
-import { copilotChats, user, workflow, workspace } from '@sim/db/schema'
+import { copilotChats, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import {
   loadWorkflowFromNormalizedTables,
@@ -25,6 +26,8 @@ interface ImportWorkflowRequest {
  * This creates a copy of the workflow in the target workspace with new IDs.
  * Only the workflow structure and copilot chats are copied - no deployments,
  * webhooks, triggers, or other sensitive data.
+ *
+ * Requires both isSuperUser flag AND superUserModeEnabled setting.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -33,16 +36,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify the user is a superuser
-    const [currentUser] = await db
-      .select({ isSuperUser: user.isSuperUser })
-      .from(user)
-      .where(eq(user.id, session.user.id))
-      .limit(1)
+    const { effectiveSuperUser, isSuperUser, superUserModeEnabled } =
+      await verifyEffectiveSuperUser(session.user.id)
 
-    if (!currentUser?.isSuperUser) {
-      logger.warn('Non-superuser attempted to access import-workflow endpoint', {
+    if (!effectiveSuperUser) {
+      logger.warn('Non-effective-superuser attempted to access import-workflow endpoint', {
         userId: session.user.id,
+        isSuperUser,
+        superUserModeEnabled,
       })
       return NextResponse.json({ error: 'Forbidden: Superuser access required' }, { status: 403 })
     }

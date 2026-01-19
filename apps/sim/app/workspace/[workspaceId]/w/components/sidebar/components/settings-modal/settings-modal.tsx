@@ -95,7 +95,13 @@ type SettingsSection =
   | 'workflow-mcp-servers'
   | 'debug'
 
-type NavigationSection = 'account' | 'subscription' | 'tools' | 'system' | 'enterprise' | 'superuser'
+type NavigationSection =
+  | 'account'
+  | 'subscription'
+  | 'tools'
+  | 'system'
+  | 'enterprise'
+  | 'superuser'
 
 type NavigationItem = {
   id: SettingsSection
@@ -202,6 +208,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
   const { data: organizationsData } = useOrganizations()
+  const { data: generalSettings } = useGeneralSettings()
   const { data: subscriptionData } = useSubscriptionData({ enabled: isBillingEnabled })
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders()
 
@@ -298,8 +305,10 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         return false
       }
 
-      // requiresSuperUser: only show if user is a superuser
-      if (item.requiresSuperUser && !isSuperUser) {
+      // requiresSuperUser: only show if user is a superuser AND has superuser mode enabled
+      const superUserModeEnabled = generalSettings?.superUserModeEnabled ?? false
+      const effectiveSuperUser = isSuperUser && superUserModeEnabled
+      if (item.requiresSuperUser && !effectiveSuperUser) {
         return false
       }
 
@@ -316,6 +325,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     isAdmin,
     permissionConfig,
     isSuperUser,
+    generalSettings?.superUserModeEnabled,
   ])
 
   // Memoized callbacks to prevent infinite loops in child components
@@ -343,9 +353,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     },
     [activeSection]
   )
-
-  // React Query hook automatically loads and syncs settings
-  useGeneralSettings()
 
   // Apply initial section from store when modal opens
   useEffect(() => {
