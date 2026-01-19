@@ -326,32 +326,32 @@ export const env = createEnv({
 
     NEXT_PUBLIC_E2B_ENABLED:               z.string().optional(),
     NEXT_PUBLIC_COPILOT_TRAINING_ENABLED:  z.string().optional(),
-    NEXT_PUBLIC_ENABLE_PLAYGROUND:         z.string().optional(),                  // Enable component playground at /playground                  
+    NEXT_PUBLIC_ENABLE_PLAYGROUND:         z.string().optional(),                  // Enable component playground at /playground
     NEXT_PUBLIC_DOCUMENTATION_URL:         z.string().url().optional(),            // Custom documentation URL
     NEXT_PUBLIC_TERMS_URL:                 z.string().url().optional(),            // Custom terms of service URL
     NEXT_PUBLIC_PRIVACY_URL:               z.string().url().optional(),            // Custom privacy policy URL
 
     // Theme Customization
     NEXT_PUBLIC_BRAND_PRIMARY_COLOR:       z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),     // Primary brand color (hex format, e.g., "#701ffc")
-    NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),    // Primary brand hover state (hex format)
+    NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),     // Primary brand hover state (hex format)
     NEXT_PUBLIC_BRAND_ACCENT_COLOR:        z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),     // Accent brand color (hex format)
     NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR:  z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),     // Accent brand hover state (hex format)
     NEXT_PUBLIC_BRAND_BACKGROUND_COLOR:    z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),     // Brand background color (hex format)
 
     // Feature Flags
-    NEXT_PUBLIC_TRIGGER_DEV_ENABLED:       z.boolean().optional(),                 // Client-side gate for async executions UI
-    NEXT_PUBLIC_SSO_ENABLED:               z.boolean().optional(),                 // Enable SSO login UI components
-    NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED:   z.boolean().optional(),                 // Enable credential sets (email polling) on self-hosted
-    NEXT_PUBLIC_ACCESS_CONTROL_ENABLED:    z.boolean().optional(),                 // Enable access control (permission groups) on self-hosted
-    NEXT_PUBLIC_ORGANIZATIONS_ENABLED:     z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)
-    NEXT_PUBLIC_DISABLE_INVITATIONS:       z.boolean().optional(),                 // Disable workspace invitations globally (for self-hosted deployments)
+    NEXT_PUBLIC_TRIGGER_DEV_ENABLED:       z.boolean().optional(),                   // Client-side gate for async executions UI
+    NEXT_PUBLIC_SSO_ENABLED:               z.boolean().optional(),                   // Enable SSO login UI components
+    NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED:   z.boolean().optional(),                   // Enable credential sets (email polling) on self-hosted
+    NEXT_PUBLIC_ACCESS_CONTROL_ENABLED:    z.boolean().optional(),                   // Enable access control (permission groups) on self-hosted
+    NEXT_PUBLIC_ORGANIZATIONS_ENABLED:     z.boolean().optional(),                   // Enable organizations on self-hosted (bypasses plan requirements)
+    NEXT_PUBLIC_DISABLE_INVITATIONS:       z.boolean().optional(),                   // Disable workspace invitations globally (for self-hosted deployments)
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: z.boolean().optional().default(true), // Control visibility of email/password login forms
   },
 
   // Variables available on both server and client
   shared: {
     NODE_ENV:                              z.enum(['development', 'test', 'production']).optional(), // Runtime environment
-    NEXT_TELEMETRY_DISABLED:               z.string().optional(),                // Disable Next.js telemetry collection
+    NEXT_TELEMETRY_DISABLED:               z.string().optional(),                                    // Disable Next.js telemetry collection
   },
 
   experimental__runtimeEnv: {

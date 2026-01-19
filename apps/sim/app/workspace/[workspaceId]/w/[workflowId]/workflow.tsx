@@ -692,7 +692,8 @@ const WorkflowContent = React.memo(() => {
       parentId?: string,
       extent?: 'parent',
       autoConnectEdge?: Edge,
-      triggerMode?: boolean
+      triggerMode?: boolean,
+      presetSubBlockValues?: Record<string, unknown>
     ) => {
       setPendingSelection([id])
       setSelectedEdges(new Map())
@@ -720,6 +721,14 @@ const WorkflowContent = React.memo(() => {
             subBlockValues[id][subBlockId] = subBlock.value
           }
         }
+      }
+
+      // Apply preset subblock values (e.g., from tool-operation search)
+      if (presetSubBlockValues) {
+        if (!subBlockValues[id]) {
+          subBlockValues[id] = {}
+        }
+        Object.assign(subBlockValues[id], presetSubBlockValues)
       }
 
       collaborativeBatchAddBlocks(
@@ -1489,7 +1498,7 @@ const WorkflowContent = React.memo(() => {
         return
       }
 
-      const { type, enableTriggerMode } = event.detail
+      const { type, enableTriggerMode, presetOperation } = event.detail
 
       if (!type) return
       if (type === 'connectionBlock') return
@@ -1552,7 +1561,8 @@ const WorkflowContent = React.memo(() => {
         undefined,
         undefined,
         autoConnectEdge,
-        enableTriggerMode
+        enableTriggerMode,
+        presetOperation ? { operation: presetOperation } : undefined
       )
     }
 

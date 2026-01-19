@@ -8,17 +8,19 @@ export interface SearchableItem {
   name: string
   description?: string
   type: string
+  aliases?: string[]
   [key: string]: any
 }
 
 export interface SearchResult<T extends SearchableItem> {
   item: T
   score: number
-  matchType: 'exact' | 'prefix' | 'word-boundary' | 'substring' | 'description'
+  matchType: 'exact' | 'prefix' | 'alias' | 'word-boundary' | 'substring' | 'description'
 }
 
 const SCORE_EXACT_MATCH = 10000
 const SCORE_PREFIX_MATCH = 5000
+const SCORE_ALIAS_MATCH = 3000
 const SCORE_WORD_BOUNDARY = 1000
 const SCORE_SUBSTRING_MATCH = 100
 const DESCRIPTION_WEIGHT = 0.3
@@ -68,6 +70,39 @@ function calculateFieldScore(
 }
 
 /**
+ * Check if query matches any alias in the item's aliases array
+ * Returns the alias score if a match is found, 0 otherwise
+ */
+function calculateAliasScore(
+  query: string,
+  aliases?: string[]
+): { score: number; matchType: 'alias' | null } {
+  if (!aliases || aliases.length === 0) {
+    return { score: 0, matchType: null }
+  }
+
+  const normalizedQuery = query.toLowerCase().trim()
+
+  for (const alias of aliases) {
+    const normalizedAlias = alias.toLowerCase().trim()
+
+    if (normalizedAlias === normalizedQuery) {
+      return { score: SCORE_ALIAS_MATCH, matchType: 'alias' }
+    }
+
+    if (normalizedAlias.startsWith(normalizedQuery)) {
+      return { score: SCORE_ALIAS_MATCH * 0.8, matchType: 'alias' }
+    }
+
+    if (normalizedQuery.includes(normalizedAlias) || normalizedAlias.includes(normalizedQuery)) {
+      return { score: SCORE_ALIAS_MATCH * 0.6, matchType: 'alias' }
+    }
+  }
+
+  return { score: 0, matchType: null }
+}
+
+/**
  * Search items using tiered matching algorithm
  * Returns items sorted by relevance (highest score first)
  */
@@ -90,15 +125,20 @@ export function searchItems<T extends SearchableItem>(
       ? calculateFieldScore(normalizedQuery, item.description)
       : { score: 0, matchType: null }
 
+    const aliasMatch = calculateAliasScore(normalizedQuery, item.aliases)
+
     const nameScore = nameMatch.score
     const descScore = descMatch.score * DESCRIPTION_WEIGHT
+    const aliasScore = aliasMatch.score
 
-    const bestScore = Math.max(nameScore, descScore)
+    const bestScore = Math.max(nameScore, descScore, aliasScore)
 
     if (bestScore > 0) {
       let matchType: SearchResult<T>['matchType'] = 'substring'
-      if (nameScore >= descScore) {
+      if (nameScore >= descScore && nameScore >= aliasScore) {
         matchType = nameMatch.matchType || 'substring'
+      } else if (aliasScore >= descScore) {
+        matchType = 'alias'
       } else {
         matchType = 'description'
       }
@@ -125,6 +165,8 @@ export function getMatchTypeLabel(matchType: SearchResult<any>['matchType']): st
       return 'Exact match'
     case 'prefix':
       return 'Starts with'
+    case 'alias':
+      return 'Similar to'
     case 'word-boundary':
       return 'Word match'
     case 'substring':
