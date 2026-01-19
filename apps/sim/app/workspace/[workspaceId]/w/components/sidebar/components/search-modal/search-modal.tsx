@@ -8,6 +8,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Dialog, DialogPortal, DialogTitle } from '@/components/ui/dialog'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { cn } from '@/lib/core/utils/cn'
+import { getToolOperationsIndex } from '@/lib/search/tool-operations'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { searchItems } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/search-utils'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
@@ -81,10 +82,12 @@ type SearchItem = {
   color?: string
   href?: string
   shortcut?: string
-  type: 'block' | 'trigger' | 'tool' | 'workflow' | 'workspace' | 'page' | 'doc'
+  type: 'block' | 'trigger' | 'tool' | 'tool-operation' | 'workflow' | 'workspace' | 'page' | 'doc'
   isCurrent?: boolean
   blockType?: string
   config?: any
+  operationId?: string
+  aliases?: string[]
 }
 
 interface SearchResultItemProps {
@@ -101,7 +104,11 @@ const SearchResultItem = memo(function SearchResultItem({
   onItemClick,
 }: SearchResultItemProps) {
   const Icon = item.icon
-  const showColoredIcon = item.type === 'block' || item.type === 'trigger' || item.type === 'tool'
+  const showColoredIcon =
+    item.type === 'block' ||
+    item.type === 'trigger' ||
+    item.type === 'tool' ||
+    item.type === 'tool-operation'
   const isWorkflow = item.type === 'workflow'
   const isWorkspace = item.type === 'workspace'
 
@@ -278,6 +285,24 @@ export const SearchModal = memo(function SearchModal({
       )
   }, [open, isOnWorkflowPage, filterBlocks])
 
+  const toolOperations = useMemo(() => {
+    if (!open || !isOnWorkflowPage) return []
+
+    const allowedBlockTypes = new Set(tools.map((t) => t.type))
+
+    return getToolOperationsIndex()
+      .filter((op) => allowedBlockTypes.has(op.blockType))
+      .map((op) => ({
+        id: op.id,
+        name: `${op.serviceName}: ${op.operationName}`,
+        icon: op.icon,
+        bgColor: op.bgColor,
+        blockType: op.blockType,
+        operationId: op.operationId,
+        aliases: op.aliases,
+      }))
+  }, [open, isOnWorkflowPage, tools])
+
   const pages = useMemo(
     (): PageItem[] => [
       {
@@ -396,6 +421,19 @@ export const SearchModal = memo(function SearchModal({
       })
     })
 
+    toolOperations.forEach((op) => {
+      items.push({
+        id: op.id,
+        name: op.name,
+        icon: op.icon,
+        bgColor: op.bgColor,
+        type: 'tool-operation',
+        blockType: op.blockType,
+        operationId: op.operationId,
+        aliases: op.aliases,
+      })
+    })
+
     docs.forEach((doc) => {
       items.push({
         id: doc.id,
@@ -407,10 +445,10 @@ export const SearchModal = memo(function SearchModal({
     })
 
     return items
-  }, [workspaces, workflows, pages, blocks, triggers, tools, docs])
+  }, [workspaces, workflows, pages, blocks, triggers, tools, toolOperations, docs])
 
   const sectionOrder = useMemo<SearchItem['type'][]>(
-    () => ['block', 'tool', 'trigger', 'workflow', 'workspace', 'page', 'doc'],
+    () => ['block', 'tool', 'tool-operation', 'trigger', 'workflow', 'workspace', 'page', 'doc'],
     []
   )
 
@@ -457,6 +495,7 @@ export const SearchModal = memo(function SearchModal({
       page: [],
       trigger: [],
       block: [],
+      'tool-operation': [],
       tool: [],
       doc: [],
     }
@@ -507,6 +546,17 @@ export const SearchModal = memo(function SearchModal({
               detail: {
                 type: item.blockType,
                 enableTriggerMode,
+              },
+            })
+            window.dispatchEvent(event)
+          }
+          break
+        case 'tool-operation':
+          if (item.blockType && item.operationId) {
+            const event = new CustomEvent('add-block-from-toolbar', {
+              detail: {
+                type: item.blockType,
+                presetOperation: item.operationId,
               },
             })
             window.dispatchEvent(event)
@@ -592,6 +642,7 @@ export const SearchModal = memo(function SearchModal({
     page: 'Pages',
     trigger: 'Triggers',
     block: 'Blocks',
+    'tool-operation': 'Tool Operations',
     tool: 'Tools',
     doc: 'Docs',
   }

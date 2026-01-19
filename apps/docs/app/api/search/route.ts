@@ -86,27 +86,112 @@ export async function GET(request: NextRequest) {
       )
       .limit(candidateLimit)
 
-    const seenIds = new Set<string>()
-    const mergedResults = []
+    const knownLocales = ['en', 'es', 'fr', 'de', 'ja', 'zh']
 
-    for (let i = 0; i < Math.max(vectorResults.length, keywordResults.length); i++) {
-      if (i < vectorResults.length && !seenIds.has(vectorResults[i].chunkId)) {
-        mergedResults.push(vectorResults[i])
-        seenIds.add(vectorResults[i].chunkId)
-      }
-      if (i < keywordResults.length && !seenIds.has(keywordResults[i].chunkId)) {
-        mergedResults.push(keywordResults[i])
-        seenIds.add(keywordResults[i].chunkId)
+    const vectorRankMap = new Map<string, number>()
+    vectorResults.forEach((r, idx) => vectorRankMap.set(r.chunkId, idx + 1))
+
+    const keywordRankMap = new Map<string, number>()
+    keywordResults.forEach((r, idx) => keywordRankMap.set(r.chunkId, idx + 1))
+
+    const allChunkIds = new Set([
+      ...vectorResults.map((r) => r.chunkId),
+      ...keywordResults.map((r) => r.chunkId),
+    ])
+
+    const k = 60
+    type ResultWithRRF = (typeof vectorResults)[0] & { rrfScore: number }
+    const scoredResults: ResultWithRRF[] = []
+
+    for (const chunkId of allChunkIds) {
+      const vectorRank = vectorRankMap.get(chunkId) ?? Number.POSITIVE_INFINITY
+      const keywordRank = keywordRankMap.get(chunkId) ?? Number.POSITIVE_INFINITY
+
+      const rrfScore = 1 / (k + vectorRank) + 1 / (k + keywordRank)
+
+      const result =
+        vectorResults.find((r) => r.chunkId === chunkId) ||
+        keywordResults.find((r) => r.chunkId === chunkId)
+
+      if (result) {
+        scoredResults.push({ ...result, rrfScore })
       }
     }
 
-    const filteredResults = mergedResults.slice(0, limit)
-    const searchResults = filteredResults.map((result) => {
+    scoredResults.sort((a, b) => b.rrfScore - a.rrfScore)
+
+    const localeFilteredResults = scoredResults.filter((result) => {
+      const firstPart = result.sourceDocument.split('/')[0]
+      if (knownLocales.includes(firstPart)) {
+        return firstPart === locale
+      }
+      return locale === 'en'
+    })
+
+    const queryLower = query.toLowerCase()
+    const getTitleBoost = (result: ResultWithRRF): number => {
+      const fileName = result.sourceDocument
+        .replace('.mdx', '')
+        .split('/')
+        .pop()
+        ?.toLowerCase()
+        ?.replace(/_/g, ' ')
+
+      if (fileName === queryLower) return 0.01
+      if (fileName?.includes(queryLower)) return 0.005
+      return 0
+    }
+
+    localeFilteredResults.sort((a, b) => {
+      return b.rrfScore + getTitleBoost(b) - (a.rrfScore + getTitleBoost(a))
+    })
+
+    const pageMap = new Map<string, ResultWithRRF>()
+
+    for (const result of localeFilteredResults) {
+      const pageKey = result.sourceDocument
+      const existing = pageMap.get(pageKey)
+
+      if (!existing || result.rrfScore > existing.rrfScore) {
+        pageMap.set(pageKey, result)
+      }
+    }
+
+    const deduplicatedResults = Array.from(pageMap.values())
+      .sort((a, b) => b.rrfScore + getTitleBoost(b) - (a.rrfScore + getTitleBoost(a)))
+      .slice(0, limit)
+
+    const searchResults = deduplicatedResults.map((result) => {
       const title = result.headerText || result.sourceDocument.replace('.mdx', '')
+
       const pathParts = result.sourceDocument
         .replace('.mdx', '')
         .split('/')
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .filter((part) => part !== 'index' && !knownLocales.includes(part))
+        .map((part) => {
+          return part
+            .replace(/_/g, ' ')
+            .split(' ')
+            .map((word) => {
+              const acronyms = [
+                'api',
+                'mcp',
+                'sdk',
+                'url',
+                'http',
+                'json',
+                'xml',
+                'html',
+                'css',
+                'ai',
+              ]
+              if (acronyms.includes(word.toLowerCase())) {
+                return word.toUpperCase()
+              }
+              return word.charAt(0).toUpperCase() + word.slice(1)
+            })
+            .join(' ')
+        })
 
       return {
         id: result.chunkId,
