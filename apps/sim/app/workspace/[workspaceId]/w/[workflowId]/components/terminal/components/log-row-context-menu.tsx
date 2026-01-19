@@ -34,6 +34,7 @@ interface LogRowContextMenuProps {
   onCopyRunId: (runId: string) => void
   onClearFilters: () => void
   onClearConsole: () => void
+  onFixInCopilot: (entry: ConsoleEntry) => void
   hasActiveFilters: boolean
 }
 
@@ -54,6 +55,7 @@ export function LogRowContextMenu({
   onCopyRunId,
   onClearFilters,
   onClearConsole,
+  onFixInCopilot,
   hasActiveFilters,
 }: LogRowContextMenuProps) {
   const hasRunId = entry?.executionId != null
@@ -91,6 +93,21 @@ export function LogRowContextMenu({
               }}
             >
               Copy Run ID
+            </PopoverItem>
+            <PopoverDivider />
+          </>
+        )}
+
+        {/* Fix in Copilot - only for error rows */}
+        {entry && !entry.success && (
+          <>
+            <PopoverItem
+              onClick={() => {
+                onFixInCopilot(entry)
+                onClose()
+              }}
+            >
+              Fix in Copilot
             </PopoverItem>
             <PopoverDivider />
           </>

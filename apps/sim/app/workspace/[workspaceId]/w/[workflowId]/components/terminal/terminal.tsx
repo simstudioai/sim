@@ -54,6 +54,7 @@ import { useShowTrainingControls } from '@/hooks/queries/general-settings'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
+import { openCopilotWithMessage } from '@/stores/notifications/utils'
 import type { ConsoleEntry } from '@/stores/terminal'
 import { useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -226,7 +227,6 @@ const isEventFromEditableElement = (e: KeyboardEvent): boolean => {
     return false
   }
 
-  // Check target and walk up ancestors in case editors render nested elements
   let el: HTMLElement | null = target
   while (el) {
     if (isEditable(el)) return true
@@ -1159,6 +1159,17 @@ export const Terminal = memo(function Terminal() {
     clearCurrentWorkflowConsole()
   }, [clearCurrentWorkflowConsole])
 
+  const handleFixInCopilot = useCallback(
+    (entry: ConsoleEntry) => {
+      const errorMessage = entry.error ? String(entry.error) : 'Unknown error'
+      const blockName = entry.blockName || 'Unknown Block'
+      const message = `${errorMessage}\n\nError in ${blockName}.\n\nPlease fix this.`
+      openCopilotWithMessage(message)
+      closeLogRowMenu()
+    },
+    [closeLogRowMenu]
+  )
+
   const handleTrainingClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -1949,6 +1960,7 @@ export const Terminal = memo(function Terminal() {
           closeLogRowMenu()
         }}
         onClearConsole={handleClearConsoleFromMenu}
+        onFixInCopilot={handleFixInCopilot}
         hasActiveFilters={hasActiveFilters}
       />
     </>
