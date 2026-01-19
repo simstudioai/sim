@@ -7,6 +7,7 @@ import type { InputFormatField } from '@/lib/workflows/types'
 export interface WorkflowInputField {
   name: string
   type: string
+  description?: string
 }
 
 /**
@@ -37,7 +38,7 @@ export function extractInputFieldsFromBlocks(
   if (Array.isArray(inputFormat)) {
     return inputFormat
       .filter(
-        (field: unknown): field is { name: string; type?: string } =>
+        (field: unknown): field is { name: string; type?: string; description?: string } =>
           typeof field === 'object' &&
           field !== null &&
           'name' in field &&
@@ -47,6 +48,7 @@ export function extractInputFieldsFromBlocks(
       .map((field) => ({
         name: field.name,
         type: field.type || 'string',
+        ...(field.description && { description: field.description }),
       }))
   }
 
@@ -57,7 +59,7 @@ export function extractInputFieldsFromBlocks(
   if (Array.isArray(legacyFormat)) {
     return legacyFormat
       .filter(
-        (field: unknown): field is { name: string; type?: string } =>
+        (field: unknown): field is { name: string; type?: string; description?: string } =>
           typeof field === 'object' &&
           field !== null &&
           'name' in field &&
@@ -67,6 +69,7 @@ export function extractInputFieldsFromBlocks(
       .map((field) => ({
         name: field.name,
         type: field.type || 'string',
+        ...(field.description && { description: field.description }),
       }))
   }
 

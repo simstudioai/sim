@@ -3,53 +3,13 @@ import { permissions, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
+import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1WorkflowDetailsAPI')
 
 export const revalidate = 0
-
-interface InputField {
-  name: string
-  type: string
-  description?: string
-}
-
-/**
- * Extracts input fields from workflow blocks.
- * Finds the starter/trigger block and extracts its inputFormat configuration.
- */
-function extractInputFields(blocks: Array<{ type: string; subBlocks: unknown }>): InputField[] {
-  const starterBlock = blocks.find((block) => isValidStartBlockType(block.type))
-
-  if (!starterBlock) {
-    return []
-  }
-
-  const subBlocks = starterBlock.subBlocks as Record<string, { value?: unknown }> | undefined
-  const inputFormat = subBlocks?.inputFormat?.value
-
-  if (!Array.isArray(inputFormat)) {
-    return []
-  }
-
-  return inputFormat
-    .filter(
-      (field: unknown): field is { name: string; type?: string; description?: string } =>
-        typeof field === 'object' &&
-        field !== null &&
-        'name' in field &&
-        typeof (field as { name: unknown }).name === 'string' &&
-        (field as { name: string }).name.trim() !== ''
-    )
-    .map((field) => ({
-      name: field.name,
-      type: field.type || 'string',
-      ...(field.description && { description: field.description }),
-    }))
-}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
@@ -98,15 +58,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
-    const blocks = await db
+    const blockRows = await db
       .select({
+        id: workflowBlocks.id,
         type: workflowBlocks.type,
         subBlocks: workflowBlocks.subBlocks,
       })
       .from(workflowBlocks)
       .where(eq(workflowBlocks.workflowId, id))
 
-    const inputs = extractInputFields(blocks)
+    const blocksRecord = Object.fromEntries(
+      blockRows.map((block) => [block.id, { type: block.type, subBlocks: block.subBlocks }])
+    )
+    const inputs = extractInputFieldsFromBlocks(blocksRecord)
 
     const response = {
       id: workflowData.id,
