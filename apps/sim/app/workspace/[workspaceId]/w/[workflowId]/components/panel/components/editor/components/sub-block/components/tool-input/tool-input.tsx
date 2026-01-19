@@ -2069,6 +2069,7 @@ export const ToolInput = memo(function ToolInput({
               placeholder: uiComponent.placeholder,
               requiredScopes: uiComponent.requiredScopes,
               dependsOn: uiComponent.dependsOn,
+              canonicalParamId: uiComponent.canonicalParamId ?? param.id,
             }}
             onProjectSelect={onChange}
             disabled={disabled}
