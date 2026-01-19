@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ChevronDown, ChevronUp, Plus } from 'lucide-react'
+import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
 import { useUpdateNodeInternals } from 'reactflow'
@@ -38,6 +38,16 @@ import { normalizeName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('ConditionInput')
+
+/**
+ * Default height for router textareas in pixels
+ */
+const ROUTER_DEFAULT_HEIGHT_PX = 100
+
+/**
+ * Minimum height for router textareas in pixels
+ */
+const ROUTER_MIN_HEIGHT_PX = 80
 
 /**
  * Represents a single conditional block (if/else if/else).
@@ -743,6 +753,61 @@ export function ConditionInput({
     }
   }, [conditionalBlocks, isRouterMode])
 
+  // State for tracking individual router textarea heights
+  const [routerHeights, setRouterHeights] = useState<{ [key: string]: number }>({})
+  const isResizing = useRef(false)
+
+  /**
+   * Gets the height for a specific router block, returning default if not set.
+   *
+   * @param blockId - ID of the router block
+   * @returns Height in pixels
+   */
+  const getRouterHeight = (blockId: string): number => {
+    return routerHeights[blockId] ?? ROUTER_DEFAULT_HEIGHT_PX
+  }
+
+  /**
+   * Handles mouse-based resize for router textareas.
+   *
+   * @param e - Mouse event from the resize handle
+   * @param blockId - ID of the block being resized
+   */
+  const startRouterResize = (e: React.MouseEvent, blockId: string) => {
+    if (isPreview || disabled) return
+    e.preventDefault()
+    e.stopPropagation()
+    isResizing.current = true
+
+    const startY = e.clientY
+    const startHeight = getRouterHeight(blockId)
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!isResizing.current) return
+
+      const deltaY = moveEvent.clientY - startY
+      const newHeight = Math.max(ROUTER_MIN_HEIGHT_PX, startHeight + deltaY)
+
+      // Update the textarea height directly for smooth resizing
+      const textarea = inputRefs.current.get(blockId)
+      if (textarea) {
+        textarea.style.height = `${newHeight}px`
+      }
+
+      // Update state to keep track
+      setRouterHeights((prev) => ({ ...prev, [blockId]: newHeight }))
+    }
+
+    const handleMouseUp = () => {
+      isResizing.current = false
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }
+
   // Show loading or empty state if not ready or no blocks
   if (!isReady || conditionalBlocks.length === 0) {
     return (
@@ -907,9 +972,23 @@ export function ConditionInput({
                 }}
                 placeholder='Describe when this route should be taken...'
                 disabled={disabled || isPreview}
-                className='min-h-[60px] resize-none rounded-none border-0 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
-                rows={2}
+                className='min-h-[100px] resize-none rounded-none border-0 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+                rows={4}
+                style={{ height: `${getRouterHeight(block.id)}px` }}
               />
+
+              {/* Custom resize handle */}
+              {!isPreview && !disabled && (
+                <div
+                  className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+                  onMouseDown={(e) => startRouterResize(e, block.id)}
+                  onDragStart={(e) => {
+                    e.preventDefault()
+                  }}
+                >
+                  <ChevronsUpDown className='h-3 w-3 text-[var(--text-muted)]' />
+                </div>
+              )}
 
               {block.showEnvVars && (
                 <EnvVarDropdown

@@ -234,48 +234,45 @@ export function LongInput({
   }, [value])
 
   // Handle resize functionality
-  const startResize = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      isResizing.current = true
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    isResizing.current = true
 
-      const startY = e.clientY
-      const startHeight = height
+    const startY = e.clientY
+    const startHeight = height
 
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        if (!isResizing.current) return
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!isResizing.current) return
 
-        const deltaY = moveEvent.clientY - startY
-        const newHeight = Math.max(MIN_HEIGHT_PX, startHeight + deltaY)
+      const deltaY = moveEvent.clientY - startY
+      const newHeight = Math.max(MIN_HEIGHT_PX, startHeight + deltaY)
 
-        if (textareaRef.current && overlayRef.current) {
-          textareaRef.current.style.height = `${newHeight}px`
-          overlayRef.current.style.height = `${newHeight}px`
-        }
-        if (containerRef.current) {
-          containerRef.current.style.height = `${newHeight}px`
-        }
-        // Keep React state in sync so parent layouts (e.g., Editor) update during drag
-        setHeight(newHeight)
+      if (textareaRef.current && overlayRef.current) {
+        textareaRef.current.style.height = `${newHeight}px`
+        overlayRef.current.style.height = `${newHeight}px`
+      }
+      if (containerRef.current) {
+        containerRef.current.style.height = `${newHeight}px`
+      }
+      // Keep React state in sync so parent layouts (e.g., Editor) update during drag
+      setHeight(newHeight)
+    }
+
+    const handleMouseUp = () => {
+      if (textareaRef.current) {
+        const finalHeight = Number.parseInt(textareaRef.current.style.height, 10) || height
+        setHeight(finalHeight)
       }
 
-      const handleMouseUp = () => {
-        if (textareaRef.current) {
-          const finalHeight = Number.parseInt(textareaRef.current.style.height, 10) || height
-          setHeight(finalHeight)
-        }
+      isResizing.current = false
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
 
-        isResizing.current = false
-        document.removeEventListener('mousemove', handleMouseMove)
-        document.removeEventListener('mouseup', handleMouseUp)
-      }
-
-      document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
-    },
-    [height]
-  )
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }
 
   // Expose wand control handlers to parent via ref
   useImperativeHandle(
