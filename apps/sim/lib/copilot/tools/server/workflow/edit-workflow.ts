@@ -817,6 +817,8 @@ function normalizeResponseFormat(value: any): string {
 interface EdgeHandleValidationResult {
   valid: boolean
   error?: string
+  /** The normalized handle to use (e.g., simple 'if' normalized to 'condition-{uuid}') */
+  normalizedHandle?: string
 }
 
 /**
@@ -851,13 +853,6 @@ function validateSourceHandleForBlock(
       }
 
     case 'condition': {
-      if (!sourceHandle.startsWith(EDGE.CONDITION_PREFIX)) {
-        return {
-          valid: false,
-          error: `Invalid source handle "${sourceHandle}" for condition block. Must start with "${EDGE.CONDITION_PREFIX}"`,
-        }
-      }
-
       const conditionsValue = sourceBlock?.subBlocks?.conditions?.value
       if (!conditionsValue) {
         return {
@@ -866,6 +861,8 @@ function validateSourceHandleForBlock(
         }
       }
 
+      // validateConditionHandle accepts simple format (if, else-if-0, else),
+      // legacy format (condition-{blockId}-if), and internal ID format (condition-{uuid})
       return validateConditionHandle(sourceHandle, sourceBlock.id, conditionsValue)
     }
 
@@ -879,13 +876,6 @@ function validateSourceHandleForBlock(
       }
 
     case 'router_v2': {
-      if (!sourceHandle.startsWith(EDGE.ROUTER_PREFIX)) {
-        return {
-          valid: false,
-          error: `Invalid source handle "${sourceHandle}" for router_v2 block. Must start with "${EDGE.ROUTER_PREFIX}"`,
-        }
-      }
-
       const routesValue = sourceBlock?.subBlocks?.routes?.value
       if (!routesValue) {
         return {
@@ -894,6 +884,8 @@ function validateSourceHandleForBlock(
         }
       }
 
+      // validateRouterHandle accepts simple format (route-0, route-1),
+      // legacy format (router-{blockId}-route-1), and internal ID format (router-{uuid})
       return validateRouterHandle(sourceHandle, sourceBlock.id, routesValue)
     }
 
@@ -910,7 +902,12 @@ function validateSourceHandleForBlock(
 
 /**
  * Validates condition handle references a valid condition in the block.
- * Accepts both internal IDs (condition-blockId-if) and semantic keys (condition-blockId-else-if)
+ * Accepts multiple formats:
+ * - Simple format: "if", "else-if-0", "else-if-1", "else"
+ * - Legacy semantic format: "condition-{blockId}-if", "condition-{blockId}-else-if"
+ * - Internal ID format: "condition-{conditionId}"
+ *
+ * Returns the normalized handle (condition-{conditionId}) for storage.
  */
 function validateConditionHandle(
   sourceHandle: string,
@@ -943,48 +940,80 @@ function validateConditionHandle(
     }
   }
 
-  const validHandles = new Set<string>()
-  const semanticPrefix = `condition-${blockId}-`
-  let elseIfCount = 0
+  // Build a map of all valid handle formats -> normalized handle (condition-{conditionId})
+  const handleToNormalized = new Map<string, string>()
+  const legacySemanticPrefix = `condition-${blockId}-`
+  let elseIfIndex = 0
 
   for (const condition of conditions) {
-    if (condition.id) {
-      validHandles.add(`condition-${condition.id}`)
-    }
+    if (!condition.id) continue
 
+    const normalizedHandle = `condition-${condition.id}`
+    const title = condition.title?.toLowerCase()
+
+    // Always accept internal ID format
+    handleToNormalized.set(normalizedHandle, normalizedHandle)
+
+    if (title === 'if') {
+      // Simple format: "if"
+      handleToNormalized.set('if', normalizedHandle)
+      // Legacy format: "condition-{blockId}-if"
+      handleToNormalized.set(`${legacySemanticPrefix}if`, normalizedHandle)
+    } else if (title === 'else if') {
+      // Simple format: "else-if-0", "else-if-1", etc. (0-indexed)
+      handleToNormalized.set(`else-if-${elseIfIndex}`, normalizedHandle)
+      // Legacy format: "condition-{blockId}-else-if" for first, "condition-{blockId}-else-if-2" for second
+      if (elseIfIndex === 0) {
+        handleToNormalized.set(`${legacySemanticPrefix}else-if`, normalizedHandle)
+      } else {
+        handleToNormalized.set(
+          `${legacySemanticPrefix}else-if-${elseIfIndex + 1}`,
+          normalizedHandle
+        )
+      }
+      elseIfIndex++
+    } else if (title === 'else') {
+      // Simple format: "else"
+      handleToNormalized.set('else', normalizedHandle)
+      // Legacy format: "condition-{blockId}-else"
+      handleToNormalized.set(`${legacySemanticPrefix}else`, normalizedHandle)
+    }
+  }
+
+  const normalizedHandle = handleToNormalized.get(sourceHandle)
+  if (normalizedHandle) {
+    return { valid: true, normalizedHandle }
+  }
+
+  // Build list of valid simple format options for error message
+  const simpleOptions: string[] = []
+  elseIfIndex = 0
+  for (const condition of conditions) {
     const title = condition.title?.toLowerCase()
     if (title === 'if') {
-      validHandles.add(`${semanticPrefix}if`)
+      simpleOptions.push('if')
     } else if (title === 'else if') {
-      elseIfCount++
-      validHandles.add(
-        elseIfCount === 1 ? `${semanticPrefix}else-if` : `${semanticPrefix}else-if-${elseIfCount}`
-      )
+      simpleOptions.push(`else-if-${elseIfIndex}`)
+      elseIfIndex++
     } else if (title === 'else') {
-      validHandles.add(`${semanticPrefix}else`)
+      simpleOptions.push('else')
     }
-  }
-
-  if (validHandles.has(sourceHandle)) {
-    return { valid: true }
-  }
-
-  const validOptions = Array.from(validHandles).slice(0, 5)
-  const moreCount = validHandles.size - validOptions.length
-  let validOptionsStr = validOptions.join(', ')
-  if (moreCount > 0) {
-    validOptionsStr += `, ... and ${moreCount} more`
   }
 
   return {
     valid: false,
-    error: `Invalid condition handle "${sourceHandle}". Valid handles: ${validOptionsStr}`,
+    error: `Invalid condition handle "${sourceHandle}". Valid handles: ${simpleOptions.join(', ')}`,
   }
 }
 
 /**
  * Validates router handle references a valid route in the block.
- * Accepts both internal IDs (router-{routeId}) and semantic keys (router-{blockId}-route-1)
+ * Accepts multiple formats:
+ * - Simple format: "route-0", "route-1", "route-2" (0-indexed)
+ * - Legacy semantic format: "router-{blockId}-route-1" (1-indexed)
+ * - Internal ID format: "router-{routeId}"
+ *
+ * Returns the normalized handle (router-{routeId}) for storage.
  */
 function validateRouterHandle(
   sourceHandle: string,
@@ -1017,47 +1046,48 @@ function validateRouterHandle(
     }
   }
 
-  const validHandles = new Set<string>()
-  const semanticPrefix = `router-${blockId}-`
+  // Build a map of all valid handle formats -> normalized handle (router-{routeId})
+  const handleToNormalized = new Map<string, string>()
+  const legacySemanticPrefix = `router-${blockId}-`
 
   for (let i = 0; i < routes.length; i++) {
     const route = routes[i]
+    if (!route.id) continue
 
-    // Accept internal ID format: router-{uuid}
-    if (route.id) {
-      validHandles.add(`router-${route.id}`)
-    }
+    const normalizedHandle = `router-${route.id}`
 
-    // Accept 1-indexed route number format: router-{blockId}-route-1, router-{blockId}-route-2, etc.
-    validHandles.add(`${semanticPrefix}route-${i + 1}`)
+    // Always accept internal ID format: router-{uuid}
+    handleToNormalized.set(normalizedHandle, normalizedHandle)
+
+    // Simple format: route-0, route-1, etc. (0-indexed)
+    handleToNormalized.set(`route-${i}`, normalizedHandle)
+
+    // Legacy 1-indexed route number format: router-{blockId}-route-1
+    handleToNormalized.set(`${legacySemanticPrefix}route-${i + 1}`, normalizedHandle)
 
     // Accept normalized title format: router-{blockId}-{normalized-title}
-    // Normalize: lowercase, replace spaces with dashes, remove special chars
     if (route.title && typeof route.title === 'string') {
       const normalizedTitle = route.title
         .toLowerCase()
         .replace(/\s+/g, '-')
         .replace(/[^a-z0-9-]/g, '')
       if (normalizedTitle) {
-        validHandles.add(`${semanticPrefix}${normalizedTitle}`)
+        handleToNormalized.set(`${legacySemanticPrefix}${normalizedTitle}`, normalizedHandle)
       }
     }
   }
 
-  if (validHandles.has(sourceHandle)) {
-    return { valid: true }
+  const normalizedHandle = handleToNormalized.get(sourceHandle)
+  if (normalizedHandle) {
+    return { valid: true, normalizedHandle }
   }
 
-  const validOptions = Array.from(validHandles).slice(0, 5)
-  const moreCount = validHandles.size - validOptions.length
-  let validOptionsStr = validOptions.join(', ')
-  if (moreCount > 0) {
-    validOptionsStr += `, ... and ${moreCount} more`
-  }
+  // Build list of valid simple format options for error message
+  const simpleOptions = routes.map((_, i) => `route-${i}`)
 
   return {
     valid: false,
-    error: `Invalid router handle "${sourceHandle}". Valid handles: ${validOptionsStr}`,
+    error: `Invalid router handle "${sourceHandle}". Valid handles: ${simpleOptions.join(', ')}`,
   }
 }
 
@@ -1172,10 +1202,13 @@ function createValidatedEdge(
     return false
   }
 
+  // Use normalized handle if available (e.g., 'if' -> 'condition-{uuid}')
+  const finalSourceHandle = sourceValidation.normalizedHandle || sourceHandle
+
   modifiedState.edges.push({
     id: crypto.randomUUID(),
     source: sourceBlockId,
-    sourceHandle,
+    sourceHandle: finalSourceHandle,
     target: targetBlockId,
     targetHandle,
     type: 'default',
@@ -1184,7 +1217,11 @@ function createValidatedEdge(
 }
 
 /**
- * Adds connections as edges for a block
+ * Adds connections as edges for a block.
+ * Supports multiple target formats:
+ * - String: "target-block-id"
+ * - Object: { block: "target-block-id", handle?: "custom-target-handle" }
+ * - Array of strings or objects
  */
 function addConnectionsAsEdges(
   modifiedState: any,
@@ -1194,19 +1231,34 @@ function addConnectionsAsEdges(
   skippedItems?: SkippedItem[]
 ): void {
   Object.entries(connections).forEach(([sourceHandle, targets]) => {
-    const targetArray = Array.isArray(targets) ? targets : [targets]
-    targetArray.forEach((targetId: string) => {
+    if (targets === null) return
+
+    const addEdgeForTarget = (targetBlock: string, targetHandle?: string) => {
       createValidatedEdge(
         modifiedState,
         blockId,
-        targetId,
+        targetBlock,
         sourceHandle,
-        'target',
+        targetHandle || 'target',
         'add_edge',
         logger,
         skippedItems
       )
-    })
+    }
+
+    if (typeof targets === 'string') {
+      addEdgeForTarget(targets)
+    } else if (Array.isArray(targets)) {
+      targets.forEach((target: any) => {
+        if (typeof target === 'string') {
+          addEdgeForTarget(target)
+        } else if (target?.block) {
+          addEdgeForTarget(target.block, target.handle)
+        }
+      })
+    } else if (typeof targets === 'object' && targets?.block) {
+      addEdgeForTarget(targets.block, targets.handle)
+    }
   })
 }
 

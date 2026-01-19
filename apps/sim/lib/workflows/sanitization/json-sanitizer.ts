@@ -269,11 +269,12 @@ function sanitizeSubBlocks(
 }
 
 /**
- * Convert internal condition handle (condition-{uuid}) to semantic format (condition-{blockId}-if)
+ * Convert internal condition handle (condition-{uuid}) to simple format (if, else-if-0, else)
+ * Uses 0-indexed numbering for else-if conditions
  */
-function convertConditionHandleToSemantic(
+function convertConditionHandleToSimple(
   handle: string,
-  blockId: string,
+  _blockId: string,
   block: BlockState
 ): string {
   if (!handle.startsWith('condition-')) {
@@ -300,27 +301,24 @@ function convertConditionHandleToSemantic(
     return handle
   }
 
-  // Find the condition by ID and generate semantic handle
-  let elseIfCount = 0
+  // Find the condition by ID and generate simple handle
+  let elseIfIndex = 0
   for (const condition of conditions) {
     const title = condition.title?.toLowerCase()
     if (condition.id === conditionId) {
       if (title === 'if') {
-        return `condition-${blockId}-if`
+        return 'if'
       }
       if (title === 'else if') {
-        elseIfCount++
-        return elseIfCount === 1
-          ? `condition-${blockId}-else-if`
-          : `condition-${blockId}-else-if-${elseIfCount}`
+        return `else-if-${elseIfIndex}`
       }
       if (title === 'else') {
-        return `condition-${blockId}-else`
+        return 'else'
       }
     }
-    // Count else-ifs as we iterate
+    // Count else-ifs as we iterate (for index tracking)
     if (title === 'else if') {
-      elseIfCount++
+      elseIfIndex++
     }
   }
 
@@ -329,9 +327,10 @@ function convertConditionHandleToSemantic(
 }
 
 /**
- * Convert internal router handle (router-{uuid}) to semantic format (router-{blockId}-route-N)
+ * Convert internal router handle (router-{uuid}) to simple format (route-0, route-1)
+ * Uses 0-indexed numbering for routes
  */
-function convertRouterHandleToSemantic(handle: string, blockId: string, block: BlockState): string {
+function convertRouterHandleToSimple(handle: string, _blockId: string, block: BlockState): string {
   if (!handle.startsWith('router-')) {
     return handle
   }
@@ -356,10 +355,10 @@ function convertRouterHandleToSemantic(handle: string, blockId: string, block: B
     return handle
   }
 
-  // Find the route by ID and generate semantic handle (1-indexed)
+  // Find the route by ID and generate simple handle (0-indexed)
   for (let i = 0; i < routes.length; i++) {
     if (routes[i].id === routeId) {
-      return `router-${blockId}-route-${i + 1}`
+      return `route-${i}`
     }
   }
 
@@ -368,15 +367,16 @@ function convertRouterHandleToSemantic(handle: string, blockId: string, block: B
 }
 
 /**
- * Convert source handle to semantic format for condition and router blocks
+ * Convert source handle to simple format for condition and router blocks
+ * Outputs: if, else-if-0, else (for conditions) and route-0, route-1 (for routers)
  */
-function convertToSemanticHandle(handle: string, blockId: string, block: BlockState): string {
+function convertToSimpleHandle(handle: string, blockId: string, block: BlockState): string {
   if (handle.startsWith('condition-') && block.type === 'condition') {
-    return convertConditionHandleToSemantic(handle, blockId, block)
+    return convertConditionHandleToSimple(handle, blockId, block)
   }
 
   if (handle.startsWith('router-') && block.type === 'router_v2') {
-    return convertRouterHandleToSemantic(handle, blockId, block)
+    return convertRouterHandleToSimple(handle, blockId, block)
   }
 
   return handle
@@ -400,12 +400,12 @@ function extractConnectionsForBlock(
     return undefined
   }
 
-  // Group by source handle (converting to semantic format)
+  // Group by source handle (converting to simple format)
   for (const edge of outgoingEdges) {
     let handle = edge.sourceHandle || 'source'
 
-    // Convert internal UUID handles to semantic format
-    handle = convertToSemanticHandle(handle, blockId, block)
+    // Convert internal UUID handles to simple format (if, else-if-0, route-0, etc.)
+    handle = convertToSimpleHandle(handle, blockId, block)
 
     if (!connections[handle]) {
       connections[handle] = []
