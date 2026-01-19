@@ -80,6 +80,25 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
       loadChats(false)
     }
 
+    // Handle race condition: chats loaded for wrong workflow during initial load
+    // This happens when user navigates before initial loadChats completes
+    if (
+      activeWorkflowId &&
+      !isLoadingChats &&
+      chatsLoadedForWorkflow !== null &&
+      chatsLoadedForWorkflow !== activeWorkflowId &&
+      !isSendingMessage
+    ) {
+      logger.info('Chats loaded for wrong workflow, reloading', {
+        loaded: chatsLoadedForWorkflow,
+        active: activeWorkflowId,
+      })
+      setIsInitialized(false)
+      lastWorkflowIdRef.current = activeWorkflowId
+      setCopilotWorkflowId(activeWorkflowId)
+      loadChats(false)
+    }
+
     // Mark as initialized when chats are loaded for the active workflow
     if (
       activeWorkflowId &&

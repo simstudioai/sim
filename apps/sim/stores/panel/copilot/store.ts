@@ -2542,6 +2542,7 @@ export const useCopilotStore = create<CopilotStore>()(
         set({
           chats: [],
           isLoadingChats: false,
+          chatsLoadedForWorkflow: workflowId,
           error: error instanceof Error ? error.message : 'Failed to load chats',
         })
       }
