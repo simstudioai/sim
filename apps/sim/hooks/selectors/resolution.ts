@@ -203,10 +203,11 @@ function resolveProjectSelector(
 ): SelectorResolution {
   const serviceId = subBlock.serviceId
   const context = buildBaseContext(args)
+  const selectorId = subBlock.canonicalParamId ?? subBlock.id
 
   switch (serviceId) {
     case 'linear': {
-      const key: SelectorKey = subBlock.id === 'teamId' ? 'linear.teams' : 'linear.projects'
+      const key: SelectorKey = selectorId === 'teamId' ? 'linear.teams' : 'linear.projects'
       return { key, context, allowSearch: true }
     }
     case 'jira':
