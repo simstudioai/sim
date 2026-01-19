@@ -853,6 +853,7 @@ import {
 import { linkedInGetProfileTool, linkedInSharePostTool } from '@/tools/linkedin'
 import { linkupSearchTool } from '@/tools/linkup'
 import { llmChatTool } from '@/tools/llm'
+import { pinterestCreatePinTool, pinterestListBoardsTool } from '@/tools/pinterest'
 import {
   mailchimpAddMemberTagsTool,
   mailchimpAddMemberTool,
@@ -1724,6 +1725,8 @@ export const tools: Record<string, ToolConfig> = {
   linkup_search: linkupSearchTool,
   linkedin_share_post: linkedInSharePostTool,
   linkedin_get_profile: linkedInGetProfileTool,
+  pinterest_create_pin: pinterestCreatePinTool,
+  pinterest_list_boards: pinterestListBoardsTool,
   resend_send: mailSendTool,
   sendgrid_send_mail: sendGridSendMailTool,
   sendgrid_add_contact: sendGridAddContactTool,

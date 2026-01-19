@@ -126,6 +126,8 @@ function resolveFileSelector(
         return { key: 'webflow.items', context, allowSearch: true }
       }
       return { key: null, context, allowSearch: true }
+    case 'pinterest':
+      return { key: 'pinterest.boards', context, allowSearch: true }
     default:
       return { key: null, context, allowSearch: true }
   }
