@@ -3,7 +3,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronUp } from 'lucide-react'
-import CopilotMarkdownRenderer from './markdown-renderer'
+import { CopilotMarkdownRenderer } from '../markdown-renderer'
 
 /**
  * Removes thinking tags (raw or escaped) from streamed content.

@@ -9,18 +9,22 @@ import {
   ToolCall,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
 import {
+  CheckpointDiscardModal,
   FileAttachmentDisplay,
+  RestoreCheckpointModal,
   SmoothStreamingText,
   StreamingIndicator,
   ThinkingBlock,
   UsageLimitActions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components'
-import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
+import { CopilotMarkdownRenderer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 import {
   useCheckpointManagement,
+  useMessageContentAnalysis,
   useMessageEditing,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/hooks'
 import { UserInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
+import { buildMentionHighlightNodes } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import type { CopilotMessage as CopilotMessageType } from '@/stores/panel'
 import { useCopilotStore } from '@/stores/panel'
 
@@ -191,6 +195,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       [sendMessage]
     )
 
+    // Analyze message content for visibility (used for assistant messages)
+    const { hasVisibleContent } = useMessageContentAnalysis({ message })
+
     // Memoize content blocks to avoid re-rendering unchanged blocks
     // No entrance animations to prevent layout shift
     const memoizedContentBlocks = useMemo(() => {
@@ -290,40 +297,12 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
               {/* Inline Checkpoint Discard Confirmation - shown below input in edit mode */}
               {showCheckpointDiscardModal && (
-                <div className='mt-[8px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-4)] p-[10px]'>
-                  <p className='mb-[8px] text-[12px] text-[var(--text-primary)]'>
-                    Continue from a previous message?
-                  </p>
-                  <div className='flex gap-[8px]'>
-                    <Button
-                      onClick={handleCancelCheckpointDiscard}
-                      variant='active'
-                      size='sm'
-                      className='flex-1'
-                      disabled={isProcessingDiscard}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleContinueAndRevert}
-                      variant='destructive'
-                      size='sm'
-                      className='flex-1'
-                      disabled={isProcessingDiscard}
-                    >
-                      {isProcessingDiscard ? 'Reverting...' : 'Revert'}
-                    </Button>
-                    <Button
-                      onClick={handleContinueWithoutRevert}
-                      variant='tertiary'
-                      size='sm'
-                      className='flex-1'
-                      disabled={isProcessingDiscard}
-                    >
-                      Continue
-                    </Button>
-                  </div>
-                </div>
+                <CheckpointDiscardModal
+                  isProcessingDiscard={isProcessingDiscard}
+                  onCancel={handleCancelCheckpointDiscard}
+                  onRevert={handleContinueAndRevert}
+                  onContinue={handleContinueWithoutRevert}
+                />
               )}
             </div>
           ) : (
@@ -348,46 +327,15 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                   ref={messageContentRef}
                   className={`relative whitespace-pre-wrap break-words px-[2px] py-1 font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.25rem] ${isSendingMessage && isLastUserMessage && isHoveringMessage ? 'pr-7' : ''} ${!isExpanded && needsExpansion ? 'max-h-[60px] overflow-hidden' : 'overflow-visible'}`}
                 >
-                  {(() => {
-                    const text = message.content || ''
-                    const contexts: any[] = Array.isArray((message as any).contexts)
-                      ? ((message as any).contexts as any[])
-                      : []
-
-                    // Build tokens with their prefixes (@ for mentions, / for commands)
-                    const tokens = contexts
-                      .filter((c) => c?.kind !== 'current_workflow' && c?.label)
-                      .map((c) => {
-                        const prefix = c?.kind === 'slash_command' ? '/' : '@'
-                        return `${prefix}${c.label}`
-                      })
-                    if (!tokens.length) return text
-
-                    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                    const pattern = new RegExp(`(${tokens.map(escapeRegex).join('|')})`, 'g')
-
-                    const nodes: React.ReactNode[] = []
-                    let lastIndex = 0
-                    let match: RegExpExecArray | null
-                    while ((match = pattern.exec(text)) !== null) {
-                      const i = match.index
-                      const before = text.slice(lastIndex, i)
-                      if (before) nodes.push(before)
-                      const mention = match[0]
-                      nodes.push(
-                        <span
-                          key={`mention-${i}-${lastIndex}`}
-                          className='rounded-[4px] bg-[rgba(50,189,126,0.65)] py-[1px]'
-                        >
-                          {mention}
-                        </span>
-                      )
-                      lastIndex = i + mention.length
-                    }
-                    const tail = text.slice(lastIndex)
-                    if (tail) nodes.push(tail)
-                    return nodes
-                  })()}
+                  {buildMentionHighlightNodes(
+                    message.content || '',
+                    message.contexts || [],
+                    (token, key) => (
+                      <span key={key} className='rounded-[4px] bg-[rgba(50,189,126,0.65)] py-[1px]'>
+                        {token}
+                      </span>
+                    )
+                  )}
                 </div>
 
                 {/* Gradient fade when truncated - applies to entire message box */}
@@ -439,49 +387,15 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
           {/* Inline Restore Checkpoint Confirmation */}
           {showRestoreConfirmation && (
-            <div className='mt-[8px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-4)] p-[10px]'>
-              <p className='mb-[8px] text-[12px] text-[var(--text-primary)]'>
-                Revert to checkpoint? This will restore your workflow to the state saved at this
-                checkpoint.{' '}
-                <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-              </p>
-              <div className='flex gap-[8px]'>
-                <Button
-                  onClick={handleCancelRevert}
-                  variant='active'
-                  size='sm'
-                  className='flex-1'
-                  disabled={isReverting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleConfirmRevert}
-                  variant='destructive'
-                  size='sm'
-                  className='flex-1'
-                  disabled={isReverting}
-                >
-                  {isReverting ? 'Reverting...' : 'Revert'}
-                </Button>
-              </div>
-            </div>
+            <RestoreCheckpointModal
+              isReverting={isReverting}
+              onCancel={handleCancelRevert}
+              onConfirm={handleConfirmRevert}
+            />
           )}
         </div>
       )
     }
-
-    // Check if there's any visible content in the blocks
-    const hasVisibleContent = useMemo(() => {
-      if (!message.contentBlocks || message.contentBlocks.length === 0) return false
-      return message.contentBlocks.some((block) => {
-        if (block.type === 'text') {
-          const parsed = parseSpecialTags(block.content)
-          return parsed.cleanContent.trim().length > 0
-        }
-        return block.type === 'thinking' || block.type === 'tool_call'
-      })
-    }, [message.contentBlocks])
 
     if (isAssistant) {
       return (

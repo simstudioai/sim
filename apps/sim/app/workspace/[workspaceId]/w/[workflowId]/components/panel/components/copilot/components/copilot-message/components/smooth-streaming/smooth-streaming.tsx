@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
-import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
+import { CopilotMarkdownRenderer } from '../markdown-renderer'
 
 /**
  * Character animation delay in milliseconds

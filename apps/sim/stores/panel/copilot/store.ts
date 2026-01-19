@@ -1736,8 +1736,13 @@ const sseHandlers: Record<string, SSEHandler> = {
     }
   },
   done: (_data, context) => {
+    logger.info('[SSE] DONE EVENT RECEIVED', {
+      doneEventCount: context.doneEventCount,
+      data: _data,
+    })
     context.doneEventCount++
     if (context.doneEventCount >= 1) {
+      logger.info('[SSE] Setting streamComplete = true, stream will terminate')
       context.streamComplete = true
     }
   },

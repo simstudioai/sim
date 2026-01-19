@@ -24,6 +24,7 @@ import {
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
 import {
+  ChatHistorySkeleton,
   CopilotMessage,
   PlanModeSection,
   QueuedMessages,
@@ -40,6 +41,7 @@ import {
   useTodoManagement,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/hooks'
 import { useScrollManagement } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import type { ChatContext } from '@/stores/panel'
 import { useCopilotStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -74,9 +76,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const copilotContainerRef = useRef<HTMLDivElement>(null)
   const cancelEditCallbackRef = useRef<(() => void) | null>(null)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
-  const [isEditingMessage, setIsEditingMessage] = useState(false)
   const [revertingMessageId, setRevertingMessageId] = useState<string | null>(null)
   const [isHistoryDropdownOpen, setIsHistoryDropdownOpen] = useState(false)
+
+  // Derived state - editing when there's an editingMessageId
+  const isEditingMessage = editingMessageId !== null
 
   const { activeWorkflowId } = useWorkflowRegistry()
 
@@ -106,9 +110,9 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     areChatsFresh,
     workflowId: copilotWorkflowId,
     setPlanTodos,
+    closePlanTodos,
     clearPlanArtifact,
     savePlanArtifact,
-    setSelectedModel,
     loadAutoAllowedTools,
   } = useCopilotStore()
 
@@ -293,19 +297,27 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   }, [abortMessage, showPlanTodos])
 
   /**
+   * Handles closing the plan todos section
+   * Calls store action and clears the todos
+   */
+  const handleClosePlanTodos = useCallback(() => {
+    closePlanTodos()
+    setPlanTodos([])
+  }, [closePlanTodos, setPlanTodos])
+
+  /**
    * Handles message submission to the copilot
    * @param query - The message text to send
    * @param fileAttachments - Optional file attachments
    * @param contexts - Optional context references
    */
   const handleSubmit = useCallback(
-    async (query: string, fileAttachments?: MessageFileAttachment[], contexts?: any[]) => {
+    async (query: string, fileAttachments?: MessageFileAttachment[], contexts?: ChatContext[]) => {
       // Allow submission even when isSendingMessage - store will queue the message
       if (!query || !activeWorkflowId) return
 
       if (showPlanTodos) {
-        const store = useCopilotStore.getState()
-        store.setPlanTodos([])
+        setPlanTodos([])
       }
 
       try {
@@ -319,7 +331,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
         logger.error('Failed to send message:', error)
       }
     },
-    [activeWorkflowId, sendMessage, showPlanTodos]
+    [activeWorkflowId, sendMessage, showPlanTodos, setPlanTodos]
   )
 
   /**
@@ -330,7 +342,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const handleEditModeChange = useCallback(
     (messageId: string, isEditing: boolean, cancelCallback?: () => void) => {
       setEditingMessageId(isEditing ? messageId : null)
-      setIsEditingMessage(isEditing)
       cancelEditCallbackRef.current = isEditing ? cancelCallback || null : null
       logger.info('Edit mode changed', { messageId, isEditing, willDimMessages: isEditing })
     },
@@ -373,24 +384,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       handleHistoryDropdownOpenHook(open)
     },
     [handleHistoryDropdownOpenHook]
-  )
-
-  /**
-   * Skeleton loading component for chat history
-   */
-  const ChatHistorySkeleton = () => (
-    <>
-      <PopoverSection>
-        <div className='h-3 w-12 animate-pulse rounded bg-muted/40' />
-      </PopoverSection>
-      <div className='flex flex-col gap-0.5'>
-        {[1, 2, 3].map((i) => (
-          <div key={i} className='flex h-[25px] items-center px-[6px]'>
-            <div className='h-3 w-full animate-pulse rounded bg-muted/40' />
-          </div>
-        ))}
-      </div>
-    </>
   )
 
   return (
@@ -588,11 +581,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                       <TodoList
                         todos={planTodos}
                         collapsed={todosCollapsed}
-                        onClose={() => {
-                          const store = useCopilotStore.getState()
-                          store.closePlanTodos?.()
-                          useCopilotStore.setState({ planTodos: [] })
-                        }}
+                        onClose={handleClosePlanTodos}
                       />
                     </div>
                   )}

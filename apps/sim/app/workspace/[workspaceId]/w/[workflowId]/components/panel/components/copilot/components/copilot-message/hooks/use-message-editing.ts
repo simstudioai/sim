@@ -2,10 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import type { CopilotMessage } from '@/stores/panel'
+import type { ChatContext, CopilotMessage, MessageFileAttachment } from '@/stores/panel'
 import { useCopilotStore } from '@/stores/panel'
 
 const logger = createLogger('useMessageEditing')
+
+/**
+ * Ref interface for UserInput component
+ */
+interface UserInputRef {
+  focus: () => void
+}
 
 /**
  * Message truncation height in pixels
@@ -32,8 +39,8 @@ interface UseMessageEditingProps {
   setShowCheckpointDiscardModal: (show: boolean) => void
   pendingEditRef: React.MutableRefObject<{
     message: string
-    fileAttachments?: any[]
-    contexts?: any[]
+    fileAttachments?: MessageFileAttachment[]
+    contexts?: ChatContext[]
   } | null>
   /**
    * When true, disables the internal document click-outside handler.
@@ -69,7 +76,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
 
   const editContainerRef = useRef<HTMLDivElement>(null)
   const messageContentRef = useRef<HTMLDivElement>(null)
-  const userInputRef = useRef<any>(null)
+  const userInputRef = useRef<UserInputRef>(null)
 
   const { sendMessage, isSendingMessage, abortMessage, currentChat } = useCopilotStore()
 
@@ -121,7 +128,11 @@ export function useMessageEditing(props: UseMessageEditingProps) {
    * Truncates messages after edited message and resends with same ID
    */
   const performEdit = useCallback(
-    async (editedMessage: string, fileAttachments?: any[], contexts?: any[]) => {
+    async (
+      editedMessage: string,
+      fileAttachments?: MessageFileAttachment[],
+      contexts?: ChatContext[]
+    ) => {
       const currentMessages = messages
       const editIndex = currentMessages.findIndex((m) => m.id === message.id)
 
@@ -134,7 +145,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
           ...message,
           content: editedMessage,
           fileAttachments: fileAttachments || message.fileAttachments,
-          contexts: contexts || (message as any).contexts,
+          contexts: contexts || message.contexts,
         }
 
         useCopilotStore.setState({ messages: [...truncatedMessages, updatedMessage] })
@@ -153,7 +164,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
                   timestamp: m.timestamp,
                   ...(m.contentBlocks && { contentBlocks: m.contentBlocks }),
                   ...(m.fileAttachments && { fileAttachments: m.fileAttachments }),
-                  ...((m as any).contexts && { contexts: (m as any).contexts }),
+                  ...(m.contexts && { contexts: m.contexts }),
                 })),
               }),
             })
@@ -164,7 +175,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
 
         await sendMessage(editedMessage, {
           fileAttachments: fileAttachments || message.fileAttachments,
-          contexts: contexts || (message as any).contexts,
+          contexts: contexts || message.contexts,
           messageId: message.id,
           queueIfBusy: false,
         })
@@ -178,7 +189,11 @@ export function useMessageEditing(props: UseMessageEditingProps) {
    * Checks for checkpoints and shows confirmation if needed
    */
   const handleSubmitEdit = useCallback(
-    async (editedMessage: string, fileAttachments?: any[], contexts?: any[]) => {
+    async (
+      editedMessage: string,
+      fileAttachments?: MessageFileAttachment[],
+      contexts?: ChatContext[]
+    ) => {
       if (!editedMessage.trim()) return
 
       if (isSendingMessage) {
