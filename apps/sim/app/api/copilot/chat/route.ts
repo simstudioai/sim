@@ -152,6 +152,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Detect migration requests and add specialized system prompt
+    const isMigrationRequest = message.toLowerCase().includes('convert this n8n workflow')
+    if (isMigrationRequest) {
+      try {
+        const { getMigrationSystemPrompt } = await import('@/lib/migration')
+        const migrationPrompt = getMigrationSystemPrompt()
+        
+        // Add migration instructions as a high-priority context
+        agentContexts.unshift({
+          type: 'migration_instructions',
+          content: migrationPrompt,
+        })
+        
+        logger.info(`[${tracker.requestId}] Migration request detected - added specialized prompt`, {
+          promptLength: migrationPrompt.length,
+        })
+      } catch (e) {
+        logger.error(`[${tracker.requestId}] Failed to add migration prompt`, e)
+      }
+    }
+
     // Handle chat context
     let currentChat: any = null
     let conversationHistory: any[] = []

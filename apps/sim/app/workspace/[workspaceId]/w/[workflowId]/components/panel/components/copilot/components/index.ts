@@ -1,4 +1,5 @@
 export * from './copilot-message/copilot-message'
+export * from './migration-dialog'
 export * from './plan-mode-section/plan-mode-section'
 export * from './queued-messages/queued-messages'
 export * from './todo-list/todo-list'
