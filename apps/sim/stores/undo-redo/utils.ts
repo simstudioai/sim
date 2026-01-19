@@ -1,3 +1,4 @@
+import type { Edge } from 'reactflow'
 import { UNDO_REDO_OPERATIONS } from '@/socket/constants'
 import type {
   BatchAddBlocksOperation,
@@ -9,6 +10,8 @@ import type {
   Operation,
   OperationEntry,
 } from '@/stores/undo-redo/types'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export function createOperationEntry(operation: Operation, inverse: Operation): OperationEntry {
   return {
@@ -169,4 +172,32 @@ export function createInverseOperation(operation: Operation): Operation {
       throw new Error(`Unhandled operation type: ${(exhaustiveCheck as Operation).type}`)
     }
   }
+}
+
+export function captureLatestEdges(edges: Edge[], blockIds: string[]): Edge[] {
+  return edges.filter((e) => blockIds.includes(e.source) || blockIds.includes(e.target))
+}
+
+export function captureLatestSubBlockValues(
+  blocks: Record<string, BlockState>,
+  workflowId: string,
+  blockIds: string[]
+): Record<string, Record<string, unknown>> {
+  const values: Record<string, Record<string, unknown>> = {}
+  blockIds.forEach((blockId) => {
+    const merged = mergeSubblockState(blocks, workflowId, blockId)
+    const block = merged[blockId]
+    if (block?.subBlocks) {
+      const blockValues: Record<string, unknown> = {}
+      Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]) => {
+        if (subBlock.value !== null && subBlock.value !== undefined) {
+          blockValues[subBlockId] = subBlock.value
+        }
+      })
+      if (Object.keys(blockValues).length > 0) {
+        values[blockId] = blockValues
+      }
+    }
+  })
+  return values
 }
