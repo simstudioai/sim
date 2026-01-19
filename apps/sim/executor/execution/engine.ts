@@ -207,7 +207,7 @@ export class ExecutionEngine {
     if (this.executing.size > 0) {
       const abortPromise = this.getAbortPromise()
       if (abortPromise) {
-        await Promise.race([Promise.race(this.executing), abortPromise])
+        await Promise.race([...this.executing, abortPromise])
       } else {
         await Promise.race(this.executing)
       }
@@ -217,9 +217,9 @@ export class ExecutionEngine {
   private async waitForAllExecutions(): Promise<void> {
     const abortPromise = this.getAbortPromise()
     if (abortPromise) {
-      await Promise.race([Promise.all(Array.from(this.executing)), abortPromise])
+      await Promise.race([Promise.all(this.executing), abortPromise])
     } else {
-      await Promise.all(Array.from(this.executing))
+      await Promise.all(this.executing)
     }
   }
 
