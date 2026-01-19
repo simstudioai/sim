@@ -68,7 +68,7 @@ export const calendlyInviteeCreatedTrigger: TriggerConfig = {
         '<strong>Note:</strong> This trigger requires a paid Calendly subscription (Professional, Teams, or Enterprise plan).',
         'Get your Personal Access Token from <strong>Settings > Integrations > API & Webhooks</strong> in your Calendly account.',
         'Use the "Get Current User" operation in a Calendly block to retrieve your Organization URI.',
-        'The webhook will be automatically created in Calendly when you save this trigger.',
+        'The webhook will be automatically created in Calendly when you deploy the workflow.',
         'This webhook triggers when an invitee schedules a new event. Rescheduling triggers both cancellation and creation events.',
       ]
         .map(
