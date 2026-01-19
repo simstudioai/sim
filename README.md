@@ -197,6 +197,16 @@ If ports 3000, 3002, or 5432 are in use, configure alternatives:
 NEXT_PUBLIC_APP_URL=http://localhost:3100 POSTGRES_PORT=5433 docker compose up -d
 ```
 
+## Key Management
+
+Sim includes an automated key management system for securely handling API keys and secrets. See [Key Management Documentation](docs/KEY_MANAGEMENT.md) for details.
+
+Key features:
+- 🔍 Automatic discovery of required environment variables
+- 🔐 Secure storage in GitHub repository secrets
+- 💉 Smart injection into configuration files
+- 🧹 Automatic memory clearing after processing
+
 ## Tech Stack
 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
