@@ -7,11 +7,16 @@ import { CopilotMarkdownRenderer } from '../markdown-renderer'
 
 /**
  * Removes thinking tags (raw or escaped) from streamed content.
+ * Also strips special tags (options, plan) that may have been accidentally included.
  */
 function stripThinkingTags(text: string): string {
   return text
     .replace(/<\/?thinking[^>]*>/gi, '')
     .replace(/&lt;\/?thinking[^&]*&gt;/gi, '')
+    .replace(/<options>[\s\S]*?<\/options>/gi, '') // Strip complete options tags
+    .replace(/<options>[\s\S]*$/gi, '') // Strip incomplete/streaming options tags
+    .replace(/<plan>[\s\S]*?<\/plan>/gi, '') // Strip complete plan tags
+    .replace(/<plan>[\s\S]*$/gi, '') // Strip incomplete/streaming plan tags
     .trim()
 }
 
