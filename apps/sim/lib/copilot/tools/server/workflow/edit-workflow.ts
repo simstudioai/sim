@@ -966,7 +966,10 @@ function validateConditionHandle(
       if (elseIfIndex === 0) {
         handleToNormalized.set(`${legacySemanticPrefix}else-if`, normalizedHandle)
       } else {
-        handleToNormalized.set(`${legacySemanticPrefix}else-if-${elseIfIndex + 1}`, normalizedHandle)
+        handleToNormalized.set(
+          `${legacySemanticPrefix}else-if-${elseIfIndex + 1}`,
+          normalizedHandle
+        )
       }
       elseIfIndex++
     } else if (title === 'else') {

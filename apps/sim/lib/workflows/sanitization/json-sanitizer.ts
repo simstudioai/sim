@@ -330,11 +330,7 @@ function convertConditionHandleToSimple(
  * Convert internal router handle (router-{uuid}) to simple format (route-0, route-1)
  * Uses 0-indexed numbering for routes
  */
-function convertRouterHandleToSimple(
-  handle: string,
-  _blockId: string,
-  block: BlockState
-): string {
+function convertRouterHandleToSimple(handle: string, _blockId: string, block: BlockState): string {
   if (!handle.startsWith('router-')) {
     return handle
   }

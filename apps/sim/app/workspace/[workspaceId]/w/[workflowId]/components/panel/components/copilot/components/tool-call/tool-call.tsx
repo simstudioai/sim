@@ -27,9 +27,6 @@ import type { SubAgentContentBlock } from '@/stores/panel/copilot/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
- * Parse special tags from content
- */
-/**
  * Plan step can be either a string or an object with title and plan
  */
 type PlanStep = string | { title: string; plan?: string }
@@ -45,6 +42,56 @@ interface ParsedTags {
   options?: Record<string, OptionItem>
   optionsComplete?: boolean
   cleanContent: string
+}
+
+/**
+ * Extract plan steps from plan_respond tool calls in subagent blocks.
+ * Returns { steps, isComplete } where steps is in the format expected by PlanSteps component.
+ */
+function extractPlanFromBlocks(blocks: SubAgentContentBlock[] | undefined): {
+  steps: Record<string, PlanStep> | undefined
+  isComplete: boolean
+} {
+  if (!blocks) return { steps: undefined, isComplete: false }
+
+  // Find the plan_respond tool call
+  const planRespondBlock = blocks.find(
+    (b) => b.type === 'subagent_tool_call' && b.toolCall?.name === 'plan_respond'
+  )
+
+  if (!planRespondBlock?.toolCall) {
+    return { steps: undefined, isComplete: false }
+  }
+
+  // Tool call arguments can be in different places depending on the source
+  // Also handle nested data.arguments structure from the schema
+  const tc = planRespondBlock.toolCall as any
+  const args = tc.params || tc.parameters || tc.input || tc.arguments || tc.data?.arguments || {}
+  const stepsArray = args.steps
+
+  if (!Array.isArray(stepsArray) || stepsArray.length === 0) {
+    return { steps: undefined, isComplete: false }
+  }
+
+  // Convert array format to Record<string, PlanStep> format
+  // From: [{ number: 1, title: "..." }, { number: 2, title: "..." }]
+  // To: { "1": "...", "2": "..." }
+  const steps: Record<string, PlanStep> = {}
+  for (const step of stepsArray) {
+    if (step.number !== undefined && step.title) {
+      steps[String(step.number)] = step.title
+    }
+  }
+
+  // Check if the tool call is complete (not pending/executing)
+  const isComplete =
+    planRespondBlock.toolCall.state === ClientToolCallState.success ||
+    planRespondBlock.toolCall.state === ClientToolCallState.error
+
+  return {
+    steps: Object.keys(steps).length > 0 ? steps : undefined,
+    isComplete,
+  }
 }
 
 /**
@@ -654,11 +701,20 @@ function SubAgentThinkingContent({
     }
   }
 
+  // Extract plan from plan_respond tool call (preferred) or fall back to <plan> tags
+  const { steps: planSteps, isComplete: planComplete } = extractPlanFromBlocks(blocks)
   const allParsed = parseSpecialTags(allRawText)
 
-  if (!cleanText.trim() && !allParsed.plan) return null
+  // Prefer plan_respond tool data over <plan> tags
+  const hasPlan =
+    !!(planSteps && Object.keys(planSteps).length > 0) ||
+    !!(allParsed.plan && Object.keys(allParsed.plan).length > 0)
+  const planToRender = planSteps || allParsed.plan
+  const isPlanStreaming = planSteps ? !planComplete : isStreaming
 
-  const hasSpecialTags = !!(allParsed.plan && Object.keys(allParsed.plan).length > 0)
+  if (!cleanText.trim() && !hasPlan) return null
+
+  const hasSpecialTags = hasPlan
 
   return (
     <div className='space-y-1.5'>
@@ -670,9 +726,7 @@ function SubAgentThinkingContent({
           hasSpecialTags={hasSpecialTags}
         />
       )}
-      {allParsed.plan && Object.keys(allParsed.plan).length > 0 && (
-        <PlanSteps steps={allParsed.plan} streaming={isStreaming} />
-      )}
+      {hasPlan && planToRender && <PlanSteps steps={planToRender} streaming={isPlanStreaming} />}
     </div>
   )
 }
@@ -744,8 +798,19 @@ const SubagentContentRenderer = memo(function SubagentContentRenderer({
   }
 
   const allParsed = parseSpecialTags(allRawText)
+
+  // Extract plan from plan_respond tool call (preferred) or fall back to <plan> tags
+  const { steps: planSteps, isComplete: planComplete } = extractPlanFromBlocks(
+    toolCall.subAgentBlocks
+  )
+  const hasPlan =
+    !!(planSteps && Object.keys(planSteps).length > 0) ||
+    !!(allParsed.plan && Object.keys(allParsed.plan).length > 0)
+  const planToRender = planSteps || allParsed.plan
+  const isPlanStreaming = planSteps ? !planComplete : isStreaming
+
   const hasSpecialTags = !!(
-    (allParsed.plan && Object.keys(allParsed.plan).length > 0) ||
+    hasPlan ||
     (allParsed.options && Object.keys(allParsed.options).length > 0)
   )
 
@@ -756,8 +821,6 @@ const SubagentContentRenderer = memo(function SubagentContentRenderer({
 
   const outerLabel = getSubagentCompletionLabel(toolCall.name)
   const durationText = `${outerLabel} for ${formatDuration(duration)}`
-
-  const hasPlan = allParsed.plan && Object.keys(allParsed.plan).length > 0
 
   const renderCollapsibleContent = () => (
     <>
@@ -800,7 +863,7 @@ const SubagentContentRenderer = memo(function SubagentContentRenderer({
     return (
       <div className='w-full space-y-1.5'>
         {renderCollapsibleContent()}
-        {hasPlan && <PlanSteps steps={allParsed.plan!} streaming={isStreaming} />}
+        {hasPlan && planToRender && <PlanSteps steps={planToRender} streaming={isPlanStreaming} />}
       </div>
     )
   }
@@ -832,7 +895,7 @@ const SubagentContentRenderer = memo(function SubagentContentRenderer({
       </div>
 
       {/* Plan stays outside the collapsible */}
-      {hasPlan && <PlanSteps steps={allParsed.plan!} />}
+      {hasPlan && planToRender && <PlanSteps steps={planToRender} />}
     </div>
   )
 })
@@ -1413,7 +1476,10 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     toolCall.name === 'checkoff_todo' ||
     toolCall.name === 'mark_todo_in_progress' ||
     toolCall.name === 'tool_search_tool_regex' ||
-    toolCall.name === 'user_memory'
+    toolCall.name === 'user_memory' ||
+    toolCall.name === 'edit_responsd' ||
+    toolCall.name === 'debug_respond' ||
+    toolCall.name === 'plan_respond'
   )
     return null
 
