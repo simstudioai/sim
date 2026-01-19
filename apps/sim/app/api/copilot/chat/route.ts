@@ -41,7 +41,7 @@ const ChatMessageSchema = z.object({
   userMessageId: z.string().optional(), // ID from frontend for the user message
   chatId: z.string().optional(),
   workflowId: z.string().min(1, 'Workflow ID is required'),
-  model: z.enum(COPILOT_MODEL_IDS).optional().default('claude-4.5-opus'),
+model: z.enum(COPILOT_MODEL_IDS).optional().default('claude-4.5-opus'),
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
