@@ -163,12 +163,13 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               try {
                 const errorMessage = String(newEntry.error)
                 const blockName = newEntry.blockName || 'Unknown Block'
+                const displayMessage = `${blockName}: ${errorMessage}`
 
                 const copilotMessage = `${errorMessage}\n\nError in ${blockName}.\n\nPlease fix this.`
 
                 useNotificationStore.getState().addNotification({
                   level: 'error',
-                  message: errorMessage,
+                  message: displayMessage,
                   workflowId: entry.workflowId,
                   action: {
                     type: 'copilot',
