@@ -12,7 +12,7 @@ export function ResetPasswordEmail({ username = '', resetLink = '' }: ResetPassw
   const brand = getBrandConfig()
 
   return (
-    <EmailLayout preview={`Reset your ${brand.name} password`}>
+    <EmailLayout preview={`Reset your ${brand.name} password`} showUnsubscribe={false}>
       <Text style={baseStyles.paragraph}>Hello {username},</Text>
       <Text style={baseStyles.paragraph}>
         A password reset was requested for your {brand.name} account. Click below to set a new

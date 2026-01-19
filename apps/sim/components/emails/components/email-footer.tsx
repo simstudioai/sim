@@ -4,22 +4,29 @@ import { getBrandConfig } from '@/lib/branding/branding'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
-interface UnsubscribeOptions {
-  unsubscribeToken?: string
-  email?: string
-}
-
 interface EmailFooterProps {
   baseUrl?: string
-  unsubscribe?: UnsubscribeOptions
   messageId?: string
+  /**
+   * Whether to show unsubscribe link. Defaults to true.
+   * Set to false for transactional emails where unsubscribe doesn't apply.
+   */
+  showUnsubscribe?: boolean
 }
 
 /**
  * Email footer component styled to match Stripe's email design.
  * Sits in the gray area below the main white card.
+ *
+ * For non-transactional emails, the unsubscribe link uses placeholders
+ * {{UNSUBSCRIBE_TOKEN}} and {{UNSUBSCRIBE_EMAIL}} which are replaced
+ * by the mailer when sending.
  */
-export function EmailFooter({ baseUrl = getBaseUrl(), unsubscribe, messageId }: EmailFooterProps) {
+export function EmailFooter({
+  baseUrl = getBaseUrl(),
+  messageId,
+  showUnsubscribe = true,
+}: EmailFooterProps) {
   const brand = getBrandConfig()
 
   const footerLinkStyle = {
@@ -181,19 +188,20 @@ export function EmailFooter({ baseUrl = getBaseUrl(), unsubscribe, messageId }: 
                 •{' '}
                 <a href={`${baseUrl}/terms`} style={footerLinkStyle} rel='noopener noreferrer'>
                   Terms of Service
-                </a>{' '}
-                •{' '}
-                <a
-                  href={
-                    unsubscribe?.unsubscribeToken && unsubscribe?.email
-                      ? `${baseUrl}/unsubscribe?token=${unsubscribe.unsubscribeToken}&email=${encodeURIComponent(unsubscribe.email)}`
-                      : `mailto:${brand.supportEmail}?subject=Unsubscribe%20Request&body=Please%20unsubscribe%20me%20from%20all%20emails.`
-                  }
-                  style={footerLinkStyle}
-                  rel='noopener noreferrer'
-                >
-                  Unsubscribe
                 </a>
+                {showUnsubscribe && (
+                  <>
+                    {' '}
+                    •{' '}
+                    <a
+                      href={`${baseUrl}/unsubscribe?token={{UNSUBSCRIBE_TOKEN}}&email={{UNSUBSCRIBE_EMAIL}}`}
+                      style={footerLinkStyle}
+                      rel='noopener noreferrer'
+                    >
+                      Unsubscribe
+                    </a>
+                  </>
+                )}
               </td>
               <td style={baseStyles.gutter} width={spacing.gutter}>
                 &nbsp;

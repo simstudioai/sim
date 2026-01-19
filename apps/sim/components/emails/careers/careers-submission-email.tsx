@@ -40,7 +40,7 @@ export function CareersSubmissionEmail({
   submittedDate = new Date(),
 }: CareersSubmissionEmailProps) {
   return (
-    <EmailLayout preview={`New Career Application from ${name}`} hideFooter>
+    <EmailLayout preview={`New Career Application from ${name}`} hideFooter showUnsubscribe={false}>
       <Text
         style={{
           ...baseStyles.paragraph,

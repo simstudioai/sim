@@ -41,6 +41,7 @@ export function WorkspaceInvitationEmail({
   return (
     <EmailLayout
       preview={`You've been invited to join the "${workspaceName}" workspace on ${brand.name}!`}
+      showUnsubscribe={false}
     >
       <Text style={baseStyles.paragraph}>Hello,</Text>
       <Text style={baseStyles.paragraph}>

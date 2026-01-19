@@ -18,7 +18,7 @@ export function PlanWelcomeEmail({ planName, userName, loginLink }: PlanWelcomeE
   const previewText = `${brand.name}: Your ${planName} plan is active`
 
   return (
-    <EmailLayout preview={previewText}>
+    <EmailLayout preview={previewText} showUnsubscribe={true}>
       <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
         {userName ? `Hi ${userName},` : 'Hi,'}
       </Text>

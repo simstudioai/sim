@@ -32,7 +32,10 @@ export function HelpConfirmationEmail({
   const typeLabel = getTypeLabel(type)
 
   return (
-    <EmailLayout preview={`Your ${typeLabel.toLowerCase()} has been received`}>
+    <EmailLayout
+      preview={`Your ${typeLabel.toLowerCase()} has been received`}
+      showUnsubscribe={false}
+    >
       <Text style={baseStyles.paragraph}>Hello,</Text>
       <Text style={baseStyles.paragraph}>
         We've received your <strong>{typeLabel.toLowerCase()}</strong> and will get back to you
