@@ -183,6 +183,32 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       return message.content ? parseSpecialTags(message.content) : null
     }, [message.content, message.contentBlocks, isUser, isStreaming])
 
+    // Detect previously selected option by checking if the next user message matches an option
+    const selectedOptionKey = useMemo(() => {
+      if (!parsedTags?.options || isStreaming) return null
+
+      // Find the index of this message in the messages array
+      const currentIndex = messages.findIndex((m) => m.id === message.id)
+      if (currentIndex === -1 || currentIndex >= messages.length - 1) return null
+
+      // Get the next message
+      const nextMessage = messages[currentIndex + 1]
+      if (!nextMessage || nextMessage.role !== 'user') return null
+
+      const nextContent = nextMessage.content?.trim()
+      if (!nextContent) return null
+
+      // Check if the next user message content matches any option title
+      for (const [key, option] of Object.entries(parsedTags.options)) {
+        const optionTitle = typeof option === 'string' ? option : option.title
+        if (nextContent === optionTitle) {
+          return key
+        }
+      }
+
+      return null
+    }, [parsedTags?.options, messages, message.id, isStreaming])
+
     // Get sendMessage from store for continuation actions
     const sendMessage = useCopilotStore((s) => s.sendMessage)
 
@@ -448,6 +474,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                   isLastMessage && !isStreaming && parsedTags.optionsComplete === true
                 }
                 streaming={isStreaming || !parsedTags.optionsComplete}
+                selectedOptionKey={selectedOptionKey}
               />
             )}
           </div>

@@ -291,6 +291,7 @@ export function OptionsSelector({
   disabled = false,
   enableKeyboardNav = false,
   streaming = false,
+  selectedOptionKey = null,
 }: {
   options: Record<string, OptionItem>
   onSelect: (optionKey: string, optionText: string) => void
@@ -299,6 +300,8 @@ export function OptionsSelector({
   enableKeyboardNav?: boolean
   /** When true, looks enabled but interaction is disabled (for streaming state) */
   streaming?: boolean
+  /** Pre-selected option key (for restoring selection from history) */
+  selectedOptionKey?: string | null
 }) {
   const isInteractionDisabled = disabled || streaming
   const sortedOptions = useMemo(() => {
@@ -317,7 +320,7 @@ export function OptionsSelector({
   }, [options])
 
   const [hoveredIndex, setHoveredIndex] = useState(0)
-  const [chosenKey, setChosenKey] = useState<string | null>(null)
+  const [chosenKey, setChosenKey] = useState<string | null>(selectedOptionKey)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const isLocked = chosenKey !== null
