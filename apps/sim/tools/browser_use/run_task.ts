@@ -46,11 +46,11 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
     },
   },
   request: {
-    url: 'https://api.browser-use.com/api/v1/run-task',
+    url: 'https://api.browser-use.com/api/v2/tasks',
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      'X-Browser-Use-API-Key': params.apiKey,
     }),
     body: (params) => {
       const requestBody: Record<string, any> = {
@@ -121,12 +121,15 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
     let liveUrlLogged = false
 
     try {
-      const initialTaskResponse = await fetch(`https://api.browser-use.com/api/v1/task/${taskId}`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${params.apiKey}`,
-        },
-      })
+      const initialTaskResponse = await fetch(
+        `https://api.browser-use.com/api/v2/tasks/${taskId}`,
+        {
+          method: 'GET',
+          headers: {
+            'X-Browser-Use-API-Key': params.apiKey,
+          },
+        }
+      )
 
       if (initialTaskResponse.ok) {
         const initialTaskData = await initialTaskResponse.json()
@@ -145,60 +148,36 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
-        const statusResponse = await fetch(
-          `https://api.browser-use.com/api/v1/task/${taskId}/status`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${params.apiKey}`,
-            },
-          }
-        )
+        const statusResponse = await fetch(`https://api.browser-use.com/api/v2/tasks/${taskId}`, {
+          method: 'GET',
+          headers: {
+            'X-Browser-Use-API-Key': params.apiKey,
+          },
+        })
 
         if (!statusResponse.ok) {
           throw new Error(`Failed to get task status: ${statusResponse.statusText}`)
         }
 
-        const status = await statusResponse.json()
+        const taskData = await statusResponse.json()
+        const status = taskData.status
 
         logger.info(`BrowserUse task ${taskId} status: ${status}`)
 
         if (['finished', 'failed', 'stopped'].includes(status)) {
-          const taskResponse = await fetch(`https://api.browser-use.com/api/v1/task/${taskId}`, {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${params.apiKey}`,
-            },
-          })
-
-          if (taskResponse.ok) {
-            const taskData = await taskResponse.json()
-            result.output = {
-              id: taskId,
-              success: status === 'finished',
-              output: taskData.output,
-              steps: taskData.steps || [],
-            }
+          result.output = {
+            id: taskId,
+            success: status === 'finished',
+            output: taskData.output ?? null,
+            steps: taskData.steps || [],
           }
 
           return result
         }
 
-        if (!liveUrlLogged && status === 'running') {
-          const taskResponse = await fetch(`https://api.browser-use.com/api/v1/task/${taskId}`, {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${params.apiKey}`,
-            },
-          })
-
-          if (taskResponse.ok) {
-            const taskData = await taskResponse.json()
-            if (taskData.live_url) {
-              logger.info(`BrowserUse task ${taskId} running with live URL: ${taskData.live_url}`)
-              liveUrlLogged = true
-            }
-          }
+        if (!liveUrlLogged && status === 'running' && taskData.live_url) {
+          logger.info(`BrowserUse task ${taskId} running with live URL: ${taskData.live_url}`)
+          liveUrlLogged = true
         }
 
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))

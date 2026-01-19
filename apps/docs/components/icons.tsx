@@ -1739,12 +1739,12 @@ export function BrowserUseIcon(props: SVGProps<SVGSVGElement>) {
       {...props}
       version='1.0'
       xmlns='http://www.w3.org/2000/svg'
-      width='150pt'
-      height='150pt'
+      width='28'
+      height='28'
       viewBox='0 0 150 150'
       preserveAspectRatio='xMidYMid meet'
     >
-      <g transform='translate(0,150) scale(0.05,-0.05)' fill='#000000' stroke='none'>
+      <g transform='translate(0,150) scale(0.05,-0.05)' fill='currentColor' stroke='none'>
         <path
           d='M786 2713 c-184 -61 -353 -217 -439 -405 -76 -165 -65 -539 19 -666
 l57 -85 -48 -124 c-203 -517 -79 -930 346 -1155 159 -85 441 -71 585 28 l111
