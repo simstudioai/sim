@@ -13,6 +13,13 @@ import { getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
 
 const logger = createLogger('ProxyAPI')
 
+/**
+ * Next.js route configuration for long-running API requests
+ * maxDuration: 10 minutes to support user-configurable timeouts up to 10 min
+ */
+export const runtime = 'nodejs'
+export const maxDuration = 600
+
 const proxyPostSchema = z.object({
   toolId: z.string().min(1, 'toolId is required'),
   params: z.record(z.any()).optional().default({}),
@@ -212,6 +219,8 @@ export async function GET(request: Request) {
 
   try {
     const pinnedUrl = createPinnedUrl(targetUrl, urlValidation.resolvedIP!)
+    // timeout: false disables Bun/Node.js default 5-minute timeout
+    // maxDuration handles the overall route timeout
     const response = await fetch(pinnedUrl, {
       method: method,
       headers: {
@@ -220,6 +229,8 @@ export async function GET(request: Request) {
         Host: urlValidation.originalHostname!,
       },
       body: body || undefined,
+      // @ts-expect-error - Bun-specific option to disable default 5-minute timeout
+      timeout: false,
     })
 
     const contentType = response.headers.get('content-type') || ''
