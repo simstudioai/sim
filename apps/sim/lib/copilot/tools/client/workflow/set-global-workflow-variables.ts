@@ -209,13 +209,17 @@ export class SetGlobalWorkflowVariablesClientTool extends BaseClientTool {
         }
       }
 
-      const variablesArray = Object.values(byName)
+      // Convert byName (keyed by name) to record keyed by ID for the API
+      const variablesRecord: Record<string, any> = {}
+      for (const v of Object.values(byName)) {
+        variablesRecord[v.id] = v
+      }
 
-      // POST full variables array to persist
+      // POST full variables record to persist
       const res = await fetch(`/api/workflows/${payload.workflowId}/variables`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ variables: variablesArray }),
+        body: JSON.stringify({ variables: variablesRecord }),
       })
       if (!res.ok) {
         const txt = await res.text().catch(() => '')

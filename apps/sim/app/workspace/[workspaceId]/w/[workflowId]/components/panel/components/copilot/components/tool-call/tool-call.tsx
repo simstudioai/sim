@@ -1412,7 +1412,8 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   if (
     toolCall.name === 'checkoff_todo' ||
     toolCall.name === 'mark_todo_in_progress' ||
-    toolCall.name === 'tool_search_tool_regex'
+    toolCall.name === 'tool_search_tool_regex' ||
+    toolCall.name === 'user_memory'
   )
     return null
 
