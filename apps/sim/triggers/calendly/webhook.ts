@@ -58,7 +58,7 @@ export const calendlyWebhookTrigger: TriggerConfig = {
         '<strong>Note:</strong> This trigger requires a paid Calendly subscription (Professional, Teams, or Enterprise plan).',
         'Get your Personal Access Token from <strong>Settings > Integrations > API & Webhooks</strong> in your Calendly account.',
         'Use the "Get Current User" operation in a Calendly block to retrieve your Organization URI.',
-        'The webhook will be automatically created in Calendly when you save this trigger.',
+        'The webhook will be automatically created in Calendly when you deploy the workflow.',
         'This webhook subscribes to all Calendly events (invitee created, invitee canceled, and routing form submitted). Use the <code>event</code> field in the payload to determine the event type.',
       ]
         .map(
