@@ -824,7 +824,7 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
         <ModalContent size='sm'>
           <ModalHeader>Unsaved Changes</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               {hasConflicts || hasInvalidKeys
                 ? `You have unsaved changes, but ${hasConflicts ? 'conflicts must be resolved' : 'invalid variable names must be fixed'} before saving. You can discard your changes to close the modal.`
                 : 'You have unsaved changes. Do you want to save them before closing?'}

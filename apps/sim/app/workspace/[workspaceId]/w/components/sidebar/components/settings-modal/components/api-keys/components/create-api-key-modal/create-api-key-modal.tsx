@@ -115,7 +115,7 @@ export function CreateApiKeyModal({
         <ModalContent size='sm'>
           <ModalHeader>Create new API key</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               {keyType === 'workspace'
                 ? "This key will have access to all workflows in this workspace. Make sure to copy it after creation as you won't be able to see it again."
                 : "This key will have access to your personal workflows. Make sure to copy it after creation as you won't be able to see it again."}
@@ -218,7 +218,7 @@ export function CreateApiKeyModal({
         <ModalContent size='sm'>
           <ModalHeader>Your API key has been created</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               This is the only time you will see your API key.{' '}
               <span className='font-semibold text-[var(--text-primary)]'>
                 Copy it now and store it securely.

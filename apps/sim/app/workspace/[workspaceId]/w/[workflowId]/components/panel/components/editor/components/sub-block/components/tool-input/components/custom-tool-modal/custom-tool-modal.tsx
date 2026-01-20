@@ -90,6 +90,7 @@ export function CustomToolModal({
   const [initialJsonSchema, setInitialJsonSchema] = useState('')
   const [initialFunctionCode, setInitialFunctionCode] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showDiscardAlert, setShowDiscardAlert] = useState(false)
   const [isSchemaPromptActive, setIsSchemaPromptActive] = useState(false)
   const [schemaPromptInput, setSchemaPromptInput] = useState('')
   const schemaPromptInputRef = useRef<HTMLInputElement | null>(null)
@@ -174,6 +175,9 @@ Example 2:
       generationType: 'custom-tool-schema',
     },
     currentValue: jsonSchema,
+    onStreamStart: () => {
+      setJsonSchema('')
+    },
     onGeneratedContent: (content) => {
       setJsonSchema(content)
       setSchemaError(null)
@@ -237,6 +241,9 @@ try {
       generationType: 'javascript-function-body',
     },
     currentValue: functionCode,
+    onStreamStart: () => {
+      setFunctionCode('')
+    },
     onGeneratedContent: (content) => {
       handleFunctionCodeChange(content)
       setCodeError(null)
@@ -389,6 +396,26 @@ try {
     if (!isEditing) return true
     return jsonSchema !== initialJsonSchema || functionCode !== initialFunctionCode
   }, [isEditing, jsonSchema, initialJsonSchema, functionCode, initialFunctionCode])
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (isEditing) {
+      return jsonSchema !== initialJsonSchema || functionCode !== initialFunctionCode
+    }
+    return jsonSchema.trim().length > 0 || functionCode.trim().length > 0
+  }, [isEditing, jsonSchema, initialJsonSchema, functionCode, initialFunctionCode])
+
+  const handleCloseAttempt = () => {
+    if (hasUnsavedChanges && !schemaGeneration.isStreaming && !codeGeneration.isStreaming) {
+      setShowDiscardAlert(true)
+    } else {
+      handleClose()
+    }
+  }
+
+  const handleConfirmDiscard = () => {
+    setShowDiscardAlert(false)
+    handleClose()
+  }
 
   const handleSave = async () => {
     try {
@@ -781,7 +808,7 @@ try {
 
   return (
     <>
-      <Modal open={open} onOpenChange={handleClose}>
+      <Modal open={open} onOpenChange={handleCloseAttempt}>
         <ModalContent size='xl'>
           <ModalHeader>{isEditing ? 'Edit Agent Tool' : 'Create Agent Tool'}</ModalHeader>
 
@@ -1168,6 +1195,26 @@ try {
               disabled={deleteToolMutation.isPending}
             >
               {deleteToolMutation.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal open={showDiscardAlert} onOpenChange={setShowDiscardAlert}>
+        <ModalContent size='sm'>
+          <ModalHeader>Unsaved Changes</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
+              You have unsaved changes to this tool. Are you sure you want to discard your changes
+              and close the editor?
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='default' onClick={() => setShowDiscardAlert(false)}>
+              Keep Editing
+            </Button>
+            <Button variant='destructive' onClick={handleConfirmDiscard}>
+              Discard Changes
             </Button>
           </ModalFooter>
         </ModalContent>
