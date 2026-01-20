@@ -146,10 +146,20 @@ export function OutputSelect({
           outputsToProcess = blockConfig?.outputs || {}
         }
       } else {
-        const toolOutputs =
-          blockConfig && typeof operationValue === 'string'
-            ? getToolOutputs(blockConfig, operationValue)
-            : {}
+        // Build subBlocks object for tool selector
+        const rawSubBlockValues =
+          shouldUseBaseline && baselineWorkflow
+            ? baselineWorkflow.blocks?.[block.id]?.subBlocks
+            : subBlockValues?.[block.id]
+        const subBlocks: Record<string, { value: unknown }> = {}
+        if (rawSubBlockValues && typeof rawSubBlockValues === 'object') {
+          for (const [key, val] of Object.entries(rawSubBlockValues)) {
+            // Handle both { value: ... } and raw value formats
+            subBlocks[key] = val && typeof val === 'object' && 'value' in val ? val : { value: val }
+          }
+        }
+
+        const toolOutputs = blockConfig ? getToolOutputs(blockConfig, subBlocks) : {}
         outputsToProcess =
           Object.keys(toolOutputs).length > 0 ? toolOutputs : blockConfig?.outputs || {}
       }
