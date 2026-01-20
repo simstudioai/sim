@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import {
   AlertCircle,
@@ -62,7 +61,12 @@ import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
 } from '@/hooks/kb/use-knowledge-base-tag-definitions'
-import { knowledgeKeys } from '@/hooks/queries/knowledge'
+import {
+  useBulkDocumentOperation,
+  useDeleteDocument,
+  useDeleteKnowledgeBase,
+  useUpdateDocument,
+} from '@/hooks/queries/knowledge'
 
 const logger = createLogger('KnowledgeBase')
 
@@ -407,11 +411,16 @@ export function KnowledgeBase({
   id,
   knowledgeBaseName: passedKnowledgeBaseName,
 }: KnowledgeBaseProps) {
-  const queryClient = useQueryClient()
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
   const userPermissions = useUserPermissionsContext()
+
+  const { mutate: updateDocumentMutation } = useUpdateDocument()
+  const { mutate: deleteDocumentMutation } = useDeleteDocument()
+  const { mutate: deleteKnowledgeBaseMutation, isPending: isDeleting } =
+    useDeleteKnowledgeBase(workspaceId)
+  const { mutate: bulkDocumentMutation, isPending: isBulkOperating } = useBulkDocumentOperation()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [showTagsModal, setShowTagsModal] = useState(false)
@@ -427,8 +436,6 @@ export function KnowledgeBase({
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set())
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showAddDocumentsModal, setShowAddDocumentsModal] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [isBulkOperating, setIsBulkOperating] = useState(false)
   const [showDeleteDocumentModal, setShowDeleteDocumentModal] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
@@ -550,7 +557,7 @@ export function KnowledgeBase({
   /**
    * Checks for documents with stale processing states and marks them as failed
    */
-  const checkForDeadProcesses = async () => {
+  const checkForDeadProcesses = () => {
     const now = new Date()
     const DEAD_PROCESS_THRESHOLD_MS = 600 * 1000 // 10 minutes
 
@@ -567,116 +574,79 @@ export function KnowledgeBase({
 
     logger.warn(`Found ${staleDocuments.length} documents with dead processes`)
 
-    const markFailedPromises = staleDocuments.map(async (doc) => {
-      try {
-        const response = await fetch(`/api/knowledge/${id}/documents/${doc.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
+    staleDocuments.forEach((doc) => {
+      updateDocumentMutation(
+        {
+          knowledgeBaseId: id,
+          documentId: doc.id,
+          updates: { markFailedDueToTimeout: true },
+        },
+        {
+          onSuccess: () => {
+            logger.info(`Successfully marked dead process as failed for document: ${doc.filename}`)
           },
-          body: JSON.stringify({
-            markFailedDueToTimeout: true,
-          }),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-          logger.error(`Failed to mark document ${doc.id} as failed: ${errorData.error}`)
-          return
         }
-
-        const result = await response.json()
-        if (result.success) {
-          logger.info(`Successfully marked dead process as failed for document: ${doc.filename}`)
-        }
-      } catch (error) {
-        logger.error(`Error marking document ${doc.id} as failed:`, error)
-      }
+      )
     })
-
-    await Promise.allSettled(markFailedPromises)
   }
 
-  const handleToggleEnabled = async (docId: string) => {
+  const handleToggleEnabled = (docId: string) => {
     const document = documents.find((doc) => doc.id === docId)
     if (!document) return
 
     const newEnabled = !document.enabled
 
+    // Optimistic update
     updateDocument(docId, { enabled: newEnabled })
 
-    try {
-      const response = await fetch(`/api/knowledge/${id}/documents/${docId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
+    updateDocumentMutation(
+      {
+        knowledgeBaseId: id,
+        documentId: docId,
+        updates: { enabled: newEnabled },
+      },
+      {
+        onError: () => {
+          // Rollback on error
+          updateDocument(docId, { enabled: !newEnabled })
         },
-        body: JSON.stringify({
-          enabled: newEnabled,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to update document')
       }
-
-      const result = await response.json()
-
-      if (!result.success) {
-        updateDocument(docId, { enabled: !newEnabled })
-      }
-    } catch (err) {
-      updateDocument(docId, { enabled: !newEnabled })
-      logger.error('Error updating document:', err)
-    }
+    )
   }
 
   /**
    * Handles retrying a failed document processing
    */
-  const handleRetryDocument = async (docId: string) => {
-    try {
-      updateDocument(docId, {
-        processingStatus: 'pending',
-        processingError: null,
-        processingStartedAt: null,
-        processingCompletedAt: null,
-      })
+  const handleRetryDocument = (docId: string) => {
+    // Optimistic update
+    updateDocument(docId, {
+      processingStatus: 'pending',
+      processingError: null,
+      processingStartedAt: null,
+      processingCompletedAt: null,
+    })
 
-      const response = await fetch(`/api/knowledge/${id}/documents/${docId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
+    updateDocumentMutation(
+      {
+        knowledgeBaseId: id,
+        documentId: docId,
+        updates: { retryProcessing: true },
+      },
+      {
+        onSuccess: () => {
+          refreshDocuments()
+          logger.info(`Document retry initiated successfully for: ${docId}`)
         },
-        body: JSON.stringify({
-          retryProcessing: true,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to retry document processing')
+        onError: (err) => {
+          logger.error('Error retrying document:', err)
+          updateDocument(docId, {
+            processingStatus: 'failed',
+            processingError:
+              err instanceof Error ? err.message : 'Failed to retry document processing',
+          })
+        },
       }
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to retry document processing')
-      }
-
-      await refreshDocuments()
-
-      logger.info(`Document retry initiated successfully for: ${docId}`)
-    } catch (err) {
-      logger.error('Error retrying document:', err)
-      const currentDoc = documents.find((doc) => doc.id === docId)
-      if (currentDoc) {
-        updateDocument(docId, {
-          processingStatus: 'failed',
-          processingError:
-            err instanceof Error ? err.message : 'Failed to retry document processing',
-        })
-      }
-    }
+    )
   }
 
   /**
@@ -694,43 +664,32 @@ export function KnowledgeBase({
     const currentDoc = documents.find((doc) => doc.id === documentId)
     const previousName = currentDoc?.filename
 
+    // Optimistic update
     updateDocument(documentId, { filename: newName })
-    queryClient.setQueryData<DocumentData>(knowledgeKeys.document(id, documentId), (previous) =>
-      previous ? { ...previous, filename: newName } : previous
-    )
 
-    try {
-      const response = await fetch(`/api/knowledge/${id}/documents/${documentId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
+    return new Promise<void>((resolve, reject) => {
+      updateDocumentMutation(
+        {
+          knowledgeBaseId: id,
+          documentId,
+          updates: { filename: newName },
         },
-        body: JSON.stringify({ filename: newName }),
-      })
-
-      if (!response.ok) {
-        const result = await response.json()
-        throw new Error(result.error || 'Failed to rename document')
-      }
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to rename document')
-      }
-
-      logger.info(`Document renamed: ${documentId}`)
-    } catch (err) {
-      if (previousName !== undefined) {
-        updateDocument(documentId, { filename: previousName })
-        queryClient.setQueryData<DocumentData>(
-          knowledgeKeys.document(id, documentId),
-          (previous) => (previous ? { ...previous, filename: previousName } : previous)
-        )
-      }
-      logger.error('Error renaming document:', err)
-      throw err
-    }
+        {
+          onSuccess: () => {
+            logger.info(`Document renamed: ${documentId}`)
+            resolve()
+          },
+          onError: (err) => {
+            // Rollback on error
+            if (previousName !== undefined) {
+              updateDocument(documentId, { filename: previousName })
+            }
+            logger.error('Error renaming document:', err)
+            reject(err)
+          },
+        }
+      )
+    })
   }
 
   /**
@@ -744,35 +703,26 @@ export function KnowledgeBase({
   /**
    * Confirms and executes the deletion of a single document
    */
-  const confirmDeleteDocument = async () => {
+  const confirmDeleteDocument = () => {
     if (!documentToDelete) return
 
-    try {
-      const response = await fetch(`/api/knowledge/${id}/documents/${documentToDelete}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to delete document')
+    deleteDocumentMutation(
+      { knowledgeBaseId: id, documentId: documentToDelete },
+      {
+        onSuccess: () => {
+          refreshDocuments()
+          setSelectedDocuments((prev) => {
+            const newSet = new Set(prev)
+            newSet.delete(documentToDelete)
+            return newSet
+          })
+        },
+        onSettled: () => {
+          setShowDeleteDocumentModal(false)
+          setDocumentToDelete(null)
+        },
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        refreshDocuments()
-
-        setSelectedDocuments((prev) => {
-          const newSet = new Set(prev)
-          newSet.delete(documentToDelete)
-          return newSet
-        })
-      }
-    } catch (err) {
-      logger.error('Error deleting document:', err)
-    } finally {
-      setShowDeleteDocumentModal(false)
-      setDocumentToDelete(null)
-    }
+    )
   }
 
   /**
@@ -818,32 +768,18 @@ export function KnowledgeBase({
   /**
    * Handles deleting the entire knowledge base
    */
-  const handleDeleteKnowledgeBase = async () => {
+  const handleDeleteKnowledgeBase = () => {
     if (!knowledgeBase) return
 
-    try {
-      setIsDeleting(true)
-
-      const response = await fetch(`/api/knowledge/${id}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to delete knowledge base')
+    deleteKnowledgeBaseMutation(
+      { knowledgeBaseId: id },
+      {
+        onSuccess: () => {
+          removeKnowledgeBase(id)
+          router.push(`/workspace/${workspaceId}/knowledge`)
+        },
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        removeKnowledgeBase(id)
-        router.push(`/workspace/${workspaceId}/knowledge`)
-      } else {
-        throw new Error(result.error || 'Failed to delete knowledge base')
-      }
-    } catch (err) {
-      logger.error('Error deleting knowledge base:', err)
-      setIsDeleting(false)
-    }
+    )
   }
 
   /**
@@ -856,93 +792,57 @@ export function KnowledgeBase({
   /**
    * Handles bulk enabling of selected documents
    */
-  const handleBulkEnable = async () => {
+  const handleBulkEnable = () => {
     const documentsToEnable = documents.filter(
       (doc) => selectedDocuments.has(doc.id) && !doc.enabled
     )
 
     if (documentsToEnable.length === 0) return
 
-    try {
-      setIsBulkOperating(true)
-
-      const response = await fetch(`/api/knowledge/${id}/documents`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
+    bulkDocumentMutation(
+      {
+        knowledgeBaseId: id,
+        operation: 'enable',
+        documentIds: documentsToEnable.map((doc) => doc.id),
+      },
+      {
+        onSuccess: (result) => {
+          result.updatedDocuments?.forEach((updatedDoc) => {
+            updateDocument(updatedDoc.id, { enabled: updatedDoc.enabled })
+          })
+          logger.info(`Successfully enabled ${result.successCount} documents`)
+          setSelectedDocuments(new Set())
         },
-        body: JSON.stringify({
-          operation: 'enable',
-          documentIds: documentsToEnable.map((doc) => doc.id),
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to enable documents')
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        result.data.updatedDocuments.forEach((updatedDoc: { id: string; enabled: boolean }) => {
-          updateDocument(updatedDoc.id, { enabled: updatedDoc.enabled })
-        })
-
-        logger.info(`Successfully enabled ${result.data.successCount} documents`)
-      }
-
-      setSelectedDocuments(new Set())
-    } catch (err) {
-      logger.error('Error enabling documents:', err)
-    } finally {
-      setIsBulkOperating(false)
-    }
+    )
   }
 
   /**
    * Handles bulk disabling of selected documents
    */
-  const handleBulkDisable = async () => {
+  const handleBulkDisable = () => {
     const documentsToDisable = documents.filter(
       (doc) => selectedDocuments.has(doc.id) && doc.enabled
     )
 
     if (documentsToDisable.length === 0) return
 
-    try {
-      setIsBulkOperating(true)
-
-      const response = await fetch(`/api/knowledge/${id}/documents`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
+    bulkDocumentMutation(
+      {
+        knowledgeBaseId: id,
+        operation: 'disable',
+        documentIds: documentsToDisable.map((doc) => doc.id),
+      },
+      {
+        onSuccess: (result) => {
+          result.updatedDocuments?.forEach((updatedDoc) => {
+            updateDocument(updatedDoc.id, { enabled: updatedDoc.enabled })
+          })
+          logger.info(`Successfully disabled ${result.successCount} documents`)
+          setSelectedDocuments(new Set())
         },
-        body: JSON.stringify({
-          operation: 'disable',
-          documentIds: documentsToDisable.map((doc) => doc.id),
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to disable documents')
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        result.data.updatedDocuments.forEach((updatedDoc: { id: string; enabled: boolean }) => {
-          updateDocument(updatedDoc.id, { enabled: updatedDoc.enabled })
-        })
-
-        logger.info(`Successfully disabled ${result.data.successCount} documents`)
-      }
-
-      setSelectedDocuments(new Set())
-    } catch (err) {
-      logger.error('Error disabling documents:', err)
-    } finally {
-      setIsBulkOperating(false)
-    }
+    )
   }
 
   /**
@@ -956,44 +856,28 @@ export function KnowledgeBase({
   /**
    * Confirms and executes the bulk deletion of selected documents
    */
-  const confirmBulkDelete = async () => {
+  const confirmBulkDelete = () => {
     const documentsToDelete = documents.filter((doc) => selectedDocuments.has(doc.id))
 
     if (documentsToDelete.length === 0) return
 
-    try {
-      setIsBulkOperating(true)
-
-      const response = await fetch(`/api/knowledge/${id}/documents`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
+    bulkDocumentMutation(
+      {
+        knowledgeBaseId: id,
+        operation: 'delete',
+        documentIds: documentsToDelete.map((doc) => doc.id),
+      },
+      {
+        onSuccess: (result) => {
+          logger.info(`Successfully deleted ${result.successCount} documents`)
+          refreshDocuments()
+          setSelectedDocuments(new Set())
         },
-        body: JSON.stringify({
-          operation: 'delete',
-          documentIds: documentsToDelete.map((doc) => doc.id),
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to delete documents')
+        onSettled: () => {
+          setShowBulkDeleteModal(false)
+        },
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        logger.info(`Successfully deleted ${result.data.successCount} documents`)
-      }
-
-      await refreshDocuments()
-
-      setSelectedDocuments(new Set())
-    } catch (err) {
-      logger.error('Error deleting documents:', err)
-    } finally {
-      setIsBulkOperating(false)
-      setShowBulkDeleteModal(false)
-    }
+    )
   }
 
   const selectedDocumentsList = documents.filter((doc) => selectedDocuments.has(doc.id))

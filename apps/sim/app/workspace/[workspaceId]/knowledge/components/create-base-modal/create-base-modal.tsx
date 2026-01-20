@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -23,7 +22,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
-import { knowledgeKeys } from '@/hooks/queries/knowledge'
+import { useCreateKnowledgeBase, useDeleteKnowledgeBase } from '@/hooks/queries/knowledge'
 
 const logger = createLogger('CreateBaseModal')
 
@@ -82,10 +81,11 @@ interface SubmitStatus {
 export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const queryClient = useQueryClient()
+
+  const createKnowledgeBaseMutation = useCreateKnowledgeBase(workspaceId)
+  const deleteKnowledgeBaseMutation = useDeleteKnowledgeBase(workspaceId)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus | null>(null)
   const [files, setFiles] = useState<FileWithPreview[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
@@ -245,12 +245,14 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
     })
   }
 
+  const isSubmitting =
+    createKnowledgeBaseMutation.isPending || deleteKnowledgeBaseMutation.isPending || isUploading
+
   const onSubmit = async (data: FormValues) => {
-    setIsSubmitting(true)
     setSubmitStatus(null)
 
     try {
-      const knowledgeBasePayload = {
+      const newKnowledgeBase = await createKnowledgeBaseMutation.mutateAsync({
         name: data.name,
         description: data.description || undefined,
         workspaceId: workspaceId,
@@ -259,28 +261,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
           minSize: data.minChunkSize,
           overlap: data.overlapSize,
         },
-      }
-
-      const response = await fetch('/api/knowledge', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(knowledgeBasePayload),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to create knowledge base')
-      }
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to create knowledge base')
-      }
-
-      const newKnowledgeBase = result.data
 
       if (files.length > 0) {
         try {
@@ -293,15 +274,11 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
 
           logger.info(`Successfully uploaded ${uploadedFiles.length} files`)
           logger.info(`Started processing ${uploadedFiles.length} documents in the background`)
-
-          await queryClient.invalidateQueries({
-            queryKey: knowledgeKeys.list(workspaceId),
-          })
         } catch (uploadError) {
           logger.error('File upload failed, deleting knowledge base:', uploadError)
           try {
-            await fetch(`/api/knowledge/${newKnowledgeBase.id}`, {
-              method: 'DELETE',
+            await deleteKnowledgeBaseMutation.mutateAsync({
+              knowledgeBaseId: newKnowledgeBase.id,
             })
             logger.info(`Deleted orphaned knowledge base: ${newKnowledgeBase.id}`)
           } catch (deleteError) {
@@ -309,10 +286,6 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
           }
           throw uploadError
         }
-      } else {
-        await queryClient.invalidateQueries({
-          queryKey: knowledgeKeys.list(workspaceId),
-        })
       }
 
       files.forEach((file) => URL.revokeObjectURL(file.preview))
@@ -325,8 +298,6 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
         type: 'error',
         message: error instanceof Error ? error.message : 'An unknown error occurred',
       })
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
