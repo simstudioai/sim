@@ -108,7 +108,6 @@ interface SSOProviderConfig {
   samlConfig?: SAMLConfig
 }
 
-// Simple console logger (no dependencies)
 const logger = {
   info: (message: string, meta?: any) => {
     const timestamp = new Date().toISOString()
@@ -133,14 +132,12 @@ const logger = {
   },
 }
 
-// Get database URL from environment
 const CONNECTION_STRING = process.env.POSTGRES_URL ?? process.env.DATABASE_URL
 if (!CONNECTION_STRING) {
   console.error('❌ POSTGRES_URL or DATABASE_URL environment variable is required')
   process.exit(1)
 }
 
-// Initialize database connection (following migration script pattern)
 const postgresClient = postgres(CONNECTION_STRING, {
   prepare: false,
   idle_timeout: 20,
@@ -161,7 +158,6 @@ interface SSOProviderData {
   organizationId?: string
 }
 
-// Self-contained configuration builder (no external dependencies)
 function buildSSOConfigFromEnv(): SSOProviderConfig | null {
   const enabled = process.env.SSO_ENABLED === 'true'
   if (!enabled) return null
@@ -182,7 +178,6 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
     providerType,
   }
 
-  // Build field mapping
   config.mapping = {
     id:
       process.env.SSO_MAPPING_ID ||
@@ -202,7 +197,6 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
     image: process.env.SSO_MAPPING_IMAGE || (providerType === 'oidc' ? 'picture' : undefined),
   }
 
-  // Build provider-specific configuration
   if (providerType === 'oidc') {
     const clientId = process.env.SSO_OIDC_CLIENT_ID
     const clientSecret = process.env.SSO_OIDC_CLIENT_SECRET
@@ -237,7 +231,6 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
 
     const callbackUrl = process.env.SSO_SAML_CALLBACK_URL || `${issuer}/callback`
 
-    // Use custom metadata if provided, otherwise generate default
     let spMetadata = process.env.SSO_SAML_SP_METADATA
     if (!spMetadata) {
       spMetadata = `<?xml version="1.0" encoding="UTF-8"?>
@@ -263,7 +256,6 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
         entityID: issuer,
       },
     }
-    // Optionally include IDP metadata if provided
     const idpMetadata = process.env.SSO_SAML_IDP_METADATA
     if (idpMetadata) {
       config.samlConfig.idpMetadata = {
@@ -275,7 +267,6 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
   return config
 }
 
-// Self-contained example environment variables function
 function getExampleEnvVars(
   providerType: 'oidc' | 'saml',
   provider?: string
@@ -358,7 +349,6 @@ async function getAdminUser(): Promise<{ id: string; email: string } | null> {
 
 async function registerSSOProvider(): Promise<boolean> {
   try {
-    // Build configuration from environment variables
     const ssoConfig = buildSSOConfigFromEnv()
 
     if (!ssoConfig) {
@@ -381,7 +371,6 @@ async function registerSSOProvider(): Promise<boolean> {
       return false
     }
 
-    // Get admin user
     const adminUser = await getAdminUser()
     if (!adminUser) {
       return false
@@ -394,7 +383,6 @@ async function registerSSOProvider(): Promise<boolean> {
       adminUser: adminUser.email,
     })
 
-    // Validate issuer URL (same as Better Auth does)
     try {
       new URL(ssoConfig.issuer)
     } catch {
@@ -402,7 +390,66 @@ async function registerSSOProvider(): Promise<boolean> {
       return false
     }
 
-    // Check if provider already exists
+    if (ssoConfig.providerType === 'oidc' && ssoConfig.oidcConfig) {
+      if (!ssoConfig.oidcConfig.authorizationEndpoint) {
+        const discoveryUrl = `${ssoConfig.issuer.replace(/\/$/, '')}/.well-known/openid-configuration`
+        logger.info('Fetching OIDC discovery document...', { discoveryUrl })
+
+        try {
+          const response = await fetch(discoveryUrl, {
+            headers: { Accept: 'application/json' },
+          })
+
+          if (!response.ok) {
+            logger.error('Failed to fetch OIDC discovery document', {
+              status: response.status,
+              statusText: response.statusText,
+            })
+            return false
+          }
+
+          const discovery = await response.json()
+
+          if (
+            !discovery.authorization_endpoint ||
+            !discovery.token_endpoint ||
+            !discovery.jwks_uri
+          ) {
+            logger.error('OIDC discovery document missing required endpoints', {
+              hasAuthEndpoint: !!discovery.authorization_endpoint,
+              hasTokenEndpoint: !!discovery.token_endpoint,
+              hasJwksUri: !!discovery.jwks_uri,
+            })
+            return false
+          }
+
+          ssoConfig.oidcConfig.authorizationEndpoint = discovery.authorization_endpoint
+          ssoConfig.oidcConfig.tokenEndpoint =
+            ssoConfig.oidcConfig.tokenEndpoint || discovery.token_endpoint
+          ssoConfig.oidcConfig.userInfoEndpoint =
+            ssoConfig.oidcConfig.userInfoEndpoint || discovery.userinfo_endpoint
+          ssoConfig.oidcConfig.jwksEndpoint =
+            ssoConfig.oidcConfig.jwksEndpoint || discovery.jwks_uri
+
+          logger.info('✅ Successfully fetched OIDC endpoints from discovery', {
+            authorizationEndpoint: ssoConfig.oidcConfig.authorizationEndpoint,
+            tokenEndpoint: ssoConfig.oidcConfig.tokenEndpoint,
+            userInfoEndpoint: ssoConfig.oidcConfig.userInfoEndpoint,
+            jwksEndpoint: ssoConfig.oidcConfig.jwksEndpoint,
+          })
+        } catch (error) {
+          logger.error('Error fetching OIDC discovery document', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            discoveryUrl,
+          })
+          logger.error(
+            'Please provide explicit endpoints via SSO_OIDC_AUTHORIZATION_ENDPOINT, etc.'
+          )
+          return false
+        }
+      }
+    }
+
     const existingProviders = await db
       .select()
       .from(ssoProvider)
@@ -413,9 +460,8 @@ async function registerSSOProvider(): Promise<boolean> {
       logger.info('Updating existing provider...')
     }
 
-    // Build provider data (following Better Auth's exact structure)
     const providerData: SSOProviderData = {
-      id: uuidv4(), // Generate unique ID
+      id: uuidv4(),
       issuer: ssoConfig.issuer,
       domain: ssoConfig.domain,
       userId: adminUser.id,
@@ -423,7 +469,6 @@ async function registerSSOProvider(): Promise<boolean> {
       organizationId: process.env.SSO_ORGANIZATION_ID || undefined,
     }
 
-    // Build OIDC config (same as Better Auth endpoint)
     if (ssoConfig.providerType === 'oidc' && ssoConfig.oidcConfig) {
       const oidcConfig = {
         issuer: ssoConfig.issuer,
@@ -445,7 +490,6 @@ async function registerSSOProvider(): Promise<boolean> {
       providerData.oidcConfig = JSON.stringify(oidcConfig)
     }
 
-    // Build SAML config (same as Better Auth endpoint)
     if (ssoConfig.providerType === 'saml' && ssoConfig.samlConfig) {
       const samlConfig = {
         issuer: ssoConfig.issuer,
@@ -467,7 +511,6 @@ async function registerSSOProvider(): Promise<boolean> {
       providerData.samlConfig = JSON.stringify(samlConfig)
     }
 
-    // Insert or update the SSO provider record
     if (existingProviders.length > 0) {
       await db
         .update(ssoProvider)
@@ -521,7 +564,6 @@ async function main() {
   console.log('This script directly inserts SSO provider records into the database.')
   console.log("It follows Better Auth's exact registerSSOProvider logic.\n")
 
-  // Register the SSO provider using direct database access
   const success = await registerSSOProvider()
 
   if (success) {
@@ -538,7 +580,6 @@ async function main() {
   }
 }
 
-// Handle script execution
 main().catch((error) => {
   logger.error('Script execution failed:', { error })
   process.exit(1)
