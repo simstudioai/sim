@@ -3,7 +3,6 @@ import {
   templateCreators,
   templateStars,
   templates,
-  user,
   workflow,
   workflowDeploymentVersion,
 } from '@sim/db/schema'
@@ -14,6 +13,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
 import {
   extractRequiredCredentials,
   sanitizeCredentials,
@@ -70,8 +70,8 @@ export async function GET(request: NextRequest) {
     logger.debug(`[${requestId}] Fetching templates with params:`, params)
 
     // Check if user is a super user
-    const currentUser = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1)
-    const isSuperUser = currentUser[0]?.isSuperUser || false
+    const { effectiveSuperUser } = await verifyEffectiveSuperUser(session.user.id)
+    const isSuperUser = effectiveSuperUser
 
     // Build query conditions
     const conditions = []

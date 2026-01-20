@@ -1477,7 +1477,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     toolCall.name === 'mark_todo_in_progress' ||
     toolCall.name === 'tool_search_tool_regex' ||
     toolCall.name === 'user_memory' ||
-    toolCall.name === 'edit_responsd' ||
+    toolCall.name === 'edit_respond' ||
     toolCall.name === 'debug_respond' ||
     toolCall.name === 'plan_respond'
   )
