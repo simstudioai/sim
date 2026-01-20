@@ -6,6 +6,7 @@ export interface BrowserUseRunTaskParams {
   variables?: Record<string, string>
   model?: string
   save_browser_data?: boolean
+  profile_id?: string
 }
 
 export interface BrowserUseTaskStep {
