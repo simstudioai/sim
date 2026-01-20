@@ -19,6 +19,22 @@ import { trackForcedToolUsage } from '@/providers/utils'
 const logger = createLogger('GoogleUtils')
 
 /**
+ * Ensures a value is a valid object for Gemini's functionResponse.response field.
+ * Gemini's API requires functionResponse.response to be a google.protobuf.Struct,
+ * which must be an object with string keys. Primitive values (boolean, string,
+ * number, null) and arrays are wrapped in { value: ... }.
+ *
+ * @param value - The value to ensure is a Struct-compatible object
+ * @returns A Record<string, unknown> suitable for functionResponse.response
+ */
+export function ensureStructResponse(value: unknown): Record<string, unknown> {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
+  return { value }
+}
+
+/**
  * Usage metadata for Google Gemini responses
  */
 export interface GeminiUsage {
@@ -180,7 +196,8 @@ export function convertToGeminiFormat(request: ProviderRequest): {
         }
         let responseData: Record<string, unknown>
         try {
-          responseData = JSON.parse(message.content ?? '{}')
+          const parsed = JSON.parse(message.content ?? '{}')
+          responseData = ensureStructResponse(parsed)
         } catch {
           responseData = { output: message.content }
         }

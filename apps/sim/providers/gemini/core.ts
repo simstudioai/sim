@@ -19,6 +19,7 @@ import {
   convertToGeminiFormat,
   convertUsageMetadata,
   createReadableStreamFromGeminiStream,
+  ensureStructResponse,
   extractFunctionCallPart,
   extractTextContent,
   mapToThinkingLevel,
@@ -104,7 +105,7 @@ async function executeToolCall(
     const duration = toolCallEndTime - toolCallStartTime
 
     const resultContent: Record<string, unknown> = result.success
-      ? (result.output as Record<string, unknown>)
+      ? ensureStructResponse(result.output)
       : { error: true, message: result.error || 'Tool execution failed', tool: toolName }
 
     const toolCall: FunctionCallResponse = {
