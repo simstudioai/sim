@@ -85,14 +85,47 @@ export function FileUpload({
     }
   }
 
+  /**
+   * Checks if a file's MIME type matches the accepted types
+   * Supports exact matches, wildcard patterns (e.g., 'image/*'), and '*' for all types
+   */
+  const isFileTypeAccepted = (fileType: string, accepted: string): boolean => {
+    if (accepted === '*') return true
+
+    const acceptedList = accepted.split(',').map((t) => t.trim().toLowerCase())
+    const normalizedFileType = fileType.toLowerCase()
+
+    return acceptedList.some((acceptedType) => {
+      if (acceptedType === normalizedFileType) return true
+
+      if (acceptedType.endsWith('/*')) {
+        const typePrefix = acceptedType.slice(0, -1) // 'image/' from 'image/*'
+        return normalizedFileType.startsWith(typePrefix)
+      }
+
+      if (acceptedType.startsWith('.')) {
+        const extension = acceptedType.slice(1) // 'pdf' from '.pdf'
+        return (
+          normalizedFileType.endsWith(`/${extension}`) ||
+          normalizedFileType.includes(`${extension}`)
+        )
+      }
+
+      return false
+    })
+  }
+
   const availableWorkspaceFiles = workspaceFiles.filter((workspaceFile) => {
     const existingFiles = Array.isArray(value) ? value : value ? [value] : []
-    return !existingFiles.some(
+
+    const isAlreadySelected = existingFiles.some(
       (existing) =>
         existing.name === workspaceFile.name ||
         existing.path?.includes(workspaceFile.key) ||
         existing.key === workspaceFile.key
     )
+
+    return !isAlreadySelected
   })
 
   useEffect(() => {
@@ -421,23 +454,23 @@ export function FileUpload({
     return (
       <div
         key={fileKey}
-        className='flex items-center justify-between rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] hover:border-[var(--surface-7)] hover:bg-[var(--surface-5)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]'
+        className='relative rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] hover:border-[var(--surface-7)] hover:bg-[var(--surface-5)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]'
       >
-        <div className='flex-1 truncate pr-2 text-sm' title={file.name}>
+        <div className='truncate pr-[24px] text-sm' title={file.name}>
           <span className='text-[var(--text-primary)]'>{truncateMiddle(file.name)}</span>
           <span className='ml-2 text-[var(--text-muted)]'>({formatFileSize(file.size)})</span>
         </div>
         <Button
           type='button'
           variant='ghost'
-          className='h-5 w-5 shrink-0 p-0'
+          className='-translate-y-1/2 absolute top-1/2 right-[4px] h-6 w-6 p-0'
           onClick={(e) => handleRemoveFile(file, e)}
           disabled={isDeleting}
         >
           {isDeleting ? (
-            <div className='h-3.5 w-3.5 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+            <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
           ) : (
-            <X className='h-3.5 w-3.5' />
+            <X className='h-4 w-4 opacity-50' />
           )}
         </Button>
       </div>
@@ -468,19 +501,30 @@ export function FileUpload({
   const comboboxOptions = useMemo(
     () => [
       { label: 'Upload New File', value: '__upload_new__' },
-      ...availableWorkspaceFiles.map((file) => ({
-        label: file.name,
-        value: file.id,
-      })),
+      ...availableWorkspaceFiles.map((file) => {
+        const isAccepted =
+          !acceptedTypes || acceptedTypes === '*' || isFileTypeAccepted(file.type, acceptedTypes)
+        return {
+          label: file.name,
+          value: file.id,
+          disabled: !isAccepted,
+        }
+      }),
     ],
-    [availableWorkspaceFiles]
+    [availableWorkspaceFiles, acceptedTypes]
   )
 
   const handleComboboxChange = (value: string) => {
     setInputValue(value)
 
-    const isValidOption =
-      value === '__upload_new__' || availableWorkspaceFiles.some((file) => file.id === value)
+    const selectedFile = availableWorkspaceFiles.find((file) => file.id === value)
+    const isAcceptedType =
+      selectedFile &&
+      (!acceptedTypes ||
+        acceptedTypes === '*' ||
+        isFileTypeAccepted(selectedFile.type, acceptedTypes))
+
+    const isValidOption = value === '__upload_new__' || isAcceptedType
 
     if (!isValidOption) {
       return

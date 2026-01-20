@@ -241,11 +241,9 @@ const getOutputTypeForPath = (
     const blockState = useWorkflowStore.getState().blocks[blockId]
     const subBlocks = mergedSubBlocksOverride ?? (blockState?.subBlocks || {})
     return getBlockOutputType(block.type, outputPath, subBlocks)
-  } else {
+  } else if (blockConfig) {
     const operationValue = getSubBlockValue(blockId, 'operation')
-    if (blockConfig && operationValue) {
-      return getToolOutputType(blockConfig, operationValue, outputPath)
-    }
+    return getToolOutputType(blockConfig, operationValue || '', outputPath)
   }
   return 'any'
 }
@@ -1213,9 +1211,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         } else {
           const operationValue =
             mergedSubBlocks?.operation?.value ?? getSubBlockValue(activeSourceBlockId, 'operation')
-          const toolOutputPaths = operationValue
-            ? getToolOutputPaths(blockConfig, operationValue, mergedSubBlocks)
-            : []
+          const toolOutputPaths = getToolOutputPaths(
+            blockConfig,
+            operationValue || '',
+            mergedSubBlocks
+          )
 
           if (toolOutputPaths.length > 0) {
             blockTags = toolOutputPaths.map((path) => `${normalizedBlockName}.${path}`)
@@ -1545,9 +1545,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         } else {
           const operationValue =
             mergedSubBlocks?.operation?.value ?? getSubBlockValue(accessibleBlockId, 'operation')
-          const toolOutputPaths = operationValue
-            ? getToolOutputPaths(blockConfig, operationValue, mergedSubBlocks)
-            : []
+          const toolOutputPaths = getToolOutputPaths(
+            blockConfig,
+            operationValue || '',
+            mergedSubBlocks
+          )
 
           if (toolOutputPaths.length > 0) {
             blockTags = toolOutputPaths.map((path) => `${normalizedBlockName}.${path}`)

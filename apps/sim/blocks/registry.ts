@@ -14,7 +14,7 @@ import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { CirclebackBlock } from '@/blocks/blocks/circleback'
 import { ClayBlock } from '@/blocks/blocks/clay'
 import { ConditionBlock } from '@/blocks/blocks/condition'
-import { ConfluenceBlock } from '@/blocks/blocks/confluence'
+import { ConfluenceBlock, ConfluenceV2Block } from '@/blocks/blocks/confluence'
 import { CursorBlock, CursorV2Block } from '@/blocks/blocks/cursor'
 import { DatadogBlock } from '@/blocks/blocks/datadog'
 import { DiscordBlock } from '@/blocks/blocks/discord'
@@ -133,7 +133,7 @@ import { TwilioSMSBlock } from '@/blocks/blocks/twilio'
 import { TwilioVoiceBlock } from '@/blocks/blocks/twilio_voice'
 import { TypeformBlock } from '@/blocks/blocks/typeform'
 import { VariablesBlock } from '@/blocks/blocks/variables'
-import { VideoGeneratorBlock } from '@/blocks/blocks/video_generator'
+import { VideoGeneratorBlock, VideoGeneratorV2Block } from '@/blocks/blocks/video_generator'
 import { VisionBlock } from '@/blocks/blocks/vision'
 import { WaitBlock } from '@/blocks/blocks/wait'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
@@ -170,6 +170,7 @@ export const registry: Record<string, BlockConfig> = {
   clay: ClayBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
+  confluence_v2: ConfluenceV2Block,
   cursor: CursorBlock,
   cursor_v2: CursorV2Block,
   datadog: DatadogBlock,
@@ -300,6 +301,7 @@ export const registry: Record<string, BlockConfig> = {
   typeform: TypeformBlock,
   variables: VariablesBlock,
   video_generator: VideoGeneratorBlock,
+  video_generator_v2: VideoGeneratorV2Block,
   vision: VisionBlock,
   wait: WaitBlock,
   wealthbox: WealthboxBlock,

@@ -129,7 +129,6 @@ export function Editor() {
     blockSubBlockValues,
     canonicalIndex
   )
-  // When user can edit, respect their toggle; otherwise show if values present
   const displayAdvancedOptions = userPermissions.canEdit
     ? advancedMode
     : advancedMode || advancedValuesPresent

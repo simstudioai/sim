@@ -173,9 +173,9 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
       title: 'Output Format',
       type: 'dropdown',
       options: [
-        { id: 'markdown', label: 'Markdown (Formatted)' },
+        { id: 'markdown', label: 'Markdown' },
         { id: 'text', label: 'Plain Text' },
-        { id: 'json', label: 'JSON (Raw)' },
+        { id: 'json', label: 'JSON' },
       ],
     },
     {
@@ -262,7 +262,9 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
     pages: { type: 'string', description: 'Page selection' },
   },
   outputs: {
-    content: { type: 'string', description: 'Extracted content' },
-    metadata: { type: 'json', description: 'Processing metadata' },
+    pages: { type: 'array', description: 'Array of page objects from Mistral OCR' },
+    model: { type: 'string', description: 'Mistral OCR model identifier' },
+    usage_info: { type: 'json', description: 'Usage statistics from the API' },
+    document_annotation: { type: 'string', description: 'Structured annotation data' },
   },
 }
