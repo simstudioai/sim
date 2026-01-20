@@ -15,6 +15,7 @@ import {
   organization,
 } from 'better-auth/plugins'
 import { and, eq } from 'drizzle-orm'
+import crypto from 'node:crypto'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import {
@@ -403,6 +404,7 @@ export const auth = betterAuth({
         'hubspot',
         'linkedin',
         'spotify',
+        'pinterest',
 
         // Common SSO provider patterns
         ...SSO_TRUSTED_PROVIDERS,
@@ -2315,6 +2317,89 @@ export const auth = betterAuth({
             } catch (error) {
               logger.error('Error in LinkedIn getUserInfo:', { error })
               return null
+            }
+          },
+        },
+
+        // Pinterest provider
+        {
+          providerId: 'pinterest',
+          clientId: env.PINTEREST_CLIENT_ID as string,
+          clientSecret: env.PINTEREST_CLIENT_SECRET as string,
+          authorizationUrl: 'https://www.pinterest.com/oauth/',
+          tokenUrl: 'https://api.pinterest.com/v5/oauth/token',
+          userInfoUrl: 'https://api.pinterest.com/v5/user_account',
+          scopes: ['boards:read', 'boards:write', 'pins:read', 'pins:write'],
+          responseType: 'code',
+          authentication: 'basic',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/pinterest`,
+          getUserInfo: async (tokens) => {
+            // Generate stable ID from access token to prevent duplicate accounts
+            const stableId = crypto
+              .createHash('sha256')
+              .update(tokens.accessToken)
+              .digest('hex')
+              .substring(0, 16)
+
+            try {
+              logger.info('Fetching Pinterest user profile', {
+                hasAccessToken: !!tokens.accessToken,
+              })
+
+              const response = await fetch('https://api.pinterest.com/v5/user_account', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+              })
+
+              if (!response.ok) {
+                const errorBody = await response.text()
+                logger.error('Failed to fetch Pinterest user info', {
+                  status: response.status,
+                  statusText: response.statusText,
+                  body: errorBody,
+                })
+
+                // Pinterest might not require user info - return minimal data
+                return {
+                  id: `pinterest_${stableId}`,
+                  name: 'Pinterest User',
+                  email: `pinterest_${stableId}@pinterest.user`,
+                  emailVerified: true,
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                }
+              }
+
+              const profile = await response.json()
+              logger.info('Pinterest profile fetched successfully', { profile })
+
+              // Log warning if profile data is missing critical fields
+              if (!profile.username && !profile.id) {
+                logger.warn('Pinterest profile missing username and id', { profile })
+              }
+
+              return {
+                id: profile.username || profile.id || `pinterest_${stableId}`,
+                name: profile.username || profile.business_name || 'Pinterest User',
+                email: `${profile.username || profile.id || stableId}@pinterest.user`,
+                emailVerified: true,
+                image: profile.profile_image || undefined,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in Pinterest getUserInfo:', { error })
+              // Return fallback user info instead of null
+              return {
+                id: `pinterest_${stableId}`,
+                name: 'Pinterest User',
+                email: `pinterest_${stableId}@pinterest.user`,
+                emailVerified: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
             }
           },
         },

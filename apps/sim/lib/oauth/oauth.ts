@@ -25,6 +25,7 @@ import {
   MicrosoftTeamsIcon,
   NotionIcon,
   OutlookIcon,
+  PinterestIcon,
   PipedriveIcon,
   RedditIcon,
   SalesforceIcon,
@@ -780,6 +781,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'spotify',
   },
+  pinterest: {
+    name: 'Pinterest',
+    icon: PinterestIcon,
+    services: {
+      pinterest: {
+        name: 'Pinterest',
+        description: 'Create and manage pins on your Pinterest boards.',
+        providerId: 'pinterest',
+        icon: PinterestIcon,
+        baseProviderIcon: PinterestIcon,
+        scopes: ['boards:read', 'boards:write', 'pins:read', 'pins:write'],
+      },
+    },
+    defaultService: 'pinterest',
+  },
 }
 
 interface ProviderAuthConfig {
@@ -1094,6 +1110,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: true,
         supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'pinterest': {
+      const { clientId, clientSecret } = getCredentials(
+        env.PINTEREST_CLIENT_ID,
+        env.PINTEREST_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.pinterest.com/v5/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
       }
     }
     default:
