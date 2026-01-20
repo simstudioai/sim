@@ -755,12 +755,11 @@ export interface BulkChunkOperationParams {
 }
 
 export interface BulkChunkOperationResult {
+  operation: string
   successCount: number
-  failedCount: number
-  results: Array<{
-    operation: string
-    chunkIds: string[]
-  }>
+  errorCount: number
+  processed: number
+  errors: Array<{ chunkId: string; error: string }>
 }
 
 export async function bulkChunkOperation({
