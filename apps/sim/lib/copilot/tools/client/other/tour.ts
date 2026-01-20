@@ -33,6 +33,7 @@ export class TourClientTool extends BaseClientTool {
       [ClientToolCallState.aborted]: { text: 'Aborted tour', icon: XCircle },
     },
     uiConfig: {
+      clientOnly: true, // Tour requires browser UI to guide the user
       subagent: {
         streamingLabel: 'Touring',
         completedLabel: 'Tour complete',

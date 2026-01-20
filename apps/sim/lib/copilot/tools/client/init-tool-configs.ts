@@ -5,6 +5,9 @@
  * Import this module early in the app to ensure all tool configs are available.
  */
 
+// Navigation tools
+import './navigation/navigate-ui'
+
 // Other tools (subagents)
 import './other/auth'
 import './other/custom-tool'
@@ -41,6 +44,7 @@ export {
   getToolUIConfig,
   hasInterrupt,
   type InterruptConfig,
+  isClientOnlyTool,
   isSpecialTool,
   isSubagentTool,
   type ParamsTableConfig,

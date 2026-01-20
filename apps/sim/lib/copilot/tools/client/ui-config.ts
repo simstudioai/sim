@@ -172,6 +172,13 @@ export interface ToolUIConfig {
    * The tool-call component will use this to render specialized content.
    */
   customRenderer?: 'code' | 'edit_summary' | 'none'
+
+  /**
+   * Whether this tool requires a client/browser session to execute.
+   * Client-only tools (like navigate_ui, tour) cannot run in headless/API mode.
+   * In API-only mode, these tools will be skipped with a message.
+   */
+  clientOnly?: boolean
 }
 
 /**
@@ -213,6 +220,14 @@ export function isSpecialTool(toolName: string): boolean {
  */
 export function hasInterrupt(toolName: string): boolean {
   return !!toolUIConfigs[toolName]?.interrupt
+}
+
+/**
+ * Check if a tool is client-only (requires browser session).
+ * Client-only tools cannot execute in headless/API mode.
+ */
+export function isClientOnlyTool(toolName: string): boolean {
+  return !!toolUIConfigs[toolName]?.clientOnly
 }
 
 /**

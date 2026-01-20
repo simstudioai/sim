@@ -4,6 +4,15 @@ import type { CopilotMode, CopilotModelId, CopilotTransportMode } from '@/lib/co
 const logger = createLogger('CopilotAPI')
 
 /**
+ * Response from chat initiation endpoint
+ */
+export interface ChatInitResponse {
+  success: boolean
+  streamId: string
+  chatId: string
+}
+
+/**
  * Citation interface for documentation references
  */
 export interface Citation {
@@ -115,10 +124,16 @@ async function handleApiError(response: Response, defaultMessage: string): Promi
 /**
  * Send a streaming message to the copilot chat API
  * This is the main API endpoint that handles all chat operations
+ *
+ * Server-first architecture:
+ * 1. POST to /api/copilot/chat - starts background processing, returns { streamId, chatId }
+ * 2. Connect to /api/copilot/stream/{streamId} for SSE stream
+ *
+ * This ensures stream continues server-side even if client disconnects
  */
 export async function sendStreamingMessage(
   request: SendMessageRequest
-): Promise<StreamingResponse> {
+): Promise<StreamingResponse & { streamId?: string; chatId?: string }> {
   try {
     const { abortSignal, ...requestBody } = request
     try {
@@ -138,34 +153,83 @@ export async function sendStreamingMessage(
         contextsPreview: preview,
       })
     } catch {}
-    const response = await fetch('/api/copilot/chat', {
+
+    // Step 1: Initiate chat - server starts background processing
+    const initResponse = await fetch('/api/copilot/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...requestBody, stream: true }),
-      signal: abortSignal,
-      credentials: 'include', // Include cookies for session authentication
+      credentials: 'include',
     })
 
-    if (!response.ok) {
-      const errorMessage = await handleApiError(response, 'Failed to send streaming message')
+    if (!initResponse.ok) {
+      const errorMessage = await handleApiError(initResponse, 'Failed to initiate chat')
       return {
         success: false,
         error: errorMessage,
-        status: response.status,
+        status: initResponse.status,
       }
     }
 
-    if (!response.body) {
+    const initData: ChatInitResponse = await initResponse.json()
+    if (!initData.success || !initData.streamId) {
       return {
         success: false,
-        error: 'No response body received',
+        error: 'Failed to get stream ID from server',
         status: 500,
+      }
+    }
+
+    logger.info('Chat initiated, connecting to stream', {
+      streamId: initData.streamId,
+      chatId: initData.chatId,
+    })
+
+    // Step 2: Connect to stream endpoint for SSE
+    const streamResponse = await fetch(`/api/copilot/stream/${initData.streamId}`, {
+      method: 'GET',
+      headers: { Accept: 'text/event-stream' },
+      signal: abortSignal,
+      credentials: 'include',
+    })
+
+    if (!streamResponse.ok) {
+      // Handle completed/not found cases
+      if (streamResponse.status === 404) {
+        return {
+          success: false,
+          error: 'Stream not found or expired',
+          status: 404,
+          streamId: initData.streamId,
+          chatId: initData.chatId,
+        }
+      }
+
+      const errorMessage = await handleApiError(streamResponse, 'Failed to connect to stream')
+      return {
+        success: false,
+        error: errorMessage,
+        status: streamResponse.status,
+        streamId: initData.streamId,
+        chatId: initData.chatId,
+      }
+    }
+
+    if (!streamResponse.body) {
+      return {
+        success: false,
+        error: 'No stream body received',
+        status: 500,
+        streamId: initData.streamId,
+        chatId: initData.chatId,
       }
     }
 
     return {
       success: true,
-      stream: response.body,
+      stream: streamResponse.body,
+      streamId: initData.streamId,
+      chatId: initData.chatId,
     }
   } catch (error) {
     // Handle AbortError gracefully - this is expected when user aborts

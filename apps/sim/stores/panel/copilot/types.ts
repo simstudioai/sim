@@ -156,6 +156,13 @@ export interface CopilotState {
 
   // Message queue for messages sent while another is in progress
   messageQueue: QueuedMessage[]
+
+  // Stream resumption state
+  activeStreamId: string | null
+  isResuming: boolean
+
+  // Track if abort was user-initiated (vs browser refresh)
+  userInitiatedAbort: boolean
 }
 
 export interface CopilotActions {
@@ -249,6 +256,11 @@ export interface CopilotActions {
   moveUpInQueue: (id: string) => void
   sendNow: (id: string) => Promise<void>
   clearQueue: () => void
+
+  // Stream resumption actions
+  checkForActiveStream: (chatId: string) => Promise<boolean>
+  resumeActiveStream: (streamId: string) => Promise<void>
+  setActiveStreamId: (streamId: string | null) => void
 }
 
 export type CopilotStore = CopilotState & CopilotActions

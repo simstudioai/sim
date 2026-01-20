@@ -1086,6 +1086,14 @@ const sseHandlers: Record<string, SSEHandler> = {
       await get().handleNewChatCreation(context.newChatId)
     }
   },
+  stream_id: (_data, _context, get) => {
+    // Store stream ID for potential resumption
+    const streamId = _data?.streamId
+    if (streamId) {
+      get().setActiveStreamId(streamId)
+      logger.debug('[SSE] Received stream ID', { streamId })
+    }
+  },
   tool_result: (data, context, get, set) => {
     try {
       const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
@@ -1735,10 +1743,12 @@ const sseHandlers: Record<string, SSEHandler> = {
       updateStreamingMessage(set, context)
     }
   },
-  done: (_data, context) => {
+  done: (_data, context, get) => {
     context.doneEventCount++
     if (context.doneEventCount >= 1) {
       context.streamComplete = true
+      // Clear active stream ID when stream completes
+      get().setActiveStreamId(null)
     }
   },
   error: (data, context, _get, set) => {
@@ -2227,6 +2237,9 @@ const initialState = {
   autoAllowedTools: [] as string[],
   messageQueue: [] as import('./types').QueuedMessage[],
   suppressAbortContinueOption: false,
+  activeStreamId: null as string | null,
+  isResuming: false,
+  userInitiatedAbort: false, // Track if abort was user-initiated vs browser refresh
 }
 
 export const useCopilotStore = create<CopilotStore>()(
@@ -2243,11 +2256,12 @@ export const useCopilotStore = create<CopilotStore>()(
     setWorkflowId: async (workflowId: string | null) => {
       const currentWorkflowId = get().workflowId
       if (currentWorkflowId === workflowId) return
-      const { isSendingMessage } = get()
-      if (isSendingMessage) get().abortMessage()
 
-      // Abort all in-progress tools and clear any diff preview
-      abortAllInProgressTools(set, get)
+      // Don't abort - let server-side stream continue for resumption
+      // Just reset client state; stream will be resumable when returning to the chat
+      // Don't abort tools either - they may still be running server-side
+      set({ isSendingMessage: false, abortController: null })
+
       try {
         useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
       } catch {}
@@ -2278,10 +2292,14 @@ export const useCopilotStore = create<CopilotStore>()(
       if (!workflowId) {
         return
       }
-      if (currentChat && currentChat.id !== chat.id && isSendingMessage) get().abortMessage()
 
-      // Abort in-progress tools and clear diff when changing chats
-      abortAllInProgressTools(set, get)
+      // Don't abort when switching chats - let server-side stream continue for resumption
+      // Just reset client state; stream will be resumable when returning to that chat
+      // Don't abort tools either - they may still be running server-side
+      if (currentChat && currentChat.id !== chat.id && isSendingMessage) {
+        set({ isSendingMessage: false, abortController: null })
+      }
+
       try {
         useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
       } catch {}
@@ -2367,14 +2385,29 @@ export const useCopilotStore = create<CopilotStore>()(
           }
         }
       } catch {}
+
+      // Check for active stream that can be resumed
+      try {
+        const hasActiveStream = await get().checkForActiveStream(chat.id)
+        if (hasActiveStream && get().activeStreamId) {
+          logger.info('[Chat] Resuming active stream on chat select', { chatId: chat.id })
+          await get().resumeActiveStream(get().activeStreamId!)
+        }
+      } catch (err) {
+        logger.warn('[Chat] Failed to check/resume active stream', { error: err })
+      }
     },
 
     createNewChat: async () => {
       const { isSendingMessage } = get()
-      if (isSendingMessage) get().abortMessage()
 
-      // Abort in-progress tools and clear diff on new chat
-      abortAllInProgressTools(set, get)
+      // Don't abort when creating new chat - let server-side stream continue for resumption
+      // Just reset client state; stream will be resumable when returning to that chat
+      // Don't abort tools either - they may still be running server-side
+      if (isSendingMessage) {
+        set({ isSendingMessage: false, abortController: null })
+      }
+
       try {
         useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
       } catch {}
@@ -2497,6 +2530,21 @@ export const useCopilotStore = create<CopilotStore>()(
                   mode: refreshedMode,
                   selectedModel: refreshedModel as CopilotStore['selectedModel'],
                 })
+
+                // Check for active stream that can be resumed (e.g., after page refresh)
+                try {
+                  const hasActiveStream = await get().checkForActiveStream(updatedCurrentChat.id)
+                  if (hasActiveStream && get().activeStreamId) {
+                    logger.info('[Chat] Resuming active stream on refresh', {
+                      chatId: updatedCurrentChat.id,
+                    })
+                    await get().resumeActiveStream(get().activeStreamId!)
+                  }
+                } catch (err) {
+                  logger.warn('[Chat] Failed to check/resume active stream on refresh', {
+                    error: err,
+                  })
+                }
               }
               try {
                 await get().loadMessageCheckpoints(updatedCurrentChat.id)
@@ -2531,6 +2579,21 @@ export const useCopilotStore = create<CopilotStore>()(
               try {
                 await get().loadMessageCheckpoints(mostRecentChat.id)
               } catch {}
+
+              // Check for active stream that can be resumed (e.g., after page refresh)
+              try {
+                const hasActiveStream = await get().checkForActiveStream(mostRecentChat.id)
+                if (hasActiveStream && get().activeStreamId) {
+                  logger.info('[Chat] Resuming active stream on auto-select', {
+                    chatId: mostRecentChat.id,
+                  })
+                  await get().resumeActiveStream(get().activeStreamId!)
+                }
+              } catch (err) {
+                logger.warn('[Chat] Failed to check/resume active stream on auto-select', {
+                  error: err,
+                })
+              }
             }
           } else {
             set({ currentChat: null, messages: [] })
@@ -2697,13 +2760,18 @@ export const useCopilotStore = create<CopilotStore>()(
         })
 
         if (result.success && result.stream) {
+          // Store streamId for resumption if client disconnects
+          if (result.streamId) {
+            set({ activeStreamId: result.streamId })
+          }
           await get().handleStreamingResponse(
             result.stream,
             streamingMessage.id,
             false,
             userMessage.id
           )
-          set({ chatsLastLoadedAt: null, chatsLoadedForWorkflow: null })
+          // Clear stream ID on completion
+          set({ activeStreamId: null, chatsLastLoadedAt: null, chatsLoadedForWorkflow: null })
         } else {
           if (result.error === 'Request was aborted') {
             return
@@ -2762,12 +2830,13 @@ export const useCopilotStore = create<CopilotStore>()(
       }
     },
 
-    // Abort streaming
+    // Abort streaming (user-initiated)
     abortMessage: (options?: { suppressContinueOption?: boolean }) => {
       const { abortController, isSendingMessage, messages } = get()
       if (!isSendingMessage || !abortController) return
       const suppressContinueOption = options?.suppressContinueOption === true
-      set({ isAborting: true, suppressAbortContinueOption: suppressContinueOption })
+      // Mark this as a user-initiated abort (vs browser refresh which doesn't call this)
+      set({ isAborting: true, suppressAbortContinueOption: suppressContinueOption, userInitiatedAbort: true })
       try {
         abortController.abort()
         stopStreamingUpdates()
@@ -2861,7 +2930,11 @@ export const useCopilotStore = create<CopilotStore>()(
           abortSignal: abortController.signal,
         })
         if (result.success && result.stream) {
+          if (result.streamId) {
+            set({ activeStreamId: result.streamId })
+          }
           await get().handleStreamingResponse(result.stream, newAssistantMessage.id, false)
+          set({ activeStreamId: null })
         } else {
           if (result.error === 'Request was aborted') return
           const errorMessage = createErrorMessage(
@@ -3206,16 +3279,30 @@ export const useCopilotStore = create<CopilotStore>()(
         reader.cancel()
       }, 600000)
 
+      // Track if this is a browser-initiated abort (not user clicking stop)
+      let browserAbort = false
+
       try {
         for await (const data of parseSSEStream(reader, decoder)) {
-          const { abortController } = get()
+          const { abortController, userInitiatedAbort } = get()
           if (abortController?.signal.aborted) {
-            context.wasAborted = true
-            const { suppressAbortContinueOption } = get()
-            context.suppressContinueOption = suppressAbortContinueOption === true
-            if (suppressAbortContinueOption) {
-              set({ suppressAbortContinueOption: false })
+            // Only treat as abort if user explicitly clicked stop (not browser refresh)
+            if (userInitiatedAbort) {
+              context.wasAborted = true
+              const { suppressAbortContinueOption } = get()
+              context.suppressContinueOption = suppressAbortContinueOption === true
+              if (suppressAbortContinueOption) {
+                set({ suppressAbortContinueOption: false })
+              }
+              set({ userInitiatedAbort: false }) // Reset flag
+            } else {
+              // Browser refresh/navigation - don't update any UI, just exit
+              // The page is about to reload anyway
+              browserAbort = true
+              reader.cancel().catch(() => {})
+              return // Exit immediately, skip all finalization
             }
+            // User-initiated abort: clean up and break
             context.pendingContent = ''
             finalizeThinkingBlock(context)
             stopStreamingUpdates()
@@ -3503,8 +3590,7 @@ export const useCopilotStore = create<CopilotStore>()(
         createdAt: new Date(),
         updatedAt: new Date(),
       }
-      // Abort any in-progress tools and clear diff on new chat creation
-      abortAllInProgressTools(set, get)
+      // Don't abort tools during streaming - just clear diff
       try {
         useWorkflowDiffStore.getState().clearDiff()
       } catch {}
@@ -3527,8 +3613,10 @@ export const useCopilotStore = create<CopilotStore>()(
     retrySave: async (_chatId: string) => {},
 
     cleanup: () => {
-      const { isSendingMessage } = get()
-      if (isSendingMessage) get().abortMessage()
+      // Don't abort on cleanup - let server-side stream continue for resumption
+      // Just reset client state; stream will be resumable on page reload
+      set({ isSendingMessage: false, abortController: null })
+
       if (streamingUpdateRAF !== null) {
         cancelAnimationFrame(streamingUpdateRAF)
         streamingUpdateRAF = null
@@ -3911,6 +3999,105 @@ export const useCopilotStore = create<CopilotStore>()(
     clearQueue: () => {
       set({ messageQueue: [] })
       logger.info('[Queue] Queue cleared')
+    },
+
+    // =====================
+    // Stream Resumption
+    // =====================
+
+    setActiveStreamId: (streamId) => {
+      set({ activeStreamId: streamId })
+    },
+
+    checkForActiveStream: async (chatId) => {
+      try {
+        const response = await fetch(`/api/copilot/chat/${chatId}/active-stream`, {
+          credentials: 'include',
+        })
+
+        if (!response.ok) {
+          return false
+        }
+
+        const data = await response.json()
+
+        if (data.hasActiveStream && data.streamId) {
+          logger.info('[Resume] Found active stream', {
+            chatId,
+            streamId: data.streamId,
+            chunkCount: data.chunkCount,
+          })
+          set({ activeStreamId: data.streamId })
+          return true
+        }
+
+        return false
+      } catch (error) {
+        logger.warn('[Resume] Failed to check for active stream', { chatId, error })
+        return false
+      }
+    },
+
+    resumeActiveStream: async (streamId) => {
+      const state = get()
+
+      if (state.isResuming) {
+        logger.warn('[Resume] Already resuming a stream')
+        return
+      }
+
+      logger.info('[Resume] Resuming stream', { streamId })
+      set({ isResuming: true, isSendingMessage: true })
+
+      try {
+        const response = await fetch(`/api/copilot/stream/${streamId}?from=0`, {
+          credentials: 'include',
+        })
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}))
+
+          // Stream completed or errored - refresh messages from DB
+          if (data.status === 'completed' || data.status === 'error') {
+            logger.info('[Resume] Stream already finished', { streamId, status: data.status })
+            // Reload the chat to get the saved messages
+            const currentChat = get().currentChat
+            if (currentChat) {
+              await get().selectChat(currentChat)
+            }
+            return
+          }
+
+          logger.warn('[Resume] Failed to resume stream', { streamId, status: response.status })
+          return
+        }
+
+        if (!response.body) {
+          logger.warn('[Resume] No response body for resume stream')
+          return
+        }
+
+        // Create a placeholder assistant message for the resumed stream
+        const resumeMessageId = crypto.randomUUID()
+        const messages = get().messages
+        const assistantMessage: CopilotMessage = {
+          id: resumeMessageId,
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toISOString(),
+          toolCalls: [],
+          contentBlocks: [],
+        }
+
+        set({ messages: [...messages, assistantMessage] })
+
+        // Process the resumed stream
+        await get().handleStreamingResponse(response.body, resumeMessageId, true)
+      } catch (error) {
+        logger.error('[Resume] Stream resumption failed', { streamId, error })
+      } finally {
+        set({ isResuming: false, isSendingMessage: false, activeStreamId: null })
+      }
     },
   }))
 )

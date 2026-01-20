@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
+import { after } from 'next/server'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -16,6 +17,16 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
+import {
+  appendChunk,
+  appendContent,
+  checkAbortSignal,
+  completeStream,
+  createStream,
+  errorStream,
+  refreshStreamTTL,
+  updateToolCall,
+} from '@/lib/copilot/stream-persistence'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import type { CopilotProviderConfig } from '@/lib/copilot/types'
 import { env } from '@/lib/core/config/env'
@@ -492,385 +503,186 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // If streaming is requested, forward the stream and update chat later
+    // If streaming is requested, start background processing and return streamId immediately
     if (stream && simAgentResponse.body) {
-      // Create user message to save
-      const userMessage = {
-        id: userMessageIdToUse, // Consistent ID used for request and persistence
-        role: 'user',
-        content: message,
-        timestamp: new Date().toISOString(),
-        ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
-        ...(Array.isArray(contexts) && contexts.length > 0 && { contexts }),
-        ...(Array.isArray(contexts) &&
-          contexts.length > 0 && {
-            contentBlocks: [{ type: 'contexts', contexts: contexts as any, timestamp: Date.now() }],
-          }),
-      }
+      // Create stream ID for persistence and resumption
+      const streamId = crypto.randomUUID()
 
-      // Create a pass-through stream that captures the response
-      const transformedStream = new ReadableStream({
-        async start(controller) {
-          const encoder = new TextEncoder()
-          let assistantContent = ''
-          const toolCalls: any[] = []
-          let buffer = ''
-          const isFirstDone = true
-          let responseIdFromStart: string | undefined
-          let responseIdFromDone: string | undefined
-          // Track tool call progress to identify a safe done event
-          const announcedToolCallIds = new Set<string>()
-          const startedToolExecutionIds = new Set<string>()
-          const completedToolExecutionIds = new Set<string>()
-          let lastDoneResponseId: string | undefined
-          let lastSafeDoneResponseId: string | undefined
+      // Initialize stream state in Redis
+      await createStream({
+        streamId,
+        chatId: actualChatId!,
+        userId: authenticatedUserId,
+        workflowId,
+        userMessageId: userMessageIdToUse,
+        isClientSession: true,
+      })
 
-          // Send chatId as first event
-          if (actualChatId) {
-            const chatIdEvent = `data: ${JSON.stringify({
-              type: 'chat_id',
-              chatId: actualChatId,
-            })}\n\n`
-            controller.enqueue(encoder.encode(chatIdEvent))
-            logger.debug(`[${tracker.requestId}] Sent initial chatId event to client`)
-          }
+      // Track last TTL refresh time
+      const TTL_REFRESH_INTERVAL = 60000 // Refresh TTL every minute
 
-          // Start title generation in parallel if needed
-          if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
-            generateChatTitle(message)
-              .then(async (title) => {
-                if (title) {
-                  await db
-                    .update(copilotChats)
-                    .set({
-                      title,
-                      updatedAt: new Date(),
-                    })
-                    .where(eq(copilotChats.id, actualChatId!))
+      // Capture needed values for background task
+      const capturedChatId = actualChatId!
+      const capturedCurrentChat = currentChat
 
-                  const titleEvent = `data: ${JSON.stringify({
-                    type: 'title_updated',
-                    title: title,
-                  })}\n\n`
-                  controller.enqueue(encoder.encode(titleEvent))
-                  logger.info(`[${tracker.requestId}] Generated and saved title: ${title}`)
-                }
-              })
-              .catch((error) => {
-                logger.error(`[${tracker.requestId}] Title generation failed:`, error)
-              })
-          } else {
-            logger.debug(`[${tracker.requestId}] Skipping title generation`)
-          }
+      // Start background processing task - runs independently of client
+      // Client will connect to /api/copilot/stream/{streamId} for live updates
+      const backgroundTask = (async () => {
+        const bgReader = simAgentResponse.body!.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let assistantContent = ''
+        const toolCalls: any[] = []
+        let lastSafeDoneResponseId: string | undefined
+        let bgLastTTLRefresh = Date.now()
 
-          // Forward the sim agent stream and capture assistant response
-          const reader = simAgentResponse.body!.getReader()
-          const decoder = new TextDecoder()
+        // Send initial events via Redis for client to receive
+        const chatIdEvent = `data: ${JSON.stringify({ type: 'chat_id', chatId: capturedChatId })}\n\n`
+        await appendChunk(streamId, chatIdEvent).catch(() => {})
 
-          try {
-            while (true) {
-              const { done, value } = await reader.read()
-              if (done) {
-                break
-              }
+        const streamIdEvent = `data: ${JSON.stringify({ type: 'stream_id', streamId })}\n\n`
+        await appendChunk(streamId, streamIdEvent).catch(() => {})
 
-              // Decode and parse SSE events for logging and capturing content
-              const decodedChunk = decoder.decode(value, { stream: true })
-              buffer += decodedChunk
-
-              const lines = buffer.split('\n')
-              buffer = lines.pop() || '' // Keep incomplete line in buffer
-
-              for (const line of lines) {
-                if (line.trim() === '') continue // Skip empty lines
-
-                if (line.startsWith('data: ') && line.length > 6) {
-                  try {
-                    const jsonStr = line.slice(6)
-
-                    // Check if the JSON string is unusually large (potential streaming issue)
-                    if (jsonStr.length > 50000) {
-                      // 50KB limit
-                      logger.warn(`[${tracker.requestId}] Large SSE event detected`, {
-                        size: jsonStr.length,
-                        preview: `${jsonStr.substring(0, 100)}...`,
-                      })
-                    }
-
-                    const event = JSON.parse(jsonStr)
-
-                    // Log different event types comprehensively
-                    switch (event.type) {
-                      case 'content':
-                        if (event.data) {
-                          assistantContent += event.data
-                        }
-                        break
-
-                      case 'reasoning':
-                        logger.debug(
-                          `[${tracker.requestId}] Reasoning chunk received (${(event.data || event.content || '').length} chars)`
-                        )
-                        break
-
-                      case 'tool_call':
-                        if (!event.data?.partial) {
-                          toolCalls.push(event.data)
-                          if (event.data?.id) {
-                            announcedToolCallIds.add(event.data.id)
-                          }
-                        }
-                        break
-
-                      case 'tool_generating':
-                        if (event.toolCallId) {
-                          startedToolExecutionIds.add(event.toolCallId)
-                        }
-                        break
-
-                      case 'tool_result':
-                        if (event.toolCallId) {
-                          completedToolExecutionIds.add(event.toolCallId)
-                        }
-                        break
-
-                      case 'tool_error':
-                        logger.error(`[${tracker.requestId}] Tool error:`, {
-                          toolCallId: event.toolCallId,
-                          toolName: event.toolName,
-                          error: event.error,
-                          success: event.success,
-                        })
-                        if (event.toolCallId) {
-                          completedToolExecutionIds.add(event.toolCallId)
-                        }
-                        break
-
-                      case 'start':
-                        if (event.data?.responseId) {
-                          responseIdFromStart = event.data.responseId
-                        }
-                        break
-
-                      case 'done':
-                        if (event.data?.responseId) {
-                          responseIdFromDone = event.data.responseId
-                          lastDoneResponseId = responseIdFromDone
-
-                          // Mark this done as safe only if no tool call is currently in progress or pending
-                          const announced = announcedToolCallIds.size
-                          const completed = completedToolExecutionIds.size
-                          const started = startedToolExecutionIds.size
-                          const hasToolInProgress = announced > completed || started > completed
-                          if (!hasToolInProgress) {
-                            lastSafeDoneResponseId = responseIdFromDone
-                          }
-                        }
-                        break
-
-                      case 'error':
-                        break
-
-                      default:
-                    }
-
-                    // Emit to client: rewrite 'error' events into user-friendly assistant message
-                    if (event?.type === 'error') {
-                      try {
-                        const displayMessage: string =
-                          (event?.data && (event.data.displayMessage as string)) ||
-                          'Sorry, I encountered an error. Please try again.'
-                        const formatted = `_${displayMessage}_`
-                        // Accumulate so it persists to DB as assistant content
-                        assistantContent += formatted
-                        // Send as content chunk
-                        try {
-                          controller.enqueue(
-                            encoder.encode(
-                              `data: ${JSON.stringify({ type: 'content', data: formatted })}\n\n`
-                            )
-                          )
-                        } catch (enqueueErr) {
-                          reader.cancel()
-                          break
-                        }
-                        // Then close this response cleanly for the client
-                        try {
-                          controller.enqueue(
-                            encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
-                          )
-                        } catch (enqueueErr) {
-                          reader.cancel()
-                          break
-                        }
-                      } catch {}
-                      // Do not forward the original error event
-                    } else {
-                      // Forward original event to client
-                      try {
-                        controller.enqueue(encoder.encode(`data: ${jsonStr}\n\n`))
-                      } catch (enqueueErr) {
-                        reader.cancel()
-                        break
-                      }
-                    }
-                  } catch (e) {
-                    // Enhanced error handling for large payloads and parsing issues
-                    const lineLength = line.length
-                    const isLargePayload = lineLength > 10000
-
-                    if (isLargePayload) {
-                      logger.error(
-                        `[${tracker.requestId}] Failed to parse large SSE event (${lineLength} chars)`,
-                        {
-                          error: e,
-                          preview: `${line.substring(0, 200)}...`,
-                          size: lineLength,
-                        }
-                      )
-                    } else {
-                      logger.warn(
-                        `[${tracker.requestId}] Failed to parse SSE event: "${line.substring(0, 200)}..."`,
-                        e
-                      )
-                    }
-                  }
-                } else if (line.trim() && line !== 'data: [DONE]') {
-                  logger.debug(`[${tracker.requestId}] Non-SSE line from sim agent: "${line}"`)
-                }
-              }
-            }
-
-            // Process any remaining buffer
-            if (buffer.trim()) {
-              logger.debug(`[${tracker.requestId}] Processing remaining buffer: "${buffer}"`)
-              if (buffer.startsWith('data: ')) {
-                try {
-                  const jsonStr = buffer.slice(6)
-                  const event = JSON.parse(jsonStr)
-                  if (event.type === 'content' && event.data) {
-                    assistantContent += event.data
-                  }
-                  // Forward remaining event, applying same error rewrite behavior
-                  if (event?.type === 'error') {
-                    const displayMessage: string =
-                      (event?.data && (event.data.displayMessage as string)) ||
-                      'Sorry, I encountered an error. Please try again.'
-                    const formatted = `_${displayMessage}_`
-                    assistantContent += formatted
-                    try {
-                      controller.enqueue(
-                        encoder.encode(
-                          `data: ${JSON.stringify({ type: 'content', data: formatted })}\n\n`
-                        )
-                      )
-                      controller.enqueue(
-                        encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
-                      )
-                    } catch (enqueueErr) {
-                      reader.cancel()
-                    }
-                  } else {
-                    try {
-                      controller.enqueue(encoder.encode(`data: ${jsonStr}\n\n`))
-                    } catch (enqueueErr) {
-                      reader.cancel()
-                    }
-                  }
-                } catch (e) {
-                  logger.warn(`[${tracker.requestId}] Failed to parse final buffer: "${buffer}"`)
-                }
-              }
-            }
-
-            // Log final streaming summary
-            logger.info(`[${tracker.requestId}] Streaming complete summary:`, {
-              totalContentLength: assistantContent.length,
-              toolCallsCount: toolCalls.length,
-              hasContent: assistantContent.length > 0,
-              toolNames: toolCalls.map((tc) => tc?.name).filter(Boolean),
-            })
-
-            // NOTE: Messages are saved by the client via update-messages endpoint with full contentBlocks.
-            // Server only updates conversationId here to avoid overwriting client's richer save.
-            if (currentChat) {
-              // Persist only a safe conversationId to avoid continuing from a state that expects tool outputs
-              const previousConversationId = currentChat?.conversationId as string | undefined
-              const responseId = lastSafeDoneResponseId || previousConversationId || undefined
-
-              if (responseId) {
+        // Start title generation if needed
+        if (capturedChatId && !capturedCurrentChat?.title && conversationHistory.length === 0) {
+          generateChatTitle(message)
+            .then(async (title) => {
+              if (title) {
                 await db
                   .update(copilotChats)
-                  .set({
-                    updatedAt: new Date(),
-                    conversationId: responseId,
-                  })
-                  .where(eq(copilotChats.id, actualChatId!))
+                  .set({ title, updatedAt: new Date() })
+                  .where(eq(copilotChats.id, capturedChatId))
 
-                logger.info(
-                  `[${tracker.requestId}] Updated conversationId for chat ${actualChatId}`,
-                  {
-                    updatedConversationId: responseId,
-                  }
-                )
+                const titleEvent = `data: ${JSON.stringify({ type: 'title_updated', title })}\n\n`
+                await appendChunk(streamId, titleEvent).catch(() => {})
+                logger.info(`[${tracker.requestId}] Generated and saved title: ${title}`)
               }
-            }
-          } catch (error) {
-            logger.error(`[${tracker.requestId}] Error processing stream:`, error)
+            })
+            .catch((error) => {
+              logger.error(`[${tracker.requestId}] Title generation failed:`, error)
+            })
+        }
 
-            // Send an error event to the client before closing so it knows what happened
-            try {
-              const errorMessage =
-                error instanceof Error && error.message === 'terminated'
-                  ? 'Connection to AI service was interrupted. Please try again.'
-                  : 'An unexpected error occurred while processing the response.'
-              const encoder = new TextEncoder()
-
-              // Send error as content so it shows in the chat
-              controller.enqueue(
-                encoder.encode(
-                  `data: ${JSON.stringify({ type: 'content', data: `\n\n_${errorMessage}_` })}\n\n`
-                )
-              )
-              // Send done event to properly close the stream on client
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`))
-            } catch (enqueueError) {
-              // Stream might already be closed, that's ok
-              logger.warn(
-                `[${tracker.requestId}] Could not send error event to client:`,
-                enqueueError
-              )
+        try {
+          while (true) {
+            // Check for abort signal
+            const isAborted = await checkAbortSignal(streamId)
+            if (isAborted) {
+              logger.info(`[${tracker.requestId}] Background stream aborted via signal`, { streamId })
+              bgReader.cancel()
+              break
             }
-          } finally {
-            try {
-              controller.close()
-            } catch {
-              // Controller might already be closed
+
+            const { done, value } = await bgReader.read()
+            if (done) break
+
+            const chunk = decoder.decode(value, { stream: true })
+            buffer += chunk
+
+            // Persist raw chunk for replay and publish to live subscribers
+            await appendChunk(streamId, chunk).catch(() => {})
+
+            // Refresh TTL periodically
+            const now = Date.now()
+            if (now - bgLastTTLRefresh > TTL_REFRESH_INTERVAL) {
+              bgLastTTLRefresh = now
+              refreshStreamTTL(streamId, capturedChatId).catch(() => {})
+            }
+
+            // Parse and track content/tool calls
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || ''
+
+            for (const line of lines) {
+              if (!line.startsWith('data: ') || line.length <= 6) continue
+              try {
+                const event = JSON.parse(line.slice(6))
+                switch (event.type) {
+                  case 'content':
+                    if (event.data) {
+                      assistantContent += event.data
+                      appendContent(streamId, event.data).catch(() => {})
+                    }
+                    break
+                  case 'tool_call':
+                    if (!event.data?.partial && event.data?.id) {
+                      toolCalls.push(event.data)
+                      updateToolCall(streamId, event.data.id, {
+                        id: event.data.id,
+                        name: event.data.name,
+                        args: event.data.arguments || {},
+                        state: 'pending',
+                      }).catch(() => {})
+                    }
+                    break
+                  case 'tool_generating':
+                    if (event.toolCallId) {
+                      updateToolCall(streamId, event.toolCallId, { state: 'executing' }).catch(() => {})
+                    }
+                    break
+                  case 'tool_result':
+                    if (event.toolCallId) {
+                      updateToolCall(streamId, event.toolCallId, {
+                        state: 'success',
+                        result: event.result,
+                      }).catch(() => {})
+                    }
+                    break
+                  case 'tool_error':
+                    if (event.toolCallId) {
+                      updateToolCall(streamId, event.toolCallId, {
+                        state: 'error',
+                        error: event.error,
+                      }).catch(() => {})
+                    }
+                    break
+                  case 'done':
+                    if (event.data?.responseId) {
+                      lastSafeDoneResponseId = event.data.responseId
+                    }
+                    break
+                }
+              } catch {}
             }
           }
-        },
+
+          // Complete stream - save to DB
+          const finalConversationId = lastSafeDoneResponseId || (capturedCurrentChat?.conversationId as string | undefined)
+          await completeStream(streamId, finalConversationId)
+
+          // Update conversationId in DB
+          if (capturedCurrentChat && lastSafeDoneResponseId) {
+            await db
+              .update(copilotChats)
+              .set({ updatedAt: new Date(), conversationId: lastSafeDoneResponseId })
+              .where(eq(copilotChats.id, capturedChatId))
+          }
+
+          logger.info(`[${tracker.requestId}] Background stream processing complete`, {
+            streamId,
+            contentLength: assistantContent.length,
+            toolCallsCount: toolCalls.length,
+          })
+        } catch (error) {
+          logger.error(`[${tracker.requestId}] Background stream error`, { streamId, error })
+          await errorStream(streamId, error instanceof Error ? error.message : 'Unknown error')
+        }
+      })()
+
+      // Use after() to ensure background task completes even after response is sent
+      after(() => backgroundTask)
+
+      // Return streamId immediately - client will connect to stream endpoint
+      logger.info(`[${tracker.requestId}] Returning streamId for client to connect`, {
+        streamId,
+        chatId: capturedChatId,
       })
 
-      const response = new Response(transformedStream, {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive',
-          'X-Accel-Buffering': 'no',
-        },
+      return NextResponse.json({
+        success: true,
+        streamId,
+        chatId: capturedChatId,
       })
-
-      logger.info(`[${tracker.requestId}] Returning streaming response to client`, {
-        duration: tracker.getDuration(),
-        chatId: actualChatId,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive',
-        },
-      })
-
-      return response
     }
 
     // For non-streaming responses
@@ -899,7 +711,7 @@ export async function POST(req: NextRequest) {
     // Save messages if we have a chat
     if (currentChat && responseData.content) {
       const userMessage = {
-        id: userMessageIdToUse, // Consistent ID used for request and persistence
+        id: userMessageIdToUse,
         role: 'user',
         content: message,
         timestamp: new Date().toISOString(),
