@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
-    const rateLimit = await checkRateLimit(request, 'logs')
+    const rateLimit = await checkRateLimit(request, 'workflows')
     if (!rateLimit.allowed) {
       return createRateLimitResponse(rateLimit)
     }
@@ -87,20 +87,21 @@ export async function GET(request: NextRequest) {
     if (params.cursor) {
       const cursorData = decodeCursor(params.cursor)
       if (cursorData) {
-        conditions.push(
-          or(
-            gt(workflow.sortOrder, cursorData.sortOrder),
-            and(
-              eq(workflow.sortOrder, cursorData.sortOrder),
-              gt(workflow.createdAt, new Date(cursorData.createdAt))
-            ),
-            and(
-              eq(workflow.sortOrder, cursorData.sortOrder),
-              eq(workflow.createdAt, new Date(cursorData.createdAt)),
-              gt(workflow.id, cursorData.id)
-            )
-          )!
+        const cursorCondition = or(
+          gt(workflow.sortOrder, cursorData.sortOrder),
+          and(
+            eq(workflow.sortOrder, cursorData.sortOrder),
+            gt(workflow.createdAt, new Date(cursorData.createdAt))
+          ),
+          and(
+            eq(workflow.sortOrder, cursorData.sortOrder),
+            eq(workflow.createdAt, new Date(cursorData.createdAt)),
+            gt(workflow.id, cursorData.id)
+          )
         )
+        if (cursorCondition) {
+          conditions.push(cursorCondition)
+        }
       }
     }
 

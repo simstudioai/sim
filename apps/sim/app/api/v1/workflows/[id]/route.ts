@@ -15,7 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
-    const rateLimit = await checkRateLimit(request, 'logs-detail')
+    const rateLimit = await checkRateLimit(request, 'workflow-detail')
     if (!rateLimit.allowed) {
       return createRateLimitResponse(rateLimit)
     }

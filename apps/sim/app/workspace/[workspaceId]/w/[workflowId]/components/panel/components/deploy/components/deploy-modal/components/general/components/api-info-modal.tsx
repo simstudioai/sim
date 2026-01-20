@@ -137,6 +137,11 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
   const handleSave = useCallback(async () => {
     if (!workflowId) return
 
+    const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+    if (activeWorkflowId !== workflowId) {
+      return
+    }
+
     setIsSaving(true)
     try {
       if (description.trim() !== (workflowMetadata?.description || '')) {
@@ -144,8 +149,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
       }
 
       if (starterBlockId) {
-        const currentValue = subBlockValues[starterBlockId]?.inputFormat || inputFormat
-        const updatedValue = (currentValue as NormalizedField[]).map((field) => ({
+        const updatedValue = inputFormat.map((field) => ({
           ...field,
           description: paramDescriptions[field.name]?.trim() || undefined,
         }))
@@ -162,7 +166,6 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
     workflowMetadata,
     updateWorkflow,
     starterBlockId,
-    subBlockValues,
     inputFormat,
     paramDescriptions,
     setValue,
