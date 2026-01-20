@@ -282,6 +282,8 @@ export async function createStreamingResponse(
             onStream: onStreamCallback,
             onBlockComplete: onBlockCompleteCallback,
             skipLoggingComplete: true,
+            includeFileBase64: streamConfig.includeFileBase64,
+            base64MaxBytes: streamConfig.base64MaxBytes,
           },
           executionId
         )

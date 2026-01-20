@@ -237,6 +237,19 @@ export interface ExecutionContext {
 
   // Dynamically added nodes that need to be scheduled (e.g., from parallel expansion)
   pendingDynamicNodes?: string[]
+
+  /**
+   * When true, UserFile objects in block outputs will be hydrated with base64 content
+   * before being stored in execution state. This ensures base64 is available for
+   * variable resolution in downstream blocks.
+   */
+  includeFileBase64?: boolean
+
+  /**
+   * Maximum file size in bytes for base64 hydration. Files larger than this limit
+   * will not have their base64 content fetched.
+   */
+  base64MaxBytes?: number
 }
 
 export interface ExecutionResult {

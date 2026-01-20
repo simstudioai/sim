@@ -21,14 +21,54 @@ function isPathInOutputSchema(
     return true
   }
 
+  const isFileArrayType = (value: any): boolean =>
+    value?.type === 'file[]' || value?.type === 'files'
+
   let current: any = outputs
   for (let i = 0; i < pathParts.length; i++) {
     const part = pathParts[i]
 
+    const arrayMatch = part.match(/^([^[]+)\[(\d+)\]$/)
+    if (arrayMatch) {
+      const [, prop] = arrayMatch
+      let fieldDef: any
+
+      if (prop in current) {
+        fieldDef = current[prop]
+      } else if (current.properties && prop in current.properties) {
+        fieldDef = current.properties[prop]
+      } else if (current.type === 'array' && current.items) {
+        if (current.items.properties && prop in current.items.properties) {
+          fieldDef = current.items.properties[prop]
+        } else if (prop in current.items) {
+          fieldDef = current.items[prop]
+        }
+      }
+
+      if (!fieldDef) {
+        return false
+      }
+
+      if (isFileArrayType(fieldDef)) {
+        if (i + 1 < pathParts.length) {
+          return USER_FILE_ACCESSIBLE_PROPERTIES.includes(pathParts[i + 1] as any)
+        }
+        return true
+      }
+
+      if (fieldDef.type === 'array' && fieldDef.items) {
+        current = fieldDef.items
+        continue
+      }
+
+      current = fieldDef
+      continue
+    }
+
     // Handle array index access (e.g., [0])
     if (/^\d+$/.test(part)) {
       // If current is file[] type, next part should be a file property
-      if (current?.type === 'file[]') {
+      if (isFileArrayType(current)) {
         // Check if next part is a valid file property
         if (i + 1 < pathParts.length) {
           const nextPart = pathParts[i + 1]
@@ -78,7 +118,7 @@ function isPathInOutputSchema(
     }
 
     // Handle file[] type - allow access to file properties after array index
-    if (current?.type === 'file[]' && USER_FILE_ACCESSIBLE_PROPERTIES.includes(part as any)) {
+    if (isFileArrayType(current) && USER_FILE_ACCESSIBLE_PROPERTIES.includes(part as any)) {
       // Valid file property access
       return true
     }

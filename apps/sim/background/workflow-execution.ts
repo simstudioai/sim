@@ -109,6 +109,8 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       snapshot,
       callbacks: {},
       loggingSession,
+      includeFileBase64: true,
+      base64MaxBytes: undefined,
     })
 
     if (result.status === 'paused') {

@@ -14,7 +14,6 @@ import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import {
   cleanupExecutionBase64Cache,
-  containsUserFileWithMetadata,
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -438,6 +437,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           snapshot,
           callbacks: {},
           loggingSession,
+          includeFileBase64,
+          base64MaxBytes,
         })
 
         const outputWithBase64 = includeFileBase64
@@ -596,15 +597,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             iterationContext?: IterationContext
           ) => {
             const hasError = callbackData.output?.error
-            const shouldHydrate =
-              includeFileBase64 && !hasError && containsUserFileWithMetadata(callbackData.output)
-            const outputWithBase64 = shouldHydrate
-              ? await hydrateUserFilesWithBase64(callbackData.output, {
-                  requestId,
-                  executionId,
-                  maxBytes: base64MaxBytes,
-                })
-              : callbackData.output
 
             if (hasError) {
               logger.info(`[${requestId}] ✗ onBlockComplete (error) called:`, {
@@ -648,7 +640,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   blockName,
                   blockType,
                   input: callbackData.input,
-                  output: outputWithBase64,
+                  output: callbackData.output,
                   durationMs: callbackData.executionTime || 0,
                   ...(iterationContext && {
                     iterationCurrent: iterationContext.iterationCurrent,
@@ -733,6 +725,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             },
             loggingSession,
             abortSignal: abortController.signal,
+            includeFileBase64,
+            base64MaxBytes,
           })
 
           if (result.status === 'paused') {
