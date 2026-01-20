@@ -96,7 +96,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
   }, [open, workflowMetadata, inputFormat])
 
   const hasChanges = useMemo(() => {
-    if (description !== initialDescriptionRef.current) return true
+    if (description.trim() !== initialDescriptionRef.current.trim()) return true
 
     for (const field of inputFormat) {
       const currentValue = (paramDescriptions[field.name] || '').trim()
