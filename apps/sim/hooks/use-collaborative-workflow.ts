@@ -897,6 +897,17 @@ export function useCollaborativeWorkflow() {
       // Collect all edge IDs to remove
       const edgeIdsToRemove = updates.flatMap((u) => u.affectedEdges.map((e) => e.id))
       if (edgeIdsToRemove.length > 0) {
+        const edgeOperationId = crypto.randomUUID()
+        addToQueue({
+          id: edgeOperationId,
+          operation: {
+            operation: EDGES_OPERATIONS.BATCH_REMOVE_EDGES,
+            target: OPERATION_TARGETS.EDGES,
+            payload: { ids: edgeIdsToRemove },
+          },
+          workflowId: activeWorkflowId || '',
+          userId: session?.user?.id || 'unknown',
+        })
         useWorkflowStore.getState().batchRemoveEdges(edgeIdsToRemove)
       }
 
