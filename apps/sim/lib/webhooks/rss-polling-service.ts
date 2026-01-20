@@ -48,6 +48,9 @@ interface RssFeed {
 }
 
 export interface RssWebhookPayload {
+  title?: string
+  link?: string
+  pubDate?: string
   item: RssItem
   feed: {
     title?: string
@@ -349,6 +352,9 @@ async function processRssItems(
         `${webhookData.id}:${itemGuid}`,
         async () => {
           const payload: RssWebhookPayload = {
+            title: item.title,
+            link: item.link,
+            pubDate: item.pubDate,
             item: {
               title: item.title,
               link: item.link,
