@@ -686,6 +686,9 @@ export async function formatWebhookInput(
   if (foundWebhook.provider === 'rss') {
     if (body && typeof body === 'object' && 'item' in body) {
       return {
+        title: body.title,
+        link: body.link,
+        pubDate: body.pubDate,
         item: body.item,
         feed: body.feed,
         timestamp: body.timestamp,
@@ -697,6 +700,17 @@ export async function formatWebhookInput(
   if (foundWebhook.provider === 'imap') {
     if (body && typeof body === 'object' && 'email' in body) {
       return {
+        messageId: body.messageId,
+        subject: body.subject,
+        from: body.from,
+        to: body.to,
+        cc: body.cc,
+        date: body.date,
+        bodyText: body.bodyText,
+        bodyHtml: body.bodyHtml,
+        mailbox: body.mailbox,
+        hasAttachments: body.hasAttachments,
+        attachments: body.attachments,
         email: body.email,
         timestamp: body.timestamp,
       }
