@@ -1,4 +1,9 @@
+import type { CopilotMode, CopilotModelId } from '@/lib/copilot/models'
+
+export type { CopilotMode, CopilotModelId } from '@/lib/copilot/models'
+
 import type { ClientToolCallState, ClientToolDisplay } from '@/lib/copilot/tools/client/base-tool'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 export type ToolState = ClientToolCallState
 
@@ -91,33 +96,9 @@ import type { CopilotChat as ApiCopilotChat } from '@/lib/copilot/api'
 
 export type CopilotChat = ApiCopilotChat
 
-export type CopilotMode = 'ask' | 'build' | 'plan'
-
 export interface CopilotState {
   mode: CopilotMode
-  selectedModel:
-    | 'gpt-5-fast'
-    | 'gpt-5'
-    | 'gpt-5-medium'
-    | 'gpt-5-high'
-    | 'gpt-5.1-fast'
-    | 'gpt-5.1'
-    | 'gpt-5.1-medium'
-    | 'gpt-5.1-high'
-    | 'gpt-5-codex'
-    | 'gpt-5.1-codex'
-    | 'gpt-5.2'
-    | 'gpt-5.2-codex'
-    | 'gpt-5.2-pro'
-    | 'gpt-4o'
-    | 'gpt-4.1'
-    | 'o3'
-    | 'claude-4-sonnet'
-    | 'claude-4.5-haiku'
-    | 'claude-4.5-sonnet'
-    | 'claude-4.5-opus'
-    | 'claude-4.1-opus'
-    | 'gemini-3-pro'
+  selectedModel: CopilotModelId
   agentPrefetch: boolean
   enabledModels: string[] | null // Null means not loaded yet, array of model IDs when loaded
   isCollapsed: boolean
@@ -129,6 +110,7 @@ export interface CopilotState {
 
   checkpoints: any[]
   messageCheckpoints: Record<string, any[]>
+  messageSnapshots: Record<string, WorkflowState>
 
   isLoading: boolean
   isLoadingChats: boolean
@@ -137,6 +119,8 @@ export interface CopilotState {
   isSaving: boolean
   isRevertingCheckpoint: boolean
   isAborting: boolean
+  /** Skip adding Continue option on abort for queued send-now */
+  suppressAbortContinueOption?: boolean
 
   error: string | null
   saveError: string | null
@@ -195,9 +179,10 @@ export interface CopilotActions {
       fileAttachments?: MessageFileAttachment[]
       contexts?: ChatContext[]
       messageId?: string
+      queueIfBusy?: boolean
     }
   ) => Promise<void>
-  abortMessage: () => void
+  abortMessage: (options?: { suppressContinueOption?: boolean }) => void
   sendImplicitFeedback: (
     implicitFeedback: string,
     toolCallState?: 'accepted' | 'rejected' | 'error'
@@ -215,6 +200,7 @@ export interface CopilotActions {
   loadMessageCheckpoints: (chatId: string) => Promise<void>
   revertToCheckpoint: (checkpointId: string) => Promise<void>
   getCheckpointsForMessage: (messageId: string) => any[]
+  saveMessageCheckpoint: (messageId: string) => Promise<boolean>
 
   clearMessages: () => void
   clearError: () => void

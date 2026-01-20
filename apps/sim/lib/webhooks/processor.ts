@@ -1,8 +1,8 @@
-import { db, webhook, workflow } from '@sim/db'
+import { db, webhook, workflow, workflowDeploymentVersion } from '@sim/db'
 import { credentialSet, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { checkEnterprisePlan, checkTeamPlan } from '@/lib/billing/subscriptions/utils'
@@ -16,8 +16,7 @@ import {
   verifyProviderWebhook,
 } from '@/lib/webhooks/utils.server'
 import { executeWebhookJob } from '@/background/webhook-execution'
-import { REFERENCE } from '@/executor/constants'
-import { createEnvVarPattern } from '@/executor/utils/reference-validation'
+import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('WebhookProcessor')
 
@@ -25,7 +24,6 @@ export interface WebhookProcessorOptions {
   requestId: string
   path?: string
   webhookId?: string
-  executionTarget?: 'deployed' | 'live'
 }
 
 function getExternalUrl(request: NextRequest): string {
@@ -251,6 +249,20 @@ export function shouldSkipWebhookEvent(webhook: any, body: any, requestId: strin
     }
   }
 
+  // Webflow collection filtering - filter by collectionId if configured
+  if (webhook.provider === 'webflow') {
+    const configuredCollectionId = providerConfig.collectionId
+    if (configuredCollectionId) {
+      const payloadCollectionId = body?.payload?.collectionId || body?.collectionId
+      if (payloadCollectionId && payloadCollectionId !== configuredCollectionId) {
+        logger.info(
+          `[${requestId}] Webflow collection '${payloadCollectionId}' doesn't match configured collection '${configuredCollectionId}' for webhook ${webhook.id}, skipping`
+        )
+        return true
+      }
+    }
+  }
+
   return false
 }
 
@@ -282,7 +294,23 @@ export async function findWebhookAndWorkflow(
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(and(eq(webhook.id, options.webhookId), eq(webhook.isActive, true)))
+      .leftJoin(
+        workflowDeploymentVersion,
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflow.id),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+      .where(
+        and(
+          eq(webhook.id, options.webhookId),
+          eq(webhook.isActive, true),
+          or(
+            eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
+            and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
+          )
+        )
+      )
       .limit(1)
 
     if (results.length === 0) {
@@ -301,7 +329,23 @@ export async function findWebhookAndWorkflow(
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(and(eq(webhook.path, options.path), eq(webhook.isActive, true)))
+      .leftJoin(
+        workflowDeploymentVersion,
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflow.id),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+      .where(
+        and(
+          eq(webhook.path, options.path),
+          eq(webhook.isActive, true),
+          or(
+            eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
+            and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
+          )
+        )
+      )
       .limit(1)
 
     if (results.length === 0) {
@@ -333,7 +377,23 @@ export async function findAllWebhooksForPath(
     })
     .from(webhook)
     .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-    .where(and(eq(webhook.path, options.path), eq(webhook.isActive, true)))
+    .leftJoin(
+      workflowDeploymentVersion,
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflow.id),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+    .where(
+      and(
+        eq(webhook.path, options.path),
+        eq(webhook.isActive, true),
+        or(
+          eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
+          and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
+        )
+      )
+    )
 
   if (results.length === 0) {
     logger.warn(`[${options.requestId}] No active webhooks found for path: ${options.path}`)
@@ -353,19 +413,13 @@ export async function findAllWebhooksForPath(
  * @returns String with all {{VARIABLE}} references replaced
  */
 function resolveEnvVars(value: string, envVars: Record<string, string>): string {
-  const envVarPattern = createEnvVarPattern()
-  const envMatches = value.match(envVarPattern)
-  if (!envMatches) return value
-
-  let resolvedValue = value
-  for (const match of envMatches) {
-    const envKey = match.slice(REFERENCE.ENV_VAR_START.length, -REFERENCE.ENV_VAR_END.length).trim()
-    const envValue = envVars[envKey]
-    if (envValue !== undefined) {
-      resolvedValue = resolvedValue.replaceAll(match, envValue)
-    }
-  }
-  return resolvedValue
+  return resolveEnvVarReferences(value, envVars, {
+    allowEmbedded: true,
+    resolveExactMatch: true,
+    trimKeys: true,
+    onMissing: 'keep',
+    deep: false,
+  }) as string
 }
 
 /**
@@ -750,6 +804,7 @@ export async function checkWebhookPreprocessing(
       checkRateLimit: true,
       checkDeployment: true,
       workspaceId: foundWorkflow.workspaceId,
+      preflightEnvVars: isTriggerDevEnabled,
     })
 
     if (!preprocessResult.success) {
@@ -948,7 +1003,6 @@ export async function queueWebhookExecution(
       headers,
       path: options.path || foundWebhook.path,
       blockId: foundWebhook.blockId,
-      executionTarget: options.executionTarget,
       ...(credentialId ? { credentialId } : {}),
     }
 

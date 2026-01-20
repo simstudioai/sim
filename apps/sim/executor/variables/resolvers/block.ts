@@ -9,14 +9,76 @@ import {
   type ResolutionContext,
   type Resolver,
 } from '@/executor/variables/resolvers/reference'
-import type { SerializedWorkflow } from '@/serializer/types'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import { getTool } from '@/tools/utils'
+
+function isPathInOutputSchema(
+  outputs: Record<string, any> | undefined,
+  pathParts: string[]
+): boolean {
+  if (!outputs || pathParts.length === 0) {
+    return true
+  }
+
+  let current: any = outputs
+  for (let i = 0; i < pathParts.length; i++) {
+    const part = pathParts[i]
+
+    if (/^\d+$/.test(part)) {
+      continue
+    }
+
+    if (current === null || current === undefined) {
+      return false
+    }
+
+    if (part in current) {
+      current = current[part]
+      continue
+    }
+
+    if (current.properties && part in current.properties) {
+      current = current.properties[part]
+      continue
+    }
+
+    if (current.type === 'array' && current.items) {
+      if (current.items.properties && part in current.items.properties) {
+        current = current.items.properties[part]
+        continue
+      }
+      if (part in current.items) {
+        current = current.items[part]
+        continue
+      }
+    }
+
+    if ('type' in current && typeof current.type === 'string') {
+      if (!current.properties && !current.items) {
+        return false
+      }
+    }
+
+    return false
+  }
+
+  return true
+}
+
+function getSchemaFieldNames(outputs: Record<string, any> | undefined): string[] {
+  if (!outputs) return []
+  return Object.keys(outputs)
+}
 
 export class BlockResolver implements Resolver {
   private nameToBlockId: Map<string, string>
+  private blockById: Map<string, SerializedBlock>
 
   constructor(private workflow: SerializedWorkflow) {
     this.nameToBlockId = new Map()
+    this.blockById = new Map()
     for (const block of workflow.blocks) {
+      this.blockById.set(block.id, block)
       if (block.metadata?.name) {
         this.nameToBlockId.set(normalizeName(block.metadata.name), block.id)
       }
@@ -32,7 +94,7 @@ export class BlockResolver implements Resolver {
       return false
     }
     const [type] = parts
-    return !SPECIAL_REFERENCE_PREFIXES.includes(type as any)
+    return !(SPECIAL_REFERENCE_PREFIXES as readonly string[]).includes(type)
   }
 
   resolve(reference: string, context: ResolutionContext): any {
@@ -47,7 +109,9 @@ export class BlockResolver implements Resolver {
       return undefined
     }
 
+    const block = this.blockById.get(blockId)
     const output = this.getBlockOutput(blockId, context)
+
     if (output === undefined) {
       return undefined
     }
@@ -62,9 +126,6 @@ export class BlockResolver implements Resolver {
     if (result !== undefined) {
       return result
     }
-
-    // If failed, check if we should try backwards compatibility fallback
-    const block = this.workflow.blocks.find((b) => b.id === blockId)
 
     // Response block backwards compatibility:
     // Old: <responseBlock.response.data> -> New: <responseBlock.data>
@@ -108,11 +169,18 @@ export class BlockResolver implements Resolver {
       }
     }
 
-    // If still undefined, throw error with original path
-    const availableKeys = output && typeof output === 'object' ? Object.keys(output) : []
-    throw new Error(
-      `No value found at path "${pathParts.join('.')}" in block "${blockName}". Available fields: ${availableKeys.join(', ')}`
-    )
+    const toolId = block?.config?.tool
+    const toolConfig = toolId ? getTool(toolId) : undefined
+    const outputSchema = toolConfig?.outputs ?? block?.outputs
+    const schemaFields = getSchemaFieldNames(outputSchema)
+    if (schemaFields.length > 0 && !isPathInOutputSchema(outputSchema, pathParts)) {
+      throw new Error(
+        `"${pathParts.join('.')}" doesn't exist on block "${blockName}". ` +
+          `Available fields: ${schemaFields.join(', ')}`
+      )
+    }
+
+    return undefined
   }
 
   private getBlockOutput(blockId: string, context: ResolutionContext): any {

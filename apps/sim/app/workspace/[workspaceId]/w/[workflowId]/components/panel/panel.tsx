@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ArrowUp, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { useShallow } from 'zustand/react/shallow'
 import {
   BubbleChatClose,
   BubbleChatPreview,
@@ -49,7 +50,6 @@ import { usePanelStore, useVariablesStore as usePanelVariablesStore } from '@/st
 import { useVariablesStore } from '@/stores/variables/store'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Panel')
 /**
@@ -69,14 +69,22 @@ const logger = createLogger('Panel')
  *
  * @returns Panel on the right side of the workflow
  */
-export function Panel() {
+export const Panel = memo(function Panel() {
   const router = useRouter()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
   const panelRef = useRef<HTMLElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { activeTab, setActiveTab, panelWidth, _hasHydrated, setHasHydrated } = usePanelStore()
+  const { activeTab, setActiveTab, panelWidth, _hasHydrated, setHasHydrated } = usePanelStore(
+    useShallow((state) => ({
+      activeTab: state.activeTab,
+      setActiveTab: state.setActiveTab,
+      panelWidth: state.panelWidth,
+      _hasHydrated: state._hasHydrated,
+      setHasHydrated: state.setHasHydrated,
+    }))
+  )
   const copilotRef = useRef<{
     createNewChat: () => void
     setInputValueAndFocus: (value: string) => void
@@ -97,12 +105,18 @@ export function Panel() {
   const userPermissions = useUserPermissionsContext()
   const { config: permissionConfig } = usePermissionConfig()
   const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })
-  const { workflows, activeWorkflowId, duplicateWorkflow, hydration } = useWorkflowRegistry()
+  const { workflows, activeWorkflowId, duplicateWorkflow, hydration } = useWorkflowRegistry(
+    useShallow((state) => ({
+      workflows: state.workflows,
+      activeWorkflowId: state.activeWorkflowId,
+      duplicateWorkflow: state.duplicateWorkflow,
+      hydration: state.hydration,
+    }))
+  )
   const isRegistryLoading =
     hydration.phase === 'idle' ||
     hydration.phase === 'metadata-loading' ||
     hydration.phase === 'state-loading'
-  const { blocks } = useWorkflowStore()
   const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null)
 
   // Delete workflow hook
@@ -157,8 +171,18 @@ export function Panel() {
   }, [usageExceeded, handleRunWorkflow])
 
   // Chat state
-  const { isChatOpen, setIsChatOpen } = useChatStore()
-  const { isOpen: isVariablesOpen, setIsOpen: setVariablesOpen } = useVariablesStore()
+  const { isChatOpen, setIsChatOpen } = useChatStore(
+    useShallow((state) => ({
+      isChatOpen: state.isChatOpen,
+      setIsChatOpen: state.setIsChatOpen,
+    }))
+  )
+  const { isOpen: isVariablesOpen, setIsOpen: setVariablesOpen } = useVariablesStore(
+    useShallow((state) => ({
+      isOpen: state.isOpen,
+      setIsOpen: state.setIsOpen,
+    }))
+  )
 
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
 
@@ -495,9 +519,6 @@ export function Panel() {
                 Editor
               </Button>
             </div>
-
-            {/* Workflow Controls (Undo/Redo) */}
-            {/* <WorkflowControls /> */}
           </div>
 
           {/* Tab Content - Keep all tabs mounted but hidden to preserve state */}
@@ -559,14 +580,17 @@ export function Panel() {
           <ModalHeader>Delete Workflow</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Deleting this workflow will permanently remove all associated blocks, executions, and
-              configuration.{' '}
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {currentWorkflow?.name ?? 'this workflow'}
+              </span>
+              ? This will permanently remove all associated blocks, executions, and configuration.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>
             <Button
-              variant='active'
+              variant='default'
               onClick={() => setIsDeleteModalOpen(false)}
               disabled={isDeleting}
             >
@@ -583,4 +607,4 @@ export function Panel() {
       <Variables />
     </>
   )
-}
+})

@@ -21,6 +21,40 @@ export const getBlockOptionsServerTool: BaseServerTool<
     const logger = createLogger('GetBlockOptionsServerTool')
     logger.debug('Executing get_block_options', { blockId })
 
+    if (blockId === 'loop') {
+      const result = {
+        blockId,
+        blockName: 'Loop',
+        operations: [
+          { id: 'for', name: 'For', description: 'Run a fixed number of iterations.' },
+          { id: 'forEach', name: 'For each', description: 'Iterate over a collection.' },
+          { id: 'while', name: 'While', description: 'Repeat while a condition is true.' },
+          {
+            id: 'doWhile',
+            name: 'Do while',
+            description: 'Run once, then repeat while a condition is true.',
+          },
+        ],
+      }
+      return GetBlockOptionsResult.parse(result)
+    }
+
+    if (blockId === 'parallel') {
+      const result = {
+        blockId,
+        blockName: 'Parallel',
+        operations: [
+          { id: 'count', name: 'Count', description: 'Run a fixed number of parallel branches.' },
+          {
+            id: 'collection',
+            name: 'Collection',
+            description: 'Run one branch per collection item.',
+          },
+        ],
+      }
+      return GetBlockOptionsResult.parse(result)
+    }
+
     const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
     const allowedIntegrations = permissionConfig?.allowedIntegrations
 

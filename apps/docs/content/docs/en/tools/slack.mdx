@@ -43,6 +43,27 @@ In Sim, the Slack integration enables your agents to programmatically interact w
 - **Download files**: Retrieve files shared in Slack channels for processing or archival
 
 This allows for powerful automation scenarios such as sending notifications with dynamic updates, managing conversational flows with editable status messages, acknowledging important messages with reactions, and maintaining clean channels by removing outdated bot messages. Your agents can deliver timely information, update messages as workflows progress, create collaborative documents, or alert team members when attention is needed. This integration bridges the gap between your AI workflows and your team's communication, ensuring everyone stays informed with accurate, up-to-date information. By connecting Sim with Slack, you can create agents that keep your team updated with relevant information at the right time, enhance collaboration by sharing and updating insights automatically, and reduce the need for manual status updates—all while leveraging your existing Slack workspace where your team already communicates.
+
+## Getting Started
+
+To connect Slack to your Sim workflows:
+
+1. Sign up or log in at [sim.ai](https://sim.ai)
+2. Create a new workflow or open an existing one
+3. Drag a **Slack** block onto your canvas
+4. Click the credential selector and choose **Connect**
+5. Authorize Sim to access your Slack workspace
+6. Select your target channel or user
+
+Once connected, you can use any of the Slack operations listed below.
+
+## AI-Generated Content
+
+Sim workflows may use AI models to generate messages and responses sent to Slack. AI-generated content may be inaccurate or contain errors. Always review automated outputs, especially for critical communications.
+
+## Need Help?
+
+If you encounter issues with the Slack integration, contact us at [help@sim.ai](mailto:help@sim.ai)
 {/* MANUAL-CONTENT-END */}
 
 
@@ -63,9 +84,10 @@ Send messages to Slack channels or direct messages. Supports Slack mrkdwn format
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `destinationType` | string | No | Destination type: channel or dm |
 | `botToken` | string | No | Bot token for Custom Bot |
 | `channel` | string | No | Target Slack channel \(e.g., #general\) |
-| `userId` | string | No | Target Slack user ID for direct messages \(e.g., U1234567890\) |
+| `dmUserId` | string | No | Target Slack user for direct messages |
 | `text` | string | Yes | Message text to send \(supports Slack mrkdwn formatting\) |
 | `thread_ts` | string | No | Thread timestamp to reply to \(creates thread reply\) |
 | `files` | file[] | No | Files to attach to the message |
@@ -111,9 +133,10 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `destinationType` | string | No | Destination type: channel or dm |
 | `botToken` | string | No | Bot token for Custom Bot |
 | `channel` | string | No | Slack channel to read messages from \(e.g., #general\) |
-| `userId` | string | No | User ID for DM conversation \(e.g., U1234567890\) |
+| `dmUserId` | string | No | Target Slack user for DM conversation |
 | `limit` | number | No | Number of messages to retrieve \(default: 10, max: 15\) |
 | `oldest` | string | No | Start of time range \(timestamp\) |
 | `latest` | string | No | End of time range \(timestamp\) |

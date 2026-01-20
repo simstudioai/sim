@@ -3,14 +3,12 @@ import ReactMarkdown from 'react-markdown'
 import type { NodeProps } from 'reactflow'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/core/utils/cn'
+import { BLOCK_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import {
-  BLOCK_DIMENSIONS,
-  useBlockDimensions,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
+import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { ActionBar } from '../workflow-block/components'
 import type { WorkflowBlockProps } from '../workflow-block/types'
 
 interface NoteBlockNodeData extends WorkflowBlockProps {}
@@ -168,12 +166,17 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
   )
 })
 
-export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlockNodeData>) {
+export const NoteBlock = memo(function NoteBlock({
+  id,
+  data,
+  selected,
+}: NodeProps<NoteBlockNodeData>) {
   const { type, config, name } = data
 
   const { activeWorkflowId, isEnabled, handleClick, hasRing, ringStyles } = useBlockVisual({
     blockId: id,
     data,
+    isSelected: selected,
   })
   const storedValues = useSubBlockStore(
     useCallback(

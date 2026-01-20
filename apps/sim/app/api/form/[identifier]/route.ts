@@ -9,7 +9,9 @@ import { addCorsHeaders, validateAuthToken } from '@/lib/core/security/deploymen
 import { generateRequestId } from '@/lib/core/utils/request'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
+import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
 import { setFormAuthCookie, validateFormAuth } from '@/app/api/form/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -34,22 +36,14 @@ async function getWorkflowInputSchema(workflowId: string): Promise<any[]> {
       .from(workflowBlocks)
       .where(eq(workflowBlocks.workflowId, workflowId))
 
-    // Find the start block (starter or start_trigger type)
-    const startBlock = blocks.find(
-      (block) => block.type === 'starter' || block.type === 'start_trigger'
-    )
+    const startBlock = blocks.find((block) => isValidStartBlockType(block.type))
 
     if (!startBlock) {
       return []
     }
 
-    // Extract inputFormat from subBlocks
     const subBlocks = startBlock.subBlocks as Record<string, any> | null
-    if (!subBlocks?.inputFormat?.value) {
-      return []
-    }
-
-    return Array.isArray(subBlocks.inputFormat.value) ? subBlocks.inputFormat.value : []
+    return normalizeInputFormatValue(subBlocks?.inputFormat?.value)
   } catch (error) {
     logger.error('Error fetching workflow input schema:', error)
     return []

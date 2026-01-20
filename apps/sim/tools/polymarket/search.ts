@@ -24,16 +24,19 @@ export const polymarketSearchTool: ToolConfig<PolymarketSearchParams, Polymarket
       type: 'string',
       required: true,
       description: 'Search query term',
+      visibility: 'user-or-llm',
     },
     limit: {
       type: 'string',
       required: false,
       description: 'Number of results per page (max 50)',
+      visibility: 'user-or-llm',
     },
     offset: {
       type: 'string',
       required: false,
       description: 'Pagination offset',
+      visibility: 'user-or-llm',
     },
   },
 

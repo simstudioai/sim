@@ -1,5 +1,87 @@
+import {
+  createMockRequest,
+  mockAuth,
+  mockCryptoUuid,
+  mockUuid,
+  setupCommonApiMocks,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest, setupFileApiMocks } from '@/app/api/__test-utils__/utils'
+
+/** Setup file API mocks for file delete tests */
+function setupFileApiMocks(
+  options: {
+    authenticated?: boolean
+    storageProvider?: 's3' | 'blob' | 'local'
+    cloudEnabled?: boolean
+  } = {}
+) {
+  const { authenticated = true, storageProvider = 's3', cloudEnabled = true } = options
+
+  setupCommonApiMocks()
+  mockUuid()
+  mockCryptoUuid()
+
+  const authMocks = mockAuth()
+  if (authenticated) {
+    authMocks.setAuthenticated()
+  } else {
+    authMocks.setUnauthenticated()
+  }
+
+  vi.doMock('@/lib/auth/hybrid', () => ({
+    checkHybridAuth: vi.fn().mockResolvedValue({
+      success: authenticated,
+      userId: authenticated ? 'test-user-id' : undefined,
+      error: authenticated ? undefined : 'Unauthorized',
+    }),
+  }))
+
+  vi.doMock('@/app/api/files/authorization', () => ({
+    verifyFileAccess: vi.fn().mockResolvedValue(true),
+    verifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
+  }))
+
+  const uploadFileMock = vi.fn().mockResolvedValue({
+    path: '/api/files/serve/test-key.txt',
+    key: 'test-key.txt',
+    name: 'test.txt',
+    size: 100,
+    type: 'text/plain',
+  })
+  const downloadFileMock = vi.fn().mockResolvedValue(Buffer.from('test content'))
+  const deleteFileMock = vi.fn().mockResolvedValue(undefined)
+  const hasCloudStorageMock = vi.fn().mockReturnValue(cloudEnabled)
+
+  vi.doMock('@/lib/uploads', () => ({
+    getStorageProvider: vi.fn().mockReturnValue(storageProvider),
+    isUsingCloudStorage: vi.fn().mockReturnValue(cloudEnabled),
+    StorageService: {
+      uploadFile: uploadFileMock,
+      downloadFile: downloadFileMock,
+      deleteFile: deleteFileMock,
+      hasCloudStorage: hasCloudStorageMock,
+    },
+    uploadFile: uploadFileMock,
+    downloadFile: downloadFileMock,
+    deleteFile: deleteFileMock,
+    hasCloudStorage: hasCloudStorageMock,
+  }))
+
+  vi.doMock('@/lib/uploads/core/storage-service', () => ({
+    uploadFile: uploadFileMock,
+    downloadFile: downloadFileMock,
+    deleteFile: deleteFileMock,
+    hasCloudStorage: hasCloudStorageMock,
+  }))
+
+  vi.doMock('fs/promises', () => ({
+    unlink: vi.fn().mockResolvedValue(undefined),
+    access: vi.fn().mockResolvedValue(undefined),
+    stat: vi.fn().mockResolvedValue({ isFile: () => true }),
+  }))
+
+  return { auth: authMocks }
+}
 
 describe('File Delete API Route', () => {
   beforeEach(() => {

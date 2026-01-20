@@ -26,7 +26,6 @@ export const GET = withMcpAuth<RouteParams>('read')(
 
       logger.info(`[${requestId}] Getting tool ${toolId} from server ${serverId}`)
 
-      // Verify server exists and belongs to workspace
       const [server] = await db
         .select({ id: workflowMcpServer.id })
         .from(workflowMcpServer)
@@ -72,7 +71,6 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
 
       logger.info(`[${requestId}] Updating tool ${toolId} in server ${serverId}`)
 
-      // Verify server exists and belongs to workspace
       const [server] = await db
         .select({ id: workflowMcpServer.id })
         .from(workflowMcpServer)
@@ -139,7 +137,6 @@ export const DELETE = withMcpAuth<RouteParams>('write')(
 
       logger.info(`[${requestId}] Deleting tool ${toolId} from server ${serverId}`)
 
-      // Verify server exists and belongs to workspace
       const [server] = await db
         .select({ id: workflowMcpServer.id })
         .from(workflowMcpServer)

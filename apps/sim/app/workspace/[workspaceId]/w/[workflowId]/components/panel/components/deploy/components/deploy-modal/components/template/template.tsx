@@ -20,6 +20,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { captureAndUploadOGImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from '@/lib/og'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { useCreatorProfiles } from '@/hooks/queries/creator-profile'
 import {
   useCreateTemplate,
   useDeleteTemplate,
@@ -47,26 +48,11 @@ const initialFormData: TemplateFormData = {
   tags: [],
 }
 
-interface CreatorOption {
-  id: string
-  name: string
-  referenceType: 'user' | 'organization'
-  referenceId: string
-}
-
-interface TemplateStatus {
-  status: 'pending' | 'approved' | 'rejected' | null
-  views?: number
-  stars?: number
-}
-
 interface TemplateDeployProps {
   workflowId: string
   onDeploymentComplete?: () => void
   onValidationChange?: (isValid: boolean) => void
   onSubmittingChange?: (isSubmitting: boolean) => void
-  onExistingTemplateChange?: (exists: boolean) => void
-  onTemplateStatusChange?: (status: TemplateStatus | null) => void
 }
 
 export function TemplateDeploy({
@@ -74,13 +60,9 @@ export function TemplateDeploy({
   onDeploymentComplete,
   onValidationChange,
   onSubmittingChange,
-  onExistingTemplateChange,
-  onTemplateStatusChange,
 }: TemplateDeployProps) {
   const { data: session } = useSession()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [creatorOptions, setCreatorOptions] = useState<CreatorOption[]>([])
-  const [loadingCreators, setLoadingCreators] = useState(false)
   const [isCapturing, setIsCapturing] = useState(false)
   const previewContainerRef = useRef<HTMLDivElement>(null)
   const ogCaptureRef = useRef<HTMLDivElement>(null)
@@ -88,6 +70,7 @@ export function TemplateDeploy({
   const [formData, setFormData] = useState<TemplateFormData>(initialFormData)
 
   const { data: existingTemplate, isLoading: isLoadingTemplate } = useTemplateByWorkflow(workflowId)
+  const { data: creatorProfiles = [], isLoading: loadingCreators } = useCreatorProfiles()
   const createMutation = useCreateTemplate()
   const updateMutation = useUpdateTemplate()
   const deleteMutation = useDeleteTemplate()
@@ -112,63 +95,15 @@ export function TemplateDeploy({
   }, [isSubmitting, onSubmittingChange])
 
   useEffect(() => {
-    onExistingTemplateChange?.(!!existingTemplate)
-  }, [existingTemplate, onExistingTemplateChange])
-
-  useEffect(() => {
-    if (existingTemplate) {
-      onTemplateStatusChange?.({
-        status: existingTemplate.status as 'pending' | 'approved' | 'rejected',
-        views: existingTemplate.views,
-        stars: existingTemplate.stars,
-      })
-    } else {
-      onTemplateStatusChange?.(null)
+    if (creatorProfiles.length === 1 && !formData.creatorId) {
+      updateField('creatorId', creatorProfiles[0].id)
+      logger.info('Auto-selected single creator profile:', creatorProfiles[0].name)
     }
-  }, [existingTemplate, onTemplateStatusChange])
-
-  const fetchCreatorOptions = async () => {
-    if (!session?.user?.id) return
-
-    setLoadingCreators(true)
-    try {
-      const response = await fetch('/api/creators')
-      if (response.ok) {
-        const data = await response.json()
-        const profiles = (data.profiles || []).map((profile: any) => ({
-          id: profile.id,
-          name: profile.name,
-          referenceType: profile.referenceType,
-          referenceId: profile.referenceId,
-        }))
-        setCreatorOptions(profiles)
-        return profiles
-      }
-    } catch (error) {
-      logger.error('Error fetching creator profiles:', error)
-    } finally {
-      setLoadingCreators(false)
-    }
-    return []
-  }
+  }, [creatorProfiles, formData.creatorId])
 
   useEffect(() => {
-    fetchCreatorOptions()
-  }, [session?.user?.id])
-
-  useEffect(() => {
-    if (creatorOptions.length === 1 && !formData.creatorId) {
-      updateField('creatorId', creatorOptions[0].id)
-      logger.info('Auto-selected single creator profile:', creatorOptions[0].name)
-    }
-  }, [creatorOptions, formData.creatorId])
-
-  useEffect(() => {
-    const handleCreatorProfileSaved = async () => {
-      logger.info('Creator profile saved, refreshing profiles...')
-
-      await fetchCreatorOptions()
-
+    const handleCreatorProfileSaved = () => {
+      logger.info('Creator profile saved, reopening deploy modal...')
       window.dispatchEvent(new CustomEvent('close-settings'))
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('open-deploy-modal', { detail: { tab: 'template' } }))
@@ -357,7 +292,7 @@ export function TemplateDeploy({
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
             Creator <span className='text-[var(--text-error)]'>*</span>
           </Label>
-          {creatorOptions.length === 0 && !loadingCreators ? (
+          {creatorProfiles.length === 0 && !loadingCreators ? (
             <div className='space-y-[8px]'>
               <p className='text-[12px] text-[var(--text-tertiary)]'>
                 A creator profile is required to publish templates.
@@ -385,9 +320,9 @@ export function TemplateDeploy({
             </div>
           ) : (
             <Combobox
-              options={creatorOptions.map((option) => ({
-                label: option.name,
-                value: option.id,
+              options={creatorProfiles.map((profile) => ({
+                label: profile.name,
+                value: profile.id,
               }))}
               value={formData.creatorId}
               selectedValue={formData.creatorId}
@@ -440,8 +375,11 @@ export function TemplateDeploy({
           <ModalHeader>Delete Template</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete this template?{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {existingTemplate?.name || formData.name || 'this template'}
+              </span>
+              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>

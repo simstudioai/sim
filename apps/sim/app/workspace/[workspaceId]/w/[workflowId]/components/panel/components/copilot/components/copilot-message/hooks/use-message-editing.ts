@@ -166,6 +166,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
           fileAttachments: fileAttachments || message.fileAttachments,
           contexts: contexts || (message as any).contexts,
           messageId: message.id,
+          queueIfBusy: false,
         })
       }
     },

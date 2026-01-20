@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
@@ -27,8 +27,20 @@ interface UseDuplicateWorkflowProps {
  */
 export function useDuplicateWorkflow({ workspaceId, onSuccess }: UseDuplicateWorkflowProps) {
   const router = useRouter()
-  const { workflows } = useWorkflowRegistry()
   const duplicateMutation = useDuplicateWorkflowMutation()
+
+  const workspaceIdRef = useRef(workspaceId)
+  workspaceIdRef.current = workspaceId
+
+  const onSuccessRef = useRef(onSuccess)
+  onSuccessRef.current = onSuccess
+
+  /**
+   * Store a ref to the mutation to access isPending without causing callback recreation.
+   * The mutateAsync function from React Query is already stable.
+   */
+  const mutationRef = useRef(duplicateMutation)
+  mutationRef.current = duplicateMutation
 
   /**
    * Duplicate the workflow(s)
@@ -40,7 +52,7 @@ export function useDuplicateWorkflow({ workspaceId, onSuccess }: UseDuplicateWor
         return
       }
 
-      if (duplicateMutation.isPending) {
+      if (mutationRef.current.isPending) {
         return
       }
 
@@ -49,6 +61,8 @@ export function useDuplicateWorkflow({ workspaceId, onSuccess }: UseDuplicateWor
       const duplicatedIds: string[] = []
 
       try {
+        const { workflows } = useWorkflowRegistry.getState()
+
         for (const sourceId of workflowIdsToDuplicate) {
           const sourceWorkflow = workflows[sourceId]
           if (!sourceWorkflow) {
@@ -56,8 +70,8 @@ export function useDuplicateWorkflow({ workspaceId, onSuccess }: UseDuplicateWor
             continue
           }
 
-          const result = await duplicateMutation.mutateAsync({
-            workspaceId,
+          const result = await mutationRef.current.mutateAsync({
+            workspaceId: workspaceIdRef.current,
             sourceId,
             name: `${sourceWorkflow.name} (Copy)`,
             description: sourceWorkflow.description,
@@ -77,16 +91,16 @@ export function useDuplicateWorkflow({ workspaceId, onSuccess }: UseDuplicateWor
         })
 
         if (duplicatedIds.length === 1) {
-          router.push(`/workspace/${workspaceId}/w/${duplicatedIds[0]}`)
+          router.push(`/workspace/${workspaceIdRef.current}/w/${duplicatedIds[0]}`)
         }
 
-        onSuccess?.()
+        onSuccessRef.current?.()
       } catch (error) {
         logger.error('Error duplicating workflow(s):', { error })
         throw error
       }
     },
-    [duplicateMutation, workflows, workspaceId, router, onSuccess]
+    [router]
   )
 
   return {

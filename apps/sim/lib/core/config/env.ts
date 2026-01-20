@@ -262,6 +262,7 @@ export const env = createEnv({
 
     // Development Tools
     REACT_GRAB_ENABLED:                    z.boolean().optional(),                 // Enable React Grab for UI element debugging in Cursor/AI agents (dev only)
+    REACT_SCAN_ENABLED:                    z.boolean().optional(),                 // Enable React Scan for performance debugging (dev only)
 
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality

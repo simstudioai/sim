@@ -1,36 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Node } from 'reactflow'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-import type { ContextMenuBlockInfo, ContextMenuPosition } from '../components/context-menu/types'
+import type { BlockInfo } from '../components/block-menu'
 
 type MenuType = 'block' | 'pane' | null
 
 interface UseCanvasContextMenuProps {
-  /** Current blocks from workflow store */
   blocks: Record<string, BlockState>
-  /** Function to get nodes from ReactFlow */
   getNodes: () => Node[]
+  setNodes: (updater: (nodes: Node[]) => Node[]) => void
 }
 
 /**
  * Hook for managing workflow canvas context menus.
- *
- * Handles:
- * - Right-click event handling for blocks and pane
- * - Menu open/close state for both menu types
- * - Click-outside detection to close menus
- * - Selected block info extraction for multi-selection support
+ * Handles right-click events, menu state, click-outside detection, and block info extraction.
  */
-export function useCanvasContextMenu({ blocks, getNodes }: UseCanvasContextMenuProps) {
+export function useCanvasContextMenu({ blocks, getNodes, setNodes }: UseCanvasContextMenuProps) {
   const [activeMenu, setActiveMenu] = useState<MenuType>(null)
-  const [position, setPosition] = useState<ContextMenuPosition>({ x: 0, y: 0 })
-  const [selectedBlocks, setSelectedBlocks] = useState<ContextMenuBlockInfo[]>([])
+  const [position, setPosition] = useState({ x: 0, y: 0 })
+  const [selectedBlocks, setSelectedBlocks] = useState<BlockInfo[]>([])
 
   const menuRef = useRef<HTMLDivElement>(null)
 
-  /** Converts nodes to block info for context menu */
   const nodesToBlockInfos = useCallback(
-    (nodes: Node[]): ContextMenuBlockInfo[] =>
+    (nodes: Node[]): BlockInfo[] =>
       nodes.map((n) => {
         const block = blocks[n.id]
         const parentId = block?.data?.parentId
@@ -47,27 +40,33 @@ export function useCanvasContextMenu({ blocks, getNodes }: UseCanvasContextMenuP
     [blocks]
   )
 
-  /**
-   * Handle right-click on a node (block)
-   */
   const handleNodeContextMenu = useCallback(
     (event: React.MouseEvent, node: Node) => {
       event.preventDefault()
       event.stopPropagation()
 
+      const isMultiSelect = event.shiftKey || event.metaKey || event.ctrlKey
+      setNodes((nodes) =>
+        nodes.map((n) => ({
+          ...n,
+          selected: isMultiSelect ? (n.id === node.id ? true : n.selected) : n.id === node.id,
+        }))
+      )
+
       const selectedNodes = getNodes().filter((n) => n.selected)
-      const nodesToUse = selectedNodes.some((n) => n.id === node.id) ? selectedNodes : [node]
+      const nodesToUse = isMultiSelect
+        ? selectedNodes.some((n) => n.id === node.id)
+          ? selectedNodes
+          : [...selectedNodes, node]
+        : [node]
 
       setPosition({ x: event.clientX, y: event.clientY })
       setSelectedBlocks(nodesToBlockInfos(nodesToUse))
       setActiveMenu('block')
     },
-    [getNodes, nodesToBlockInfos]
+    [getNodes, nodesToBlockInfos, setNodes]
   )
 
-  /**
-   * Handle right-click on the pane (empty canvas area)
-   */
   const handlePaneContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault()
     event.stopPropagation()
@@ -77,9 +76,6 @@ export function useCanvasContextMenu({ blocks, getNodes }: UseCanvasContextMenuP
     setActiveMenu('pane')
   }, [])
 
-  /**
-   * Handle right-click on a selection (multiple selected nodes)
-   */
   const handleSelectionContextMenu = useCallback(
     (event: React.MouseEvent) => {
       event.preventDefault()
@@ -94,16 +90,10 @@ export function useCanvasContextMenu({ blocks, getNodes }: UseCanvasContextMenuP
     [getNodes, nodesToBlockInfos]
   )
 
-  /**
-   * Close the active context menu
-   */
   const closeMenu = useCallback(() => {
     setActiveMenu(null)
   }, [])
 
-  /**
-   * Handle clicks outside the menu to close it
-   */
   useEffect(() => {
     if (!activeMenu) return
 
@@ -123,9 +113,6 @@ export function useCanvasContextMenu({ blocks, getNodes }: UseCanvasContextMenuP
     }
   }, [activeMenu, closeMenu])
 
-  /**
-   * Close menu on scroll or zoom to prevent menu from being positioned incorrectly
-   */
   useEffect(() => {
     if (!activeMenu) return
 
@@ -139,23 +126,14 @@ export function useCanvasContextMenu({ blocks, getNodes }: UseCanvasContextMenuP
   }, [activeMenu, closeMenu])
 
   return {
-    /** Whether the block context menu is open */
     isBlockMenuOpen: activeMenu === 'block',
-    /** Whether the pane context menu is open */
     isPaneMenuOpen: activeMenu === 'pane',
-    /** Position for the context menu */
     position,
-    /** Ref for the menu element */
     menuRef,
-    /** Selected blocks info for multi-selection actions */
     selectedBlocks,
-    /** Handler for ReactFlow onNodeContextMenu */
     handleNodeContextMenu,
-    /** Handler for ReactFlow onPaneContextMenu */
     handlePaneContextMenu,
-    /** Handler for ReactFlow onSelectionContextMenu */
     handleSelectionContextMenu,
-    /** Close the active context menu */
     closeMenu,
   }
 }

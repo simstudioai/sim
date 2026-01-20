@@ -3,6 +3,8 @@ import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
+import { deploymentKeys } from '@/hooks/queries/deployments'
 import {
   createOptimisticMutationHandlers,
   generateTempId,
@@ -19,9 +21,40 @@ export const workflowKeys = {
   all: ['workflows'] as const,
   lists: () => [...workflowKeys.all, 'list'] as const,
   list: (workspaceId: string | undefined) => [...workflowKeys.lists(), workspaceId ?? ''] as const,
+  deploymentStatus: (workflowId: string | undefined) =>
+    [...workflowKeys.all, 'deploymentStatus', workflowId ?? ''] as const,
   deploymentVersions: () => [...workflowKeys.all, 'deploymentVersion'] as const,
   deploymentVersion: (workflowId: string | undefined, version: number | undefined) =>
     [...workflowKeys.deploymentVersions(), workflowId ?? '', version ?? 0] as const,
+  inputFields: (workflowId: string | undefined) =>
+    [...workflowKeys.all, 'inputFields', workflowId ?? ''] as const,
+}
+
+/**
+ * Fetches workflow input fields from the workflow state.
+ */
+async function fetchWorkflowInputFields(workflowId: string): Promise<WorkflowInputField[]> {
+  const response = await fetch(`/api/workflows/${workflowId}`)
+  if (!response.ok) throw new Error('Failed to fetch workflow')
+  const { data } = await response.json()
+  return extractInputFieldsFromBlocks(data?.state?.blocks)
+}
+
+/**
+ * Hook to fetch workflow input fields for configuration.
+ * Uses React Query for caching and deduplication.
+ *
+ * @param workflowId - The workflow ID to fetch input fields for
+ * @returns Query result with input fields array
+ */
+export function useWorkflowInputFields(workflowId: string | undefined) {
+  return useQuery({
+    queryKey: workflowKeys.inputFields(workflowId),
+    queryFn: () => fetchWorkflowInputFields(workflowId!),
+    enabled: Boolean(workflowId),
+    staleTime: 0,
+    refetchOnMount: 'always',
+  })
 }
 
 function mapWorkflow(workflow: any): WorkflowMetadata {
@@ -485,6 +518,135 @@ export function useReorderWorkflows() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
+    },
+  })
+}
+
+/**
+ * Child deployment status data returned from the API
+ */
+export interface ChildDeploymentStatus {
+  activeVersion: number | null
+  isDeployed: boolean
+  needsRedeploy: boolean
+}
+
+/**
+ * Fetches deployment status for a child workflow
+ */
+async function fetchChildDeploymentStatus(workflowId: string): Promise<ChildDeploymentStatus> {
+  const statusRes = await fetch(`/api/workflows/${workflowId}/status`, {
+    cache: 'no-store',
+    headers: { 'Cache-Control': 'no-cache' },
+  })
+
+  if (!statusRes.ok) {
+    throw new Error('Failed to fetch workflow status')
+  }
+
+  const statusData = await statusRes.json()
+
+  const deploymentsRes = await fetch(`/api/workflows/${workflowId}/deployments`, {
+    cache: 'no-store',
+    headers: { 'Cache-Control': 'no-cache' },
+  })
+
+  let activeVersion: number | null = null
+  if (deploymentsRes.ok) {
+    const deploymentsJson = await deploymentsRes.json()
+    const versions = Array.isArray(deploymentsJson?.data?.versions)
+      ? deploymentsJson.data.versions
+      : Array.isArray(deploymentsJson?.versions)
+        ? deploymentsJson.versions
+        : []
+
+    const active = versions.find((v: { isActive?: boolean }) => v.isActive)
+    activeVersion = active ? Number(active.version) : null
+  }
+
+  return {
+    activeVersion,
+    isDeployed: statusData.isDeployed || false,
+    needsRedeploy: statusData.needsRedeployment || false,
+  }
+}
+
+/**
+ * Hook to fetch deployment status for a child workflow.
+ * Used by workflow selector blocks to show deployment badges.
+ */
+export function useChildDeploymentStatus(workflowId: string | undefined) {
+  return useQuery({
+    queryKey: workflowKeys.deploymentStatus(workflowId),
+    queryFn: () => fetchChildDeploymentStatus(workflowId!),
+    enabled: Boolean(workflowId),
+    staleTime: 30 * 1000, // 30 seconds
+    retry: false,
+  })
+}
+
+interface DeployChildWorkflowVariables {
+  workflowId: string
+}
+
+interface DeployChildWorkflowResult {
+  isDeployed: boolean
+  deployedAt?: Date
+  apiKey?: string
+}
+
+/**
+ * Mutation hook for deploying a child workflow.
+ * Invalidates the deployment status query on success.
+ */
+export function useDeployChildWorkflow() {
+  const queryClient = useQueryClient()
+  const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
+
+  return useMutation({
+    mutationFn: async ({
+      workflowId,
+    }: DeployChildWorkflowVariables): Promise<DeployChildWorkflowResult> => {
+      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          deployChatEnabled: false,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to deploy workflow')
+      }
+
+      const responseData = await response.json()
+      return {
+        isDeployed: responseData.isDeployed ?? false,
+        deployedAt: responseData.deployedAt ? new Date(responseData.deployedAt) : undefined,
+        apiKey: responseData.apiKey || '',
+      }
+    },
+    onSuccess: (data, variables) => {
+      logger.info('Child workflow deployed', { workflowId: variables.workflowId })
+
+      setDeploymentStatus(variables.workflowId, data.isDeployed, data.deployedAt, data.apiKey || '')
+
+      queryClient.invalidateQueries({
+        queryKey: workflowKeys.deploymentStatus(variables.workflowId),
+      })
+      // Also invalidate deployment queries
+      queryClient.invalidateQueries({
+        queryKey: deploymentKeys.info(variables.workflowId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: deploymentKeys.versions(variables.workflowId),
+      })
+    },
+    onError: (error) => {
+      logger.error('Failed to deploy child workflow', { error })
     },
   })
 }

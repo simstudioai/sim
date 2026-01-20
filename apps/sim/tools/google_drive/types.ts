@@ -274,6 +274,11 @@ export interface GoogleDriveFile {
   resourceKey?: string
   shortcutDetails?: GoogleDriveShortcutDetails
   linkShareMetadata?: GoogleDriveLinkShareMetadata
+  hasAugmentedPermissions?: boolean
+  inheritedPermissionsDisabled?: boolean
+  downloadRestrictions?: {
+    restrictedForReaders?: boolean
+  }
 
   // Revisions (fetched separately but included in response)
   revisions?: GoogleDriveRevision[]

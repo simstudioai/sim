@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
 import {
   type StartBlockCandidate,
   StartBlockPath,
@@ -10,27 +11,6 @@ import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/type
 import { getTrigger } from '@/triggers'
 
 const logger = createLogger('TriggerUtils')
-
-/**
- * Valid start block types that can trigger a workflow
- */
-export const VALID_START_BLOCK_TYPES = [
-  'starter',
-  'start',
-  'start_trigger',
-  'api',
-  'api_trigger',
-  'input_trigger',
-] as const
-
-export type ValidStartBlockType = (typeof VALID_START_BLOCK_TYPES)[number]
-
-/**
- * Check if a block type is a valid start block type
- */
-export function isValidStartBlockType(blockType: string): blockType is ValidStartBlockType {
-  return VALID_START_BLOCK_TYPES.includes(blockType as ValidStartBlockType)
-}
 
 /**
  * Check if a workflow state has a valid start block
@@ -90,7 +70,6 @@ function generateMockValue(type: string, _description?: string, fieldName?: stri
  * Recursively processes nested output structures
  */
 function processOutputField(key: string, field: unknown, depth = 0, maxDepth = 10): unknown {
-  // Prevent infinite recursion
   if (depth > maxDepth) {
     return null
   }

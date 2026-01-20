@@ -112,7 +112,7 @@ export function SlackChannelSelector({
           {selectedChannel.isPrivate ? 'Private' : 'Public'} channel: #{selectedChannel.name}
         </p>
       )}
-      {error && <p className='text-[11px] text-[var(--text-error)]'>{error}</p>}
+      {error && <p className='text-[12px] text-[var(--text-error)]'>{error}</p>}
     </div>
   )
 }

@@ -151,7 +151,7 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
     useShallow(useCallback((state) => Object.keys(state.blocks), []))
   )
 
-  const registryWorkflows = useWorkflowRegistry((state) => state.workflows)
+  const registryWorkflows = useWorkflowRegistry(useShallow((state) => state.workflows))
   const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
   const isLoadingWorkflows =
     hydrationPhase === 'idle' ||

@@ -6,6 +6,7 @@
 import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
+import { parseResponseFormatSafely } from '@/lib/core/utils/response-format'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -17,7 +18,6 @@ import {
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor'
-import { REFERENCE } from '@/executor/constants'
 import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
   ContextExtensions,
@@ -25,7 +25,7 @@ import type {
   IterationContext,
 } from '@/executor/execution/types'
 import type { ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
-import { createEnvVarPattern } from '@/executor/utils/reference-validation'
+import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
@@ -203,25 +203,13 @@ export async function executeWorkflowCore(
           (subAcc, [key, subBlock]) => {
             let value = subBlock.value
 
-            if (
-              typeof value === 'string' &&
-              value.includes(REFERENCE.ENV_VAR_START) &&
-              value.includes(REFERENCE.ENV_VAR_END)
-            ) {
-              const envVarPattern = createEnvVarPattern()
-              const matches = value.match(envVarPattern)
-              if (matches) {
-                for (const match of matches) {
-                  const varName = match.slice(
-                    REFERENCE.ENV_VAR_START.length,
-                    -REFERENCE.ENV_VAR_END.length
-                  )
-                  const decryptedValue = decryptedEnvVars[varName]
-                  if (decryptedValue !== undefined) {
-                    value = (value as string).replace(match, decryptedValue)
-                  }
-                }
-              }
+            if (typeof value === 'string') {
+              value = resolveEnvVarReferences(value, decryptedEnvVars, {
+                resolveExactMatch: false,
+                trimKeys: false,
+                onMissing: 'keep',
+                deep: false,
+              }) as string
             }
 
             subAcc[key] = value
@@ -237,26 +225,16 @@ export async function executeWorkflowCore(
     // Process response format
     const processedBlockStates = Object.entries(currentBlockStates).reduce(
       (acc, [blockId, blockState]) => {
-        if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
-          const responseFormatValue = blockState.responseFormat.trim()
-          if (responseFormatValue && !responseFormatValue.startsWith(REFERENCE.START)) {
-            try {
-              acc[blockId] = {
-                ...blockState,
-                responseFormat: JSON.parse(responseFormatValue),
-              }
-            } catch {
-              acc[blockId] = {
-                ...blockState,
-                responseFormat: undefined,
-              }
-            }
-          } else {
-            acc[blockId] = blockState
-          }
-        } else {
+        const responseFormatValue = blockState.responseFormat
+        if (responseFormatValue === undefined || responseFormatValue === null) {
           acc[blockId] = blockState
+          return acc
         }
+
+        const responseFormat = parseResponseFormatSafely(responseFormatValue, blockId, {
+          allowReferences: true,
+        })
+        acc[blockId] = { ...blockState, responseFormat: responseFormat ?? undefined }
         return acc
       },
       {} as Record<string, Record<string, any>>
@@ -340,7 +318,7 @@ export async function executeWorkflowCore(
       executionId,
       workspaceId: providedWorkspaceId,
       userId,
-      isDeployedContext: triggerType !== 'manual',
+      isDeployedContext: !metadata.isClientSession,
       onBlockStart,
       onBlockComplete: wrappedOnBlockComplete,
       onStream,

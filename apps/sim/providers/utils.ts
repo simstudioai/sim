@@ -30,7 +30,7 @@ import {
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useProvidersStore } from '@/stores/providers/store'
-import { deepMergeInputMapping } from '@/tools/params'
+import { mergeToolParameters } from '@/tools/params'
 
 const logger = createLogger('ProviderUtils')
 
@@ -981,39 +981,14 @@ export function prepareToolExecution(
     workflowVariables?: Record<string, any>
     blockData?: Record<string, any>
     blockNameMapping?: Record<string, string>
+    isDeployedContext?: boolean
   }
 ): {
   toolParams: Record<string, any>
   executionParams: Record<string, any>
 } {
-  const filteredUserParams: Record<string, any> = {}
-  if (tool.params) {
-    for (const [key, value] of Object.entries(tool.params)) {
-      if (value !== undefined && value !== null && value !== '') {
-        filteredUserParams[key] = value
-      }
-    }
-  }
-
-  // Start with LLM params as base
-  const toolParams: Record<string, any> = { ...llmArgs }
-
-  // Apply user params with special handling for inputMapping
-  for (const [key, userValue] of Object.entries(filteredUserParams)) {
-    if (key === 'inputMapping') {
-      // Deep merge inputMapping so LLM values fill in empty user fields
-      const llmInputMapping = llmArgs.inputMapping as Record<string, any> | undefined
-      toolParams.inputMapping = deepMergeInputMapping(llmInputMapping, userValue)
-    } else {
-      // Normal override for other params
-      toolParams[key] = userValue
-    }
-  }
-
-  // If LLM provided inputMapping but user didn't, ensure it's included
-  if (llmArgs.inputMapping && !filteredUserParams.inputMapping) {
-    toolParams.inputMapping = llmArgs.inputMapping
-  }
+  // Use centralized merge logic from tools/params
+  const toolParams = mergeToolParameters(tool.params || {}, llmArgs) as Record<string, any>
 
   const executionParams = {
     ...toolParams,
@@ -1024,6 +999,9 @@ export function prepareToolExecution(
             ...(request.workspaceId ? { workspaceId: request.workspaceId } : {}),
             ...(request.chatId ? { chatId: request.chatId } : {}),
             ...(request.userId ? { userId: request.userId } : {}),
+            ...(request.isDeployedContext !== undefined
+              ? { isDeployedContext: request.isDeployedContext }
+              : {}),
           },
         }
       : {}),

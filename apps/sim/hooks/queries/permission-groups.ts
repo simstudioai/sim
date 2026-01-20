@@ -13,6 +13,7 @@ export interface PermissionGroup {
   creatorName: string | null
   creatorEmail: string | null
   memberCount: number
+  autoAddNewMembers: boolean
 }
 
 export interface PermissionGroupMember {
@@ -111,6 +112,7 @@ export interface CreatePermissionGroupData {
   name: string
   description?: string
   config?: Partial<PermissionGroupConfig>
+  autoAddNewMembers?: boolean
 }
 
 export function useCreatePermissionGroup() {
@@ -143,6 +145,7 @@ export interface UpdatePermissionGroupData {
   name?: string
   description?: string | null
   config?: Partial<PermissionGroupConfig>
+  autoAddNewMembers?: boolean
 }
 
 export function useUpdatePermissionGroup() {

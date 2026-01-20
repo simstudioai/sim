@@ -276,7 +276,7 @@ export function BYOK() {
                 </Button>
               </div>
               {error && (
-                <p className='text-[11px] text-[var(--text-error)] leading-tight'>{error}</p>
+                <p className='text-[12px] text-[var(--text-error)] leading-tight'>{error}</p>
               )}
             </div>
           </ModalBody>
@@ -294,10 +294,9 @@ export function BYOK() {
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='tertiary'
               onClick={handleSave}
               disabled={!apiKeyInput.trim() || upsertKey.isPending}
-              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
             >
               {upsertKey.isPending ? 'Saving...' : 'Save'}
             </Button>
@@ -306,7 +305,7 @@ export function BYOK() {
       </Modal>
 
       <Modal open={!!deleteConfirmProvider} onOpenChange={() => setDeleteConfirmProvider(null)}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete API Key</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>
@@ -321,12 +320,7 @@ export function BYOK() {
             <Button variant='default' onClick={() => setDeleteConfirmProvider(null)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleDelete}
-              disabled={deleteKey.isPending}
-              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-            >
+            <Button variant='destructive' onClick={handleDelete} disabled={deleteKey.isPending}>
               {deleteKey.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>

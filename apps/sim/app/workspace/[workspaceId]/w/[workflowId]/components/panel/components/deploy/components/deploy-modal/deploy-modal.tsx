@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
   Button,
@@ -17,12 +18,24 @@ import {
 } from '@/components/emcn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
-import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/api-keys/components'
 import { startsWithUuid } from '@/executor/constants'
+import { useA2AAgentByWorkflow } from '@/hooks/queries/a2a/agents'
 import { useApiKeys } from '@/hooks/queries/api-keys'
+import {
+  deploymentKeys,
+  useActivateDeploymentVersion,
+  useChatDeploymentInfo,
+  useDeploymentInfo,
+  useDeploymentVersions,
+  useDeployWorkflow,
+  useUndeployWorkflow,
+} from '@/hooks/queries/deployments'
+import { useTemplateByWorkflow } from '@/hooks/queries/templates'
+import { useWorkflowMcpServers } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -47,7 +60,7 @@ interface DeployModalProps {
   refetchDeployedState: () => Promise<void>
 }
 
-interface WorkflowDeploymentInfo {
+interface WorkflowDeploymentInfoUI {
   isDeployed: boolean
   deployedAt?: string
   apiKey: string
@@ -68,16 +81,12 @@ export function DeployModal({
   isLoadingDeployedState,
   refetchDeployedState,
 }: DeployModalProps) {
+  const queryClient = useQueryClient()
   const openSettingsModal = useSettingsModalStore((state) => state.openModal)
   const deploymentStatus = useWorkflowRegistry((state) =>
     state.getWorkflowDeploymentStatus(workflowId)
   )
   const isDeployed = deploymentStatus?.isDeployed ?? isDeployedProp
-  const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isUndeploying, setIsUndeploying] = useState(false)
-  const [deploymentInfo, setDeploymentInfo] = useState<WorkflowDeploymentInfo | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
   const workflowMetadata = useWorkflowRegistry((state) =>
     workflowId ? state.workflows[workflowId] : undefined
   )
@@ -85,44 +94,25 @@ export function DeployModal({
   const [activeTab, setActiveTab] = useState<TabView>('general')
   const [chatSubmitting, setChatSubmitting] = useState(false)
   const [apiDeployError, setApiDeployError] = useState<string | null>(null)
-  const [chatExists, setChatExists] = useState(false)
   const [isChatFormValid, setIsChatFormValid] = useState(false)
   const [selectedStreamingOutputs, setSelectedStreamingOutputs] = useState<string[]>([])
 
-  const [versions, setVersions] = useState<WorkflowDeploymentVersionResponse[]>([])
-  const [versionsLoading, setVersionsLoading] = useState(false)
   const [showUndeployConfirm, setShowUndeployConfirm] = useState(false)
   const [templateFormValid, setTemplateFormValid] = useState(false)
   const [templateSubmitting, setTemplateSubmitting] = useState(false)
   const [mcpToolSubmitting, setMcpToolSubmitting] = useState(false)
   const [mcpToolCanSave, setMcpToolCanSave] = useState(false)
-  const [hasMcpServers, setHasMcpServers] = useState(false)
   const [a2aSubmitting, setA2aSubmitting] = useState(false)
   const [a2aCanSave, setA2aCanSave] = useState(false)
-  const [hasA2aAgent, setHasA2aAgent] = useState(false)
-  const [isA2aPublished, setIsA2aPublished] = useState(false)
   const [a2aNeedsRepublish, setA2aNeedsRepublish] = useState(false)
   const [showA2aDeleteConfirm, setShowA2aDeleteConfirm] = useState(false)
-  const [hasExistingTemplate, setHasExistingTemplate] = useState(false)
-  const [templateStatus, setTemplateStatus] = useState<{
-    status: 'pending' | 'approved' | 'rejected' | null
-    views?: number
-    stars?: number
-  } | null>(null)
-
-  const [existingChat, setExistingChat] = useState<ExistingChat | null>(null)
-  const [isLoadingChat, setIsLoadingChat] = useState(false)
-
-  const [formSubmitting, setFormSubmitting] = useState(false)
-  const [formExists, setFormExists] = useState(false)
-  const [isFormValid, setIsFormValid] = useState(false)
 
   const [chatSuccess, setChatSuccess] = useState(false)
-  const [formSuccess, setFormSuccess] = useState(false)
 
   const [isCreateKeyModalOpen, setIsCreateKeyModalOpen] = useState(false)
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
+  const { config: permissionConfig } = usePermissionConfig()
   const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
     workflowWorkspaceId || ''
@@ -136,192 +126,107 @@ export function DeployModal({
   const createButtonDisabled =
     isApiKeysLoading || (!allowPersonalApiKeys && !canManageWorkspaceKeys)
 
-  const getApiKeyLabel = (value?: string | null) => {
-    if (value && value.trim().length > 0) {
-      return value
-    }
-    return workflowWorkspaceId ? 'Workspace API keys' : 'Personal API keys'
-  }
+  const {
+    data: deploymentInfoData,
+    isLoading: isLoadingDeploymentInfo,
+    refetch: refetchDeploymentInfo,
+  } = useDeploymentInfo(workflowId, { enabled: open && isDeployed })
 
-  const getApiHeaderPlaceholder = () =>
-    workflowWorkspaceId ? 'YOUR_WORKSPACE_API_KEY' : 'YOUR_PERSONAL_API_KEY'
+  const {
+    data: versionsData,
+    isLoading: versionsLoading,
+    refetch: refetchVersions,
+  } = useDeploymentVersions(workflowId, { enabled: open })
 
-  const getInputFormatExample = (includeStreaming = false) => {
-    return getInputFormatExampleUtil(includeStreaming, selectedStreamingOutputs)
-  }
+  const {
+    isLoading: isLoadingChat,
+    chatExists,
+    existingChat,
+    refetch: refetchChatInfo,
+  } = useChatDeploymentInfo(workflowId, { enabled: open })
 
-  const fetchChatDeploymentInfo = useCallback(async () => {
-    if (!workflowId) return
+  const { data: mcpServers = [] } = useWorkflowMcpServers(workflowWorkspaceId || '')
+  const hasMcpServers = mcpServers.length > 0
 
-    try {
-      setIsLoadingChat(true)
-      const response = await fetch(`/api/workflows/${workflowId}/chat/status`)
+  const { data: existingA2aAgent } = useA2AAgentByWorkflow(
+    workflowWorkspaceId || '',
+    workflowId || ''
+  )
+  const hasA2aAgent = !!existingA2aAgent
+  const isA2aPublished = existingA2aAgent?.isPublished ?? false
 
-      if (response.ok) {
-        const data = await response.json()
-        if (data.isDeployed && data.deployment) {
-          const detailResponse = await fetch(`/api/chat/manage/${data.deployment.id}`)
-          if (detailResponse.ok) {
-            const chatDetail = await detailResponse.json()
-            setExistingChat(chatDetail)
-            setChatExists(true)
-          } else {
-            setExistingChat(null)
-            setChatExists(false)
-          }
-        } else {
-          setExistingChat(null)
-          setChatExists(false)
-        }
-      } else {
-        setExistingChat(null)
-        setChatExists(false)
+  const { data: existingTemplate } = useTemplateByWorkflow(workflowId || '', {
+    enabled: !!workflowId,
+  })
+  const hasExistingTemplate = !!existingTemplate
+  const templateStatus = existingTemplate
+    ? {
+        status: existingTemplate.status as 'pending' | 'approved' | 'rejected' | null,
+        views: existingTemplate.views,
+        stars: existingTemplate.stars,
       }
-    } catch (error) {
-      logger.error('Error fetching chat deployment info:', { error })
-      setExistingChat(null)
-      setChatExists(false)
-    } finally {
-      setIsLoadingChat(false)
+    : null
+
+  const deployMutation = useDeployWorkflow()
+  const undeployMutation = useUndeployWorkflow()
+  const activateVersionMutation = useActivateDeploymentVersion()
+
+  const versions = versionsData?.versions ?? []
+
+  const getApiKeyLabel = useCallback(
+    (value?: string | null) => {
+      if (value && value.trim().length > 0) {
+        return value
+      }
+      return workflowWorkspaceId ? 'Workspace API keys' : 'Personal API keys'
+    },
+    [workflowWorkspaceId]
+  )
+
+  const getApiHeaderPlaceholder = useCallback(
+    () => (workflowWorkspaceId ? 'YOUR_WORKSPACE_API_KEY' : 'YOUR_PERSONAL_API_KEY'),
+    [workflowWorkspaceId]
+  )
+
+  const getInputFormatExample = useCallback(
+    (includeStreaming = false) => {
+      return getInputFormatExampleUtil(includeStreaming, selectedStreamingOutputs)
+    },
+    [selectedStreamingOutputs]
+  )
+
+  const deploymentInfo: WorkflowDeploymentInfoUI | null = useMemo(() => {
+    if (!deploymentInfoData?.isDeployed || !workflowId) {
+      return null
     }
-  }, [workflowId])
+
+    const endpoint = `${getBaseUrl()}/api/workflows/${workflowId}/execute`
+    const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
+    const placeholderKey = getApiHeaderPlaceholder()
+
+    return {
+      isDeployed: deploymentInfoData.isDeployed,
+      deployedAt: deploymentInfoData.deployedAt ?? undefined,
+      apiKey: getApiKeyLabel(deploymentInfoData.apiKey),
+      endpoint,
+      exampleCommand: `curl -X POST -H "X-API-Key: ${placeholderKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`,
+      needsRedeployment: deploymentInfoData.needsRedeployment,
+    }
+  }, [
+    deploymentInfoData,
+    workflowId,
+    selectedStreamingOutputs,
+    getInputFormatExample,
+    getApiHeaderPlaceholder,
+    getApiKeyLabel,
+  ])
 
   useEffect(() => {
     if (open && workflowId) {
       setActiveTab('general')
-      fetchChatDeploymentInfo()
-    }
-  }, [open, workflowId, fetchChatDeploymentInfo])
-
-  useEffect(() => {
-    async function fetchDeploymentInfo() {
-      if (!open || !workflowId || !isDeployed) {
-        setDeploymentInfo(null)
-        setIsLoading(false)
-        return
-      }
-
-      if (deploymentInfo?.isDeployed && !needsRedeployment) {
-        setIsLoading(false)
-        return
-      }
-
-      try {
-        setIsLoading(true)
-
-        const response = await fetch(`/api/workflows/${workflowId}/deploy`)
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch deployment information')
-        }
-
-        const data = await response.json()
-        const endpoint = `${getBaseUrl()}/api/workflows/${workflowId}/execute`
-        const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
-        const placeholderKey = workflowWorkspaceId ? 'YOUR_WORKSPACE_API_KEY' : 'YOUR_API_KEY'
-
-        setDeploymentInfo({
-          isDeployed: data.isDeployed,
-          deployedAt: data.deployedAt,
-          apiKey: data.apiKey || placeholderKey,
-          endpoint,
-          exampleCommand: `curl -X POST -H "X-API-Key: ${placeholderKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`,
-          needsRedeployment,
-        })
-      } catch (error) {
-        logger.error('Error fetching deployment info:', { error })
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchDeploymentInfo()
-  }, [open, workflowId, isDeployed, needsRedeployment, deploymentInfo?.isDeployed])
-
-  const onDeploy = async () => {
-    setApiDeployError(null)
-
-    try {
-      setIsSubmitting(true)
-
-      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          deployChatEnabled: false,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to deploy workflow')
-      }
-
-      const responseData = await response.json()
-
-      const isDeployedStatus = responseData.isDeployed ?? false
-      const deployedAtTime = responseData.deployedAt ? new Date(responseData.deployedAt) : undefined
-      const apiKeyLabel = getApiKeyLabel(responseData.apiKey)
-
-      setDeploymentStatus(workflowId, isDeployedStatus, deployedAtTime, apiKeyLabel)
-
-      if (workflowId) {
-        useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
-      }
-
-      await refetchDeployedState()
-      await fetchVersions()
-
-      const deploymentInfoResponse = await fetch(`/api/workflows/${workflowId}/deploy`)
-      if (deploymentInfoResponse.ok) {
-        const deploymentData = await deploymentInfoResponse.json()
-        const apiEndpoint = `${getBaseUrl()}/api/workflows/${workflowId}/execute`
-        const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
-        const placeholderKey = getApiHeaderPlaceholder()
-
-        setDeploymentInfo({
-          isDeployed: deploymentData.isDeployed,
-          deployedAt: deploymentData.deployedAt,
-          apiKey: getApiKeyLabel(deploymentData.apiKey),
-          endpoint: apiEndpoint,
-          exampleCommand: `curl -X POST -H "X-API-Key: ${placeholderKey}" -H "Content-Type: application/json"${inputFormatExample} ${apiEndpoint}`,
-          needsRedeployment: false,
-        })
-      }
-
       setApiDeployError(null)
-    } catch (error: unknown) {
-      logger.error('Error deploying workflow:', { error })
-      const errorMessage = error instanceof Error ? error.message : 'Failed to deploy workflow'
-      setApiDeployError(errorMessage)
-    } finally {
-      setIsSubmitting(false)
     }
-  }
-
-  const fetchVersions = useCallback(async () => {
-    if (!workflowId) return
-    try {
-      const res = await fetch(`/api/workflows/${workflowId}/deployments`)
-      if (res.ok) {
-        const data = await res.json()
-        setVersions(Array.isArray(data.versions) ? data.versions : [])
-      } else {
-        setVersions([])
-      }
-    } catch {
-      setVersions([])
-    }
-  }, [workflowId])
-
-  useEffect(() => {
-    if (open && workflowId) {
-      setVersionsLoading(true)
-      fetchVersions().finally(() => setVersionsLoading(false))
-    }
-  }, [open, workflowId, fetchVersions])
+  }, [open, workflowId])
 
   useEffect(() => {
     if (!open || selectedStreamingOutputs.length === 0) return
@@ -371,186 +276,88 @@ export function DeployModal({
     }
   }, [onOpenChange])
 
+  const onDeploy = useCallback(async () => {
+    if (!workflowId) return
+
+    setApiDeployError(null)
+
+    try {
+      await deployMutation.mutateAsync({ workflowId, deployChatEnabled: false })
+      await refetchDeployedState()
+    } catch (error: unknown) {
+      logger.error('Error deploying workflow:', { error })
+      const errorMessage = error instanceof Error ? error.message : 'Failed to deploy workflow'
+      setApiDeployError(errorMessage)
+    }
+  }, [workflowId, deployMutation, refetchDeployedState])
+
   const handlePromoteToLive = useCallback(
     async (version: number) => {
       if (!workflowId) return
 
-      const previousVersions = [...versions]
-      setVersions((prev) =>
-        prev.map((v) => ({
-          ...v,
-          isActive: v.version === version,
-        }))
-      )
-
       try {
-        const response = await fetch(
-          `/api/workflows/${workflowId}/deployments/${version}/activate`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        )
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Failed to promote version')
-        }
-
-        const responseData = await response.json()
-
-        const deployedAtTime = responseData.deployedAt
-          ? new Date(responseData.deployedAt)
-          : undefined
-        const apiKeyLabel = getApiKeyLabel(responseData.apiKey)
-
-        setDeploymentStatus(workflowId, true, deployedAtTime, apiKeyLabel)
-
-        refetchDeployedState()
-        fetchVersions()
-
-        const deploymentInfoResponse = await fetch(`/api/workflows/${workflowId}/deploy`)
-        if (deploymentInfoResponse.ok) {
-          const deploymentData = await deploymentInfoResponse.json()
-          const apiEndpoint = `${getBaseUrl()}/api/workflows/${workflowId}/execute`
-          const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
-          const placeholderKey = getApiHeaderPlaceholder()
-
-          setDeploymentInfo({
-            isDeployed: deploymentData.isDeployed,
-            deployedAt: deploymentData.deployedAt,
-            apiKey: getApiKeyLabel(deploymentData.apiKey),
-            endpoint: apiEndpoint,
-            exampleCommand: `curl -X POST -H "X-API-Key: ${placeholderKey}" -H "Content-Type: application/json"${inputFormatExample} ${apiEndpoint}`,
-            needsRedeployment: false,
-          })
-        }
+        await activateVersionMutation.mutateAsync({ workflowId, version })
+        await refetchDeployedState()
       } catch (error) {
-        setVersions(previousVersions)
+        logger.error('Error promoting version:', { error })
         throw error
       }
     },
-    [workflowId, versions, refetchDeployedState, fetchVersions, selectedStreamingOutputs]
+    [workflowId, activateVersionMutation, refetchDeployedState]
   )
 
-  const handleUndeploy = async () => {
+  const handleUndeploy = useCallback(async () => {
+    if (!workflowId) return
+
     try {
-      setIsUndeploying(true)
-
-      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to undeploy workflow')
-      }
-
-      setDeploymentStatus(workflowId, false)
-      setChatExists(false)
+      await undeployMutation.mutateAsync({ workflowId })
       setShowUndeployConfirm(false)
       onOpenChange(false)
     } catch (error: unknown) {
       logger.error('Error undeploying workflow:', { error })
-    } finally {
-      setIsUndeploying(false)
     }
-  }
+  }, [workflowId, undeployMutation, onOpenChange])
 
-  const handleRedeploy = async () => {
+  const handleRedeploy = useCallback(async () => {
+    if (!workflowId) return
+
+    setApiDeployError(null)
+
     try {
-      setIsSubmitting(true)
-
-      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          deployChatEnabled: false,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to redeploy workflow')
-      }
-
-      const { isDeployed: newDeployStatus, deployedAt, apiKey } = await response.json()
-
-      setDeploymentStatus(
-        workflowId,
-        newDeployStatus,
-        deployedAt ? new Date(deployedAt) : undefined,
-        getApiKeyLabel(apiKey)
-      )
-
-      if (workflowId) {
-        useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
-      }
-
+      await deployMutation.mutateAsync({ workflowId, deployChatEnabled: false })
       await refetchDeployedState()
-      await fetchVersions()
-
-      setDeploymentInfo((prev) => (prev ? { ...prev, needsRedeployment: false } : prev))
     } catch (error: unknown) {
       logger.error('Error redeploying workflow:', { error })
       const errorMessage = error instanceof Error ? error.message : 'Failed to redeploy workflow'
       setApiDeployError(errorMessage)
-    } finally {
-      setIsSubmitting(false)
     }
-  }
+  }, [workflowId, deployMutation, refetchDeployedState])
 
-  const handleCloseModal = () => {
-    setIsSubmitting(false)
+  const handleCloseModal = useCallback(() => {
     setChatSubmitting(false)
+    setApiDeployError(null)
     onOpenChange(false)
-  }
+  }, [onOpenChange])
 
-  const handleChatDeployed = async () => {
-    await handlePostDeploymentUpdate()
-    setChatSuccess(true)
-    setTimeout(() => setChatSuccess(false), 2000)
-  }
-
-  const handleFormDeployed = async () => {
-    await handlePostDeploymentUpdate()
-    setFormSuccess(true)
-    setTimeout(() => setFormSuccess(false), 2000)
-  }
-
-  const handlePostDeploymentUpdate = async () => {
+  const handleChatDeployed = useCallback(async () => {
     if (!workflowId) return
 
-    setDeploymentStatus(workflowId, true, new Date(), getApiKeyLabel())
-
-    const deploymentInfoResponse = await fetch(`/api/workflows/${workflowId}/deploy`)
-    if (deploymentInfoResponse.ok) {
-      const deploymentData = await deploymentInfoResponse.json()
-      const apiEndpoint = `${getBaseUrl()}/api/workflows/${workflowId}/execute`
-      const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
-
-      const placeholderKey = getApiHeaderPlaceholder()
-
-      setDeploymentInfo({
-        isDeployed: deploymentData.isDeployed,
-        deployedAt: deploymentData.deployedAt,
-        apiKey: getApiKeyLabel(deploymentData.apiKey),
-        endpoint: apiEndpoint,
-        exampleCommand: `curl -X POST -H "X-API-Key: ${placeholderKey}" -H "Content-Type: application/json"${inputFormatExample} ${apiEndpoint}`,
-        needsRedeployment: false,
-      })
-    }
+    queryClient.invalidateQueries({ queryKey: deploymentKeys.info(workflowId) })
+    queryClient.invalidateQueries({ queryKey: deploymentKeys.versions(workflowId) })
+    queryClient.invalidateQueries({ queryKey: deploymentKeys.chatStatus(workflowId) })
 
     await refetchDeployedState()
-    await fetchVersions()
     useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
-  }
 
-  const handleChatFormSubmit = () => {
+    setChatSuccess(true)
+    setTimeout(() => setChatSuccess(false), 2000)
+  }, [workflowId, queryClient, refetchDeployedState])
+
+  const handleRefetchChat = useCallback(async () => {
+    await refetchChatInfo()
+  }, [refetchChatInfo])
+
+  const handleChatFormSubmit = useCallback(() => {
     const form = document.getElementById('chat-deploy-form') as HTMLFormElement
     if (form) {
       const updateTrigger = form.querySelector('[data-update-trigger]') as HTMLButtonElement
@@ -560,9 +367,9 @@ export function DeployModal({
         form.requestSubmit()
       }
     }
-  }
+  }, [])
 
-  const handleChatDelete = () => {
+  const handleChatDelete = useCallback(() => {
     const form = document.getElementById('chat-deploy-form') as HTMLFormElement
     if (form) {
       const deleteButton = form.querySelector('[data-delete-trigger]') as HTMLButtonElement
@@ -570,7 +377,7 @@ export function DeployModal({
         deleteButton.click()
       }
     }
-  }
+  }, [])
 
   const handleTemplateFormSubmit = useCallback(() => {
     const form = document.getElementById('template-deploy-form') as HTMLFormElement
@@ -630,16 +437,12 @@ export function DeployModal({
     deleteTrigger?.click()
   }, [])
 
-  const handleFormFormSubmit = useCallback(() => {
-    const form = document.getElementById('form-deploy-form') as HTMLFormElement
-    form?.requestSubmit()
-  }, [])
+  const handleFetchVersions = useCallback(async () => {
+    await refetchVersions()
+  }, [refetchVersions])
 
-  const handleFormDelete = useCallback(() => {
-    const form = document.getElementById('form-deploy-form')
-    const deleteTrigger = form?.querySelector('[data-delete-trigger]') as HTMLButtonElement
-    deleteTrigger?.click()
-  }, [])
+  const isSubmitting = deployMutation.isPending
+  const isUndeploying = undeployMutation.isPending
 
   return (
     <>
@@ -654,15 +457,31 @@ export function DeployModal({
           >
             <ModalTabsList activeValue={activeTab}>
               <ModalTabsTrigger value='general'>General</ModalTabsTrigger>
-              <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
-              <ModalTabsTrigger value='mcp'>MCP</ModalTabsTrigger>
-              <ModalTabsTrigger value='a2a'>A2A</ModalTabsTrigger>
-              <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
+              {!permissionConfig.hideDeployApi && (
+                <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
+              )}
+              {!permissionConfig.hideDeployMcp && (
+                <ModalTabsTrigger value='mcp'>MCP</ModalTabsTrigger>
+              )}
+              {!permissionConfig.hideDeployA2a && (
+                <ModalTabsTrigger value='a2a'>A2A</ModalTabsTrigger>
+              )}
+              {!permissionConfig.hideDeployChatbot && (
+                <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
+              )}
               {/* <ModalTabsTrigger value='form'>Form</ModalTabsTrigger> */}
-              <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
+              {!permissionConfig.hideDeployTemplate && (
+                <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
+              )}
             </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>
+              {apiDeployError && (
+                <div className='mb-3 rounded-[4px] border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
+                  <div className='font-semibold'>Deployment Error</div>
+                  <div>{apiDeployError}</div>
+                </div>
+              )}
               <ModalTabsContent value='general'>
                 <GeneralDeploy
                   workflowId={workflowId}
@@ -672,7 +491,7 @@ export function DeployModal({
                   versionsLoading={versionsLoading}
                   onPromoteToLive={handlePromoteToLive}
                   onLoadDeploymentComplete={handleCloseModal}
-                  fetchVersions={fetchVersions}
+                  fetchVersions={handleFetchVersions}
                 />
               </ModalTabsContent>
 
@@ -680,7 +499,7 @@ export function DeployModal({
                 <ApiDeploy
                   workflowId={workflowId}
                   deploymentInfo={deploymentInfo}
-                  isLoading={isLoading}
+                  isLoading={isLoadingDeploymentInfo}
                   needsRedeployment={needsRedeployment}
                   apiDeployError={apiDeployError}
                   getInputFormatExample={getInputFormatExample}
@@ -693,10 +512,9 @@ export function DeployModal({
                 <ChatDeploy
                   workflowId={workflowId || ''}
                   deploymentInfo={deploymentInfo}
-                  existingChat={existingChat}
+                  existingChat={existingChat as ExistingChat | null}
                   isLoadingChat={isLoadingChat}
-                  onRefetchChat={fetchChatDeploymentInfo}
-                  onChatExistsChange={setChatExists}
+                  onRefetchChat={handleRefetchChat}
                   chatSubmitting={chatSubmitting}
                   setChatSubmitting={setChatSubmitting}
                   onValidationChange={setIsChatFormValid}
@@ -713,8 +531,6 @@ export function DeployModal({
                     onDeploymentComplete={handleCloseModal}
                     onValidationChange={setTemplateFormValid}
                     onSubmittingChange={setTemplateSubmitting}
-                    onExistingTemplateChange={setHasExistingTemplate}
-                    onTemplateStatusChange={setTemplateStatus}
                   />
                 )}
               </ModalTabsContent>
@@ -743,7 +559,6 @@ export function DeployModal({
                     isDeployed={isDeployed}
                     onSubmittingChange={setMcpToolSubmitting}
                     onCanSaveChange={setMcpToolCanSave}
-                    onHasServersChange={setHasMcpServers}
                   />
                 )}
               </ModalTabsContent>
@@ -758,8 +573,6 @@ export function DeployModal({
                     workflowNeedsRedeployment={needsRedeployment}
                     onSubmittingChange={setA2aSubmitting}
                     onCanSaveChange={setA2aCanSave}
-                    onAgentExistsChange={setHasA2aAgent}
-                    onPublishedChange={setIsA2aPublished}
                     onNeedsRepublishChange={setA2aNeedsRepublish}
                     onDeployWorkflow={onDeploy}
                   />
@@ -845,7 +658,7 @@ export function DeployModal({
                   onClick={handleMcpToolFormSubmit}
                   disabled={mcpToolSubmitting || !mcpToolCanSave}
                 >
-                  {mcpToolSubmitting ? 'Saving...' : 'Save Tool Schema'}
+                  {mcpToolSubmitting ? 'Saving...' : 'Save Tool'}
                 </Button>
               </div>
             </ModalFooter>
@@ -1033,7 +846,11 @@ export function DeployModal({
           <ModalHeader>Delete A2A Agent</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete this agent?{' '}
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {existingA2aAgent?.name || 'this agent'}
+              </span>
+              ?{' '}
               <span className='text-[var(--text-error)]'>
                 This will permanently remove the agent configuration.
               </span>

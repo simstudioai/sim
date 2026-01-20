@@ -20,6 +20,12 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
       visibility: 'user-only',
       description: 'Authentication method: oauth or bot_token',
     },
+    destinationType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Destination type: channel or dm',
+    },
     botToken: {
       type: 'string',
       required: false,
@@ -38,11 +44,11 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
       visibility: 'user-only',
       description: 'Target Slack channel (e.g., #general)',
     },
-    userId: {
+    dmUserId: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Target Slack user ID for direct messages (e.g., U1234567890)',
+      description: 'Target Slack user for direct messages',
     },
     text: {
       type: 'string',
@@ -71,10 +77,11 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
       'Content-Type': 'application/json',
     }),
     body: (params: SlackMessageParams) => {
+      const isDM = params.destinationType === 'dm'
       return {
         accessToken: params.accessToken || params.botToken,
-        channel: params.channel,
-        userId: params.userId,
+        channel: isDM ? undefined : params.channel,
+        userId: isDM ? params.dmUserId : params.userId,
         text: params.text,
         thread_ts: params.thread_ts || undefined,
         files: params.files || null,

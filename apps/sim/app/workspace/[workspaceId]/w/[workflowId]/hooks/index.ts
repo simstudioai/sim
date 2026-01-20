@@ -1,18 +1,14 @@
-export {
-  clearDragHighlights,
-  computeClampedPositionUpdates,
-  computeParentUpdateEntries,
-  getClampedPositionForNode,
-  isInEditableElement,
-  resolveParentChildSelectionConflicts,
-  validateTriggerPaste,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-canvas-helpers'
 export { useFloatBoundarySync, useFloatDrag, useFloatResize } from './float'
+export { useAccessibleReferencePrefixes } from './use-accessible-reference-prefixes'
 export { useAutoLayout } from './use-auto-layout'
-export { BLOCK_DIMENSIONS, useBlockDimensions } from './use-block-dimensions'
+export { useBlockDimensions } from './use-block-dimensions'
+export { useBlockOutputFields } from './use-block-output-fields'
 export { useBlockVisual } from './use-block-visual'
+export { useCanvasContextMenu } from './use-canvas-context-menu'
 export { type CurrentWorkflow, useCurrentWorkflow } from './use-current-workflow'
-export { calculateContainerDimensions, useNodeUtilities } from './use-node-utilities'
+export { useNodeUtilities } from './use-node-utilities'
 export { usePreventZoom } from './use-prevent-zoom'
 export { useScrollManagement } from './use-scroll-management'
+export { useShiftSelectionLock } from './use-shift-selection-lock'
+export { useWand, type WandConfig } from './use-wand'
 export { useWorkflowExecution } from './use-workflow-execution'

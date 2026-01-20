@@ -1,7 +1,7 @@
 import { type JSX, type MouseEvent, memo, useRef, useState } from 'react'
-import { AlertTriangle, Wand2 } from 'lucide-react'
-import { Label, Tooltip } from '@/components/emcn/components'
-import { Button } from '@/components/ui/button'
+import { isEqual } from 'lodash'
+import { AlertTriangle, ArrowLeftRight, ArrowUp } from 'lucide-react'
+import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'
 import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
 import {
@@ -39,7 +39,6 @@ import {
   Text,
   TimeInput,
   ToolInput,
-  TriggerSave,
   VariablesInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
@@ -69,6 +68,11 @@ interface SubBlockProps {
   disabled?: boolean
   fieldDiffStatus?: FieldDiffStatus
   allowExpandInPreview?: boolean
+  canonicalToggle?: {
+    mode: 'basic' | 'advanced'
+    disabled?: boolean
+    onToggle?: () => void
+  }
 }
 
 /**
@@ -155,22 +159,25 @@ const getPreviewValue = (
 }
 
 /**
- * Renders the label with optional validation, description tooltips, and inline wand control.
+ * Renders the label with optional validation and description tooltips.
  *
  * @remarks
- * Handles JSON validation indicators for code blocks, required field markers,
- * and AI generation (wand) input interface.
+ * Handles JSON validation indicators for code blocks and required field markers.
+ * Includes inline AI generate button when wand is enabled.
  *
  * @param config - The sub-block configuration defining the label content
  * @param isValidJson - Whether the JSON content is valid (for code blocks)
- * @param wandState - State and handlers for the AI wand feature
  * @param subBlockValues - Current values of all subblocks for evaluating conditional requirements
+ * @param wandState - Optional state and handlers for the AI wand feature
+ * @param canonicalToggle - Optional canonical toggle metadata and handlers
+ * @param canonicalToggleIsDisabled - Whether the canonical toggle is disabled
  * @returns The label JSX element, or `null` for switch types or when no title is defined
  */
 const renderLabel = (
   config: SubBlockConfig,
   isValidJson: boolean,
-  wandState: {
+  subBlockValues?: Record<string, any>,
+  wandState?: {
     isSearchActive: boolean
     searchQuery: string
     isWandEnabled: boolean
@@ -184,110 +191,149 @@ const renderLabel = (
     onSearchCancel: () => void
     searchInputRef: React.RefObject<HTMLInputElement | null>
   },
-  subBlockValues?: Record<string, any>
+  canonicalToggle?: {
+    mode: 'basic' | 'advanced'
+    disabled?: boolean
+    onToggle?: () => void
+  },
+  canonicalToggleIsDisabled?: boolean
 ): JSX.Element | null => {
   if (config.type === 'switch') return null
   if (!config.title) return null
 
-  const {
-    isSearchActive,
-    searchQuery,
-    isWandEnabled,
-    isPreview,
-    isStreaming,
-    disabled,
-    onSearchClick,
-    onSearchBlur,
-    onSearchChange,
-    onSearchSubmit,
-    onSearchCancel,
-    searchInputRef,
-  } = wandState
-
   const required = isFieldRequired(config, subBlockValues)
+  const showWand = wandState?.isWandEnabled && !wandState.isPreview && !wandState.disabled
+  const showCanonicalToggle = !!canonicalToggle && !wandState?.isPreview
+  const canonicalToggleDisabledResolved = canonicalToggleIsDisabled ?? canonicalToggle?.disabled
 
   return (
-    <Label className='flex items-center justify-between gap-[6px] pl-[2px]'>
-      <div className='flex items-center gap-[6px] whitespace-nowrap'>
+    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
+      <Label className='flex items-center gap-[6px] whitespace-nowrap'>
         {config.title}
         {required && <span className='ml-0.5'>*</span>}
-        {config.type === 'code' && config.language === 'json' && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <AlertTriangle
-                className={cn(
-                  'h-4 w-4 cursor-pointer text-destructive',
-                  !isValidJson ? 'opacity-100' : 'opacity-0'
-                )}
-              />
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              <p>Invalid JSON</p>
-            </Tooltip.Content>
-          </Tooltip.Root>
+        {config.type === 'code' &&
+          config.language === 'json' &&
+          !isValidJson &&
+          !wandState?.isStreaming && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <span className='inline-flex'>
+                  <AlertTriangle className='h-3 w-3 flex-shrink-0 cursor-pointer text-destructive' />
+                </span>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
+                <p>Invalid JSON</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          )}
+      </Label>
+      <div className='flex items-center gap-[6px]'>
+        {showWand && (
+          <>
+            {!wandState.isSearchActive ? (
+              <Button
+                variant='active'
+                className='-my-1 h-5 px-2 py-0 text-[11px]'
+                onClick={wandState.onSearchClick}
+              >
+                Generate
+              </Button>
+            ) : (
+              <div className='-my-1 flex items-center gap-[4px]'>
+                <Input
+                  ref={wandState.searchInputRef}
+                  value={wandState.isStreaming ? 'Generating...' : wandState.searchQuery}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    wandState.onSearchChange(e.target.value)
+                  }
+                  onBlur={wandState.onSearchBlur}
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                    if (
+                      e.key === 'Enter' &&
+                      wandState.searchQuery.trim() &&
+                      !wandState.isStreaming
+                    ) {
+                      wandState.onSearchSubmit()
+                    } else if (e.key === 'Escape') {
+                      wandState.onSearchCancel()
+                    }
+                  }}
+                  disabled={wandState.isStreaming}
+                  className={cn(
+                    'h-5 max-w-[200px] flex-1 text-[11px]',
+                    wandState.isStreaming && 'text-muted-foreground'
+                  )}
+                  placeholder='Generate with AI...'
+                />
+                <Button
+                  variant='tertiary'
+                  disabled={!wandState.searchQuery.trim() || wandState.isStreaming}
+                  onMouseDown={(e: React.MouseEvent) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }}
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation()
+                    wandState.onSearchSubmit()
+                  }}
+                  className='h-[20px] w-[20px] flex-shrink-0 p-0'
+                >
+                  <ArrowUp className='h-[12px] w-[12px]' />
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+        {showCanonicalToggle && (
+          <button
+            type='button'
+            className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
+            onClick={canonicalToggle?.onToggle}
+            disabled={canonicalToggleDisabledResolved}
+            aria-label={canonicalToggle?.mode === 'advanced' ? 'Use selector' : 'Enter manual ID'}
+          >
+            <ArrowLeftRight
+              className={cn(
+                '!h-[12px] !w-[12px]',
+                canonicalToggle?.mode === 'advanced'
+                  ? 'text-[var(--text-primary)]'
+                  : 'text-[var(--text-secondary)]'
+              )}
+            />
+          </button>
         )}
       </div>
-
-      {/* Wand inline prompt */}
-      {isWandEnabled && !isPreview && !disabled && (
-        <div className='flex min-w-0 flex-1 items-center justify-end pr-[4px]'>
-          {!isSearchActive ? (
-            <Button
-              variant='ghost'
-              className='h-[12px] w-[12px] flex-shrink-0 p-0 hover:bg-transparent'
-              aria-label='Generate with AI'
-              onClick={onSearchClick}
-            >
-              <Wand2 className='!h-[12px] !w-[12px] bg-transparent text-[var(--text-secondary)]' />
-            </Button>
-          ) : (
-            <input
-              ref={searchInputRef}
-              type='text'
-              value={isStreaming ? 'Generating...' : searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              onBlur={onSearchBlur}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && searchQuery.trim() && !isStreaming) {
-                  onSearchSubmit()
-                } else if (e.key === 'Escape') {
-                  onSearchCancel()
-                }
-              }}
-              disabled={isStreaming}
-              className={cn(
-                'h-[12px] w-full min-w-[100px] border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[var(--text-muted)] focus:outline-none',
-                isStreaming && 'text-muted-foreground'
-              )}
-              placeholder='Describe...'
-            />
-          )}
-        </div>
-      )}
-    </Label>
+    </div>
   )
 }
 
 /**
- * Compares props to prevent unnecessary re-renders.
- *
- * @remarks
- * Used with React.memo to optimize performance by skipping re-renders
- * when props haven't meaningfully changed.
+ * Compares props for memo equality check.
  *
  * @param prevProps - Previous component props
  * @param nextProps - Next component props
  * @returns `true` if props are equal and re-render should be skipped
  */
 const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): boolean => {
+  const subBlockId = prevProps.config.id
+  const prevValue = prevProps.subBlockValues?.[subBlockId]?.value
+  const nextValue = nextProps.subBlockValues?.[subBlockId]?.value
+
+  const valueEqual = prevValue === nextValue || isEqual(prevValue, nextValue)
+
+  const configEqual =
+    prevProps.config.id === nextProps.config.id && prevProps.config.type === nextProps.config.type
+
   return (
     prevProps.blockId === nextProps.blockId &&
-    prevProps.config === nextProps.config &&
+    configEqual &&
     prevProps.isPreview === nextProps.isPreview &&
-    prevProps.subBlockValues === nextProps.subBlockValues &&
+    valueEqual &&
     prevProps.disabled === nextProps.disabled &&
     prevProps.fieldDiffStatus === nextProps.fieldDiffStatus &&
-    prevProps.allowExpandInPreview === nextProps.allowExpandInPreview
+    prevProps.allowExpandInPreview === nextProps.allowExpandInPreview &&
+    prevProps.canonicalToggle?.mode === nextProps.canonicalToggle?.mode &&
+    prevProps.canonicalToggle?.disabled === nextProps.canonicalToggle?.disabled
   )
 }
 
@@ -316,6 +362,7 @@ function SubBlockComponent({
   disabled = false,
   fieldDiffStatus,
   allowExpandInPreview,
+  canonicalToggle,
 }: SubBlockProps): JSX.Element {
   const [isValidJson, setIsValidJson] = useState(true)
   const [isSearchActive, setIsSearchActive] = useState(false)
@@ -867,17 +914,6 @@ function SubBlockComponent({
             }
           />
         )
-      case 'trigger-save':
-        return (
-          <TriggerSave
-            blockId={blockId}
-            subBlockId={config.id}
-            triggerId={config.triggerId}
-            isPreview={isPreview}
-            disabled={disabled}
-          />
-        )
-
       case 'messages-input':
         return (
           <MessagesInput
@@ -887,6 +923,7 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
+            wandControlRef={wandControlRef}
           />
         )
 
@@ -900,6 +937,7 @@ function SubBlockComponent({
       {renderLabel(
         config,
         isValidJson,
+        subBlockValues,
         {
           isSearchActive,
           searchQuery,
@@ -914,7 +952,8 @@ function SubBlockComponent({
           onSearchCancel: handleSearchCancel,
           searchInputRef,
         },
-        subBlockValues
+        canonicalToggle,
+        Boolean(canonicalToggle?.disabled || disabled || isPreview)
       )}
       {renderInput()}
     </div>

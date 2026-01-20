@@ -11,16 +11,19 @@ export const gitlabGetIssueTool: ToolConfig<GitLabGetIssueParams, GitLabGetIssue
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'GitLab Personal Access Token',
     },
     projectId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Project ID or URL-encoded path',
     },
     issueIid: {
       type: 'number',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Issue number within the project (the # shown in GitLab UI)',
     },
   },

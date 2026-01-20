@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { COPILOT_MODES } from '@/lib/copilot/models'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -45,7 +46,7 @@ const UpdateMessagesSchema = z.object({
   planArtifact: z.string().nullable().optional(),
   config: z
     .object({
-      mode: z.enum(['ask', 'build', 'plan']).optional(),
+      mode: z.enum(COPILOT_MODES).optional(),
       model: z.string().optional(),
     })
     .nullable()

@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isEqual } from 'lodash'
 import { Badge } from '@/components/emcn'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
+import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
  * Dropdown option type - can be a simple string or an object with label, id, and optional icon
@@ -65,7 +69,7 @@ interface DropdownProps {
  * - Special handling for dataMode subblock to convert between JSON and structured formats
  * - Integrates with the workflow state management system
  */
-export function Dropdown({
+export const Dropdown = memo(function Dropdown({
   options,
   defaultValue,
   blockId,
@@ -89,16 +93,26 @@ export function Dropdown({
   const dependsOnFields = useMemo(() => getDependsOnFields(dependsOn), [dependsOn])
 
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const blockState = useWorkflowStore((state) => state.blocks[blockId])
+  const blockConfig = blockState?.type ? getBlock(blockState.type) : null
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks]
+  )
+  const canonicalModeOverrides = blockState?.data?.canonicalModes
   const dependencyValues = useSubBlockStore(
     useCallback(
       (state) => {
         if (dependsOnFields.length === 0 || !activeWorkflowId) return []
         const workflowValues = state.workflowValues[activeWorkflowId] || {}
         const blockValues = workflowValues[blockId] || {}
-        return dependsOnFields.map((depKey) => blockValues[depKey] ?? null)
+        return dependsOnFields.map((depKey) =>
+          resolveDependencyValue(depKey, blockValues, canonicalIndex, canonicalModeOverrides)
+        )
       },
-      [dependsOnFields, activeWorkflowId, blockId]
-    )
+      [dependsOnFields, activeWorkflowId, blockId, canonicalIndex, canonicalModeOverrides]
+    ),
+    isEqual
   )
 
   const [storeInitialized, setStoreInitialized] = useState(false)
@@ -148,6 +162,18 @@ export function Dropdown({
       setIsLoadingOptions(false)
     }
   }, [fetchOptions, blockId, subBlockId, isPreview, disabled])
+
+  /**
+   * Handles combobox open state changes to trigger option fetching
+   */
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        void fetchOptionsIfNeeded()
+      }
+    },
+    [fetchOptionsIfNeeded]
+  )
 
   const evaluatedOptions = useMemo(() => {
     return typeof options === 'function' ? options() : options
@@ -459,11 +485,7 @@ export function Dropdown({
       placeholder={placeholder}
       disabled={disabled}
       editable={false}
-      onOpenChange={(open) => {
-        if (open) {
-          void fetchOptionsIfNeeded()
-        }
-      }}
+      onOpenChange={handleOpenChange}
       overlayContent={multiSelectOverlay}
       multiSelect={multiSelect}
       isLoading={isLoadingOptions}
@@ -472,4 +494,4 @@ export function Dropdown({
       searchPlaceholder='Search...'
     />
   )
-}
+})

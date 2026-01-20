@@ -1,8 +1,17 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { BookOpen, Check, ChevronUp, Pencil, Settings } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isEqual } from 'lodash'
+import { BookOpen, Check, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { Button, Tooltip } from '@/components/emcn'
+import {
+  buildCanonicalIndex,
+  evaluateSubBlockCondition,
+  hasAdvancedValues,
+  isCanonicalPair,
+  resolveCanonicalMode,
+} from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ConnectionBlocks,
@@ -20,10 +29,14 @@ import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/compo
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { getBlock } from '@/blocks/registry'
+import type { SubBlockType } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePanelEditorStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+
+/** Stable empty object to avoid creating new references */
+const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
 
 /**
  * Icon component for rendering block icons.
@@ -50,7 +63,15 @@ export function Editor() {
     toggleConnectionsCollapsed,
     shouldFocusRename,
     setShouldFocusRename,
-  } = usePanelEditorStore()
+  } = usePanelEditorStore(
+    useShallow((state) => ({
+      currentBlockId: state.currentBlockId,
+      connectionsHeight: state.connectionsHeight,
+      toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
+      shouldFocusRename: state.shouldFocusRename,
+      setShouldFocusRename: state.setShouldFocusRename,
+    }))
+  )
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
@@ -78,27 +99,89 @@ export function Editor() {
     currentWorkflow.isSnapshotView
   )
 
-  // Subscribe to block's subblock values
   const blockSubBlockValues = useSubBlockStore(
     useCallback(
       (state) => {
-        if (!activeWorkflowId || !currentBlockId) return {}
-        return state.workflowValues[activeWorkflowId]?.[currentBlockId] || {}
+        if (!activeWorkflowId || !currentBlockId) return EMPTY_SUBBLOCK_VALUES
+        return state.workflowValues[activeWorkflowId]?.[currentBlockId] ?? EMPTY_SUBBLOCK_VALUES
       },
       [activeWorkflowId, currentBlockId]
-    )
+    ),
+    isEqual
   )
+
+  const subBlocksForCanonical = useMemo(() => {
+    const subBlocks = blockConfig?.subBlocks || []
+    if (!triggerMode) return subBlocks
+    return subBlocks.filter(
+      (subBlock) =>
+        subBlock.mode === 'trigger' || subBlock.type === ('trigger-config' as SubBlockType)
+    )
+  }, [blockConfig?.subBlocks, triggerMode])
+
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(subBlocksForCanonical),
+    [subBlocksForCanonical]
+  )
+  const canonicalModeOverrides = currentBlock?.data?.canonicalModes
+  const advancedValuesPresent = hasAdvancedValues(
+    subBlocksForCanonical,
+    blockSubBlockValues,
+    canonicalIndex
+  )
+  const displayAdvancedOptions = advancedMode || advancedValuesPresent
+
+  const hasAdvancedOnlyFields = useMemo(() => {
+    for (const subBlock of subBlocksForCanonical) {
+      // Must be standalone advanced (mode: 'advanced' without canonicalParamId)
+      if (subBlock.mode !== 'advanced') continue
+      if (canonicalIndex.canonicalIdBySubBlockId[subBlock.id]) continue
+
+      // Check condition - skip if condition not met for current values
+      if (
+        subBlock.condition &&
+        !evaluateSubBlockCondition(subBlock.condition, blockSubBlockValues)
+      ) {
+        continue
+      }
+
+      return true
+    }
+    return false
+  }, [subBlocksForCanonical, canonicalIndex.canonicalIdBySubBlockId, blockSubBlockValues])
 
   // Get subblock layout using custom hook
   const { subBlocks, stateToUse: subBlockState } = useEditorSubblockLayout(
     blockConfig || ({} as any),
     currentBlockId || '',
-    advancedMode,
+    displayAdvancedOptions,
     triggerMode,
     activeWorkflowId,
     blockSubBlockValues,
     currentWorkflow.isSnapshotView
   )
+
+  /**
+   * Partitions subBlocks into regular fields and standalone advanced-only fields.
+   * Standalone advanced fields have mode 'advanced' and are not part of a canonical swap pair.
+   */
+  const { regularSubBlocks, advancedOnlySubBlocks } = useMemo(() => {
+    const regular: typeof subBlocks = []
+    const advancedOnly: typeof subBlocks = []
+
+    for (const subBlock of subBlocks) {
+      const isStandaloneAdvanced =
+        subBlock.mode === 'advanced' && !canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
+
+      if (isStandaloneAdvanced) {
+        advancedOnly.push(subBlock)
+      } else {
+        regular.push(subBlock)
+      }
+    }
+
+    return { regularSubBlocks: regular, advancedOnlySubBlocks: advancedOnly }
+  }, [subBlocks, canonicalIndex.canonicalIdBySubBlockId])
 
   // Get block connections
   const { incomingConnections, hasIncomingConnections } = useBlockConnections(currentBlockId || '')
@@ -109,20 +192,22 @@ export function Editor() {
   })
 
   // Collaborative actions
-  const { collaborativeToggleBlockAdvancedMode, collaborativeUpdateBlockName } =
-    useCollaborativeWorkflow()
+  const {
+    collaborativeSetBlockCanonicalMode,
+    collaborativeUpdateBlockName,
+    collaborativeToggleBlockAdvancedMode,
+  } = useCollaborativeWorkflow()
+
+  // Advanced mode toggle handler
+  const handleToggleAdvancedMode = useCallback(() => {
+    if (!currentBlockId || !userPermissions.canEdit) return
+    collaborativeToggleBlockAdvancedMode(currentBlockId)
+  }, [currentBlockId, userPermissions.canEdit, collaborativeToggleBlockAdvancedMode])
 
   // Rename state
   const [isRenaming, setIsRenaming] = useState(false)
   const [editedName, setEditedName] = useState('')
   const nameInputRef = useRef<HTMLInputElement>(null)
-
-  // Mode toggle handlers
-  const handleToggleAdvancedMode = useCallback(() => {
-    if (currentBlockId && userPermissions.canEdit) {
-      collaborativeToggleBlockAdvancedMode(currentBlockId)
-    }
-  }, [currentBlockId, userPermissions.canEdit, collaborativeToggleBlockAdvancedMode])
 
   /**
    * Handles starting the rename process.
@@ -182,9 +267,6 @@ export function Editor() {
       window.open(docsLink, '_blank', 'noopener,noreferrer')
     }
   }
-
-  // Check if block has advanced mode or trigger mode available
-  const hasAdvancedMode = blockConfig?.subBlocks?.some((sb) => sb.mode === 'advanced')
 
   // Determine if connections are at minimum height (collapsed state)
   const isConnectionsAtMinHeight = connectionsHeight <= 35
@@ -278,25 +360,6 @@ export function Editor() {
               </Tooltip.Content>
             </Tooltip.Root>
           )} */}
-          {/* Mode toggles - Only show for regular blocks, not subflows */}
-          {currentBlock && !isSubflow && hasAdvancedMode && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  className='p-0'
-                  onClick={handleToggleAdvancedMode}
-                  disabled={!userPermissions.canEdit}
-                  aria-label='Toggle advanced mode'
-                >
-                  <Settings className='h-[14px] w-[14px]' />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                <p>Advanced mode</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          )}
           {currentBlock && (isSubflow ? subflowConfig?.docsLink : blockConfig?.docsLink) && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
@@ -342,14 +405,113 @@ export function Editor() {
             ref={subBlocksRef}
             className='subblocks-section flex flex-1 flex-col overflow-hidden'
           >
-            <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px] pt-[8px] pb-[8px]'>
+            <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px] pt-[12px] pb-[8px] [overflow-anchor:none]'>
               {subBlocks.length === 0 ? (
                 <div className='flex h-full items-center justify-center text-center text-[#8D8D8D] text-[13px]'>
                   This block has no subblocks
                 </div>
               ) : (
                 <div className='flex flex-col'>
-                  {subBlocks.map((subBlock, index) => {
+                  {regularSubBlocks.map((subBlock, index) => {
+                    const stableKey = getSubBlockStableKey(
+                      currentBlockId || '',
+                      subBlock,
+                      subBlockState
+                    )
+                    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
+                    const canonicalGroup = canonicalId
+                      ? canonicalIndex.groupsById[canonicalId]
+                      : undefined
+                    const isCanonicalSwap = isCanonicalPair(canonicalGroup)
+                    const canonicalMode =
+                      canonicalGroup && isCanonicalSwap
+                        ? resolveCanonicalMode(
+                            canonicalGroup,
+                            blockSubBlockValues,
+                            canonicalModeOverrides
+                          )
+                        : undefined
+
+                    const showDivider =
+                      index < regularSubBlocks.length - 1 ||
+                      (!hasAdvancedOnlyFields && index < subBlocks.length - 1)
+
+                    return (
+                      <div key={stableKey} className='subblock-row'>
+                        <SubBlock
+                          blockId={currentBlockId}
+                          config={subBlock}
+                          isPreview={false}
+                          subBlockValues={subBlockState}
+                          disabled={!userPermissions.canEdit}
+                          fieldDiffStatus={undefined}
+                          allowExpandInPreview={false}
+                          canonicalToggle={
+                            isCanonicalSwap && canonicalMode && canonicalId
+                              ? {
+                                  mode: canonicalMode,
+                                  disabled: !userPermissions.canEdit,
+                                  onToggle: () => {
+                                    if (!currentBlockId) return
+                                    const nextMode =
+                                      canonicalMode === 'advanced' ? 'basic' : 'advanced'
+                                    collaborativeSetBlockCanonicalMode(
+                                      currentBlockId,
+                                      canonicalId,
+                                      nextMode
+                                    )
+                                  },
+                                }
+                              : undefined
+                          }
+                        />
+                        {showDivider && (
+                          <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
+                            <div
+                              className='h-[1.25px]'
+                              style={{
+                                backgroundImage:
+                                  'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {hasAdvancedOnlyFields && userPermissions.canEdit && (
+                    <div className='flex items-center gap-[10px] px-[2px] pt-[14px] pb-[12px]'>
+                      <div
+                        className='h-[1.25px] flex-1'
+                        style={{
+                          backgroundImage:
+                            'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
+                        }}
+                      />
+                      <button
+                        type='button'
+                        onClick={handleToggleAdvancedMode}
+                        className='flex items-center gap-[6px] whitespace-nowrap font-medium text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                      >
+                        {displayAdvancedOptions
+                          ? 'Hide additional fields'
+                          : 'Show additional fields'}
+                        <ChevronDown
+                          className={`h-[14px] w-[14px] transition-transform duration-200 ${displayAdvancedOptions ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+                      <div
+                        className='h-[1.25px] flex-1'
+                        style={{
+                          backgroundImage:
+                            'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {advancedOnlySubBlocks.map((subBlock, index) => {
                     const stableKey = getSubBlockStableKey(
                       currentBlockId || '',
                       subBlock,
@@ -367,7 +529,7 @@ export function Editor() {
                           fieldDiffStatus={undefined}
                           allowExpandInPreview={false}
                         />
-                        {index < subBlocks.length - 1 && (
+                        {index < advancedOnlySubBlocks.length - 1 && (
                           <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
                             <div
                               className='h-[1.25px]'

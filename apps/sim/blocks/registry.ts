@@ -8,7 +8,6 @@ import { ApifyBlock } from '@/blocks/blocks/apify'
 import { ApolloBlock } from '@/blocks/blocks/apollo'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
-// import { BoxBlock } from '@/blocks/blocks/box' // TODO: Box OAuth integration
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { CalendlyBlock } from '@/blocks/blocks/calendly'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
@@ -38,10 +37,9 @@ import { GoogleSearchBlock } from '@/blocks/blocks/google'
 import { GoogleCalendarBlock, GoogleCalendarV2Block } from '@/blocks/blocks/google_calendar'
 import { GoogleDocsBlock } from '@/blocks/blocks/google_docs'
 import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
-import { GoogleFormsBlock } from '@/blocks/blocks/google_form'
+import { GoogleFormsBlock } from '@/blocks/blocks/google_forms'
 import { GoogleGroupsBlock } from '@/blocks/blocks/google_groups'
-import { GoogleSheetsBlock } from '@/blocks/blocks/google_sheets'
-import { GoogleSheetsV2Block } from '@/blocks/blocks/google_sheets_v2'
+import { GoogleSheetsBlock, GoogleSheetsV2Block } from '@/blocks/blocks/google_sheets'
 import { GoogleSlidesBlock } from '@/blocks/blocks/google_slides'
 import { GoogleVaultBlock } from '@/blocks/blocks/google_vault'
 import { GrafanaBlock } from '@/blocks/blocks/grafana'
@@ -73,8 +71,7 @@ import { ManualTriggerBlock } from '@/blocks/blocks/manual_trigger'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { Mem0Block } from '@/blocks/blocks/mem0'
 import { MemoryBlock } from '@/blocks/blocks/memory'
-import { MicrosoftExcelBlock } from '@/blocks/blocks/microsoft_excel'
-import { MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel_v2'
+import { MicrosoftExcelBlock, MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel'
 import { MicrosoftPlannerBlock } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock } from '@/blocks/blocks/microsoft_teams'
 import { MistralParseBlock } from '@/blocks/blocks/mistral_parse'
@@ -93,9 +90,11 @@ import { PipedriveBlock } from '@/blocks/blocks/pipedrive'
 import { PolymarketBlock } from '@/blocks/blocks/polymarket'
 import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
 import { PostHogBlock } from '@/blocks/blocks/posthog'
+import { PulseBlock } from '@/blocks/blocks/pulse'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { RDSBlock } from '@/blocks/blocks/rds'
 import { RedditBlock } from '@/blocks/blocks/reddit'
+import { ReductoBlock } from '@/blocks/blocks/reducto'
 import { ResendBlock } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
 import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
@@ -114,6 +113,7 @@ import { ShopifyBlock } from '@/blocks/blocks/shopify'
 import { SlackBlock } from '@/blocks/blocks/slack'
 import { SmtpBlock } from '@/blocks/blocks/smtp'
 import { SpotifyBlock } from '@/blocks/blocks/spotify'
+import { SQSBlock } from '@/blocks/blocks/sqs'
 import { SSHBlock } from '@/blocks/blocks/ssh'
 import { StagehandBlock } from '@/blocks/blocks/stagehand'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
@@ -149,7 +149,6 @@ import { ZendeskBlock } from '@/blocks/blocks/zendesk'
 import { ZepBlock } from '@/blocks/blocks/zep'
 import { ZoomBlock } from '@/blocks/blocks/zoom'
 import type { BlockConfig } from '@/blocks/types'
-import { SQSBlock } from './blocks/sqs'
 
 // Registry of all available blocks, alphabetically sorted
 export const registry: Record<string, BlockConfig> = {
@@ -163,7 +162,6 @@ export const registry: Record<string, BlockConfig> = {
   apollo: ApolloBlock,
   arxiv: ArxivBlock,
   asana: AsanaBlock,
-  // box: BoxBlock, // TODO: Box OAuth integration
   browser_use: BrowserUseBlock,
   calendly: CalendlyBlock,
   chat_trigger: ChatTriggerBlock,
@@ -177,8 +175,9 @@ export const registry: Record<string, BlockConfig> = {
   discord: DiscordBlock,
   dropbox: DropboxBlock,
   duckduckgo: DuckDuckGoBlock,
-  elevenlabs: ElevenLabsBlock,
+  dynamodb: DynamoDBBlock,
   elasticsearch: ElasticsearchBlock,
+  elevenlabs: ElevenLabsBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
   file: FileBlock,
@@ -191,21 +190,21 @@ export const registry: Record<string, BlockConfig> = {
   gitlab: GitLabBlock,
   gmail: GmailBlock,
   gmail_v2: GmailV2Block,
-  grain: GrainBlock,
-  grafana: GrafanaBlock,
-  greptile: GreptileBlock,
-  guardrails: GuardrailsBlock,
   google_calendar: GoogleCalendarBlock,
   google_calendar_v2: GoogleCalendarV2Block,
   google_docs: GoogleDocsBlock,
   google_drive: GoogleDriveBlock,
   google_forms: GoogleFormsBlock,
+  google_groups: GoogleGroupsBlock,
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
   google_sheets_v2: GoogleSheetsV2Block,
   google_slides: GoogleSlidesBlock,
   google_vault: GoogleVaultBlock,
-  google_groups: GoogleGroupsBlock,
+  grafana: GrafanaBlock,
+  grain: GrainBlock,
+  greptile: GreptileBlock,
+  guardrails: GuardrailsBlock,
   hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,
   human_in_the_loop: HumanInTheLoopBlock,
@@ -253,37 +252,37 @@ export const registry: Record<string, BlockConfig> = {
   polymarket: PolymarketBlock,
   postgresql: PostgreSQLBlock,
   posthog: PostHogBlock,
+  pulse: PulseBlock,
   qdrant: QdrantBlock,
   rds: RDSBlock,
-  sqs: SQSBlock,
-  dynamodb: DynamoDBBlock,
   reddit: RedditBlock,
+  reducto: ReductoBlock,
   resend: ResendBlock,
   response: ResponseBlock,
-  rss: RssBlock,
   router: RouterBlock,
   router_v2: RouterV2Block,
+  rss: RssBlock,
   s3: S3Block,
   salesforce: SalesforceBlock,
   schedule: ScheduleBlock,
   search: SearchBlock,
   sendgrid: SendGridBlock,
   sentry: SentryBlock,
-  servicenow: ServiceNowBlock,
   serper: SerperBlock,
+  servicenow: ServiceNowBlock,
+  sftp: SftpBlock,
   sharepoint: SharepointBlock,
   shopify: ShopifyBlock,
   slack: SlackBlock,
-  spotify: SpotifyBlock,
   smtp: SmtpBlock,
-  sftp: SftpBlock,
+  spotify: SpotifyBlock,
+  sqs: SQSBlock,
   ssh: SSHBlock,
   stagehand: StagehandBlock,
-  starter: StarterBlock,
   start_trigger: StartTriggerBlock,
-  stt: SttBlock,
-  tts: TtsBlock,
+  starter: StarterBlock,
   stripe: StripeBlock,
+  stt: SttBlock,
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,
@@ -291,6 +290,7 @@ export const registry: Record<string, BlockConfig> = {
   tinybird: TinybirdBlock,
   translate: TranslateBlock,
   trello: TrelloBlock,
+  tts: TtsBlock,
   twilio_sms: TwilioSMSBlock,
   twilio_voice: TwilioVoiceBlock,
   typeform: TypeformBlock,
@@ -308,8 +308,8 @@ export const registry: Record<string, BlockConfig> = {
   workflow_input: WorkflowInputBlock,
   x: XBlock,
   youtube: YouTubeBlock,
-  zep: ZepBlock,
   zendesk: ZendeskBlock,
+  zep: ZepBlock,
   zoom: ZoomBlock,
 }
 

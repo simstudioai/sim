@@ -1,22 +1,27 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
+import { isEqual } from 'lodash'
 import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge, Tooltip } from '@/components/emcn'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import {
-  ActionBar,
-  Connections,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components'
+  buildCanonicalIndex,
+  evaluateSubBlockCondition,
+  hasAdvancedValues,
+  isSubBlockFeatureEnabled,
+  isSubBlockVisibleForMode,
+  resolveDependencyValue,
+} from '@/lib/workflows/subblocks/visibility'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
 import {
   useBlockProperties,
   useChildWorkflow,
-  useScheduleInfo,
   useWebhookInfo,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks'
 import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
@@ -25,16 +30,14 @@ import {
   shouldSkipBlockRender,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import {
-  BLOCK_DIMENSIONS,
-  HANDLE_POSITIONS,
-  useBlockDimensions,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
+import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth-credentials'
+import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedules'
+import { useDeployChildWorkflow } from '@/hooks/queries/workflows'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { useVariablesStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -43,6 +46,9 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { wouldCreateCycle } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowBlock')
+
+/** Stable empty object to avoid creating new references */
+const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
 
 /**
  * Type guard for table row structure
@@ -203,7 +209,6 @@ const tryParseJson = (value: unknown): unknown => {
 export const getDisplayValue = (value: unknown): string => {
   if (value == null || value === '') return '-'
 
-  // Try parsing JSON strings first
   const parsedValue = tryParseJson(value)
 
   if (isMessagesArray(parsedValue)) {
@@ -319,20 +324,7 @@ export const getDisplayValue = (value: unknown): string => {
   return stringValue.trim().length > 0 ? stringValue : '-'
 }
 
-/**
- * Renders a single subblock row with title and optional value.
- * Automatically hydrates IDs to display names for all selector types.
- */
-const SubBlockRow = ({
-  title,
-  value,
-  subBlock,
-  rawValue,
-  workspaceId,
-  workflowId,
-  blockId,
-  allSubBlockValues,
-}: {
+interface SubBlockRowProps {
   title: string
   value?: string
   subBlock?: SubBlockConfig
@@ -341,7 +333,56 @@ const SubBlockRow = ({
   workflowId?: string
   blockId?: string
   allSubBlockValues?: Record<string, { value: unknown }>
-}) => {
+  displayAdvancedOptions?: boolean
+  canonicalIndex?: ReturnType<typeof buildCanonicalIndex>
+  canonicalModeOverrides?: Record<string, 'basic' | 'advanced'>
+}
+
+/**
+ * Compares SubBlockRow props for memo equality check.
+ */
+const areSubBlockRowPropsEqual = (
+  prevProps: SubBlockRowProps,
+  nextProps: SubBlockRowProps
+): boolean => {
+  const subBlockId = prevProps.subBlock?.id
+  const prevValue = subBlockId ? prevProps.allSubBlockValues?.[subBlockId]?.value : undefined
+  const nextValue = subBlockId ? nextProps.allSubBlockValues?.[subBlockId]?.value : undefined
+  const valueEqual = prevValue === nextValue || isEqual(prevValue, nextValue)
+
+  return (
+    prevProps.title === nextProps.title &&
+    prevProps.value === nextProps.value &&
+    prevProps.subBlock === nextProps.subBlock &&
+    prevProps.rawValue === nextProps.rawValue &&
+    prevProps.workspaceId === nextProps.workspaceId &&
+    prevProps.workflowId === nextProps.workflowId &&
+    prevProps.blockId === nextProps.blockId &&
+    valueEqual &&
+    prevProps.displayAdvancedOptions === nextProps.displayAdvancedOptions &&
+    prevProps.canonicalIndex === nextProps.canonicalIndex &&
+    prevProps.canonicalModeOverrides === nextProps.canonicalModeOverrides
+  )
+}
+
+/**
+ * Renders a single subblock row with title and optional value.
+ * Automatically hydrates IDs to display names for all selector types.
+ * Memoized to prevent excessive re-renders when parent components update.
+ */
+const SubBlockRow = memo(function SubBlockRow({
+  title,
+  value,
+  subBlock,
+  rawValue,
+  workspaceId,
+  workflowId,
+  blockId,
+  allSubBlockValues,
+  displayAdvancedOptions,
+  canonicalIndex,
+  canonicalModeOverrides,
+}: SubBlockRowProps) {
   const getStringValue = useCallback(
     (key?: string): string | undefined => {
       if (!key || !allSubBlockValues) return undefined
@@ -351,17 +392,43 @@ const SubBlockRow = ({
     [allSubBlockValues]
   )
 
+  const rawValues = useMemo(() => {
+    if (!allSubBlockValues) return {}
+    return Object.entries(allSubBlockValues).reduce<Record<string, unknown>>(
+      (acc, [key, entry]) => {
+        acc[key] = entry?.value
+        return acc
+      },
+      {}
+    )
+  }, [allSubBlockValues])
+
   const dependencyValues = useMemo(() => {
     const fields = getDependsOnFields(subBlock?.dependsOn)
     if (!fields.length) return {}
     return fields.reduce<Record<string, string>>((accumulator, dependency) => {
-      const dependencyValue = getStringValue(dependency)
-      if (dependencyValue) {
-        accumulator[dependency] = dependencyValue
+      const dependencyValue = resolveDependencyValue(
+        dependency,
+        rawValues,
+        canonicalIndex || buildCanonicalIndex([]),
+        canonicalModeOverrides
+      )
+      const dependencyString =
+        typeof dependencyValue === 'string' && dependencyValue.length > 0
+          ? dependencyValue
+          : undefined
+      if (dependencyString) {
+        accumulator[dependency] = dependencyString
       }
       return accumulator
     }, {})
-  }, [getStringValue, subBlock?.dependsOn])
+  }, [
+    canonicalIndex,
+    canonicalModeOverrides,
+    displayAdvancedOptions,
+    rawValues,
+    subBlock?.dependsOn,
+  ])
 
   const credentialSourceId =
     subBlock?.type === 'oauth-input' && typeof rawValue === 'string' ? rawValue : undefined
@@ -453,21 +520,34 @@ const SubBlockRow = ({
       : `${baseUrl}/api/webhooks/trigger/${blockId}`
   }, [subBlock?.id, blockId, allSubBlockValues])
 
-  const allVariables = useVariablesStore((state) => state.variables)
+  /**
+   * Subscribe only to variables for this workflow to avoid re-renders from other workflows.
+   * Uses isEqual for deep comparison since Object.fromEntries creates a new object each time.
+   */
+  const workflowVariables = useVariablesStore(
+    useCallback(
+      (state) => {
+        if (!workflowId) return {}
+        return Object.fromEntries(
+          Object.entries(state.variables).filter(([, v]) => v.workflowId === workflowId)
+        )
+      },
+      [workflowId]
+    ),
+    isEqual
+  )
 
   const variablesDisplayValue = useMemo(() => {
     if (subBlock?.type !== 'variables-input' || !isVariableAssignmentsArray(rawValue)) {
       return null
     }
 
-    const workflowVariables = Object.values(allVariables).filter(
-      (v: any) => v.workflowId === workflowId
-    )
+    const variablesArray = Object.values(workflowVariables)
 
     const names = rawValue
       .map((a) => {
         if (a.variableId) {
-          const variable = workflowVariables.find((v: any) => v.id === a.variableId)
+          const variable = variablesArray.find((v: any) => v.id === a.variableId)
           return variable?.name
         }
         if (a.variableName) return a.variableName
@@ -479,7 +559,7 @@ const SubBlockRow = ({
     if (names.length === 1) return names[0]
     if (names.length === 2) return `${names[0]}, ${names[1]}`
     return `${names[0]}, ${names[1]} +${names.length - 2}`
-  }, [subBlock?.type, rawValue, workflowId, allVariables])
+  }, [subBlock?.type, rawValue, workflowVariables])
 
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
@@ -515,11 +595,12 @@ const SubBlockRow = ({
       )}
     </div>
   )
-}
+}, areSubBlockRowPropsEqual)
 
 export const WorkflowBlock = memo(function WorkflowBlock({
   id,
   data,
+  selected,
 }: NodeProps<WorkflowBlockProps>) {
   const { type, config, name, isPending } = data
 
@@ -537,7 +618,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     hasRing,
     ringStyles,
     runPathStatus,
-  } = useBlockVisual({ blockId: id, data, isPending })
+  } = useBlockVisual({ blockId: id, data, isPending, isSelected: selected })
 
   const currentBlock = currentWorkflow.getBlockById(id)
 
@@ -559,77 +640,51 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     reactivateWebhook,
   } = useWebhookInfo(id, currentWorkflowId)
 
-  const {
-    scheduleInfo,
-    isLoading: isLoadingScheduleInfo,
-    reactivateSchedule,
-  } = useScheduleInfo(id, type, currentWorkflowId)
-
-  const { childWorkflowId, childIsDeployed, childNeedsRedeploy, refetchDeployment } =
-    useChildWorkflow(id, type, data.isPreview ?? false, data.subBlockValues)
-
-  const [isDeploying, setIsDeploying] = useState(false)
-  const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
-
-  const deployWorkflow = useCallback(
-    async (workflowId: string) => {
-      if (isDeploying) return
-
-      try {
-        setIsDeploying(true)
-        const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            deployChatEnabled: false,
-          }),
-        })
-
-        if (response.ok) {
-          const responseData = await response.json()
-          const isDeployedStatus = responseData.isDeployed ?? false
-          const deployedAtTime = responseData.deployedAt
-            ? new Date(responseData.deployedAt)
-            : undefined
-          setDeploymentStatus(
-            workflowId,
-            isDeployedStatus,
-            deployedAtTime,
-            responseData.apiKey || ''
-          )
-          refetchDeployment()
-        } else {
-          logger.error('Failed to deploy workflow')
-        }
-      } catch (error) {
-        logger.error('Error deploying workflow:', error)
-      } finally {
-        setIsDeploying(false)
-      }
-    },
-    [isDeploying, setDeploymentStatus, refetchDeployment]
+  const { scheduleInfo, isLoading: isLoadingScheduleInfo } = useScheduleInfo(
+    currentWorkflowId,
+    id,
+    type
   )
+  const reactivateScheduleMutation = useReactivateSchedule()
+  const reactivateSchedule = useCallback(
+    async (scheduleId: string) => {
+      await reactivateScheduleMutation.mutateAsync({
+        scheduleId,
+        workflowId: currentWorkflowId,
+        blockId: id,
+      })
+    },
+    [reactivateScheduleMutation, currentWorkflowId, id]
+  )
+
+  const { childWorkflowId, childIsDeployed, childNeedsRedeploy } = useChildWorkflow(
+    id,
+    type,
+    data.isPreview ?? false,
+    data.subBlockValues
+  )
+
+  const { mutate: deployChildWorkflow, isPending: isDeploying } = useDeployChildWorkflow()
+
+  const userPermissions = useUserPermissionsContext()
 
   const currentStoreBlock = currentWorkflow.getBlockById(id)
 
   const isStarterBlock = type === 'starter'
   const isWebhookTriggerBlock = type === 'webhook' || type === 'generic_webhook'
 
-  /**
-   * Subscribe to this block's subblock values to track changes for conditional rendering
-   * of subblocks based on their conditions.
-   */
   const blockSubBlockValues = useSubBlockStore(
     useCallback(
       (state) => {
-        if (!activeWorkflowId) return {}
-        return state.workflowValues[activeWorkflowId]?.[id] || {}
+        if (!activeWorkflowId) return EMPTY_SUBBLOCK_VALUES
+        return state.workflowValues[activeWorkflowId]?.[id] ?? EMPTY_SUBBLOCK_VALUES
       },
       [activeWorkflowId, id]
-    )
+    ),
+    isEqual
   )
+  const canonicalIndex = useMemo(() => buildCanonicalIndex(config.subBlocks), [config.subBlocks])
+  const canonicalModeOverrides = currentStoreBlock?.data?.canonicalModes
 
   const subBlockRowsData = useMemo(() => {
     const rows: SubBlockConfig[][] = []
@@ -652,16 +707,23 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             {} as Record<string, { value: unknown }>
           )
 
-    const effectiveAdvanced = displayAdvancedMode
+    const rawValues = Object.entries(stateToUse).reduce<Record<string, unknown>>(
+      (acc, [key, entry]) => {
+        acc[key] = entry?.value
+        return acc
+      },
+      {}
+    )
+
+    const effectiveAdvanced = userPermissions.canEdit
+      ? displayAdvancedMode
+      : displayAdvancedMode || hasAdvancedValues(config.subBlocks, rawValues, canonicalIndex)
     const effectiveTrigger = displayTriggerMode
 
     const visibleSubBlocks = config.subBlocks.filter((block) => {
       if (block.hidden) return false
       if (block.hideFromPreview) return false
-
-      if (block.requiresFeature && !isTruthy(getEnv(block.requiresFeature))) {
-        return false
-      }
+      if (!isSubBlockFeatureEnabled(block)) return false
 
       const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'
 
@@ -679,40 +741,21 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         }
       }
 
-      if (block.mode === 'basic' && effectiveAdvanced) return false
-      if (block.mode === 'advanced' && !effectiveAdvanced) return false
+      if (
+        !isSubBlockVisibleForMode(
+          block,
+          effectiveAdvanced,
+          canonicalIndex,
+          rawValues,
+          canonicalModeOverrides
+        )
+      ) {
+        return false
+      }
 
       if (!block.condition) return true
 
-      const actualCondition =
-        typeof block.condition === 'function' ? block.condition() : block.condition
-
-      const fieldValue = stateToUse[actualCondition.field]?.value
-      const andFieldValue = actualCondition.and
-        ? stateToUse[actualCondition.and.field]?.value
-        : undefined
-
-      const isValueMatch = Array.isArray(actualCondition.value)
-        ? fieldValue != null &&
-          (actualCondition.not
-            ? !actualCondition.value.includes(fieldValue as string | number | boolean)
-            : actualCondition.value.includes(fieldValue as string | number | boolean))
-        : actualCondition.not
-          ? fieldValue !== actualCondition.value
-          : fieldValue === actualCondition.value
-
-      const isAndValueMatch =
-        !actualCondition.and ||
-        (Array.isArray(actualCondition.and.value)
-          ? andFieldValue != null &&
-            (actualCondition.and.not
-              ? !actualCondition.and.value.includes(andFieldValue as string | number | boolean)
-              : actualCondition.and.value.includes(andFieldValue as string | number | boolean))
-          : actualCondition.and.not
-            ? andFieldValue !== actualCondition.and.value
-            : andFieldValue === actualCondition.and.value)
-
-      return isValueMatch && isAndValueMatch
+      return evaluateSubBlockCondition(block.condition, rawValues)
     })
 
     visibleSubBlocks.forEach((block) => {
@@ -744,12 +787,33 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     data.subBlockValues,
     currentWorkflow.isDiffMode,
     currentBlock,
+    canonicalModeOverrides,
+    userPermissions.canEdit,
+    canonicalIndex,
     blockSubBlockValues,
     activeWorkflowId,
   ])
 
   const subBlockRows = subBlockRowsData.rows
   const subBlockState = subBlockRowsData.stateToUse
+  const effectiveAdvanced = useMemo(() => {
+    const rawValues = Object.entries(subBlockState).reduce<Record<string, unknown>>(
+      (acc, [key, entry]) => {
+        acc[key] = entry?.value
+        return acc
+      },
+      {}
+    )
+    return userPermissions.canEdit
+      ? displayAdvancedMode
+      : displayAdvancedMode || hasAdvancedValues(config.subBlocks, rawValues, canonicalIndex)
+  }, [
+    subBlockState,
+    displayAdvancedMode,
+    config.subBlocks,
+    canonicalIndex,
+    userPermissions.canEdit,
+  ])
 
   /**
    * Determine if block has content below the header (subblocks or error row).
@@ -912,7 +976,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const showWebhookIndicator = (isStarterBlock || isWebhookTriggerBlock) && isWebhookConfigured
   const shouldShowScheduleBadge =
     type === 'schedule' && !isLoadingScheduleInfo && scheduleInfo !== null
-  const userPermissions = useUserPermissionsContext()
   const isWorkflowSelector = type === 'workflow' || type === 'workflow_input'
 
   return (
@@ -921,7 +984,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         ref={contentRef}
         onClick={handleClick}
         className={cn(
-          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)]'
+          'workflow-drag-handle relative z-[20] w-[250px] cursor-grab select-none rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] [&:active]:cursor-grabbing'
         )}
       >
         {isPending && (
@@ -933,8 +996,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         {!data.isPreview && (
           <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
         )}
-
-        {shouldShowDefaultHandles && <Connections blockId={id} />}
 
         {shouldShowDefaultHandles && (
           <Handle
@@ -957,12 +1018,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
         <div
           className={cn(
-            'workflow-drag-handle flex cursor-grab items-center justify-between p-[8px] [&:active]:cursor-grabbing',
+            'flex items-center justify-between p-[8px]',
             hasContentBelowHeader && 'border-[var(--border-1)] border-b'
           )}
-          onMouseDown={(e) => {
-            e.stopPropagation()
-          }}
         >
           <div className='relative z-10 flex min-w-0 flex-1 items-center gap-[10px]'>
             <div
@@ -997,7 +1055,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                       onClick={(e) => {
                         e.stopPropagation()
                         if (childWorkflowId && !isDeploying && userPermissions.canAdmin) {
-                          deployWorkflow(childWorkflowId)
+                          deployChildWorkflow({ workflowId: childWorkflowId })
                         }
                       }}
                     >
@@ -1129,6 +1187,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                       workflowId={currentWorkflowId}
                       blockId={id}
                       allSubBlockValues={subBlockState}
+                      displayAdvancedOptions={effectiveAdvanced}
+                      canonicalIndex={canonicalIndex}
+                      canonicalModeOverrides={canonicalModeOverrides}
                     />
                   )
                 })

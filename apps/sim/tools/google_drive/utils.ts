@@ -73,6 +73,10 @@ export const ALL_FILE_FIELDS = [
   'resourceKey',
   'shortcutDetails',
   'linkShareMetadata',
+  'labelInfo',
+  'hasAugmentedPermissions',
+  'inheritedPermissionsDisabled',
+  'downloadRestrictions',
 ].join(',')
 
 // All revision fields from Google Drive API v3

@@ -72,6 +72,9 @@ export type SubBlockType =
   | 'mcp-dynamic-args' // MCP dynamic arguments based on tool schema
   | 'input-format' // Input structure format
   | 'response-format' // Response structure format
+  /**
+   * @deprecated Legacy trigger save subblock type.
+   */
   | 'trigger-save' // Trigger save button with validation
   | 'file-upload' // File uploader
   | 'input-mapping' // Map parent variables to child workflow input schema
@@ -132,7 +135,13 @@ export interface OutputCondition {
   not?: boolean
   and?: {
     field: string
-    value: string | number | boolean | Array<string | number | boolean> | undefined
+    value:
+      | string
+      | number
+      | boolean
+      | Array<string | number | boolean | undefined | null>
+      | undefined
+      | null
     not?: boolean
   }
 }

@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import type { useMentionMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-mention-menu'
 import type { ChatContext } from '@/stores/panel'
 
@@ -39,11 +39,11 @@ export function useMentionTokens({
   setSelectedContexts,
 }: UseMentionTokensProps) {
   /**
-   * Computes all mention ranges in the message (both @mentions and /commands)
-   *
-   * @returns Array of mention ranges sorted by start position
+   * Memoized mention ranges - computed once when message or selectedContexts change.
+   * This prevents expensive O(n×m) string searches from running on every keystroke
+   * when other callbacks access the ranges.
    */
-  const computeMentionRanges = useCallback((): MentionRange[] => {
+  const memoizedMentionRanges = useMemo((): MentionRange[] => {
     const ranges: MentionRange[] = []
     if (!message || selectedContexts.length === 0) return ranges
 
@@ -76,6 +76,15 @@ export function useMentionTokens({
         ranges.push({ start: idx, end: idx + token.length, label })
         fromIndex = idx + token.length
       }
+
+      // Token at end of message without trailing space: "@label" or " /label"
+      const tokenAtEnd = `${prefix}${label}`
+      if (message.endsWith(tokenAtEnd)) {
+        const idx = message.lastIndexOf(tokenAtEnd)
+        const hasLeadingSpace = idx > 0 && message[idx - 1] === ' '
+        const start = hasLeadingSpace ? idx - 1 : idx
+        ranges.push({ start, end: message.length, label })
+      }
     }
 
     ranges.sort((a, b) => a.start - b.start)
@@ -84,35 +93,45 @@ export function useMentionTokens({
 
   /**
    * Finds a mention range containing the given position
+   */
+  const computeMentionRanges = useCallback(
+    (): MentionRange[] => memoizedMentionRanges,
+    [memoizedMentionRanges]
+  )
+
+  /**
+   * Finds a mention range containing the given position.
+   * Uses memoized ranges directly for better performance.
    *
    * @param pos - Position to check
    * @returns Mention range if found, undefined otherwise
    */
   const findRangeContaining = useCallback(
     (pos: number): MentionRange | undefined => {
-      const ranges = computeMentionRanges()
-      return ranges.find((r) => pos > r.start && pos < r.end)
+      return memoizedMentionRanges.find((r) => pos > r.start && pos < r.end)
     },
-    [computeMentionRanges]
+    [memoizedMentionRanges]
   )
 
   /**
-   * Removes contexts for mention tokens that overlap with a text selection
+   * Removes contexts for mention tokens that overlap with a text selection.
+   * Uses memoized ranges directly for better performance.
    *
    * @param selStart - Selection start position
    * @param selEnd - Selection end position
    */
   const removeContextsInSelection = useCallback(
     (selStart: number, selEnd: number) => {
-      const ranges = computeMentionRanges()
-      const overlappingRanges = ranges.filter((r) => !(selEnd <= r.start || selStart >= r.end))
+      const overlappingRanges = memoizedMentionRanges.filter(
+        (r) => !(selEnd <= r.start || selStart >= r.end)
+      )
 
       if (overlappingRanges.length > 0) {
         const labelsToRemove = new Set(overlappingRanges.map((r) => r.label))
         setSelectedContexts((prev) => prev.filter((c) => !c.label || !labelsToRemove.has(c.label)))
       }
     },
-    [computeMentionRanges, setSelectedContexts]
+    [memoizedMentionRanges, setSelectedContexts]
   )
 
   /**

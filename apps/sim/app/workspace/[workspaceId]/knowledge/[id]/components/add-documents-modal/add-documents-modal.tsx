@@ -221,14 +221,14 @@ export function AddDocumentsModal({
 
   return (
     <Modal open={open} onOpenChange={handleClose}>
-      <ModalContent>
+      <ModalContent size='md'>
         <ModalHeader>Add Documents</ModalHeader>
 
         <ModalBody>
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='space-y-[12px]'>
               {fileError && (
-                <p className='text-[11px] text-[var(--text-error)] leading-tight'>{fileError}</p>
+                <p className='text-[12px] text-[var(--text-error)] leading-tight'>{fileError}</p>
               )}
 
               <div className='flex flex-col gap-[8px]'>
@@ -336,7 +336,7 @@ export function AddDocumentsModal({
         <ModalFooter>
           <div className='flex w-full items-center justify-between gap-[12px]'>
             {uploadError ? (
-              <p className='min-w-0 flex-1 truncate text-[11px] text-[var(--text-error)] leading-tight'>
+              <p className='min-w-0 flex-1 truncate text-[12px] text-[var(--text-error)] leading-tight'>
                 {uploadError.message}
               </p>
             ) : (

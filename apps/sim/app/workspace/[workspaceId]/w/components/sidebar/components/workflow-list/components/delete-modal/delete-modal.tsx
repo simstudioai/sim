@@ -97,12 +97,21 @@ export function DeleteModal({
       return 'Are you sure you want to delete this folder? This will permanently remove all associated workflows, logs, and knowledge bases.'
     }
 
+    if (isSingle && displayNames.length > 0) {
+      return (
+        <>
+          Are you sure you want to delete{' '}
+          <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
+          will permanently remove all associated workflows, folders, logs, and knowledge bases.
+        </>
+      )
+    }
     return 'Are you sure you want to delete this workspace? This will permanently remove all associated workflows, folders, logs, and knowledge bases.'
   }
 
   return (
     <Modal open={isOpen} onOpenChange={onClose}>
-      <ModalContent className='w-[400px]'>
+      <ModalContent size='sm'>
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
           <p className='text-[12px] text-[var(--text-secondary)]'>
@@ -111,7 +120,7 @@ export function DeleteModal({
           </p>
         </ModalBody>
         <ModalFooter>
-          <Button variant='active' onClick={onClose} disabled={isDeleting}>
+          <Button variant='default' onClick={onClose} disabled={isDeleting}>
             Cancel
           </Button>
           <Button variant='destructive' onClick={onConfirm} disabled={isDeleting}>

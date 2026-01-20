@@ -75,6 +75,30 @@ export interface GoogleCalendarInviteParams extends BaseGoogleCalendarParams {
   replaceExisting?: boolean // Whether to replace existing attendees or add to them
 }
 
+export interface GoogleCalendarMoveParams extends BaseGoogleCalendarParams {
+  eventId: string
+  destinationCalendarId: string
+  sendUpdates?: 'all' | 'externalOnly' | 'none'
+}
+
+export interface GoogleCalendarInstancesParams extends BaseGoogleCalendarParams {
+  eventId: string
+  timeMin?: string
+  timeMax?: string
+  maxResults?: number
+  pageToken?: string
+  showDeleted?: boolean
+}
+
+export interface GoogleCalendarListCalendarsParams {
+  accessToken: string
+  minAccessRole?: 'freeBusyReader' | 'reader' | 'writer' | 'owner'
+  maxResults?: number
+  pageToken?: string
+  showDeleted?: boolean
+  showHidden?: boolean
+}
+
 export type GoogleCalendarToolParams =
   | GoogleCalendarCreateParams
   | GoogleCalendarListParams
@@ -83,6 +107,9 @@ export type GoogleCalendarToolParams =
   | GoogleCalendarDeleteParams
   | GoogleCalendarQuickAddParams
   | GoogleCalendarInviteParams
+  | GoogleCalendarMoveParams
+  | GoogleCalendarInstancesParams
+  | GoogleCalendarListCalendarsParams
 
 interface EventMetadata {
   id: string
@@ -277,6 +304,65 @@ export interface GoogleCalendarApiListResponse {
   items: GoogleCalendarApiEventResponse[]
 }
 
+export interface GoogleCalendarDeleteResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: {
+      eventId: string
+      deleted: boolean
+    }
+  }
+}
+
+export interface GoogleCalendarMoveResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: EventMetadata
+  }
+}
+
+export interface GoogleCalendarInstancesResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: {
+      nextPageToken?: string
+      timeZone: string
+      instances: Array<
+        EventMetadata & {
+          recurringEventId: string
+          originalStartTime: {
+            dateTime?: string
+            date?: string
+            timeZone?: string
+          }
+        }
+      >
+    }
+  }
+}
+
+export interface GoogleCalendarListCalendarsResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: {
+      nextPageToken?: string
+      calendars: Array<{
+        id: string
+        summary: string
+        description?: string
+        location?: string
+        timeZone: string
+        accessRole: string
+        backgroundColor: string
+        foregroundColor: string
+        primary?: boolean
+        hidden?: boolean
+        selected?: boolean
+      }>
+    }
+  }
+}
+
 export type GoogleCalendarResponse =
   | GoogleCalendarCreateResponse
   | GoogleCalendarListResponse
@@ -284,3 +370,7 @@ export type GoogleCalendarResponse =
   | GoogleCalendarQuickAddResponse
   | GoogleCalendarInviteResponse
   | GoogleCalendarUpdateResponse
+  | GoogleCalendarDeleteResponse
+  | GoogleCalendarMoveResponse
+  | GoogleCalendarInstancesResponse
+  | GoogleCalendarListCalendarsResponse

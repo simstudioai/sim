@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 import {
+  Button,
   Popover,
   PopoverAnchor,
   PopoverBackButton,
@@ -10,9 +11,109 @@ import {
   PopoverDivider,
   PopoverFolder,
   PopoverItem,
+  usePopoverContext,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { WORKFLOW_COLORS } from '@/lib/workflows/colors'
+
+const GRID_COLUMNS = 6
+
+/**
+ * Color grid with keyboard navigation support.
+ * Uses roving tabindex pattern for accessibility.
+ */
+function ColorGrid({
+  hexInput,
+  setHexInput,
+}: {
+  hexInput: string
+  setHexInput: (color: string) => void
+}) {
+  const { isInFolder } = usePopoverContext()
+  const [focusedIndex, setFocusedIndex] = useState(-1)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  useEffect(() => {
+    if (isInFolder && gridRef.current) {
+      const selectedIndex = WORKFLOW_COLORS.findIndex(
+        ({ color }) => color.toLowerCase() === hexInput.toLowerCase()
+      )
+      const initialIndex = selectedIndex >= 0 ? selectedIndex : 0
+      setFocusedIndex(initialIndex)
+      setTimeout(() => {
+        buttonRefs.current[initialIndex]?.focus()
+      }, 50)
+    }
+  }, [isInFolder, hexInput])
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent, index: number) => {
+      const totalItems = WORKFLOW_COLORS.length
+      let newIndex = index
+
+      switch (e.key) {
+        case 'ArrowRight':
+          e.preventDefault()
+          newIndex = index + 1 < totalItems ? index + 1 : index
+          break
+        case 'ArrowLeft':
+          e.preventDefault()
+          newIndex = index - 1 >= 0 ? index - 1 : index
+          break
+        case 'ArrowDown':
+          e.preventDefault()
+          newIndex = index + GRID_COLUMNS < totalItems ? index + GRID_COLUMNS : index
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          newIndex = index - GRID_COLUMNS >= 0 ? index - GRID_COLUMNS : index
+          break
+        case 'Enter':
+        case ' ':
+          e.preventDefault()
+          setHexInput(WORKFLOW_COLORS[index].color)
+          return
+        default:
+          return
+      }
+
+      if (newIndex !== index) {
+        setFocusedIndex(newIndex)
+        buttonRefs.current[newIndex]?.focus()
+      }
+    },
+    [setHexInput]
+  )
+
+  return (
+    <div ref={gridRef} className='grid grid-cols-6 gap-[4px]' role='grid'>
+      {WORKFLOW_COLORS.map(({ color, name }, index) => (
+        <button
+          key={color}
+          ref={(el) => {
+            buttonRefs.current[index] = el
+          }}
+          type='button'
+          role='gridcell'
+          title={name}
+          tabIndex={focusedIndex === index ? 0 : -1}
+          onClick={(e) => {
+            e.stopPropagation()
+            setHexInput(color)
+          }}
+          onKeyDown={(e) => handleKeyDown(e, index)}
+          onFocus={() => setFocusedIndex(index)}
+          className={cn(
+            'h-[20px] w-[20px] rounded-[4px] focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-1 focus:ring-offset-[#1b1b1b]',
+            hexInput.toLowerCase() === color.toLowerCase() && 'ring-1 ring-white'
+          )}
+          style={{ backgroundColor: color }}
+        />
+      ))}
+    </div>
+  )
+}
 
 /**
  * Validates a hex color string.
@@ -160,6 +261,20 @@ interface ContextMenuProps {
    * Set to true when creation is in progress or user lacks permissions
    */
   disableCreateFolder?: boolean
+  /**
+   * Callback when leave is clicked (for workspaces)
+   */
+  onLeave?: () => void
+  /**
+   * Whether to show the leave option (default: false)
+   * Set to true for workspaces the user can leave
+   */
+  showLeave?: boolean
+  /**
+   * Whether the leave option is disabled (default: false)
+   * Set to true when user cannot leave (e.g., last admin)
+   */
+  disableLeave?: boolean
 }
 
 /**
@@ -197,6 +312,9 @@ export function ContextMenu({
   disableDelete = false,
   disableCreate = false,
   disableCreateFolder = false,
+  onLeave,
+  showLeave = false,
+  disableLeave = false,
 }: ContextMenuProps) {
   const [hexInput, setHexInput] = useState(currentColor || '#ffffff')
 
@@ -331,25 +449,8 @@ export function ContextMenu({
             className={disableColorChange ? 'pointer-events-none opacity-50' : ''}
           >
             <div className='flex w-[140px] flex-col gap-[8px] p-[2px]'>
-              {/* Preset colors */}
-              <div className='grid grid-cols-6 gap-[4px]'>
-                {WORKFLOW_COLORS.map(({ color, name }) => (
-                  <button
-                    key={color}
-                    type='button'
-                    title={name}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setHexInput(color)
-                    }}
-                    className={cn(
-                      'h-[20px] w-[20px] rounded-[4px]',
-                      hexInput.toLowerCase() === color.toLowerCase() && 'ring-1 ring-white'
-                    )}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
+              {/* Preset colors with keyboard navigation */}
+              <ColorGrid hexInput={hexInput} setHexInput={setHexInput} />
 
               {/* Hex input */}
               <div className='flex items-center gap-[4px]'>
@@ -368,17 +469,17 @@ export function ContextMenu({
                   onClick={(e) => e.stopPropagation()}
                   className='h-[20px] min-w-0 flex-1 rounded-[4px] bg-[#363636] px-[6px] text-[11px] text-white uppercase caret-white focus:outline-none'
                 />
-                <button
-                  type='button'
+                <Button
+                  variant='tertiary'
                   disabled={!canSubmitHex}
                   onClick={(e) => {
                     e.stopPropagation()
                     handleHexSubmit()
                   }}
-                  className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--brand-tertiary-2)] text-white disabled:opacity-40'
+                  className='h-[20px] w-[20px] flex-shrink-0 p-0'
                 >
                   <Check className='h-[12px] w-[12px]' />
-                </button>
+                </Button>
               </div>
             </div>
           </PopoverFolder>
@@ -411,8 +512,20 @@ export function ContextMenu({
           </PopoverItem>
         )}
 
-        {/* Destructive action */}
+        {/* Destructive actions */}
         {(hasNavigationSection || hasEditSection || hasCopySection) && <PopoverDivider rootOnly />}
+        {showLeave && onLeave && (
+          <PopoverItem
+            rootOnly
+            disabled={disableLeave}
+            onClick={() => {
+              onLeave()
+              onClose()
+            }}
+          >
+            Leave
+          </PopoverItem>
+        )}
         <PopoverItem
           rootOnly
           disabled={disableDelete}

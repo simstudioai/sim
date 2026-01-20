@@ -11,8 +11,6 @@ import {
   ButtonGroupItem,
   Checkbox,
   Code,
-  Combobox,
-  type ComboboxOption,
   Input,
   Label,
   TagInput,
@@ -22,7 +20,7 @@ import {
 import { Skeleton } from '@/components/ui'
 import type { AgentAuthentication, AgentCapabilities } from '@/lib/a2a/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import {
   useA2AAgentByWorkflow,
@@ -83,8 +81,7 @@ interface A2aDeployProps {
   workflowNeedsRedeployment?: boolean
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
-  onAgentExistsChange?: (exists: boolean) => void
-  onPublishedChange?: (published: boolean) => void
+  /** Callback for when republish status changes - depends on local form state */
   onNeedsRepublishChange?: (needsRepublish: boolean) => void
   onDeployWorkflow?: () => Promise<void>
 }
@@ -99,8 +96,6 @@ export function A2aDeploy({
   workflowNeedsRedeployment,
   onSubmittingChange,
   onCanSaveChange,
-  onAgentExistsChange,
-  onPublishedChange,
   onNeedsRepublishChange,
   onDeployWorkflow,
 }: A2aDeployProps) {
@@ -236,14 +231,6 @@ export function A2aDeploy({
     }
   }, [existingAgent, workflowName, workflowDescription])
 
-  useEffect(() => {
-    onAgentExistsChange?.(!!existingAgent)
-  }, [existingAgent, onAgentExistsChange])
-
-  useEffect(() => {
-    onPublishedChange?.(existingAgent?.isPublished ?? false)
-  }, [existingAgent?.isPublished, onPublishedChange])
-
   const hasFormChanges = useMemo(() => {
     if (!existingAgent) return false
     const savedSchemes = existingAgent.authentication?.schemes || []
@@ -281,14 +268,6 @@ export function A2aDeploy({
   useEffect(() => {
     onNeedsRepublishChange?.(!!needsRepublish)
   }, [needsRepublish, onNeedsRepublishChange])
-
-  const authSchemeOptions: ComboboxOption[] = useMemo(
-    () => [
-      { label: 'API Key', value: 'apiKey' },
-      { label: 'None (Public)', value: 'none' },
-    ],
-    []
-  )
 
   const canSave = name.trim().length > 0 && description.trim().length > 0
   useEffect(() => {
@@ -769,17 +748,18 @@ console.log(data);`
         />
       </div>
 
-      {/* Authentication */}
+      {/* Access */}
       <div>
         <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-          Authentication
+          Access
         </Label>
-        <Combobox
-          options={authSchemeOptions}
+        <ButtonGroup
           value={authScheme}
-          onChange={(v) => setAuthScheme(v as AuthScheme)}
-          placeholder='Select authentication...'
-        />
+          onValueChange={(value) => setAuthScheme(value as AuthScheme)}
+        >
+          <ButtonGroupItem value='apiKey'>API Key</ButtonGroupItem>
+          <ButtonGroupItem value='none'>Public</ButtonGroupItem>
+        </ButtonGroup>
         <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
           {authScheme === 'none'
             ? 'Anyone can call this agent without authentication'

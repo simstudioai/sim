@@ -115,6 +115,7 @@ export function ConditionInput({
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   const containerRef = useRef<HTMLDivElement>(null)
+  const inputRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map())
 
   /**
    * Determines if a reference string should be highlighted in the editor.
@@ -728,6 +729,20 @@ export function ConditionInput({
     })
   }, [conditionalBlocks.length])
 
+  // Capture textarea refs from Editor components (condition mode)
+  useEffect(() => {
+    if (!isRouterMode && containerRef.current) {
+      conditionalBlocks.forEach((block) => {
+        const textarea = containerRef.current?.querySelector(
+          `[data-block-id="${block.id}"] textarea`
+        ) as HTMLTextAreaElement | null
+        if (textarea) {
+          inputRefs.current.set(block.id, textarea)
+        }
+      })
+    }
+  }, [conditionalBlocks, isRouterMode])
+
   // Show loading or empty state if not ready or no blocks
   if (!isReady || conditionalBlocks.length === 0) {
     return (
@@ -842,6 +857,9 @@ export function ConditionInput({
               onDrop={(e) => handleDrop(block.id, e)}
             >
               <Textarea
+                ref={(el) => {
+                  if (el) inputRefs.current.set(block.id, el)
+                }}
                 data-router-block-id={block.id}
                 value={block.value}
                 onChange={(e) => {
@@ -865,6 +883,15 @@ export function ConditionInput({
                               cursorPosition: pos,
                             }
                           : b
+                      )
+                    )
+                  }
+                }}
+                onFocus={() => {
+                  if (!isPreview && !disabled && block.value.trim() === '') {
+                    setConditionalBlocks((blocks) =>
+                      blocks.map((b) =>
+                        b.id === block.id ? { ...b, showTags: true, cursorPosition: 0 } : b
                       )
                     )
                   }
@@ -929,6 +956,11 @@ export function ConditionInput({
                       )
                     )
                   }}
+                  inputRef={
+                    {
+                      current: inputRefs.current.get(block.id) || null,
+                    } as React.RefObject<HTMLTextAreaElement>
+                  }
                 />
               )}
             </div>
@@ -1002,6 +1034,15 @@ export function ConditionInput({
                                 b.id === block.id
                                   ? { ...b, showTags: false, showEnvVars: false }
                                   : b
+                              )
+                            )
+                          }
+                        }}
+                        onFocus={() => {
+                          if (!isPreview && !disabled && block.value.trim() === '') {
+                            setConditionalBlocks((blocks) =>
+                              blocks.map((b) =>
+                                b.id === block.id ? { ...b, showTags: true, cursorPosition: 0 } : b
                               )
                             )
                           }
@@ -1113,6 +1154,11 @@ export function ConditionInput({
                               )
                             )
                           }}
+                          inputRef={
+                            {
+                              current: inputRefs.current.get(block.id) || null,
+                            } as React.RefObject<HTMLTextAreaElement>
+                          }
                         />
                       )}
                     </div>

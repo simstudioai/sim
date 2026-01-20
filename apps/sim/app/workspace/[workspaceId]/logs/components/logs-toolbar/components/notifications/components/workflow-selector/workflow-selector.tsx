@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { X } from 'lucide-react'
 import { Badge, Combobox, type ComboboxOption } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
+import { useWorkflows } from '@/hooks/queries/workflows'
 
 interface WorkflowSelectorProps {
   workspaceId: string
@@ -25,26 +26,9 @@ export function WorkflowSelector({
   onChange,
   error,
 }: WorkflowSelectorProps) {
-  const [workflows, setWorkflows] = useState<Array<{ id: string; name: string }>>([])
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setIsLoading(true)
-        const response = await fetch(`/api/workflows?workspaceId=${workspaceId}`)
-        if (response.ok) {
-          const data = await response.json()
-          setWorkflows(data.data || [])
-        }
-      } catch {
-        setWorkflows([])
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    load()
-  }, [workspaceId])
+  const { data: workflows = [], isPending: isLoading } = useWorkflows(workspaceId, {
+    syncRegistry: false,
+  })
 
   const options: ComboboxOption[] = useMemo(() => {
     return workflows.map((w) => ({

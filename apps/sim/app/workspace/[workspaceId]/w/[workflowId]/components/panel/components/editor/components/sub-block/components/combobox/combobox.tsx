@@ -1,17 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isEqual } from 'lodash'
 import { useReactFlow } from 'reactflow'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'
+import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { getProviderFromModel } from '@/providers/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
  * Constants for ComboBox component behavior
@@ -68,7 +72,7 @@ interface ComboBoxProps {
   dependsOn?: SubBlockConfig['dependsOn']
 }
 
-export function ComboBox({
+export const ComboBox = memo(function ComboBox({
   options,
   defaultValue,
   blockId,
@@ -91,16 +95,26 @@ export function ComboBox({
   // Dependency tracking for fetchOptions
   const dependsOnFields = useMemo(() => getDependsOnFields(dependsOn), [dependsOn])
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const blockState = useWorkflowStore((state) => state.blocks[blockId])
+  const blockConfig = blockState?.type ? getBlock(blockState.type) : null
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks]
+  )
+  const canonicalModeOverrides = blockState?.data?.canonicalModes
   const dependencyValues = useSubBlockStore(
     useCallback(
       (state) => {
         if (dependsOnFields.length === 0 || !activeWorkflowId) return []
         const workflowValues = state.workflowValues[activeWorkflowId] || {}
         const blockValues = workflowValues[blockId] || {}
-        return dependsOnFields.map((depKey) => blockValues[depKey] ?? null)
+        return dependsOnFields.map((depKey) =>
+          resolveDependencyValue(depKey, blockValues, canonicalIndex, canonicalModeOverrides)
+        )
       },
-      [dependsOnFields, activeWorkflowId, blockId]
-    )
+      [dependsOnFields, activeWorkflowId, blockId, canonicalIndex, canonicalModeOverrides]
+    ),
+    isEqual
   )
 
   // State management
@@ -269,34 +283,17 @@ export function ComboBox({
     setStoreInitialized(true)
   }, [])
 
-  // Check if current value is valid (exists in allowed options)
-  const isValueValid = useMemo(() => {
-    if (value === null || value === undefined) return false
-    return evaluatedOptions.some((opt) => getOptionValue(opt) === value)
-  }, [value, evaluatedOptions, getOptionValue])
-
   // Set default value once store is initialized and permissions are loaded
-  // Also reset if current value becomes invalid (e.g., provider was blocked)
   useEffect(() => {
     if (isPermissionLoading) return
     if (!storeInitialized) return
     if (defaultOptionValue === undefined) return
 
-    const needsDefault = value === null || value === undefined
-    const needsReset = subBlockId === 'model' && value && !isValueValid
-
-    if (needsDefault || needsReset) {
+    // Only set default when no value exists (initial block add)
+    if (value === null || value === undefined) {
       setStoreValue(defaultOptionValue)
     }
-  }, [
-    storeInitialized,
-    value,
-    defaultOptionValue,
-    setStoreValue,
-    isPermissionLoading,
-    subBlockId,
-    isValueValid,
-  ])
+  }, [storeInitialized, value, defaultOptionValue, setStoreValue, isPermissionLoading])
 
   // Clear fetched options and hydrated option when dependencies change
   useEffect(() => {
@@ -426,6 +423,18 @@ export function ComboBox({
   )
 
   /**
+   * Handles combobox open state changes to trigger option fetching
+   */
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        void fetchOptionsIfNeeded()
+      }
+    },
+    [fetchOptionsIfNeeded]
+  )
+
+  /**
    * Gets the icon for the currently selected option
    */
   const selectedOption = useMemo(() => {
@@ -454,6 +463,75 @@ export function ComboBox({
     )
   }, [inputValue, accessiblePrefixes, selectedOption, selectedOptionIcon])
 
+  const ctrlOnChangeRef = useRef<
+    ((e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => void) | null
+  >(null)
+  const onDropRef = useRef<
+    ((e: React.DragEvent<HTMLTextAreaElement | HTMLInputElement>) => void) | null
+  >(null)
+  const onDragOverRef = useRef<
+    ((e: React.DragEvent<HTMLTextAreaElement | HTMLInputElement>) => void) | null
+  >(null)
+  const inputRefFromController = useRef<HTMLInputElement | null>(null)
+
+  const comboboxOnChange = useCallback(
+    (newValue: string) => {
+      const matchedComboboxOption = comboboxOptions.find((option) => option.value === newValue)
+      if (matchedComboboxOption) {
+        setInputValue(matchedComboboxOption.label)
+      } else {
+        setInputValue(newValue)
+      }
+
+      // Use controller's handler so env vars, tags, and DnD still work
+      const syntheticEvent = {
+        target: { value: newValue, selectionStart: newValue.length },
+      } as React.ChangeEvent<HTMLInputElement>
+      ctrlOnChangeRef.current?.(syntheticEvent)
+    },
+    [comboboxOptions, setInputValue]
+  )
+
+  const comboboxInputProps = useMemo(
+    () => ({
+      onDrop: ((e: React.DragEvent<HTMLInputElement>) => {
+        onDropRef.current?.(e)
+      }) as (e: React.DragEvent<HTMLInputElement>) => void,
+      onDragOver: ((e: React.DragEvent<HTMLInputElement>) => {
+        onDragOverRef.current?.(e)
+      }) as (e: React.DragEvent<HTMLInputElement>) => void,
+      onWheel: handleWheel,
+      autoComplete: 'off' as const,
+    }),
+    [handleWheel]
+  )
+
+  // Stable onChange for SubBlockInputController
+  const controllerOnChange = useCallback(
+    (newValue: string) => {
+      if (isPreview) {
+        return
+      }
+
+      const matchedOption = evaluatedOptions.find((option) => {
+        if (typeof option === 'string') {
+          return option === newValue
+        }
+        return option.id === newValue
+      })
+
+      // If a matching option is found, store its ID; otherwise store the raw value
+      // (allows expressions like <block.output> to be entered directly)
+      const nextValue = matchedOption
+        ? typeof matchedOption === 'string'
+          ? matchedOption
+          : matchedOption.id
+        : newValue
+      setStoreValue(nextValue)
+    },
+    [isPreview, evaluatedOptions, setStoreValue]
+  )
+
   return (
     <div className='relative w-full'>
       <SubBlockInputController
@@ -461,76 +539,43 @@ export function ComboBox({
         subBlockId={subBlockId}
         config={config}
         value={propValue}
-        onChange={(newValue) => {
-          if (isPreview) {
-            return
-          }
-
-          const matchedOption = evaluatedOptions.find((option) => {
-            if (typeof option === 'string') {
-              return option === newValue
-            }
-            return option.id === newValue
-          })
-
-          // If a matching option is found, store its ID; otherwise store the raw value
-          // (allows expressions like <block.output> to be entered directly)
-          const nextValue = matchedOption
-            ? typeof matchedOption === 'string'
-              ? matchedOption
-              : matchedOption.id
-            : newValue
-          setStoreValue(nextValue)
-        }}
+        onChange={controllerOnChange}
         isPreview={isPreview}
         disabled={disabled}
         previewValue={previewValue}
       >
-        {({ ref, onChange: ctrlOnChange, onDrop, onDragOver }) => (
-          <Combobox
-            options={comboboxOptions}
-            value={inputValue}
-            selectedValue={value ?? ''}
-            onChange={(newValue) => {
-              const matchedComboboxOption = comboboxOptions.find(
-                (option) => option.value === newValue
-              )
-              if (matchedComboboxOption) {
-                setInputValue(matchedComboboxOption.label)
-              } else {
-                setInputValue(newValue)
-              }
+        {({ ref, onChange: ctrlOnChange, onDrop, onDragOver }) => {
+          // Update refs with latest handlers from render prop
+          ctrlOnChangeRef.current = ctrlOnChange
+          onDropRef.current = onDrop
+          onDragOverRef.current = onDragOver
+          // Store the input ref for passing to Combobox
+          if (ref.current) {
+            inputRefFromController.current = ref.current as HTMLInputElement
+          }
 
-              // Use controller's handler so env vars, tags, and DnD still work
-              const syntheticEvent = {
-                target: { value: newValue, selectionStart: newValue.length },
-              } as React.ChangeEvent<HTMLInputElement>
-              ctrlOnChange(syntheticEvent)
-            }}
-            placeholder={placeholder}
-            disabled={disabled}
-            editable
-            overlayContent={overlayContent}
-            inputRef={ref as React.RefObject<HTMLInputElement>}
-            filterOptions
-            searchable={config.searchable}
-            className={cn('allow-scroll overflow-x-auto', selectedOptionIcon && 'pl-[28px]')}
-            inputProps={{
-              onDrop: onDrop as (e: React.DragEvent<HTMLInputElement>) => void,
-              onDragOver: onDragOver as (e: React.DragEvent<HTMLInputElement>) => void,
-              onWheel: handleWheel,
-              autoComplete: 'off',
-            }}
-            isLoading={isLoadingOptions}
-            error={fetchError}
-            onOpenChange={(open) => {
-              if (open) {
-                void fetchOptionsIfNeeded()
-              }
-            }}
-          />
-        )}
+          return (
+            <Combobox
+              options={comboboxOptions}
+              value={inputValue}
+              selectedValue={value ?? ''}
+              onChange={comboboxOnChange}
+              placeholder={placeholder}
+              disabled={disabled}
+              editable
+              overlayContent={overlayContent}
+              inputRef={ref as React.RefObject<HTMLInputElement>}
+              filterOptions
+              searchable={config.searchable}
+              className={cn('allow-scroll overflow-x-auto', selectedOptionIcon && 'pl-[28px]')}
+              inputProps={comboboxInputProps}
+              isLoading={isLoadingOptions}
+              error={fetchError}
+              onOpenChange={handleOpenChange}
+            />
+          )
+        }}
       </SubBlockInputController>
     </div>
   )
-}
+})

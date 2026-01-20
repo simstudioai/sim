@@ -14,15 +14,18 @@ export const a2aGetPushNotificationTool: ToolConfig<
     agentUrl: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The A2A agent endpoint URL',
     },
     taskId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Task ID to get notification config for',
     },
     apiKey: {
       type: 'string',
+      visibility: 'user-only',
       description: 'API key for authentication',
     },
   },

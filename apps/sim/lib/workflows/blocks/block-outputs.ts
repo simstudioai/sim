@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import {
   classifyStartBlockType,
   StartBlockPath,
@@ -62,8 +62,11 @@ function evaluateOutputCondition(
     let andMatches: boolean
 
     if (Array.isArray(condition.and.value)) {
-      andMatches =
+      const primitiveMatch =
         isConditionPrimitive(andFieldValue) && condition.and.value.includes(andFieldValue)
+      const undefinedMatch = andFieldValue === undefined && condition.and.value.includes(undefined)
+      const nullMatch = andFieldValue === null && condition.and.value.includes(null)
+      andMatches = primitiveMatch || undefinedMatch || nullMatch
     } else {
       andMatches = andFieldValue === condition.and.value
     }
@@ -95,7 +98,9 @@ function filterOutputsByCondition(
     }
 
     const condition = value.condition as OutputCondition | undefined
-    if (!condition || evaluateOutputCondition(condition, subBlocks)) {
+    const passes = !condition || evaluateOutputCondition(condition, subBlocks)
+
+    if (passes) {
       const { condition: _, ...rest } = value
       filtered[key] = rest
     }
@@ -565,11 +570,32 @@ export function getToolOutputs(blockConfig: BlockConfig, operation: string): Rec
  *
  * @param blockConfig - The block configuration containing tools config
  * @param operation - The selected operation for the tool
+ * @param subBlocks - Optional subBlock values for condition evaluation
  * @returns Array of output paths for the tool, or empty array on error
  */
-export function getToolOutputPaths(blockConfig: BlockConfig, operation: string): string[] {
+export function getToolOutputPaths(
+  blockConfig: BlockConfig,
+  operation: string,
+  subBlocks?: Record<string, SubBlockWithValue>
+): string[] {
   const outputs = getToolOutputs(blockConfig, operation)
+
   if (!outputs || Object.keys(outputs).length === 0) return []
+
+  if (subBlocks && blockConfig.outputs) {
+    const filteredBlockOutputs = filterOutputsByCondition(blockConfig.outputs, subBlocks)
+    const allowedKeys = new Set(Object.keys(filteredBlockOutputs))
+
+    const filteredOutputs: Record<string, any> = {}
+    for (const [key, value] of Object.entries(outputs)) {
+      if (allowedKeys.has(key)) {
+        filteredOutputs[key] = value
+      }
+    }
+
+    return generateOutputPaths(filteredOutputs)
+  }
+
   return generateOutputPaths(outputs)
 }
 

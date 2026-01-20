@@ -420,7 +420,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent>
+      <ModalContent size='md'>
         <ModalHeader>Help &amp; Support</ModalHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>

@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { Plus } from 'lucide-react'
 import { Trash } from '@/components/emcn/icons/trash'
 import 'prismjs/components/prism-json'
@@ -81,6 +81,8 @@ const createDefaultField = (): Field => ({
  */
 const validateFieldName = (name: string): string => name.replace(/[\x00-\x1F"\\]/g, '').trim()
 
+const jsonHighlight = (code: string): string => highlight(code, languages.json, 'json')
+
 export function FieldFormat({
   blockId,
   subBlockId,
@@ -138,17 +140,50 @@ export function FieldFormat({
     setStoreValue(fields.filter((field) => field.id !== id))
   }
 
-  /**
-   * Updates a specific field property
-   */
-  const updateField = (id: string, field: keyof Field, value: any) => {
-    if (isReadOnly) return
+  const storeValueRef = useRef(storeValue)
+  storeValueRef.current = storeValue
 
-    const updatedValue =
-      field === 'name' && typeof value === 'string' ? validateFieldName(value) : value
+  const isReadOnlyRef = useRef(isReadOnly)
+  isReadOnlyRef.current = isReadOnly
 
-    setStoreValue(fields.map((f) => (f.id === id ? { ...f, [field]: updatedValue } : f)))
-  }
+  const setStoreValueRef = useRef(setStoreValue)
+  setStoreValueRef.current = setStoreValue
+
+  const updateField = useCallback(
+    (id: string, fieldKey: keyof Field, fieldValue: Field[keyof Field]) => {
+      if (isReadOnlyRef.current) return
+
+      const updatedValue =
+        fieldKey === 'name' && typeof fieldValue === 'string'
+          ? validateFieldName(fieldValue)
+          : fieldValue
+
+      const currentStoreValue = storeValueRef.current
+      const currentFields: Field[] =
+        Array.isArray(currentStoreValue) && currentStoreValue.length > 0
+          ? currentStoreValue
+          : [createDefaultField()]
+
+      setStoreValueRef.current(
+        currentFields.map((f) => (f.id === id ? { ...f, [fieldKey]: updatedValue } : f))
+      )
+    },
+    []
+  )
+
+  const editorValueChangeHandlersRef = useRef<Record<string, (newValue: string) => void>>({})
+
+  const getEditorValueChangeHandler = useCallback(
+    (fieldId: string): ((newValue: string) => void) => {
+      if (!editorValueChangeHandlersRef.current[fieldId]) {
+        editorValueChangeHandlersRef.current[fieldId] = (newValue: string) => {
+          updateField(fieldId, 'value', newValue)
+        }
+      }
+      return editorValueChangeHandlersRef.current[fieldId]
+    },
+    [updateField]
+  )
 
   /**
    * Toggles the collapsed state of a field
@@ -211,6 +246,7 @@ export function FieldFormat({
           onKeyDown={handlers.onKeyDown}
           onDrop={handlers.onDrop}
           onDragOver={handlers.onDragOver}
+          onFocus={handlers.onFocus}
           onScroll={(e) => syncNameOverlayScroll(field.id, e.currentTarget.scrollLeft)}
           onPaste={() =>
             setTimeout(() => {
@@ -221,15 +257,14 @@ export function FieldFormat({
           placeholder={placeholder}
           disabled={isReadOnly}
           autoComplete='off'
-          className={cn('allow-scroll w-full overflow-auto', inputClassName)}
-          style={{ overflowX: 'auto' }}
+          className={cn('allow-scroll w-full overflow-x-auto overflow-y-hidden', inputClassName)}
         />
         <div
           ref={(el) => {
             if (el) nameOverlayRefs.current[field.id] = el
           }}
           className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
-          style={{ overflowX: 'auto' }}
+          style={{ scrollbarWidth: 'none' }}
         >
           <div
             className='w-full whitespace-pre'
@@ -358,12 +393,8 @@ export function FieldFormat({
             </Code.Placeholder>
             <Editor
               value={fieldValue}
-              onValueChange={(newValue) => {
-                if (!isReadOnly) {
-                  updateField(field.id, 'value', newValue)
-                }
-              }}
-              highlight={(code) => highlight(code, languages.json, 'json')}
+              onValueChange={getEditorValueChangeHandler(field.id)}
+              highlight={jsonHighlight}
               disabled={isReadOnly}
               {...getCodeEditorProps({ disabled: isReadOnly })}
             />
@@ -397,12 +428,8 @@ export function FieldFormat({
             </Code.Placeholder>
             <Editor
               value={fieldValue}
-              onValueChange={(newValue) => {
-                if (!isReadOnly) {
-                  updateField(field.id, 'value', newValue)
-                }
-              }}
-              highlight={(code) => highlight(code, languages.json, 'json')}
+              onValueChange={getEditorValueChangeHandler(field.id)}
+              highlight={jsonHighlight}
               disabled={isReadOnly}
               {...getCodeEditorProps({ disabled: isReadOnly })}
             />
@@ -438,12 +465,8 @@ export function FieldFormat({
             </Code.Placeholder>
             <Editor
               value={fieldValue}
-              onValueChange={(newValue) => {
-                if (!isReadOnly) {
-                  updateField(field.id, 'value', newValue)
-                }
-              }}
-              highlight={(code) => highlight(code, languages.json, 'json')}
+              onValueChange={getEditorValueChangeHandler(field.id)}
+              highlight={jsonHighlight}
               disabled={isReadOnly}
               {...getCodeEditorProps({ disabled: isReadOnly })}
             />
@@ -464,6 +487,7 @@ export function FieldFormat({
           onKeyDown={handlers.onKeyDown}
           onDrop={handlers.onDrop}
           onDragOver={handlers.onDragOver}
+          onFocus={handlers.onFocus}
           onScroll={(e) => syncOverlayScroll(field.id, e.currentTarget.scrollLeft)}
           onPaste={() =>
             setTimeout(() => {
@@ -474,15 +498,14 @@ export function FieldFormat({
           placeholder={valuePlaceholder}
           disabled={isReadOnly}
           autoComplete='off'
-          className={cn('allow-scroll w-full overflow-auto', inputClassName)}
-          style={{ overflowX: 'auto' }}
+          className={cn('allow-scroll w-full overflow-x-auto overflow-y-hidden', inputClassName)}
         />
         <div
           ref={(el) => {
             if (el) overlayRefs.current[field.id] = el
           }}
           className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
-          style={{ overflowX: 'auto' }}
+          style={{ scrollbarWidth: 'none' }}
         >
           <div
             className='w-full whitespace-pre'

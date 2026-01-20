@@ -3,15 +3,24 @@
  *
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  type CapturedFolderValues,
   createMockRequest,
   type MockUser,
   mockAuth,
-  mockLogger,
+  mockConsoleLogger,
   setupCommonApiMocks,
-} from '@/app/api/__test-utils__/utils'
+} from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+/** Type for captured folder values in tests */
+interface CapturedFolderValues {
+  name?: string
+  color?: string
+  parentId?: string | null
+  isExpanded?: boolean
+  sortOrder?: number
+  updatedAt?: Date
+}
 
 interface FolderDbMockOptions {
   folderLookupResult?: any
@@ -21,6 +30,8 @@ interface FolderDbMockOptions {
 }
 
 describe('Individual Folder API Route', () => {
+  let mockLogger: ReturnType<typeof mockConsoleLogger>
+
   const TEST_USER: MockUser = {
     id: 'user-123',
     email: 'test@example.com',
@@ -39,7 +50,8 @@ describe('Individual Folder API Route', () => {
     updatedAt: new Date('2024-01-01T00:00:00Z'),
   }
 
-  const { mockAuthenticatedUser, mockUnauthenticated } = mockAuth(TEST_USER)
+  let mockAuthenticatedUser: (user?: MockUser) => void
+  let mockUnauthenticated: () => void
   const mockGetUserEntityPermissions = vi.fn()
 
   function createFolderDbMock(options: FolderDbMockOptions = {}) {
@@ -110,6 +122,10 @@ describe('Individual Folder API Route', () => {
     vi.resetModules()
     vi.clearAllMocks()
     setupCommonApiMocks()
+    mockLogger = mockConsoleLogger()
+    const auth = mockAuth(TEST_USER)
+    mockAuthenticatedUser = auth.mockAuthenticatedUser
+    mockUnauthenticated = auth.mockUnauthenticated
 
     mockGetUserEntityPermissions.mockResolvedValue('admin')
 

@@ -1,12 +1,112 @@
+import { mockAuth, mockCryptoUuid, mockUuid, setupCommonApiMocks } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setupFileApiMocks } from '@/app/api/__test-utils__/utils'
 
 /**
  * Tests for file presigned API route
  *
  * @vitest-environment node
  */
+
+function setupFileApiMocks(
+  options: {
+    authenticated?: boolean
+    storageProvider?: 's3' | 'blob' | 'local'
+    cloudEnabled?: boolean
+  } = {}
+) {
+  const { authenticated = true, storageProvider = 's3', cloudEnabled = true } = options
+
+  setupCommonApiMocks()
+  mockUuid()
+  mockCryptoUuid()
+
+  const authMocks = mockAuth()
+  if (authenticated) {
+    authMocks.setAuthenticated()
+  } else {
+    authMocks.setUnauthenticated()
+  }
+
+  vi.doMock('@/lib/auth/hybrid', () => ({
+    checkHybridAuth: vi.fn().mockResolvedValue({
+      success: authenticated,
+      userId: authenticated ? 'test-user-id' : undefined,
+      error: authenticated ? undefined : 'Unauthorized',
+    }),
+  }))
+
+  vi.doMock('@/app/api/files/authorization', () => ({
+    verifyFileAccess: vi.fn().mockResolvedValue(true),
+    verifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
+  }))
+
+  const useBlobStorage = storageProvider === 'blob' && cloudEnabled
+  const useS3Storage = storageProvider === 's3' && cloudEnabled
+
+  vi.doMock('@/lib/uploads/config', () => ({
+    USE_BLOB_STORAGE: useBlobStorage,
+    USE_S3_STORAGE: useS3Storage,
+    UPLOAD_DIR: '/uploads',
+    getStorageConfig: vi.fn().mockReturnValue(
+      useBlobStorage
+        ? {
+            accountName: 'testaccount',
+            accountKey: 'testkey',
+            connectionString: 'testconnection',
+            containerName: 'testcontainer',
+          }
+        : {
+            bucket: 'test-bucket',
+            region: 'us-east-1',
+          }
+    ),
+    isUsingCloudStorage: vi.fn().mockReturnValue(cloudEnabled),
+    getStorageProvider: vi
+      .fn()
+      .mockReturnValue(
+        storageProvider === 'blob' ? 'Azure Blob' : storageProvider === 's3' ? 'S3' : 'Local'
+      ),
+  }))
+
+  const mockGeneratePresignedUploadUrl = vi.fn().mockImplementation(async (opts) => {
+    const timestamp = Date.now()
+    const safeFileName = opts.fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
+    const key = `${opts.context}/${timestamp}-ik3a6w4-${safeFileName}`
+    return {
+      url: 'https://example.com/presigned-url',
+      key,
+    }
+  })
+
+  vi.doMock('@/lib/uploads/core/storage-service', () => ({
+    hasCloudStorage: vi.fn().mockReturnValue(cloudEnabled),
+    generatePresignedUploadUrl: mockGeneratePresignedUploadUrl,
+    generatePresignedDownloadUrl: vi.fn().mockResolvedValue('https://example.com/presigned-url'),
+  }))
+
+  vi.doMock('@/lib/uploads/utils/validation', () => ({
+    validateFileType: vi.fn().mockReturnValue(null),
+  }))
+
+  vi.doMock('@/lib/uploads', () => ({
+    CopilotFiles: {
+      generateCopilotUploadUrl: vi.fn().mockResolvedValue({
+        url: 'https://example.com/presigned-url',
+        key: 'copilot/test-key.txt',
+      }),
+      isImageFileType: vi.fn().mockReturnValue(true),
+    },
+    getStorageProvider: vi
+      .fn()
+      .mockReturnValue(
+        storageProvider === 'blob' ? 'Azure Blob' : storageProvider === 's3' ? 'S3' : 'Local'
+      ),
+    isUsingCloudStorage: vi.fn().mockReturnValue(cloudEnabled),
+  }))
+
+  return { auth: authMocks }
+}
 
 describe('/api/files/presigned', () => {
   beforeEach(() => {
@@ -210,7 +310,7 @@ describe('/api/files/presigned', () => {
       const data = await response.json()
 
       expect(response.status).toBe(200)
-      expect(data.fileInfo.key).toMatch(/^kb\/.*knowledge-doc\.pdf$/)
+      expect(data.fileInfo.key).toMatch(/^knowledge-base\/.*knowledge-doc\.pdf$/)
       expect(data.directUploadSupported).toBe(true)
     })
 
