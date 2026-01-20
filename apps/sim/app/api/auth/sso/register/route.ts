@@ -138,26 +138,23 @@ export async function POST(request: NextRequest) {
         pkce: pkce ?? true,
       }
 
-      const hasExplicitEndpoints = authorizationEndpoint && tokenEndpoint && jwksEndpoint
+      oidcConfig.authorizationEndpoint = authorizationEndpoint
+      oidcConfig.tokenEndpoint = tokenEndpoint
+      oidcConfig.userInfoEndpoint = userInfoEndpoint
+      oidcConfig.jwksEndpoint = jwksEndpoint
 
-      if (hasExplicitEndpoints) {
-        oidcConfig.authorizationEndpoint = authorizationEndpoint
-        oidcConfig.tokenEndpoint = tokenEndpoint
-        oidcConfig.userInfoEndpoint = userInfoEndpoint
-        oidcConfig.jwksEndpoint = jwksEndpoint
+      const needsDiscovery =
+        !oidcConfig.authorizationEndpoint || !oidcConfig.tokenEndpoint || !oidcConfig.jwksEndpoint
 
-        logger.info('Using explicitly provided OIDC endpoints', {
-          providerId,
-          issuer,
-          authorizationEndpoint: oidcConfig.authorizationEndpoint,
-          tokenEndpoint: oidcConfig.tokenEndpoint,
-          userInfoEndpoint: oidcConfig.userInfoEndpoint,
-          jwksEndpoint: oidcConfig.jwksEndpoint,
-        })
-      } else {
+      if (needsDiscovery) {
         const discoveryUrl = `${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`
         try {
-          logger.info('Fetching OIDC discovery document', { discoveryUrl })
+          logger.info('Fetching OIDC discovery document for missing endpoints', {
+            discoveryUrl,
+            hasAuthEndpoint: !!oidcConfig.authorizationEndpoint,
+            hasTokenEndpoint: !!oidcConfig.tokenEndpoint,
+            hasJwksEndpoint: !!oidcConfig.jwksEndpoint,
+          })
 
           const discoveryResponse = await fetch(discoveryUrl, {
             headers: { Accept: 'application/json' },
@@ -170,7 +167,7 @@ export async function POST(request: NextRequest) {
             })
             return NextResponse.json(
               {
-                error: `Failed to fetch OIDC discovery document from ${discoveryUrl}. Status: ${discoveryResponse.status}`,
+                error: `Failed to fetch OIDC discovery document from ${discoveryUrl}. Status: ${discoveryResponse.status}. Provide all endpoints explicitly or verify the issuer URL.`,
               },
               { status: 400 }
             )
@@ -178,31 +175,13 @@ export async function POST(request: NextRequest) {
 
           const discovery = await discoveryResponse.json()
 
-          if (
-            !discovery.authorization_endpoint ||
-            !discovery.token_endpoint ||
-            !discovery.jwks_uri
-          ) {
-            logger.error('OIDC discovery document missing required endpoints', {
-              hasAuthEndpoint: !!discovery.authorization_endpoint,
-              hasTokenEndpoint: !!discovery.token_endpoint,
-              hasJwksUri: !!discovery.jwks_uri,
-            })
-            return NextResponse.json(
-              {
-                error:
-                  'OIDC discovery document is missing required endpoints (authorization_endpoint, token_endpoint, jwks_uri)',
-              },
-              { status: 400 }
-            )
-          }
+          oidcConfig.authorizationEndpoint =
+            oidcConfig.authorizationEndpoint || discovery.authorization_endpoint
+          oidcConfig.tokenEndpoint = oidcConfig.tokenEndpoint || discovery.token_endpoint
+          oidcConfig.userInfoEndpoint = oidcConfig.userInfoEndpoint || discovery.userinfo_endpoint
+          oidcConfig.jwksEndpoint = oidcConfig.jwksEndpoint || discovery.jwks_uri
 
-          oidcConfig.authorizationEndpoint = discovery.authorization_endpoint
-          oidcConfig.tokenEndpoint = discovery.token_endpoint
-          oidcConfig.userInfoEndpoint = discovery.userinfo_endpoint
-          oidcConfig.jwksEndpoint = discovery.jwks_uri
-
-          logger.info('Successfully fetched OIDC endpoints from discovery', {
+          logger.info('Merged OIDC endpoints (user-provided + discovery)', {
             providerId,
             issuer,
             authorizationEndpoint: oidcConfig.authorizationEndpoint,
@@ -217,11 +196,44 @@ export async function POST(request: NextRequest) {
           })
           return NextResponse.json(
             {
-              error: `Failed to fetch OIDC discovery document from ${discoveryUrl}. Please verify the issuer URL is correct.`,
+              error: `Failed to fetch OIDC discovery document from ${discoveryUrl}. Please verify the issuer URL is correct or provide all endpoints explicitly.`,
             },
             { status: 400 }
           )
         }
+      } else {
+        logger.info('Using explicitly provided OIDC endpoints (all present)', {
+          providerId,
+          issuer,
+          authorizationEndpoint: oidcConfig.authorizationEndpoint,
+          tokenEndpoint: oidcConfig.tokenEndpoint,
+          userInfoEndpoint: oidcConfig.userInfoEndpoint,
+          jwksEndpoint: oidcConfig.jwksEndpoint,
+        })
+      }
+
+      if (
+        !oidcConfig.authorizationEndpoint ||
+        !oidcConfig.tokenEndpoint ||
+        !oidcConfig.jwksEndpoint
+      ) {
+        const missing: string[] = []
+        if (!oidcConfig.authorizationEndpoint) missing.push('authorizationEndpoint')
+        if (!oidcConfig.tokenEndpoint) missing.push('tokenEndpoint')
+        if (!oidcConfig.jwksEndpoint) missing.push('jwksEndpoint')
+
+        logger.error('Missing required OIDC endpoints after discovery merge', {
+          missing,
+          authorizationEndpoint: oidcConfig.authorizationEndpoint,
+          tokenEndpoint: oidcConfig.tokenEndpoint,
+          jwksEndpoint: oidcConfig.jwksEndpoint,
+        })
+        return NextResponse.json(
+          {
+            error: `Missing required OIDC endpoints: ${missing.join(', ')}. Please provide these explicitly or verify the issuer supports OIDC discovery.`,
+          },
+          { status: 400 }
+        )
       }
 
       providerConfig.oidcConfig = oidcConfig

@@ -391,16 +391,21 @@ async function registerSSOProvider(): Promise<boolean> {
     }
 
     if (ssoConfig.providerType === 'oidc' && ssoConfig.oidcConfig) {
-      const hasAllEndpoints =
-        ssoConfig.oidcConfig.authorizationEndpoint &&
-        ssoConfig.oidcConfig.tokenEndpoint &&
-        ssoConfig.oidcConfig.jwksEndpoint
+      const needsDiscovery =
+        !ssoConfig.oidcConfig.authorizationEndpoint ||
+        !ssoConfig.oidcConfig.tokenEndpoint ||
+        !ssoConfig.oidcConfig.jwksEndpoint
 
-      if (!hasAllEndpoints) {
+      if (needsDiscovery) {
         const discoveryUrl =
           ssoConfig.oidcConfig.discoveryEndpoint ||
           `${ssoConfig.issuer.replace(/\/$/, '')}/.well-known/openid-configuration`
-        logger.info('Fetching OIDC discovery document...', { discoveryUrl })
+        logger.info('Fetching OIDC discovery document for missing endpoints...', {
+          discoveryUrl,
+          hasAuthEndpoint: !!ssoConfig.oidcConfig.authorizationEndpoint,
+          hasTokenEndpoint: !!ssoConfig.oidcConfig.tokenEndpoint,
+          hasJwksEndpoint: !!ssoConfig.oidcConfig.jwksEndpoint,
+        })
 
         try {
           const response = await fetch(discoveryUrl, {
@@ -412,30 +417,24 @@ async function registerSSOProvider(): Promise<boolean> {
               status: response.status,
               statusText: response.statusText,
             })
+            logger.error(
+              'Provide all endpoints explicitly via SSO_OIDC_AUTHORIZATION_ENDPOINT, SSO_OIDC_TOKEN_ENDPOINT, SSO_OIDC_JWKS_ENDPOINT'
+            )
             return false
           }
 
           const discovery = await response.json()
 
-          if (
-            !discovery.authorization_endpoint ||
-            !discovery.token_endpoint ||
-            !discovery.jwks_uri
-          ) {
-            logger.error('OIDC discovery document missing required endpoints', {
-              hasAuthEndpoint: !!discovery.authorization_endpoint,
-              hasTokenEndpoint: !!discovery.token_endpoint,
-              hasJwksUri: !!discovery.jwks_uri,
-            })
-            return false
-          }
+          ssoConfig.oidcConfig.authorizationEndpoint =
+            ssoConfig.oidcConfig.authorizationEndpoint || discovery.authorization_endpoint
+          ssoConfig.oidcConfig.tokenEndpoint =
+            ssoConfig.oidcConfig.tokenEndpoint || discovery.token_endpoint
+          ssoConfig.oidcConfig.userInfoEndpoint =
+            ssoConfig.oidcConfig.userInfoEndpoint || discovery.userinfo_endpoint
+          ssoConfig.oidcConfig.jwksEndpoint =
+            ssoConfig.oidcConfig.jwksEndpoint || discovery.jwks_uri
 
-          ssoConfig.oidcConfig.authorizationEndpoint = discovery.authorization_endpoint
-          ssoConfig.oidcConfig.tokenEndpoint = discovery.token_endpoint
-          ssoConfig.oidcConfig.userInfoEndpoint = discovery.userinfo_endpoint
-          ssoConfig.oidcConfig.jwksEndpoint = discovery.jwks_uri
-
-          logger.info('✅ Successfully fetched OIDC endpoints from discovery', {
+          logger.info('Merged OIDC endpoints (user-provided + discovery)', {
             authorizationEndpoint: ssoConfig.oidcConfig.authorizationEndpoint,
             tokenEndpoint: ssoConfig.oidcConfig.tokenEndpoint,
             userInfoEndpoint: ssoConfig.oidcConfig.userInfoEndpoint,
@@ -447,10 +446,38 @@ async function registerSSOProvider(): Promise<boolean> {
             discoveryUrl,
           })
           logger.error(
-            'Please provide explicit endpoints via SSO_OIDC_AUTHORIZATION_ENDPOINT, etc.'
+            'Please provide explicit endpoints via SSO_OIDC_AUTHORIZATION_ENDPOINT, SSO_OIDC_TOKEN_ENDPOINT, SSO_OIDC_JWKS_ENDPOINT'
           )
           return false
         }
+      } else {
+        logger.info('Using explicitly provided OIDC endpoints (all present)', {
+          authorizationEndpoint: ssoConfig.oidcConfig.authorizationEndpoint,
+          tokenEndpoint: ssoConfig.oidcConfig.tokenEndpoint,
+          userInfoEndpoint: ssoConfig.oidcConfig.userInfoEndpoint,
+          jwksEndpoint: ssoConfig.oidcConfig.jwksEndpoint,
+        })
+      }
+
+      if (
+        !ssoConfig.oidcConfig.authorizationEndpoint ||
+        !ssoConfig.oidcConfig.tokenEndpoint ||
+        !ssoConfig.oidcConfig.jwksEndpoint
+      ) {
+        const missing: string[] = []
+        if (!ssoConfig.oidcConfig.authorizationEndpoint)
+          missing.push('SSO_OIDC_AUTHORIZATION_ENDPOINT')
+        if (!ssoConfig.oidcConfig.tokenEndpoint) missing.push('SSO_OIDC_TOKEN_ENDPOINT')
+        if (!ssoConfig.oidcConfig.jwksEndpoint) missing.push('SSO_OIDC_JWKS_ENDPOINT')
+
+        logger.error('Missing required OIDC endpoints after discovery merge', {
+          missing,
+          authorizationEndpoint: ssoConfig.oidcConfig.authorizationEndpoint,
+          tokenEndpoint: ssoConfig.oidcConfig.tokenEndpoint,
+          jwksEndpoint: ssoConfig.oidcConfig.jwksEndpoint,
+        })
+        logger.error(`Please provide: ${missing.join(', ')}`)
+        return false
       }
     }
 
