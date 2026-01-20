@@ -1500,6 +1500,7 @@ import {
   telegramSendPhotoTool,
   telegramSendVideoTool,
 } from '@/tools/telegram'
+import { textractParserTool } from '@/tools/textract'
 import { thinkingTool } from '@/tools/thinking'
 import { tinybirdEventsTool, tinybirdQueryTool } from '@/tools/tinybird'
 import {
@@ -2456,6 +2457,7 @@ export const tools: Record<string, ToolConfig> = {
   apollo_email_accounts: apolloEmailAccountsTool,
   mistral_parser: mistralParserTool,
   reducto_parser: reductoParserTool,
+  textract_parser: textractParserTool,
   thinking_tool: thinkingTool,
   tinybird_events: tinybirdEventsTool,
   tinybird_query: tinybirdQueryTool,

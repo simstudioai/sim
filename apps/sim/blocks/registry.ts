@@ -123,6 +123,7 @@ import { SttBlock } from '@/blocks/blocks/stt'
 import { SupabaseBlock } from '@/blocks/blocks/supabase'
 import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
+import { TextractBlock } from '@/blocks/blocks/textract'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
 import { TinybirdBlock } from '@/blocks/blocks/tinybird'
 import { TranslateBlock } from '@/blocks/blocks/translate'
@@ -285,6 +286,7 @@ export const registry: Record<string, BlockConfig> = {
   stt: SttBlock,
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
+  textract: TextractBlock,
   telegram: TelegramBlock,
   thinking: ThinkingBlock,
   tinybird: TinybirdBlock,

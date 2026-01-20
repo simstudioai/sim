@@ -3,18 +3,12 @@ import { createLogger } from '@sim/logger'
 
 const logger = createLogger('InputValidation')
 
-/**
- * Result type for validation functions
- */
 export interface ValidationResult {
   isValid: boolean
   error?: string
   sanitized?: string
 }
 
-/**
- * Options for path segment validation
- */
 export interface PathSegmentOptions {
   /** Name of the parameter for error messages */
   paramName?: string
@@ -65,7 +59,6 @@ export function validatePathSegment(
     customPattern,
   } = options
 
-  // Check for null/undefined
   if (value === null || value === undefined || value === '') {
     return {
       isValid: false,
@@ -73,7 +66,6 @@ export function validatePathSegment(
     }
   }
 
-  // Check length
   if (value.length > maxLength) {
     logger.warn('Path segment exceeds maximum length', {
       paramName,
@@ -86,7 +78,6 @@ export function validatePathSegment(
     }
   }
 
-  // Check for null bytes (potential for bypass attacks)
   if (value.includes('\0') || value.includes('%00')) {
     logger.warn('Path segment contains null bytes', { paramName })
     return {
@@ -95,7 +86,6 @@ export function validatePathSegment(
     }
   }
 
-  // Check for path traversal patterns
   const pathTraversalPatterns = [
     '..',
     './',
@@ -124,7 +114,6 @@ export function validatePathSegment(
     }
   }
 
-  // Check for directory separators
   if (value.includes('/') || value.includes('\\')) {
     logger.warn('Path segment contains directory separators', { paramName })
     return {
@@ -133,7 +122,6 @@ export function validatePathSegment(
     }
   }
 
-  // Use custom pattern if provided
   if (customPattern) {
     if (!customPattern.test(value)) {
       logger.warn('Path segment failed custom pattern validation', {
@@ -148,7 +136,6 @@ export function validatePathSegment(
     return { isValid: true, sanitized: value }
   }
 
-  // Build allowed character pattern
   let pattern = '^[a-zA-Z0-9'
   if (allowHyphens) pattern += '\\-'
   if (allowUnderscores) pattern += '_'
@@ -941,6 +928,130 @@ export function validateAirtableId(
     return {
       isValid: false,
       error: `${paramName} must be a valid Airtable ID starting with "${expectedPrefix}"`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
+
+/**
+ * Validates an AWS region identifier
+ *
+ * AWS regions follow the pattern: {area}-{sub-area}-{number}
+ * Examples: us-east-1, eu-west-2, ap-southeast-1, sa-east-1
+ *
+ * @param value - The AWS region to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ *
+ * @example
+ * ```typescript
+ * const result = validateAwsRegion(region, 'region')
+ * if (!result.isValid) {
+ *   return NextResponse.json({ error: result.error }, { status: 400 })
+ * }
+ * ```
+ */
+export function validateAwsRegion(
+  value: string | null | undefined,
+  paramName = 'region'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return {
+      isValid: false,
+      error: `${paramName} is required`,
+    }
+  }
+
+  // AWS region format: {area}-{sub-area}-{number}
+  // Examples: us-east-1, eu-west-2, ap-southeast-1, me-south-1, af-south-1
+  const awsRegionPattern = /^[a-z]{2}-[a-z]+-\d{1,2}$/
+
+  if (!awsRegionPattern.test(value)) {
+    logger.warn('Invalid AWS region format', {
+      paramName,
+      value: value.substring(0, 50),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be a valid AWS region (e.g., us-east-1, eu-west-2)`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
+
+/**
+ * Validates an S3 bucket name according to AWS naming rules
+ *
+ * S3 bucket names must:
+ * - Be 3-63 characters long
+ * - Start and end with a letter or number
+ * - Contain only lowercase letters, numbers, and hyphens
+ * - Not contain consecutive periods
+ * - Not be formatted as an IP address
+ *
+ * @param value - The S3 bucket name to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ *
+ * @example
+ * ```typescript
+ * const result = validateS3BucketName(bucket, 'bucket')
+ * if (!result.isValid) {
+ *   return NextResponse.json({ error: result.error }, { status: 400 })
+ * }
+ * ```
+ */
+export function validateS3BucketName(
+  value: string | null | undefined,
+  paramName = 'bucket'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return {
+      isValid: false,
+      error: `${paramName} is required`,
+    }
+  }
+
+  if (value.length < 3 || value.length > 63) {
+    logger.warn('S3 bucket name length invalid', {
+      paramName,
+      length: value.length,
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be between 3 and 63 characters`,
+    }
+  }
+
+  const bucketNamePattern = /^[a-z0-9][a-z0-9.-]*[a-z0-9]$|^[a-z0-9]$/
+
+  if (!bucketNamePattern.test(value)) {
+    logger.warn('Invalid S3 bucket name format', {
+      paramName,
+      value: value.substring(0, 63),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must start and end with a letter or number, and contain only lowercase letters, numbers, hyphens, and periods`,
+    }
+  }
+
+  if (value.includes('..')) {
+    logger.warn('S3 bucket name contains consecutive periods', { paramName })
+    return {
+      isValid: false,
+      error: `${paramName} cannot contain consecutive periods`,
+    }
+  }
+
+  const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/
+  if (ipPattern.test(value)) {
+    logger.warn('S3 bucket name formatted as IP address', { paramName })
+    return {
+      isValid: false,
+      error: `${paramName} cannot be formatted as an IP address`,
     }
   }
 
