@@ -141,8 +141,8 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
         throw new Error('Invalid response format from Textract API')
       }
 
-      if (!apiResult.success && apiResult.error) {
-        throw new Error(apiResult.error)
+      if (!apiResult.success) {
+        throw new Error(apiResult.error || 'Request failed')
       }
 
       const textractData = apiResult.output ?? apiResult

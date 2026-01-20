@@ -415,3 +415,26 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
     },
   },
 }
+
+export const mistralParserV2Tool: ToolConfig<MistralParserInput, MistralParserOutput> = {
+  id: 'mistral_parser_v2',
+  name: 'Mistral PDF Parser',
+  description: 'Parse PDF documents using Mistral OCR API',
+  version: '2.0.0',
+
+  params: mistralParserTool.params,
+  request: mistralParserTool.request,
+  transformResponse: mistralParserTool.transformResponse,
+
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the PDF was parsed successfully' },
+    content: {
+      type: 'string',
+      description: 'Extracted content in the requested format (markdown, text, or JSON)',
+    },
+    metadata: {
+      type: 'object',
+      description: 'Processing metadata including jobId, fileType, pageCount, and usage info',
+    },
+  },
+}

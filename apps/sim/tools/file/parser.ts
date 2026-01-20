@@ -146,3 +146,25 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
     combinedContent: { type: 'string', description: 'Combined content of all parsed files' },
   },
 }
+
+export const fileParserV2Tool: ToolConfig<FileParserInput, FileParserOutput> = {
+  id: 'file_parser_v2',
+  name: 'File Parser',
+  description: 'Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)',
+  version: '2.0.0',
+
+  params: fileParserTool.params,
+  request: fileParserTool.request,
+  transformResponse: fileParserTool.transformResponse,
+
+  outputs: {
+    files: {
+      type: 'array',
+      description: 'Array of parsed files with content, metadata, and file properties',
+    },
+    combinedContent: {
+      type: 'string',
+      description: 'All file contents merged into a single text string',
+    },
+  },
+}

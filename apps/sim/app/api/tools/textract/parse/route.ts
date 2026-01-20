@@ -423,7 +423,12 @@ export async function POST(request: NextRequest) {
 
     let fileUrl = validatedData.filePath
 
-    if (validatedData.filePath?.includes('/api/files/serve/')) {
+    const isInternalFilePath =
+      validatedData.filePath?.startsWith('/api/files/serve/') ||
+      (validatedData.filePath?.startsWith('/') &&
+        validatedData.filePath?.includes('/api/files/serve/'))
+
+    if (isInternalFilePath) {
       try {
         const storageKey = extractStorageKey(validatedData.filePath)
         const context = inferContextFromKey(storageKey)

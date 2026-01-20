@@ -23,33 +23,32 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
       ],
     },
     {
-      id: 'inputMethod',
-      title: 'Select Input Method',
-      type: 'dropdown' as SubBlockType,
-      options: [
-        { id: 'url', label: 'Document URL' },
-        { id: 'upload', label: 'Upload Document' },
-      ],
+      id: 'fileUpload',
+      title: 'Document',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'document',
+      acceptedTypes: 'application/pdf,image/jpeg,image/png,image/tiff',
+      placeholder: 'Upload a document',
       condition: {
         field: 'processingMode',
         value: 'async',
         not: true,
       },
+      mode: 'basic',
+      maxSize: 10,
     },
     {
       id: 'filePath',
-      title: 'Document URL',
+      title: 'Document',
       type: 'short-input' as SubBlockType,
-      placeholder: 'Enter full URL to a document (JPEG, PNG, or single-page PDF)',
+      canonicalParamId: 'document',
+      placeholder: 'Document URL or reference from previous block',
       condition: {
-        field: 'inputMethod',
-        value: 'url',
-        and: {
-          field: 'processingMode',
-          value: 'async',
-          not: true,
-        },
+        field: 'processingMode',
+        value: 'async',
+        not: true,
       },
+      mode: 'advanced',
     },
     {
       id: 's3Uri',
@@ -60,22 +59,6 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
         field: 'processingMode',
         value: 'async',
       },
-    },
-    {
-      id: 'fileUpload',
-      title: 'Upload Document',
-      type: 'file-upload' as SubBlockType,
-      acceptedTypes: 'application/pdf,image/jpeg,image/png,image/tiff',
-      condition: {
-        field: 'inputMethod',
-        value: 'upload',
-        and: {
-          field: 'processingMode',
-          value: 'async',
-          not: true,
-        },
-      },
-      maxSize: 10,
     },
     {
       id: 'region',
@@ -150,17 +133,14 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
           }
           parameters.s3Uri = params.s3Uri.trim()
         } else {
-          const inputMethod = params.inputMethod || 'url'
-          if (inputMethod === 'url') {
-            if (!params.filePath || params.filePath.trim() === '') {
-              throw new Error('Document URL is required')
-            }
-            parameters.filePath = params.filePath.trim()
-          } else if (inputMethod === 'upload') {
-            if (!params.fileUpload) {
-              throw new Error('Please upload a document')
-            }
-            parameters.fileUpload = params.fileUpload
+          const documentInput = params.fileUpload || params.filePath || params.document
+          if (!documentInput) {
+            throw new Error('Document is required')
+          }
+          if (typeof documentInput === 'object') {
+            parameters.fileUpload = documentInput
+          } else if (typeof documentInput === 'string') {
+            parameters.filePath = documentInput.trim()
           }
         }
 
@@ -180,10 +160,10 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   },
   inputs: {
     processingMode: { type: 'string', description: 'Document type: single-page or multi-page' },
-    inputMethod: { type: 'string', description: 'Input method selection for single-page mode' },
-    filePath: { type: 'string', description: 'Document URL' },
+    document: { type: 'json', description: 'Document input (file upload or URL reference)' },
+    filePath: { type: 'string', description: 'Document URL (advanced mode)' },
+    fileUpload: { type: 'json', description: 'Uploaded document file (basic mode)' },
     s3Uri: { type: 'string', description: 'S3 URI for multi-page processing (s3://bucket/key)' },
-    fileUpload: { type: 'json', description: 'Uploaded document file for single-page mode' },
     extractTables: { type: 'boolean', description: 'Extract tables from document' },
     extractForms: { type: 'boolean', description: 'Extract form key-value pairs' },
     detectSignatures: { type: 'boolean', description: 'Detect signatures' },

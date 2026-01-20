@@ -14,34 +14,22 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
   icon: ReductoIcon,
   subBlocks: [
     {
-      id: 'inputMethod',
-      title: 'Select Input Method',
-      type: 'dropdown' as SubBlockType,
-      options: [
-        { id: 'url', label: 'PDF Document URL' },
-        { id: 'upload', label: 'Upload PDF Document' },
-      ],
+      id: 'fileUpload',
+      title: 'PDF Document',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'document',
+      acceptedTypes: 'application/pdf',
+      placeholder: 'Upload a PDF document',
+      mode: 'basic',
+      maxSize: 50,
     },
     {
       id: 'filePath',
-      title: 'PDF Document URL',
+      title: 'PDF Document',
       type: 'short-input' as SubBlockType,
-      placeholder: 'Enter full URL to a PDF document (https://example.com/document.pdf)',
-      condition: {
-        field: 'inputMethod',
-        value: 'url',
-      },
-    },
-    {
-      id: 'fileUpload',
-      title: 'Upload PDF',
-      type: 'file-upload' as SubBlockType,
-      acceptedTypes: 'application/pdf',
-      condition: {
-        field: 'inputMethod',
-        value: 'upload',
-      },
-      maxSize: 50,
+      canonicalParamId: 'document',
+      placeholder: 'Document URL or reference from previous block',
+      mode: 'advanced',
     },
     {
       id: 'pages',
@@ -80,17 +68,15 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
           apiKey: params.apiKey.trim(),
         }
 
-        const inputMethod = params.inputMethod || 'url'
-        if (inputMethod === 'url') {
-          if (!params.filePath || params.filePath.trim() === '') {
-            throw new Error('PDF Document URL is required')
-          }
-          parameters.filePath = params.filePath.trim()
-        } else if (inputMethod === 'upload') {
-          if (!params.fileUpload) {
-            throw new Error('Please upload a PDF document')
-          }
-          parameters.fileUpload = params.fileUpload
+        const documentInput = params.fileUpload || params.filePath || params.document
+        if (!documentInput) {
+          throw new Error('PDF document is required')
+        }
+
+        if (typeof documentInput === 'object') {
+          parameters.fileUpload = documentInput
+        } else if (typeof documentInput === 'string') {
+          parameters.filePath = documentInput.trim()
         }
 
         let pagesArray: number[] | undefined
@@ -130,9 +116,9 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
     },
   },
   inputs: {
-    inputMethod: { type: 'string', description: 'Input method selection' },
-    filePath: { type: 'string', description: 'PDF document URL' },
-    fileUpload: { type: 'json', description: 'Uploaded PDF file' },
+    document: { type: 'json', description: 'Document input (file upload or URL reference)' },
+    filePath: { type: 'string', description: 'PDF document URL (advanced mode)' },
+    fileUpload: { type: 'json', description: 'Uploaded PDF file (basic mode)' },
     apiKey: { type: 'string', description: 'Reducto API key' },
     pages: { type: 'string', description: 'Page selection' },
     tableOutputFormat: { type: 'string', description: 'Table output format' },

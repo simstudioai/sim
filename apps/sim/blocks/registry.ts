@@ -25,7 +25,7 @@ import { ElasticsearchBlock } from '@/blocks/blocks/elasticsearch'
 import { ElevenLabsBlock } from '@/blocks/blocks/elevenlabs'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { ExaBlock } from '@/blocks/blocks/exa'
-import { FileBlock } from '@/blocks/blocks/file'
+import { FileBlock, FileV2Block } from '@/blocks/blocks/file'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
 import { FirefliesBlock } from '@/blocks/blocks/fireflies'
 import { FunctionBlock } from '@/blocks/blocks/function'
@@ -74,7 +74,7 @@ import { MemoryBlock } from '@/blocks/blocks/memory'
 import { MicrosoftExcelBlock, MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel'
 import { MicrosoftPlannerBlock } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock } from '@/blocks/blocks/microsoft_teams'
-import { MistralParseBlock } from '@/blocks/blocks/mistral_parse'
+import { MistralParseBlock, MistralParseV2Block } from '@/blocks/blocks/mistral_parse'
 import { MongoDBBlock } from '@/blocks/blocks/mongodb'
 import { MySQLBlock } from '@/blocks/blocks/mysql'
 import { Neo4jBlock } from '@/blocks/blocks/neo4j'
@@ -182,6 +182,7 @@ export const registry: Record<string, BlockConfig> = {
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
   file: FileBlock,
+  file_v2: FileV2Block,
   firecrawl: FirecrawlBlock,
   fireflies: FirefliesBlock,
   function: FunctionBlock,
@@ -237,6 +238,7 @@ export const registry: Record<string, BlockConfig> = {
   microsoft_planner: MicrosoftPlannerBlock,
   microsoft_teams: MicrosoftTeamsBlock,
   mistral_parse: MistralParseBlock,
+  mistral_parse_v2: MistralParseV2Block,
   mongodb: MongoDBBlock,
   mysql: MySQLBlock,
   neo4j: Neo4jBlock,
