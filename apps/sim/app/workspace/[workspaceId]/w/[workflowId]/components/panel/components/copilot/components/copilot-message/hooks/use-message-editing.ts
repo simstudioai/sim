@@ -7,26 +7,18 @@ import { useCopilotStore } from '@/stores/panel'
 
 const logger = createLogger('useMessageEditing')
 
-/**
- * Ref interface for UserInput component
- */
+/** Ref interface for UserInput component */
 interface UserInputRef {
   focus: () => void
 }
 
-/**
- * Message truncation height in pixels
- */
+/** Message truncation height in pixels */
 const MESSAGE_TRUNCATION_HEIGHT = 60
 
-/**
- * Delay before attaching click-outside listener to avoid immediate trigger
- */
+/** Delay before attaching click-outside listener to avoid immediate trigger */
 const CLICK_OUTSIDE_DELAY = 100
 
-/**
- * Delay before aborting when editing during stream
- */
+/** Delay before aborting when editing during stream */
 const ABORT_DELAY = 100
 
 interface UseMessageEditingProps {
@@ -80,9 +72,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
 
   const { sendMessage, isSendingMessage, abortMessage, currentChat } = useCopilotStore()
 
-  /**
-   * Checks if message content needs expansion based on height
-   */
+  /** Checks if message content needs expansion based on height */
   useEffect(() => {
     if (messageContentRef.current && message.role === 'user') {
       const scrollHeight = messageContentRef.current.scrollHeight
@@ -90,9 +80,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
     }
   }, [message.content, message.role])
 
-  /**
-   * Handles entering edit mode
-   */
+  /** Enters edit mode */
   const handleEditMessage = useCallback(() => {
     setIsEditMode(true)
     setIsExpanded(false)
@@ -104,18 +92,14 @@ export function useMessageEditing(props: UseMessageEditingProps) {
     }, 0)
   }, [message.content, onEditModeChange])
 
-  /**
-   * Handles canceling edit mode
-   */
+  /** Cancels edit mode */
   const handleCancelEdit = useCallback(() => {
     setIsEditMode(false)
     setEditedContent(message.content)
     onEditModeChange?.(false)
   }, [message.content, onEditModeChange])
 
-  /**
-   * Handles clicking on message to enter edit mode
-   */
+  /** Handles message click to enter edit mode */
   const handleMessageClick = useCallback(() => {
     if (needsExpansion && !isExpanded) {
       setIsExpanded(true)
@@ -123,10 +107,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
     handleEditMessage()
   }, [needsExpansion, isExpanded, handleEditMessage])
 
-  /**
-   * Performs the actual edit operation
-   * Truncates messages after edited message and resends with same ID
-   */
+  /** Performs the edit operation - truncates messages after edited message and resends */
   const performEdit = useCallback(
     async (
       editedMessage: string,
@@ -184,10 +165,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
     [messages, message, currentChat, sendMessage, onEditModeChange]
   )
 
-  /**
-   * Handles submitting edited message
-   * Checks for checkpoints and shows confirmation if needed
-   */
+  /** Submits edited message, checking for checkpoints first */
   const handleSubmitEdit = useCallback(
     async (
       editedMessage: string,
@@ -219,9 +197,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
     ]
   )
 
-  /**
-   * Keyboard-only exit (Esc). Click-outside is optionally handled by parent.
-   */
+  /** Keyboard-only exit (Esc) */
   useEffect(() => {
     if (!isEditMode) return
 
@@ -237,9 +213,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
     }
   }, [isEditMode, handleCancelEdit])
 
-  /**
-   * Optional document-level click-outside handler (disabled when parent manages it).
-   */
+  /** Optional document-level click-outside handler */
   useEffect(() => {
     if (!isEditMode || disableDocumentClickOutside) return
 

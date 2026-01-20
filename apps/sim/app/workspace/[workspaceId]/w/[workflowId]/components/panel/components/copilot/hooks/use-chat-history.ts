@@ -24,9 +24,7 @@ export function useChatHistory(props: UseChatHistoryProps) {
   const { chats, activeWorkflowId, copilotWorkflowId, loadChats, areChatsFresh, isSendingMessage } =
     props
 
-  /**
-   * Groups chats by time period (Today, Yesterday, This Week, etc.)
-   */
+  /** Groups chats by time period (Today, Yesterday, This Week, etc.) */
   const groupedChats = useMemo(() => {
     if (!activeWorkflowId || copilotWorkflowId !== activeWorkflowId || chats.length === 0) {
       return []
@@ -71,15 +69,10 @@ export function useChatHistory(props: UseChatHistoryProps) {
     return Object.entries(groups).filter(([, chats]) => chats.length > 0)
   }, [chats, activeWorkflowId, copilotWorkflowId])
 
-  /**
-   * Handles history dropdown opening and loads chats if needed
-   * Does not await loading - fires in background to avoid blocking UI
-   */
+  /** Handles history dropdown opening and loads chats if needed (non-blocking) */
   const handleHistoryDropdownOpen = useCallback(
     (open: boolean) => {
-      // Only load if opening dropdown AND we don't have fresh chats AND not streaming
       if (open && activeWorkflowId && !isSendingMessage && !areChatsFresh(activeWorkflowId)) {
-        // Fire in background, don't await - same pattern as old panel
         loadChats(false).catch((error) => {
           logger.error('Failed to load chat history:', error)
         })

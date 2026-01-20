@@ -153,12 +153,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     setPlanTodos,
   })
 
-  /**
-   * Get markdown content for design document section
-   * Available in all modes once created
-   */
+  /** Gets markdown content for design document section (available in all modes once created) */
   const designDocumentContent = useMemo(() => {
-    // Use streaming content if available
     if (streamingPlanContent) {
       logger.info('[DesignDocument] Using streaming plan content', {
         contentLength: streamingPlanContent.length,
@@ -169,9 +165,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     return ''
   }, [streamingPlanContent])
 
-  /**
-   * Helper function to focus the copilot input
-   */
+  /** Focuses the copilot input */
   const focusInput = useCallback(() => {
     userInputRef.current?.focus()
   }, [])
@@ -185,20 +179,14 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     currentInputValue: inputValue,
   })
 
-  /**
-   * Auto-scroll to bottom when chat loads in
-   */
+  /** Auto-scrolls to bottom when chat loads */
   useEffect(() => {
     if (isInitialized && messages.length > 0) {
       scrollToBottom()
     }
   }, [isInitialized, messages.length, scrollToBottom])
 
-  /**
-   * Cleanup on component unmount (page refresh, navigation, etc.)
-   * Uses a ref to track sending state to avoid stale closure issues
-   * Note: Parent workflow.tsx also has useStreamCleanup for page-level cleanup
-   */
+  /** Cleanup on unmount - aborts active streaming. Uses refs to avoid stale closures */
   const isSendingRef = useRef(isSendingMessage)
   isSendingRef.current = isSendingMessage
   const abortMessageRef = useRef(abortMessage)
@@ -206,19 +194,15 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
   useEffect(() => {
     return () => {
-      // Use refs to check current values, not stale closure values
       if (isSendingRef.current) {
         abortMessageRef.current()
         logger.info('Aborted active message streaming due to component unmount')
       }
     }
-    // Empty deps - only run cleanup on actual unmount, not on re-renders
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /**
-   * Container-level click capture to cancel edit mode when clicking outside the current edit area
-   */
+  /** Cancels edit mode when clicking outside the current edit area */
   const handleCopilotClickCapture = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       if (!isEditingMessage) return
@@ -247,10 +231,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     [isEditingMessage, editingMessageId]
   )
 
-  /**
-   * Handles creating a new chat session
-   * Focuses the input after creation
-   */
+  /** Creates a new chat session and focuses the input */
   const handleStartNewChat = useCallback(() => {
     createNewChat()
     logger.info('Started new chat')
@@ -260,10 +241,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     }, 100)
   }, [createNewChat])
 
-  /**
-   * Sets the input value and focuses the textarea
-   * @param value - The value to set in the input
-   */
+  /** Sets the input value and focuses the textarea */
   const handleSetInputValueAndFocus = useCallback(
     (value: string) => {
       setInputValue(value)
@@ -274,7 +252,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     [setInputValue]
   )
 
-  // Expose functions to parent
+  /** Exposes imperative functions to parent */
   useImperativeHandle(
     ref,
     () => ({
@@ -285,10 +263,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     [handleStartNewChat, handleSetInputValueAndFocus, focusInput]
   )
 
-  /**
-   * Handles aborting the current message streaming
-   * Collapses todos if they are currently shown
-   */
+  /** Aborts current message streaming and collapses todos if shown */
   const handleAbort = useCallback(() => {
     abortMessage()
     if (showPlanTodos) {
@@ -296,21 +271,13 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     }
   }, [abortMessage, showPlanTodos])
 
-  /**
-   * Handles closing the plan todos section
-   * Calls store action and clears the todos
-   */
+  /** Closes the plan todos section and clears the todos */
   const handleClosePlanTodos = useCallback(() => {
     closePlanTodos()
     setPlanTodos([])
   }, [closePlanTodos, setPlanTodos])
 
-  /**
-   * Handles message submission to the copilot
-   * @param query - The message text to send
-   * @param fileAttachments - Optional file attachments
-   * @param contexts - Optional context references
-   */
+  /** Handles message submission to the copilot */
   const handleSubmit = useCallback(
     async (query: string, fileAttachments?: MessageFileAttachment[], contexts?: ChatContext[]) => {
       // Allow submission even when isSendingMessage - store will queue the message
@@ -334,11 +301,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     [activeWorkflowId, sendMessage, showPlanTodos, setPlanTodos]
   )
 
-  /**
-   * Handles message edit mode changes
-   * @param messageId - ID of the message being edited
-   * @param isEditing - Whether edit mode is active
-   */
+  /** Handles message edit mode changes */
   const handleEditModeChange = useCallback(
     (messageId: string, isEditing: boolean, cancelCallback?: () => void) => {
       setEditingMessageId(isEditing ? messageId : null)
@@ -348,19 +311,12 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     []
   )
 
-  /**
-   * Handles checkpoint revert mode changes
-   * @param messageId - ID of the message being reverted
-   * @param isReverting - Whether revert mode is active
-   */
+  /** Handles checkpoint revert mode changes */
   const handleRevertModeChange = useCallback((messageId: string, isReverting: boolean) => {
     setRevertingMessageId(isReverting ? messageId : null)
   }, [])
 
-  /**
-   * Handles chat deletion
-   * @param chatId - ID of the chat to delete
-   */
+  /** Handles chat deletion */
   const handleDeleteChat = useCallback(
     async (chatId: string) => {
       try {
@@ -372,15 +328,10 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     [deleteChat]
   )
 
-  /**
-   * Handles history dropdown opening state
-   * Loads chats if needed when dropdown opens (non-blocking)
-   * @param open - Whether the dropdown is open
-   */
+  /** Handles history dropdown opening state, loads chats if needed (non-blocking) */
   const handleHistoryDropdownOpen = useCallback(
     (open: boolean) => {
       setIsHistoryDropdownOpen(open)
-      // Fire hook without awaiting - prevents blocking and state issues
       handleHistoryDropdownOpenHook(open)
     },
     [handleHistoryDropdownOpenHook]
@@ -524,21 +475,18 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     className='h-full overflow-y-auto overflow-x-hidden px-[8px]'
                   >
                     <div
-                      className={`w-full max-w-full space-y-4 overflow-hidden py-[8px] ${
+                      className={`w-full max-w-full space-y-[12px] overflow-hidden py-[8px] ${
                         showPlanTodos && planTodos.length > 0 ? 'pb-14' : 'pb-10'
                       }`}
                     >
                       {messages.map((message, index) => {
-                        // Determine if this message should be dimmed
                         let isDimmed = false
 
-                        // Dim messages after the one being edited
                         if (editingMessageId) {
                           const editingIndex = messages.findIndex((m) => m.id === editingMessageId)
                           isDimmed = editingIndex !== -1 && index > editingIndex
                         }
 
-                        // Also dim messages after the one showing restore confirmation
                         if (!isDimmed && revertingMessageId) {
                           const revertingIndex = messages.findIndex(
                             (m) => m.id === revertingMessageId
@@ -546,7 +494,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                           isDimmed = revertingIndex !== -1 && index > revertingIndex
                         }
 
-                        // Get checkpoint count for this message to force re-render when it changes
                         const checkpointCount = messageCheckpoints[message.id]?.length || 0
 
                         return (

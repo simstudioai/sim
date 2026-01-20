@@ -267,7 +267,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
       if (q && q.length > 0) {
         void mentionData.ensurePastChatsLoaded()
-        // workflows and workflow-blocks auto-load from stores
         void mentionData.ensureKnowledgeLoaded()
         void mentionData.ensureBlocksLoaded()
         void mentionData.ensureTemplatesLoaded()

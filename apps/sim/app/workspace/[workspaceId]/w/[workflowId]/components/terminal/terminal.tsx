@@ -259,7 +259,7 @@ const OutputCodeContent = React.memo(function OutputCodeContent({
       code={code}
       showGutter
       language={language}
-      className='m-0 min-h-full rounded-none border-0 bg-[var(--surface-1)]'
+      className='m-0 min-h-full rounded-none border-0 bg-[var(--surface-1)] dark:bg-[var(--surface-1)]'
       paddingLeft={8}
       gutterStyle={{ backgroundColor: 'transparent' }}
       wrapText={wrapText}
@@ -624,7 +624,7 @@ const OutputPanel = React.memo(function OutputPanel({
                 </Tooltip.Content>
               </Tooltip.Root>
             )}
-            <Popover open={outputOptionsOpen} onOpenChange={setOutputOptionsOpen}>
+            <Popover open={outputOptionsOpen} onOpenChange={setOutputOptionsOpen} size='sm'>
               <PopoverTrigger asChild>
                 <Button
                   variant='ghost'
@@ -648,7 +648,7 @@ const OutputPanel = React.memo(function OutputPanel({
               >
                 <PopoverItem
                   active={wrapText}
-                  showCheck
+                  showCheck={wrapText}
                   onClick={(e) => {
                     e.stopPropagation()
                     setWrapText(!wrapText)
@@ -658,7 +658,7 @@ const OutputPanel = React.memo(function OutputPanel({
                 </PopoverItem>
                 <PopoverItem
                   active={openOnRun}
-                  showCheck
+                  showCheck={openOnRun}
                   onClick={(e) => {
                     e.stopPropagation()
                     setOpenOnRun(!openOnRun)
@@ -1472,7 +1472,7 @@ export const Terminal = memo(function Terminal() {
             >
               {uniqueBlocks.length > 0 ? (
                 <div className={clsx(COLUMN_WIDTHS.BLOCK, COLUMN_BASE_CLASS, 'flex items-center')}>
-                  <Popover open={blockFilterOpen} onOpenChange={setBlockFilterOpen}>
+                  <Popover open={blockFilterOpen} onOpenChange={setBlockFilterOpen} size='sm'>
                     <PopoverTrigger asChild>
                       <Button
                         variant='ghost'
@@ -1508,12 +1508,12 @@ export const Terminal = memo(function Terminal() {
                             <PopoverItem
                               key={block.blockId}
                               active={isSelected}
+                              showCheck={isSelected}
                               onClick={() => toggleBlock(block.blockId)}
                               className={index > 0 ? 'mt-[2px]' : ''}
                             >
                               {BlockIcon && <BlockIcon className='h-3 w-3' />}
                               <span className='flex-1'>{block.blockName}</span>
-                              {isSelected && <Check className='h-3 w-3' />}
                             </PopoverItem>
                           )
                         })}
@@ -1526,7 +1526,7 @@ export const Terminal = memo(function Terminal() {
               )}
               {hasStatusEntries ? (
                 <div className={clsx(COLUMN_WIDTHS.STATUS, COLUMN_BASE_CLASS, 'flex items-center')}>
-                  <Popover open={statusFilterOpen} onOpenChange={setStatusFilterOpen}>
+                  <Popover open={statusFilterOpen} onOpenChange={setStatusFilterOpen} size='sm'>
                     <PopoverTrigger asChild>
                       <Button
                         variant='ghost'
@@ -1555,6 +1555,7 @@ export const Terminal = memo(function Terminal() {
                       <PopoverScrollArea style={{ maxHeight: '140px' }}>
                         <PopoverItem
                           active={filters.statuses.has('error')}
+                          showCheck={filters.statuses.has('error')}
                           onClick={() => toggleStatus('error')}
                         >
                           <div
@@ -1562,10 +1563,10 @@ export const Terminal = memo(function Terminal() {
                             style={{ backgroundColor: 'var(--text-error)' }}
                           />
                           <span className='flex-1'>Error</span>
-                          {filters.statuses.has('error') && <Check className='h-3 w-3' />}
                         </PopoverItem>
                         <PopoverItem
                           active={filters.statuses.has('info')}
+                          showCheck={filters.statuses.has('info')}
                           onClick={() => toggleStatus('info')}
                           className='mt-[2px]'
                         >
@@ -1574,7 +1575,6 @@ export const Terminal = memo(function Terminal() {
                             style={{ backgroundColor: 'var(--terminal-status-info-color)' }}
                           />
                           <span className='flex-1'>Info</span>
-                          {filters.statuses.has('info') && <Check className='h-3 w-3' />}
                         </PopoverItem>
                       </PopoverScrollArea>
                     </PopoverContent>
@@ -1585,7 +1585,7 @@ export const Terminal = memo(function Terminal() {
               )}
               {uniqueRunIds.length > 0 ? (
                 <div className={clsx(COLUMN_WIDTHS.RUN_ID, COLUMN_BASE_CLASS, 'flex items-center')}>
-                  <Popover open={runIdFilterOpen} onOpenChange={setRunIdFilterOpen}>
+                  <Popover open={runIdFilterOpen} onOpenChange={setRunIdFilterOpen} size='sm'>
                     <PopoverTrigger asChild>
                       <Button
                         variant='ghost'
@@ -1620,16 +1620,16 @@ export const Terminal = memo(function Terminal() {
                             <PopoverItem
                               key={runId}
                               active={isSelected}
+                              showCheck={isSelected}
                               onClick={() => toggleRunId(runId)}
                               className={index > 0 ? 'mt-[2px]' : ''}
                             >
                               <span
-                                className='flex-1 font-mono text-[12px]'
+                                className='flex-1 font-mono text-[11px]'
                                 style={{ color: runIdColor || '#D2D2D2' }}
                               >
                                 {formatRunId(runId)}
                               </span>
-                              {isSelected && <Check className='h-3 w-3' />}
                             </PopoverItem>
                           )
                         })}
@@ -1765,7 +1765,7 @@ export const Terminal = memo(function Terminal() {
                       </Tooltip.Root>
                     </>
                   )}
-                  <Popover open={mainOptionsOpen} onOpenChange={setMainOptionsOpen}>
+                  <Popover open={mainOptionsOpen} onOpenChange={setMainOptionsOpen} size='sm'>
                     <PopoverTrigger asChild>
                       <Button
                         variant='ghost'
@@ -1789,7 +1789,7 @@ export const Terminal = memo(function Terminal() {
                     >
                       <PopoverItem
                         active={openOnRun}
-                        showCheck
+                        showCheck={openOnRun}
                         onClick={(e) => {
                           e.stopPropagation()
                           setOpenOnRun(!openOnRun)
