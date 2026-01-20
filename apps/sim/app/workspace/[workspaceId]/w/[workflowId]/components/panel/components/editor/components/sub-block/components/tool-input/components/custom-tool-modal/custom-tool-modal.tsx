@@ -667,7 +667,6 @@ try {
     }
   }
 
-  // Global keyboard handler for schema params dropdown (like EnvVarDropdown)
   useEffect(() => {
     if (!showSchemaParams || schemaParameters.length === 0) return
 
@@ -765,8 +764,6 @@ try {
           return
         case ' ':
         case 'Tab':
-          // Close dropdown but let the key event continue (don't prevent default)
-          // This allows the space/tab character to be typed normally
           setShowSchemaParams(false)
           break
       }
