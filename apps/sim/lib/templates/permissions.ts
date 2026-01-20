@@ -5,17 +5,6 @@ import { and, eq, or } from 'drizzle-orm'
 export type CreatorPermissionLevel = 'member' | 'admin'
 
 /**
- * Verifies if a user is a super user (database flag only).
- *
- * @param userId - The ID of the user to check
- * @returns Object with isSuperUser boolean
- */
-export async function verifySuperUser(userId: string): Promise<{ isSuperUser: boolean }> {
-  const [currentUser] = await db.select().from(user).where(eq(user.id, userId)).limit(1)
-  return { isSuperUser: currentUser?.isSuperUser || false }
-}
-
-/**
  * Verifies if a user is an effective super user (database flag AND settings toggle).
  * This should be used for features that can be disabled by the user's settings toggle.
  *
