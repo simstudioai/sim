@@ -38,7 +38,6 @@ import postgres from 'postgres'
 import { v4 as uuidv4 } from 'uuid'
 import { ssoProvider, user } from '../schema'
 
-// Self-contained SSO types (matching Better Auth's structure)
 interface SSOMapping {
   id: string
   email: string
@@ -219,7 +218,8 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
       userInfoEndpoint: process.env.SSO_OIDC_USERINFO_ENDPOINT,
       jwksEndpoint: process.env.SSO_OIDC_JWKS_ENDPOINT,
       discoveryEndpoint:
-        process.env.SSO_OIDC_DISCOVERY_ENDPOINT || `${issuer}/.well-known/openid-configuration`,
+        process.env.SSO_OIDC_DISCOVERY_ENDPOINT ||
+        `${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`,
     }
   } else if (providerType === 'saml') {
     const entryPoint = process.env.SSO_SAML_ENTRY_POINT
