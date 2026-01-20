@@ -543,6 +543,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
         case 'chat':
           updateFields.totalChatExecutions = sql`total_chat_executions + 1`
           break
+        case 'mcp':
+          updateFields.totalMcpExecutions = sql`total_mcp_executions + 1`
+          break
+        case 'a2a':
+          updateFields.totalA2aExecutions = sql`total_a2a_executions + 1`
+          break
       }
 
       await db.update(userStats).set(updateFields).where(eq(userStats.userId, userId))

@@ -698,6 +698,8 @@ export const userStats = pgTable('user_stats', {
   totalWebhookTriggers: integer('total_webhook_triggers').notNull().default(0),
   totalScheduledExecutions: integer('total_scheduled_executions').notNull().default(0),
   totalChatExecutions: integer('total_chat_executions').notNull().default(0),
+  totalMcpExecutions: integer('total_mcp_executions').notNull().default(0),
+  totalA2aExecutions: integer('total_a2a_executions').notNull().default(0),
   totalTokensUsed: integer('total_tokens_used').notNull().default(0),
   totalCost: decimal('total_cost').notNull().default('0'),
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $20 for free plan, null for team/enterprise
