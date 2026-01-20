@@ -280,6 +280,7 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
               textractData.DocumentMetadata?.Pages ?? textractData.documentMetadata?.pages ?? 0,
           },
           modelVersion:
+            textractData.modelVersion ??
             textractData.AnalyzeDocumentModelVersion ??
             textractData.analyzeDocumentModelVersion ??
             textractData.DetectDocumentTextModelVersion ??

@@ -253,7 +253,27 @@ async function pollForJobCompletion(
 
     if (jobStatus === 'PARTIAL_SUCCESS') {
       logger.warn(`[${requestId}] Job completed with partial success: ${result.StatusMessage}`)
-      return result
+
+      let allBlocks = (result.Blocks as unknown[]) || []
+      let nextToken = result.NextToken as string | undefined
+
+      while (nextToken) {
+        const nextResult = await callTextractAsync(
+          host,
+          getTarget,
+          { JobId: jobId, NextToken: nextToken },
+          accessKeyId,
+          secretAccessKey,
+          region
+        )
+        allBlocks = allBlocks.concat((nextResult.Blocks as unknown[]) || [])
+        nextToken = nextResult.NextToken as string | undefined
+      }
+
+      return {
+        ...result,
+        Blocks: allBlocks,
+      }
     }
 
     logger.info(`[${requestId}] Job status: ${jobStatus}, attempt ${attempt + 1}/${maxAttempts}`)
@@ -295,8 +315,8 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Textract parse request`, {
       processingMode,
-      filePath: validatedData.filePath,
-      s3Uri: validatedData.s3Uri,
+      filePath: validatedData.filePath?.substring(0, 50),
+      s3Uri: validatedData.s3Uri?.substring(0, 50),
       featureTypes,
       userId,
     })
@@ -465,6 +485,19 @@ export async function POST(request: NextRequest) {
         )
       }
     } else if (validatedData.filePath?.startsWith('/')) {
+      if (!validatedData.filePath.startsWith('/api/files/serve/')) {
+        logger.warn(`[${requestId}] Invalid internal path`, {
+          userId,
+          path: validatedData.filePath.substring(0, 50),
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Invalid file path. Only uploaded files are supported for internal paths.',
+          },
+          { status: 400 }
+        )
+      }
       const baseUrl = getBaseUrl()
       fileUrl = `${baseUrl}${validatedData.filePath}`
     } else {
