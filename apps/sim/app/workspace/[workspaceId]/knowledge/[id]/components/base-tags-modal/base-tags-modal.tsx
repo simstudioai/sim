@@ -462,7 +462,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
           <ModalHeader>Documents using "{selectedTag?.displayName}"</ModalHeader>
           <ModalBody>
             <div className='space-y-[8px]'>
-              <p className='text-[12px] text-[var(--text-tertiary)]'>
+              <p className='text-[12px] text-[var(--text-secondary)]'>
                 {selectedTagUsage?.documentCount || 0} document
                 {selectedTagUsage?.documentCount !== 1 ? 's are' : ' is'} currently using this tag
                 definition.
@@ -470,7 +470,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
               {selectedTagUsage?.documentCount === 0 ? (
                 <div className='rounded-[6px] border p-[16px] text-center'>
-                  <p className='text-[12px] text-[var(--text-tertiary)]'>
+                  <p className='text-[12px] text-[var(--text-secondary)]'>
                     This tag definition is not being used by any documents. You can safely delete it
                     to free up the tag slot.
                   </p>

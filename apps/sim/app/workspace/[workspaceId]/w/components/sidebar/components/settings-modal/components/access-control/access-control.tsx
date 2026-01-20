@@ -1072,7 +1072,7 @@ export function AccessControl() {
           <ModalContent size='sm'>
             <ModalHeader>Unsaved Changes</ModalHeader>
             <ModalBody>
-              <p className='text-[12px] text-[var(--text-tertiary)]'>
+              <p className='text-[12px] text-[var(--text-secondary)]'>
                 You have unsaved changes. Do you want to save them before closing?
               </p>
             </ModalBody>

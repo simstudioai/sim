@@ -591,12 +591,11 @@ export function DeployModal({
           )}
           {activeTab === 'api' && (
             <ModalFooter className='items-center justify-between'>
-              <div>
+              <div />
+              <div className='flex items-center gap-2'>
                 <Button variant='default' onClick={() => setIsApiInfoModalOpen(true)}>
                   Edit API Info
                 </Button>
-              </div>
-              <div className='flex items-center gap-2'>
                 <Button
                   variant='tertiary'
                   onClick={() => setIsCreateKeyModalOpen(true)}

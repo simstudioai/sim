@@ -42,7 +42,7 @@ export function CodeEditor({
   placeholder = '',
   className = '',
   gutterClassName = '',
-  minHeight = '360px',
+  minHeight,
   highlightVariables = true,
   onKeyDown,
   disabled = false,
@@ -186,7 +186,7 @@ export function CodeEditor({
   }
 
   return (
-    <Code.Container className={className} style={{ minHeight }}>
+    <Code.Container className={className} style={minHeight ? { minHeight } : undefined}>
       {showWandButton && onWandClick && (
         <Button
           variant='ghost'
@@ -220,7 +220,7 @@ export function CodeEditor({
           disabled={disabled}
           {...getCodeEditorProps({ disabled })}
           className={cn(getCodeEditorProps({ disabled }).className, 'h-full')}
-          style={{ minHeight }}
+          style={minHeight ? { minHeight } : undefined}
           textareaClassName={cn(
             getCodeEditorProps({ disabled }).textareaClassName,
             '!block !h-full !min-h-full'
