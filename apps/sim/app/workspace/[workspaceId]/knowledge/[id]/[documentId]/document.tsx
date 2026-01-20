@@ -538,14 +538,11 @@ export function Document({
       },
       {
         onSuccess: (result) => {
-          if (operation === 'delete') {
+          if (operation === 'delete' || result.errorCount > 0) {
             refreshChunks()
           } else {
-            const failedChunkIds = new Set(result.errors.map((e) => e.chunkId))
             chunks.forEach((chunk) => {
-              if (!failedChunkIds.has(chunk.id)) {
-                updateChunk(chunk.id, { enabled: operation === 'enable' })
-              }
+              updateChunk(chunk.id, { enabled: operation === 'enable' })
             })
           }
           logger.info(`Successfully ${operation}d ${result.successCount} chunks`)

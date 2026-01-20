@@ -759,7 +759,7 @@ export interface BulkChunkOperationResult {
   successCount: number
   errorCount: number
   processed: number
-  errors: Array<{ chunkId: string; error: string }>
+  errors: string[]
 }
 
 export async function bulkChunkOperation({
