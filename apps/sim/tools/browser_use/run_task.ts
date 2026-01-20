@@ -262,20 +262,6 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
       'Content-Type': 'application/json',
       'X-Browser-Use-API-Key': params.apiKey,
     }),
-    body: (params) => buildRequestBody(params),
-  },
-
-  transformResponse: async (response: Response) => {
-    const data = (await response.json()) as { id: string }
-    return {
-      success: true,
-      output: {
-        id: data.id,
-        success: true,
-        output: null,
-        steps: [],
-      },
-    }
   },
 
   directExecution: async (params: BrowserUseRunTaskParams): Promise<ToolResponse> => {
