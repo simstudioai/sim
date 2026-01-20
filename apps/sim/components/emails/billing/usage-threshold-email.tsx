@@ -25,7 +25,7 @@ export function UsageThresholdEmail({
   const previewText = `${brand.name}: You're at ${percentUsed}% of your ${planName} monthly budget`
 
   return (
-    <EmailLayout preview={previewText}>
+    <EmailLayout preview={previewText} showUnsubscribe={true}>
       <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
         {userName ? `Hi ${userName},` : 'Hi,'}
       </Text>

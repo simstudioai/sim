@@ -30,42 +30,38 @@ export class RememberDebugClientTool extends BaseClientTool {
         // For add/edit, show from problem or solution
         const text = params?.problem || params?.solution
         if (text && typeof text === 'string') {
-          const truncated = text.length > 40 ? `${text.slice(0, 40)}...` : text
-
           switch (state) {
             case ClientToolCallState.success:
-              return `Validated fix ${truncated}`
+              return `Validated fix ${text}`
             case ClientToolCallState.executing:
             case ClientToolCallState.generating:
             case ClientToolCallState.pending:
-              return `Validating fix ${truncated}`
+              return `Validating fix ${text}`
             case ClientToolCallState.error:
-              return `Failed to validate fix ${truncated}`
+              return `Failed to validate fix ${text}`
             case ClientToolCallState.aborted:
-              return `Aborted validating fix ${truncated}`
+              return `Aborted validating fix ${text}`
             case ClientToolCallState.rejected:
-              return `Skipped validating fix ${truncated}`
+              return `Skipped validating fix ${text}`
           }
         }
       } else if (operation === 'delete') {
         // For delete, show from problem or solution (or id as fallback)
         const text = params?.problem || params?.solution || params?.id
         if (text && typeof text === 'string') {
-          const truncated = text.length > 40 ? `${text.slice(0, 40)}...` : text
-
           switch (state) {
             case ClientToolCallState.success:
-              return `Adjusted fix ${truncated}`
+              return `Adjusted fix ${text}`
             case ClientToolCallState.executing:
             case ClientToolCallState.generating:
             case ClientToolCallState.pending:
-              return `Adjusting fix ${truncated}`
+              return `Adjusting fix ${text}`
             case ClientToolCallState.error:
-              return `Failed to adjust fix ${truncated}`
+              return `Failed to adjust fix ${text}`
             case ClientToolCallState.aborted:
-              return `Aborted adjusting fix ${truncated}`
+              return `Aborted adjusting fix ${text}`
             case ClientToolCallState.rejected:
-              return `Skipped adjusting fix ${truncated}`
+              return `Skipped adjusting fix ${text}`
           }
         }
       }

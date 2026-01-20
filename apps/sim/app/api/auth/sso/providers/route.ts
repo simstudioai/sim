@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 
-const logger = createLogger('SSO-Providers')
+const logger = createLogger('SSOProvidersRoute')
 
 export async function GET() {
   try {

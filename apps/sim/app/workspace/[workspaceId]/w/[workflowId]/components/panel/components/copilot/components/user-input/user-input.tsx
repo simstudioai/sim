@@ -9,19 +9,19 @@ import {
   useState,
 } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowUp, AtSign, Image, Loader2 } from 'lucide-react'
+import { AtSign } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Badge, Button, Textarea } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
+import type { CopilotModelId } from '@/lib/copilot/models'
 import { cn } from '@/lib/core/utils/cn'
 import {
   AttachedFilesDisplay,
+  BottomControls,
   ContextPills,
   type MentionFolderNav,
   MentionMenu,
-  ModelSelector,
-  ModeSelector,
   type SlashFolderNav,
   SlashMenu,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components'
@@ -44,6 +44,10 @@ import {
   useTextareaAutoResize,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
 import type { MessageFileAttachment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
+import {
+  computeMentionHighlightRanges,
+  extractContextTokens,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import type { ChatContext } from '@/stores/panel'
 import { useCopilotStore } from '@/stores/panel'
 
@@ -263,7 +267,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
       if (q && q.length > 0) {
         void mentionData.ensurePastChatsLoaded()
-        // workflows and workflow-blocks auto-load from stores
         void mentionData.ensureKnowledgeLoaded()
         void mentionData.ensureBlocksLoaded()
         void mentionData.ensureTemplatesLoaded()
@@ -306,7 +309,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             size: f.size,
           }))
 
-        onSubmit(trimmedMessage, fileAttachmentsForApi, contextManagement.selectedContexts as any)
+        onSubmit(trimmedMessage, fileAttachmentsForApi, contextManagement.selectedContexts)
 
         const shouldClearInput = clearOnSubmit && !options.preserveInput && !overrideMessage
         if (shouldClearInput) {
@@ -657,7 +660,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const handleModelSelect = useCallback(
       (model: string) => {
-        setSelectedModel(model as any)
+        setSelectedModel(model as CopilotModelId)
       },
       [setSelectedModel]
     )
@@ -677,15 +680,17 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         return <span>{displayText}</span>
       }
 
-      const elements: React.ReactNode[] = []
-      const ranges = mentionTokensWithContext.computeMentionRanges()
+      const tokens = extractContextTokens(contexts)
+      const ranges = computeMentionHighlightRanges(message, tokens)
 
       if (ranges.length === 0) {
         const displayText = message.endsWith('\n') ? `${message}\u200B` : message
         return <span>{displayText}</span>
       }
 
+      const elements: React.ReactNode[] = []
       let lastIndex = 0
+
       for (let i = 0; i < ranges.length; i++) {
         const range = ranges[i]
 
@@ -694,13 +699,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           elements.push(<span key={`text-${i}-${lastIndex}-${range.start}`}>{before}</span>)
         }
 
-        const mentionText = message.slice(range.start, range.end)
         elements.push(
           <span
             key={`mention-${i}-${range.start}-${range.end}`}
             className='rounded-[4px] bg-[rgba(50,189,126,0.65)] py-[1px]'
           >
-            {mentionText}
+            {range.token}
           </span>
         )
         lastIndex = range.end
@@ -713,7 +717,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
 
       return elements.length > 0 ? elements : <span>{'\u00A0'}</span>
-    }, [message, contextManagement.selectedContexts, mentionTokensWithContext])
+    }, [message, contextManagement.selectedContexts])
 
     return (
       <div
@@ -855,87 +859,22 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           </div>
 
           {/* Bottom Row: Mode Selector + Model Selector + Attach Button + Send Button */}
-          <div className='flex items-center justify-between gap-2'>
-            {/* Left side: Mode Selector + Model Selector */}
-            <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-              {!hideModeSelector && (
-                <ModeSelector
-                  mode={mode}
-                  onModeChange={onModeChange}
-                  isNearTop={isNearTop}
-                  disabled={disabled}
-                />
-              )}
-
-              <ModelSelector
-                selectedModel={selectedModel}
-                isNearTop={isNearTop}
-                onModelSelect={handleModelSelect}
-              />
-            </div>
-
-            {/* Right side: Attach Button + Send Button */}
-            <div className='flex flex-shrink-0 items-center gap-[10px]'>
-              <Badge
-                onClick={fileAttachments.handleFileSelect}
-                title='Attach file'
-                className={cn(
-                  'cursor-pointer rounded-[6px] border-0 bg-transparent p-[0px] dark:bg-transparent',
-                  disabled && 'cursor-not-allowed opacity-50'
-                )}
-              >
-                <Image className='!h-3.5 !w-3.5 scale-x-110' />
-              </Badge>
-
-              {showAbortButton ? (
-                <Button
-                  onClick={handleAbort}
-                  disabled={isAborting}
-                  className={cn(
-                    'h-[20px] w-[20px] rounded-full border-0 p-0 transition-colors',
-                    !isAborting
-                      ? 'bg-[var(--c-383838)] hover:bg-[var(--c-575757)] dark:bg-[var(--c-E0E0E0)] dark:hover:bg-[var(--c-CFCFCF)]'
-                      : 'bg-[var(--c-383838)] dark:bg-[var(--c-E0E0E0)]'
-                  )}
-                  title='Stop generation'
-                >
-                  {isAborting ? (
-                    <Loader2 className='block h-[13px] w-[13px] animate-spin text-white dark:text-black' />
-                  ) : (
-                    <svg
-                      className='block h-[13px] w-[13px] fill-white dark:fill-black'
-                      viewBox='0 0 24 24'
-                      xmlns='http://www.w3.org/2000/svg'
-                    >
-                      <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
-                    </svg>
-                  )}
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => {
-                    void handleSubmit()
-                  }}
-                  disabled={!canSubmit}
-                  className={cn(
-                    'h-[22px] w-[22px] rounded-full border-0 p-0 transition-colors',
-                    canSubmit
-                      ? 'bg-[var(--c-383838)] hover:bg-[var(--c-575757)] dark:bg-[var(--c-E0E0E0)] dark:hover:bg-[var(--c-CFCFCF)]'
-                      : 'bg-[var(--c-808080)] dark:bg-[var(--c-808080)]'
-                  )}
-                >
-                  {isLoading ? (
-                    <Loader2 className='block h-3.5 w-3.5 animate-spin text-white dark:text-black' />
-                  ) : (
-                    <ArrowUp
-                      className='block h-3.5 w-3.5 text-white dark:text-black'
-                      strokeWidth={2.25}
-                    />
-                  )}
-                </Button>
-              )}
-            </div>
-          </div>
+          <BottomControls
+            mode={mode}
+            onModeChange={onModeChange}
+            selectedModel={selectedModel}
+            onModelSelect={handleModelSelect}
+            isNearTop={isNearTop}
+            disabled={disabled}
+            hideModeSelector={hideModeSelector}
+            canSubmit={canSubmit}
+            isLoading={isLoading}
+            isAborting={isAborting}
+            showAbortButton={Boolean(showAbortButton)}
+            onSubmit={() => void handleSubmit()}
+            onAbort={handleAbort}
+            onFileSelect={fileAttachments.handleFileSelect}
+          />
 
           {/* Hidden File Input - enabled during streaming so users can prepare images for the next message */}
           <input

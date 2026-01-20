@@ -6,6 +6,7 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample } from '@/lib/workflows/operations/deployment-utils'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -36,7 +37,6 @@ export class DeployApiClientTool extends BaseClientTool {
 
     const action = params?.action || 'deploy'
 
-    // Check if workflow is already deployed
     const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
     const isAlreadyDeployed = workflowId
       ? useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)?.isDeployed
@@ -89,7 +89,6 @@ export class DeployApiClientTool extends BaseClientTool {
     getDynamicText: (params, state) => {
       const action = params?.action === 'undeploy' ? 'undeploy' : 'deploy'
 
-      // Check if workflow is already deployed
       const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
       const isAlreadyDeployed = workflowId
         ? useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)?.isDeployed
@@ -231,10 +230,7 @@ export class DeployApiClientTool extends BaseClientTool {
       }
 
       if (action === 'deploy') {
-        const appUrl =
-          typeof window !== 'undefined'
-            ? window.location.origin
-            : process.env.NEXT_PUBLIC_APP_URL || 'https://app.sim.ai'
+        const appUrl = getBaseUrl()
         const apiEndpoint = `${appUrl}/api/workflows/${workflowId}/execute`
         const apiKeyPlaceholder = '$SIM_API_KEY'
 

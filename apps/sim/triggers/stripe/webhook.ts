@@ -186,7 +186,7 @@ export const stripeWebhookTrigger: TriggerConfig = {
         'Click "Create Destination" to save',
         'After creating the endpoint, click "Reveal" next to "Signing secret" and copy it',
         'Paste the signing secret into the <strong>Webhook Signing Secret</strong> field above',
-        'Click "Save" to activate your webhook trigger',
+        'Deploy your workflow to activate the webhook trigger',
       ]
         .map(
           (instruction, index) =>

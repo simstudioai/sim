@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { verifySuperUser } from '@/lib/templates/permissions'
+import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
 
 const logger = createLogger('TemplateApprovalAPI')
 
@@ -25,8 +25,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { isSuperUser } = await verifySuperUser(session.user.id)
-    if (!isSuperUser) {
+    const { effectiveSuperUser } = await verifyEffectiveSuperUser(session.user.id)
+    if (!effectiveSuperUser) {
       logger.warn(`[${requestId}] Non-super user attempted to approve template: ${id}`)
       return NextResponse.json({ error: 'Only super users can approve templates' }, { status: 403 })
     }
@@ -71,8 +71,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { isSuperUser } = await verifySuperUser(session.user.id)
-    if (!isSuperUser) {
+    const { effectiveSuperUser } = await verifyEffectiveSuperUser(session.user.id)
+    if (!effectiveSuperUser) {
       logger.warn(`[${requestId}] Non-super user attempted to reject template: ${id}`)
       return NextResponse.json({ error: 'Only super users can reject templates' }, { status: 403 })
     }

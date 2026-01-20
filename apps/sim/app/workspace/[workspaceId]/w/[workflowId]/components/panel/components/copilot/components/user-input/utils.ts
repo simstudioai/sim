@@ -1,9 +1,106 @@
+import type { ReactNode } from 'react'
 import {
   FOLDER_CONFIGS,
   type MentionFolderId,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
 import type { MentionDataReturn } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-mention-data'
 import type { ChatContext } from '@/stores/panel'
+
+/**
+ * Escapes special regex characters in a string
+ * @param value - String to escape
+ * @returns Escaped string safe for use in RegExp
+ */
+export function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Extracts mention tokens from contexts for display/matching
+ * Filters out current_workflow contexts and builds prefixed labels
+ * @param contexts - Array of chat contexts
+ * @returns Array of prefixed token strings (e.g., "@workflow", "/web")
+ */
+export function extractContextTokens(contexts: ChatContext[]): string[] {
+  return contexts
+    .filter((c) => c.kind !== 'current_workflow' && c.label)
+    .map((c) => {
+      const prefix = c.kind === 'slash_command' ? '/' : '@'
+      return `${prefix}${c.label}`
+    })
+}
+
+/**
+ * Mention range for text highlighting
+ */
+export interface MentionHighlightRange {
+  start: number
+  end: number
+  token: string
+}
+
+/**
+ * Computes mention ranges in text for highlighting
+ * @param text - Text to search
+ * @param tokens - Prefixed tokens to find (e.g., "@workflow", "/web")
+ * @returns Array of ranges with start, end, and matched token
+ */
+export function computeMentionHighlightRanges(
+  text: string,
+  tokens: string[]
+): MentionHighlightRange[] {
+  if (!tokens.length || !text) return []
+
+  const pattern = new RegExp(`(${tokens.map(escapeRegex).join('|')})`, 'g')
+  const ranges: MentionHighlightRange[] = []
+  let match: RegExpExecArray | null
+
+  while ((match = pattern.exec(text)) !== null) {
+    ranges.push({
+      start: match.index,
+      end: match.index + match[0].length,
+      token: match[0],
+    })
+  }
+
+  return ranges
+}
+
+/**
+ * Builds React nodes with highlighted mention tokens
+ * @param text - Text to render
+ * @param contexts - Chat contexts to highlight
+ * @param createHighlightSpan - Function to create highlighted span element
+ * @returns Array of React nodes with highlighted mentions
+ */
+export function buildMentionHighlightNodes(
+  text: string,
+  contexts: ChatContext[],
+  createHighlightSpan: (token: string, key: string) => ReactNode
+): ReactNode[] {
+  const tokens = extractContextTokens(contexts)
+  if (!tokens.length) return [text]
+
+  const ranges = computeMentionHighlightRanges(text, tokens)
+  if (!ranges.length) return [text]
+
+  const nodes: ReactNode[] = []
+  let lastIndex = 0
+
+  for (const range of ranges) {
+    if (range.start > lastIndex) {
+      nodes.push(text.slice(lastIndex, range.start))
+    }
+    nodes.push(createHighlightSpan(range.token, `mention-${range.start}-${range.end}`))
+    lastIndex = range.end
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex))
+  }
+
+  return nodes
+}
 
 /**
  * Gets the data array for a folder ID from mentionData.

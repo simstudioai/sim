@@ -452,39 +452,6 @@ console.log(limits);`
         </div>
       )}
 
-      {/* <div>
-        <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            URL
-          </Label>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                onClick={() => handleCopy('endpoint', info.endpoint)}
-                aria-label='Copy endpoint'
-                className='!p-1.5 -my-1.5'
-              >
-                {copied.endpoint ? (
-                  <Check className='h-3 w-3' />
-                ) : (
-                  <Clipboard className='h-3 w-3' />
-                )}
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content>
-              <span>{copied.endpoint ? 'Copied' : 'Copy'}</span>
-            </Tooltip.Content>
-          </Tooltip.Root>
-        </div>
-        <Code.Viewer
-          code={info.endpoint}
-          language='javascript'
-          wrapText
-          className='!min-h-0 rounded-[4px] border border-[var(--border-1)]'
-        />
-      </div> */}
-
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
           <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>

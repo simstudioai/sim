@@ -52,6 +52,15 @@ Read content from a Google Slides presentation
 | --------- | ---- | ----------- |
 | `slides` | json | Array of slides with their content |
 | `metadata` | json | Presentation metadata including ID, title, and URL |
+| ↳ `presentationId` | string | The presentation ID |
+| ↳ `title` | string | The presentation title |
+| ↳ `pageSize` | object | Presentation page size |
+|   ↳ `width` | json | Page width as a Dimension object |
+|   ↳ `height` | json | Page height as a Dimension object |
+| ↳ `width` | json | Page width as a Dimension object |
+| ↳ `height` | json | Page height as a Dimension object |
+| ↳ `mimeType` | string | The mime type of the presentation |
+| ↳ `url` | string | URL to open the presentation |
 
 ### `google_slides_write`
 
@@ -71,6 +80,10 @@ Write or update content in a Google Slides presentation
 | --------- | ---- | ----------- |
 | `updatedContent` | boolean | Indicates if presentation content was updated successfully |
 | `metadata` | json | Updated presentation metadata including ID, title, and URL |
+| ↳ `presentationId` | string | The presentation ID |
+| ↳ `title` | string | The presentation title |
+| ↳ `mimeType` | string | The mime type of the presentation |
+| ↳ `url` | string | URL to open the presentation |
 
 ### `google_slides_create`
 
@@ -90,6 +103,10 @@ Create a new Google Slides presentation
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `metadata` | json | Created presentation metadata including ID, title, and URL |
+| ↳ `presentationId` | string | The presentation ID |
+| ↳ `title` | string | The presentation title |
+| ↳ `mimeType` | string | The mime type of the presentation |
+| ↳ `url` | string | URL to open the presentation |
 
 ### `google_slides_replace_all_text`
 
@@ -111,6 +128,10 @@ Find and replace all occurrences of text throughout a Google Slides presentation
 | --------- | ---- | ----------- |
 | `occurrencesChanged` | number | Number of text occurrences that were replaced |
 | `metadata` | json | Operation metadata including presentation ID and URL |
+| ↳ `presentationId` | string | The presentation ID |
+| ↳ `findText` | string | The text that was searched for |
+| ↳ `replaceText` | string | The text that replaced the matches |
+| ↳ `url` | string | URL to open the presentation |
 
 ### `google_slides_add_slide`
 
@@ -131,6 +152,10 @@ Add a new slide to a Google Slides presentation with a specified layout
 | --------- | ---- | ----------- |
 | `slideId` | string | The object ID of the newly created slide |
 | `metadata` | json | Operation metadata including presentation ID, layout, and URL |
+| ↳ `presentationId` | string | The presentation ID |
+| ↳ `layout` | string | The layout used for the new slide |
+| ↳ `insertionIndex` | number | The zero-based index where the slide was inserted |
+| ↳ `url` | string | URL to open the presentation |
 
 ### `google_slides_add_image`
 
@@ -154,6 +179,10 @@ Insert an image into a specific slide in a Google Slides presentation
 | --------- | ---- | ----------- |
 | `imageId` | string | The object ID of the newly created image |
 | `metadata` | json | Operation metadata including presentation ID and image URL |
+| ↳ `presentationId` | string | The presentation ID |
+| ↳ `pageObjectId` | string | The page object ID where the image was inserted |
+| ↳ `imageUrl` | string | The source image URL |
+| ↳ `url` | string | URL to open the presentation |
 
 ### `google_slides_get_thumbnail`
 
@@ -176,6 +205,10 @@ Generate a thumbnail image of a specific slide in a Google Slides presentation
 | `width` | number | Width of the thumbnail in pixels |
 | `height` | number | Height of the thumbnail in pixels |
 | `metadata` | json | Operation metadata including presentation ID and page object ID |
+| ↳ `presentationId` | string | The presentation ID |
+| ↳ `pageObjectId` | string | The page object ID for the thumbnail |
+| ↳ `thumbnailSize` | string | The requested thumbnail size |
+| ↳ `mimeType` | string | The thumbnail MIME type |
 
 ### `google_slides_get_page`
 

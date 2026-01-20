@@ -59,7 +59,7 @@ export const calendlyRoutingFormSubmittedTrigger: TriggerConfig = {
         '<strong>Note:</strong> This trigger requires a paid Calendly subscription (Professional, Teams, or Enterprise plan).',
         'Get your Personal Access Token from <strong>Settings > Integrations > API & Webhooks</strong> in your Calendly account.',
         'Use the "Get Current User" operation in a Calendly block to retrieve your Organization URI.',
-        'The webhook will be automatically created in Calendly when you save this trigger.',
+        'The webhook will be automatically created in Calendly when you deploy the workflow.',
         'This webhook triggers when someone submits a routing form, regardless of whether they book an event.',
       ]
         .map(

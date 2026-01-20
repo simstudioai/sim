@@ -26,21 +26,20 @@ export class SearchErrorsClientTool extends BaseClientTool {
     getDynamicText: (params, state) => {
       if (params?.query && typeof params.query === 'string') {
         const query = params.query
-        const truncated = query.length > 50 ? `${query.slice(0, 50)}...` : query
 
         switch (state) {
           case ClientToolCallState.success:
-            return `Debugged ${truncated}`
+            return `Debugged ${query}`
           case ClientToolCallState.executing:
           case ClientToolCallState.generating:
           case ClientToolCallState.pending:
-            return `Debugging ${truncated}`
+            return `Debugging ${query}`
           case ClientToolCallState.error:
-            return `Failed to debug ${truncated}`
+            return `Failed to debug ${query}`
           case ClientToolCallState.aborted:
-            return `Aborted debugging ${truncated}`
+            return `Aborted debugging ${query}`
           case ClientToolCallState.rejected:
-            return `Skipped debugging ${truncated}`
+            return `Skipped debugging ${query}`
         }
       }
       return undefined

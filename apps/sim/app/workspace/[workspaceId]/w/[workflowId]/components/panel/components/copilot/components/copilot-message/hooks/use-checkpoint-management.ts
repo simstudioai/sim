@@ -15,6 +15,7 @@ const logger = createLogger('useCheckpointManagement')
  * @param messageCheckpoints - Checkpoints for this message
  * @param onRevertModeChange - Callback for revert mode changes
  * @param onEditModeChange - Callback for edit mode changes
+ * @param onCancelEdit - Callback when edit is cancelled
  * @returns Checkpoint management utilities
  */
 export function useCheckpointManagement(
@@ -37,17 +38,13 @@ export function useCheckpointManagement(
 
   const { revertToCheckpoint, currentChat } = useCopilotStore()
 
-  /**
-   * Handles initiating checkpoint revert
-   */
+  /** Initiates checkpoint revert confirmation */
   const handleRevertToCheckpoint = useCallback(() => {
     setShowRestoreConfirmation(true)
     onRevertModeChange?.(true)
   }, [onRevertModeChange])
 
-  /**
-   * Confirms checkpoint revert and updates state
-   */
+  /** Confirms and executes checkpoint revert */
   const handleConfirmRevert = useCallback(async () => {
     if (messageCheckpoints.length > 0) {
       const latestCheckpoint = messageCheckpoints[0]
@@ -116,18 +113,13 @@ export function useCheckpointManagement(
     onRevertModeChange,
   ])
 
-  /**
-   * Cancels checkpoint revert
-   */
+  /** Cancels checkpoint revert */
   const handleCancelRevert = useCallback(() => {
     setShowRestoreConfirmation(false)
     onRevertModeChange?.(false)
   }, [onRevertModeChange])
 
-  /**
-   * Handles "Continue and revert" action for checkpoint discard modal
-   * Reverts to checkpoint then proceeds with pending edit
-   */
+  /** Reverts to checkpoint then proceeds with pending edit */
   const handleContinueAndRevert = useCallback(async () => {
     setIsProcessingDiscard(true)
     try {
@@ -184,9 +176,7 @@ export function useCheckpointManagement(
     }
   }, [messageCheckpoints, revertToCheckpoint, message, messages, onEditModeChange, onCancelEdit])
 
-  /**
-   * Cancels checkpoint discard and clears pending edit
-   */
+  /** Cancels checkpoint discard and clears pending edit */
   const handleCancelCheckpointDiscard = useCallback(() => {
     setShowCheckpointDiscardModal(false)
     onEditModeChange?.(false)
@@ -194,11 +184,11 @@ export function useCheckpointManagement(
     pendingEditRef.current = null
   }, [onEditModeChange, onCancelEdit])
 
-  /**
-   * Continues with edit WITHOUT reverting checkpoint
-   */
+  /** Continues with edit without reverting checkpoint */
   const handleContinueWithoutRevert = useCallback(async () => {
     setShowCheckpointDiscardModal(false)
+    onEditModeChange?.(false)
+    onCancelEdit?.()
 
     if (pendingEditRef.current) {
       const { message: msg, fileAttachments, contexts } = pendingEditRef.current
@@ -225,43 +215,34 @@ export function useCheckpointManagement(
     }
   }, [message, messages, onEditModeChange, onCancelEdit])
 
-  /**
-   * Handles keyboard events for restore confirmation (Escape/Enter)
-   */
+  /** Handles keyboard events for confirmation dialogs */
   useEffect(() => {
-    if (!showRestoreConfirmation) return
+    const isActive = showRestoreConfirmation || showCheckpointDiscardModal
+    if (!isActive) return
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+
       if (event.key === 'Escape') {
-        handleCancelRevert()
+        if (showRestoreConfirmation) handleCancelRevert()
+        else handleCancelCheckpointDiscard()
       } else if (event.key === 'Enter') {
         event.preventDefault()
-        handleConfirmRevert()
+        if (showRestoreConfirmation) handleConfirmRevert()
+        else handleContinueAndRevert()
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [showRestoreConfirmation, handleCancelRevert, handleConfirmRevert])
-
-  /**
-   * Handles keyboard events for checkpoint discard modal (Escape/Enter)
-   */
-  useEffect(() => {
-    if (!showCheckpointDiscardModal) return
-
-    const handleCheckpointDiscardKeyDown = async (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        handleCancelCheckpointDiscard()
-      } else if (event.key === 'Enter') {
-        event.preventDefault()
-        await handleContinueAndRevert()
-      }
-    }
-
-    document.addEventListener('keydown', handleCheckpointDiscardKeyDown)
-    return () => document.removeEventListener('keydown', handleCheckpointDiscardKeyDown)
-  }, [showCheckpointDiscardModal, handleCancelCheckpointDiscard, handleContinueAndRevert])
+  }, [
+    showRestoreConfirmation,
+    showCheckpointDiscardModal,
+    handleCancelRevert,
+    handleConfirmRevert,
+    handleCancelCheckpointDiscard,
+    handleContinueAndRevert,
+  ])
 
   return {
     // State

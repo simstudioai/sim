@@ -87,15 +87,16 @@ export function CustomToolModal({
   const [codeError, setCodeError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [toolId, setToolId] = useState<string | undefined>(undefined)
+  const [initialJsonSchema, setInitialJsonSchema] = useState('')
+  const [initialFunctionCode, setInitialFunctionCode] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showDiscardAlert, setShowDiscardAlert] = useState(false)
   const [isSchemaPromptActive, setIsSchemaPromptActive] = useState(false)
   const [schemaPromptInput, setSchemaPromptInput] = useState('')
-  const [schemaPromptSummary, setSchemaPromptSummary] = useState<string | null>(null)
   const schemaPromptInputRef = useRef<HTMLInputElement | null>(null)
 
   const [isCodePromptActive, setIsCodePromptActive] = useState(false)
   const [codePromptInput, setCodePromptInput] = useState('')
-  const [codePromptSummary, setCodePromptSummary] = useState<string | null>(null)
   const codePromptInputRef = useRef<HTMLInputElement | null>(null)
 
   const schemaGeneration = useWand({
@@ -174,6 +175,9 @@ Example 2:
       generationType: 'custom-tool-schema',
     },
     currentValue: jsonSchema,
+    onStreamStart: () => {
+      setJsonSchema('')
+    },
     onGeneratedContent: (content) => {
       setJsonSchema(content)
       setSchemaError(null)
@@ -237,6 +241,9 @@ try {
       generationType: 'javascript-function-body',
     },
     currentValue: functionCode,
+    onStreamStart: () => {
+      setFunctionCode('')
+    },
     onGeneratedContent: (content) => {
       handleFunctionCodeChange(content)
       setCodeError(null)
@@ -272,12 +279,15 @@ try {
 
     if (initialValues) {
       try {
-        setJsonSchema(
+        const schemaValue =
           typeof initialValues.schema === 'string'
             ? initialValues.schema
             : JSON.stringify(initialValues.schema, null, 2)
-        )
-        setFunctionCode(initialValues.code || '')
+        const codeValue = initialValues.code || ''
+        setJsonSchema(schemaValue)
+        setFunctionCode(codeValue)
+        setInitialJsonSchema(schemaValue)
+        setInitialFunctionCode(codeValue)
         setIsEditing(true)
         setToolId(initialValues.id)
       } catch (error) {
@@ -304,17 +314,18 @@ try {
   const resetForm = () => {
     setJsonSchema('')
     setFunctionCode('')
+    setInitialJsonSchema('')
+    setInitialFunctionCode('')
     setSchemaError(null)
     setCodeError(null)
     setActiveSection('schema')
     setIsEditing(false)
     setToolId(undefined)
-    setSchemaPromptSummary(null)
-    setCodePromptSummary(null)
     setIsSchemaPromptActive(false)
     setIsCodePromptActive(false)
     setSchemaPromptInput('')
     setCodePromptInput('')
+    setShowDiscardAlert(false)
     schemaGeneration.closePrompt()
     schemaGeneration.hidePromptInline()
     codeGeneration.closePrompt()
@@ -328,31 +339,37 @@ try {
     onOpenChange(false)
   }
 
-  const validateJsonSchema = (schema: string): boolean => {
-    if (!schema) return false
+  const validateSchema = (schema: string): { isValid: boolean; error: string | null } => {
+    if (!schema) return { isValid: false, error: null }
 
     try {
       const parsed = JSON.parse(schema)
 
       if (!parsed.type || parsed.type !== 'function') {
-        return false
+        return { isValid: false, error: 'Missing "type": "function"' }
       }
-
       if (!parsed.function || !parsed.function.name) {
-        return false
+        return { isValid: false, error: 'Missing function.name field' }
       }
-
       if (!parsed.function.parameters) {
-        return false
+        return { isValid: false, error: 'Missing function.parameters object' }
+      }
+      if (!parsed.function.parameters.type) {
+        return { isValid: false, error: 'Missing parameters.type field' }
+      }
+      if (parsed.function.parameters.properties === undefined) {
+        return { isValid: false, error: 'Missing parameters.properties field' }
+      }
+      if (
+        typeof parsed.function.parameters.properties !== 'object' ||
+        parsed.function.parameters.properties === null
+      ) {
+        return { isValid: false, error: 'parameters.properties must be an object' }
       }
 
-      if (!parsed.function.parameters.type || parsed.function.parameters.properties === undefined) {
-        return false
-      }
-
-      return true
-    } catch (_error) {
-      return false
+      return { isValid: true, error: null }
+    } catch {
+      return { isValid: false, error: 'Invalid JSON format' }
     }
   }
 
@@ -374,7 +391,32 @@ try {
     }
   }, [jsonSchema])
 
-  const isSchemaValid = useMemo(() => validateJsonSchema(jsonSchema), [jsonSchema])
+  const isSchemaValid = useMemo(() => validateSchema(jsonSchema).isValid, [jsonSchema])
+
+  const hasChanges = useMemo(() => {
+    if (!isEditing) return true
+    return jsonSchema !== initialJsonSchema || functionCode !== initialFunctionCode
+  }, [isEditing, jsonSchema, initialJsonSchema, functionCode, initialFunctionCode])
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (isEditing) {
+      return jsonSchema !== initialJsonSchema || functionCode !== initialFunctionCode
+    }
+    return jsonSchema.trim().length > 0 || functionCode.trim().length > 0
+  }, [isEditing, jsonSchema, initialJsonSchema, functionCode, initialFunctionCode])
+
+  const handleCloseAttempt = () => {
+    if (hasUnsavedChanges && !schemaGeneration.isStreaming && !codeGeneration.isStreaming) {
+      setShowDiscardAlert(true)
+    } else {
+      handleClose()
+    }
+  }
+
+  const handleConfirmDiscard = () => {
+    setShowDiscardAlert(false)
+    handleClose()
+  }
 
   const handleSave = async () => {
     try {
@@ -384,43 +426,9 @@ try {
         return
       }
 
-      const parsed = JSON.parse(jsonSchema)
-
-      if (!parsed.type || parsed.type !== 'function') {
-        setSchemaError('Schema must have a "type" field set to "function"')
-        setActiveSection('schema')
-        return
-      }
-
-      if (!parsed.function || !parsed.function.name) {
-        setSchemaError('Schema must have a "function" object with a "name" field')
-        setActiveSection('schema')
-        return
-      }
-
-      if (!parsed.function.parameters) {
-        setSchemaError('Missing function.parameters object')
-        setActiveSection('schema')
-        return
-      }
-
-      if (!parsed.function.parameters.type) {
-        setSchemaError('Missing parameters.type field')
-        setActiveSection('schema')
-        return
-      }
-
-      if (parsed.function.parameters.properties === undefined) {
-        setSchemaError('Missing parameters.properties field')
-        setActiveSection('schema')
-        return
-      }
-
-      if (
-        typeof parsed.function.parameters.properties !== 'object' ||
-        parsed.function.parameters.properties === null
-      ) {
-        setSchemaError('parameters.properties must be an object')
+      const { isValid, error } = validateSchema(jsonSchema)
+      if (!isValid) {
+        setSchemaError(error)
         setActiveSection('schema')
         return
       }
@@ -483,17 +491,9 @@ try {
       }
 
       onSave(customTool)
-
-      setSchemaPromptSummary(null)
-      setCodePromptSummary(null)
-
       handleClose()
     } catch (error) {
       logger.error('Error saving custom tool:', { error })
-
-      setSchemaPromptSummary(null)
-      setCodePromptSummary(null)
-
       const errorMessage = error instanceof Error ? error.message : 'Failed to save custom tool'
 
       if (errorMessage.includes('Cannot change function name')) {
@@ -512,46 +512,8 @@ try {
     setJsonSchema(value)
 
     if (value.trim()) {
-      try {
-        const parsed = JSON.parse(value)
-
-        if (!parsed.type || parsed.type !== 'function') {
-          setSchemaError('Missing "type": "function"')
-          return
-        }
-
-        if (!parsed.function || !parsed.function.name) {
-          setSchemaError('Missing function.name field')
-          return
-        }
-
-        if (!parsed.function.parameters) {
-          setSchemaError('Missing function.parameters object')
-          return
-        }
-
-        if (!parsed.function.parameters.type) {
-          setSchemaError('Missing parameters.type field')
-          return
-        }
-
-        if (parsed.function.parameters.properties === undefined) {
-          setSchemaError('Missing parameters.properties field')
-          return
-        }
-
-        if (
-          typeof parsed.function.parameters.properties !== 'object' ||
-          parsed.function.parameters.properties === null
-        ) {
-          setSchemaError('parameters.properties must be an object')
-          return
-        }
-
-        setSchemaError(null)
-      } catch {
-        setSchemaError('Invalid JSON format')
-      }
+      const { error } = validateSchema(value)
+      setSchemaError(error)
     } else {
       setSchemaError(null)
     }
@@ -709,12 +671,12 @@ try {
           e.preventDefault()
           e.stopPropagation()
           setSchemaParamSelectedIndex((prev) => Math.min(prev + 1, schemaParameters.length - 1))
-          break
+          return
         case 'ArrowUp':
           e.preventDefault()
           e.stopPropagation()
           setSchemaParamSelectedIndex((prev) => Math.max(prev - 1, 0))
-          break
+          return
         case 'Enter':
           e.preventDefault()
           e.stopPropagation()
@@ -722,14 +684,17 @@ try {
             const selectedParam = schemaParameters[schemaParamSelectedIndex]
             handleSchemaParamSelect(selectedParam.name)
           }
-          break
+          return
         case 'Escape':
           e.preventDefault()
           e.stopPropagation()
           setShowSchemaParams(false)
-          break
+          return
+        case ' ':
+        case 'Tab':
+          setShowSchemaParams(false)
+          return
       }
-      return
     }
 
     if (showEnvVars || showTags) {
@@ -743,7 +708,7 @@ try {
   const handleSchemaWandClick = () => {
     if (schemaGeneration.isLoading || schemaGeneration.isStreaming) return
     setIsSchemaPromptActive(true)
-    setSchemaPromptInput(schemaPromptSummary ?? '')
+    setSchemaPromptInput('')
     setTimeout(() => {
       schemaPromptInputRef.current?.focus()
     }, 0)
@@ -762,7 +727,6 @@ try {
   const handleSchemaPromptSubmit = () => {
     const trimmedPrompt = schemaPromptInput.trim()
     if (!trimmedPrompt || schemaGeneration.isLoading || schemaGeneration.isStreaming) return
-    setSchemaPromptSummary(trimmedPrompt)
     schemaGeneration.generateStream({ prompt: trimmedPrompt })
     setSchemaPromptInput('')
     setIsSchemaPromptActive(false)
@@ -782,7 +746,7 @@ try {
   const handleCodeWandClick = () => {
     if (codeGeneration.isLoading || codeGeneration.isStreaming) return
     setIsCodePromptActive(true)
-    setCodePromptInput(codePromptSummary ?? '')
+    setCodePromptInput('')
     setTimeout(() => {
       codePromptInputRef.current?.focus()
     }, 0)
@@ -801,7 +765,6 @@ try {
   const handleCodePromptSubmit = () => {
     const trimmedPrompt = codePromptInput.trim()
     if (!trimmedPrompt || codeGeneration.isLoading || codeGeneration.isStreaming) return
-    setCodePromptSummary(trimmedPrompt)
     codeGeneration.generateStream({ prompt: trimmedPrompt })
     setCodePromptInput('')
     setIsCodePromptActive(false)
@@ -846,19 +809,8 @@ try {
 
   return (
     <>
-      <Modal open={open} onOpenChange={handleClose}>
-        <ModalContent
-          size='xl'
-          onKeyDown={(e) => {
-            if (e.key === 'Escape' && (showEnvVars || showTags || showSchemaParams)) {
-              e.preventDefault()
-              e.stopPropagation()
-              setShowEnvVars(false)
-              setShowTags(false)
-              setShowSchemaParams(false)
-            }
-          }}
-        >
+      <Modal open={open} onOpenChange={handleCloseAttempt}>
+        <ModalContent size='xl'>
           <ModalHeader>{isEditing ? 'Edit Agent Tool' : 'Create Agent Tool'}</ModalHeader>
 
           <ModalTabs
@@ -1211,7 +1163,7 @@ try {
                 <Button
                   variant='tertiary'
                   onClick={handleSave}
-                  disabled={!isSchemaValid || !!schemaError}
+                  disabled={!isSchemaValid || !!schemaError || !hasChanges}
                 >
                   {isEditing ? 'Update Tool' : 'Save Tool'}
                 </Button>
@@ -1244,6 +1196,26 @@ try {
               disabled={deleteToolMutation.isPending}
             >
               {deleteToolMutation.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal open={showDiscardAlert} onOpenChange={setShowDiscardAlert}>
+        <ModalContent size='sm'>
+          <ModalHeader>Unsaved Changes</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
+              You have unsaved changes to this tool. Are you sure you want to discard your changes
+              and close the editor?
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='default' onClick={() => setShowDiscardAlert(false)}>
+              Keep Editing
+            </Button>
+            <Button variant='destructive' onClick={handleConfirmDiscard}>
+              Discard Changes
             </Button>
           </ModalFooter>
         </ModalContent>

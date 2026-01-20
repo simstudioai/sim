@@ -1,27 +1,17 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
-import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
+import { CopilotMarkdownRenderer } from '../markdown-renderer'
 
-/**
- * Character animation delay in milliseconds
- */
+/** Character animation delay in milliseconds */
 const CHARACTER_DELAY = 3
 
-/**
- * Props for the StreamingIndicator component
- */
+/** Props for the StreamingIndicator component */
 interface StreamingIndicatorProps {
   /** Optional class name for layout adjustments */
   className?: string
 }
 
-/**
- * StreamingIndicator shows animated dots during message streaming
- * Used as a standalone indicator when no content has arrived yet
- *
- * @param props - Component props
- * @returns Animated loading indicator
- */
+/** Shows animated dots during message streaming when no content has arrived */
 export const StreamingIndicator = memo(({ className }: StreamingIndicatorProps) => (
   <div className={cn('flex h-[1.25rem] items-center text-muted-foreground', className)}>
     <div className='flex space-x-0.5'>
@@ -34,9 +24,7 @@ export const StreamingIndicator = memo(({ className }: StreamingIndicatorProps) 
 
 StreamingIndicator.displayName = 'StreamingIndicator'
 
-/**
- * Props for the SmoothStreamingText component
- */
+/** Props for the SmoothStreamingText component */
 interface SmoothStreamingTextProps {
   /** Content to display with streaming animation */
   content: string
@@ -44,20 +32,12 @@ interface SmoothStreamingTextProps {
   isStreaming: boolean
 }
 
-/**
- * SmoothStreamingText component displays text with character-by-character animation
- * Creates a smooth streaming effect for AI responses
- *
- * @param props - Component props
- * @returns Streaming text with smooth animation
- */
+/** Displays text with character-by-character animation for smooth streaming */
 export const SmoothStreamingText = memo(
   ({ content, isStreaming }: SmoothStreamingTextProps) => {
-    // Initialize with full content when not streaming to avoid flash on page load
     const [displayedContent, setDisplayedContent] = useState(() => (isStreaming ? '' : content))
     const contentRef = useRef(content)
     const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-    // Initialize index based on streaming state
     const indexRef = useRef(isStreaming ? 0 : content.length)
     const isAnimatingRef = useRef(false)
 
@@ -95,7 +75,6 @@ export const SmoothStreamingText = memo(
           }
         }
       } else {
-        // Streaming ended - show full content immediately
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current)
         }
@@ -119,7 +98,6 @@ export const SmoothStreamingText = memo(
     )
   },
   (prevProps, nextProps) => {
-    // Prevent re-renders during streaming unless content actually changed
     return (
       prevProps.content === nextProps.content && prevProps.isStreaming === nextProps.isStreaming
     )

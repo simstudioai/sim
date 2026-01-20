@@ -97,6 +97,8 @@ export const GET = withAdminAuthParams<RouteParams>(async (_, context) => {
       totalWebhookTriggers: stats?.totalWebhookTriggers ?? 0,
       totalScheduledExecutions: stats?.totalScheduledExecutions ?? 0,
       totalChatExecutions: stats?.totalChatExecutions ?? 0,
+      totalMcpExecutions: stats?.totalMcpExecutions ?? 0,
+      totalA2aExecutions: stats?.totalA2aExecutions ?? 0,
       totalTokensUsed: stats?.totalTokensUsed ?? 0,
       totalCost: stats?.totalCost ?? '0',
       currentUsageLimit: stats?.currentUsageLimit ?? null,

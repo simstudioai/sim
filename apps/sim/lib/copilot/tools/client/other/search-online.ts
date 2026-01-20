@@ -26,21 +26,20 @@ export class SearchOnlineClientTool extends BaseClientTool {
     getDynamicText: (params, state) => {
       if (params?.query && typeof params.query === 'string') {
         const query = params.query
-        const truncated = query.length > 50 ? `${query.slice(0, 50)}...` : query
 
         switch (state) {
           case ClientToolCallState.success:
-            return `Searched online for ${truncated}`
+            return `Searched online for ${query}`
           case ClientToolCallState.executing:
           case ClientToolCallState.generating:
           case ClientToolCallState.pending:
-            return `Searching online for ${truncated}`
+            return `Searching online for ${query}`
           case ClientToolCallState.error:
-            return `Failed to search online for ${truncated}`
+            return `Failed to search online for ${query}`
           case ClientToolCallState.aborted:
-            return `Aborted searching online for ${truncated}`
+            return `Aborted searching online for ${query}`
           case ClientToolCallState.rejected:
-            return `Skipped searching online for ${truncated}`
+            return `Skipped searching online for ${query}`
         }
       }
       return undefined

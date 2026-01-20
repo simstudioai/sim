@@ -21,6 +21,8 @@ import {
   type BatchToggleEnabledOperation,
   type BatchToggleHandlesOperation,
   type BatchUpdateParentOperation,
+  captureLatestEdges,
+  captureLatestSubBlockValues,
   createOperationEntry,
   runWithUndoRedoRecordingSuspended,
   type UpdateParentOperation,
@@ -28,7 +30,6 @@ import {
 } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -445,34 +446,19 @@ export function useUndoRedo() {
             break
           }
 
-          const latestEdges = useWorkflowStore
-            .getState()
-            .edges.filter(
-              (e) => existingBlockIds.includes(e.source) || existingBlockIds.includes(e.target)
-            )
+          const latestEdges = captureLatestEdges(
+            useWorkflowStore.getState().edges,
+            existingBlockIds
+          )
           batchRemoveOp.data.edgeSnapshots = latestEdges
 
-          const latestSubBlockValues: Record<string, Record<string, unknown>> = {}
-          existingBlockIds.forEach((blockId) => {
-            const merged = mergeSubblockState(
-              useWorkflowStore.getState().blocks,
-              activeWorkflowId,
-              blockId
-            )
-            const block = merged[blockId]
-            if (block?.subBlocks) {
-              const values: Record<string, unknown> = {}
-              Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]) => {
-                if (subBlock.value !== null && subBlock.value !== undefined) {
-                  values[subBlockId] = subBlock.value
-                }
-              })
-              if (Object.keys(values).length > 0) {
-                latestSubBlockValues[blockId] = values
-              }
-            }
-          })
+          const latestSubBlockValues = captureLatestSubBlockValues(
+            useWorkflowStore.getState().blocks,
+            activeWorkflowId,
+            existingBlockIds
+          )
           batchRemoveOp.data.subBlockValues = latestSubBlockValues
+          ;(entry.operation as BatchAddBlocksOperation).data.subBlockValues = latestSubBlockValues
 
           addToQueue({
             id: opId,
@@ -1152,6 +1138,20 @@ export function useUndoRedo() {
             logger.debug('Redo batch-remove-blocks skipped; no blocks exist')
             break
           }
+
+          const latestEdges = captureLatestEdges(
+            useWorkflowStore.getState().edges,
+            existingBlockIds
+          )
+          batchOp.data.edgeSnapshots = latestEdges
+
+          const latestSubBlockValues = captureLatestSubBlockValues(
+            useWorkflowStore.getState().blocks,
+            activeWorkflowId,
+            existingBlockIds
+          )
+          batchOp.data.subBlockValues = latestSubBlockValues
+          ;(entry.inverse as BatchAddBlocksOperation).data.subBlockValues = latestSubBlockValues
 
           addToQueue({
             id: opId,

@@ -22,7 +22,10 @@ export function PollingGroupInvitationEmail({
   const providerName = provider === 'google-email' ? 'Gmail' : 'Outlook'
 
   return (
-    <EmailLayout preview={`You've been invited to join ${pollingGroupName} on ${brand.name}`}>
+    <EmailLayout
+      preview={`You've been invited to join ${pollingGroupName} on ${brand.name}`}
+      showUnsubscribe={false}
+    >
       <Text style={baseStyles.paragraph}>Hello,</Text>
       <Text style={baseStyles.paragraph}>
         <strong>{inviterName}</strong> from <strong>{organizationName}</strong> has invited you to

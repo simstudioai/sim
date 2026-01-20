@@ -73,7 +73,7 @@ export function WorkflowNotificationEmail({
       : 'Your workflow completed successfully.'
 
   return (
-    <EmailLayout preview={previewText}>
+    <EmailLayout preview={previewText} showUnsubscribe={true}>
       <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>Hello,</Text>
       <Text style={baseStyles.paragraph}>{message}</Text>
 

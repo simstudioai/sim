@@ -3,19 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
- * Options for configuring scroll behavior.
+ * Options for configuring scroll behavior
  */
 interface UseScrollManagementOptions {
   /**
-   * Scroll behavior for programmatic scrolls.
-   * - `smooth`: animated scroll (default, used by Copilot).
-   * - `auto`: immediate scroll to bottom (used by floating chat to avoid jitter).
+   * Scroll behavior for programmatic scrolls
+   * @remarks
+   * - `smooth`: Animated scroll (default, used by Copilot)
+   * - `auto`: Immediate scroll to bottom (used by floating chat to avoid jitter)
    */
   behavior?: 'auto' | 'smooth'
   /**
-   * Distance from bottom (in pixels) within which auto-scroll stays active.
-   * Lower values = less sticky (user can scroll away easier).
-   * Default is 100px.
+   * Distance from bottom (in pixels) within which auto-scroll stays active
+   * @remarks Lower values = less sticky (user can scroll away easier)
+   * @defaultValue 100
    */
   stickinessThreshold?: number
 }
@@ -35,166 +36,105 @@ export function useScrollManagement(
   options?: UseScrollManagementOptions
 ) {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
-  const [isNearBottom, setIsNearBottom] = useState(true)
-  const [userHasScrolledDuringStream, setUserHasScrolledDuringStream] = useState(false)
-  const programmaticScrollInProgressRef = useRef(false)
+  const [userHasScrolledAway, setUserHasScrolledAway] = useState(false)
+  const programmaticScrollRef = useRef(false)
   const lastScrollTopRef = useRef(0)
-  const scrollBehavior: 'auto' | 'smooth' = options?.behavior ?? 'smooth'
+
+  const scrollBehavior = options?.behavior ?? 'smooth'
   const stickinessThreshold = options?.stickinessThreshold ?? 100
 
-  /**
-   * Scrolls the container to the bottom with smooth animation
-   */
-  const getScrollContainer = useCallback((): HTMLElement | null => {
-    // Prefer the element with the ref (our scrollable div)
-    if (scrollAreaRef.current) return scrollAreaRef.current
-    return null
-  }, [])
-
+  /** Scrolls the container to the bottom */
   const scrollToBottom = useCallback(() => {
-    const scrollContainer = getScrollContainer()
-    if (!scrollContainer) return
+    const container = scrollAreaRef.current
+    if (!container) return
 
-    programmaticScrollInProgressRef.current = true
-    scrollContainer.scrollTo({
-      top: scrollContainer.scrollHeight,
-      behavior: scrollBehavior,
-    })
-    // Best-effort reset; not all browsers fire scrollend reliably
+    programmaticScrollRef.current = true
+    container.scrollTo({ top: container.scrollHeight, behavior: scrollBehavior })
+
     window.setTimeout(() => {
-      programmaticScrollInProgressRef.current = false
+      programmaticScrollRef.current = false
     }, 200)
-  }, [getScrollContainer, scrollBehavior])
+  }, [scrollBehavior])
 
-  /**
-   * Handles scroll events to track user position and show/hide scroll button
-   */
+  /** Handles scroll events to track user position */
   const handleScroll = useCallback(() => {
-    const scrollContainer = getScrollContainer()
-    if (!scrollContainer) return
+    const container = scrollAreaRef.current
+    if (!container || programmaticScrollRef.current) return
 
-    if (programmaticScrollInProgressRef.current) {
-      // Ignore scrolls we initiated
-      return
-    }
-
-    const { scrollTop, scrollHeight, clientHeight } = scrollContainer
+    const { scrollTop, scrollHeight, clientHeight } = container
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-
     const nearBottom = distanceFromBottom <= stickinessThreshold
-    setIsNearBottom(nearBottom)
+    const delta = scrollTop - lastScrollTopRef.current
 
     if (isSendingMessage) {
-      const delta = scrollTop - lastScrollTopRef.current
-      const movedUp = delta < -2 // small hysteresis to avoid noise
-      const movedDown = delta > 2
-
-      if (movedUp) {
-        // Any upward movement breaks away from sticky during streaming
-        setUserHasScrolledDuringStream(true)
+      // User scrolled up during streaming - break away
+      if (delta < -2) {
+        setUserHasScrolledAway(true)
       }
-
-      // If the user has broken away and scrolls back down to the bottom, re-stick
-      if (userHasScrolledDuringStream && movedDown && nearBottom) {
-        setUserHasScrolledDuringStream(false)
+      // User scrolled back down to bottom - re-stick
+      if (userHasScrolledAway && delta > 2 && nearBottom) {
+        setUserHasScrolledAway(false)
       }
     }
 
-    // Track last scrollTop for direction detection
     lastScrollTopRef.current = scrollTop
-  }, [getScrollContainer, isSendingMessage, userHasScrolledDuringStream, stickinessThreshold])
+  }, [isSendingMessage, userHasScrolledAway, stickinessThreshold])
 
-  // Attach scroll listener
+  /** Attaches scroll listener to container */
   useEffect(() => {
-    const scrollContainer = getScrollContainer()
-    if (!scrollContainer) return
+    const container = scrollAreaRef.current
+    if (!container) return
 
-    const handleUserScroll = () => {
-      handleScroll()
-    }
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    lastScrollTopRef.current = container.scrollTop
 
-    scrollContainer.addEventListener('scroll', handleUserScroll, { passive: true })
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [handleScroll])
 
-    if ('onscrollend' in scrollContainer) {
-      scrollContainer.addEventListener('scrollend', handleScroll, { passive: true })
-    }
-
-    // Initialize state
-    window.setTimeout(handleScroll, 100)
-    // Initialize last scroll position
-    lastScrollTopRef.current = scrollContainer.scrollTop
-
-    return () => {
-      scrollContainer.removeEventListener('scroll', handleUserScroll)
-      if ('onscrollend' in scrollContainer) {
-        scrollContainer.removeEventListener('scrollend', handleScroll)
-      }
-    }
-  }, [getScrollContainer, handleScroll])
-
-  // Smart auto-scroll: only scroll if user hasn't intentionally scrolled up during streaming
+  /** Handles auto-scroll when new messages are added */
   useEffect(() => {
     if (messages.length === 0) return
 
     const lastMessage = messages[messages.length - 1]
-    const isNewUserMessage = lastMessage?.role === 'user'
+    const isUserMessage = lastMessage?.role === 'user'
 
-    const shouldAutoScroll =
-      isNewUserMessage ||
-      (isSendingMessage && !userHasScrolledDuringStream) ||
-      (!isSendingMessage && isNearBottom)
-
-    if (shouldAutoScroll) {
+    // Always scroll for user messages, respect scroll state for assistant messages
+    if (isUserMessage) {
+      setUserHasScrolledAway(false)
+      scrollToBottom()
+    } else if (!userHasScrolledAway) {
       scrollToBottom()
     }
-  }, [messages, isNearBottom, isSendingMessage, userHasScrolledDuringStream, scrollToBottom])
+  }, [messages, userHasScrolledAway, scrollToBottom])
 
-  // Reset user scroll state when streaming starts or when user sends a message
+  /** Resets scroll state when streaming completes */
   useEffect(() => {
-    const lastMessage = messages[messages.length - 1]
-    if (lastMessage?.role === 'user') {
-      setUserHasScrolledDuringStream(false)
-      programmaticScrollInProgressRef.current = false
-      const scrollContainer = getScrollContainer()
-      if (scrollContainer) {
-        lastScrollTopRef.current = scrollContainer.scrollTop
-      }
+    if (!isSendingMessage) {
+      setUserHasScrolledAway(false)
     }
-  }, [messages, getScrollContainer])
-
-  // Reset user scroll state when streaming completes
-  const prevIsSendingRef = useRef(false)
-  useEffect(() => {
-    if (prevIsSendingRef.current && !isSendingMessage) {
-      setUserHasScrolledDuringStream(false)
-    }
-    prevIsSendingRef.current = isSendingMessage
   }, [isSendingMessage])
 
-  // While streaming and not broken away, keep pinned to bottom
+  /** Keeps scroll pinned during streaming - uses interval, stops when user scrolls away */
   useEffect(() => {
-    if (!isSendingMessage || userHasScrolledDuringStream) return
+    // Early return stops the interval when user scrolls away (state change re-runs effect)
+    if (!isSendingMessage || userHasScrolledAway) {
+      return
+    }
 
     const intervalId = window.setInterval(() => {
-      const scrollContainer = getScrollContainer()
-      if (!scrollContainer) return
+      const container = scrollAreaRef.current
+      if (!container) return
 
-      const { scrollTop, scrollHeight, clientHeight } = scrollContainer
+      const { scrollTop, scrollHeight, clientHeight } = container
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-      const nearBottom = distanceFromBottom <= stickinessThreshold
-      if (nearBottom) {
+
+      if (distanceFromBottom > 1) {
         scrollToBottom()
       }
     }, 100)
 
     return () => window.clearInterval(intervalId)
-  }, [
-    isSendingMessage,
-    userHasScrolledDuringStream,
-    getScrollContainer,
-    scrollToBottom,
-    stickinessThreshold,
-  ])
+  }, [isSendingMessage, userHasScrolledAway, scrollToBottom])
 
   return {
     scrollAreaRef,
