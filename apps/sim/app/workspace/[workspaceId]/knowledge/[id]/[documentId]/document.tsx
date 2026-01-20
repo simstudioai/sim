@@ -541,8 +541,11 @@ export function Document({
           if (operation === 'delete') {
             refreshChunks()
           } else {
+            const failedChunkIds = new Set(result.errors.map((e) => e.chunkId))
             chunks.forEach((chunk) => {
-              updateChunk(chunk.id, { enabled: operation === 'enable' })
+              if (!failedChunkIds.has(chunk.id)) {
+                updateChunk(chunk.id, { enabled: operation === 'enable' })
+              }
             })
           }
           logger.info(`Successfully ${operation}d ${result.successCount} chunks`)
