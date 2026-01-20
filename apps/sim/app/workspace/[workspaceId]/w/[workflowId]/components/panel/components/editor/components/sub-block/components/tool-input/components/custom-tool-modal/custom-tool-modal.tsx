@@ -331,31 +331,37 @@ try {
     onOpenChange(false)
   }
 
-  const validateJsonSchema = (schema: string): boolean => {
-    if (!schema) return false
+  const validateSchema = (schema: string): { isValid: boolean; error: string | null } => {
+    if (!schema) return { isValid: false, error: null }
 
     try {
       const parsed = JSON.parse(schema)
 
       if (!parsed.type || parsed.type !== 'function') {
-        return false
+        return { isValid: false, error: 'Missing "type": "function"' }
       }
-
       if (!parsed.function || !parsed.function.name) {
-        return false
+        return { isValid: false, error: 'Missing function.name field' }
       }
-
       if (!parsed.function.parameters) {
-        return false
+        return { isValid: false, error: 'Missing function.parameters object' }
+      }
+      if (!parsed.function.parameters.type) {
+        return { isValid: false, error: 'Missing parameters.type field' }
+      }
+      if (parsed.function.parameters.properties === undefined) {
+        return { isValid: false, error: 'Missing parameters.properties field' }
+      }
+      if (
+        typeof parsed.function.parameters.properties !== 'object' ||
+        parsed.function.parameters.properties === null
+      ) {
+        return { isValid: false, error: 'parameters.properties must be an object' }
       }
 
-      if (!parsed.function.parameters.type || parsed.function.parameters.properties === undefined) {
-        return false
-      }
-
-      return true
-    } catch (_error) {
-      return false
+      return { isValid: true, error: null }
+    } catch {
+      return { isValid: false, error: 'Invalid JSON format' }
     }
   }
 
@@ -377,7 +383,7 @@ try {
     }
   }, [jsonSchema])
 
-  const isSchemaValid = useMemo(() => validateJsonSchema(jsonSchema), [jsonSchema])
+  const isSchemaValid = useMemo(() => validateSchema(jsonSchema).isValid, [jsonSchema])
 
   const hasChanges = useMemo(() => {
     if (!isEditing) return true
@@ -392,43 +398,9 @@ try {
         return
       }
 
-      const parsed = JSON.parse(jsonSchema)
-
-      if (!parsed.type || parsed.type !== 'function') {
-        setSchemaError('Schema must have a "type" field set to "function"')
-        setActiveSection('schema')
-        return
-      }
-
-      if (!parsed.function || !parsed.function.name) {
-        setSchemaError('Schema must have a "function" object with a "name" field')
-        setActiveSection('schema')
-        return
-      }
-
-      if (!parsed.function.parameters) {
-        setSchemaError('Missing function.parameters object')
-        setActiveSection('schema')
-        return
-      }
-
-      if (!parsed.function.parameters.type) {
-        setSchemaError('Missing parameters.type field')
-        setActiveSection('schema')
-        return
-      }
-
-      if (parsed.function.parameters.properties === undefined) {
-        setSchemaError('Missing parameters.properties field')
-        setActiveSection('schema')
-        return
-      }
-
-      if (
-        typeof parsed.function.parameters.properties !== 'object' ||
-        parsed.function.parameters.properties === null
-      ) {
-        setSchemaError('parameters.properties must be an object')
+      const { isValid, error } = validateSchema(jsonSchema)
+      if (!isValid) {
+        setSchemaError(error)
         setActiveSection('schema')
         return
       }
@@ -512,46 +484,8 @@ try {
     setJsonSchema(value)
 
     if (value.trim()) {
-      try {
-        const parsed = JSON.parse(value)
-
-        if (!parsed.type || parsed.type !== 'function') {
-          setSchemaError('Missing "type": "function"')
-          return
-        }
-
-        if (!parsed.function || !parsed.function.name) {
-          setSchemaError('Missing function.name field')
-          return
-        }
-
-        if (!parsed.function.parameters) {
-          setSchemaError('Missing function.parameters object')
-          return
-        }
-
-        if (!parsed.function.parameters.type) {
-          setSchemaError('Missing parameters.type field')
-          return
-        }
-
-        if (parsed.function.parameters.properties === undefined) {
-          setSchemaError('Missing parameters.properties field')
-          return
-        }
-
-        if (
-          typeof parsed.function.parameters.properties !== 'object' ||
-          parsed.function.parameters.properties === null
-        ) {
-          setSchemaError('parameters.properties must be an object')
-          return
-        }
-
-        setSchemaError(null)
-      } catch {
-        setSchemaError('Invalid JSON format')
-      }
+      const { error } = validateSchema(value)
+      setSchemaError(error)
     } else {
       setSchemaError(null)
     }
@@ -667,40 +601,6 @@ try {
     }
   }
 
-  useEffect(() => {
-    if (!showSchemaParams || schemaParameters.length === 0) return
-
-    const handleKeyboardEvent = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault()
-          e.stopPropagation()
-          setSchemaParamSelectedIndex((prev) => Math.min(prev + 1, schemaParameters.length - 1))
-          break
-        case 'ArrowUp':
-          e.preventDefault()
-          e.stopPropagation()
-          setSchemaParamSelectedIndex((prev) => Math.max(prev - 1, 0))
-          break
-        case 'Enter':
-          e.preventDefault()
-          e.stopPropagation()
-          if (schemaParamSelectedIndex >= 0 && schemaParamSelectedIndex < schemaParameters.length) {
-            handleSchemaParamSelect(schemaParameters[schemaParamSelectedIndex].name)
-          }
-          break
-        case 'Escape':
-          e.preventDefault()
-          e.stopPropagation()
-          setShowSchemaParams(false)
-          break
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyboardEvent, true)
-    return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
-  }, [showSchemaParams, schemaParamSelectedIndex, schemaParameters])
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const isSchemaPromptVisible = activeSection === 'schema' && schemaGeneration.isPromptVisible
     const isCodePromptVisible = activeSection === 'code' && codeGeneration.isPromptVisible
@@ -765,7 +665,7 @@ try {
         case ' ':
         case 'Tab':
           setShowSchemaParams(false)
-          break
+          return
       }
     }
 
@@ -882,18 +782,7 @@ try {
   return (
     <>
       <Modal open={open} onOpenChange={handleClose}>
-        <ModalContent
-          size='xl'
-          onKeyDown={(e) => {
-            if (e.key === 'Escape' && (showEnvVars || showTags || showSchemaParams)) {
-              e.preventDefault()
-              e.stopPropagation()
-              setShowEnvVars(false)
-              setShowTags(false)
-              setShowSchemaParams(false)
-            }
-          }}
-        >
+        <ModalContent size='xl'>
           <ModalHeader>{isEditing ? 'Edit Agent Tool' : 'Create Agent Tool'}</ModalHeader>
 
           <ModalTabs
@@ -1165,30 +1054,6 @@ try {
                         collisionPadding={6}
                         onOpenAutoFocus={(e) => e.preventDefault()}
                         onCloseAutoFocus={(e) => e.preventDefault()}
-                        onKeyDown={(e) => {
-                          if (e.key === 'ArrowDown') {
-                            e.preventDefault()
-                            setSchemaParamSelectedIndex((prev) =>
-                              Math.min(prev + 1, schemaParameters.length - 1)
-                            )
-                          } else if (e.key === 'ArrowUp') {
-                            e.preventDefault()
-                            setSchemaParamSelectedIndex((prev) => Math.max(prev - 1, 0))
-                          } else if (e.key === 'Enter') {
-                            e.preventDefault()
-                            if (
-                              schemaParamSelectedIndex >= 0 &&
-                              schemaParamSelectedIndex < schemaParameters.length
-                            ) {
-                              handleSchemaParamSelect(
-                                schemaParameters[schemaParamSelectedIndex].name
-                              )
-                            }
-                          } else if (e.key === 'Escape') {
-                            e.preventDefault()
-                            setShowSchemaParams(false)
-                          }
-                        }}
                       >
                         <PopoverScrollArea>
                           <PopoverSection>Available Parameters</PopoverSection>

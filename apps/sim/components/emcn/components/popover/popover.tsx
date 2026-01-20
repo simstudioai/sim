@@ -460,6 +460,13 @@ const PopoverContent = React.forwardRef<
         const content = contentRef.current
         if (!content) return
 
+        const activeElement = document.activeElement
+        const isInputFocused =
+          activeElement instanceof HTMLInputElement ||
+          activeElement instanceof HTMLTextAreaElement ||
+          activeElement?.getAttribute('contenteditable') === 'true'
+        if (isInputFocused) return
+
         const items = content.querySelectorAll<HTMLElement>(
           '[role="menuitem"]:not([aria-disabled="true"])'
         )

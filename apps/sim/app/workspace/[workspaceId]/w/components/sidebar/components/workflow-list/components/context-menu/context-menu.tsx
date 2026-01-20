@@ -25,9 +25,11 @@ const GRID_COLUMNS = 6
 function ColorGrid({
   hexInput,
   setHexInput,
+  onColorChange,
 }: {
   hexInput: string
   setHexInput: (color: string) => void
+  onColorChange?: (color: string) => void
 }) {
   const { isInFolder } = usePopoverContext()
   const [focusedIndex, setFocusedIndex] = useState(-1)
@@ -72,7 +74,8 @@ function ColorGrid({
         case 'Enter':
         case ' ':
           e.preventDefault()
-          setHexInput(WORKFLOW_COLORS[index].color)
+          e.stopPropagation()
+          onColorChange?.(WORKFLOW_COLORS[index].color)
           return
         default:
           return
@@ -83,7 +86,7 @@ function ColorGrid({
         buttonRefs.current[newIndex]?.focus()
       }
     },
-    [setHexInput]
+    [onColorChange]
   )
 
   return (
@@ -100,13 +103,13 @@ function ColorGrid({
           tabIndex={focusedIndex === index ? 0 : -1}
           onClick={(e) => {
             e.stopPropagation()
-            setHexInput(color)
+            onColorChange?.(color)
           }}
           onKeyDown={(e) => handleKeyDown(e, index)}
           onFocus={() => setFocusedIndex(index)}
           className={cn(
-            'h-[20px] w-[20px] rounded-[4px] focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-1 focus:ring-offset-[#1b1b1b]',
-            hexInput.toLowerCase() === color.toLowerCase() && 'ring-1 ring-white'
+            'h-[20px] w-[20px] rounded-[4px] outline-none ring-white ring-offset-0',
+            focusedIndex === index && 'ring-[1.5px]'
           )}
           style={{ backgroundColor: color }}
         />
@@ -450,7 +453,11 @@ export function ContextMenu({
           >
             <div className='flex w-[140px] flex-col gap-[8px] p-[2px]'>
               {/* Preset colors with keyboard navigation */}
-              <ColorGrid hexInput={hexInput} setHexInput={setHexInput} />
+              <ColorGrid
+                hexInput={hexInput}
+                setHexInput={setHexInput}
+                onColorChange={onColorChange}
+              />
 
               {/* Hex input */}
               <div className='flex items-center gap-[4px]'>
