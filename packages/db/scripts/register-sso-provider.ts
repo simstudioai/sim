@@ -391,7 +391,12 @@ async function registerSSOProvider(): Promise<boolean> {
     }
 
     if (ssoConfig.providerType === 'oidc' && ssoConfig.oidcConfig) {
-      if (!ssoConfig.oidcConfig.authorizationEndpoint) {
+      const hasAllEndpoints =
+        ssoConfig.oidcConfig.authorizationEndpoint &&
+        ssoConfig.oidcConfig.tokenEndpoint &&
+        ssoConfig.oidcConfig.jwksEndpoint
+
+      if (!hasAllEndpoints) {
         const discoveryUrl = `${ssoConfig.issuer.replace(/\/$/, '')}/.well-known/openid-configuration`
         logger.info('Fetching OIDC discovery document...', { discoveryUrl })
 
@@ -424,12 +429,9 @@ async function registerSSOProvider(): Promise<boolean> {
           }
 
           ssoConfig.oidcConfig.authorizationEndpoint = discovery.authorization_endpoint
-          ssoConfig.oidcConfig.tokenEndpoint =
-            ssoConfig.oidcConfig.tokenEndpoint || discovery.token_endpoint
-          ssoConfig.oidcConfig.userInfoEndpoint =
-            ssoConfig.oidcConfig.userInfoEndpoint || discovery.userinfo_endpoint
-          ssoConfig.oidcConfig.jwksEndpoint =
-            ssoConfig.oidcConfig.jwksEndpoint || discovery.jwks_uri
+          ssoConfig.oidcConfig.tokenEndpoint = discovery.token_endpoint
+          ssoConfig.oidcConfig.userInfoEndpoint = discovery.userinfo_endpoint
+          ssoConfig.oidcConfig.jwksEndpoint = discovery.jwks_uri
 
           logger.info('✅ Successfully fetched OIDC endpoints from discovery', {
             authorizationEndpoint: ssoConfig.oidcConfig.authorizationEndpoint,
