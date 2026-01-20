@@ -37,19 +37,6 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
       },
     },
     {
-      id: 'asyncInputMethod',
-      title: 'Select Input Method',
-      type: 'dropdown' as SubBlockType,
-      options: [
-        { id: 's3', label: 'S3 URI' },
-        { id: 'upload', label: 'Upload Document' },
-      ],
-      condition: {
-        field: 'processingMode',
-        value: 'async',
-      },
-    },
-    {
       id: 'filePath',
       title: 'Document URL',
       type: 'short-input' as SubBlockType,
@@ -70,12 +57,8 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
       type: 'short-input' as SubBlockType,
       placeholder: 's3://bucket-name/path/to/document.pdf',
       condition: {
-        field: 'asyncInputMethod',
-        value: 's3',
-        and: {
-          field: 'processingMode',
-          value: 'async',
-        },
+        field: 'processingMode',
+        value: 'async',
       },
     },
     {
@@ -93,21 +76,6 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
         },
       },
       maxSize: 10,
-    },
-    {
-      id: 'asyncFileUpload',
-      title: 'Upload Document',
-      type: 'file-upload' as SubBlockType,
-      acceptedTypes: 'application/pdf,image/jpeg,image/png,image/tiff',
-      condition: {
-        field: 'asyncInputMethod',
-        value: 'upload',
-        and: {
-          field: 'processingMode',
-          value: 'async',
-        },
-      },
-      maxSize: 50,
     },
     {
       id: 'region',
@@ -177,18 +145,10 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
         }
 
         if (processingMode === 'async') {
-          const asyncInputMethod = params.asyncInputMethod || 's3'
-          if (asyncInputMethod === 's3') {
-            if (!params.s3Uri || params.s3Uri.trim() === '') {
-              throw new Error('S3 URI is required for multi-page processing')
-            }
-            parameters.s3Uri = params.s3Uri.trim()
-          } else if (asyncInputMethod === 'upload') {
-            if (!params.asyncFileUpload) {
-              throw new Error('Please upload a document')
-            }
-            parameters.fileUpload = params.asyncFileUpload
+          if (!params.s3Uri || params.s3Uri.trim() === '') {
+            throw new Error('S3 URI is required for multi-page processing')
           }
+          parameters.s3Uri = params.s3Uri.trim()
         } else {
           const inputMethod = params.inputMethod || 'url'
           if (inputMethod === 'url') {
@@ -221,11 +181,9 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   inputs: {
     processingMode: { type: 'string', description: 'Document type: single-page or multi-page' },
     inputMethod: { type: 'string', description: 'Input method selection for single-page mode' },
-    asyncInputMethod: { type: 'string', description: 'Input method selection for multi-page mode' },
     filePath: { type: 'string', description: 'Document URL' },
     s3Uri: { type: 'string', description: 'S3 URI for multi-page processing (s3://bucket/key)' },
     fileUpload: { type: 'json', description: 'Uploaded document file for single-page mode' },
-    asyncFileUpload: { type: 'json', description: 'Uploaded document file for multi-page mode' },
     extractTables: { type: 'boolean', description: 'Extract tables from document' },
     extractForms: { type: 'boolean', description: 'Extract form key-value pairs' },
     detectSignatures: { type: 'boolean', description: 'Detect signatures' },

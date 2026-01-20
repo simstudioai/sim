@@ -322,44 +322,17 @@ export async function POST(request: NextRequest) {
     })
 
     if (processingMode === 'async') {
-      if (!validatedData.s3Uri && !validatedData.filePath) {
+      if (!validatedData.s3Uri) {
         return NextResponse.json(
           {
             success: false,
-            error: 'S3 URI or file path is required for multi-page processing',
+            error: 'S3 URI is required for multi-page processing (s3://bucket/key)',
           },
           { status: 400 }
         )
       }
 
-      let s3Bucket: string
-      let s3Key: string
-
-      if (validatedData.s3Uri) {
-        const parsed = parseS3Uri(validatedData.s3Uri)
-        s3Bucket = parsed.bucket
-        s3Key = parsed.key
-      } else if (validatedData.filePath?.includes('/api/files/serve/')) {
-        const storageKey = extractStorageKey(validatedData.filePath)
-        const context = inferContextFromKey(storageKey)
-
-        const hasAccess = await verifyFileAccess(storageKey, userId, undefined, context, false)
-        if (!hasAccess) {
-          return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
-        }
-
-        const s3Info = StorageService.getS3InfoForKey(storageKey, context)
-        s3Bucket = s3Info.bucket
-        s3Key = s3Info.key
-      } else {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Multi-page mode requires an S3 URI (s3://bucket/key) or an uploaded file',
-          },
-          { status: 400 }
-        )
-      }
+      const { bucket: s3Bucket, key: s3Key } = parseS3Uri(validatedData.s3Uri)
 
       logger.info(`[${requestId}] Starting async Textract job`, { s3Bucket, s3Key })
 

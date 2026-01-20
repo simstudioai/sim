@@ -937,8 +937,12 @@ export function validateAirtableId(
 /**
  * Validates an AWS region identifier
  *
- * AWS regions follow the pattern: {area}-{sub-area}-{number}
- * Examples: us-east-1, eu-west-2, ap-southeast-1, sa-east-1
+ * Supported region formats:
+ * - Standard: us-east-1, eu-west-2, ap-southeast-1, sa-east-1, af-south-1
+ * - GovCloud: us-gov-east-1, us-gov-west-1
+ * - China: cn-north-1, cn-northwest-1
+ * - Israel: il-central-1
+ * - ISO partitions: us-iso-east-1, us-isob-east-1
  *
  * @param value - The AWS region to validate
  * @param paramName - Name of the parameter for error messages
@@ -963,9 +967,13 @@ export function validateAwsRegion(
     }
   }
 
-  // AWS region format: {area}-{sub-area}-{number}
-  // Examples: us-east-1, eu-west-2, ap-southeast-1, me-south-1, af-south-1
-  const awsRegionPattern = /^[a-z]{2}-[a-z]+-\d{1,2}$/
+  // AWS region patterns:
+  // - Standard: af|ap|ca|eu|me|sa|us|il followed by direction and number
+  // - GovCloud: us-gov-east-1, us-gov-west-1
+  // - China: cn-north-1, cn-northwest-1
+  // - ISO: us-iso-east-1, us-iso-west-1, us-isob-east-1
+  const awsRegionPattern =
+    /^(af|ap|ca|cn|eu|il|me|sa|us|us-gov|us-iso|us-isob)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
 
   if (!awsRegionPattern.test(value)) {
     logger.warn('Invalid AWS region format', {
@@ -974,7 +982,7 @@ export function validateAwsRegion(
     })
     return {
       isValid: false,
-      error: `${paramName} must be a valid AWS region (e.g., us-east-1, eu-west-2)`,
+      error: `${paramName} must be a valid AWS region (e.g., us-east-1, eu-west-2, us-gov-west-1)`,
     }
   }
 

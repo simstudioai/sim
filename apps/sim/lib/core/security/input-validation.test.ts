@@ -1196,7 +1196,7 @@ describe('validateAirtableId', () => {
 })
 
 describe('validateAwsRegion', () => {
-  describe('valid regions', () => {
+  describe('valid standard regions', () => {
     it.concurrent('should accept us-east-1', () => {
       const result = validateAwsRegion('us-east-1')
       expect(result.isValid).toBe(true)
@@ -1213,8 +1213,18 @@ describe('validateAwsRegion', () => {
       expect(result.isValid).toBe(true)
     })
 
+    it.concurrent('should accept eu-central-1', () => {
+      const result = validateAwsRegion('eu-central-1')
+      expect(result.isValid).toBe(true)
+    })
+
     it.concurrent('should accept ap-southeast-1', () => {
       const result = validateAwsRegion('ap-southeast-1')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept ap-northeast-1', () => {
+      const result = validateAwsRegion('ap-northeast-1')
       expect(result.isValid).toBe(true)
     })
 
@@ -1233,8 +1243,54 @@ describe('validateAwsRegion', () => {
       expect(result.isValid).toBe(true)
     })
 
+    it.concurrent('should accept ca-central-1', () => {
+      const result = validateAwsRegion('ca-central-1')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept il-central-1', () => {
+      const result = validateAwsRegion('il-central-1')
+      expect(result.isValid).toBe(true)
+    })
+
     it.concurrent('should accept regions with double-digit numbers', () => {
       const result = validateAwsRegion('ap-northeast-12')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('valid GovCloud regions', () => {
+    it.concurrent('should accept us-gov-west-1', () => {
+      const result = validateAwsRegion('us-gov-west-1')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept us-gov-east-1', () => {
+      const result = validateAwsRegion('us-gov-east-1')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('valid China regions', () => {
+    it.concurrent('should accept cn-north-1', () => {
+      const result = validateAwsRegion('cn-north-1')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept cn-northwest-1', () => {
+      const result = validateAwsRegion('cn-northwest-1')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('valid ISO regions', () => {
+    it.concurrent('should accept us-iso-east-1', () => {
+      const result = validateAwsRegion('us-iso-east-1')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept us-isob-east-1', () => {
+      const result = validateAwsRegion('us-isob-east-1')
       expect(result.isValid).toBe(true)
     })
   })
@@ -1279,6 +1335,16 @@ describe('validateAwsRegion', () => {
 
     it.concurrent('should reject arbitrary strings', () => {
       const result = validateAwsRegion('not-a-region')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject invalid prefix', () => {
+      const result = validateAwsRegion('xx-east-1')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject invalid direction', () => {
+      const result = validateAwsRegion('us-middle-1')
       expect(result.isValid).toBe(false)
     })
 
