@@ -3279,13 +3279,17 @@ export const useCopilotStore = create<CopilotStore>()(
         reader.cancel()
       }, 600000)
 
-      // Track if this is a browser-initiated abort (not user clicking stop)
-      let browserAbort = false
-
       try {
         for await (const data of parseSSEStream(reader, decoder)) {
-          const { abortController, userInitiatedAbort } = get()
+          const { abortController, userInitiatedAbort, isSendingMessage } = get()
           if (abortController?.signal.aborted) {
+            // If isSendingMessage is already false, abortMessage() already handled everything
+            // Just exit without doing anything
+            if (!isSendingMessage) {
+              reader.cancel().catch(() => {})
+              return
+            }
+
             // Only treat as abort if user explicitly clicked stop (not browser refresh)
             if (userInitiatedAbort) {
               context.wasAborted = true
@@ -3295,19 +3299,18 @@ export const useCopilotStore = create<CopilotStore>()(
                 set({ suppressAbortContinueOption: false })
               }
               set({ userInitiatedAbort: false }) // Reset flag
+              // User-initiated abort: clean up and break
+              context.pendingContent = ''
+              finalizeThinkingBlock(context)
+              stopStreamingUpdates()
+              reader.cancel()
+              break
             } else {
               // Browser refresh/navigation - don't update any UI, just exit
               // The page is about to reload anyway
-              browserAbort = true
               reader.cancel().catch(() => {})
               return // Exit immediately, skip all finalization
             }
-            // User-initiated abort: clean up and break
-            context.pendingContent = ''
-            finalizeThinkingBlock(context)
-            stopStreamingUpdates()
-            reader.cancel()
-            break
           }
 
           // Log SSE events for debugging
