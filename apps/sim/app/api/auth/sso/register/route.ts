@@ -43,7 +43,6 @@ const ssoRegistrationSchema = z.discriminatedUnion('providerType', [
       ])
       .default(['openid', 'profile', 'email']),
     pkce: z.boolean().default(true),
-    // Optional explicit endpoints - if not provided, fetched from OIDC discovery
     authorizationEndpoint: z.string().url().optional(),
     tokenEndpoint: z.string().url().optional(),
     userInfoEndpoint: z.string().url().optional(),
