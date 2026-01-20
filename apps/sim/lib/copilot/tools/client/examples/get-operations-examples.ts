@@ -32,21 +32,20 @@ export class GetOperationsExamplesClientTool extends BaseClientTool {
     getDynamicText: (params, state) => {
       if (params?.query && typeof params.query === 'string') {
         const query = params.query
-        const truncated = query.length > 40 ? `${query.slice(0, 40)}...` : query
 
         switch (state) {
           case ClientToolCallState.success:
-            return `Designed ${truncated}`
+            return `Designed ${query}`
           case ClientToolCallState.executing:
           case ClientToolCallState.generating:
           case ClientToolCallState.pending:
-            return `Designing ${truncated}`
+            return `Designing ${query}`
           case ClientToolCallState.error:
-            return `Failed to design ${truncated}`
+            return `Failed to design ${query}`
           case ClientToolCallState.aborted:
-            return `Aborted designing ${truncated}`
+            return `Aborted designing ${query}`
           case ClientToolCallState.rejected:
-            return `Skipped designing ${truncated}`
+            return `Skipped designing ${query}`
         }
       }
       return undefined

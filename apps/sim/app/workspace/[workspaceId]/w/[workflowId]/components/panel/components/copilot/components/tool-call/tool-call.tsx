@@ -337,7 +337,7 @@ export function OptionsSelector({
       })
   }, [options])
 
-  const [hoveredIndex, setHoveredIndex] = useState(0)
+  const [hoveredIndex, setHoveredIndex] = useState(-1)
   const [chosenKey, setChosenKey] = useState<string | null>(selectedOptionKey)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -360,13 +360,14 @@ export function OptionsSelector({
 
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setHoveredIndex((prev) => Math.min(prev + 1, sortedOptions.length - 1))
+        setHoveredIndex((prev) => (prev < 0 ? 0 : Math.min(prev + 1, sortedOptions.length - 1)))
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setHoveredIndex((prev) => Math.max(prev - 1, 0))
+        setHoveredIndex((prev) => (prev < 0 ? sortedOptions.length - 1 : Math.max(prev - 1, 0)))
       } else if (e.key === 'Enter') {
         e.preventDefault()
-        const selected = sortedOptions[hoveredIndex]
+        const indexToSelect = hoveredIndex < 0 ? 0 : hoveredIndex
+        const selected = sortedOptions[indexToSelect]
         if (selected) {
           setChosenKey(selected.key)
           onSelect(selected.key, selected.title)
@@ -390,7 +391,7 @@ export function OptionsSelector({
   if (sortedOptions.length === 0) return null
 
   return (
-    <div ref={containerRef} className='mt-0 flex flex-col gap-[4px]'>
+    <div ref={containerRef} className='flex flex-col gap-[4px] pt-[4px]'>
       {sortedOptions.map((option, index) => {
         const isHovered = index === hoveredIndex && !isLocked
         const isChosen = option.key === chosenKey
@@ -407,6 +408,9 @@ export function OptionsSelector({
             }}
             onMouseEnter={() => {
               if (!isLocked && !streaming) setHoveredIndex(index)
+            }}
+            onMouseLeave={() => {
+              if (!isLocked && !streaming && sortedOptions.length === 1) setHoveredIndex(-1)
             }}
             className={clsx(
               'group flex cursor-pointer items-start gap-2 rounded-[6px] p-1',
@@ -596,6 +600,7 @@ function splitActionVerb(text: string): [string | null, string] {
 /**
  * Renders text with a shimmer overlay animation when active.
  * Special tools use a gradient color; normal tools highlight action verbs.
+ * Uses CSS truncation to clamp to one line with ellipsis.
  */
 const ShimmerOverlayText = memo(function ShimmerOverlayText({
   text,
@@ -605,10 +610,13 @@ const ShimmerOverlayText = memo(function ShimmerOverlayText({
 }: ShimmerOverlayTextProps) {
   const [actionVerb, remainder] = splitActionVerb(text)
 
+  // Base classes for single-line truncation with ellipsis
+  const truncateClasses = 'block w-full overflow-hidden text-ellipsis whitespace-nowrap'
+
   // Special tools: use tertiary-2 color for entire text with shimmer
   if (isSpecial) {
     return (
-      <span className={`relative inline-block ${className || ''}`}>
+      <span className={`relative ${truncateClasses} ${className || ''}`}>
         <span className='text-[var(--brand-tertiary-2)]'>{text}</span>
         {active ? (
           <span
@@ -616,7 +624,7 @@ const ShimmerOverlayText = memo(function ShimmerOverlayText({
             className='pointer-events-none absolute inset-0 select-none overflow-hidden'
           >
             <span
-              className='block text-transparent'
+              className='block overflow-hidden text-ellipsis whitespace-nowrap text-transparent'
               style={{
                 backgroundImage:
                   'linear-gradient(90deg, rgba(51,196,129,0) 0%, rgba(255,255,255,0.6) 50%, rgba(51,196,129,0) 100%)',
@@ -647,7 +655,7 @@ const ShimmerOverlayText = memo(function ShimmerOverlayText({
   // Light mode: primary (#2d2d2d) vs muted (#737373) for good contrast
   // Dark mode: tertiary (#b3b3b3) vs muted (#787878) for good contrast
   return (
-    <span className={`relative inline-block ${className || ''}`}>
+    <span className={`relative ${truncateClasses} ${className || ''}`}>
       {actionVerb ? (
         <>
           <span className='text-[var(--text-primary)] dark:text-[var(--text-tertiary)]'>
@@ -664,7 +672,7 @@ const ShimmerOverlayText = memo(function ShimmerOverlayText({
           className='pointer-events-none absolute inset-0 select-none overflow-hidden'
         >
           <span
-            className='block text-transparent'
+            className='block overflow-hidden text-ellipsis whitespace-nowrap text-transparent'
             style={{
               backgroundImage:
                 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0) 100%)',
@@ -1423,7 +1431,7 @@ function RunSkipButtons({
 
   // Standardized buttons for all interrupt tools: Allow, (Always Allow for client tools only), Skip
   return (
-    <div className='mt-[6px] flex gap-[6px]'>
+    <div className='mt-[10px] flex gap-[6px]'>
       <Button onClick={onRun} disabled={isProcessing} variant='tertiary'>
         {isProcessing ? 'Allowing...' : 'Allow'}
       </Button>
@@ -2016,9 +2024,9 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             className='font-[470] font-season text-[var(--text-secondary)] text-sm dark:text-[var(--text-muted)]'
           />
         </div>
-        <div className='mt-[6px]'>{renderPendingDetails()}</div>
+        <div className='mt-[10px]'>{renderPendingDetails()}</div>
         {showRemoveAutoAllow && isAutoAllowed && (
-          <div className='mt-[6px]'>
+          <div className='mt-[10px]'>
             <Button
               onClick={async () => {
                 await removeAutoAllowedTool(toolCall.name)
@@ -2074,12 +2082,12 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           />
         </div>
         {code && (
-          <div className='mt-1.5'>
+          <div className='mt-[10px]'>
             <Code.Viewer code={code} language='javascript' showGutter className='min-h-0' />
           </div>
         )}
         {showRemoveAutoAllow && isAutoAllowed && (
-          <div className='mt-1.5'>
+          <div className='mt-[10px]'>
             <Button
               onClick={async () => {
                 await removeAutoAllowedTool(toolCall.name)
@@ -2138,9 +2146,9 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           />
         </div>
       )}
-      {shouldShowDetails && <div className='mt-1.5'>{renderPendingDetails()}</div>}
+      {shouldShowDetails && <div className='mt-[10px]'>{renderPendingDetails()}</div>}
       {showRemoveAutoAllow && isAutoAllowed && (
-        <div className='mt-1.5'>
+        <div className='mt-[10px]'>
           <Button
             onClick={async () => {
               await removeAutoAllowedTool(toolCall.name)
@@ -2161,7 +2169,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           editedParams={editedParams}
         />
       ) : showMoveToBackground ? (
-        <div className='mt-1.5'>
+        <div className='mt-[10px]'>
           <Button
             onClick={async () => {
               try {
@@ -2182,7 +2190,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           </Button>
         </div>
       ) : showWake ? (
-        <div className='mt-1.5'>
+        <div className='mt-[10px]'>
           <Button
             onClick={async () => {
               try {

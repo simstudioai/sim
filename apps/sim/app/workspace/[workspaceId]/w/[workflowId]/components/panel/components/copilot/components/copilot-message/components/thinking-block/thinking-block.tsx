@@ -17,12 +17,6 @@ function stripThinkingTags(text: string): string {
     .trim()
 }
 
-/** Max height for thinking content before internal scrolling */
-const THINKING_MAX_HEIGHT = 150
-
-/** Height threshold before gradient fade kicks in */
-const GRADIENT_THRESHOLD = 100
-
 /** Interval for auto-scroll during streaming (ms) */
 const SCROLL_INTERVAL = 50
 
@@ -41,12 +35,10 @@ interface SmoothThinkingTextProps {
 
 /**
  * Renders thinking content with fast streaming animation.
- * Uses gradient fade at top when content is tall enough.
  */
 const SmoothThinkingText = memo(
   ({ content, isStreaming }: SmoothThinkingTextProps) => {
     const [displayedContent, setDisplayedContent] = useState(() => (isStreaming ? '' : content))
-    const [showGradient, setShowGradient] = useState(false)
     const contentRef = useRef(content)
     const textRef = useRef<HTMLDivElement>(null)
     const rafRef = useRef<number | null>(null)
@@ -112,28 +104,10 @@ const SmoothThinkingText = memo(
       }
     }, [content, isStreaming])
 
-    useEffect(() => {
-      if (textRef.current && isStreaming) {
-        const height = textRef.current.scrollHeight
-        setShowGradient(height > GRADIENT_THRESHOLD)
-      } else {
-        setShowGradient(false)
-      }
-    }, [displayedContent, isStreaming])
-
-    const gradientStyle =
-      isStreaming && showGradient
-        ? {
-            maskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 100%)',
-            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 100%)',
-          }
-        : undefined
-
     return (
       <div
         ref={textRef}
         className='[&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-[1.4] [&_p]:!m-0 [&_p]:!mb-1 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h1]:!m-0 [&_h1]:!mb-1 [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h2]:!m-0 [&_h2]:!mb-1 [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_h3]:!m-0 [&_h3]:!mb-1 [&_code]:!text-[11px] [&_ul]:!pl-5 [&_ul]:!my-1 [&_ol]:!pl-6 [&_ol]:!my-1 [&_li]:!my-0.5 [&_li]:!py-0 font-season text-[12px] text-[var(--text-muted)]'
-        style={gradientStyle}
       >
         <CopilotMarkdownRenderer content={displayedContent} />
       </div>

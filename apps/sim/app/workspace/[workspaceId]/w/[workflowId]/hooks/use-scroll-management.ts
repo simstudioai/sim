@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
  * Options for configuring scroll behavior
@@ -36,11 +36,9 @@ export function useScrollManagement(
   options?: UseScrollManagementOptions
 ) {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
-  const userHasScrolledRef = useRef(false)
+  const [userHasScrolledAway, setUserHasScrolledAway] = useState(false)
   const programmaticScrollRef = useRef(false)
   const lastScrollTopRef = useRef(0)
-  const lastMessageCountRef = useRef(0)
-  const rafIdRef = useRef<number | null>(null)
 
   const scrollBehavior = options?.behavior ?? 'smooth'
   const stickinessThreshold = options?.stickinessThreshold ?? 100
@@ -68,14 +66,19 @@ export function useScrollManagement(
     const nearBottom = distanceFromBottom <= stickinessThreshold
     const delta = scrollTop - lastScrollTopRef.current
 
-    if (delta < -2) {
-      userHasScrolledRef.current = true
-    } else if (userHasScrolledRef.current && delta > 2 && nearBottom) {
-      userHasScrolledRef.current = false
+    if (isSendingMessage) {
+      // User scrolled up during streaming - break away
+      if (delta < -2) {
+        setUserHasScrolledAway(true)
+      }
+      // User scrolled back down to bottom - re-stick
+      if (userHasScrolledAway && delta > 2 && nearBottom) {
+        setUserHasScrolledAway(false)
+      }
     }
 
     lastScrollTopRef.current = scrollTop
-  }, [stickinessThreshold])
+  }, [isSendingMessage, userHasScrolledAway, stickinessThreshold])
 
   /** Attaches scroll listener to container */
   useEffect(() => {
@@ -92,58 +95,46 @@ export function useScrollManagement(
   useEffect(() => {
     if (messages.length === 0) return
 
-    const messageAdded = messages.length > lastMessageCountRef.current
-    lastMessageCountRef.current = messages.length
+    const lastMessage = messages[messages.length - 1]
+    const isUserMessage = lastMessage?.role === 'user'
 
-    if (messageAdded) {
-      const lastMessage = messages[messages.length - 1]
-      if (lastMessage?.role === 'user') {
-        userHasScrolledRef.current = false
-      }
+    // Always scroll for user messages, respect scroll state for assistant messages
+    if (isUserMessage) {
+      setUserHasScrolledAway(false)
+      scrollToBottom()
+    } else if (!userHasScrolledAway) {
       scrollToBottom()
     }
-  }, [messages, scrollToBottom])
+  }, [messages, userHasScrolledAway, scrollToBottom])
 
   /** Resets scroll state when streaming completes */
-  const prevIsSendingRef = useRef(false)
   useEffect(() => {
-    if (prevIsSendingRef.current && !isSendingMessage) {
-      userHasScrolledRef.current = false
+    if (!isSendingMessage) {
+      setUserHasScrolledAway(false)
     }
-    prevIsSendingRef.current = isSendingMessage
   }, [isSendingMessage])
 
-  /** Keeps scroll pinned during streaming using requestAnimationFrame */
+  /** Keeps scroll pinned during streaming - uses interval, stops when user scrolls away */
   useEffect(() => {
-    if (!isSendingMessage || userHasScrolledRef.current) {
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current)
-        rafIdRef.current = null
-      }
+    // Early return stops the interval when user scrolls away (state change re-runs effect)
+    if (!isSendingMessage || userHasScrolledAway) {
       return
     }
 
-    const tick = () => {
+    const intervalId = window.setInterval(() => {
       const container = scrollAreaRef.current
-      if (container && !userHasScrolledRef.current) {
-        const { scrollTop, scrollHeight, clientHeight } = container
-        const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-        if (distanceFromBottom <= stickinessThreshold) {
-          scrollToBottom()
-        }
-      }
-      rafIdRef.current = requestAnimationFrame(tick)
-    }
+      if (!container) return
 
-    rafIdRef.current = requestAnimationFrame(tick)
+      const { scrollTop, scrollHeight, clientHeight } = container
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
 
-    return () => {
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current)
-        rafIdRef.current = null
+      if (distanceFromBottom > 1) {
+        scrollToBottom()
       }
-    }
-  }, [isSendingMessage, scrollToBottom, stickinessThreshold])
+    }, 100)
+
+    return () => window.clearInterval(intervalId)
+  }, [isSendingMessage, userHasScrolledAway, scrollToBottom])
 
   return {
     scrollAreaRef,

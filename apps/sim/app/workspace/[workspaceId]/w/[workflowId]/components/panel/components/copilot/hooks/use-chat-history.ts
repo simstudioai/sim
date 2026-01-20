@@ -66,6 +66,14 @@ export function useChatHistory(props: UseChatHistoryProps) {
       }
     })
 
+    for (const groupName of Object.keys(groups)) {
+      groups[groupName].sort((a, b) => {
+        const dateA = new Date(a.updatedAt).getTime()
+        const dateB = new Date(b.updatedAt).getTime()
+        return dateB - dateA
+      })
+    }
+
     return Object.entries(groups).filter(([, chats]) => chats.length > 0)
   }, [chats, activeWorkflowId, copilotWorkflowId])
 

@@ -401,7 +401,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           className={`w-full max-w-full flex-none overflow-hidden [max-width:var(--panel-max-width)] ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
           style={{ '--panel-max-width': `${panelWidth - 16}px` } as React.CSSProperties}
         >
-          <div className='max-w-full space-y-[4px] px-[2px]'>
+          <div className='max-w-full space-y-[4px] px-[2px] pb-[4px]'>
             {/* Content blocks in chronological order */}
             {memoizedContentBlocks || (isStreaming && <div className='min-h-0' />)}
 

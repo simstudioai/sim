@@ -26,21 +26,20 @@ export class ScrapePageClientTool extends BaseClientTool {
     getDynamicText: (params, state) => {
       if (params?.url && typeof params.url === 'string') {
         const url = params.url
-        const truncated = url.length > 50 ? `${url.slice(0, 50)}...` : url
 
         switch (state) {
           case ClientToolCallState.success:
-            return `Scraped ${truncated}`
+            return `Scraped ${url}`
           case ClientToolCallState.executing:
           case ClientToolCallState.generating:
           case ClientToolCallState.pending:
-            return `Scraping ${truncated}`
+            return `Scraping ${url}`
           case ClientToolCallState.error:
-            return `Failed to scrape ${truncated}`
+            return `Failed to scrape ${url}`
           case ClientToolCallState.aborted:
-            return `Aborted scraping ${truncated}`
+            return `Aborted scraping ${url}`
           case ClientToolCallState.rejected:
-            return `Skipped scraping ${truncated}`
+            return `Skipped scraping ${url}`
         }
       }
       return undefined

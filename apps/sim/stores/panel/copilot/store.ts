@@ -2644,6 +2644,11 @@ export const useCopilotStore = create<CopilotStore>()(
           currentChat: state.currentChat
             ? { ...state.currentChat, title: optimisticTitle }
             : state.currentChat,
+          chats: state.currentChat
+            ? state.chats.map((c) =>
+                c.id === state.currentChat!.id ? { ...c, title: optimisticTitle } : c
+              )
+            : state.chats,
         }))
       }
 

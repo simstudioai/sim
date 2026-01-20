@@ -130,7 +130,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
   // Handle scroll management (80px stickiness for copilot)
   const { scrollAreaRef, scrollToBottom } = useScrollManagement(messages, isSendingMessage, {
-    stickinessThreshold: 80,
+    stickinessThreshold: 40,
   })
 
   // Handle chat history grouping
@@ -475,7 +475,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     className='h-full overflow-y-auto overflow-x-hidden px-[8px]'
                   >
                     <div
-                      className={`w-full max-w-full space-y-[12px] overflow-hidden py-[8px] ${
+                      className={`w-full max-w-full space-y-[8px] overflow-hidden py-[8px] ${
                         showPlanTodos && planTodos.length > 0 ? 'pb-14' : 'pb-10'
                       }`}
                     >
