@@ -377,10 +377,7 @@ function buildManualTriggerOutput(
   return mergeFilesIntoOutput(output, workflowInput)
 }
 
-function buildIntegrationTriggerOutput(
-  _finalInput: unknown,
-  workflowInput: unknown
-): NormalizedBlockOutput {
+function buildIntegrationTriggerOutput(workflowInput: unknown): NormalizedBlockOutput {
   return isPlainObject(workflowInput) ? (workflowInput as NormalizedBlockOutput) : {}
 }
 
@@ -430,7 +427,7 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
       return buildManualTriggerOutput(finalInput, workflowInput)
 
     case StartBlockPath.EXTERNAL_TRIGGER:
-      return buildIntegrationTriggerOutput(finalInput, workflowInput)
+      return buildIntegrationTriggerOutput(workflowInput)
 
     case StartBlockPath.LEGACY_STARTER:
       return buildLegacyStarterOutput(
