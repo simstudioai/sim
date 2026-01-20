@@ -54,6 +54,7 @@ import { TestClientTool } from '@/lib/copilot/tools/client/other/test'
 import { TourClientTool } from '@/lib/copilot/tools/client/other/tour'
 import { WorkflowClientTool } from '@/lib/copilot/tools/client/other/workflow'
 import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
+import { isClientOnlyTool } from '@/lib/copilot/tools/client/ui-config'
 import { GetCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-credentials'
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
 import { CheckDeploymentStatusClientTool } from '@/lib/copilot/tools/client/workflow/check-deployment-status'
@@ -943,6 +944,12 @@ interface StreamingContext {
   subAgentToolCalls: Record<string, CopilotToolCall[]>
   /** Track subagent streaming blocks per parent tool call */
   subAgentBlocks: Record<string, any[]>
+  /** Plan capture state (for render events) */
+  isCapturingPlan?: boolean
+  planContent?: string
+  /** Options capture state (for render events) */
+  isCapturingOptions?: boolean
+  optionsContent?: string
 }
 
 type SSEHandler = (
@@ -1255,30 +1262,49 @@ const sseHandlers: Record<string, SSEHandler> = {
     } catch {}
   },
   tool_generating: (data, context, get, set) => {
-    const { toolCallId, toolName } = data
-    if (!toolCallId || !toolName) return
+    // Handle both old format ({ toolCallId, toolName }) and new render event format ({ toolCallId, argsPartial })
+    const toolCallId = data?.toolCallId || data?.data?.id
+    const toolName = data?.toolName || data?.data?.name
+    const argsPartial = data?.argsPartial
+
+    if (!toolCallId) return
     const { toolCallsById } = get()
+
+    // If tool already exists, update its args if we have partial args
+    const existing = toolCallsById[toolCallId]
+    if (existing) {
+      if (argsPartial) {
+        const updated: CopilotToolCall = {
+          ...existing,
+          params: argsPartial,
+        }
+        set({ toolCallsById: { ...toolCallsById, [toolCallId]: updated } })
+      }
+      return
+    }
+
+    // Tool doesn't exist yet - create it
+    if (!toolName) return
 
     // Ensure class-based client tool instances are registered (for interrupts/display)
     ensureClientToolInstance(toolName, toolCallId)
 
-    if (!toolCallsById[toolCallId]) {
-      // Show as pending until we receive full tool_call (with arguments) to decide execution
-      const initialState = ClientToolCallState.pending
-      const tc: CopilotToolCall = {
-        id: toolCallId,
-        name: toolName,
-        state: initialState,
-        display: resolveToolDisplay(toolName, initialState, toolCallId),
-      }
-      const updated = { ...toolCallsById, [toolCallId]: tc }
-      set({ toolCallsById: updated })
-      logger.info('[toolCallsById] map updated', updated)
-
-      // Add/refresh inline content block
-      upsertToolCallBlock(context, tc)
-      updateStreamingMessage(set, context)
+    // Show as pending until we receive full tool_call (with arguments) to decide execution
+    const initialState = ClientToolCallState.pending
+    const tc: CopilotToolCall = {
+      id: toolCallId,
+      name: toolName,
+      state: initialState,
+      display: resolveToolDisplay(toolName, initialState, toolCallId),
+      params: argsPartial,
     }
+    const updated = { ...toolCallsById, [toolCallId]: tc }
+    set({ toolCallsById: updated })
+    logger.info('[toolCallsById] map updated (generating)', { toolCallId, toolName })
+
+    // Add/refresh inline content block
+    upsertToolCallBlock(context, tc)
+    updateStreamingMessage(set, context)
   },
   tool_call: (data, context, get, set) => {
     const toolData = data?.data || {}
@@ -1287,10 +1313,14 @@ const sseHandlers: Record<string, SSEHandler> = {
     if (!id) return
     const args = toolData.arguments
     const isPartial = toolData.partial === true
-    const { toolCallsById } = get()
+    const { toolCallsById, isResuming } = get()
 
     // Ensure class-based client tool instances are registered (for interrupts/display)
     ensureClientToolInstance(name, id)
+
+    // When resuming a stream, tools have already been executed on the server.
+    // We only update the UI state - don't re-execute.
+    const skipExecution = isResuming
 
     const existing = toolCallsById[id]
     const next: CopilotToolCall = existing
@@ -1309,7 +1339,7 @@ const sseHandlers: Record<string, SSEHandler> = {
         }
     const updated = { ...toolCallsById, [id]: next }
     set({ toolCallsById: updated })
-    logger.info('[toolCallsById] → pending', { id, name, params: args })
+    logger.info('[toolCallsById] → pending', { id, name, params: args, skipExecution })
 
     // Ensure an inline content block exists/updated for this tool call
     upsertToolCallBlock(context, next)
@@ -1319,6 +1349,60 @@ const sseHandlers: Record<string, SSEHandler> = {
     if (isPartial) {
       return
     }
+
+    // When resuming a stream, tools have already been executed on the server.
+    // The tool_result events in the stream will update the final state.
+    // Skip client-side execution to avoid re-running tools.
+    if (skipExecution) {
+      logger.info('[toolCallsById] Skipping execution (resuming stream)', { id, name })
+      return
+    }
+
+    // SERVER-FIRST ARCHITECTURE:
+    // All tools are executed server-side by default. The client is just a rendering layer.
+    // The server sends tool_result events when tools complete, which update the UI.
+    // Only clientOnly tools (like navigate_ui, tour) that require browser interaction
+    // are executed on the client.
+    const toolIsClientOnly = name ? isClientOnlyTool(name) : false
+
+    if (!toolIsClientOnly) {
+      // Server-side tool: just mark as executing and wait for tool_result from server
+      logger.info('[toolCallsById] Server-side tool, waiting for tool_result', { id, name })
+
+      // Update to executing state (server is processing it)
+      setTimeout(() => {
+        const currentState = get().toolCallsById[id]?.state
+        if (currentState === ClientToolCallState.executing || isTerminalState(currentState)) {
+          return
+        }
+
+        const executingMap = { ...get().toolCallsById }
+        executingMap[id] = {
+          ...executingMap[id],
+          state: ClientToolCallState.executing,
+          display: resolveToolDisplay(name, ClientToolCallState.executing, id, args),
+        }
+        set({ toolCallsById: executingMap })
+        logger.info('[toolCallsById] pending → executing (server)', { id, name })
+
+        // Update inline content block to executing
+        for (let i = 0; i < context.contentBlocks.length; i++) {
+          const b = context.contentBlocks[i] as any
+          if (b.type === 'tool_call' && b.toolCall?.id === id) {
+            context.contentBlocks[i] = {
+              ...b,
+              toolCall: { ...b.toolCall, state: ClientToolCallState.executing },
+            }
+            break
+          }
+        }
+        updateStreamingMessage(set, context)
+      }, 0)
+      return
+    }
+
+    // CLIENT-ONLY TOOL: Execute on the client (requires browser interaction)
+    logger.info('[toolCallsById] Client-only tool, executing locally', { id, name })
 
     // Prefer interface-based registry to determine interrupt and execute
     try {
@@ -1345,7 +1429,7 @@ const sseHandlers: Record<string, SSEHandler> = {
               display: resolveToolDisplay(name, ClientToolCallState.executing, id, args),
             }
             set({ toolCallsById: executingMap })
-            logger.info('[toolCallsById] pending → executing (registry)', { id, name })
+            logger.info('[toolCallsById] pending → executing (client-only)', { id, name })
 
             // Update inline content block to executing
             for (let i = 0; i < context.contentBlocks.length; i++) {
@@ -1388,7 +1472,7 @@ const sseHandlers: Record<string, SSEHandler> = {
                 }
                 set({ toolCallsById: completeMap })
                 logger.info(
-                  `[toolCallsById] executing → ${success ? 'success' : 'error'} (registry)`,
+                  `[toolCallsById] executing → ${success ? 'success' : 'error'} (client-only)`,
                   { id, name }
                 )
 
@@ -1778,6 +1862,278 @@ const sseHandlers: Record<string, SSEHandler> = {
     finalizeThinkingBlock(context)
     updateStreamingMessage(set, context)
   },
+
+  // ============================================================================
+  // RENDER EVENT HANDLERS (new server-first SSE protocol)
+  // These handle render events from the stream transformer
+  // ============================================================================
+
+  // Stream lifecycle events
+  stream_start: (data, context, get, _set) => {
+    // Stream started - store IDs
+    if (data.chatId) context.newChatId = data.chatId
+    if (data.streamId) get().setActiveStreamId(data.streamId)
+    logger.debug('[RenderEvent] stream_start', { chatId: data.chatId, streamId: data.streamId })
+  },
+
+  // Text content - same as existing content handler
+  text_delta: (data, context, get, set) => {
+    const content = data.content
+    if (!content) return
+    // Reuse existing content processing logic - it will handle pendingContent
+    sseHandlers.content({ data: content, type: 'content' }, context, get, set)
+  },
+
+  // Thinking block events
+  thinking_start: (_data, context, _get, _set) => {
+    context.isInThinkingBlock = true
+    beginThinkingBlock(context)
+    logger.debug('[RenderEvent] thinking_start')
+  },
+
+  thinking_delta: (data, context, _get, set) => {
+    const content = data.content
+    if (!content) return
+    appendThinkingContent(context, content)
+    updateStreamingMessage(set, context)
+  },
+
+  thinking_end: (_data, context, _get, set) => {
+    context.isInThinkingBlock = false
+    finalizeThinkingBlock(context)
+    updateStreamingMessage(set, context)
+    logger.debug('[RenderEvent] thinking_end')
+  },
+
+  // Tool call events
+  tool_pending: (data, context, get, set) => {
+    const { toolCallId, toolName, args } = data
+    if (!toolCallId || !toolName) return
+
+    // Create tool call entry - always use resolveToolDisplay for consistency
+    const tc: CopilotToolCall = {
+      id: toolCallId,
+      name: toolName,
+      state: ClientToolCallState.pending,
+      display: resolveToolDisplay(toolName, ClientToolCallState.pending, toolCallId, args),
+      params: args,
+    }
+
+    const { toolCallsById } = get()
+    set({ toolCallsById: { ...toolCallsById, [toolCallId]: tc } })
+
+    // Add to content blocks
+    upsertToolCallBlock(context, tc)
+    updateStreamingMessage(set, context)
+    logger.debug('[RenderEvent] tool_pending', { toolCallId, toolName })
+  },
+
+  tool_executing: (data, context, get, set) => {
+    const { toolCallId } = data
+    if (!toolCallId) return
+
+    const { toolCallsById } = get()
+    const current = toolCallsById[toolCallId]
+    if (current) {
+      const updated: CopilotToolCall = {
+        ...current,
+        state: ClientToolCallState.executing,
+        display: resolveToolDisplay(current.name, ClientToolCallState.executing, toolCallId, current.params),
+      }
+      set({ toolCallsById: { ...toolCallsById, [toolCallId]: updated } })
+
+      // Update in content blocks
+      for (let i = 0; i < context.contentBlocks.length; i++) {
+        const b = context.contentBlocks[i] as any
+        if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
+          context.contentBlocks[i] = { ...b, toolCall: updated }
+          break
+        }
+      }
+      updateStreamingMessage(set, context)
+    }
+    logger.debug('[RenderEvent] tool_executing', { toolCallId })
+  },
+
+  tool_success: (data, context, get, set) => {
+    const { toolCallId, hasDiff } = data
+    if (!toolCallId) return
+
+    const { toolCallsById } = get()
+    const current = toolCallsById[toolCallId]
+    if (current) {
+      const updated: CopilotToolCall = {
+        ...current,
+        state: ClientToolCallState.success,
+        display: resolveToolDisplay(current.name, ClientToolCallState.success, toolCallId, current.params),
+      }
+      set({ toolCallsById: { ...toolCallsById, [toolCallId]: updated } })
+
+      // Update in content blocks
+      for (let i = 0; i < context.contentBlocks.length; i++) {
+        const b = context.contentBlocks[i] as any
+        if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
+          context.contentBlocks[i] = { ...b, toolCall: updated }
+          break
+        }
+      }
+      updateStreamingMessage(set, context)
+
+      // Handle checkoff_todo completion
+      if (current.name === 'checkoff_todo') {
+        try {
+          const input = current.params || {}
+          const todoId = (input as any).id || (input as any).todoId
+          if (todoId) get().updatePlanTodoStatus(todoId, 'completed')
+        } catch {}
+      }
+    }
+    logger.debug('[RenderEvent] tool_success', { toolCallId, hasDiff })
+  },
+
+  tool_aborted: (data, context, get, set) => {
+    const { toolCallId, reason } = data
+    if (!toolCallId) return
+
+    const { toolCallsById } = get()
+    const current = toolCallsById[toolCallId]
+    if (current) {
+      const updated: CopilotToolCall = {
+        ...current,
+        state: ClientToolCallState.rejected,
+        display: resolveToolDisplay(current.name, ClientToolCallState.rejected, toolCallId, current.params),
+      }
+      set({ toolCallsById: { ...toolCallsById, [toolCallId]: updated } })
+
+      for (let i = 0; i < context.contentBlocks.length; i++) {
+        const b = context.contentBlocks[i] as any
+        if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
+          context.contentBlocks[i] = { ...b, toolCall: updated }
+          break
+        }
+      }
+      updateStreamingMessage(set, context)
+    }
+    logger.debug('[RenderEvent] tool_aborted', { toolCallId, reason })
+  },
+
+  // Diff events - tell client to read workflow from DB
+  diff_ready: (data, _context, get, _set) => {
+    const { workflowId, toolCallId } = data
+    logger.info('[RenderEvent] diff_ready - loading workflow with diff from DB', { workflowId, toolCallId })
+
+    // Trigger workflow reload to get the diff markers from DB
+    // The workflow store will load the state which includes diff markers
+    // Then restoreDiffFromMarkers will show the diff UI
+    const currentWorkflowId = get().workflowId
+    if (currentWorkflowId === workflowId) {
+      // Workflow matches - trigger a reload via the workflow registry
+      try {
+        const { useWorkflowRegistry } = require('@/stores/workflows/registry')
+        const registry = useWorkflowRegistry.getState()
+
+        // Trigger refresh from DB
+        if (typeof registry.refreshFromServer === 'function') {
+          registry.refreshFromServer(workflowId).catch((err: any) => {
+            logger.error('Failed to refresh workflow after diff_ready', { error: err })
+          })
+        } else if (typeof registry.loadWorkflow === 'function') {
+          registry.loadWorkflow(workflowId).catch((err: any) => {
+            logger.error('Failed to load workflow after diff_ready', { error: err })
+          })
+        }
+      } catch (err) {
+        logger.error('Failed to trigger workflow reload for diff', { error: err })
+      }
+    }
+  },
+
+  // Plan events
+  plan_start: (_data, context, _get, set) => {
+    context.isCapturingPlan = true
+    context.planContent = ''
+    set({ streamingPlanContent: '' })
+    logger.debug('[RenderEvent] plan_start')
+  },
+
+  plan_delta: (data, context, _get, set) => {
+    const content = data.content
+    if (!content) return
+    context.planContent = (context.planContent || '') + content
+    set({ streamingPlanContent: context.planContent })
+  },
+
+  plan_end: (data, context, get, set) => {
+    context.isCapturingPlan = false
+    if (data.todos && Array.isArray(data.todos)) {
+      const todos = data.todos.map((t: any) => ({
+        id: t.id || crypto.randomUUID(),
+        content: t.content,
+        completed: t.status === 'completed',
+        executing: t.status === 'in_progress',
+      }))
+      set({ planTodos: todos, showPlanTodos: true })
+    }
+    logger.debug('[RenderEvent] plan_end', { todoCount: data.todos?.length })
+  },
+
+  // Options events
+  options_start: (_data, context, _get, _set) => {
+    context.isCapturingOptions = true
+    context.optionsContent = ''
+    logger.debug('[RenderEvent] options_start')
+  },
+
+  options_delta: (data, context, _get, _set) => {
+    const content = data.content
+    if (!content) return
+    context.optionsContent = (context.optionsContent || '') + content
+  },
+
+  options_end: (data, context, _get, set) => {
+    context.isCapturingOptions = false
+    if (data.options && Array.isArray(data.options)) {
+      // Add options block to content
+      context.contentBlocks.push({
+        type: 'options',
+        options: data.options,
+        timestamp: Date.now(),
+      })
+      updateStreamingMessage(set, context)
+    }
+    logger.debug('[RenderEvent] options_end', { optionCount: data.options?.length })
+  },
+
+  // Message lifecycle events
+  message_start: (data, context, _get, _set) => {
+    if (data.role === 'assistant') {
+      context.messageId = data.messageId
+    }
+    logger.debug('[RenderEvent] message_start', { messageId: data.messageId, role: data.role })
+  },
+
+  message_saved: (data, _context, _get, _set) => {
+    // Message saved to DB - safe to refresh
+    logger.debug('[RenderEvent] message_saved', { messageId: data.messageId, refreshFromDb: data.refreshFromDb })
+  },
+
+  message_end: (data, _context, _get, _set) => {
+    logger.debug('[RenderEvent] message_end', { messageId: data.messageId })
+  },
+
+  // Interrupt events
+  interrupt_show: (data, context, get, set) => {
+    const { toolCallId, toolName, options, message: interruptMessage } = data
+    if (!toolCallId) return
+
+    logger.info('[RenderEvent] interrupt_show - user approval required', { toolCallId, toolName, options })
+    // TODO: Show interrupt UI to user
+  },
+
+  interrupt_resolved: (data, _context, _get, _set) => {
+    logger.debug('[RenderEvent] interrupt_resolved', { toolCallId: data.toolCallId, choice: data.choice })
+  },
+
   default: () => {},
 }
 
@@ -1980,7 +2336,30 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    // Execute client tools in parallel (non-blocking) - same pattern as main tool_call handler
+    // When resuming a stream, tools have already been executed on the server.
+    // The tool_result events in the stream will update the final state.
+    // Skip client-side execution to avoid re-running tools.
+    const { isResuming } = get()
+    if (isResuming) {
+      logger.info('[SubAgent] Skipping tool execution (resuming stream)', { id, name })
+      return
+    }
+
+    // SERVER-FIRST ARCHITECTURE:
+    // All tools are executed server-side by default. The client is just a rendering layer.
+    // Only clientOnly tools (like navigate_ui, tour) that require browser interaction
+    // are executed on the client.
+    const toolIsClientOnly = isClientOnlyTool(name)
+
+    if (!toolIsClientOnly) {
+      // Server-side tool: just wait for tool_result from server
+      logger.info('[SubAgent] Server-side tool, waiting for tool_result', { id, name })
+      return
+    }
+
+    // CLIENT-ONLY TOOL: Execute on the client (requires browser interaction)
+    logger.info('[SubAgent] Client-only tool, executing locally', { id, name })
+
     try {
       const def = getTool(name)
       if (def) {
@@ -2260,7 +2639,7 @@ export const useCopilotStore = create<CopilotStore>()(
       // Don't abort - let server-side stream continue for resumption
       // Just reset client state; stream will be resumable when returning to the chat
       // Don't abort tools either - they may still be running server-side
-      set({ isSendingMessage: false, abortController: null })
+      set({ isSendingMessage: false, abortController: null, activeStreamId: null })
 
       try {
         useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
@@ -2272,6 +2651,7 @@ export const useCopilotStore = create<CopilotStore>()(
         mode: get().mode,
         selectedModel: get().selectedModel,
         agentPrefetch: get().agentPrefetch,
+        activeStreamId: null, // Ensure cleared
       })
     },
 
@@ -2297,8 +2677,11 @@ export const useCopilotStore = create<CopilotStore>()(
       // Just reset client state; stream will be resumable when returning to that chat
       // Don't abort tools either - they may still be running server-side
       if (currentChat && currentChat.id !== chat.id && isSendingMessage) {
-        set({ isSendingMessage: false, abortController: null })
+        set({ isSendingMessage: false, abortController: null, activeStreamId: null })
       }
+
+      // Clear any stale activeStreamId from previous chat
+      set({ activeStreamId: null })
 
       try {
         useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
@@ -2405,8 +2788,11 @@ export const useCopilotStore = create<CopilotStore>()(
       // Just reset client state; stream will be resumable when returning to that chat
       // Don't abort tools either - they may still be running server-side
       if (isSendingMessage) {
-        set({ isSendingMessage: false, abortController: null })
+        set({ isSendingMessage: false, abortController: null, activeStreamId: null })
       }
+
+      // Clear any stale activeStreamId from previous chat
+      set({ activeStreamId: null })
 
       try {
         useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
@@ -2832,77 +3218,44 @@ export const useCopilotStore = create<CopilotStore>()(
 
     // Abort streaming (user-initiated)
     abortMessage: (options?: { suppressContinueOption?: boolean }) => {
-      const { abortController, isSendingMessage, messages } = get()
-      if (!isSendingMessage || !abortController) return
+      const { abortController, isSendingMessage, isAborting } = get()
+
+      // Don't abort if already aborting or not sending
+      if (isAborting) {
+        logger.info('[Abort] Already aborting, skipping')
+        return
+      }
+      if (!isSendingMessage) {
+        logger.info('[Abort] Not sending message, skipping')
+        return
+      }
+      if (!abortController) {
+        logger.info('[Abort] No abort controller, skipping')
+        return
+      }
+
       const suppressContinueOption = options?.suppressContinueOption === true
+      logger.info('[Abort] User initiated abort', { suppressContinueOption })
+
       // Mark this as a user-initiated abort (vs browser refresh which doesn't call this)
-      set({ isAborting: true, suppressAbortContinueOption: suppressContinueOption, userInitiatedAbort: true })
+      // Set userInitiatedAbort BEFORE calling abort() so the streaming loop sees it
+      set({
+        isAborting: true,
+        suppressAbortContinueOption: suppressContinueOption,
+        userInitiatedAbort: true,
+      })
+
+      // Abort the controller - the streaming loop will handle cleanup
+      // We do NOT set isSendingMessage: false here - let the streaming loop do it
+      // This prevents a race condition where the loop exits before seeing the abort
       try {
         abortController.abort()
         stopStreamingUpdates()
-        const lastMessage = messages[messages.length - 1]
-        if (lastMessage && lastMessage.role === 'assistant') {
-          const textContent =
-            lastMessage.contentBlocks
-              ?.filter((b) => b.type === 'text')
-              .map((b: any) => b.content)
-              .join('') || ''
-          const nextContentBlocks = suppressContinueOption
-            ? (lastMessage.contentBlocks ?? [])
-            : appendContinueOptionBlock(
-                lastMessage.contentBlocks ? [...lastMessage.contentBlocks] : []
-              )
-          set((state) => ({
-            messages: state.messages.map((msg) =>
-              msg.id === lastMessage.id
-                ? {
-                    ...msg,
-                    content: suppressContinueOption
-                      ? textContent.trim() || 'Message was aborted'
-                      : appendContinueOption(textContent.trim() || 'Message was aborted'),
-                    contentBlocks: nextContentBlocks,
-                  }
-                : msg
-            ),
-            isSendingMessage: false,
-            isAborting: false,
-            // Keep abortController so streaming loop can check signal.aborted
-            // It will be nulled when streaming completes or new message starts
-          }))
-        } else {
-          set({
-            isSendingMessage: false,
-            isAborting: false,
-            // Keep abortController so streaming loop can check signal.aborted
-          })
-        }
-
-        // Immediately put all in-progress tools into aborted state
-        abortAllInProgressTools(set, get)
-
-        // Persist whatever contentBlocks/text we have to keep ordering for reloads
-        const { currentChat, streamingPlanContent, mode, selectedModel } = get()
-        if (currentChat) {
-          try {
-            const currentMessages = get().messages
-            const dbMessages = validateMessagesForLLM(currentMessages)
-            fetch('/api/copilot/chat/update-messages', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chatId: currentChat.id,
-                messages: dbMessages,
-                planArtifact: streamingPlanContent || null,
-                config: {
-                  mode,
-                  model: selectedModel,
-                },
-              }),
-            }).catch(() => {})
-          } catch {}
-        }
-      } catch {
-        set({ isSendingMessage: false, isAborting: false })
+        // The streaming loop will detect signal.aborted and userInitiatedAbort,
+        // then update the UI and set isSendingMessage: false
+      } catch (err) {
+        logger.error('[Abort] Error aborting', { error: err })
+        set({ isAborting: false })
       }
     },
 
@@ -3293,17 +3646,67 @@ export const useCopilotStore = create<CopilotStore>()(
             // Only treat as abort if user explicitly clicked stop (not browser refresh)
             if (userInitiatedAbort) {
               context.wasAborted = true
-              const { suppressAbortContinueOption } = get()
+              const { suppressAbortContinueOption, messages } = get()
               context.suppressContinueOption = suppressAbortContinueOption === true
               if (suppressAbortContinueOption) {
                 set({ suppressAbortContinueOption: false })
               }
-              set({ userInitiatedAbort: false }) // Reset flag
-              // User-initiated abort: clean up and break
+
+              // User-initiated abort: Update UI with abort state
+              const lastMessage = messages[messages.length - 1]
+              if (lastMessage && lastMessage.role === 'assistant') {
+                const textContent =
+                  lastMessage.contentBlocks
+                    ?.filter((b) => b.type === 'text')
+                    .map((b: any) => b.content)
+                    .join('') || ''
+                const nextContentBlocks = context.suppressContinueOption
+                  ? (lastMessage.contentBlocks ?? [])
+                  : appendContinueOptionBlock(
+                      lastMessage.contentBlocks ? [...lastMessage.contentBlocks] : []
+                    )
+                set((state) => ({
+                  messages: state.messages.map((msg) =>
+                    msg.id === lastMessage.id
+                      ? {
+                          ...msg,
+                          content: context.suppressContinueOption
+                            ? textContent.trim() || 'Message was aborted'
+                            : appendContinueOption(textContent.trim() || 'Message was aborted'),
+                          contentBlocks: nextContentBlocks,
+                        }
+                      : msg
+                  ),
+                }))
+              }
+
+              // Immediately put all in-progress tools into aborted state
+              abortAllInProgressTools(set, get)
+
+              // Persist current state to database
+              const { currentChat, streamingPlanContent, mode, selectedModel } = get()
+              if (currentChat) {
+                try {
+                  const currentMessages = get().messages
+                  const dbMessages = validateMessagesForLLM(currentMessages)
+                  fetch('/api/copilot/chat/update-messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      chatId: currentChat.id,
+                      messages: dbMessages,
+                      planArtifact: streamingPlanContent || null,
+                      config: { mode, model: selectedModel },
+                    }),
+                  }).catch(() => {})
+                } catch {}
+              }
+
+              set({ userInitiatedAbort: false, isSendingMessage: false, isAborting: false })
               context.pendingContent = ''
               finalizeThinkingBlock(context)
               stopStreamingUpdates()
-              reader.cancel()
+              reader.cancel().catch(() => {})
               break
             } else {
               // Browser refresh/navigation - don't update any UI, just exit
@@ -4060,13 +4463,51 @@ export const useCopilotStore = create<CopilotStore>()(
         if (!response.ok) {
           const data = await response.json().catch(() => ({}))
 
-          // Stream completed or errored - refresh messages from DB
-          if (data.status === 'completed' || data.status === 'error') {
-            logger.info('[Resume] Stream already finished', { streamId, status: data.status })
-            // Reload the chat to get the saved messages
+          // Stream completed, errored, or not found (already cleaned up) - refresh messages from DB
+          if (
+            data.status === 'completed' ||
+            data.status === 'error' ||
+            data.status === 'not_found' ||
+            response.status === 404
+          ) {
+            logger.info('[Resume] Stream finished or cleaned up, reloading from DB', {
+              streamId,
+              status: data.status || response.status,
+            })
+            // Reload the chat to get the saved messages from database
             const currentChat = get().currentChat
             if (currentChat) {
-              await get().selectChat(currentChat)
+              // Fetch fresh chat data from API
+              try {
+                const chatResponse = await fetch(
+                  `/api/copilot/chat?workflowId=${get().workflowId}`,
+                  { credentials: 'include' }
+                )
+                if (chatResponse.ok) {
+                  const chatData = await chatResponse.json()
+                  if (chatData.success && Array.isArray(chatData.chats)) {
+                    const updatedChat = chatData.chats.find(
+                      (c: CopilotChat) => c.id === currentChat.id
+                    )
+                    if (updatedChat) {
+                      const normalizedMessages = normalizeMessagesForUI(updatedChat.messages || [])
+                      const toolCallsById = buildToolCallsById(normalizedMessages)
+                      set({
+                        currentChat: updatedChat,
+                        messages: normalizedMessages,
+                        toolCallsById,
+                        chats: chatData.chats,
+                      })
+                      logger.info('[Resume] Reloaded messages from DB', {
+                        chatId: currentChat.id,
+                        messageCount: normalizedMessages.length,
+                      })
+                    }
+                  }
+                }
+              } catch (err) {
+                logger.warn('[Resume] Failed to reload chat from DB', { error: err })
+              }
             }
             return
           }
@@ -4080,26 +4521,113 @@ export const useCopilotStore = create<CopilotStore>()(
           return
         }
 
-        // Create a placeholder assistant message for the resumed stream
-        const resumeMessageId = crypto.randomUUID()
+        // Find the existing assistant message to resume into
+        // Since we replay ALL chunks from Redis (from=0), we rebuild the message from scratch
+        // Don't merge with existing content to avoid duplicates
         const messages = get().messages
-        const assistantMessage: CopilotMessage = {
-          id: resumeMessageId,
-          role: 'assistant',
-          content: '',
-          timestamp: new Date().toISOString(),
-          toolCalls: [],
-          contentBlocks: [],
+        let resumeMessageId: string
+        const lastMessage = messages[messages.length - 1]
+
+        if (lastMessage?.role === 'assistant') {
+          // Resume into the existing assistant message, but CLEAR its content first
+          // since we're replaying all chunks from the beginning
+          resumeMessageId = lastMessage.id
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              m.id === resumeMessageId
+                ? { ...m, content: '', contentBlocks: [], toolCalls: [] }
+                : m
+            ),
+          }))
+          logger.info('[Resume] Resuming into existing message (cleared)', {
+            messageId: resumeMessageId,
+          })
+        } else {
+          // Create a new assistant message
+          resumeMessageId = crypto.randomUUID()
+          const assistantMessage: CopilotMessage = {
+            id: resumeMessageId,
+            role: 'assistant',
+            content: '',
+            timestamp: new Date().toISOString(),
+            toolCalls: [],
+            contentBlocks: [],
+          }
+          set({ messages: [...messages, assistantMessage] })
+          logger.info('[Resume] Created new message for resume', { messageId: resumeMessageId })
         }
 
-        set({ messages: [...messages, assistantMessage] })
+        // Process the resumed stream - NOT a continuation since we're rebuilding from scratch
+        await get().handleStreamingResponse(response.body, resumeMessageId, false)
 
-        // Process the resumed stream
-        await get().handleStreamingResponse(response.body, resumeMessageId, true)
+        // After stream processing, check if there's a pending diff to restore
+        await get().restorePendingDiff(streamId)
       } catch (error) {
         logger.error('[Resume] Stream resumption failed', { streamId, error })
       } finally {
         set({ isResuming: false, isSendingMessage: false, activeStreamId: null })
+      }
+    },
+
+    restorePendingDiff: async (streamId) => {
+      try {
+        const { useWorkflowDiffStore } = await import('@/stores/workflow-diff/store')
+        const diffStore = useWorkflowDiffStore.getState()
+
+        // Fetch pending diff from Redis via API
+        const response = await fetch(`/api/copilot/stream/${streamId}/pending-diff`, {
+          credentials: 'include',
+        })
+
+        if (!response.ok) {
+          return // No pending diff
+        }
+
+        const data = await response.json()
+        if (!data.pendingDiff) {
+          return
+        }
+
+        const { baselineWorkflow, proposedWorkflow, diffAnalysis, toolCallId } = data.pendingDiff
+
+        // If there's already an active diff (possibly restored from markers),
+        // we still want to restore the baseline so reject can work properly
+        if (diffStore.hasActiveDiff) {
+          if (!diffStore.baselineWorkflow && baselineWorkflow) {
+            logger.info('[Resume] Diff already active but missing baseline, updating baseline', {
+              toolCallId,
+            })
+            // Just update the baseline in the existing diff state
+            const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
+            const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+            useWorkflowDiffStore.setState({
+              baselineWorkflow: baselineWorkflow,
+              baselineWorkflowId: activeWorkflowId,
+            })
+          } else {
+            logger.info('[Resume] Diff already fully restored, skipping')
+          }
+          return
+        }
+
+        logger.info('[Resume] Restoring pending diff', {
+          toolCallId,
+          hasBaseline: !!baselineWorkflow,
+        })
+
+        // Restore the diff with the saved baseline so reject can work properly
+        if (baselineWorkflow && diffAnalysis) {
+          useWorkflowDiffStore.getState().restoreDiffWithBaseline(
+            baselineWorkflow,
+            proposedWorkflow,
+            diffAnalysis
+          )
+        } else {
+          // Fallback: just set proposed changes (baseline will be captured fresh)
+          await useWorkflowDiffStore.getState().setProposedChanges(proposedWorkflow, diffAnalysis)
+        }
+      } catch (error) {
+        logger.warn('[Resume] Failed to restore pending diff', { streamId, error })
       }
     },
   }))

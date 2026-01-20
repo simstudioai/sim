@@ -261,6 +261,7 @@ export interface CopilotActions {
   checkForActiveStream: (chatId: string) => Promise<boolean>
   resumeActiveStream: (streamId: string) => Promise<void>
   setActiveStreamId: (streamId: string | null) => void
+  restorePendingDiff: (streamId: string) => Promise<void>
 }
 
 export type CopilotStore = CopilotState & CopilotActions

@@ -20,6 +20,50 @@ import {
   persistWorkflowStateToServer,
 } from './utils'
 
+/** Get the active stream ID from copilot store (lazy import to avoid circular deps) */
+async function getActiveStreamId(): Promise<string | null> {
+  try {
+    const { useCopilotStore } = await import('@/stores/panel/copilot/store')
+    return useCopilotStore.getState().activeStreamId
+  } catch {
+    return null
+  }
+}
+
+/** Save pending diff to server (Redis) via API */
+async function savePendingDiffToServer(
+  streamId: string,
+  pendingDiff: {
+    toolCallId: string
+    baselineWorkflow: unknown
+    proposedWorkflow: unknown
+    diffAnalysis: unknown
+  }
+): Promise<void> {
+  try {
+    await fetch(`/api/copilot/stream/${streamId}/pending-diff`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ pendingDiff }),
+    })
+  } catch (err) {
+    logger.warn('Failed to save pending diff to server', { error: err })
+  }
+}
+
+/** Clear pending diff from server (Redis) via API */
+async function clearPendingDiffFromServer(streamId: string): Promise<void> {
+  try {
+    await fetch(`/api/copilot/stream/${streamId}/pending-diff`, {
+      method: 'DELETE',
+      credentials: 'include',
+    })
+  } catch {
+    // Ignore errors - not critical
+  }
+}
+
 const logger = createLogger('WorkflowDiffStore')
 const diffEngine = new WorkflowDiffEngine()
 
@@ -169,32 +213,35 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             edges: candidateState.edges?.length || 0,
           })
 
-          // BACKGROUND: Broadcast and persist without blocking
-          // These operations happen after the UI has already updated
-          const cleanState = stripWorkflowDiffMarkers(cloneWorkflowState(candidateState))
-
-          // Fire and forget: broadcast to other users (don't await)
-          enqueueReplaceWorkflowState({
-            workflowId: activeWorkflowId,
-            state: cleanState,
-          }).catch((error) => {
-            logger.warn('Failed to broadcast workflow state (non-blocking)', { error })
+          // Persist pending diff to Redis for resumption on page refresh
+          getActiveStreamId().then((streamId) => {
+            if (streamId) {
+              findLatestEditWorkflowToolCallId().then((toolCallId) => {
+                if (toolCallId) {
+                  savePendingDiffToServer(streamId, {
+                    toolCallId,
+                    baselineWorkflow: baselineWorkflow,
+                    proposedWorkflow: candidateState,
+                    diffAnalysis: diffAnalysisResult,
+                  })
+                }
+              })
+            }
           })
 
-          // Fire and forget: persist to database (don't await)
-          persistWorkflowStateToServer(activeWorkflowId, candidateState)
+          // NOTE: We do NOT broadcast to other users here (to prevent socket errors on refresh).
+          // But we DO persist to database WITH diff markers so the proposed state survives page refresh
+          // and the diff UI can be restored. Final broadcast (without markers) happens when user accepts.
+          persistWorkflowStateToServer(activeWorkflowId, candidateState, { preserveDiffMarkers: true })
             .then((persisted) => {
               if (!persisted) {
-                logger.warn('Failed to persist copilot edits (state already applied locally)')
-                // Don't revert - user can retry or state will sync on next save
+                logger.warn('Failed to persist diff preview state')
               } else {
-                logger.info('Workflow diff persisted to database', {
-                  workflowId: activeWorkflowId,
-                })
+                logger.info('Diff preview state persisted with markers', { workflowId: activeWorkflowId })
               }
             })
             .catch((error) => {
-              logger.warn('Failed to persist workflow state (non-blocking)', { error })
+              logger.warn('Failed to persist diff preview state', { error })
             })
 
           // Emit event for undo/redo recording
@@ -210,6 +257,37 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               })
             )
           }
+        },
+
+        restoreDiffWithBaseline: (baselineWorkflow, proposedWorkflow, diffAnalysis) => {
+          const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+          if (!activeWorkflowId) {
+            logger.error('Cannot restore diff without an active workflow')
+            return
+          }
+
+          logger.info('Restoring diff with baseline', {
+            workflowId: activeWorkflowId,
+            hasBaseline: !!baselineWorkflow,
+            newBlocks: diffAnalysis.new_blocks?.length || 0,
+            editedBlocks: diffAnalysis.edited_blocks?.length || 0,
+          })
+
+          // Set the diff state with the provided baseline
+          batchedUpdate({
+            hasActiveDiff: true,
+            isShowingDiff: true,
+            isDiffReady: true,
+            baselineWorkflow: baselineWorkflow,
+            baselineWorkflowId: activeWorkflowId,
+            diffAnalysis: diffAnalysis,
+            diffMetadata: null,
+            diffError: null,
+          })
+
+          // The proposed workflow should already be applied (blocks have is_diff markers)
+          // Just re-apply the markers to ensure they're visible
+          setTimeout(() => get().reapplyDiffMarkers(), 0)
         },
 
         clearDiff: ({ restoreBaseline = true } = {}) => {
@@ -292,6 +370,13 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           const baselineForUndo = get().baselineWorkflow
           const triggerMessageId = get()._triggerMessageId
 
+          // Clear pending diff from Redis (fire and forget)
+          getActiveStreamId().then((streamId) => {
+            if (streamId) {
+              clearPendingDiffFromServer(streamId)
+            }
+          })
+
           // Clear diff state FIRST to prevent flash of colors
           // This must happen synchronously before applying the cleaned state
           set({
@@ -311,6 +396,32 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           // Now apply the cleaned state
           applyWorkflowStateToStores(activeWorkflowId, stateToApply)
+
+          // Broadcast and persist the accepted changes
+          const cleanStateForBroadcast = stripWorkflowDiffMarkers(cloneWorkflowState(stateToApply))
+
+          // Fire and forget: broadcast to other users
+          enqueueReplaceWorkflowState({
+            workflowId: activeWorkflowId,
+            state: cleanStateForBroadcast,
+          }).catch((error) => {
+            logger.warn('Failed to broadcast accepted workflow state', { error })
+          })
+
+          // Fire and forget: persist to database
+          persistWorkflowStateToServer(activeWorkflowId, stateToApply)
+            .then((persisted) => {
+              if (!persisted) {
+                logger.warn('Failed to persist accepted workflow changes')
+              } else {
+                logger.info('Accepted workflow changes persisted to database', {
+                  workflowId: activeWorkflowId,
+                })
+              }
+            })
+            .catch((error) => {
+              logger.warn('Failed to persist accepted workflow state', { error })
+            })
 
           // Emit event for undo/redo recording (unless we're in an undo/redo operation)
           if (!(window as any).__skipDiffRecording) {
@@ -356,8 +467,19 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
 
           if (!baselineWorkflow || !baselineWorkflowId) {
-            logger.warn('Reject called without baseline workflow')
+            logger.warn('Reject called without baseline workflow - cannot revert changes')
+            // This can happen if the diff was restored from markers after page refresh
+            // without a saved baseline. Just clear the diff markers without reverting.
             get().clearDiff({ restoreBaseline: false })
+            // Show a notification to the user
+            try {
+              const { useNotificationStore } = await import('@/stores/notifications')
+              useNotificationStore.getState().addNotification({
+                level: 'info',
+                message:
+                  'Cannot revert: The original workflow state was lost after page refresh. Diff markers have been cleared.',
+              })
+            } catch {}
             return
           }
 
@@ -382,6 +504,13 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             blocks: mergedBlocks,
           })
           const afterReject = cloneWorkflowState(baselineWorkflow)
+
+          // Clear pending diff from Redis (fire and forget)
+          getActiveStreamId().then((streamId) => {
+            if (streamId) {
+              clearPendingDiffFromServer(streamId)
+            }
+          })
 
           // Clear diff state FIRST for instant UI feedback
           set({
@@ -525,6 +654,94 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             useWorkflowStore.setState({ blocks: updatedBlocks })
             logger.info('Re-applied diff markers to workflow blocks')
           }
+        },
+
+        restoreDiffFromMarkers: () => {
+          // Check if the workflow has any blocks with is_diff markers
+          // If so, restore the diff store state to show the diff view
+          const { hasActiveDiff } = get()
+          if (hasActiveDiff) {
+            // Already have an active diff
+            return
+          }
+
+          const workflowStore = useWorkflowStore.getState()
+          const blocks = workflowStore.blocks
+
+          const newBlocks: string[] = []
+          const editedBlocks: string[] = []
+          const fieldDiffs: Record<string, { changed_fields: string[] }> = {}
+
+          Object.entries(blocks).forEach(([blockId, block]) => {
+            const isDiff = (block as any).is_diff
+            if (isDiff === 'new') {
+              newBlocks.push(blockId)
+            } else if (isDiff === 'edited') {
+              editedBlocks.push(blockId)
+              // Check for field diffs
+              const blockFieldDiffs = (block as any).field_diffs
+              if (blockFieldDiffs) {
+                fieldDiffs[blockId] = blockFieldDiffs
+              } else {
+                // Check subBlocks for is_diff markers
+                const changedFields: string[] = []
+                Object.entries((block as any).subBlocks || {}).forEach(
+                  ([fieldId, subBlock]: [string, any]) => {
+                    if (subBlock?.is_diff === 'changed') {
+                      changedFields.push(fieldId)
+                    }
+                  }
+                )
+                if (changedFields.length > 0) {
+                  fieldDiffs[blockId] = { changed_fields: changedFields }
+                }
+              }
+            }
+          })
+
+          if (newBlocks.length === 0 && editedBlocks.length === 0) {
+            // No diff markers found
+            return
+          }
+
+          logger.info('Restoring diff state from markers', {
+            newBlocks: newBlocks.length,
+            editedBlocks: editedBlocks.length,
+          })
+
+          // Restore the diff state
+          // Note: We don't have the baseline, so reject will just clear the diff
+          // Add unchanged_fields to satisfy the type (we don't track unchanged fields on restore)
+          const fieldDiffsWithUnchanged: Record<
+            string,
+            { changed_fields: string[]; unchanged_fields: string[] }
+          > = {}
+          Object.entries(fieldDiffs).forEach(([blockId, diff]) => {
+            fieldDiffsWithUnchanged[blockId] = {
+              changed_fields: diff.changed_fields,
+              unchanged_fields: [],
+            }
+          })
+
+          const diffAnalysis = {
+            new_blocks: newBlocks,
+            edited_blocks: editedBlocks,
+            deleted_blocks: [],
+            field_diffs: fieldDiffsWithUnchanged,
+          }
+
+          const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+
+          batchedUpdate({
+            hasActiveDiff: true,
+            isShowingDiff: true,
+            isDiffReady: true,
+            baselineWorkflow: null, // We don't have baseline on restore from markers alone
+            baselineWorkflowId: activeWorkflowId, // Set the workflow ID for later baseline restoration
+            diffAnalysis,
+            diffMetadata: null,
+            diffError: null,
+          })
         },
       }
     },

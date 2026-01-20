@@ -15,10 +15,16 @@ export interface WorkflowDiffState {
 
 export interface WorkflowDiffActions {
   setProposedChanges: (workflowState: WorkflowState, diffAnalysis?: DiffAnalysis) => Promise<void>
+  restoreDiffWithBaseline: (
+    baselineWorkflow: WorkflowState,
+    proposedWorkflow: WorkflowState,
+    diffAnalysis: DiffAnalysis
+  ) => void
   clearDiff: (options?: { restoreBaseline?: boolean }) => void
   toggleDiffView: () => void
   acceptChanges: () => Promise<void>
   rejectChanges: () => Promise<void>
   reapplyDiffMarkers: () => void
+  restoreDiffFromMarkers: () => void
   _batchedStateUpdate: (updates: Partial<WorkflowDiffState>) => void
 }

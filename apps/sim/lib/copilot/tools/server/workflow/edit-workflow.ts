@@ -2550,7 +2550,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
   name: 'edit_workflow',
   async execute(params: EditWorkflowParams, context?: { userId: string }): Promise<any> {
     const logger = createLogger('EditWorkflowServerTool')
-    const { operations, workflowId, currentUserWorkflow } = params
+    const { operations, workflowId } = params
     if (!Array.isArray(operations) || operations.length === 0) {
       throw new Error('operations are required and must be an array')
     }
@@ -2559,22 +2559,14 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
     logger.info('Executing edit_workflow', {
       operationCount: operations.length,
       workflowId,
-      hasCurrentUserWorkflow: !!currentUserWorkflow,
     })
 
-    // Get current workflow state
-    let workflowState: any
-    if (currentUserWorkflow) {
-      try {
-        workflowState = JSON.parse(currentUserWorkflow)
-      } catch (error) {
-        logger.error('Failed to parse currentUserWorkflow', error)
-        throw new Error('Invalid currentUserWorkflow format')
-      }
-    } else {
-      const fromDb = await getCurrentWorkflowStateFromDb(workflowId)
-      workflowState = fromDb.workflowState
-    }
+    // Always fetch from DB to ensure we have the latest state.
+    // This is critical because multiple edit_workflow calls may execute
+    // sequentially (via locking), and each must see the previous call's changes.
+    // The AI-provided currentUserWorkflow may be stale.
+    const fromDb = await getCurrentWorkflowStateFromDb(workflowId)
+    const workflowState = fromDb.workflowState
 
     // Get permission config for the user
     const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
@@ -2659,15 +2651,41 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
       logger.warn('No userId in context - skipping custom tools persistence', { workflowId })
     }
 
+    const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
+
     logger.info('edit_workflow successfully applied operations', {
       operationCount: operations.length,
-      blocksCount: Object.keys(modifiedWorkflowState.blocks).length,
-      edgesCount: modifiedWorkflowState.edges.length,
+      blocksCount: Object.keys(finalWorkflowState.blocks).length,
+      edgesCount: finalWorkflowState.edges.length,
       inputValidationErrors: validationErrors.length,
       skippedItemsCount: skippedItems.length,
       schemaValidationErrors: validation.errors.length,
       validationWarnings: validation.warnings.length,
     })
+
+    // IMPORTANT: Persist the workflow state to DB BEFORE returning.
+    // This ensures that subsequent edit_workflow calls (which fetch from DB)
+    // will see the latest state. Without this, there's a race condition where
+    // the client persists AFTER the lock is released, and another edit_workflow
+    // call can see stale state.
+    try {
+      const { saveWorkflowToNormalizedTables } = await import(
+        '@/lib/workflows/persistence/utils'
+      )
+      await saveWorkflowToNormalizedTables(workflowId, finalWorkflowState)
+      logger.info('Persisted workflow state to DB before returning', {
+        workflowId,
+        blocksCount: Object.keys(finalWorkflowState.blocks).length,
+        edgesCount: finalWorkflowState.edges.length,
+      })
+    } catch (persistError) {
+      logger.error('Failed to persist workflow state to DB', {
+        workflowId,
+        error: persistError instanceof Error ? persistError.message : String(persistError),
+      })
+      // Don't throw - we still want to return the modified state
+      // The client will also try to persist, which may succeed
+    }
 
     // Format validation errors for LLM feedback
     const inputErrors =

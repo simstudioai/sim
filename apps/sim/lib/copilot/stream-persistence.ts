@@ -36,6 +36,16 @@ export interface ToolCallRecord {
 }
 
 /**
+ * Pending diff state for edit_workflow tool calls
+ */
+export interface PendingDiffState {
+  toolCallId: string
+  baselineWorkflow: unknown
+  proposedWorkflow: unknown
+  diffAnalysis: unknown
+}
+
+/**
  * Stream metadata stored in Redis
  */
 export interface StreamMeta {
@@ -51,6 +61,8 @@ export interface StreamMeta {
   conversationId?: string
   createdAt: number
   updatedAt: number
+  /** Pending diff state if edit_workflow tool has changes waiting for review */
+  pendingDiff?: PendingDiffState
 }
 
 /**
@@ -186,6 +198,56 @@ export async function updateToolCall(
 }
 
 /**
+ * Store pending diff state for a stream (called when edit_workflow creates a diff)
+ */
+export async function setPendingDiff(
+  streamId: string,
+  pendingDiff: PendingDiffState
+): Promise<void> {
+  const redis = getRedisClient()
+  if (!redis) return
+
+  const metaKey = `copilot:stream:${streamId}:meta`
+  const raw = await redis.get(metaKey)
+  if (!raw) return
+
+  const meta: StreamMeta = JSON.parse(raw)
+  meta.pendingDiff = pendingDiff
+  meta.updatedAt = Date.now()
+  await redis.setex(metaKey, STREAM_TTL, JSON.stringify(meta))
+  logger.info('Stored pending diff for stream', { streamId, toolCallId: pendingDiff.toolCallId })
+}
+
+/**
+ * Clear pending diff state (called when user accepts/rejects the diff)
+ */
+export async function clearPendingDiff(streamId: string): Promise<void> {
+  const redis = getRedisClient()
+  if (!redis) return
+
+  const metaKey = `copilot:stream:${streamId}:meta`
+  const raw = await redis.get(metaKey)
+  if (!raw) return
+
+  const meta: StreamMeta = JSON.parse(raw)
+  delete meta.pendingDiff
+  meta.updatedAt = Date.now()
+  await redis.setex(metaKey, STREAM_TTL, JSON.stringify(meta))
+  logger.info('Cleared pending diff for stream', { streamId })
+}
+
+/**
+ * Get pending diff state for a stream
+ */
+export async function getPendingDiff(streamId: string): Promise<PendingDiffState | null> {
+  const redis = getRedisClient()
+  if (!redis) return null
+
+  const meta = await getStreamMeta(streamId)
+  return meta?.pendingDiff || null
+}
+
+/**
  * Complete the stream - save to database and cleanup Redis
  */
 export async function completeStream(streamId: string, conversationId?: string): Promise<void> {
@@ -258,6 +320,47 @@ async function saveToDatabase(meta: StreamMeta, conversationId?: string): Promis
     }
 
     const existingMessages = Array.isArray(chat.messages) ? chat.messages : []
+
+    // Check if there's already an assistant message after the user message
+    // This can happen if the client already saved it before disconnecting
+    const userMessageIndex = existingMessages.findIndex(
+      (m: any) => m.id === meta.userMessageId && m.role === 'user'
+    )
+
+    // If there's already an assistant message right after the user message,
+    // the client may have already saved it - check if it's incomplete
+    if (userMessageIndex >= 0 && userMessageIndex < existingMessages.length - 1) {
+      const nextMessage = existingMessages[userMessageIndex + 1] as any
+      if (nextMessage?.role === 'assistant' && !nextMessage?.serverCompleted) {
+        // Client saved a partial message, update it with the complete content
+        const updatedMessages = existingMessages.map((m: any, idx: number) => {
+          if (idx === userMessageIndex + 1) {
+            return {
+              ...m,
+              content: meta.assistantContent,
+              toolCalls: meta.toolCalls,
+              serverCompleted: true,
+            }
+          }
+          return m
+        })
+
+        await db
+          .update(copilotChats)
+          .set({
+            messages: updatedMessages,
+            conversationId: conversationId || (chat.conversationId as string | undefined),
+            updatedAt: new Date(),
+          })
+          .where(eq(copilotChats.id, meta.chatId))
+
+        logger.info('Updated existing assistant message in database', {
+          streamId: meta.id,
+          chatId: meta.chatId,
+        })
+        return
+      }
+    }
 
     // Build the assistant message
     const assistantMessage = {

@@ -56,17 +56,24 @@ export function captureBaselineSnapshot(workflowId: string): WorkflowState {
 
 export async function persistWorkflowStateToServer(
   workflowId: string,
-  workflowState: WorkflowState
+  workflowState: WorkflowState,
+  options?: { preserveDiffMarkers?: boolean }
 ): Promise<boolean> {
   try {
-    const cleanState = stripWorkflowDiffMarkers(cloneWorkflowState(workflowState))
+    // When preserveDiffMarkers is true, we keep the is_diff markers on blocks
+    // so they survive page refresh and can be restored. This is used when
+    // persisting a diff that hasn't been accepted/rejected yet.
+    const stateToSave = options?.preserveDiffMarkers
+      ? cloneWorkflowState(workflowState)
+      : stripWorkflowDiffMarkers(cloneWorkflowState(workflowState))
+
     const response = await fetch(`/api/workflows/${workflowId}/state`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        ...cleanState,
+        ...stateToSave,
         lastSaved: Date.now(),
       }),
     })

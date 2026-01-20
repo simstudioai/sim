@@ -434,13 +434,20 @@ const WorkflowContent = React.memo(() => {
       window.removeEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
   }, [])
 
-  const { diffAnalysis, isShowingDiff, isDiffReady, reapplyDiffMarkers, hasActiveDiff } =
-    useWorkflowDiffStore(
+  const {
+    diffAnalysis,
+    isShowingDiff,
+    isDiffReady,
+    reapplyDiffMarkers,
+    hasActiveDiff,
+    restoreDiffFromMarkers,
+  } = useWorkflowDiffStore(
       useShallow((state) => ({
         diffAnalysis: state.diffAnalysis,
         isShowingDiff: state.isShowingDiff,
         isDiffReady: state.isDiffReady,
         reapplyDiffMarkers: state.reapplyDiffMarkers,
+        restoreDiffFromMarkers: state.restoreDiffFromMarkers,
         hasActiveDiff: state.hasActiveDiff,
       }))
     )
@@ -465,6 +472,16 @@ const WorkflowContent = React.memo(() => {
       setTimeout(() => reapplyDiffMarkers(), 0)
     }
   }, [blocks, hasActiveDiff, isDiffReady, reapplyDiffMarkers, isWorkflowReady])
+
+  /** Restore diff state from markers on page load if blocks have is_diff markers. */
+  const hasRestoredDiff = useRef(false)
+  useEffect(() => {
+    if (!isWorkflowReady || hasRestoredDiff.current || hasActiveDiff) return
+    // Check once when workflow becomes ready
+    hasRestoredDiff.current = true
+    // Delay slightly to ensure blocks are fully loaded
+    setTimeout(() => restoreDiffFromMarkers(), 100)
+  }, [isWorkflowReady, hasActiveDiff, restoreDiffFromMarkers])
 
   /** Reconstructs deleted edges for diff view and filters invalid edges. */
   const edgesForDisplay = useMemo(() => {
