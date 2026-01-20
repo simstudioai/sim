@@ -379,9 +379,12 @@ export function useUpdateChunk() {
 
   return useMutation({
     mutationFn: updateChunk,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSuccess: (_, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
       })
     },
   })
@@ -419,9 +422,12 @@ export function useDeleteChunk() {
 
   return useMutation({
     mutationFn: deleteChunk,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSuccess: (_, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
       })
     },
   })
@@ -464,9 +470,12 @@ export function useCreateChunk() {
 
   return useMutation({
     mutationFn: createChunk,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSuccess: (_, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
       })
     },
   })
@@ -784,9 +793,12 @@ export function useBulkChunkOperation() {
 
   return useMutation({
     mutationFn: bulkChunkOperation,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSuccess: (_, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
       })
     },
   })
@@ -806,7 +818,7 @@ export async function updateDocumentTags({
   const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tags }),
+    body: JSON.stringify(tags),
   })
 
   if (!response.ok) {

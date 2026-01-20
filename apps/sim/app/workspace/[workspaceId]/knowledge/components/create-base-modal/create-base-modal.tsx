@@ -246,7 +246,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
   }
 
   const isSubmitting =
-    createKnowledgeBaseMutation.isPending || deleteKnowledgeBaseMutation.isPending
+    createKnowledgeBaseMutation.isPending || deleteKnowledgeBaseMutation.isPending || isUploading
 
   const onSubmit = async (data: FormValues) => {
     setSubmitStatus(null)
