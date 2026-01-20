@@ -75,6 +75,7 @@ function ColorGrid({
         case ' ':
           e.preventDefault()
           e.stopPropagation()
+          setHexInput(WORKFLOW_COLORS[index].color)
           onColorChange?.(WORKFLOW_COLORS[index].color)
           return
         default:
@@ -86,7 +87,7 @@ function ColorGrid({
         buttonRefs.current[newIndex]?.focus()
       }
     },
-    [onColorChange]
+    [setHexInput, onColorChange]
   )
 
   return (
@@ -103,13 +104,15 @@ function ColorGrid({
           tabIndex={focusedIndex === index ? 0 : -1}
           onClick={(e) => {
             e.stopPropagation()
-            onColorChange?.(color)
+            setHexInput(color)
           }}
           onKeyDown={(e) => handleKeyDown(e, index)}
           onFocus={() => setFocusedIndex(index)}
           className={cn(
             'h-[20px] w-[20px] rounded-[4px] outline-none ring-white ring-offset-0',
-            focusedIndex === index && 'ring-[1.5px]'
+            (focusedIndex === index ||
+              (focusedIndex === -1 && hexInput.toLowerCase() === color.toLowerCase())) &&
+              'ring-[1.5px]'
           )}
           style={{ backgroundColor: color }}
         />
