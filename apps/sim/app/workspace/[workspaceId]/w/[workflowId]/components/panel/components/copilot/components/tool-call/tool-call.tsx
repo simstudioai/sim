@@ -455,6 +455,8 @@ interface ToolCallProps {
   toolCallId?: string
   /** Callback when tool call state changes */
   onStateChange?: (state: any) => void
+  /** Whether this tool call is from the current/latest message. Controls shimmer and action buttons. */
+  isCurrentMessage?: boolean
 }
 
 /** Props for the ShimmerOverlayText component */
@@ -711,6 +713,8 @@ function getSubagentCompletionLabel(toolName: string): string {
 
 /**
  * Renders subagent blocks as thinking text within regular tool calls.
+ * @param blocks - The subagent content blocks to render
+ * @param isStreaming - Whether streaming animations should be shown (caller should pre-compute currentMessage check)
  */
 function SubAgentThinkingContent({
   blocks,
@@ -768,16 +772,20 @@ const COLLAPSIBLE_SUBAGENTS = new Set(['plan', 'debug', 'research'])
 const SubagentContentRenderer = memo(function SubagentContentRenderer({
   toolCall,
   shouldCollapse,
+  isCurrentMessage = true,
 }: {
   toolCall: CopilotToolCall
   shouldCollapse: boolean
+  /** Whether this is from the current/latest message. Controls shimmer animations. */
+  isCurrentMessage?: boolean
 }) {
   const [isExpanded, setIsExpanded] = useState(true)
   const [duration, setDuration] = useState(0)
   const startTimeRef = useRef<number>(Date.now())
   const wasStreamingRef = useRef(false)
 
-  const isStreaming = !!toolCall.subAgentStreaming
+  // Only show streaming animations for current message
+  const isStreaming = isCurrentMessage && !!toolCall.subAgentStreaming
 
   useEffect(() => {
     if (isStreaming && !wasStreamingRef.current) {
@@ -871,7 +879,11 @@ const SubagentContentRenderer = memo(function SubagentContentRenderer({
           }
           return (
             <div key={`tool-${segment.block.toolCall.id || index}`}>
-              <ToolCall toolCallId={segment.block.toolCall.id} toolCall={segment.block.toolCall} />
+              <ToolCall
+                toolCallId={segment.block.toolCall.id}
+                toolCall={segment.block.toolCall}
+                isCurrentMessage={isCurrentMessage}
+              />
             </div>
           )
         }
@@ -909,7 +921,7 @@ const SubagentContentRenderer = memo(function SubagentContentRenderer({
       <div
         className={clsx(
           'overflow-hidden transition-all duration-150 ease-out',
-          isExpanded ? 'mt-1.5 max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
+          isExpanded ? 'mt-1.5 max-h-[5000px] space-y-[4px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
         {renderCollapsibleContent()}
@@ -1447,7 +1459,12 @@ function RunSkipButtons({
   )
 }
 
-export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: ToolCallProps) {
+export function ToolCall({
+  toolCall: toolCallProp,
+  toolCallId,
+  onStateChange,
+  isCurrentMessage = true,
+}: ToolCallProps) {
   const [, forceUpdate] = useState({})
   // Get live toolCall from store to ensure we have the latest state
   const effectiveId = toolCallId || toolCallProp?.id
@@ -1536,6 +1553,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
       <SubagentContentRenderer
         toolCall={toolCall}
         shouldCollapse={COLLAPSIBLE_SUBAGENTS.has(toolCall.name)}
+        isCurrentMessage={isCurrentMessage}
       />
     )
   }
@@ -1570,31 +1588,28 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     toolCall.name === 'make_api_request' ||
     toolCall.name === 'set_global_workflow_variables'
 
-  const showButtons = shouldShowRunSkipButtons(toolCall)
+  const showButtons = isCurrentMessage && shouldShowRunSkipButtons(toolCall)
 
-  // Check UI config for secondary action
+  // Check UI config for secondary action - only show for current message tool calls
   const toolUIConfig = getToolUIConfig(toolCall.name)
   const secondaryAction = toolUIConfig?.secondaryAction
   const showSecondaryAction = secondaryAction?.showInStates.includes(
     toolCall.state as ClientToolCallState
   )
+  const isExecuting =
+    toolCall.state === (ClientToolCallState.executing as any) ||
+    toolCall.state === ('executing' as any)
 
   // Legacy fallbacks for tools that haven't migrated to UI config
   const showMoveToBackground =
-    showSecondaryAction && secondaryAction?.text === 'Move to Background'
-      ? true
-      : !secondaryAction &&
-        toolCall.name === 'run_workflow' &&
-        (toolCall.state === (ClientToolCallState.executing as any) ||
-          toolCall.state === ('executing' as any))
+    isCurrentMessage &&
+    ((showSecondaryAction && secondaryAction?.text === 'Move to Background') ||
+      (!secondaryAction && toolCall.name === 'run_workflow' && isExecuting))
 
   const showWake =
-    showSecondaryAction && secondaryAction?.text === 'Wake'
-      ? true
-      : !secondaryAction &&
-        toolCall.name === 'sleep' &&
-        (toolCall.state === (ClientToolCallState.executing as any) ||
-          toolCall.state === ('executing' as any))
+    isCurrentMessage &&
+    ((showSecondaryAction && secondaryAction?.text === 'Wake') ||
+      (!secondaryAction && toolCall.name === 'sleep' && isExecuting))
 
   const handleStateChange = (state: any) => {
     forceUpdate({})
@@ -1607,6 +1622,8 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     toolCall.state === ClientToolCallState.generating ||
     toolCall.state === ClientToolCallState.pending ||
     toolCall.state === ClientToolCallState.executing
+
+  const shouldShowShimmer = isCurrentMessage && isLoadingState
 
   const isSpecial = isSpecialToolCall(toolCall)
 
@@ -2019,7 +2036,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
         <div className={isEnvVarsClickable ? 'cursor-pointer' : ''} onClick={handleEnvVarsClick}>
           <ShimmerOverlayText
             text={displayName}
-            active={isLoadingState}
+            active={shouldShowShimmer}
             isSpecial={isSpecial}
             className='font-[470] font-season text-[var(--text-secondary)] text-sm dark:text-[var(--text-muted)]'
           />
@@ -2051,7 +2068,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
         {toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0 && (
           <SubAgentThinkingContent
             blocks={toolCall.subAgentBlocks}
-            isStreaming={toolCall.subAgentStreaming}
+            isStreaming={isCurrentMessage && toolCall.subAgentStreaming}
           />
         )}
       </div>
@@ -2076,7 +2093,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
         >
           <ShimmerOverlayText
             text={displayName}
-            active={isLoadingState}
+            active={shouldShowShimmer}
             isSpecial={isSpecial}
             className='font-[470] font-season text-[var(--text-secondary)] text-sm dark:text-[var(--text-muted)]'
           />
@@ -2112,7 +2129,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
         {toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0 && (
           <SubAgentThinkingContent
             blocks={toolCall.subAgentBlocks}
-            isStreaming={toolCall.subAgentStreaming}
+            isStreaming={isCurrentMessage && toolCall.subAgentStreaming}
           />
         )}
       </div>
@@ -2140,7 +2157,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
         <div className={isToolNameClickable ? 'cursor-pointer' : ''} onClick={handleToolNameClick}>
           <ShimmerOverlayText
             text={displayName}
-            active={isLoadingState}
+            active={shouldShowShimmer}
             isSpecial={isSpecial}
             className='font-[470] font-season text-[var(--text-secondary)] text-sm dark:text-[var(--text-muted)]'
           />
@@ -2223,7 +2240,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
       {toolCall.subAgentBlocks && toolCall.subAgentBlocks.length > 0 && (
         <SubAgentThinkingContent
           blocks={toolCall.subAgentBlocks}
-          isStreaming={toolCall.subAgentStreaming}
+          isStreaming={isCurrentMessage && toolCall.subAgentStreaming}
         />
       )}
     </div>

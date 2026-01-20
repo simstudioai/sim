@@ -19,7 +19,6 @@ import {
 import { CopilotMarkdownRenderer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 import {
   useCheckpointManagement,
-  useMessageContentAnalysis,
   useMessageEditing,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/hooks'
 import { UserInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
@@ -199,7 +198,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       [sendMessage]
     )
 
-    const { hasVisibleContent } = useMessageContentAnalysis({ message })
+    const isActivelyStreaming = isLastMessage && isStreaming
 
     const memoizedContentBlocks = useMemo(() => {
       if (!message.contentBlocks || message.contentBlocks.length === 0) {
@@ -215,13 +214,16 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
           if (!cleanBlockContent.trim()) return null
 
-          const shouldUseSmoothing = isStreaming && isLastTextBlock
+          const shouldUseSmoothing = isActivelyStreaming && isLastTextBlock
           const blockKey = `text-${index}-${block.timestamp || index}`
 
           return (
             <div key={blockKey} className='w-full max-w-full'>
               {shouldUseSmoothing ? (
-                <SmoothStreamingText content={cleanBlockContent} isStreaming={isStreaming} />
+                <SmoothStreamingText
+                  content={cleanBlockContent}
+                  isStreaming={isActivelyStreaming}
+                />
               ) : (
                 <CopilotMarkdownRenderer content={cleanBlockContent} />
               )}
@@ -237,7 +239,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             <div key={blockKey} className='w-full'>
               <ThinkingBlock
                 content={block.content}
-                isStreaming={isStreaming}
+                isStreaming={isActivelyStreaming}
                 hasFollowingContent={hasFollowingContent}
                 hasSpecialTags={hasSpecialTags}
               />
@@ -249,13 +251,17 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
           return (
             <div key={blockKey}>
-              <ToolCall toolCallId={block.toolCall.id} toolCall={block.toolCall} />
+              <ToolCall
+                toolCallId={block.toolCall.id}
+                toolCall={block.toolCall}
+                isCurrentMessage={isLastMessage}
+              />
             </div>
           )
         }
         return null
       })
-    }, [message.contentBlocks, isStreaming, parsedTags])
+    }, [message.contentBlocks, isActivelyStreaming, parsedTags, isLastMessage])
 
     if (isUser) {
       return (
