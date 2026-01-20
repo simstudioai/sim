@@ -150,7 +150,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     isSendingMessage,
     showPlanTodos,
     planTodos,
-    setPlanTodos,
   })
 
   /** Gets markdown content for design document section (available in all modes once created) */

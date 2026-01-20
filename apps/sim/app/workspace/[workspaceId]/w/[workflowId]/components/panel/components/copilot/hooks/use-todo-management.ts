@@ -6,7 +6,6 @@ interface UseTodoManagementProps {
   isSendingMessage: boolean
   showPlanTodos: boolean
   planTodos: Array<{ id: string; content: string; completed?: boolean }>
-  setPlanTodos: (todos: any[]) => void
 }
 
 /**
@@ -16,7 +15,7 @@ interface UseTodoManagementProps {
  * @returns Todo management utilities
  */
 export function useTodoManagement(props: UseTodoManagementProps) {
-  const { isSendingMessage, showPlanTodos, planTodos, setPlanTodos } = props
+  const { isSendingMessage, showPlanTodos, planTodos } = props
 
   const [todosCollapsed, setTodosCollapsed] = useState(false)
   const wasSendingRef = useRef(false)
