@@ -8,6 +8,12 @@ export interface RequestParams {
   params?: TableRow[]
   pathParams?: Record<string, string>
   formData?: Record<string, string | Blob>
+  /**
+   * Request timeout in milliseconds.
+   * Default: 120000 (2 minutes)
+   * Maximum: 600000 (10 minutes)
+   */
+  timeout?: number
 }
 
 export interface RequestResponse extends ToolResponse {

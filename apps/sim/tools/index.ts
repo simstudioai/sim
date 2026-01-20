@@ -44,6 +44,34 @@ function normalizeToolId(toolId: string): string {
 const MAX_REQUEST_BODY_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
 
 /**
+ * Default timeout for HTTP requests in milliseconds (2 minutes)
+ */
+const DEFAULT_TIMEOUT_MS = 120000
+
+/**
+ * Maximum allowed timeout for HTTP requests in milliseconds (10 minutes)
+ */
+const MAX_TIMEOUT_MS = 600000
+
+/**
+ * Parses and validates a timeout value, ensuring it falls within acceptable bounds.
+ * @param timeout - The timeout value to parse (number or string in ms)
+ * @returns The parsed timeout in milliseconds, clamped to MAX_TIMEOUT_MS
+ */
+function parseTimeout(timeout: number | string | undefined): number {
+  if (typeof timeout === 'number' && timeout > 0) {
+    return Math.min(timeout, MAX_TIMEOUT_MS)
+  }
+  if (typeof timeout === 'string') {
+    const parsed = Number.parseInt(timeout, 10)
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      return Math.min(parsed, MAX_TIMEOUT_MS)
+    }
+  }
+  return DEFAULT_TIMEOUT_MS
+}
+
+/**
  * User-friendly error message for body size limit exceeded
  */
 const BODY_SIZE_LIMIT_ERROR_MESSAGE =
@@ -650,11 +678,20 @@ async function handleInternalRequest(
     // Check request body size before sending to detect potential size limit issues
     validateRequestBodySize(requestParams.body, requestId, toolId)
 
-    // Prepare request options
-    const requestOptions = {
+    // Parse timeout from params (user-configurable via API block)
+    const timeoutMs = parseTimeout(params.timeout)
+    logger.info(`[${requestId}] Request timeout for ${toolId}: ${timeoutMs}ms`)
+
+    // Prepare request options with timeout support
+    // Note: timeout: false disables Bun/Node.js default 5-minute timeout
+    // AbortSignal.timeout provides user-configurable timeout control
+    const requestOptions: RequestInit & { timeout?: boolean } = {
       method: requestParams.method,
       headers: headers,
       body: requestParams.body,
+      // @ts-ignore - Bun-specific option to disable default 5-minute timeout (not in standard RequestInit types)
+      timeout: false,
+      signal: AbortSignal.timeout(timeoutMs),
     }
 
     const response = await fetch(fullUrl, requestOptions)
@@ -870,10 +907,19 @@ async function handleProxyRequest(
     // Check request body size before sending
     validateRequestBodySize(body, requestId, `proxy:${toolId}`)
 
+    // Parse timeout from params (user-configurable via API block)
+    const timeoutMs = parseTimeout(params.timeout)
+    logger.info(`[${requestId}] Proxy request timeout for ${toolId}: ${timeoutMs}ms`)
+
+    // Note: timeout: false disables Bun/Node.js default 5-minute timeout
+    // AbortSignal.timeout provides user-configurable timeout control
     const response = await fetch(proxyUrl, {
       method: 'POST',
       headers,
       body,
+      // @ts-ignore - Bun-specific option to disable default 5-minute timeout (not in standard RequestInit types)
+      timeout: false,
+      signal: AbortSignal.timeout(timeoutMs),
     })
 
     if (!response.ok) {
