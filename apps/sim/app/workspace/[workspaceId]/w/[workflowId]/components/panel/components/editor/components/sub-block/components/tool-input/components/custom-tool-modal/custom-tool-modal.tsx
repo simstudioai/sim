@@ -87,15 +87,15 @@ export function CustomToolModal({
   const [codeError, setCodeError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [toolId, setToolId] = useState<string | undefined>(undefined)
+  const [initialJsonSchema, setInitialJsonSchema] = useState('')
+  const [initialFunctionCode, setInitialFunctionCode] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isSchemaPromptActive, setIsSchemaPromptActive] = useState(false)
   const [schemaPromptInput, setSchemaPromptInput] = useState('')
-  const [schemaPromptSummary, setSchemaPromptSummary] = useState<string | null>(null)
   const schemaPromptInputRef = useRef<HTMLInputElement | null>(null)
 
   const [isCodePromptActive, setIsCodePromptActive] = useState(false)
   const [codePromptInput, setCodePromptInput] = useState('')
-  const [codePromptSummary, setCodePromptSummary] = useState<string | null>(null)
   const codePromptInputRef = useRef<HTMLInputElement | null>(null)
 
   const schemaGeneration = useWand({
@@ -272,12 +272,15 @@ try {
 
     if (initialValues) {
       try {
-        setJsonSchema(
+        const schemaValue =
           typeof initialValues.schema === 'string'
             ? initialValues.schema
             : JSON.stringify(initialValues.schema, null, 2)
-        )
-        setFunctionCode(initialValues.code || '')
+        const codeValue = initialValues.code || ''
+        setJsonSchema(schemaValue)
+        setFunctionCode(codeValue)
+        setInitialJsonSchema(schemaValue)
+        setInitialFunctionCode(codeValue)
         setIsEditing(true)
         setToolId(initialValues.id)
       } catch (error) {
@@ -304,13 +307,13 @@ try {
   const resetForm = () => {
     setJsonSchema('')
     setFunctionCode('')
+    setInitialJsonSchema('')
+    setInitialFunctionCode('')
     setSchemaError(null)
     setCodeError(null)
     setActiveSection('schema')
     setIsEditing(false)
     setToolId(undefined)
-    setSchemaPromptSummary(null)
-    setCodePromptSummary(null)
     setIsSchemaPromptActive(false)
     setIsCodePromptActive(false)
     setSchemaPromptInput('')
@@ -375,6 +378,11 @@ try {
   }, [jsonSchema])
 
   const isSchemaValid = useMemo(() => validateJsonSchema(jsonSchema), [jsonSchema])
+
+  const hasChanges = useMemo(() => {
+    if (!isEditing) return true
+    return jsonSchema !== initialJsonSchema || functionCode !== initialFunctionCode
+  }, [isEditing, jsonSchema, initialJsonSchema, functionCode, initialFunctionCode])
 
   const handleSave = async () => {
     try {
@@ -483,17 +491,9 @@ try {
       }
 
       onSave(customTool)
-
-      setSchemaPromptSummary(null)
-      setCodePromptSummary(null)
-
       handleClose()
     } catch (error) {
       logger.error('Error saving custom tool:', { error })
-
-      setSchemaPromptSummary(null)
-      setCodePromptSummary(null)
-
       const errorMessage = error instanceof Error ? error.message : 'Failed to save custom tool'
 
       if (errorMessage.includes('Cannot change function name')) {
@@ -667,6 +667,41 @@ try {
     }
   }
 
+  // Global keyboard handler for schema params dropdown (like EnvVarDropdown)
+  useEffect(() => {
+    if (!showSchemaParams || schemaParameters.length === 0) return
+
+    const handleKeyboardEvent = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault()
+          e.stopPropagation()
+          setSchemaParamSelectedIndex((prev) => Math.min(prev + 1, schemaParameters.length - 1))
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          e.stopPropagation()
+          setSchemaParamSelectedIndex((prev) => Math.max(prev - 1, 0))
+          break
+        case 'Enter':
+          e.preventDefault()
+          e.stopPropagation()
+          if (schemaParamSelectedIndex >= 0 && schemaParamSelectedIndex < schemaParameters.length) {
+            handleSchemaParamSelect(schemaParameters[schemaParamSelectedIndex].name)
+          }
+          break
+        case 'Escape':
+          e.preventDefault()
+          e.stopPropagation()
+          setShowSchemaParams(false)
+          break
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyboardEvent, true)
+    return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
+  }, [showSchemaParams, schemaParamSelectedIndex, schemaParameters])
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const isSchemaPromptVisible = activeSection === 'schema' && schemaGeneration.isPromptVisible
     const isCodePromptVisible = activeSection === 'code' && codeGeneration.isPromptVisible
@@ -709,12 +744,12 @@ try {
           e.preventDefault()
           e.stopPropagation()
           setSchemaParamSelectedIndex((prev) => Math.min(prev + 1, schemaParameters.length - 1))
-          break
+          return
         case 'ArrowUp':
           e.preventDefault()
           e.stopPropagation()
           setSchemaParamSelectedIndex((prev) => Math.max(prev - 1, 0))
-          break
+          return
         case 'Enter':
           e.preventDefault()
           e.stopPropagation()
@@ -722,14 +757,19 @@ try {
             const selectedParam = schemaParameters[schemaParamSelectedIndex]
             handleSchemaParamSelect(selectedParam.name)
           }
-          break
+          return
         case 'Escape':
           e.preventDefault()
           e.stopPropagation()
           setShowSchemaParams(false)
+          return
+        case ' ':
+        case 'Tab':
+          // Close dropdown but let the key event continue (don't prevent default)
+          // This allows the space/tab character to be typed normally
+          setShowSchemaParams(false)
           break
       }
-      return
     }
 
     if (showEnvVars || showTags) {
@@ -743,7 +783,7 @@ try {
   const handleSchemaWandClick = () => {
     if (schemaGeneration.isLoading || schemaGeneration.isStreaming) return
     setIsSchemaPromptActive(true)
-    setSchemaPromptInput(schemaPromptSummary ?? '')
+    setSchemaPromptInput('')
     setTimeout(() => {
       schemaPromptInputRef.current?.focus()
     }, 0)
@@ -762,7 +802,6 @@ try {
   const handleSchemaPromptSubmit = () => {
     const trimmedPrompt = schemaPromptInput.trim()
     if (!trimmedPrompt || schemaGeneration.isLoading || schemaGeneration.isStreaming) return
-    setSchemaPromptSummary(trimmedPrompt)
     schemaGeneration.generateStream({ prompt: trimmedPrompt })
     setSchemaPromptInput('')
     setIsSchemaPromptActive(false)
@@ -782,7 +821,7 @@ try {
   const handleCodeWandClick = () => {
     if (codeGeneration.isLoading || codeGeneration.isStreaming) return
     setIsCodePromptActive(true)
-    setCodePromptInput(codePromptSummary ?? '')
+    setCodePromptInput('')
     setTimeout(() => {
       codePromptInputRef.current?.focus()
     }, 0)
@@ -801,7 +840,6 @@ try {
   const handleCodePromptSubmit = () => {
     const trimmedPrompt = codePromptInput.trim()
     if (!trimmedPrompt || codeGeneration.isLoading || codeGeneration.isStreaming) return
-    setCodePromptSummary(trimmedPrompt)
     codeGeneration.generateStream({ prompt: trimmedPrompt })
     setCodePromptInput('')
     setIsCodePromptActive(false)
@@ -1130,6 +1168,30 @@ try {
                         collisionPadding={6}
                         onOpenAutoFocus={(e) => e.preventDefault()}
                         onCloseAutoFocus={(e) => e.preventDefault()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault()
+                            setSchemaParamSelectedIndex((prev) =>
+                              Math.min(prev + 1, schemaParameters.length - 1)
+                            )
+                          } else if (e.key === 'ArrowUp') {
+                            e.preventDefault()
+                            setSchemaParamSelectedIndex((prev) => Math.max(prev - 1, 0))
+                          } else if (e.key === 'Enter') {
+                            e.preventDefault()
+                            if (
+                              schemaParamSelectedIndex >= 0 &&
+                              schemaParamSelectedIndex < schemaParameters.length
+                            ) {
+                              handleSchemaParamSelect(
+                                schemaParameters[schemaParamSelectedIndex].name
+                              )
+                            }
+                          } else if (e.key === 'Escape') {
+                            e.preventDefault()
+                            setShowSchemaParams(false)
+                          }
+                        }}
                       >
                         <PopoverScrollArea>
                           <PopoverSection>Available Parameters</PopoverSection>
@@ -1211,7 +1273,7 @@ try {
                 <Button
                   variant='tertiary'
                   onClick={handleSave}
-                  disabled={!isSchemaValid || !!schemaError}
+                  disabled={!isSchemaValid || !!schemaError || !hasChanges}
                 >
                   {isEditing ? 'Update Tool' : 'Save Tool'}
                 </Button>
