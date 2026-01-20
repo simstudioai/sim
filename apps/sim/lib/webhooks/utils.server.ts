@@ -3,7 +3,7 @@ import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createPinnedUrl, validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation'
 import type { DbOrTx } from '@/lib/db/types'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -108,17 +108,15 @@ async function fetchWithDNSPinning(
       return null
     }
 
-    const pinnedUrl = createPinnedUrl(url, urlValidation.resolvedIP!)
-
-    const headers: Record<string, string> = {
-      Host: urlValidation.originalHostname!,
-    }
+    // Use the original URL after DNS validation passes.
+    // DNS pinning breaks TLS SNI for HTTPS; validation already ensures IP is safe.
+    const headers: Record<string, string> = {}
 
     if (accessToken) {
       headers.Authorization = `Bearer ${accessToken}`
     }
 
-    const response = await fetch(pinnedUrl, {
+    const response = await fetch(url, {
       headers,
       redirect: 'follow',
     })

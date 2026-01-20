@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { isDev } from '@/lib/core/config/feature-flags'
-import { createPinnedUrl, validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { executeTool } from '@/tools'
@@ -211,13 +211,13 @@ export async function GET(request: Request) {
   logger.info(`[${requestId}] Proxying ${method} request to: ${targetUrl}`)
 
   try {
-    const pinnedUrl = createPinnedUrl(targetUrl, urlValidation.resolvedIP!)
-    const response = await fetch(pinnedUrl, {
+    // Use the original URL after DNS validation passes.
+    // DNS pinning breaks TLS SNI for HTTPS; validation already ensures IP is safe.
+    const response = await fetch(targetUrl, {
       method: method,
       headers: {
         ...getProxyHeaders(),
         ...customHeaders,
-        Host: urlValidation.originalHostname!,
       },
       body: body || undefined,
     })

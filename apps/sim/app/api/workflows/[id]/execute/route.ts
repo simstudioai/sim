@@ -12,6 +12,11 @@ import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { processInputFileFields } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import {
+  cleanupExecutionBase64Cache,
+  containsUserFileWithMetadata,
+  hydrateUserFilesWithBase64,
+} from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
@@ -25,7 +30,7 @@ import type { WorkflowExecutionPayload } from '@/background/workflow-execution'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, IterationContext } from '@/executor/execution/types'
-import type { StreamingExecution } from '@/executor/types'
+import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -38,6 +43,8 @@ const ExecuteWorkflowSchema = z.object({
   useDraftState: z.boolean().optional(),
   input: z.any().optional(),
   isClientSession: z.boolean().optional(),
+  includeFileBase64: z.boolean().optional().default(true),
+  base64MaxBytes: z.number().int().positive().optional(),
   workflowStateOverride: z
     .object({
       blocks: z.record(z.any()),
@@ -214,6 +221,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       useDraftState,
       input: validatedInput,
       isClientSession = false,
+      includeFileBase64,
+      base64MaxBytes,
       workflowStateOverride,
     } = validation.data
 
@@ -227,6 +236,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               triggerType,
               stream,
               useDraftState,
+              includeFileBase64,
+              base64MaxBytes,
               workflowStateOverride,
               workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
               ...rest
@@ -429,14 +440,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           loggingSession,
         })
 
-        const hasResponseBlock = workflowHasResponseBlock(result)
+        const outputWithBase64 = includeFileBase64
+          ? ((await hydrateUserFilesWithBase64(result.output, {
+              requestId,
+              executionId,
+              maxBytes: base64MaxBytes,
+            })) as NormalizedBlockOutput)
+          : result.output
+
+        const resultWithBase64 = { ...result, output: outputWithBase64 }
+
+        // Cleanup base64 cache for this execution
+        await cleanupExecutionBase64Cache(executionId)
+
+        const hasResponseBlock = workflowHasResponseBlock(resultWithBase64)
         if (hasResponseBlock) {
-          return createHttpResponseFromBlock(result)
+          return createHttpResponseFromBlock(resultWithBase64)
         }
 
         const filteredResult = {
           success: result.success,
-          output: result.output,
+          output: outputWithBase64,
           error: result.error,
           metadata: result.metadata
             ? {
@@ -498,6 +522,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           selectedOutputs: resolvedSelectedOutputs,
           isSecureMode: false,
           workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
+          includeFileBase64,
+          base64MaxBytes,
         },
         executionId,
       })
@@ -570,6 +596,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             iterationContext?: IterationContext
           ) => {
             const hasError = callbackData.output?.error
+            const shouldHydrate =
+              includeFileBase64 && !hasError && containsUserFileWithMetadata(callbackData.output)
+            const outputWithBase64 = shouldHydrate
+              ? await hydrateUserFilesWithBase64(callbackData.output, {
+                  requestId,
+                  executionId,
+                  maxBytes: base64MaxBytes,
+                })
+              : callbackData.output
 
             if (hasError) {
               logger.info(`[${requestId}] ✗ onBlockComplete (error) called:`, {
@@ -613,7 +648,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   blockName,
                   blockType,
                   input: callbackData.input,
-                  output: callbackData.output,
+                  output: outputWithBase64,
                   durationMs: callbackData.executionTime || 0,
                   ...(iterationContext && {
                     iterationCurrent: iterationContext.iterationCurrent,
@@ -750,12 +785,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             workflowId,
             data: {
               success: result.success,
-              output: result.output,
+              output: includeFileBase64
+                ? await hydrateUserFilesWithBase64(result.output, {
+                    requestId,
+                    executionId,
+                    maxBytes: base64MaxBytes,
+                  })
+                : result.output,
               duration: result.metadata?.duration || 0,
               startTime: result.metadata?.startTime || startTime.toISOString(),
               endTime: result.metadata?.endTime || new Date().toISOString(),
             },
           })
+
+          // Cleanup base64 cache for this execution
+          await cleanupExecutionBase64Cache(executionId)
         } catch (error: any) {
           const errorMessage = error.message || 'Unknown error'
           logger.error(`[${requestId}] SSE execution failed: ${errorMessage}`)

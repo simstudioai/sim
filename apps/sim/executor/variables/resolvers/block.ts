@@ -1,3 +1,4 @@
+import { USER_FILE_ACCESSIBLE_PROPERTIES } from '@/lib/workflows/types'
 import {
   isReference,
   normalizeName,
@@ -24,7 +25,19 @@ function isPathInOutputSchema(
   for (let i = 0; i < pathParts.length; i++) {
     const part = pathParts[i]
 
+    // Handle array index access (e.g., [0])
     if (/^\d+$/.test(part)) {
+      // If current is file[] type, next part should be a file property
+      if (current?.type === 'file[]') {
+        // Check if next part is a valid file property
+        if (i + 1 < pathParts.length) {
+          const nextPart = pathParts[i + 1]
+          return USER_FILE_ACCESSIBLE_PROPERTIES.includes(nextPart as any)
+        }
+        // If no next part, array index access is valid
+        return true
+      }
+      // For other array types, continue to next iteration
       continue
     }
 
@@ -32,8 +45,19 @@ function isPathInOutputSchema(
       return false
     }
 
+    // Check if part exists in current
     if (part in current) {
-      current = current[part]
+      const nextCurrent = current[part]
+      // If next field is file[] type and we have more parts, check if next part is numeric
+      if (nextCurrent?.type === 'file[]' && i + 1 < pathParts.length) {
+        const nextPart = pathParts[i + 1]
+        // If next part is numeric (array index), allow it and check the part after
+        if (/^\d+$/.test(nextPart) && i + 2 < pathParts.length) {
+          const propertyPart = pathParts[i + 2]
+          return USER_FILE_ACCESSIBLE_PROPERTIES.includes(propertyPart as any)
+        }
+      }
+      current = nextCurrent
       continue
     }
 
@@ -51,6 +75,12 @@ function isPathInOutputSchema(
         current = current.items[part]
         continue
       }
+    }
+
+    // Handle file[] type - allow access to file properties after array index
+    if (current?.type === 'file[]' && USER_FILE_ACCESSIBLE_PROPERTIES.includes(part as any)) {
+      // Valid file property access
+      return true
     }
 
     if ('type' in current && typeof current.type === 'string') {

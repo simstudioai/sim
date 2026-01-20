@@ -11,6 +11,7 @@ export interface UserFile {
   type: string
   key: string
   context?: string
+  base64?: string
 }
 
 export interface ParallelPauseScope {

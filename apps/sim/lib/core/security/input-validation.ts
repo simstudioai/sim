@@ -893,7 +893,9 @@ export async function validateUrlWithDNS(
 export function createPinnedUrl(originalUrl: string, resolvedIP: string): string {
   const parsed = new URL(originalUrl)
   const port = parsed.port ? `:${parsed.port}` : ''
-  return `${parsed.protocol}//${resolvedIP}${port}${parsed.pathname}${parsed.search}`
+  // IPv6 addresses must be wrapped in brackets for URLs
+  const host = resolvedIP.includes(':') ? `[${resolvedIP}]` : resolvedIP
+  return `${parsed.protocol}//${host}${port}${parsed.pathname}${parsed.search}`
 }
 
 /**

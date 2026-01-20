@@ -121,5 +121,9 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
       type: 'string',
       description: 'All file contents merged into a single text string',
     },
+    processedFiles: {
+      type: 'files',
+      description: 'Array of UserFile objects for downstream use (attachments, uploads, etc.)',
+    },
   },
 }
