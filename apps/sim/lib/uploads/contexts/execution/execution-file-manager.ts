@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isUserFile } from '@/lib/core/utils/user-file'
+import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import type { ExecutionContext } from '@/lib/uploads/contexts/execution/utils'
 import { generateExecutionFileKey, generateFileId } from '@/lib/uploads/contexts/execution/utils'
 import type { UserFile } from '@/executor/types'
@@ -169,7 +169,7 @@ export async function uploadFileFromRawData(
   context: ExecutionContext,
   userId?: string
 ): Promise<UserFile> {
-  if (isUserFile(rawData)) {
+  if (isUserFileWithMetadata(rawData)) {
     return rawData
   }
 

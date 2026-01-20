@@ -23,7 +23,7 @@ interface HydrationState {
 }
 
 export interface Base64HydrationOptions {
-  requestId: string
+  requestId?: string
   executionId?: string
   logger?: Logger
   maxBytes?: number
@@ -148,13 +148,14 @@ async function resolveBase64(
   }
 
   let buffer: Buffer | null = null
+  const requestId = options.requestId ?? 'unknown'
 
   if (file.key) {
     try {
-      buffer = await downloadFileFromStorage(file, options.requestId, logger)
+      buffer = await downloadFileFromStorage(file, requestId, logger)
     } catch (error) {
       logger.warn(
-        `[${options.requestId}] Failed to download ${file.name} from storage, trying URL fallback`,
+        `[${requestId}] Failed to download ${file.name} from storage, trying URL fallback`,
         error
       )
     }
@@ -164,7 +165,7 @@ async function resolveBase64(
     try {
       buffer = await downloadFileFromUrl(file.url, timeoutMs)
     } catch (error) {
-      logger.warn(`[${options.requestId}] Failed to download ${file.name} from URL`, error)
+      logger.warn(`[${requestId}] Failed to download ${file.name} from URL`, error)
     }
   }
 

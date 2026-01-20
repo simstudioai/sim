@@ -372,7 +372,6 @@ async function handleExternalUrl(
 
     logger.info(`Downloaded file from URL: ${url}, size: ${buffer.length} bytes`)
 
-    // Store file in execution storage if execution context is provided
     let userFile: UserFile | undefined
     const mimeType = response.headers.get('content-type') || getMimeTypeFromExtension(extension)
 
