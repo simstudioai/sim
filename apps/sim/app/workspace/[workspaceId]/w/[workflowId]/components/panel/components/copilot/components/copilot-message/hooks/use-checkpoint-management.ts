@@ -187,6 +187,8 @@ export function useCheckpointManagement(
   /** Continues with edit without reverting checkpoint */
   const handleContinueWithoutRevert = useCallback(async () => {
     setShowCheckpointDiscardModal(false)
+    onEditModeChange?.(false)
+    onCancelEdit?.()
 
     if (pendingEditRef.current) {
       const { message: msg, fileAttachments, contexts } = pendingEditRef.current
@@ -211,7 +213,7 @@ export function useCheckpointManagement(
       }
       pendingEditRef.current = null
     }
-  }, [message, messages])
+  }, [message, messages, onEditModeChange, onCancelEdit])
 
   /** Handles keyboard events for confirmation dialogs */
   useEffect(() => {
