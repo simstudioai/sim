@@ -325,6 +325,7 @@ try {
     setIsCodePromptActive(false)
     setSchemaPromptInput('')
     setCodePromptInput('')
+    setShowDiscardAlert(false)
     schemaGeneration.closePrompt()
     schemaGeneration.hidePromptInline()
     codeGeneration.closePrompt()
