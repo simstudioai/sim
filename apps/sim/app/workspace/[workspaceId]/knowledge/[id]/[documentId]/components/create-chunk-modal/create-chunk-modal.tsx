@@ -30,7 +30,12 @@ export function CreateChunkModal({
   document,
   knowledgeBaseId,
 }: CreateChunkModalProps) {
-  const { mutate: createChunk, isPending: isCreating, error: mutationError } = useCreateChunk()
+  const {
+    mutate: createChunk,
+    isPending: isCreating,
+    error: mutationError,
+    reset: resetMutation,
+  } = useCreateChunk()
   const [content, setContent] = useState('')
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const isProcessingRef = useRef(false)
@@ -71,6 +76,7 @@ export function CreateChunkModal({
     onOpenChange(false)
     setContent('')
     setShowUnsavedChangesAlert(false)
+    resetMutation()
   }
 
   const handleCloseAttempt = () => {

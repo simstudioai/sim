@@ -50,7 +50,12 @@ export function EditChunkModal({
   maxChunkSize,
 }: EditChunkModalProps) {
   const userPermissions = useUserPermissionsContext()
-  const { mutate: updateChunk, isPending: isSaving, error: mutationError } = useUpdateChunk()
+  const {
+    mutate: updateChunk,
+    isPending: isSaving,
+    error: mutationError,
+    reset: resetMutation,
+  } = useUpdateChunk()
   const [editedContent, setEditedContent] = useState(chunk?.content || '')
   const [isNavigating, setIsNavigating] = useState(false)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
@@ -154,6 +159,7 @@ export function EditChunkModal({
       setPendingNavigation(null)
       setShowUnsavedChangesAlert(true)
     } else {
+      resetMutation()
       onClose()
     }
   }
@@ -164,6 +170,7 @@ export function EditChunkModal({
       void pendingNavigation()
       setPendingNavigation(null)
     } else {
+      resetMutation()
       onClose()
     }
   }
