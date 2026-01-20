@@ -98,19 +98,14 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
   const hasChanges = useMemo(() => {
     if (description !== initialDescriptionRef.current) return true
 
-    const currentKeys = Object.keys(paramDescriptions)
-    const initialKeys = Object.keys(initialParamDescriptionsRef.current)
-
-    if (currentKeys.length !== initialKeys.length) return true
-
-    for (const key of currentKeys) {
-      const currentValue = paramDescriptions[key] || ''
-      const initialValue = initialParamDescriptionsRef.current[key] || ''
+    for (const field of inputFormat) {
+      const currentValue = (paramDescriptions[field.name] || '').trim()
+      const initialValue = (initialParamDescriptionsRef.current[field.name] || '').trim()
       if (currentValue !== initialValue) return true
     }
 
     return false
-  }, [description, paramDescriptions])
+  }, [description, paramDescriptions, inputFormat])
 
   const handleParamDescriptionChange = (fieldName: string, value: string) => {
     setParamDescriptions((prev) => ({
