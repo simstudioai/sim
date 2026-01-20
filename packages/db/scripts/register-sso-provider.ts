@@ -397,7 +397,9 @@ async function registerSSOProvider(): Promise<boolean> {
         ssoConfig.oidcConfig.jwksEndpoint
 
       if (!hasAllEndpoints) {
-        const discoveryUrl = `${ssoConfig.issuer.replace(/\/$/, '')}/.well-known/openid-configuration`
+        const discoveryUrl =
+          ssoConfig.oidcConfig.discoveryEndpoint ||
+          `${ssoConfig.issuer.replace(/\/$/, '')}/.well-known/openid-configuration`
         logger.info('Fetching OIDC discovery document...', { discoveryUrl })
 
         try {
