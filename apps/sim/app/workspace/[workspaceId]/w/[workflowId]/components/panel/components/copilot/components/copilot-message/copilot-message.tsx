@@ -9,18 +9,20 @@ import {
   ToolCall,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
 import {
+  CheckpointConfirmation,
   FileAttachmentDisplay,
   SmoothStreamingText,
   StreamingIndicator,
   ThinkingBlock,
   UsageLimitActions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components'
-import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
+import { CopilotMarkdownRenderer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 import {
   useCheckpointManagement,
   useMessageEditing,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/hooks'
 import { UserInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
+import { buildMentionHighlightNodes } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import type { CopilotMessage as CopilotMessageType } from '@/stores/panel'
 import { useCopilotStore } from '@/stores/panel'
 
@@ -68,7 +70,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     const isUser = message.role === 'user'
     const isAssistant = message.role === 'assistant'
 
-    // Store state
     const {
       messageCheckpoints: allMessageCheckpoints,
       messages,
@@ -79,23 +80,18 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       isAborting,
     } = useCopilotStore()
 
-    // Get checkpoints for this message if it's a user message
     const messageCheckpoints = isUser ? allMessageCheckpoints[message.id] || [] : []
     const hasCheckpoints = messageCheckpoints.length > 0 && messageCheckpoints.some((cp) => cp?.id)
 
-    // Check if this is the last user message (for showing abort button)
     const isLastUserMessage = useMemo(() => {
       if (!isUser) return false
       const userMessages = messages.filter((m) => m.role === 'user')
       return userMessages.length > 0 && userMessages[userMessages.length - 1]?.id === message.id
     }, [isUser, messages, message.id])
 
-    // UI state
     const [isHoveringMessage, setIsHoveringMessage] = useState(false)
-
     const cancelEditRef = useRef<(() => void) | null>(null)
 
-    // Checkpoint management hook
     const {
       showRestoreConfirmation,
       showCheckpointDiscardModal,
@@ -118,7 +114,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       () => cancelEditRef.current?.()
     )
 
-    // Message editing hook
     const {
       isEditMode,
       isExpanded,
@@ -147,27 +142,20 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
     cancelEditRef.current = handleCancelEdit
 
-    // Get clean text content with double newline parsing
     const cleanTextContent = useMemo(() => {
       if (!message.content) return ''
-
-      // Parse out excessive newlines (more than 2 consecutive newlines)
       return message.content.replace(/\n{3,}/g, '\n\n')
     }, [message.content])
 
-    // Parse special tags from message content (options, plan)
-    // Parse during streaming to show options/plan as they stream in
     const parsedTags = useMemo(() => {
       if (isUser) return null
 
-      // Try message.content first
       if (message.content) {
         const parsed = parseSpecialTags(message.content)
         if (parsed.options || parsed.plan) return parsed
       }
 
-      // During streaming, check content blocks for options/plan
-      if (isStreaming && message.contentBlocks && message.contentBlocks.length > 0) {
+      if (message.contentBlocks && message.contentBlocks.length > 0) {
         for (const block of message.contentBlocks) {
           if (block.type === 'text' && block.content) {
             const parsed = parseSpecialTags(block.content)
@@ -176,23 +164,42 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         }
       }
 
-      return message.content ? parseSpecialTags(message.content) : null
-    }, [message.content, message.contentBlocks, isUser, isStreaming])
+      return null
+    }, [message.content, message.contentBlocks, isUser])
 
-    // Get sendMessage from store for continuation actions
+    const selectedOptionKey = useMemo(() => {
+      if (!parsedTags?.options || isStreaming) return null
+
+      const currentIndex = messages.findIndex((m) => m.id === message.id)
+      if (currentIndex === -1 || currentIndex >= messages.length - 1) return null
+
+      const nextMessage = messages[currentIndex + 1]
+      if (!nextMessage || nextMessage.role !== 'user') return null
+
+      const nextContent = nextMessage.content?.trim()
+      if (!nextContent) return null
+
+      for (const [key, option] of Object.entries(parsedTags.options)) {
+        const optionTitle = typeof option === 'string' ? option : option.title
+        if (nextContent === optionTitle) {
+          return key
+        }
+      }
+
+      return null
+    }, [parsedTags?.options, messages, message.id, isStreaming])
+
     const sendMessage = useCopilotStore((s) => s.sendMessage)
 
-    // Handler for option selection
     const handleOptionSelect = useCallback(
       (_optionKey: string, optionText: string) => {
-        // Send the option text as a message
         sendMessage(optionText)
       },
       [sendMessage]
     )
 
-    // Memoize content blocks to avoid re-rendering unchanged blocks
-    // No entrance animations to prevent layout shift
+    const isActivelyStreaming = isLastMessage && isStreaming
+
     const memoizedContentBlocks = useMemo(() => {
       if (!message.contentBlocks || message.contentBlocks.length === 0) {
         return null
@@ -202,21 +209,21 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         if (block.type === 'text') {
           const isLastTextBlock =
             index === message.contentBlocks!.length - 1 && block.type === 'text'
-          // Always strip special tags from display (they're rendered separately as options/plan)
           const parsed = parseSpecialTags(block.content)
           const cleanBlockContent = parsed.cleanContent.replace(/\n{3,}/g, '\n\n')
 
-          // Skip if no content after stripping tags
           if (!cleanBlockContent.trim()) return null
 
-          // Use smooth streaming for the last text block if we're streaming
-          const shouldUseSmoothing = isStreaming && isLastTextBlock
+          const shouldUseSmoothing = isActivelyStreaming && isLastTextBlock
           const blockKey = `text-${index}-${block.timestamp || index}`
 
           return (
             <div key={blockKey} className='w-full max-w-full'>
               {shouldUseSmoothing ? (
-                <SmoothStreamingText content={cleanBlockContent} isStreaming={isStreaming} />
+                <SmoothStreamingText
+                  content={cleanBlockContent}
+                  isStreaming={isActivelyStreaming}
+                />
               ) : (
                 <CopilotMarkdownRenderer content={cleanBlockContent} />
               )}
@@ -224,9 +231,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           )
         }
         if (block.type === 'thinking') {
-          // Check if there are any blocks after this one (tool calls, text, etc.)
           const hasFollowingContent = index < message.contentBlocks!.length - 1
-          // Check if special tags (options, plan) are present - should also close thinking
           const hasSpecialTags = !!(parsedTags?.options || parsedTags?.plan)
           const blockKey = `thinking-${index}-${block.timestamp || index}`
 
@@ -234,7 +239,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             <div key={blockKey} className='w-full'>
               <ThinkingBlock
                 content={block.content}
-                isStreaming={isStreaming}
+                isStreaming={isActivelyStreaming}
                 hasFollowingContent={hasFollowingContent}
                 hasSpecialTags={hasSpecialTags}
               />
@@ -246,18 +251,22 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
           return (
             <div key={blockKey}>
-              <ToolCall toolCallId={block.toolCall.id} toolCall={block.toolCall} />
+              <ToolCall
+                toolCallId={block.toolCall.id}
+                toolCall={block.toolCall}
+                isCurrentMessage={isLastMessage}
+              />
             </div>
           )
         }
         return null
       })
-    }, [message.contentBlocks, isStreaming, parsedTags])
+    }, [message.contentBlocks, isActivelyStreaming, parsedTags, isLastMessage])
 
     if (isUser) {
       return (
         <div
-          className={`w-full max-w-full overflow-hidden transition-opacity duration-200 [max-width:var(--panel-max-width)] ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+          className={`w-full max-w-full flex-none overflow-hidden transition-opacity duration-200 [max-width:var(--panel-max-width)] ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
           style={{ '--panel-max-width': `${panelWidth - 16}px` } as React.CSSProperties}
         >
           {isEditMode ? (
@@ -288,42 +297,15 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 initialContexts={message.contexts}
               />
 
-              {/* Inline Checkpoint Discard Confirmation - shown below input in edit mode */}
+              {/* Inline checkpoint confirmation - shown below input in edit mode */}
               {showCheckpointDiscardModal && (
-                <div className='mt-[8px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-4)] p-[10px]'>
-                  <p className='mb-[8px] text-[12px] text-[var(--text-primary)]'>
-                    Continue from a previous message?
-                  </p>
-                  <div className='flex gap-[8px]'>
-                    <Button
-                      onClick={handleCancelCheckpointDiscard}
-                      variant='active'
-                      size='sm'
-                      className='flex-1'
-                      disabled={isProcessingDiscard}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleContinueAndRevert}
-                      variant='destructive'
-                      size='sm'
-                      className='flex-1'
-                      disabled={isProcessingDiscard}
-                    >
-                      {isProcessingDiscard ? 'Reverting...' : 'Revert'}
-                    </Button>
-                    <Button
-                      onClick={handleContinueWithoutRevert}
-                      variant='tertiary'
-                      size='sm'
-                      className='flex-1'
-                      disabled={isProcessingDiscard}
-                    >
-                      Continue
-                    </Button>
-                  </div>
-                </div>
+                <CheckpointConfirmation
+                  variant='discard'
+                  isProcessing={isProcessingDiscard}
+                  onCancel={handleCancelCheckpointDiscard}
+                  onRevert={handleContinueAndRevert}
+                  onContinue={handleContinueWithoutRevert}
+                />
               )}
             </div>
           ) : (
@@ -348,46 +330,15 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                   ref={messageContentRef}
                   className={`relative whitespace-pre-wrap break-words px-[2px] py-1 font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.25rem] ${isSendingMessage && isLastUserMessage && isHoveringMessage ? 'pr-7' : ''} ${!isExpanded && needsExpansion ? 'max-h-[60px] overflow-hidden' : 'overflow-visible'}`}
                 >
-                  {(() => {
-                    const text = message.content || ''
-                    const contexts: any[] = Array.isArray((message as any).contexts)
-                      ? ((message as any).contexts as any[])
-                      : []
-
-                    // Build tokens with their prefixes (@ for mentions, / for commands)
-                    const tokens = contexts
-                      .filter((c) => c?.kind !== 'current_workflow' && c?.label)
-                      .map((c) => {
-                        const prefix = c?.kind === 'slash_command' ? '/' : '@'
-                        return `${prefix}${c.label}`
-                      })
-                    if (!tokens.length) return text
-
-                    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                    const pattern = new RegExp(`(${tokens.map(escapeRegex).join('|')})`, 'g')
-
-                    const nodes: React.ReactNode[] = []
-                    let lastIndex = 0
-                    let match: RegExpExecArray | null
-                    while ((match = pattern.exec(text)) !== null) {
-                      const i = match.index
-                      const before = text.slice(lastIndex, i)
-                      if (before) nodes.push(before)
-                      const mention = match[0]
-                      nodes.push(
-                        <span
-                          key={`mention-${i}-${lastIndex}`}
-                          className='rounded-[4px] bg-[rgba(50,189,126,0.65)] py-[1px]'
-                        >
-                          {mention}
-                        </span>
-                      )
-                      lastIndex = i + mention.length
-                    }
-                    const tail = text.slice(lastIndex)
-                    if (tail) nodes.push(tail)
-                    return nodes
-                  })()}
+                  {buildMentionHighlightNodes(
+                    message.content || '',
+                    message.contexts || [],
+                    (token, key) => (
+                      <span key={key} className='rounded-[4px] bg-[rgba(50,189,126,0.65)] py-[1px]'>
+                        {token}
+                      </span>
+                    )
+                  )}
                 </div>
 
                 {/* Gradient fade when truncated - applies to entire message box */}
@@ -437,65 +388,30 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             </div>
           )}
 
-          {/* Inline Restore Checkpoint Confirmation */}
+          {/* Inline restore checkpoint confirmation */}
           {showRestoreConfirmation && (
-            <div className='mt-[8px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-4)] p-[10px]'>
-              <p className='mb-[8px] text-[12px] text-[var(--text-primary)]'>
-                Revert to checkpoint? This will restore your workflow to the state saved at this
-                checkpoint.{' '}
-                <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-              </p>
-              <div className='flex gap-[8px]'>
-                <Button
-                  onClick={handleCancelRevert}
-                  variant='active'
-                  size='sm'
-                  className='flex-1'
-                  disabled={isReverting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleConfirmRevert}
-                  variant='destructive'
-                  size='sm'
-                  className='flex-1'
-                  disabled={isReverting}
-                >
-                  {isReverting ? 'Reverting...' : 'Revert'}
-                </Button>
-              </div>
-            </div>
+            <CheckpointConfirmation
+              variant='restore'
+              isProcessing={isReverting}
+              onCancel={handleCancelRevert}
+              onRevert={handleConfirmRevert}
+            />
           )}
         </div>
       )
     }
 
-    // Check if there's any visible content in the blocks
-    const hasVisibleContent = useMemo(() => {
-      if (!message.contentBlocks || message.contentBlocks.length === 0) return false
-      return message.contentBlocks.some((block) => {
-        if (block.type === 'text') {
-          const parsed = parseSpecialTags(block.content)
-          return parsed.cleanContent.trim().length > 0
-        }
-        return block.type === 'thinking' || block.type === 'tool_call'
-      })
-    }, [message.contentBlocks])
-
     if (isAssistant) {
       return (
         <div
-          className={`w-full max-w-full overflow-hidden [max-width:var(--panel-max-width)] ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+          className={`w-full max-w-full flex-none overflow-hidden [max-width:var(--panel-max-width)] ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
           style={{ '--panel-max-width': `${panelWidth - 16}px` } as React.CSSProperties}
         >
-          <div className='max-w-full space-y-1 px-[2px]'>
+          <div className='max-w-full space-y-[4px] px-[2px] pb-[4px]'>
             {/* Content blocks in chronological order */}
-            {memoizedContentBlocks}
+            {memoizedContentBlocks || (isStreaming && <div className='min-h-0' />)}
 
-            {isStreaming && (
-              <StreamingIndicator className={!hasVisibleContent ? 'mt-1' : undefined} />
-            )}
+            {isStreaming && <StreamingIndicator />}
 
             {message.errorType === 'usage_limit' && (
               <div className='flex gap-1.5'>
@@ -534,6 +450,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                   isLastMessage && !isStreaming && parsedTags.optionsComplete === true
                 }
                 streaming={isStreaming || !parsedTags.optionsComplete}
+                selectedOptionKey={selectedOptionKey}
               />
             )}
           </div>
@@ -544,50 +461,22 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     return null
   },
   (prevProps, nextProps) => {
-    // Custom comparison function for better streaming performance
     const prevMessage = prevProps.message
     const nextMessage = nextProps.message
 
-    // If message IDs are different, always re-render
-    if (prevMessage.id !== nextMessage.id) {
-      return false
-    }
+    if (prevMessage.id !== nextMessage.id) return false
+    if (prevProps.isStreaming !== nextProps.isStreaming) return false
+    if (prevProps.isDimmed !== nextProps.isDimmed) return false
+    if (prevProps.panelWidth !== nextProps.panelWidth) return false
+    if (prevProps.checkpointCount !== nextProps.checkpointCount) return false
+    if (prevProps.isLastMessage !== nextProps.isLastMessage) return false
 
-    // If streaming state changed, re-render
-    if (prevProps.isStreaming !== nextProps.isStreaming) {
-      return false
-    }
-
-    // If dimmed state changed, re-render
-    if (prevProps.isDimmed !== nextProps.isDimmed) {
-      return false
-    }
-
-    // If panel width changed, re-render
-    if (prevProps.panelWidth !== nextProps.panelWidth) {
-      return false
-    }
-
-    // If checkpoint count changed, re-render
-    if (prevProps.checkpointCount !== nextProps.checkpointCount) {
-      return false
-    }
-
-    // If isLastMessage changed, re-render (for options visibility)
-    if (prevProps.isLastMessage !== nextProps.isLastMessage) {
-      return false
-    }
-
-    // For streaming messages, check if content actually changed
     if (nextProps.isStreaming) {
       const prevBlocks = prevMessage.contentBlocks || []
       const nextBlocks = nextMessage.contentBlocks || []
 
-      if (prevBlocks.length !== nextBlocks.length) {
-        return false // Content blocks changed
-      }
+      if (prevBlocks.length !== nextBlocks.length) return false
 
-      // Helper: get last block content by type
       const getLastBlockContent = (blocks: any[], type: 'text' | 'thinking'): string | null => {
         for (let i = blocks.length - 1; i >= 0; i--) {
           const block = blocks[i]
@@ -598,7 +487,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         return null
       }
 
-      // Re-render if the last text block content changed
       const prevLastTextContent = getLastBlockContent(prevBlocks as any[], 'text')
       const nextLastTextContent = getLastBlockContent(nextBlocks as any[], 'text')
       if (
@@ -609,7 +497,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         return false
       }
 
-      // Re-render if the last thinking block content changed
       const prevLastThinkingContent = getLastBlockContent(prevBlocks as any[], 'thinking')
       const nextLastThinkingContent = getLastBlockContent(nextBlocks as any[], 'thinking')
       if (
@@ -620,24 +507,18 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         return false
       }
 
-      // Check if tool calls changed
       const prevToolCalls = prevMessage.toolCalls || []
       const nextToolCalls = nextMessage.toolCalls || []
 
-      if (prevToolCalls.length !== nextToolCalls.length) {
-        return false // Tool calls count changed
-      }
+      if (prevToolCalls.length !== nextToolCalls.length) return false
 
       for (let i = 0; i < nextToolCalls.length; i++) {
-        if (prevToolCalls[i]?.state !== nextToolCalls[i]?.state) {
-          return false // Tool call state changed
-        }
+        if (prevToolCalls[i]?.state !== nextToolCalls[i]?.state) return false
       }
 
       return true
     }
 
-    // For non-streaming messages, do a deeper comparison including tool call states
     if (
       prevMessage.content !== nextMessage.content ||
       prevMessage.role !== nextMessage.role ||
@@ -647,16 +528,12 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       return false
     }
 
-    // Check tool call states for non-streaming messages too
     const prevToolCalls = prevMessage.toolCalls || []
     const nextToolCalls = nextMessage.toolCalls || []
     for (let i = 0; i < nextToolCalls.length; i++) {
-      if (prevToolCalls[i]?.state !== nextToolCalls[i]?.state) {
-        return false // Tool call state changed
-      }
+      if (prevToolCalls[i]?.state !== nextToolCalls[i]?.state) return false
     }
 
-    // Check contentBlocks tool call states
     const prevContentBlocks = prevMessage.contentBlocks || []
     const nextContentBlocks = nextMessage.contentBlocks || []
     for (let i = 0; i < nextContentBlocks.length; i++) {
@@ -667,7 +544,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         nextBlock?.type === 'tool_call' &&
         prevBlock.toolCall?.state !== nextBlock.toolCall?.state
       ) {
-        return false // ContentBlock tool call state changed
+        return false
       }
     }
 

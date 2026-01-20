@@ -26,22 +26,21 @@ export class GetPageContentsClientTool extends BaseClientTool {
     getDynamicText: (params, state) => {
       if (params?.urls && Array.isArray(params.urls) && params.urls.length > 0) {
         const firstUrl = String(params.urls[0])
-        const truncated = firstUrl.length > 40 ? `${firstUrl.slice(0, 40)}...` : firstUrl
         const count = params.urls.length
 
         switch (state) {
           case ClientToolCallState.success:
-            return count > 1 ? `Retrieved ${count} pages` : `Retrieved ${truncated}`
+            return count > 1 ? `Retrieved ${count} pages` : `Retrieved ${firstUrl}`
           case ClientToolCallState.executing:
           case ClientToolCallState.generating:
           case ClientToolCallState.pending:
-            return count > 1 ? `Getting ${count} pages` : `Getting ${truncated}`
+            return count > 1 ? `Getting ${count} pages` : `Getting ${firstUrl}`
           case ClientToolCallState.error:
-            return count > 1 ? `Failed to get ${count} pages` : `Failed to get ${truncated}`
+            return count > 1 ? `Failed to get ${count} pages` : `Failed to get ${firstUrl}`
           case ClientToolCallState.aborted:
-            return count > 1 ? `Aborted getting ${count} pages` : `Aborted getting ${truncated}`
+            return count > 1 ? `Aborted getting ${count} pages` : `Aborted getting ${firstUrl}`
           case ClientToolCallState.rejected:
-            return count > 1 ? `Skipped getting ${count} pages` : `Skipped getting ${truncated}`
+            return count > 1 ? `Skipped getting ${count} pages` : `Skipped getting ${firstUrl}`
         }
       }
       return undefined

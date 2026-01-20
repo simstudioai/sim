@@ -1736,8 +1736,13 @@ const sseHandlers: Record<string, SSEHandler> = {
     }
   },
   done: (_data, context) => {
+    logger.info('[SSE] DONE EVENT RECEIVED', {
+      doneEventCount: context.doneEventCount,
+      data: _data,
+    })
     context.doneEventCount++
     if (context.doneEventCount >= 1) {
+      logger.info('[SSE] Setting streamComplete = true, stream will terminate')
       context.streamComplete = true
     }
   },
@@ -2542,6 +2547,7 @@ export const useCopilotStore = create<CopilotStore>()(
         set({
           chats: [],
           isLoadingChats: false,
+          chatsLoadedForWorkflow: workflowId,
           error: error instanceof Error ? error.message : 'Failed to load chats',
         })
       }
@@ -2638,6 +2644,11 @@ export const useCopilotStore = create<CopilotStore>()(
           currentChat: state.currentChat
             ? { ...state.currentChat, title: optimisticTitle }
             : state.currentChat,
+          chats: state.currentChat
+            ? state.chats.map((c) =>
+                c.id === state.currentChat!.id ? { ...c, title: optimisticTitle } : c
+              )
+            : state.chats,
         }))
       }
 

@@ -26,21 +26,20 @@ export class SearchPatternsClientTool extends BaseClientTool {
     getDynamicText: (params, state) => {
       if (params?.queries && Array.isArray(params.queries) && params.queries.length > 0) {
         const firstQuery = String(params.queries[0])
-        const truncated = firstQuery.length > 50 ? `${firstQuery.slice(0, 50)}...` : firstQuery
 
         switch (state) {
           case ClientToolCallState.success:
-            return `Searched ${truncated}`
+            return `Searched ${firstQuery}`
           case ClientToolCallState.executing:
           case ClientToolCallState.generating:
           case ClientToolCallState.pending:
-            return `Searching ${truncated}`
+            return `Searching ${firstQuery}`
           case ClientToolCallState.error:
-            return `Failed to search ${truncated}`
+            return `Failed to search ${firstQuery}`
           case ClientToolCallState.aborted:
-            return `Aborted searching ${truncated}`
+            return `Aborted searching ${firstQuery}`
           case ClientToolCallState.rejected:
-            return `Skipped searching ${truncated}`
+            return `Skipped searching ${firstQuery}`
         }
       }
       return undefined

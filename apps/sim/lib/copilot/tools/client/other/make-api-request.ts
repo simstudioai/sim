@@ -63,14 +63,8 @@ export class MakeApiRequestClientTool extends BaseClientTool {
         try {
           const urlObj = new URL(url)
           url = urlObj.hostname + urlObj.pathname
-          if (url.length > 40) {
-            url = `${url.slice(0, 40)}...`
-          }
         } catch {
-          // If URL parsing fails, just truncate
-          if (url.length > 40) {
-            url = `${url.slice(0, 40)}...`
-          }
+          // Use URL as-is if parsing fails
         }
 
         switch (state) {

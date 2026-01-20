@@ -26,21 +26,20 @@ export class CrawlWebsiteClientTool extends BaseClientTool {
     getDynamicText: (params, state) => {
       if (params?.url && typeof params.url === 'string') {
         const url = params.url
-        const truncated = url.length > 50 ? `${url.slice(0, 50)}...` : url
 
         switch (state) {
           case ClientToolCallState.success:
-            return `Crawled ${truncated}`
+            return `Crawled ${url}`
           case ClientToolCallState.executing:
           case ClientToolCallState.generating:
           case ClientToolCallState.pending:
-            return `Crawling ${truncated}`
+            return `Crawling ${url}`
           case ClientToolCallState.error:
-            return `Failed to crawl ${truncated}`
+            return `Failed to crawl ${url}`
           case ClientToolCallState.aborted:
-            return `Aborted crawling ${truncated}`
+            return `Aborted crawling ${url}`
           case ClientToolCallState.rejected:
-            return `Skipped crawling ${truncated}`
+            return `Skipped crawling ${url}`
         }
       }
       return undefined

@@ -3,66 +3,45 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronUp } from 'lucide-react'
-import CopilotMarkdownRenderer from './markdown-renderer'
+import { CopilotMarkdownRenderer } from '../markdown-renderer'
 
-/**
- * Removes thinking tags (raw or escaped) from streamed content.
- */
+/** Removes thinking tags (raw or escaped) and special tags from streamed content */
 function stripThinkingTags(text: string): string {
   return text
     .replace(/<\/?thinking[^>]*>/gi, '')
     .replace(/&lt;\/?thinking[^&]*&gt;/gi, '')
+    .replace(/<options>[\s\S]*?<\/options>/gi, '')
+    .replace(/<options>[\s\S]*$/gi, '')
+    .replace(/<plan>[\s\S]*?<\/plan>/gi, '')
+    .replace(/<plan>[\s\S]*$/gi, '')
     .trim()
 }
 
-/**
- * Max height for thinking content before internal scrolling kicks in
- */
-const THINKING_MAX_HEIGHT = 150
-
-/**
- * Height threshold before gradient fade kicks in
- */
-const GRADIENT_THRESHOLD = 100
-
-/**
- * Interval for auto-scroll during streaming (ms)
- */
+/** Interval for auto-scroll during streaming (ms) */
 const SCROLL_INTERVAL = 50
 
-/**
- * Timer update interval in milliseconds
- */
+/** Timer update interval in milliseconds */
 const TIMER_UPDATE_INTERVAL = 100
 
-/**
- * Thinking text streaming - much faster than main text
- * Essentially instant with minimal delay
- */
+/** Thinking text streaming delay - faster than main text */
 const THINKING_DELAY = 0.5
 const THINKING_CHARS_PER_FRAME = 3
 
-/**
- * Props for the SmoothThinkingText component
- */
+/** Props for the SmoothThinkingText component */
 interface SmoothThinkingTextProps {
   content: string
   isStreaming: boolean
 }
 
 /**
- * SmoothThinkingText renders thinking content with fast streaming animation
- * Uses gradient fade at top when content is tall enough
+ * Renders thinking content with fast streaming animation.
  */
 const SmoothThinkingText = memo(
   ({ content, isStreaming }: SmoothThinkingTextProps) => {
-    // Initialize with full content when not streaming to avoid flash on page load
     const [displayedContent, setDisplayedContent] = useState(() => (isStreaming ? '' : content))
-    const [showGradient, setShowGradient] = useState(false)
     const contentRef = useRef(content)
     const textRef = useRef<HTMLDivElement>(null)
     const rafRef = useRef<number | null>(null)
-    // Initialize index based on streaming state
     const indexRef = useRef(isStreaming ? 0 : content.length)
     const lastFrameTimeRef = useRef<number>(0)
     const isAnimatingRef = useRef(false)
@@ -88,7 +67,6 @@ const SmoothThinkingText = memo(
 
             if (elapsed >= THINKING_DELAY) {
               if (currentIndex < currentContent.length) {
-                // Reveal multiple characters per frame for faster streaming
                 const newIndex = Math.min(
                   currentIndex + THINKING_CHARS_PER_FRAME,
                   currentContent.length
@@ -110,7 +88,6 @@ const SmoothThinkingText = memo(
           rafRef.current = requestAnimationFrame(animateText)
         }
       } else {
-        // Streaming ended - show full content immediately
         if (rafRef.current) {
           cancelAnimationFrame(rafRef.current)
         }
@@ -127,30 +104,10 @@ const SmoothThinkingText = memo(
       }
     }, [content, isStreaming])
 
-    // Check if content height exceeds threshold for gradient
-    useEffect(() => {
-      if (textRef.current && isStreaming) {
-        const height = textRef.current.scrollHeight
-        setShowGradient(height > GRADIENT_THRESHOLD)
-      } else {
-        setShowGradient(false)
-      }
-    }, [displayedContent, isStreaming])
-
-    // Apply vertical gradient fade at the top only when content is tall enough
-    const gradientStyle =
-      isStreaming && showGradient
-        ? {
-            maskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 100%)',
-            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 100%)',
-          }
-        : undefined
-
     return (
       <div
         ref={textRef}
         className='[&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-[1.4] [&_p]:!m-0 [&_p]:!mb-1 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h1]:!m-0 [&_h1]:!mb-1 [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h2]:!m-0 [&_h2]:!mb-1 [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_h3]:!m-0 [&_h3]:!mb-1 [&_code]:!text-[11px] [&_ul]:!pl-5 [&_ul]:!my-1 [&_ol]:!pl-6 [&_ol]:!my-1 [&_li]:!my-0.5 [&_li]:!py-0 font-season text-[12px] text-[var(--text-muted)]'
-        style={gradientStyle}
       >
         <CopilotMarkdownRenderer content={displayedContent} />
       </div>
@@ -165,9 +122,7 @@ const SmoothThinkingText = memo(
 
 SmoothThinkingText.displayName = 'SmoothThinkingText'
 
-/**
- * Props for the ThinkingBlock component
- */
+/** Props for the ThinkingBlock component */
 interface ThinkingBlockProps {
   /** Content of the thinking block */
   content: string
@@ -182,13 +137,8 @@ interface ThinkingBlockProps {
 }
 
 /**
- * ThinkingBlock component displays AI reasoning/thinking process
- * Shows collapsible content with duration timer
- * Auto-expands during streaming and collapses when complete
- * Auto-collapses when a tool call or other content comes in after it
- *
- * @param props - Component props
- * @returns Thinking block with expandable content and timer
+ * Displays AI reasoning/thinking process with collapsible content and duration timer.
+ * Auto-expands during streaming and collapses when complete.
  */
 export function ThinkingBlock({
   content,
@@ -197,7 +147,6 @@ export function ThinkingBlock({
   label = 'Thought',
   hasSpecialTags = false,
 }: ThinkingBlockProps) {
-  // Strip thinking tags from content on render to handle persisted messages
   const cleanContent = useMemo(() => stripThinkingTags(content || ''), [content])
 
   const [isExpanded, setIsExpanded] = useState(false)
@@ -209,12 +158,8 @@ export function ThinkingBlock({
   const lastScrollTopRef = useRef(0)
   const programmaticScrollRef = useRef(false)
 
-  /**
-   * Auto-expands block when streaming with content
-   * Auto-collapses when streaming ends OR when following content arrives
-   */
+  /** Auto-expands during streaming, auto-collapses when streaming ends or following content arrives */
   useEffect(() => {
-    // Collapse if streaming ended, there's following content, or special tags arrived
     if (!isStreaming || hasFollowingContent || hasSpecialTags) {
       setIsExpanded(false)
       userCollapsedRef.current = false
@@ -227,7 +172,6 @@ export function ThinkingBlock({
     }
   }, [isStreaming, cleanContent, hasFollowingContent, hasSpecialTags])
 
-  // Reset start time when streaming begins
   useEffect(() => {
     if (isStreaming && !hasFollowingContent) {
       startTimeRef.current = Date.now()
@@ -236,9 +180,7 @@ export function ThinkingBlock({
     }
   }, [isStreaming, hasFollowingContent])
 
-  // Update duration timer during streaming (stop when following content arrives)
   useEffect(() => {
-    // Stop timer if not streaming or if there's following content (thinking is done)
     if (!isStreaming || hasFollowingContent) return
 
     const interval = setInterval(() => {
@@ -248,7 +190,6 @@ export function ThinkingBlock({
     return () => clearInterval(interval)
   }, [isStreaming, hasFollowingContent])
 
-  // Handle scroll events to detect user scrolling away
   useEffect(() => {
     const container = scrollContainerRef.current
     if (!container || !isExpanded) return
@@ -267,7 +208,6 @@ export function ThinkingBlock({
         setUserHasScrolledAway(true)
       }
 
-      // Re-stick if user scrolls back to bottom with intent
       if (userHasScrolledAway && isNearBottom && delta > 10) {
         setUserHasScrolledAway(false)
       }
@@ -281,7 +221,6 @@ export function ThinkingBlock({
     return () => container.removeEventListener('scroll', handleScroll)
   }, [isExpanded, userHasScrolledAway])
 
-  // Smart auto-scroll: always scroll to bottom while streaming unless user scrolled away
   useEffect(() => {
     if (!isStreaming || !isExpanded || userHasScrolledAway) return
 
@@ -302,20 +241,16 @@ export function ThinkingBlock({
     return () => window.clearInterval(intervalId)
   }, [isStreaming, isExpanded, userHasScrolledAway])
 
-  /**
-   * Formats duration in milliseconds to seconds
-   * Always shows seconds, rounded to nearest whole second, minimum 1s
-   */
+  /** Formats duration in milliseconds to seconds (minimum 1s) */
   const formatDuration = (ms: number) => {
     const seconds = Math.max(1, Math.round(ms / 1000))
     return `${seconds}s`
   }
 
   const hasContent = cleanContent.length > 0
-  // Thinking is "done" when streaming ends OR when there's following content (like a tool call) OR when special tags appear
   const isThinkingDone = !isStreaming || hasFollowingContent || hasSpecialTags
   const durationText = `${label} for ${formatDuration(duration)}`
-  // Convert past tense label to present tense for streaming (e.g., "Thought" → "Thinking")
+
   const getStreamingLabel = (lbl: string) => {
     if (lbl === 'Thought') return 'Thinking'
     if (lbl.endsWith('ed')) return `${lbl.slice(0, -2)}ing`
@@ -323,11 +258,9 @@ export function ThinkingBlock({
   }
   const streamingLabel = getStreamingLabel(label)
 
-  // During streaming: show header with shimmer effect + expanded content
   if (!isThinkingDone) {
     return (
       <div>
-        {/* Define shimmer keyframes */}
         <style>{`
           @keyframes thinking-shimmer {
             0% { background-position: 150% 0; }
@@ -396,7 +329,6 @@ export function ThinkingBlock({
     )
   }
 
-  // After done: show collapsible header with duration
   return (
     <div>
       <button
@@ -426,7 +358,6 @@ export function ThinkingBlock({
           isExpanded ? 'mt-1.5 max-h-[150px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
-        {/* Completed thinking text - dimmed with markdown */}
         <div className='[&_*]:!text-[var(--text-muted)] [&_*]:!text-[12px] [&_*]:!leading-[1.4] [&_p]:!m-0 [&_p]:!mb-1 [&_h1]:!text-[12px] [&_h1]:!font-semibold [&_h1]:!m-0 [&_h1]:!mb-1 [&_h2]:!text-[12px] [&_h2]:!font-semibold [&_h2]:!m-0 [&_h2]:!mb-1 [&_h3]:!text-[12px] [&_h3]:!font-semibold [&_h3]:!m-0 [&_h3]:!mb-1 [&_code]:!text-[11px] [&_ul]:!pl-5 [&_ul]:!my-1 [&_ol]:!pl-6 [&_ol]:!my-1 [&_li]:!my-0.5 [&_li]:!py-0 font-season text-[12px] text-[var(--text-muted)]'>
           <CopilotMarkdownRenderer content={cleanContent} />
         </div>

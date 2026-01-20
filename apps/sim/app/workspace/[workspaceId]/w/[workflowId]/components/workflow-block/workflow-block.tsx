@@ -31,9 +31,11 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
+import { getBlock } from '@/blocks'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
+import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth-credentials'
 import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedules'
@@ -561,6 +563,59 @@ const SubBlockRow = memo(function SubBlockRow({
     return `${names[0]}, ${names[1]} +${names.length - 2}`
   }, [subBlock?.type, rawValue, workflowVariables])
 
+  /**
+   * Hydrates tool references to display names.
+   * Follows the same pattern as other selectors (Slack channels, MCP tools, etc.)
+   */
+  const { data: customTools = [] } = useCustomTools(workspaceId || '')
+
+  const toolsDisplayValue = useMemo(() => {
+    if (subBlock?.type !== 'tool-input' || !Array.isArray(rawValue) || rawValue.length === 0) {
+      return null
+    }
+
+    const toolNames = rawValue
+      .map((tool: any) => {
+        if (!tool || typeof tool !== 'object') return null
+
+        // Priority 1: Use tool.title if already populated
+        if (tool.title && typeof tool.title === 'string') return tool.title
+
+        // Priority 2: Resolve custom tools with reference ID from database
+        if (tool.type === 'custom-tool' && tool.customToolId) {
+          const customTool = customTools.find((t) => t.id === tool.customToolId)
+          if (customTool?.title) return customTool.title
+          if (customTool?.schema?.function?.name) return customTool.schema.function.name
+        }
+
+        // Priority 3: Extract from inline schema (legacy format)
+        if (tool.schema?.function?.name) return tool.schema.function.name
+
+        // Priority 4: Extract from OpenAI function format
+        if (tool.function?.name) return tool.function.name
+
+        // Priority 5: Resolve built-in tool blocks from registry
+        if (
+          typeof tool.type === 'string' &&
+          tool.type !== 'custom-tool' &&
+          tool.type !== 'mcp' &&
+          tool.type !== 'workflow' &&
+          tool.type !== 'workflow_input'
+        ) {
+          const blockConfig = getBlock(tool.type)
+          if (blockConfig?.name) return blockConfig.name
+        }
+
+        return null
+      })
+      .filter((name): name is string => !!name)
+
+    if (toolNames.length === 0) return null
+    if (toolNames.length === 1) return toolNames[0]
+    if (toolNames.length === 2) return `${toolNames[0]}, ${toolNames[1]}`
+    return `${toolNames[0]}, ${toolNames[1]} +${toolNames.length - 2}`
+  }, [subBlock?.type, rawValue, customTools, workspaceId])
+
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
 
@@ -569,6 +624,7 @@ const SubBlockRow = memo(function SubBlockRow({
     credentialName ||
     dropdownLabel ||
     variablesDisplayValue ||
+    toolsDisplayValue ||
     knowledgeBaseDisplayName ||
     workflowSelectionName ||
     mcpServerDisplayName ||
