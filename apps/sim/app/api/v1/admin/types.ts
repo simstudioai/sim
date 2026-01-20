@@ -550,6 +550,8 @@ export interface AdminUserBilling {
   totalWebhookTriggers: number
   totalScheduledExecutions: number
   totalChatExecutions: number
+  totalMcpExecutions: number
+  totalA2aExecutions: number
   totalTokensUsed: number
   totalCost: string
   currentUsageLimit: string | null
