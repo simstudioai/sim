@@ -49,9 +49,6 @@ const TextractParseSchema = z
     }
   })
 
-/**
- * Generate AWS Signature Version 4 signing key
- */
 function getSignatureKey(
   key: string,
   dateStamp: string,
@@ -309,7 +306,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            error: 'S3 URI or file path is required for async processing',
+            error: 'S3 URI or file path is required for multi-page processing',
           },
           { status: 400 }
         )
@@ -338,7 +335,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            error: 'Async mode requires an S3 URI (s3://bucket/key) or an uploaded file',
+            error: 'Multi-page mode requires an S3 URI (s3://bucket/key) or an uploaded file',
           },
           { status: 400 }
         )
@@ -425,7 +422,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: 'File path is required for sync processing',
+          error: 'File path is required for single-page processing',
         },
         { status: 400 }
       )

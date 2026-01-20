@@ -7,7 +7,7 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   name: 'AWS Textract',
   description: 'Extract text, tables, and forms from documents',
   authMode: AuthMode.ApiKey,
-  longDescription: `Integrate AWS Textract into your workflow to extract text, tables, forms, and key-value pairs from documents. Sync mode supports JPEG, PNG, and single-page PDF. Async mode supports multi-page PDF and TIFF via S3.`,
+  longDescription: `Integrate AWS Textract into your workflow to extract text, tables, forms, and key-value pairs from documents. Single-page mode supports JPEG, PNG, and single-page PDF. Multi-page mode supports multi-page PDF and TIFF.`,
   docsLink: 'https://docs.sim.ai/tools/textract',
   category: 'tools',
   bgColor: 'linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)',
@@ -180,7 +180,7 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
           const asyncInputMethod = params.asyncInputMethod || 's3'
           if (asyncInputMethod === 's3') {
             if (!params.s3Uri || params.s3Uri.trim() === '') {
-              throw new Error('S3 URI is required for async processing')
+              throw new Error('S3 URI is required for multi-page processing')
             }
             parameters.s3Uri = params.s3Uri.trim()
           } else if (asyncInputMethod === 'upload') {
@@ -220,12 +220,12 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   },
   inputs: {
     processingMode: { type: 'string', description: 'Document type: single-page or multi-page' },
-    inputMethod: { type: 'string', description: 'Input method selection for sync mode' },
-    asyncInputMethod: { type: 'string', description: 'Input method selection for async mode' },
+    inputMethod: { type: 'string', description: 'Input method selection for single-page mode' },
+    asyncInputMethod: { type: 'string', description: 'Input method selection for multi-page mode' },
     filePath: { type: 'string', description: 'Document URL' },
-    s3Uri: { type: 'string', description: 'S3 URI for async processing (s3://bucket/key)' },
-    fileUpload: { type: 'json', description: 'Uploaded document file for sync mode' },
-    asyncFileUpload: { type: 'json', description: 'Uploaded document file for async mode' },
+    s3Uri: { type: 'string', description: 'S3 URI for multi-page processing (s3://bucket/key)' },
+    fileUpload: { type: 'json', description: 'Uploaded document file for single-page mode' },
+    asyncFileUpload: { type: 'json', description: 'Uploaded document file for multi-page mode' },
     extractTables: { type: 'boolean', description: 'Extract tables from document' },
     extractForms: { type: 'boolean', description: 'Extract form key-value pairs' },
     detectSignatures: { type: 'boolean', description: 'Detect signatures' },

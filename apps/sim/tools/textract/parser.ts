@@ -40,15 +40,13 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description:
-        'URL to a document to be processed (JPEG, PNG, PDF, or TIFF). Required for sync mode.',
+      description: 'URL to a document to be processed (JPEG, PNG, or single-page PDF).',
     },
     s3Uri: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description:
-        'S3 URI for async processing (s3://bucket/key). Required for async mode with S3 input.',
+      description: 'S3 URI for multi-page processing (s3://bucket/key).',
     },
     fileUpload: {
       type: 'object',
@@ -144,13 +142,13 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
             if (uploadedFilePath.startsWith('/api/files/serve/')) {
               requestBody.filePath = uploadedFilePath
             } else {
-              throw new Error('Async mode with upload requires files stored in S3')
+              throw new Error('Multi-page mode with upload requires files stored in S3')
             }
           } else {
             throw new Error('Invalid file upload: Upload data is missing or invalid')
           }
         } else {
-          throw new Error('Async mode requires either an S3 URI or an uploaded file')
+          throw new Error('Multi-page mode requires either an S3 URI or an uploaded file')
         }
       } else {
         if (

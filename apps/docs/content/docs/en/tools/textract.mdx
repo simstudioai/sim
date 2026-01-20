@@ -27,7 +27,7 @@ In Sim, the AWS Textract integration empowers your agents to intelligently proce
 
 ## Usage Instructions
 
-Integrate AWS Textract into your workflow to extract text, tables, forms, and key-value pairs from documents. Sync mode supports JPEG, PNG, and single-page PDF. Async mode supports multi-page PDF and TIFF via S3.
+Integrate AWS Textract into your workflow to extract text, tables, forms, and key-value pairs from documents. Single-page mode supports JPEG, PNG, and single-page PDF. Multi-page mode supports multi-page PDF and TIFF.
 
 
 
@@ -45,8 +45,8 @@ Parse documents using AWS Textract OCR and document analysis
 | `secretAccessKey` | string | Yes | AWS Secret Access Key |
 | `region` | string | Yes | AWS region for Textract service \(e.g., us-east-1\) |
 | `processingMode` | string | No | Document type: single-page or multi-page. Defaults to single-page. |
-| `filePath` | string | No | URL to a document to be processed \(JPEG, PNG, PDF, or TIFF\). Required for sync mode. |
-| `s3Uri` | string | No | S3 URI for async processing \(s3://bucket/key\). Required for async mode with S3 input. |
+| `filePath` | string | No | URL to a document to be processed \(JPEG, PNG, or single-page PDF\). |
+| `s3Uri` | string | No | S3 URI for multi-page processing \(s3://bucket/key\). |
 | `fileUpload` | object | No | File upload data from file-upload component |
 | `featureTypes` | array | No | Feature types to detect: TABLES, FORMS, QUERIES, SIGNATURES, LAYOUT. If not specified, only text detection is performed. |
 | `items` | string | No | Feature type |

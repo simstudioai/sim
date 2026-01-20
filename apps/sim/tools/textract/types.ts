@@ -70,17 +70,14 @@ export interface TextractBlock {
   }
 }
 
-/** AWS Textract DocumentMetadata - exact API format */
 export interface TextractDocumentMetadataRaw {
   Pages: number
 }
 
-/** Normalized DocumentMetadata (camelCase) */
 export interface TextractDocumentMetadata {
   pages: number
 }
 
-/** AWS Textract API Response - exact API format */
 export interface TextractApiResponse {
   Blocks: TextractBlock[]
   DocumentMetadata: TextractDocumentMetadataRaw
@@ -94,7 +91,6 @@ export interface TextractNormalizedOutput {
   modelVersion?: string
 }
 
-/** Async job status response from Textract */
 export interface TextractAsyncJobResponse {
   JobStatus: 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED' | 'PARTIAL_SUCCESS'
   StatusMessage?: string

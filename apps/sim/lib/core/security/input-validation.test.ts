@@ -4,6 +4,7 @@ import {
   createPinnedUrl,
   validateAirtableId,
   validateAlphanumericId,
+  validateAwsRegion,
   validateEnum,
   validateExternalUrl,
   validateFileExtension,
@@ -17,6 +18,7 @@ import {
   validateNumericId,
   validatePathSegment,
   validateProxyUrl,
+  validateS3BucketName,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation'
 import { sanitizeForLogging } from '@/lib/core/security/redaction'
@@ -1189,6 +1191,219 @@ describe('validateAirtableId', () => {
     it.concurrent('should reject lowercase prefix', () => {
       const result = validateAirtableId('AppABCDEFGHIJKLMN', 'app', 'baseId')
       expect(result.isValid).toBe(false)
+    })
+  })
+})
+
+describe('validateAwsRegion', () => {
+  describe('valid regions', () => {
+    it.concurrent('should accept us-east-1', () => {
+      const result = validateAwsRegion('us-east-1')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('us-east-1')
+    })
+
+    it.concurrent('should accept us-west-2', () => {
+      const result = validateAwsRegion('us-west-2')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept eu-west-1', () => {
+      const result = validateAwsRegion('eu-west-1')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept ap-southeast-1', () => {
+      const result = validateAwsRegion('ap-southeast-1')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept sa-east-1', () => {
+      const result = validateAwsRegion('sa-east-1')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept me-south-1', () => {
+      const result = validateAwsRegion('me-south-1')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept af-south-1', () => {
+      const result = validateAwsRegion('af-south-1')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept regions with double-digit numbers', () => {
+      const result = validateAwsRegion('ap-northeast-12')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('invalid regions', () => {
+    it.concurrent('should reject null', () => {
+      const result = validateAwsRegion(null)
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('required')
+    })
+
+    it.concurrent('should reject empty string', () => {
+      const result = validateAwsRegion('')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('required')
+    })
+
+    it.concurrent('should reject uppercase regions', () => {
+      const result = validateAwsRegion('US-EAST-1')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject invalid format - missing number', () => {
+      const result = validateAwsRegion('us-east')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject invalid format - wrong separators', () => {
+      const result = validateAwsRegion('us_east_1')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject invalid format - too many parts', () => {
+      const result = validateAwsRegion('us-east-1-extra')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject path traversal attempts', () => {
+      const result = validateAwsRegion('../etc/passwd')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject arbitrary strings', () => {
+      const result = validateAwsRegion('not-a-region')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should use custom param name in errors', () => {
+      const result = validateAwsRegion('', 'awsRegion')
+      expect(result.error).toContain('awsRegion')
+    })
+  })
+})
+
+describe('validateS3BucketName', () => {
+  describe('valid bucket names', () => {
+    it.concurrent('should accept simple bucket name', () => {
+      const result = validateS3BucketName('my-bucket')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('my-bucket')
+    })
+
+    it.concurrent('should accept bucket name with numbers', () => {
+      const result = validateS3BucketName('bucket123')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept bucket name with periods', () => {
+      const result = validateS3BucketName('my.bucket.name')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept 3 character bucket name', () => {
+      const result = validateS3BucketName('abc')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept 63 character bucket name', () => {
+      const result = validateS3BucketName('a'.repeat(63))
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept minimum valid bucket name (3 chars)', () => {
+      const result = validateS3BucketName('a1b')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('invalid bucket names - null/empty', () => {
+    it.concurrent('should reject null', () => {
+      const result = validateS3BucketName(null)
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('required')
+    })
+
+    it.concurrent('should reject empty string', () => {
+      const result = validateS3BucketName('')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('required')
+    })
+  })
+
+  describe('invalid bucket names - length', () => {
+    it.concurrent('should reject 2 character bucket name', () => {
+      const result = validateS3BucketName('ab')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('between 3 and 63')
+    })
+
+    it.concurrent('should reject 64 character bucket name', () => {
+      const result = validateS3BucketName('a'.repeat(64))
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('between 3 and 63')
+    })
+  })
+
+  describe('invalid bucket names - format', () => {
+    it.concurrent('should reject uppercase letters', () => {
+      const result = validateS3BucketName('MyBucket')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject underscores', () => {
+      const result = validateS3BucketName('my_bucket')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject starting with hyphen', () => {
+      const result = validateS3BucketName('-mybucket')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject ending with hyphen', () => {
+      const result = validateS3BucketName('mybucket-')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject starting with period', () => {
+      const result = validateS3BucketName('.mybucket')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject ending with period', () => {
+      const result = validateS3BucketName('mybucket.')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject consecutive periods', () => {
+      const result = validateS3BucketName('my..bucket')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('consecutive periods')
+    })
+
+    it.concurrent('should reject IP address format', () => {
+      const result = validateS3BucketName('192.168.1.1')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('IP address')
+    })
+
+    it.concurrent('should reject special characters', () => {
+      const result = validateS3BucketName('my@bucket')
+      expect(result.isValid).toBe(false)
+    })
+  })
+
+  describe('error messages', () => {
+    it.concurrent('should use custom param name in errors', () => {
+      const result = validateS3BucketName('', 's3Bucket')
+      expect(result.error).toContain('s3Bucket')
     })
   })
 })
