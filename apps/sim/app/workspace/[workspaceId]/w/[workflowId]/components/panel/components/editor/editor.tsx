@@ -129,7 +129,10 @@ export function Editor() {
     blockSubBlockValues,
     canonicalIndex
   )
-  const displayAdvancedOptions = advancedMode || advancedValuesPresent
+  // When user can edit, respect their toggle; otherwise show if values present
+  const displayAdvancedOptions = userPermissions.canEdit
+    ? advancedMode
+    : advancedMode || advancedValuesPresent
 
   const hasAdvancedOnlyFields = useMemo(() => {
     for (const subBlock of subBlocksForCanonical) {

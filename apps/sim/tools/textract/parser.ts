@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { TextractParserInput, TextractParserOutput } from '@/tools/textract/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -92,158 +91,35 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
       }
     },
     body: (params) => {
-      if (!params || typeof params !== 'object') {
-        throw new Error('Invalid parameters: Parameters must be provided as an object')
-      }
-
-      if (
-        !params.accessKeyId ||
-        typeof params.accessKeyId !== 'string' ||
-        params.accessKeyId.trim() === ''
-      ) {
-        throw new Error('Missing or invalid AWS Access Key ID')
-      }
-
-      if (
-        !params.secretAccessKey ||
-        typeof params.secretAccessKey !== 'string' ||
-        params.secretAccessKey.trim() === ''
-      ) {
-        throw new Error('Missing or invalid AWS Secret Access Key')
-      }
-
-      if (!params.region || typeof params.region !== 'string' || params.region.trim() === '') {
-        throw new Error('Missing or invalid AWS region')
-      }
-
       const processingMode = params.processingMode || 'sync'
 
       const requestBody: Record<string, unknown> = {
-        accessKeyId: params.accessKeyId.trim(),
-        secretAccessKey: params.secretAccessKey.trim(),
-        region: params.region.trim(),
+        accessKeyId: params.accessKeyId?.trim(),
+        secretAccessKey: params.secretAccessKey?.trim(),
+        region: params.region?.trim(),
         processingMode,
       }
 
       if (processingMode === 'async') {
-        if (params.s3Uri && typeof params.s3Uri === 'string' && params.s3Uri.trim() !== '') {
-          const s3UriTrimmed = params.s3Uri.trim()
-          if (!s3UriTrimmed.match(/^s3:\/\/[^/]+\/.+$/)) {
-            throw new Error('Invalid S3 URI format. Expected: s3://bucket-name/path/to/object')
-          }
-          requestBody.s3Uri = s3UriTrimmed
-        } else if (params.fileUpload) {
-          if (
-            typeof params.fileUpload === 'object' &&
-            params.fileUpload !== null &&
-            (params.fileUpload.url || params.fileUpload.path)
-          ) {
-            const uploadedFilePath = (params.fileUpload.path || params.fileUpload.url) as string
-            if (uploadedFilePath.startsWith('/api/files/serve/')) {
-              requestBody.filePath = uploadedFilePath
-            } else {
-              throw new Error('Multi-page mode with upload requires files stored in S3')
-            }
-          } else {
-            throw new Error('Invalid file upload: Upload data is missing or invalid')
+        requestBody.s3Uri = params.s3Uri?.trim()
+      } else {
+        // Handle file upload by extracting the path
+        if (params.fileUpload && !params.filePath) {
+          const uploadPath = params.fileUpload.path || params.fileUpload.url
+          if (uploadPath) {
+            requestBody.filePath = uploadPath
           }
         } else {
-          throw new Error('Multi-page mode requires either an S3 URI or an uploaded file')
-        }
-      } else {
-        if (
-          params.fileUpload &&
-          (!params.filePath || params.filePath === 'null' || params.filePath === '')
-        ) {
-          if (
-            typeof params.fileUpload === 'object' &&
-            params.fileUpload !== null &&
-            (params.fileUpload.url || params.fileUpload.path)
-          ) {
-            let uploadedFilePath = (params.fileUpload.url || params.fileUpload.path) as string
-
-            if (uploadedFilePath.startsWith('/')) {
-              const baseUrl = getBaseUrl()
-              if (!baseUrl) throw new Error('Failed to get base URL for file path conversion')
-              uploadedFilePath = `${baseUrl}${uploadedFilePath}`
-            }
-
-            params.filePath = uploadedFilePath
-            logger.info('Using uploaded file:', uploadedFilePath)
-          } else {
-            throw new Error('Invalid file upload: Upload data is missing or invalid')
-          }
-        }
-
-        if (
-          !params.filePath ||
-          typeof params.filePath !== 'string' ||
-          params.filePath.trim() === ''
-        ) {
-          throw new Error('Missing or invalid file path: Please provide a URL to a document')
-        }
-
-        let filePathToValidate = params.filePath.trim()
-        if (filePathToValidate.startsWith('/')) {
-          const baseUrl = getBaseUrl()
-          if (!baseUrl) throw new Error('Failed to get base URL for file path conversion')
-          filePathToValidate = `${baseUrl}${filePathToValidate}`
-        }
-
-        let url
-        try {
-          url = new URL(filePathToValidate)
-
-          if (!['http:', 'https:'].includes(url.protocol)) {
-            throw new Error(
-              `Invalid protocol: ${url.protocol}. URL must use HTTP or HTTPS protocol`
-            )
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
-          throw new Error(
-            `Invalid URL format: ${errorMessage}. Please provide a valid HTTP or HTTPS URL to a document.`
-          )
-        }
-
-        requestBody.filePath = url.toString()
-
-        if (params.fileUpload?.path?.startsWith('/api/files/serve/')) {
-          requestBody.filePath = params.fileUpload.path
+          requestBody.filePath = params.filePath?.trim()
         }
       }
 
       if (params.featureTypes && Array.isArray(params.featureTypes)) {
-        const validFeatures = ['TABLES', 'FORMS', 'QUERIES', 'SIGNATURES', 'LAYOUT']
-        const filteredFeatures = params.featureTypes.filter((f) =>
-          validFeatures.includes(f as string)
-        )
-        if (filteredFeatures.length > 0) {
-          requestBody.featureTypes = filteredFeatures
-        }
+        requestBody.featureTypes = params.featureTypes
       }
 
-      if (params.queries && Array.isArray(params.queries) && params.queries.length > 0) {
-        const validQueries = params.queries
-          .filter((q) => q && typeof q === 'object' && typeof q.Text === 'string' && q.Text.trim())
-          .map((q) => ({
-            Text: q.Text.trim(),
-            Alias: q.Alias?.trim() || undefined,
-            Pages: q.Pages || undefined,
-          }))
-
-        if (validQueries.length > 0) {
-          requestBody.queries = validQueries
-
-          if (!requestBody.featureTypes) {
-            requestBody.featureTypes = ['QUERIES']
-          } else if (
-            Array.isArray(requestBody.featureTypes) &&
-            !requestBody.featureTypes.includes('QUERIES')
-          ) {
-            ;(requestBody.featureTypes as string[]).push('QUERIES')
-          }
-        }
+      if (params.queries && Array.isArray(params.queries)) {
+        requestBody.queries = params.queries
       }
 
       return requestBody
