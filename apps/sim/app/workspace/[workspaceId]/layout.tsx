@@ -1,6 +1,5 @@
 'use client'
 
-import { CustomToolsLoader } from '@/app/workspace/[workspaceId]/providers/custom-tools-loader'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
 import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings-loader'
@@ -12,7 +11,6 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
     <>
       <SettingsLoader />
       <ProviderModelsLoader />
-      <CustomToolsLoader />
       <GlobalCommandsProvider>
         <div className='flex h-screen w-full bg-[var(--bg)]'>
           <WorkspacePermissionsProvider>

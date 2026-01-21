@@ -28,7 +28,6 @@ import {
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useProvidersStore } from '@/stores/providers/store'
 import { mergeToolParameters } from '@/tools/params'
 
@@ -417,38 +416,6 @@ export function extractAndParseJSON(content: string): any {
       )
     }
   }
-}
-
-/**
- * Transforms a custom tool schema into a provider tool config
- */
-export function transformCustomTool(customTool: any): ProviderToolConfig {
-  const schema = customTool.schema
-
-  if (!schema || !schema.function) {
-    throw new Error('Invalid custom tool schema')
-  }
-
-  return {
-    id: `custom_${customTool.id}`,
-    name: schema.function.name,
-    description: schema.function.description || '',
-    params: {},
-    parameters: {
-      type: schema.function.parameters.type,
-      properties: schema.function.parameters.properties,
-      required: schema.function.parameters.required || [],
-    },
-  }
-}
-
-/**
- * Gets all available custom tools as provider tool configs
- */
-export function getCustomTools(): ProviderToolConfig[] {
-  const customTools = useCustomToolsStore.getState().getAllTools()
-
-  return customTools.map(transformCustomTool)
 }
 
 /**
