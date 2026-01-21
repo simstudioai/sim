@@ -3323,15 +3323,12 @@ const WorkflowContent = React.memo(() => {
               onOpenLogs={handleContextOpenLogs}
               onToggleVariables={handleContextToggleVariables}
               onToggleChat={handleContextToggleChat}
-              onInvite={handleContextInvite}
               isVariablesOpen={isVariablesOpen}
               isChatOpen={isChatOpen}
               hasClipboard={hasClipboard()}
               disableEdit={!effectivePermissions.canEdit}
-              disableAdmin={!effectivePermissions.canAdmin}
               canUndo={canUndo}
               canRedo={canRedo}
-              isInvitationsDisabled={isInvitationsDisabled}
             />
           </>
         )}

@@ -26,7 +26,6 @@ export interface CanvasMenuProps {
   onOpenLogs: () => void
   onToggleVariables: () => void
   onToggleChat: () => void
-  onInvite: () => void
   isVariablesOpen?: boolean
   isChatOpen?: boolean
   hasClipboard?: boolean
@@ -55,15 +54,12 @@ export function CanvasMenu({
   onOpenLogs,
   onToggleVariables,
   onToggleChat,
-  onInvite,
   isVariablesOpen = false,
   isChatOpen = false,
   hasClipboard = false,
   disableEdit = false,
-  disableAdmin = false,
   canUndo = false,
   canRedo = false,
-  isInvitationsDisabled = false,
 }: CanvasMenuProps) {
   return (
     <Popover
