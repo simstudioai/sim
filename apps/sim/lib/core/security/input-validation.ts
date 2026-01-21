@@ -905,6 +905,7 @@ export interface SecureFetchOptions {
   headers?: Record<string, string>
   body?: string
   timeout?: number
+  maxRedirects?: number
 }
 
 export class SecureFetchHeaders {
@@ -941,15 +942,33 @@ export interface SecureFetchResponse {
   arrayBuffer: () => Promise<ArrayBuffer>
 }
 
+const DEFAULT_MAX_REDIRECTS = 5
+
+function isRedirectStatus(status: number): boolean {
+  return status >= 300 && status < 400 && status !== 304
+}
+
+function resolveRedirectUrl(baseUrl: string, location: string): string {
+  try {
+    return new URL(location, baseUrl).toString()
+  } catch {
+    throw new Error(`Invalid redirect location: ${location}`)
+  }
+}
+
 /**
  * Performs a fetch with IP pinning to prevent DNS rebinding attacks.
  * Uses the pre-resolved IP address while preserving the original hostname for TLS SNI.
+ * Follows redirects securely by validating each redirect target.
  */
-export function secureFetchWithPinnedIP(
+export async function secureFetchWithPinnedIP(
   url: string,
   resolvedIP: string,
-  options: SecureFetchOptions = {}
+  options: SecureFetchOptions = {},
+  redirectCount = 0
 ): Promise<SecureFetchResponse> {
+  const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS
+
   return new Promise((resolve, reject) => {
     const parsed = new URL(url)
     const isHttps = parsed.protocol === 'https:'
@@ -985,6 +1004,39 @@ export function secureFetchWithPinnedIP(
 
     const protocol = isHttps ? https : http
     const req = protocol.request(requestOptions, (res) => {
+      const statusCode = res.statusCode || 0
+      const location = res.headers.location
+
+      if (isRedirectStatus(statusCode) && location && redirectCount < maxRedirects) {
+        res.resume()
+        const redirectUrl = resolveRedirectUrl(url, location)
+
+        validateUrlWithDNS(redirectUrl, 'redirectUrl')
+          .then((validation) => {
+            if (!validation.isValid) {
+              reject(new Error(`Redirect blocked: ${validation.error}`))
+              return
+            }
+            return secureFetchWithPinnedIP(
+              redirectUrl,
+              validation.resolvedIP!,
+              options,
+              redirectCount + 1
+            )
+          })
+          .then((response) => {
+            if (response) resolve(response)
+          })
+          .catch(reject)
+        return
+      }
+
+      if (isRedirectStatus(statusCode) && location && redirectCount >= maxRedirects) {
+        res.resume()
+        reject(new Error(`Too many redirects (max: ${maxRedirects})`))
+        return
+      }
+
       const chunks: Buffer[] = []
 
       res.on('data', (chunk: Buffer) => chunks.push(chunk))
@@ -1006,8 +1058,8 @@ export function secureFetchWithPinnedIP(
         }
 
         resolve({
-          ok: res.statusCode !== undefined && res.statusCode >= 200 && res.statusCode < 300,
-          status: res.statusCode || 0,
+          ok: statusCode >= 200 && statusCode < 300,
+          status: statusCode,
           statusText: res.statusMessage || '',
           headers: new SecureFetchHeaders(headersRecord),
           text: async () => body,
