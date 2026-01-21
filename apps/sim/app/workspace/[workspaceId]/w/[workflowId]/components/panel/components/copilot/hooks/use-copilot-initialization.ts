@@ -38,6 +38,17 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
   const lastWorkflowIdRef = useRef<string | null>(null)
   const hasMountedRef = useRef(false)
 
+  // Use refs to store stable references to store functions
+  // This prevents the useEffect from triggering when functions are recreated
+  const setCopilotWorkflowIdRef = useRef(setCopilotWorkflowId)
+  const loadChatsRef = useRef(loadChats)
+  const loadAutoAllowedToolsRef = useRef(loadAutoAllowedTools)
+
+  // Update refs on each render
+  setCopilotWorkflowIdRef.current = setCopilotWorkflowId
+  loadChatsRef.current = loadChats
+  loadAutoAllowedToolsRef.current = loadAutoAllowedTools
+
   /** Initialize on mount - loads chats if needed. Never loads during streaming */
   useEffect(() => {
     if (activeWorkflowId && !hasMountedRef.current && !isSendingMessage) {
@@ -45,10 +56,10 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
       setIsInitialized(false)
       lastWorkflowIdRef.current = null
 
-      setCopilotWorkflowId(activeWorkflowId)
-      loadChats(false)
+      setCopilotWorkflowIdRef.current(activeWorkflowId)
+      loadChatsRef.current(false)
     }
-  }, [activeWorkflowId, setCopilotWorkflowId, loadChats, isSendingMessage])
+  }, [activeWorkflowId, isSendingMessage])
 
   /** Handles genuine workflow changes, preventing re-init on every render */
   useEffect(() => {
@@ -65,8 +76,8 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
       })
       setIsInitialized(false)
       lastWorkflowIdRef.current = activeWorkflowId
-      setCopilotWorkflowId(activeWorkflowId)
-      loadChats(false)
+      setCopilotWorkflowIdRef.current(activeWorkflowId)
+      loadChatsRef.current(false)
     }
 
     if (
@@ -82,8 +93,8 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
       })
       setIsInitialized(false)
       lastWorkflowIdRef.current = activeWorkflowId
-      setCopilotWorkflowId(activeWorkflowId)
-      loadChats(false)
+      setCopilotWorkflowIdRef.current(activeWorkflowId)
+      loadChatsRef.current(false)
     }
 
     if (
@@ -100,8 +111,6 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
     isLoadingChats,
     chatsLoadedForWorkflow,
     isInitialized,
-    setCopilotWorkflowId,
-    loadChats,
     isSendingMessage,
   ])
 
@@ -110,11 +119,11 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
   useEffect(() => {
     if (hasMountedRef.current && !hasLoadedAutoAllowedToolsRef.current) {
       hasLoadedAutoAllowedToolsRef.current = true
-      loadAutoAllowedTools().catch((err) => {
+      loadAutoAllowedToolsRef.current().catch((err) => {
         logger.warn('[Copilot] Failed to load auto-allowed tools', err)
       })
     }
-  }, [loadAutoAllowedTools])
+  }, [])
 
   return {
     isInitialized,

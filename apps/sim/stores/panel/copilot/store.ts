@@ -3553,9 +3553,13 @@ export const useCopilotStore = create<CopilotStore>()(
     clearCheckpointError: () => set({ checkpointError: null }),
     retrySave: async (_chatId: string) => {},
 
-    cleanup: () => {
+    cleanup: (options?: { preserveServerStream?: boolean }) => {
       const { isSendingMessage } = get()
-      if (isSendingMessage) get().abortMessage()
+      // Only abort if explicitly requested (e.g., navigation within app)
+      // Don't abort on page unload - let server stream continue for resumption
+      if (isSendingMessage && !options?.preserveServerStream) {
+        get().abortMessage()
+      }
       if (streamingUpdateRAF !== null) {
         cancelAnimationFrame(streamingUpdateRAF)
         streamingUpdateRAF = null

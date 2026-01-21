@@ -209,7 +209,7 @@ export interface CopilotActions {
   clearSaveError: () => void
   clearCheckpointError: () => void
   retrySave: (chatId: string) => Promise<void>
-  cleanup: () => void
+  cleanup: (options?: { preserveServerStream?: boolean }) => void
   reset: () => void
 
   setInputValue: (value: string) => void
