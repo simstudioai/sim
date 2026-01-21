@@ -10,7 +10,7 @@ import {
   GetBlockOptionsInput,
   GetBlockOptionsResult,
 } from '@/lib/copilot/tools/shared/schemas'
-import { getBlock } from '@/blocks/registry'
+import { getLatestBlock } from '@/blocks/registry'
 
 interface GetBlockOptionsArgs {
   blockId: string
@@ -43,8 +43,7 @@ export class GetBlockOptionsClientTool extends BaseClientTool {
         (params as any)?.block_id ||
         (params as any)?.block_type
       if (typeof blockId === 'string') {
-        // Look up the block config to get the human-readable name
-        const blockConfig = getBlock(blockId)
+        const blockConfig = getLatestBlock(blockId)
         const blockName = (blockConfig?.name ?? blockId.replace(/_/g, ' ')).toLowerCase()
 
         switch (state) {
