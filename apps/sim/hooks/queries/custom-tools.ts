@@ -64,7 +64,7 @@ function normalizeCustomTool(tool: ApiCustomTool, workspaceId: string): CustomTo
   }
 }
 
-function syncCustomToolsToStore(tools: CustomToolDefinition[]) {
+export function syncCustomToolsToStore(tools: CustomToolDefinition[]) {
   useCustomToolsStore.getState().setTools(tools)
 }
 
@@ -134,19 +134,13 @@ async function fetchCustomTools(workspaceId: string): Promise<CustomToolDefiniti
  * Hook to fetch custom tools
  */
 export function useCustomTools(workspaceId: string) {
-  const query = useQuery<CustomToolDefinition[]>({
+  return useQuery<CustomToolDefinition[]>({
     queryKey: customToolsKeys.list(workspaceId),
     queryFn: () => fetchCustomTools(workspaceId),
     enabled: !!workspaceId,
     staleTime: 60 * 1000, // 1 minute - tools don't change frequently
     placeholderData: keepPreviousData,
   })
-
-  if (query.data) {
-    syncCustomToolsToStore(query.data)
-  }
-
-  return query
 }
 
 /**
