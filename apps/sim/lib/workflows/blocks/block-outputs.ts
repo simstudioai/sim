@@ -351,7 +351,7 @@ function collectOutputPaths(
 
     if (value && typeof value === 'object' && 'type' in value) {
       const typedValue = value as { type: unknown }
-      if (typedValue.type === 'files') {
+      if (typedValue.type === 'files' || typedValue.type === 'file[]') {
         paths.push(...expandFileTypeProperties(path))
       } else {
         paths.push(path)
@@ -393,7 +393,8 @@ function getFilePropertyType(outputs: OutputDefinition, pathParts: string[]): st
     current &&
     typeof current === 'object' &&
     'type' in current &&
-    (current as { type: unknown }).type === 'files'
+    ((current as { type: unknown }).type === 'files' ||
+      (current as { type: unknown }).type === 'file[]')
   ) {
     return USER_FILE_PROPERTY_TYPES[lastPart as keyof typeof USER_FILE_PROPERTY_TYPES]
   }
@@ -462,6 +463,11 @@ function generateOutputPaths(outputs: Record<string, any>, prefix = ''): string[
       paths.push(currentPath)
     } else if (typeof value === 'object' && value !== null) {
       if ('type' in value && typeof value.type === 'string') {
+        if (value.type === 'files' || value.type === 'file[]') {
+          paths.push(...expandFileTypeProperties(currentPath))
+          continue
+        }
+
         const hasNestedProperties =
           ((value.type === 'object' || value.type === 'json') && value.properties) ||
           (value.type === 'array' && value.items?.properties) ||
@@ -518,6 +524,17 @@ function generateOutputPathsWithTypes(
       paths.push({ path: currentPath, type: value })
     } else if (typeof value === 'object' && value !== null) {
       if ('type' in value && typeof value.type === 'string') {
+        if (value.type === 'files' || value.type === 'file[]') {
+          paths.push({ path: currentPath, type: value.type })
+          for (const prop of USER_FILE_ACCESSIBLE_PROPERTIES) {
+            paths.push({
+              path: `${currentPath}.${prop}`,
+              type: USER_FILE_PROPERTY_TYPES[prop as keyof typeof USER_FILE_PROPERTY_TYPES],
+            })
+          }
+          continue
+        }
+
         if (value.type === 'array' && value.items?.properties) {
           paths.push({ path: currentPath, type: 'array' })
           const subPaths = generateOutputPathsWithTypes(value.items.properties, currentPath)

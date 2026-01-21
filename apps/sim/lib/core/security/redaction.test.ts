@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  isLargeDataKey,
   isSensitiveKey,
   REDACTED_MARKER,
   redactApiKeys,
   redactSensitiveValues,
   sanitizeEventData,
   sanitizeForLogging,
+  TRUNCATED_MARKER,
 } from './redaction'
 
 /**
@@ -15,6 +17,24 @@ import {
 describe('REDACTED_MARKER', () => {
   it.concurrent('should be the standard marker', () => {
     expect(REDACTED_MARKER).toBe('[REDACTED]')
+  })
+})
+
+describe('TRUNCATED_MARKER', () => {
+  it.concurrent('should be the standard marker', () => {
+    expect(TRUNCATED_MARKER).toBe('[TRUNCATED]')
+  })
+})
+
+describe('isLargeDataKey', () => {
+  it.concurrent('should identify base64 as large data key', () => {
+    expect(isLargeDataKey('base64')).toBe(true)
+  })
+
+  it.concurrent('should not identify other keys as large data', () => {
+    expect(isLargeDataKey('content')).toBe(false)
+    expect(isLargeDataKey('data')).toBe(false)
+    expect(isLargeDataKey('base')).toBe(false)
   })
 })
 
@@ -233,6 +253,80 @@ describe('redactApiKeys', () => {
       expect(result.users[0].credentials.username).toBe('john_doe')
       expect(result.config.database.password).toBe('[REDACTED]')
       expect(result.config.database.host).toBe('localhost')
+    })
+
+    it.concurrent('should truncate base64 fields', () => {
+      const obj = {
+        id: 'file-123',
+        name: 'document.pdf',
+        base64: 'VGhpcyBpcyBhIHZlcnkgbG9uZyBiYXNlNjQgc3RyaW5n...',
+        size: 12345,
+      }
+
+      const result = redactApiKeys(obj)
+
+      expect(result.id).toBe('file-123')
+      expect(result.name).toBe('document.pdf')
+      expect(result.base64).toBe('[TRUNCATED]')
+      expect(result.size).toBe(12345)
+    })
+
+    it.concurrent('should truncate base64 in nested UserFile objects', () => {
+      const obj = {
+        files: [
+          {
+            id: 'file-1',
+            name: 'doc1.pdf',
+            url: 'http://example.com/file1',
+            size: 1000,
+            base64: 'base64content1...',
+          },
+          {
+            id: 'file-2',
+            name: 'doc2.pdf',
+            url: 'http://example.com/file2',
+            size: 2000,
+            base64: 'base64content2...',
+          },
+        ],
+      }
+
+      const result = redactApiKeys(obj)
+
+      expect(result.files[0].id).toBe('file-1')
+      expect(result.files[0].base64).toBe('[TRUNCATED]')
+      expect(result.files[1].base64).toBe('[TRUNCATED]')
+    })
+
+    it.concurrent('should filter UserFile objects to only expose allowed fields', () => {
+      const obj = {
+        processedFiles: [
+          {
+            id: 'file-123',
+            name: 'document.pdf',
+            url: 'http://localhost/api/files/serve/...',
+            size: 12345,
+            type: 'application/pdf',
+            key: 'execution/workspace/workflow/file.pdf',
+            context: 'execution',
+            base64: 'VGhpcyBpcyBhIGJhc2U2NCBzdHJpbmc=',
+          },
+        ],
+      }
+
+      const result = redactApiKeys(obj)
+
+      // Exposed fields should be present
+      expect(result.processedFiles[0].id).toBe('file-123')
+      expect(result.processedFiles[0].name).toBe('document.pdf')
+      expect(result.processedFiles[0].url).toBe('http://localhost/api/files/serve/...')
+      expect(result.processedFiles[0].size).toBe(12345)
+      expect(result.processedFiles[0].type).toBe('application/pdf')
+      expect(result.processedFiles[0].base64).toBe('[TRUNCATED]')
+
+      // Internal fields should be filtered out
+      expect(result.processedFiles[0]).not.toHaveProperty('key')
+      expect(result.processedFiles[0]).not.toHaveProperty('context')
     })
   })
 

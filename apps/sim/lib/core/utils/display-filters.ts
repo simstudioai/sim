@@ -1,3 +1,5 @@
+import { filterUserFileForDisplay, isUserFile } from '@/lib/core/utils/user-file'
+
 const MAX_STRING_LENGTH = 15000
 const MAX_DEPTH = 50
 
@@ -8,32 +10,9 @@ function truncateString(value: string, maxLength = MAX_STRING_LENGTH): string {
   return `${value.substring(0, maxLength)}... [truncated ${value.length - maxLength} chars]`
 }
 
-export function isUserFile(candidate: unknown): candidate is {
-  id: string
-  name: string
-  url: string
-  key: string
-  size: number
-  type: string
-  context?: string
-} {
-  if (!candidate || typeof candidate !== 'object') {
-    return false
-  }
-
-  const value = candidate as Record<string, unknown>
-  return (
-    typeof value.id === 'string' &&
-    typeof value.key === 'string' &&
-    typeof value.url === 'string' &&
-    typeof value.name === 'string'
-  )
-}
-
 function filterUserFile(data: any): any {
   if (isUserFile(data)) {
-    const { id, name, url, size, type } = data
-    return { id, name, url, size, type }
+    return filterUserFileForDisplay(data)
   }
   return data
 }

@@ -751,6 +751,8 @@ export class PauseResumeManager {
       callbacks: {},
       loggingSession,
       skipLogCreation: true, // Reuse existing log entry
+      includeFileBase64: true, // Enable base64 hydration
+      base64MaxBytes: undefined, // Use default limit
     })
   }
 

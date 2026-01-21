@@ -1,4 +1,4 @@
-import { isUserFile } from '@/lib/core/utils/display-filters'
+import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import {
   classifyStartBlockType,
   getLegacyStarterMode,
@@ -234,7 +234,7 @@ function getFilesFromWorkflowInput(workflowInput: unknown): UserFile[] | undefin
     return undefined
   }
   const files = workflowInput.files
-  if (Array.isArray(files) && files.every(isUserFile)) {
+  if (Array.isArray(files) && files.every(isUserFileWithMetadata)) {
     return files
   }
   return undefined

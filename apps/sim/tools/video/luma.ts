@@ -60,7 +60,7 @@ export const lumaVideoTool: ToolConfig<VideoParams, VideoResponse> = {
   },
 
   request: {
-    url: '/api/proxy/video',
+    url: '/api/tools/video',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

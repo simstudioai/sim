@@ -3,7 +3,11 @@ import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createPinnedUrl, validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import {
+  type SecureFetchResponse,
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation'
 import type { DbOrTx } from '@/lib/db/types'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -98,7 +102,7 @@ async function fetchWithDNSPinning(
   url: string,
   accessToken: string,
   requestId: string
-): Promise<Response | null> {
+): Promise<SecureFetchResponse | null> {
   try {
     const urlValidation = await validateUrlWithDNS(url, 'contentUrl')
     if (!urlValidation.isValid) {
@@ -108,19 +112,14 @@ async function fetchWithDNSPinning(
       return null
     }
 
-    const pinnedUrl = createPinnedUrl(url, urlValidation.resolvedIP!)
-
-    const headers: Record<string, string> = {
-      Host: urlValidation.originalHostname!,
-    }
+    const headers: Record<string, string> = {}
 
     if (accessToken) {
       headers.Authorization = `Bearer ${accessToken}`
     }
 
-    const response = await fetch(pinnedUrl, {
+    const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, {
       headers,
-      redirect: 'follow',
     })
 
     return response

@@ -17,6 +17,8 @@ export interface ExecuteWorkflowOptions {
   onStream?: (streamingExec: StreamingExecution) => Promise<void>
   onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
   skipLoggingComplete?: boolean
+  includeFileBase64?: boolean
+  base64MaxBytes?: number
 }
 
 export interface WorkflowInfo {
@@ -78,6 +80,8 @@ export async function executeWorkflow(
           : undefined,
       },
       loggingSession,
+      includeFileBase64: streamConfig?.includeFileBase64,
+      base64MaxBytes: streamConfig?.base64MaxBytes,
     })
 
     if (result.status === 'paused') {

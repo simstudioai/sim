@@ -214,40 +214,18 @@ const getOutputTypeForPath = (
   outputPath: string,
   mergedSubBlocksOverride?: Record<string, any>
 ): string => {
-  if (block?.triggerMode && blockConfig?.triggers?.enabled) {
-    return getBlockOutputType(block.type, outputPath, mergedSubBlocksOverride, true)
-  }
-  if (block?.type === 'starter') {
-    const startWorkflowValue =
-      mergedSubBlocksOverride?.startWorkflow?.value ?? getSubBlockValue(blockId, 'startWorkflow')
+  const subBlocks =
+    mergedSubBlocksOverride ?? useWorkflowStore.getState().blocks[blockId]?.subBlocks
+  const triggerMode = block?.triggerMode && blockConfig?.triggers?.enabled
 
-    if (startWorkflowValue === 'chat') {
-      const chatModeTypes: Record<string, string> = {
-        input: 'string',
-        conversationId: 'string',
-        files: 'files',
-      }
-      return chatModeTypes[outputPath] || 'any'
-    }
-    const inputFormatValue =
-      mergedSubBlocksOverride?.inputFormat?.value ?? getSubBlockValue(blockId, 'inputFormat')
-    if (inputFormatValue && Array.isArray(inputFormatValue)) {
-      const field = inputFormatValue.find(
-        (f: { name?: string; type?: string }) => f.name === outputPath
-      )
-      if (field?.type) return field.type
-    }
-  } else if (blockConfig?.category === 'triggers') {
-    const blockState = useWorkflowStore.getState().blocks[blockId]
-    const subBlocks = mergedSubBlocksOverride ?? (blockState?.subBlocks || {})
-    return getBlockOutputType(block.type, outputPath, subBlocks)
-  } else {
+  if (blockConfig?.tools?.config?.tool) {
     const operationValue = getSubBlockValue(blockId, 'operation')
-    if (blockConfig && operationValue) {
+    if (operationValue) {
       return getToolOutputType(blockConfig, operationValue, outputPath)
     }
   }
-  return 'any'
+
+  return getBlockOutputType(block?.type ?? '', outputPath, subBlocks, triggerMode)
 }
 
 /**
@@ -1789,7 +1767,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           mergedSubBlocks
         )
 
-        if (fieldType === 'files' || fieldType === 'array') {
+        if (fieldType === 'files' || fieldType === 'file[]' || fieldType === 'array') {
           const blockName = parts[0]
           const remainingPath = parts.slice(2).join('.')
           processedTag = `${blockName}.${arrayFieldName}[0].${remainingPath}`
