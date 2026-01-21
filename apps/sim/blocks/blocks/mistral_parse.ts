@@ -165,7 +165,7 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
       title: 'PDF Document',
       type: 'short-input' as SubBlockType,
       canonicalParamId: 'document',
-      placeholder: 'Document URL or reference from previous block',
+      placeholder: 'Document URL',
       mode: 'advanced',
     },
     {

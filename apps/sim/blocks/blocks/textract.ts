@@ -15,20 +15,22 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   subBlocks: [
     {
       id: 'processingMode',
-      title: 'Document Type',
+      title: 'Processing Mode',
       type: 'dropdown' as SubBlockType,
       options: [
-        { id: 'sync', label: 'Single Page' },
-        { id: 'async', label: 'Multi-Page' },
+        { id: 'sync', label: 'Single Page (JPEG, PNG, 1-page PDF)' },
+        { id: 'async', label: 'Multi-Page (PDF, TIFF via S3)' },
       ],
+      tooltip:
+        'Single Page uses synchronous API for JPEG, PNG, or single-page PDF. Multi-Page uses async API for multi-page PDF/TIFF stored in S3.',
     },
     {
       id: 'fileUpload',
       title: 'Document',
       type: 'file-upload' as SubBlockType,
       canonicalParamId: 'document',
-      acceptedTypes: 'application/pdf,image/jpeg,image/png,image/tiff',
-      placeholder: 'Upload a document',
+      acceptedTypes: 'image/jpeg,image/png,application/pdf',
+      placeholder: 'Upload JPEG, PNG, or single-page PDF (max 10MB)',
       condition: {
         field: 'processingMode',
         value: 'async',
@@ -42,7 +44,7 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
       title: 'Document',
       type: 'short-input' as SubBlockType,
       canonicalParamId: 'document',
-      placeholder: 'Document URL or reference from previous block',
+      placeholder: 'URL to JPEG, PNG, or single-page PDF',
       condition: {
         field: 'processingMode',
         value: 'async',

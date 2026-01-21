@@ -242,7 +242,6 @@ const getOutputTypeForPath = (
     const subBlocks = mergedSubBlocksOverride ?? (blockState?.subBlocks || {})
     return getBlockOutputType(block.type, outputPath, subBlocks)
   } else if (blockConfig) {
-    // Pass full subBlocks to support tool selectors that use any field (operation, provider, etc.)
     const blockState = useWorkflowStore.getState().blocks[blockId]
     const subBlocks = mergedSubBlocksOverride ?? (blockState?.subBlocks || {})
     return getToolOutputType(blockConfig, subBlocks, outputPath)
@@ -1211,7 +1210,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               : allTags
           }
         } else {
-          // Pass full subBlocks to support tool selectors that use any field (operation, provider, etc.)
           const toolOutputPaths = getToolOutputPaths(blockConfig, mergedSubBlocks)
 
           if (toolOutputPaths.length > 0) {

@@ -129,10 +129,6 @@ export function OutputSelect({
           ? baselineWorkflow.blocks?.[block.id]?.subBlocks?.responseFormat?.value
           : subBlockValues?.[block.id]?.responseFormat
       const responseFormat = parseResponseFormatSafely(responseFormatValue, block.id)
-      const operationValue =
-        shouldUseBaseline && baselineWorkflow
-          ? baselineWorkflow.blocks?.[block.id]?.subBlocks?.operation?.value
-          : subBlockValues?.[block.id]?.operation
 
       let outputsToProcess: Record<string, unknown> = {}
 

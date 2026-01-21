@@ -496,7 +496,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { bytes } = await fetchDocumentBytes(fileUrl)
+    const { bytes, contentType } = await fetchDocumentBytes(fileUrl)
+
+    // Track if this is a PDF for better error messaging
+    const isPdf = contentType.includes('pdf') || fileUrl.toLowerCase().endsWith('.pdf')
 
     const uri = '/'
 
@@ -559,6 +562,7 @@ export async function POST(request: NextRequest) {
       logger.error(`[${requestId}] Textract API error:`, errorText)
 
       let errorMessage = `Textract API error: ${textractResponse.statusText}`
+      let isUnsupportedFormat = false
       try {
         const errorJson = JSON.parse(errorText)
         if (errorJson.Message) {
@@ -566,8 +570,19 @@ export async function POST(request: NextRequest) {
         } else if (errorJson.__type) {
           errorMessage = `${errorJson.__type}: ${errorJson.message || errorText}`
         }
+        // Check for unsupported document format error
+        isUnsupportedFormat =
+          errorJson.__type === 'UnsupportedDocumentException' ||
+          errorJson.Message?.toLowerCase().includes('unsupported document') ||
+          errorText.toLowerCase().includes('unsupported document')
       } catch {
-        // Use default error message
+        isUnsupportedFormat = errorText.toLowerCase().includes('unsupported document')
+      }
+
+      // Provide helpful message for unsupported format (likely multi-page PDF)
+      if (isUnsupportedFormat && isPdf) {
+        errorMessage =
+          'This document format is not supported in Single Page mode. If this is a multi-page PDF, please use "Multi-Page (PDF, TIFF via S3)" mode instead, which requires uploading your document to S3 first. Single Page mode only supports JPEG, PNG, and single-page PDF files.'
       }
 
       return NextResponse.json(

@@ -29,7 +29,7 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
       title: 'Document',
       type: 'short-input' as SubBlockType,
       canonicalParamId: 'document',
-      placeholder: 'Document URL or reference from previous block',
+      placeholder: 'Document URL',
       mode: 'advanced',
     },
     {

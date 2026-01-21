@@ -150,7 +150,7 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
       title: 'Files',
       type: 'short-input' as SubBlockType,
       canonicalParamId: 'fileInput',
-      placeholder: 'File URL or reference from previous block',
+      placeholder: 'File URL',
       mode: 'advanced',
     },
   ],
