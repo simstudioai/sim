@@ -217,6 +217,7 @@ export default function LoginPage({
 
             // EMAIL_NOT_VERIFIED is handled by the catch block which redirects to /verify
             if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {
+              errorHandled = true
               return
             }
 
