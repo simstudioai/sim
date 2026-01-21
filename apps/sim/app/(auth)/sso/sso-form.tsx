@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 import { client } from '@/lib/auth/auth-client'
 import { env, isFalsy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
@@ -57,7 +58,7 @@ export default function SSOForm() {
   const [email, setEmail] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
-  const [buttonClass, setButtonClass] = useState('branded-button-gradient')
+  const buttonClass = useBrandedButtonClass()
   const [callbackUrl, setCallbackUrl] = useState('/workspace')
 
   useEffect(() => {
@@ -89,31 +90,6 @@ export default function SSOForm() {
         setEmailErrors([errorMessages[error] || 'SSO authentication failed. Please try again.'])
         setShowEmailValidationError(true)
       }
-    }
-
-    const checkCustomBrand = () => {
-      const computedStyle = getComputedStyle(document.documentElement)
-      const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
-
-      if (brandAccent && brandAccent !== '#6f3dfa') {
-        setButtonClass('branded-button-custom')
-      } else {
-        setButtonClass('branded-button-gradient')
-      }
-    }
-
-    checkCustomBrand()
-
-    window.addEventListener('resize', checkCustomBrand)
-    const observer = new MutationObserver(checkCustomBrand)
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['style', 'class'],
-    })
-
-    return () => {
-      window.removeEventListener('resize', checkCustomBrand)
-      observer.disconnect()
     }
   }, [searchParams])
 
