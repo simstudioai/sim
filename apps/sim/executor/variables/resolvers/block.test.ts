@@ -6,6 +6,10 @@ import type { ResolutionContext } from './reference'
 
 vi.mock('@sim/logger', () => loggerMock)
 
+vi.mock('@/lib/workflows/blocks/block-outputs', () => ({
+  getBlockOutputs: vi.fn(() => ({})),
+}))
+
 function createTestWorkflow(
   blocks: Array<{
     id: string
@@ -140,16 +144,21 @@ describe('BlockResolver', () => {
       expect(resolver.resolve('<source.nonexistent>', ctx)).toBeUndefined()
     })
 
-    it.concurrent('should throw error for path not in output schema', () => {
+    it.concurrent('should throw error for path not in output schema', async () => {
+      const { getBlockOutputs } = await import('@/lib/workflows/blocks/block-outputs')
+      const mockGetBlockOutputs = vi.mocked(getBlockOutputs)
+      const customOutputs = {
+        validField: { type: 'string', description: 'A valid field' },
+        nested: {
+          child: { type: 'number', description: 'Nested child' },
+        },
+      }
+      mockGetBlockOutputs.mockReturnValue(customOutputs as any)
+
       const workflow = createTestWorkflow([
         {
           id: 'source',
-          outputs: {
-            validField: { type: 'string', description: 'A valid field' },
-            nested: {
-              child: { type: 'number', description: 'Nested child' },
-            },
-          },
+          outputs: customOutputs,
         },
       ])
       const resolver = new BlockResolver(workflow)
@@ -161,6 +170,8 @@ describe('BlockResolver', () => {
         /"invalidField" doesn't exist on block "source"/
       )
       expect(() => resolver.resolve('<source.invalidField>', ctx)).toThrow(/Available fields:/)
+
+      mockGetBlockOutputs.mockReturnValue({})
     })
 
     it.concurrent('should return undefined for path in schema but missing in data', () => {
@@ -295,45 +306,6 @@ describe('BlockResolver', () => {
       const resolver = new BlockResolver(createTestWorkflow())
       expect(resolver.formatValueForBlock('text', undefined)).toBe('text')
       expect(resolver.formatValueForBlock(123, undefined)).toBe('123')
-    })
-  })
-
-  describe('tryParseJSON', () => {
-    it.concurrent('should parse valid JSON object string', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.tryParseJSON('{"key": "value"}')).toEqual({ key: 'value' })
-    })
-
-    it.concurrent('should parse valid JSON array string', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.tryParseJSON('[1, 2, 3]')).toEqual([1, 2, 3])
-    })
-
-    it.concurrent('should return original value for non-string input', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      const obj = { key: 'value' }
-      expect(resolver.tryParseJSON(obj)).toBe(obj)
-      expect(resolver.tryParseJSON(123)).toBe(123)
-      expect(resolver.tryParseJSON(null)).toBe(null)
-    })
-
-    it.concurrent('should return original string for non-JSON strings', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.tryParseJSON('plain text')).toBe('plain text')
-      expect(resolver.tryParseJSON('123')).toBe('123')
-      expect(resolver.tryParseJSON('')).toBe('')
-    })
-
-    it.concurrent('should return original string for invalid JSON', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.tryParseJSON('{invalid json}')).toBe('{invalid json}')
-      expect(resolver.tryParseJSON('[1, 2,')).toBe('[1, 2,')
-    })
-
-    it.concurrent('should handle whitespace around JSON', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.tryParseJSON('  {"key": "value"}  ')).toEqual({ key: 'value' })
-      expect(resolver.tryParseJSON('\n[1, 2]\n')).toEqual([1, 2])
     })
   })
 

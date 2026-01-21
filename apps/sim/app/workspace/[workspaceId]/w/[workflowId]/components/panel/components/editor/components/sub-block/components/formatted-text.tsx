@@ -2,9 +2,8 @@
 
 import type { ReactNode } from 'react'
 import { splitReferenceSegment } from '@/lib/workflows/sanitization/references'
-import { REFERENCE } from '@/executor/constants'
+import { normalizeName, REFERENCE } from '@/executor/constants'
 import { createCombinedPattern } from '@/executor/utils/reference-validation'
-import { normalizeName } from '@/stores/workflows/utils'
 
 export interface HighlightContext {
   accessiblePrefixes?: Set<string>

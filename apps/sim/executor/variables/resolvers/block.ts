@@ -1,3 +1,4 @@
+import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { USER_FILE_ACCESSIBLE_PROPERTIES } from '@/lib/workflows/types'
 import {
   isReference,
@@ -229,9 +230,15 @@ export class BlockResolver implements Resolver {
       }
     }
 
+    const blockType = block?.metadata?.id
+    const params = block?.config?.params as Record<string, unknown> | undefined
+    const subBlocks = params
+      ? Object.fromEntries(Object.entries(params).map(([k, v]) => [k, { value: v }]))
+      : undefined
     const toolId = block?.config?.tool
     const toolConfig = toolId ? getTool(toolId) : undefined
-    const outputSchema = toolConfig?.outputs ?? block?.outputs
+    const outputSchema =
+      toolConfig?.outputs ?? (blockType ? getBlockOutputs(blockType, subBlocks) : block?.outputs)
     const schemaFields = getSchemaFieldNames(outputSchema)
     if (schemaFields.length > 0 && !isPathInOutputSchema(outputSchema, pathParts)) {
       throw new Error(
@@ -335,22 +342,5 @@ export class BlockResolver implements Resolver {
       return 'null'
     }
     return String(value)
-  }
-
-  tryParseJSON(value: any): any {
-    if (typeof value !== 'string') {
-      return value
-    }
-
-    const trimmed = value.trim()
-    if (trimmed.length > 0 && (trimmed.startsWith('{') || trimmed.startsWith('['))) {
-      try {
-        return JSON.parse(trimmed)
-      } catch {
-        return value
-      }
-    }
-
-    return value
   }
 }
