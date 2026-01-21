@@ -179,22 +179,6 @@ export function CanvasMenu({
         >
           {isChatOpen ? 'Close Chat' : 'Open Chat'}
         </PopoverItem>
-
-        {/* Admin action - hidden when invitations are disabled */}
-        {!isInvitationsDisabled && (
-          <>
-            <PopoverDivider />
-            <PopoverItem
-              disabled={disableAdmin}
-              onClick={() => {
-                onInvite()
-                onClose()
-              }}
-            >
-              Invite to Workspace
-            </PopoverItem>
-          </>
-        )}
       </PopoverContent>
     </Popover>
   )
