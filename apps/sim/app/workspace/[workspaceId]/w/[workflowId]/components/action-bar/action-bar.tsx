@@ -6,8 +6,6 @@ import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definit
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { getUniqueBlockName, prepareDuplicateBlockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const DEFAULT_DUPLICATE_OFFSET = { x: 50, y: 50 }
@@ -48,29 +46,25 @@ export const ActionBar = memo(
       collaborativeBatchToggleBlockEnabled,
       collaborativeBatchToggleBlockHandles,
     } = useCollaborativeWorkflow()
-    const { activeWorkflowId, setPendingSelection } = useWorkflowRegistry()
+    const { setPendingSelection } = useWorkflowRegistry()
 
     const handleDuplicateBlock = useCallback(() => {
-      const blocks = useWorkflowStore.getState().blocks
-      const sourceBlock = blocks[blockId]
-      if (!sourceBlock) return
+      const { copyBlocks, preparePasteData } = useWorkflowRegistry.getState()
+      copyBlocks([blockId])
 
-      const newId = crypto.randomUUID()
-      const newName = getUniqueBlockName(sourceBlock.name, blocks)
-      const subBlockValues =
-        useSubBlockStore.getState().workflowValues[activeWorkflowId || '']?.[blockId] || {}
+      const pasteData = preparePasteData(DEFAULT_DUPLICATE_OFFSET)
+      if (!pasteData) return
 
-      const { block, subBlockValues: filteredValues } = prepareDuplicateBlockState({
-        sourceBlock,
-        newId,
-        newName,
-        positionOffset: DEFAULT_DUPLICATE_OFFSET,
-        subBlockValues,
-      })
-
-      setPendingSelection([newId])
-      collaborativeBatchAddBlocks([block], [], {}, {}, { [newId]: filteredValues })
-    }, [blockId, activeWorkflowId, collaborativeBatchAddBlocks, setPendingSelection])
+      const blocks = Object.values(pasteData.blocks)
+      setPendingSelection(blocks.map((b) => b.id))
+      collaborativeBatchAddBlocks(
+        blocks,
+        pasteData.edges,
+        pasteData.loops,
+        pasteData.parallels,
+        pasteData.subBlockValues
+      )
+    }, [blockId, collaborativeBatchAddBlocks, setPendingSelection])
 
     const { isEnabled, horizontalHandles, parentId, parentType } = useWorkflowStore(
       useCallback(
