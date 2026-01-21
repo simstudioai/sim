@@ -906,13 +906,13 @@ describe('validateExternalUrl', () => {
     it.concurrent('should reject 127.0.0.1', () => {
       const result = validateExternalUrl('https://127.0.0.1/api')
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('localhost')
+      expect(result.error).toContain('private IP')
     })
 
     it.concurrent('should reject 0.0.0.0', () => {
       const result = validateExternalUrl('https://0.0.0.0/api')
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('localhost')
+      expect(result.error).toContain('private IP')
     })
   })
 

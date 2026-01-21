@@ -2,6 +2,7 @@ import dns from 'dns/promises'
 import http from 'http'
 import https from 'https'
 import { createLogger } from '@sim/logger'
+import * as ipaddr from 'ipaddr.js'
 
 const logger = createLogger('InputValidation')
 
@@ -404,42 +405,20 @@ export function validateHostname(
     }
   }
 
-  // Import the blocked IP ranges from url-validation
-  const BLOCKED_IP_RANGES = [
-    // Private IPv4 ranges (RFC 1918)
-    /^10\./,
-    /^172\.(1[6-9]|2[0-9]|3[01])\./,
-    /^192\.168\./,
-
-    // Loopback addresses
-    /^127\./,
-    /^localhost$/i,
-
-    // Link-local addresses (RFC 3927)
-    /^169\.254\./,
-
-    // Cloud metadata endpoints
-    /^169\.254\.169\.254$/,
-
-    // Broadcast and other reserved ranges
-    /^0\./,
-    /^224\./,
-    /^240\./,
-    /^255\./,
-
-    // IPv6 loopback and link-local
-    /^::1$/,
-    /^fe80:/i,
-    /^::ffff:127\./i,
-    /^::ffff:10\./i,
-    /^::ffff:172\.(1[6-9]|2[0-9]|3[01])\./i,
-    /^::ffff:192\.168\./i,
-  ]
-
   const lowerHostname = hostname.toLowerCase()
 
-  for (const pattern of BLOCKED_IP_RANGES) {
-    if (pattern.test(lowerHostname)) {
+  // Block localhost
+  if (lowerHostname === 'localhost') {
+    logger.warn('Hostname is localhost', { paramName })
+    return {
+      isValid: false,
+      error: `${paramName} cannot be a private IP address or localhost`,
+    }
+  }
+
+  // Use ipaddr.js to check if hostname is an IP and if it's private/reserved
+  if (ipaddr.isValid(lowerHostname)) {
+    if (isPrivateOrReservedIP(lowerHostname)) {
       logger.warn('Hostname matches blocked IP range', {
         paramName,
         hostname: hostname.substring(0, 100),
@@ -712,33 +691,17 @@ export function validateExternalUrl(
   // Block private IP ranges and localhost
   const hostname = parsedUrl.hostname.toLowerCase()
 
-  // Block localhost variations
-  if (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname === '::1' ||
-    hostname.startsWith('127.') ||
-    hostname === '0.0.0.0'
-  ) {
+  // Block localhost
+  if (hostname === 'localhost') {
     return {
       isValid: false,
       error: `${paramName} cannot point to localhost`,
     }
   }
 
-  // Block private IP ranges
-  const privateIpPatterns = [
-    /^10\./,
-    /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
-    /^192\.168\./,
-    /^169\.254\./, // Link-local
-    /^fe80:/i, // IPv6 link-local
-    /^fc00:/i, // IPv6 unique local
-    /^fd00:/i, // IPv6 unique local
-  ]
-
-  for (const pattern of privateIpPatterns) {
-    if (pattern.test(hostname)) {
+  // Use ipaddr.js to check if hostname is an IP and if it's private/reserved
+  if (ipaddr.isValid(hostname)) {
+    if (isPrivateOrReservedIP(hostname)) {
       return {
         isValid: false,
         error: `${paramName} cannot point to private IP addresses`,
@@ -793,30 +756,25 @@ export function validateProxyUrl(
 
 /**
  * Checks if an IP address is private or reserved (not routable on the public internet)
+ * Uses ipaddr.js for robust handling of all IP formats including:
+ * - Octal notation (0177.0.0.1)
+ * - Hex notation (0x7f000001)
+ * - IPv4-mapped IPv6 (::ffff:127.0.0.1)
+ * - Various edge cases that regex patterns miss
  */
 function isPrivateOrReservedIP(ip: string): boolean {
-  const patterns = [
-    /^127\./, // Loopback
-    /^10\./, // Private Class A
-    /^172\.(1[6-9]|2[0-9]|3[0-1])\./, // Private Class B
-    /^192\.168\./, // Private Class C
-    /^169\.254\./, // Link-local
-    /^0\./, // Current network
-    /^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./, // Carrier-grade NAT
-    /^192\.0\.0\./, // IETF Protocol Assignments
-    /^192\.0\.2\./, // TEST-NET-1
-    /^198\.51\.100\./, // TEST-NET-2
-    /^203\.0\.113\./, // TEST-NET-3
-    /^224\./, // Multicast
-    /^240\./, // Reserved
-    /^255\./, // Broadcast
-    /^::1$/, // IPv6 loopback
-    /^fe80:/i, // IPv6 link-local
-    /^fc00:/i, // IPv6 unique local
-    /^fd00:/i, // IPv6 unique local
-    /^::ffff:(127\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|169\.254\.)/i, // IPv4-mapped IPv6
-  ]
-  return patterns.some((pattern) => pattern.test(ip))
+  try {
+    if (!ipaddr.isValid(ip)) {
+      return true
+    }
+
+    const addr = ipaddr.process(ip)
+    const range = addr.range()
+
+    return range !== 'unicast'
+  } catch {
+    return true
+  }
 }
 
 /**
