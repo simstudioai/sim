@@ -63,6 +63,8 @@ export interface CopilotMessage {
   fileAttachments?: MessageFileAttachment[]
   contexts?: ChatContext[]
   errorType?: 'usage_limit' | 'unauthorized' | 'forbidden' | 'rate_limit' | 'upgrade_required'
+  /** Whether this message is currently being streamed */
+  isStreaming?: boolean
 }
 
 /**
@@ -234,6 +236,9 @@ export interface CopilotActions {
   addAutoAllowedTool: (toolId: string) => Promise<void>
   removeAutoAllowedTool: (toolId: string) => Promise<void>
   isToolAutoAllowed: (toolId: string) => boolean
+
+  // Stream resumption
+  attemptStreamResumption: () => Promise<boolean>
 
   // Message queue actions
   addToQueue: (

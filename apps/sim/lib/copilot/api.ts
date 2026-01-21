@@ -98,6 +98,8 @@ export interface ApiResponse {
  */
 export interface StreamingResponse extends ApiResponse {
   stream?: ReadableStream
+  streamId?: string
+  chatId?: string
 }
 
 /**
@@ -163,9 +165,15 @@ export async function sendStreamingMessage(
       }
     }
 
+    // Extract stream and chat IDs from headers for resumption support
+    const streamId = response.headers.get('X-Stream-Id') || undefined
+    const chatId = response.headers.get('X-Chat-Id') || undefined
+
     return {
       success: true,
       stream: response.body,
+      streamId,
+      chatId,
     }
   } catch (error) {
     // Handle AbortError gracefully - this is expected when user aborts

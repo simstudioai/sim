@@ -2708,6 +2708,16 @@ export const useCopilotStore = create<CopilotStore>()(
         })
 
         if (result.success && result.stream) {
+          // Store stream ID for potential resumption on disconnect
+          if (result.streamId) {
+            const { storeActiveStream } = await import('@/lib/copilot/stream-client')
+            storeActiveStream(
+              result.chatId || currentChat?.id || '',
+              result.streamId,
+              streamingMessage.id
+            )
+          }
+
           await get().handleStreamingResponse(
             result.stream,
             streamingMessage.id,
@@ -2715,6 +2725,12 @@ export const useCopilotStore = create<CopilotStore>()(
             userMessage.id
           )
           set({ chatsLastLoadedAt: null, chatsLoadedForWorkflow: null })
+
+          // Clear stream storage on successful completion
+          if (result.streamId) {
+            const { clearStoredActiveStream } = await import('@/lib/copilot/stream-client')
+            clearStoredActiveStream()
+          }
         } else {
           if (result.error === 'Request was aborted') {
             return
@@ -3851,6 +3867,68 @@ export const useCopilotStore = create<CopilotStore>()(
     isToolAutoAllowed: (toolId: string) => {
       const { autoAllowedTools } = get()
       return autoAllowedTools.includes(toolId)
+    },
+
+    // Stream resumption
+    attemptStreamResumption: async () => {
+      const { isSendingMessage } = get()
+      if (isSendingMessage) {
+        logger.info('[Stream] Cannot attempt resumption while already sending')
+        return false
+      }
+
+      try {
+        const { attemptStreamResumption, clearStoredActiveStream } = await import(
+          '@/lib/copilot/stream-client'
+        )
+
+        const resumption = await attemptStreamResumption()
+        if (!resumption) {
+          return false
+        }
+
+        const { stream, metadata } = resumption
+
+        logger.info('[Stream] Resuming stream', {
+          streamId: metadata.streamId,
+          chatId: metadata.chatId,
+        })
+
+        // Find or create the assistant message for this stream
+        const { messages } = get()
+        let assistantMessageId = metadata.assistantMessageId
+
+        // If we don't have the assistant message, create a placeholder
+        if (!assistantMessageId || !messages.find((m) => m.id === assistantMessageId)) {
+          assistantMessageId = crypto.randomUUID()
+          const streamingMessage: CopilotMessage = {
+            id: assistantMessageId,
+            role: 'assistant',
+            content: '',
+            timestamp: new Date().toISOString(),
+            isStreaming: true,
+            contentBlocks: [],
+          }
+          set((state) => ({
+            messages: [...state.messages, streamingMessage],
+            isSendingMessage: true,
+          }))
+        }
+
+        // Process the resumed stream
+        await get().handleStreamingResponse(
+          stream,
+          assistantMessageId,
+          true, // This is a continuation
+          metadata.userMessageId
+        )
+
+        clearStoredActiveStream()
+        return true
+      } catch (error) {
+        logger.error('[Stream] Resumption failed', { error })
+        return false
+      }
     },
 
     // Message queue actions
