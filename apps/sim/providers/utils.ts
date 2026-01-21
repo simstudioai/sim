@@ -35,6 +35,51 @@ import { mergeToolParameters } from '@/tools/params'
 const logger = createLogger('ProviderUtils')
 
 /**
+ * Checks if a workflow description is a default/placeholder description
+ */
+function isDefaultWorkflowDescription(
+  description: string | null | undefined,
+  name?: string
+): boolean {
+  if (!description) return true
+  const normalizedDesc = description.toLowerCase().trim()
+  return (
+    description === name ||
+    normalizedDesc === 'new workflow' ||
+    normalizedDesc === 'your first workflow - start building here!'
+  )
+}
+
+/**
+ * Fetches workflow metadata (name and description) from the API
+ */
+async function fetchWorkflowMetadata(
+  workflowId: string
+): Promise<{ name: string; description: string | null } | null> {
+  try {
+    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+
+    const headers = await buildAuthHeaders()
+    const url = buildAPIUrl(`/api/workflows/${workflowId}`)
+
+    const response = await fetch(url.toString(), { headers })
+    if (!response.ok) {
+      logger.warn(`Failed to fetch workflow metadata for ${workflowId}`)
+      return null
+    }
+
+    const { data } = await response.json()
+    return {
+      name: data?.name || 'Workflow',
+      description: data?.description || null,
+    }
+  } catch (error) {
+    logger.error('Error fetching workflow metadata:', error)
+    return null
+  }
+}
+
+/**
  * Client-safe provider metadata.
  * This object contains only model lists and patterns - no executeRequest implementations.
  * For server-side execution, use @/providers/registry.
@@ -479,16 +524,30 @@ export async function transformBlockTool(
   const llmSchema = await createLLMToolSchema(toolConfig, userProvidedParams)
 
   let uniqueToolId = toolConfig.id
+  let toolName = toolConfig.name
+  let toolDescription = toolConfig.description
+
   if (toolId === 'workflow_executor' && userProvidedParams.workflowId) {
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.workflowId}`
+
+    const workflowMetadata = await fetchWorkflowMetadata(userProvidedParams.workflowId)
+    if (workflowMetadata) {
+      toolName = workflowMetadata.name || toolConfig.name
+      if (
+        workflowMetadata.description &&
+        !isDefaultWorkflowDescription(workflowMetadata.description, workflowMetadata.name)
+      ) {
+        toolDescription = workflowMetadata.description
+      }
+    }
   } else if (toolId.startsWith('knowledge_') && userProvidedParams.knowledgeBaseId) {
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.knowledgeBaseId}`
   }
 
   return {
     id: uniqueToolId,
-    name: toolConfig.name,
-    description: toolConfig.description,
+    name: toolName,
+    description: toolDescription,
     params: userProvidedParams,
     parameters: llmSchema,
   }

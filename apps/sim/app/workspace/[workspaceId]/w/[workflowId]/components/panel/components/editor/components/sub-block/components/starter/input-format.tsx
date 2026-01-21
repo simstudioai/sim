@@ -28,6 +28,7 @@ interface Field {
   name: string
   type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files'
   value?: string
+  description?: string
   collapsed?: boolean
 }
 
@@ -41,7 +42,9 @@ interface FieldFormatProps {
   placeholder?: string
   showType?: boolean
   showValue?: boolean
+  showDescription?: boolean
   valuePlaceholder?: string
+  descriptionPlaceholder?: string
   config?: any
 }
 
@@ -73,6 +76,7 @@ const createDefaultField = (): Field => ({
   name: '',
   type: 'string',
   value: '',
+  description: '',
   collapsed: false,
 })
 
@@ -93,7 +97,9 @@ export function FieldFormat({
   placeholder = 'fieldName',
   showType = true,
   showValue = false,
+  showDescription = false,
   valuePlaceholder = 'Enter default value',
+  descriptionPlaceholder = 'Describe this field',
 }: FieldFormatProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<Field[]>(blockId, subBlockId)
   const valueInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement>>({})
@@ -554,6 +560,18 @@ export function FieldFormat({
                 </div>
               )}
 
+              {showDescription && (
+                <div className='flex flex-col gap-[6px]'>
+                  <Label className='text-[13px]'>Description</Label>
+                  <Input
+                    value={field.description ?? ''}
+                    onChange={(e) => updateField(field.id, 'description', e.target.value)}
+                    placeholder={descriptionPlaceholder}
+                    disabled={isReadOnly}
+                  />
+                </div>
+              )}
+
               {showValue && (
                 <div className='flex flex-col gap-[6px]'>
                   <Label className='text-[13px]'>Value</Label>
@@ -568,8 +586,10 @@ export function FieldFormat({
   )
 }
 
-export function InputFormat(props: Omit<FieldFormatProps, 'title' | 'placeholder'>) {
-  return <FieldFormat {...props} title='Input' placeholder='firstName' />
+export function InputFormat(
+  props: Omit<FieldFormatProps, 'title' | 'placeholder' | 'showDescription'>
+) {
+  return <FieldFormat {...props} title='Input' placeholder='firstName' showDescription={true} />
 }
 
 export function ResponseFormat(
