@@ -1,3 +1,4 @@
+import type { LookupAddress, LookupOptions } from 'dns'
 import dns from 'dns/promises'
 import http from 'http'
 import https from 'https'
@@ -907,26 +908,37 @@ export async function secureFetchWithPinnedIP(
     const isIPv6 = resolvedIP.includes(':')
     const family = isIPv6 ? 6 : 4
 
-    const agentOptions = {
+    const agentOptions: http.AgentOptions = {
       lookup: (
         _hostname: string,
-        _options: unknown,
-        callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void
+        options: LookupOptions,
+        callback: (
+          err: NodeJS.ErrnoException | null,
+          address: string | LookupAddress[],
+          family?: number
+        ) => void
       ) => {
-        callback(null, resolvedIP, family)
+        if (options.all) {
+          callback(null, [{ address: resolvedIP, family }])
+        } else {
+          callback(null, resolvedIP, family)
+        }
       },
     }
 
-    const agent = isHttps
-      ? new https.Agent(agentOptions as https.AgentOptions)
-      : new http.Agent(agentOptions as http.AgentOptions)
+    const agent = isHttps ? new https.Agent(agentOptions) : new http.Agent(agentOptions)
+
+    // Remove accept-encoding since Node.js http/https doesn't auto-decompress
+    // Headers are lowercase due to Web Headers API normalization in executeToolRequest
+    const sanitizedHeaders = { ...options.headers }
+    sanitizedHeaders['accept-encoding'] = undefined
 
     const requestOptions: http.RequestOptions = {
       hostname: parsed.hostname,
       port,
       path: parsed.pathname + parsed.search,
       method: options.method || 'GET',
-      headers: options.headers || {},
+      headers: sanitizedHeaders,
       agent,
       timeout: options.timeout || 30000,
     }
