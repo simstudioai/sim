@@ -142,7 +142,7 @@ export const ActionBar = memo(
           </Tooltip.Root>
         )}
 
-        {!isStartBlock && !isResponseBlock && !isSubflowBlock && (
+        {!isStartBlock && !isResponseBlock && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
