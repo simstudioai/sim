@@ -4,7 +4,9 @@ import { Button, Copy, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { validateTriggerPaste } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useNotificationStore } from '@/stores/notifications'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -48,14 +50,27 @@ export const ActionBar = memo(
     } = useCollaborativeWorkflow()
     const { setPendingSelection } = useWorkflowRegistry()
 
+    const addNotification = useNotificationStore((s) => s.addNotification)
+
     const handleDuplicateBlock = useCallback(() => {
-      const { copyBlocks, preparePasteData } = useWorkflowRegistry.getState()
+      const { copyBlocks, preparePasteData, activeWorkflowId } = useWorkflowRegistry.getState()
+      const existingBlocks = useWorkflowStore.getState().blocks
       copyBlocks([blockId])
 
       const pasteData = preparePasteData(DEFAULT_DUPLICATE_OFFSET)
       if (!pasteData) return
 
       const blocks = Object.values(pasteData.blocks)
+      const validation = validateTriggerPaste(blocks, existingBlocks, 'duplicate')
+      if (!validation.isValid) {
+        addNotification({
+          level: 'error',
+          message: validation.message!,
+          workflowId: activeWorkflowId || undefined,
+        })
+        return
+      }
+
       setPendingSelection(blocks.map((b) => b.id))
       collaborativeBatchAddBlocks(
         blocks,
@@ -64,7 +79,7 @@ export const ActionBar = memo(
         pasteData.parallels,
         pasteData.subBlockValues
       )
-    }, [blockId, collaborativeBatchAddBlocks, setPendingSelection])
+    }, [blockId, addNotification, collaborativeBatchAddBlocks, setPendingSelection])
 
     const { isEnabled, horizontalHandles, parentId, parentType } = useWorkflowStore(
       useCallback(
