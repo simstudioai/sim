@@ -930,8 +930,7 @@ export async function secureFetchWithPinnedIP(
 
     // Remove accept-encoding since Node.js http/https doesn't auto-decompress
     // Headers are lowercase due to Web Headers API normalization in executeToolRequest
-    const sanitizedHeaders = { ...options.headers }
-    sanitizedHeaders['accept-encoding'] = undefined
+    const { 'accept-encoding': _, ...sanitizedHeaders } = options.headers ?? {}
 
     const requestOptions: http.RequestOptions = {
       hostname: parsed.hostname,
