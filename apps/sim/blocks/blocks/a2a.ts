@@ -216,7 +216,8 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
       tool: (params) => params.operation as string,
       params: (params) => {
         const { fileUpload, fileReference, ...rest } = params
-        const files = fileUpload || fileReference
+        const hasFileUpload = Array.isArray(fileUpload) ? fileUpload.length > 0 : !!fileUpload
+        const files = hasFileUpload ? fileUpload : fileReference
         return {
           ...rest,
           ...(files ? { files } : {}),
