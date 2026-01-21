@@ -77,7 +77,10 @@ app:
     # Node environment
     NODE_ENV: "production"
     NEXT_TELEMETRY_DISABLED: "1"
-    
+
+    # Telemetry & Monitoring
+    TELEMETRY_ENDPOINT: ""                                # OTLP endpoint for traces/logs (e.g., "https://otlp-collector:4318/v1/traces")
+
     # Authentication and encryption secrets (REQUIRED for production)
     # Generate secure 32-character secrets using: openssl rand -hex 32
     BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
@@ -101,8 +104,12 @@ app:
     # OAuth Integration Credentials (leave empty if not using)
     GOOGLE_CLIENT_ID: ""                                  # Google OAuth client ID
     GOOGLE_CLIENT_SECRET: ""                              # Google OAuth client secret
-    GITHUB_CLIENT_ID: ""                                  # GitHub OAuth client ID  
+    GITHUB_CLIENT_ID: ""                                  # GitHub OAuth client ID
     GITHUB_CLIENT_SECRET: ""                              # GitHub OAuth client secret
+
+    # Google Vertex AI Configuration
+    VERTEX_PROJECT: ""                                    # Google Cloud project ID for Vertex AI
+    VERTEX_LOCATION: "us-central1"                        # Google Cloud region for Vertex AI (e.g., "us-central1")
     
     # AI Provider API Keys (leave empty if not using)
     OPENAI_API_KEY: ""                                    # Primary OpenAI API key
@@ -142,6 +149,15 @@ app:
     # Access Control (leave empty if not restricting login)
     ALLOWED_LOGIN_EMAILS: ""                             # Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS: ""                            # Comma-separated list of allowed email domains for login
+
+    # Admin API Configuration
+    ADMIN_API_KEY: ""                                    # Admin API key for organization/user management (generate with: openssl rand -hex 32)
+
+    # Organizations & Permission Groups
+    ACCESS_CONTROL_ENABLED: "false"                      # Enable permission groups feature ("true" to enable)
+    ORGANIZATIONS_ENABLED: "false"                       # Enable organizations feature ("true" to enable)
+    NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: "false"          # Show permission groups UI ("true" to enable)
+    NEXT_PUBLIC_ORGANIZATIONS_ENABLED: "false"           # Show organizations UI ("true" to enable)
 
     # LLM Provider/Model Restrictions (leave empty if not restricting)
     BLACKLISTED_PROVIDERS: ""                            # Comma-separated provider IDs to hide from UI (e.g., "openai,anthropic,google")
