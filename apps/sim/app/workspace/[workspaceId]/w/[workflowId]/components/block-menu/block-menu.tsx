@@ -8,7 +8,7 @@ import {
   PopoverDivider,
   PopoverItem,
 } from '@/components/emcn'
-import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 
 /**
  * Block information for context menu actions
@@ -74,12 +74,16 @@ export function BlockMenu({
   const allEnabled = selectedBlocks.every((b) => b.enabled)
   const allDisabled = selectedBlocks.every((b) => !b.enabled)
 
-  const hasStarterBlock = selectedBlocks.some((b) => isValidStartBlockType(b.type))
+  const hasSingletonBlock = selectedBlocks.some(
+    (b) =>
+      TriggerUtils.requiresSingleInstance(b.type) || TriggerUtils.isSingleInstanceBlockType(b.type)
+  )
+  const hasTriggerBlock = selectedBlocks.some((b) => TriggerUtils.isTriggerBlock(b))
   const allNoteBlocks = selectedBlocks.every((b) => b.type === 'note')
   const isSubflow =
     isSingleBlock && (selectedBlocks[0]?.type === 'loop' || selectedBlocks[0]?.type === 'parallel')
 
-  const canRemoveFromSubflow = showRemoveFromSubflow && !hasStarterBlock
+  const canRemoveFromSubflow = showRemoveFromSubflow && !hasTriggerBlock
 
   const getToggleEnabledLabel = () => {
     if (allEnabled) return 'Disable'
@@ -127,7 +131,7 @@ export function BlockMenu({
           <span>Paste</span>
           <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘V</span>
         </PopoverItem>
-        {!hasStarterBlock && (
+        {!hasSingletonBlock && (
           <PopoverItem
             disabled={disableEdit}
             onClick={() => {

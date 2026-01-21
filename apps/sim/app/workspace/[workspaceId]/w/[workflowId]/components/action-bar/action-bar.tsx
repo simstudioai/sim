@@ -2,7 +2,7 @@ import { memo, useCallback } from 'react'
 import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, LogOut } from 'lucide-react'
 import { Button, Copy, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
+import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -90,7 +90,7 @@ export const ActionBar = memo(
 
     const userPermissions = useUserPermissionsContext()
 
-    const isStartBlock = isValidStartBlockType(blockType)
+    const isStartBlock = isInputDefinitionTrigger(blockType)
     const isResponseBlock = blockType === 'response'
     const isNoteBlock = blockType === 'note'
     const isSubflowBlock = blockType === 'loop' || blockType === 'parallel'

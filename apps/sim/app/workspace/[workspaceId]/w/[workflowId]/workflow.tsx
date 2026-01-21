@@ -180,6 +180,21 @@ function mapEdgesByNode(edges: Edge[], nodeIds: Set<string>): Map<string, Edge[]
   return result
 }
 
+/**
+ * Syncs the panel editor with the current selection state.
+ * Shows block details when exactly one block is selected, clears otherwise.
+ */
+function syncPanelWithSelection(selectedIds: string[]) {
+  const { currentBlockId, clearCurrentBlock, setCurrentBlockId } = usePanelEditorStore.getState()
+  if (selectedIds.length === 1 && selectedIds[0] !== currentBlockId) {
+    setCurrentBlockId(selectedIds[0])
+  } else if (selectedIds.length === 0 && currentBlockId) {
+    clearCurrentBlock()
+  } else if (selectedIds.length > 1 && currentBlockId) {
+    clearCurrentBlock()
+  }
+}
+
 /** Custom node types for ReactFlow. */
 const nodeTypes: NodeTypes = {
   workflowBlock: WorkflowBlock,
@@ -2078,15 +2093,7 @@ const WorkflowContent = React.memo(() => {
       const resolved = resolveParentChildSelectionConflicts(withSelection, blocks)
       setDisplayNodes(resolved)
       const selectedIds = resolved.filter((node) => node.selected).map((node) => node.id)
-      const { currentBlockId, clearCurrentBlock, setCurrentBlockId } =
-        usePanelEditorStore.getState()
-      if (selectedIds.length === 1 && selectedIds[0] !== currentBlockId) {
-        setCurrentBlockId(selectedIds[0])
-      } else if (selectedIds.length === 0 && currentBlockId) {
-        clearCurrentBlock()
-      } else if (selectedIds.length > 1 && currentBlockId) {
-        clearCurrentBlock()
-      }
+      syncPanelWithSelection(selectedIds)
       return
     }
 
@@ -2186,15 +2193,7 @@ const WorkflowContent = React.memo(() => {
       })
       const selectedIds = selectedIdsRef.current as string[] | null
       if (selectedIds !== null) {
-        const { currentBlockId, clearCurrentBlock, setCurrentBlockId } =
-          usePanelEditorStore.getState()
-        if (selectedIds.length === 1 && selectedIds[0] !== currentBlockId) {
-          setCurrentBlockId(selectedIds[0])
-        } else if (selectedIds.length === 0 && currentBlockId) {
-          clearCurrentBlock()
-        } else if (selectedIds.length > 1 && currentBlockId) {
-          clearCurrentBlock()
-        }
+        syncPanelWithSelection(selectedIds)
       }
     },
     [blocks]

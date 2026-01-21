@@ -1,4 +1,4 @@
-import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
+import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 
 /**
@@ -25,7 +25,7 @@ export function extractInputFieldsFromBlocks(
   // Find trigger block
   const triggerEntry = Object.entries(blocks).find(([, block]) => {
     const b = block as Record<string, unknown>
-    return typeof b.type === 'string' && isValidStartBlockType(b.type)
+    return typeof b.type === 'string' && isInputDefinitionTrigger(b.type)
   })
 
   if (!triggerEntry) return []
