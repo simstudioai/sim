@@ -455,3 +455,27 @@ export async function generatePresignedDownloadUrl(
 export function hasCloudStorage(): boolean {
   return USE_BLOB_STORAGE || USE_S3_STORAGE
 }
+
+/**
+ * Get S3 bucket and key information for a storage key
+ * Useful for services that need direct S3 access (e.g., AWS Textract async)
+ */
+export function getS3InfoForKey(
+  key: string,
+  context: StorageContext
+): { bucket: string; key: string } {
+  if (!USE_S3_STORAGE) {
+    throw new Error('S3 storage is not configured. Cannot retrieve S3 info for key.')
+  }
+
+  const config = getStorageConfig(context)
+
+  if (!config.bucket) {
+    throw new Error(`S3 bucket not configured for context: ${context}`)
+  }
+
+  return {
+    bucket: config.bucket,
+    key,
+  }
+}

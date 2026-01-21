@@ -214,17 +214,42 @@ const getOutputTypeForPath = (
   outputPath: string,
   mergedSubBlocksOverride?: Record<string, any>
 ): string => {
+  if (block?.triggerMode && blockConfig?.triggers?.enabled) {
+    return getBlockOutputType(block.type, outputPath, mergedSubBlocksOverride, true)
+  }
+  if (block?.type === 'starter') {
+    const startWorkflowValue =
+      mergedSubBlocksOverride?.startWorkflow?.value ?? getSubBlockValue(blockId, 'startWorkflow')
+
+    if (startWorkflowValue === 'chat') {
+      const chatModeTypes: Record<string, string> = {
+        input: 'string',
+        conversationId: 'string',
+        files: 'files',
+      }
+      return chatModeTypes[outputPath] || 'any'
+    }
+    const inputFormatValue =
+      mergedSubBlocksOverride?.inputFormat?.value ?? getSubBlockValue(blockId, 'inputFormat')
+    if (inputFormatValue && Array.isArray(inputFormatValue)) {
+      const field = inputFormatValue.find(
+        (f: { name?: string; type?: string }) => f.name === outputPath
+      )
+      if (field?.type) return field.type
+    }
+  } else if (blockConfig?.category === 'triggers') {
+    const blockState = useWorkflowStore.getState().blocks[blockId]
+    const subBlocks = mergedSubBlocksOverride ?? (blockState?.subBlocks || {})
+    return getBlockOutputType(block.type, outputPath, subBlocks)
+  } else if (blockConfig?.tools?.config?.tool) {
+    const blockState = useWorkflowStore.getState().blocks[blockId]
+    const subBlocks = mergedSubBlocksOverride ?? (blockState?.subBlocks || {})
+    return getToolOutputType(blockConfig, subBlocks, outputPath)
+  }
+
   const subBlocks =
     mergedSubBlocksOverride ?? useWorkflowStore.getState().blocks[blockId]?.subBlocks
   const triggerMode = block?.triggerMode && blockConfig?.triggers?.enabled
-
-  if (blockConfig?.tools?.config?.tool) {
-    const operationValue = getSubBlockValue(blockId, 'operation')
-    if (operationValue) {
-      return getToolOutputType(blockConfig, operationValue, outputPath)
-    }
-  }
-
   return getBlockOutputType(block?.type ?? '', outputPath, subBlocks, triggerMode)
 }
 
@@ -1189,11 +1214,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               : allTags
           }
         } else {
-          const operationValue =
-            mergedSubBlocks?.operation?.value ?? getSubBlockValue(activeSourceBlockId, 'operation')
-          const toolOutputPaths = operationValue
-            ? getToolOutputPaths(blockConfig, operationValue, mergedSubBlocks)
-            : []
+          const toolOutputPaths = getToolOutputPaths(blockConfig, mergedSubBlocks)
 
           if (toolOutputPaths.length > 0) {
             blockTags = toolOutputPaths.map((path) => `${normalizedBlockName}.${path}`)
@@ -1513,7 +1534,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
           if (dynamicOutputs.length > 0) {
             const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
-            // For self-reference, only show url and resumeEndpoint (not response format fields)
             blockTags = isSelfReference
               ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
               : allTags
@@ -1521,11 +1541,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             blockTags = [`${normalizedBlockName}.url`, `${normalizedBlockName}.resumeEndpoint`]
           }
         } else {
-          const operationValue =
-            mergedSubBlocks?.operation?.value ?? getSubBlockValue(accessibleBlockId, 'operation')
-          const toolOutputPaths = operationValue
-            ? getToolOutputPaths(blockConfig, operationValue, mergedSubBlocks)
-            : []
+          const toolOutputPaths = getToolOutputPaths(blockConfig, mergedSubBlocks)
 
           if (toolOutputPaths.length > 0) {
             blockTags = toolOutputPaths.map((path) => `${normalizedBlockName}.${path}`)

@@ -518,7 +518,7 @@ async function applyDynamicSchemaForWorkflow(
       for (const field of workflowInputFields) {
         propertySchema.properties[field.name] = {
           type: field.type || 'string',
-          description: `Input field: ${field.name}`,
+          description: field.description || `Input field: ${field.name}`,
         }
         propertySchema.required.push(field.name)
       }
@@ -533,11 +533,10 @@ async function applyDynamicSchemaForWorkflow(
 
 /**
  * Fetches workflow input fields from the API.
- * No local caching - relies on React Query caching on the client side.
  */
 async function fetchWorkflowInputFields(
   workflowId: string
-): Promise<Array<{ name: string; type: string }>> {
+): Promise<Array<{ name: string; type: string; description?: string }>> {
   try {
     const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
 

@@ -204,7 +204,7 @@ import {
   exaResearchTool,
   exaSearchTool,
 } from '@/tools/exa'
-import { fileParseTool } from '@/tools/file'
+import { fileParserV2Tool, fileParseTool } from '@/tools/file'
 import {
   firecrawlAgentTool,
   firecrawlCrawlTool,
@@ -979,7 +979,7 @@ import {
   microsoftTeamsWriteChannelTool,
   microsoftTeamsWriteChatTool,
 } from '@/tools/microsoft_teams'
-import { mistralParserTool } from '@/tools/mistral'
+import { mistralParserTool, mistralParserV2Tool } from '@/tools/mistral'
 import {
   mongodbDeleteTool,
   mongodbExecuteTool,
@@ -1500,6 +1500,7 @@ import {
   telegramSendPhotoTool,
   telegramSendVideoTool,
 } from '@/tools/telegram'
+import { textractParserTool } from '@/tools/textract'
 import { thinkingTool } from '@/tools/thinking'
 import { tinybirdEventsTool, tinybirdQueryTool } from '@/tools/tinybird'
 import {
@@ -1682,6 +1683,7 @@ export const tools: Record<string, ToolConfig> = {
   function_execute: functionExecuteTool,
   vision_tool: visionTool,
   file_parser: fileParseTool,
+  file_parser_v2: fileParserV2Tool,
   firecrawl_scrape: firecrawlScrapeTool,
   firecrawl_search: firecrawlSearchTool,
   firecrawl_crawl: firecrawlCrawlTool,
@@ -2455,7 +2457,9 @@ export const tools: Record<string, ToolConfig> = {
   apollo_task_search: apolloTaskSearchTool,
   apollo_email_accounts: apolloEmailAccountsTool,
   mistral_parser: mistralParserTool,
+  mistral_parser_v2: mistralParserV2Tool,
   reducto_parser: reductoParserTool,
+  textract_parser: textractParserTool,
   thinking_tool: thinkingTool,
   tinybird_events: tinybirdEventsTool,
   tinybird_query: tinybirdQueryTool,
