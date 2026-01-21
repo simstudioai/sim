@@ -1,7 +1,7 @@
-import type { LookupAddress, LookupOptions } from 'dns'
 import dns from 'dns/promises'
 import http from 'http'
 import https from 'https'
+import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
 import * as ipaddr from 'ipaddr.js'
 
@@ -908,23 +908,15 @@ export async function secureFetchWithPinnedIP(
     const isIPv6 = resolvedIP.includes(':')
     const family = isIPv6 ? 6 : 4
 
-    const agentOptions: http.AgentOptions = {
-      lookup: (
-        _hostname: string,
-        options: LookupOptions,
-        callback: (
-          err: NodeJS.ErrnoException | null,
-          address: string | LookupAddress[],
-          family?: number
-        ) => void
-      ) => {
-        if (options.all) {
-          callback(null, [{ address: resolvedIP, family }])
-        } else {
-          callback(null, resolvedIP, family)
-        }
-      },
+    const lookup: LookupFunction = (_hostname, options, callback) => {
+      if (options.all) {
+        callback(null, [{ address: resolvedIP, family }])
+      } else {
+        callback(null, resolvedIP, family)
+      }
     }
+
+    const agentOptions: http.AgentOptions = { lookup }
 
     const agent = isHttps ? new https.Agent(agentOptions) : new http.Agent(agentOptions)
 
