@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
+import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import {
   type StartBlockCandidate,
   StartBlockPath,
@@ -22,7 +22,7 @@ export function hasValidStartBlockInState(state: WorkflowState | null | undefine
 
   const startBlock = Object.values(state.blocks).find((block: BlockState) => {
     const blockType = block?.type
-    return isValidStartBlockType(blockType)
+    return isInputDefinitionTrigger(blockType)
   })
 
   return !!startBlock
