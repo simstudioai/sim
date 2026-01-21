@@ -241,12 +241,16 @@ const getOutputTypeForPath = (
     const blockState = useWorkflowStore.getState().blocks[blockId]
     const subBlocks = mergedSubBlocksOverride ?? (blockState?.subBlocks || {})
     return getBlockOutputType(block.type, outputPath, subBlocks)
-  } else if (blockConfig) {
+  } else if (blockConfig?.tools?.config?.tool) {
     const blockState = useWorkflowStore.getState().blocks[blockId]
     const subBlocks = mergedSubBlocksOverride ?? (blockState?.subBlocks || {})
     return getToolOutputType(blockConfig, subBlocks, outputPath)
   }
-  return 'any'
+
+  const subBlocks =
+    mergedSubBlocksOverride ?? useWorkflowStore.getState().blocks[blockId]?.subBlocks
+  const triggerMode = block?.triggerMode && blockConfig?.triggers?.enabled
+  return getBlockOutputType(block?.type ?? '', outputPath, subBlocks, triggerMode)
 }
 
 /**
