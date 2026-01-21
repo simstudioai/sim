@@ -259,6 +259,7 @@ export default function LoginPage({
               errorMessage.push('Too many requests. Please wait a moment before trying again.')
             }
 
+            setResetSuccessMessage(null)
             setPasswordErrors(errorMessage)
             setShowValidationError(true)
           },
@@ -268,6 +269,7 @@ export default function LoginPage({
       if (!result || result.error) {
         // Show error if not already handled by onError callback
         if (!errorHandled) {
+          setResetSuccessMessage(null)
           const errorMessage = result?.error?.message || 'Login failed. Please try again.'
           setPasswordErrors([errorMessage])
           setShowValidationError(true)
