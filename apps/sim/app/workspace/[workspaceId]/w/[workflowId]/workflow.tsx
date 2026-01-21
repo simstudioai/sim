@@ -2075,7 +2075,18 @@ const WorkflowContent = React.memo(() => {
         ...node,
         selected: pendingSet.has(node.id),
       }))
-      setDisplayNodes(resolveParentChildSelectionConflicts(withSelection, blocks))
+      const resolved = resolveParentChildSelectionConflicts(withSelection, blocks)
+      setDisplayNodes(resolved)
+      const selectedIds = resolved.filter((node) => node.selected).map((node) => node.id)
+      const { currentBlockId, clearCurrentBlock, setCurrentBlockId } =
+        usePanelEditorStore.getState()
+      if (selectedIds.length === 1 && selectedIds[0] !== currentBlockId) {
+        setCurrentBlockId(selectedIds[0])
+      } else if (selectedIds.length === 0 && currentBlockId) {
+        clearCurrentBlock()
+      } else if (selectedIds.length > 1 && currentBlockId) {
+        clearCurrentBlock()
+      }
       return
     }
 
@@ -2180,6 +2191,8 @@ const WorkflowContent = React.memo(() => {
         if (selectedIds.length === 1 && selectedIds[0] !== currentBlockId) {
           setCurrentBlockId(selectedIds[0])
         } else if (selectedIds.length === 0 && currentBlockId) {
+          clearCurrentBlock()
+        } else if (selectedIds.length > 1 && currentBlockId) {
           clearCurrentBlock()
         }
       }
