@@ -6,7 +6,8 @@ import {
   createStarterBlock,
 } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
-import { getUniqueBlockName, normalizeName } from './utils'
+import { normalizeName } from '@/executor/constants'
+import { getUniqueBlockName } from './utils'
 
 describe('normalizeName', () => {
   it.concurrent('should convert to lowercase', () => {

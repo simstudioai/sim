@@ -6,6 +6,10 @@ import type { ResolutionContext } from './reference'
 
 vi.mock('@sim/logger', () => loggerMock)
 
+vi.mock('@/lib/workflows/blocks/block-outputs', () => ({
+  getBlockOutputs: vi.fn(() => ({})),
+}))
+
 function createTestWorkflow(
   blocks: Array<{
     id: string
@@ -140,16 +144,21 @@ describe('BlockResolver', () => {
       expect(resolver.resolve('<source.nonexistent>', ctx)).toBeUndefined()
     })
 
-    it.concurrent('should throw error for path not in output schema', () => {
+    it.concurrent('should throw error for path not in output schema', async () => {
+      const { getBlockOutputs } = await import('@/lib/workflows/blocks/block-outputs')
+      const mockGetBlockOutputs = vi.mocked(getBlockOutputs)
+      const customOutputs = {
+        validField: { type: 'string', description: 'A valid field' },
+        nested: {
+          child: { type: 'number', description: 'Nested child' },
+        },
+      }
+      mockGetBlockOutputs.mockReturnValue(customOutputs as any)
+
       const workflow = createTestWorkflow([
         {
           id: 'source',
-          outputs: {
-            validField: { type: 'string', description: 'A valid field' },
-            nested: {
-              child: { type: 'number', description: 'Nested child' },
-            },
-          },
+          outputs: customOutputs,
         },
       ])
       const resolver = new BlockResolver(workflow)
@@ -161,6 +170,8 @@ describe('BlockResolver', () => {
         /"invalidField" doesn't exist on block "source"/
       )
       expect(() => resolver.resolve('<source.invalidField>', ctx)).toThrow(/Available fields:/)
+
+      mockGetBlockOutputs.mockReturnValue({})
     })
 
     it.concurrent('should return undefined for path in schema but missing in data', () => {
