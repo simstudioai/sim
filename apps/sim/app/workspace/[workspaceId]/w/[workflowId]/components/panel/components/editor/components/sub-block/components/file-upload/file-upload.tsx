@@ -8,9 +8,10 @@ import { Button, Combobox } from '@/components/emcn/components'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 
 const logger = createLogger('FileUpload')
 
@@ -104,11 +105,10 @@ export function FileUpload({
       }
 
       if (acceptedType.startsWith('.')) {
-        const extension = acceptedType.slice(1) // 'pdf' from '.pdf'
-        return (
-          normalizedFileType.endsWith(`/${extension}`) ||
-          normalizedFileType.includes(`${extension}`)
-        )
+        const extension = acceptedType.slice(1).toLowerCase()
+        const fileExtension = getExtensionFromMimeType(normalizedFileType)
+        if (fileExtension === extension) return true
+        return normalizedFileType.endsWith(`/${extension}`)
       }
 
       return false
