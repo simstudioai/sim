@@ -988,6 +988,11 @@ export function secureFetchWithPinnedIP(
       const chunks: Buffer[] = []
 
       res.on('data', (chunk: Buffer) => chunks.push(chunk))
+
+      res.on('error', (error) => {
+        reject(error)
+      })
+
       res.on('end', () => {
         const bodyBuffer = Buffer.concat(chunks)
         const body = bodyBuffer.toString('utf-8')
