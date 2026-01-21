@@ -1,5 +1,4 @@
-import { useCallback } from 'react'
-import { shallow } from 'zustand/shallow'
+import { useShallow } from 'zustand/react/shallow'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -13,35 +12,26 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
  */
 export function useEditorBlockProperties(blockId: string | null, isSnapshotView: boolean) {
   const normalBlockProps = useWorkflowStore(
-    useCallback(
-      (state) => {
-        if (!blockId) return { advancedMode: false, triggerMode: false }
-        const block = state.blocks?.[blockId]
-        return {
-          advancedMode: block?.advancedMode ?? false,
-          triggerMode: block?.triggerMode ?? false,
-        }
-      },
-      [blockId]
-    ),
-    shallow
+    useShallow((state) => {
+      if (!blockId) return { advancedMode: false, triggerMode: false }
+      const block = state.blocks?.[blockId]
+      return {
+        advancedMode: block?.advancedMode ?? false,
+        triggerMode: block?.triggerMode ?? false,
+      }
+    })
   )
 
   const baselineBlockProps = useWorkflowDiffStore(
-    useCallback(
-      (state) => {
-        if (!blockId) return { advancedMode: false, triggerMode: false }
-        const block = state.baselineWorkflow?.blocks?.[blockId]
-        return {
-          advancedMode: block?.advancedMode ?? false,
-          triggerMode: block?.triggerMode ?? false,
-        }
-      },
-      [blockId]
-    ),
-    shallow
+    useShallow((state) => {
+      if (!blockId) return { advancedMode: false, triggerMode: false }
+      const block = state.baselineWorkflow?.blocks?.[blockId]
+      return {
+        advancedMode: block?.advancedMode ?? false,
+        triggerMode: block?.triggerMode ?? false,
+      }
+    })
   )
 
-  // Use the appropriate props based on view mode
   return isSnapshotView ? baselineBlockProps : normalBlockProps
 }
