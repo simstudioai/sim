@@ -25,7 +25,7 @@ const badgeVariants = cva(
         orange: `${STATUS_BASE} bg-[#fed7aa] text-[#c2410c] dark:bg-[rgba(249,115,22,0.2)] dark:text-[#fdba74]`,
         amber: `${STATUS_BASE} bg-[#fde68a] text-[#a16207] dark:bg-[rgba(245,158,11,0.2)] dark:text-[#fcd34d]`,
         teal: `${STATUS_BASE} bg-[#99f6e4] text-[#0f766e] dark:bg-[rgba(20,184,166,0.2)] dark:text-[#5eead4]`,
-        cyan: `${STATUS_BASE} bg-[#a5f3fc] text-[#0e7490] dark:bg-[rgba(14,165,233,0.2)] dark:text-[#7dd3fc]`,
+        cyan: `${STATUS_BASE} bg-[var(--surface-4)] text-[#0891b2] dark:bg-[rgba(14,165,233,0.2)] dark:text-[#7dd3fc]`,
         'gray-secondary': `${STATUS_BASE} bg-[var(--surface-4)] text-[var(--text-secondary)]`,
       },
       size: {

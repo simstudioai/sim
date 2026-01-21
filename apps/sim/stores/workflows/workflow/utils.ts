@@ -72,6 +72,7 @@ export function convertLoopBlockToLoop(
     nodes: findChildNodes(loopBlockId, blocks),
     iterations: loopBlock.data?.count || DEFAULT_LOOP_ITERATIONS,
     loopType,
+    enabled: loopBlock.enabled,
   }
 
   loop.forEachItems = loopBlock.data?.collection || ''
@@ -113,6 +114,7 @@ export function convertParallelBlockToParallel(
     distribution,
     count,
     parallelType: validatedParallelType,
+    enabled: parallelBlock.enabled,
   }
 }
 

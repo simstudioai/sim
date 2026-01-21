@@ -234,7 +234,7 @@ function ProgressBar({
       {segments.map((segment, index) => (
         <div
           key={index}
-          className='absolute h-full'
+          className='absolute h-full opacity-70'
           style={{
             left: `${segment.startPercent}%`,
             width: `${segment.widthPercent}%`,
