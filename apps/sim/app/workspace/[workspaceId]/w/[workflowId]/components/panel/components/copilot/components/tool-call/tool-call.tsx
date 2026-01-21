@@ -1510,7 +1510,8 @@ export function ToolCall({
     toolCall.name === 'user_memory' ||
     toolCall.name === 'edit_respond' ||
     toolCall.name === 'debug_respond' ||
-    toolCall.name === 'plan_respond'
+    toolCall.name === 'plan_respond' ||
+    toolCall.name === 'deploy_respond'
   )
     return null
 
