@@ -214,6 +214,14 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
     ],
     config: {
       tool: (params) => params.operation as string,
+      params: (params) => {
+        const { fileUpload, fileReference, ...rest } = params
+        const files = fileUpload || fileReference
+        return {
+          ...rest,
+          ...(files ? { files } : {}),
+        }
+      },
     },
   },
   inputs: {
