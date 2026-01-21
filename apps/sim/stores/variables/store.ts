@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
+import { normalizeName } from '@/executor/constants'
 import type {
   Variable,
   VariablesDimensions,
@@ -11,7 +12,6 @@ import type {
 } from '@/stores/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { normalizeName } from '@/stores/workflows/utils'
 
 const logger = createLogger('VariablesModalStore')
 

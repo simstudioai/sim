@@ -17,8 +17,6 @@ import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const WEBHOOK_SUBBLOCK_FIELDS = ['webhookId', 'triggerPath']
 
-export { normalizeName }
-
 export function filterNewEdges(edgesToAdd: Edge[], currentEdges: Edge[]): Edge[] {
   return edgesToAdd.filter((edge) => {
     if (edge.source === edge.target) return false

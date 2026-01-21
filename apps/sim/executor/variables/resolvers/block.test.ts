@@ -298,45 +298,6 @@ describe('BlockResolver', () => {
     })
   })
 
-  describe('tryParseJSON', () => {
-    it.concurrent('should parse valid JSON object string', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.tryParseJSON('{"key": "value"}')).toEqual({ key: 'value' })
-    })
-
-    it.concurrent('should parse valid JSON array string', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.tryParseJSON('[1, 2, 3]')).toEqual([1, 2, 3])
-    })
-
-    it.concurrent('should return original value for non-string input', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      const obj = { key: 'value' }
-      expect(resolver.tryParseJSON(obj)).toBe(obj)
-      expect(resolver.tryParseJSON(123)).toBe(123)
-      expect(resolver.tryParseJSON(null)).toBe(null)
-    })
-
-    it.concurrent('should return original string for non-JSON strings', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.tryParseJSON('plain text')).toBe('plain text')
-      expect(resolver.tryParseJSON('123')).toBe('123')
-      expect(resolver.tryParseJSON('')).toBe('')
-    })
-
-    it.concurrent('should return original string for invalid JSON', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.tryParseJSON('{invalid json}')).toBe('{invalid json}')
-      expect(resolver.tryParseJSON('[1, 2,')).toBe('[1, 2,')
-    })
-
-    it.concurrent('should handle whitespace around JSON', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.tryParseJSON('  {"key": "value"}  ')).toEqual({ key: 'value' })
-      expect(resolver.tryParseJSON('\n[1, 2]\n')).toEqual([1, 2])
-    })
-  })
-
   describe('Response block backwards compatibility', () => {
     it.concurrent('should resolve new format: <responseBlock.data>', () => {
       const workflow = createTestWorkflow([

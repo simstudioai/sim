@@ -17,6 +17,7 @@ import {
 } from '@/executor/human-in-the-loop/utils'
 import type { BlockHandler, ExecutionContext, PauseMetadata } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
+import { parseObjectStrings } from '@/executor/utils/json'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 
@@ -265,7 +266,7 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
 
     if (dataMode === 'structured' && inputs.builderData) {
       const convertedData = this.convertBuilderDataToJson(inputs.builderData)
-      return this.parseObjectStrings(convertedData)
+      return parseObjectStrings(convertedData)
     }
 
     return inputs.data || {}
@@ -483,29 +484,6 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
       value.trim().startsWith(REFERENCE.START) &&
       value.trim().includes(REFERENCE.END)
     )
-  }
-
-  private parseObjectStrings(data: any): any {
-    if (typeof data === 'string') {
-      try {
-        const parsed = JSON.parse(data)
-        if (typeof parsed === 'object' && parsed !== null) {
-          return this.parseObjectStrings(parsed)
-        }
-        return parsed
-      } catch {
-        return data
-      }
-    } else if (Array.isArray(data)) {
-      return data.map((item) => this.parseObjectStrings(item))
-    } else if (typeof data === 'object' && data !== null) {
-      const result: any = {}
-      for (const [key, value] of Object.entries(data)) {
-        result[key] = this.parseObjectStrings(value)
-      }
-      return result
-    }
-    return data
   }
 
   private parseStatus(status?: string): number {
