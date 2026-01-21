@@ -19,6 +19,7 @@ import { DatePicker } from '@/components/emcn/components/date-picker/date-picker
 import { cn } from '@/lib/core/utils/cn'
 import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
+import { type LogStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
 import { getBlock } from '@/blocks/registry'
 import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
@@ -211,12 +212,12 @@ export function LogsToolbar({
   }, [level])
 
   const statusOptions: ComboboxOption[] = useMemo(
-    () => [
-      { value: 'error', label: 'Error', icon: getColorIcon('var(--text-error)') },
-      { value: 'info', label: 'Info', icon: getColorIcon('var(--terminal-status-info-color)') },
-      { value: 'running', label: 'Running', icon: getColorIcon('#22c55e') },
-      { value: 'pending', label: 'Pending', icon: getColorIcon('#f59e0b') },
-    ],
+    () =>
+      (Object.keys(STATUS_CONFIG) as LogStatus[]).map((status) => ({
+        value: status,
+        label: STATUS_CONFIG[status].label,
+        icon: getColorIcon(STATUS_CONFIG[status].color),
+      })),
     []
   )
 
@@ -242,12 +243,8 @@ export function LogsToolbar({
 
   const selectedStatusColor = useMemo(() => {
     if (selectedStatuses.length !== 1) return null
-    const status = selectedStatuses[0]
-    if (status === 'error') return 'var(--text-error)'
-    if (status === 'info') return 'var(--terminal-status-info-color)'
-    if (status === 'running') return '#22c55e'
-    if (status === 'pending') return '#f59e0b'
-    return null
+    const status = selectedStatuses[0] as LogStatus
+    return STATUS_CONFIG[status]?.color ?? null
   }, [selectedStatuses])
 
   const workflowOptions: ComboboxOption[] = useMemo(
