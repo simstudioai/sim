@@ -82,7 +82,6 @@ export class ApiBlockHandler implements BlockHandler {
           },
         },
         false,
-        false,
         ctx
       )
 

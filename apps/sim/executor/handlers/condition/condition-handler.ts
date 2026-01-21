@@ -44,7 +44,6 @@ export async function evaluateConditionExpression(
         },
       },
       false,
-      false,
       ctx
     )
 

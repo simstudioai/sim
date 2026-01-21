@@ -99,7 +99,7 @@ async function executeToolCall(
 
   try {
     const { toolParams, executionParams } = prepareToolExecution(tool, functionCall.args, request)
-    const result = await executeTool(toolName, executionParams, true)
+    const result = await executeTool(toolName, executionParams)
     const toolCallEndTime = Date.now()
     const duration = toolCallEndTime - toolCallStartTime
 

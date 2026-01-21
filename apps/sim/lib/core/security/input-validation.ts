@@ -884,22 +884,6 @@ export async function validateUrlWithDNS(
     }
   }
 }
-
-/**
- * Creates a fetch URL that uses a resolved IP address to prevent DNS rebinding
- *
- * @param originalUrl - The original URL
- * @param resolvedIP - The resolved IP address to use
- * @returns The URL with IP substituted for hostname
- */
-export function createPinnedUrl(originalUrl: string, resolvedIP: string): string {
-  const parsed = new URL(originalUrl)
-  const port = parsed.port ? `:${parsed.port}` : ''
-  // IPv6 addresses must be wrapped in brackets for URLs
-  const host = resolvedIP.includes(':') ? `[${resolvedIP}]` : resolvedIP
-  return `${parsed.protocol}//${host}${port}${parsed.pathname}${parsed.search}`
-}
-
 export interface SecureFetchOptions {
   method?: string
   headers?: Record<string, string>

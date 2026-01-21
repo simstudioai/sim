@@ -224,7 +224,7 @@ export async function POST(req: NextRequest) {
       hasApiKey: !!executionParams.apiKey,
     })
 
-    const result = await executeTool(resolvedToolName, executionParams, true)
+    const result = await executeTool(resolvedToolName, executionParams)
 
     logger.info(`[${tracker.requestId}] Tool execution complete`, {
       toolName,
