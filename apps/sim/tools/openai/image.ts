@@ -124,7 +124,7 @@ export const imageTool: ToolConfig = {
         try {
           logger.info('Fetching image from URL via proxy...')
           const baseUrl = getBaseUrl()
-          const proxyUrl = new URL('/api/proxy/image', baseUrl)
+          const proxyUrl = new URL('/api/tools/image', baseUrl)
           proxyUrl.searchParams.append('url', imageUrl)
 
           const headers: Record<string, string> = {

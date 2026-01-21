@@ -42,7 +42,6 @@ export class FunctionBlockHandler implements BlockHandler {
         },
       },
       false,
-      false,
       ctx
     )
 

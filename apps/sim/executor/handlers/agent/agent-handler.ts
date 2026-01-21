@@ -325,7 +325,6 @@ export class AgentBlockHandler implements BlockHandler {
             },
           },
           false,
-          false,
           ctx
         )
 

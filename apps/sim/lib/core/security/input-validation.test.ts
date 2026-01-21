@@ -1,7 +1,6 @@
 import { loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 import {
-  createPinnedUrl,
   validateAirtableId,
   validateAlphanumericId,
   validateAwsRegion,
@@ -594,28 +593,6 @@ describe('validateUrlWithDNS', () => {
   })
 })
 
-describe('createPinnedUrl', () => {
-  it('should replace hostname with IP', () => {
-    const result = createPinnedUrl('https://example.com/api/data', '93.184.216.34')
-    expect(result).toBe('https://93.184.216.34/api/data')
-  })
-
-  it('should preserve port if specified', () => {
-    const result = createPinnedUrl('https://example.com:8443/api', '93.184.216.34')
-    expect(result).toBe('https://93.184.216.34:8443/api')
-  })
-
-  it('should preserve query string', () => {
-    const result = createPinnedUrl('https://example.com/api?foo=bar&baz=qux', '93.184.216.34')
-    expect(result).toBe('https://93.184.216.34/api?foo=bar&baz=qux')
-  })
-
-  it('should preserve path', () => {
-    const result = createPinnedUrl('https://example.com/a/b/c/d', '93.184.216.34')
-    expect(result).toBe('https://93.184.216.34/a/b/c/d')
-  })
-})
-
 describe('validateInteger', () => {
   describe('valid integers', () => {
     it.concurrent('should accept positive integers', () => {
@@ -931,13 +908,13 @@ describe('validateExternalUrl', () => {
     it.concurrent('should reject 127.0.0.1', () => {
       const result = validateExternalUrl('https://127.0.0.1/api')
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('localhost')
+      expect(result.error).toContain('private IP')
     })
 
     it.concurrent('should reject 0.0.0.0', () => {
       const result = validateExternalUrl('https://0.0.0.0/api')
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('localhost')
+      expect(result.error).toContain('private IP')
     })
   })
 

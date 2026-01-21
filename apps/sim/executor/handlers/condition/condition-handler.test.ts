@@ -201,7 +201,6 @@ describe('ConditionBlockHandler', () => {
         },
       }),
       false,
-      false,
       mockContext
     )
   })

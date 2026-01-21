@@ -1,5 +1,8 @@
 import { createLogger } from '@sim/logger'
+import type { UserFile } from '@/executor/types'
 import type {
+  FileParseApiMultiResponse,
+  FileParseApiResponse,
   FileParseResult,
   FileParserInput,
   FileParserOutput,
@@ -8,6 +11,23 @@ import type {
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('FileParserTool')
+
+interface FileUploadObject {
+  path: string
+  name?: string
+  size?: number
+  type?: string
+}
+
+interface ToolBodyParams extends Partial<FileParserInput> {
+  file?: FileUploadObject | FileUploadObject[]
+  files?: FileUploadObject[]
+  _context?: {
+    workspaceId?: string
+    workflowId?: string
+    executionId?: string
+  }
+}
 
 export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
   id: 'file_parser',
@@ -36,7 +56,7 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: any) => {
+    body: (params: ToolBodyParams) => {
       logger.info('Request parameters received by tool body:', params)
 
       if (!params) {
@@ -57,11 +77,10 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       // 2. Check for file upload (array)
       else if (params.file && Array.isArray(params.file) && params.file.length > 0) {
         logger.info('Tool body processing file array upload')
-        const filePaths = params.file.map((file: any) => file.path)
-        determinedFilePath = filePaths // Always send as array
+        determinedFilePath = params.file.map((file) => file.path)
       }
       // 3. Check for file upload (single object)
-      else if (params.file?.path) {
+      else if (params.file && !Array.isArray(params.file) && params.file.path) {
         logger.info('Tool body processing single file object upload')
         determinedFilePath = params.file.path
       }
@@ -69,7 +88,7 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       else if (params.files && Array.isArray(params.files)) {
         logger.info('Tool body processing legacy files array:', params.files.length)
         if (params.files.length > 0) {
-          determinedFilePath = params.files.map((file: any) => file.path)
+          determinedFilePath = params.files.map((file) => file.path)
         } else {
           logger.warn('Legacy files array provided but is empty')
         }
@@ -86,6 +105,8 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
         filePath: determinedFilePath,
         fileType: determinedFileType,
         workspaceId: params.workspaceId || params._context?.workspaceId,
+        workflowId: params._context?.workflowId,
+        executionId: params._context?.executionId,
       }
     },
   },
@@ -93,21 +114,26 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
   transformResponse: async (response: Response): Promise<FileParserOutput> => {
     logger.info('Received response status:', response.status)
 
-    const result = await response.json()
+    const result = (await response.json()) as FileParseApiResponse | FileParseApiMultiResponse
     logger.info('Response parsed successfully')
 
     // Handle multiple files response
-    if (result.results) {
+    if ('results' in result) {
       logger.info('Processing multiple files response')
 
       // Extract individual file results
-      const fileResults = result.results.map((fileResult: any) => {
-        return fileResult.output || fileResult
+      const fileResults: FileParseResult[] = result.results.map((fileResult) => {
+        return fileResult.output || (fileResult as unknown as FileParseResult)
       })
+
+      // Collect UserFile objects from results
+      const processedFiles: UserFile[] = fileResults
+        .filter((file): file is FileParseResult & { file: UserFile } => Boolean(file.file))
+        .map((file) => file.file)
 
       // Combine all file contents with clear dividers
       const combinedContent = fileResults
-        .map((file: FileParseResult, index: number) => {
+        .map((file, index) => {
           const divider = `\n${'='.repeat(80)}\n`
 
           return file.content + (index < fileResults.length - 1 ? divider : '')
@@ -118,6 +144,7 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       const output: FileParserOutputData = {
         files: fileResults,
         combinedContent,
+        ...(processedFiles.length > 0 && { processedFiles }),
       }
 
       return {
@@ -129,10 +156,13 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
     // Handle single file response
     logger.info('Successfully parsed file:', result.output?.name || 'unknown')
 
+    const fileOutput: FileParseResult = result.output || (result as unknown as FileParseResult)
+
     // For a single file, create the output with just array format
     const output: FileParserOutputData = {
-      files: [result.output || result],
-      combinedContent: result.output?.content || result.content || '',
+      files: [fileOutput],
+      combinedContent: fileOutput?.content || result.content || '',
+      ...(fileOutput?.file && { processedFiles: [fileOutput.file] }),
     }
 
     return {
@@ -142,8 +172,9 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
   },
 
   outputs: {
-    files: { type: 'array', description: 'Array of parsed files' },
+    files: { type: 'array', description: 'Array of parsed files with content and metadata' },
     combinedContent: { type: 'string', description: 'Combined content of all parsed files' },
+    processedFiles: { type: 'file[]', description: 'Array of UserFile objects for downstream use' },
   },
 }
 
