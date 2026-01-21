@@ -129,9 +129,7 @@ export function Editor() {
     blockSubBlockValues,
     canonicalIndex
   )
-  const displayAdvancedOptions = userPermissions.canEdit
-    ? advancedMode
-    : advancedMode || advancedValuesPresent
+  const displayAdvancedOptions = advancedMode || advancedValuesPresent
 
   const hasAdvancedOnlyFields = useMemo(() => {
     for (const subBlock of subBlocksForCanonical) {

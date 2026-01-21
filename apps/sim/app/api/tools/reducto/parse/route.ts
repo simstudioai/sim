@@ -5,7 +5,11 @@ import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { StorageService } from '@/lib/uploads'
-import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import {
+  extractStorageKey,
+  inferContextFromKey,
+  isInternalFileUrl,
+} from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
@@ -44,13 +48,13 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Reducto parse request`, {
       filePath: validatedData.filePath,
-      isWorkspaceFile: validatedData.filePath.includes('/api/files/serve/'),
+      isWorkspaceFile: isInternalFileUrl(validatedData.filePath),
       userId,
     })
 
     let fileUrl = validatedData.filePath
 
-    if (validatedData.filePath?.includes('/api/files/serve/')) {
+    if (isInternalFileUrl(validatedData.filePath)) {
       try {
         const storageKey = extractStorageKey(validatedData.filePath)
         const context = inferContextFromKey(storageKey)

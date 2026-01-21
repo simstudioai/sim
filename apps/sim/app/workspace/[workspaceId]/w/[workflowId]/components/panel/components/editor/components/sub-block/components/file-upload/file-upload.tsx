@@ -90,8 +90,9 @@ export function FileUpload({
    * Checks if a file's MIME type matches the accepted types
    * Supports exact matches, wildcard patterns (e.g., 'image/*'), and '*' for all types
    */
-  const isFileTypeAccepted = (fileType: string, accepted: string): boolean => {
+  const isFileTypeAccepted = (fileType: string | undefined, accepted: string): boolean => {
     if (accepted === '*') return true
+    if (!fileType) return false
 
     const acceptedList = accepted.split(',').map((t) => t.trim().toLowerCase())
     const normalizedFileType = fileType.toLowerCase()

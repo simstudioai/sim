@@ -9,9 +9,12 @@ import {
   validateS3BucketName,
 } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { StorageService } from '@/lib/uploads'
-import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import {
+  extractStorageKey,
+  inferContextFromKey,
+  isInternalFileUrl,
+} from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
@@ -423,10 +426,7 @@ export async function POST(request: NextRequest) {
 
     let fileUrl = validatedData.filePath
 
-    const isInternalFilePath =
-      validatedData.filePath?.startsWith('/api/files/serve/') ||
-      (validatedData.filePath?.startsWith('/') &&
-        validatedData.filePath?.includes('/api/files/serve/'))
+    const isInternalFilePath = validatedData.filePath && isInternalFileUrl(validatedData.filePath)
 
     if (isInternalFilePath) {
       try {
@@ -463,21 +463,18 @@ export async function POST(request: NextRequest) {
         )
       }
     } else if (validatedData.filePath?.startsWith('/')) {
-      if (!validatedData.filePath.startsWith('/api/files/serve/')) {
-        logger.warn(`[${requestId}] Invalid internal path`, {
-          userId,
-          path: validatedData.filePath.substring(0, 50),
-        })
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Invalid file path. Only uploaded files are supported for internal paths.',
-          },
-          { status: 400 }
-        )
-      }
-      const baseUrl = getBaseUrl()
-      fileUrl = `${baseUrl}${validatedData.filePath}`
+      // Reject arbitrary absolute paths that don't contain /api/files/serve/
+      logger.warn(`[${requestId}] Invalid internal path`, {
+        userId,
+        path: validatedData.filePath.substring(0, 50),
+      })
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Invalid file path. Only uploaded files are supported for internal paths.',
+        },
+        { status: 400 }
+      )
     } else {
       const urlValidation = validateExternalUrl(fileUrl, 'Document URL')
       if (!urlValidation.isValid) {
