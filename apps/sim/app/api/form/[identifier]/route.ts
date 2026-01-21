@@ -11,7 +11,7 @@ import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
-import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
+import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { setFormAuthCookie, validateFormAuth } from '@/app/api/form/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -36,7 +36,7 @@ async function getWorkflowInputSchema(workflowId: string): Promise<any[]> {
       .from(workflowBlocks)
       .where(eq(workflowBlocks.workflowId, workflowId))
 
-    const startBlock = blocks.find((block) => isValidStartBlockType(block.type))
+    const startBlock = blocks.find((block) => isInputDefinitionTrigger(block.type))
 
     if (!startBlock) {
       return []

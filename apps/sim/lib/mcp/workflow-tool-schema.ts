@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
-import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
+import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { McpToolSchema } from './types'
 
@@ -217,7 +217,7 @@ export function extractInputFormatFromBlocks(
     const blockObj = block as Record<string, unknown>
     const blockType = blockObj.type as string
 
-    if (isValidStartBlockType(blockType)) {
+    if (isInputDefinitionTrigger(blockType)) {
       // Try to get inputFormat from subBlocks.inputFormat.value
       const subBlocks = blockObj.subBlocks as Record<string, { value?: unknown }> | undefined
       const subBlockValue = subBlocks?.inputFormat?.value

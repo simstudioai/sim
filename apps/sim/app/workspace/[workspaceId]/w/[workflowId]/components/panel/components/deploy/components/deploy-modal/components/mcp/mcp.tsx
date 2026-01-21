@@ -15,7 +15,7 @@ import {
 import { Skeleton } from '@/components/ui'
 import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
-import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
+import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import {
   useAddWorkflowMcpTool,
@@ -107,7 +107,7 @@ export function McpDeploy({
     for (const [blockId, block] of Object.entries(blocks)) {
       if (!block || typeof block !== 'object') continue
       const blockType = (block as { type?: string }).type
-      if (blockType && isValidStartBlockType(blockType)) {
+      if (blockType && isInputDefinitionTrigger(blockType)) {
         return blockId
       }
     }
