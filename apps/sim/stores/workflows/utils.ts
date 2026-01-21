@@ -137,7 +137,7 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
         }
       } else if (subBlock.defaultValue !== undefined) {
         initialValue = subBlock.defaultValue
-      } else if (subBlock.type === 'input-format') {
+      } else if (subBlock.type === 'input-format' || subBlock.type === 'response-format') {
         initialValue = [
           {
             id: crypto.randomUUID(),
