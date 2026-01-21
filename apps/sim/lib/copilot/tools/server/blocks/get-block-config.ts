@@ -5,7 +5,7 @@ import {
   GetBlockConfigResult,
   type GetBlockConfigResultType,
 } from '@/lib/copilot/tools/shared/schemas'
-import { registry as blockRegistry } from '@/blocks/registry'
+import { registry as blockRegistry, getLatestBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/executor/utils/permission-check'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
@@ -452,9 +452,12 @@ export const getBlockConfigServerTool: BaseServerTool<
     const inputs = extractInputsFromSubBlocks(subBlocks, operation, trigger)
     const outputs = extractOutputs(blockConfig, operation, trigger)
 
+    const latestBlock = getLatestBlock(blockType)
+    const displayName = latestBlock?.name ?? blockConfig.name
+
     const result = {
       blockType,
-      blockName: blockConfig.name,
+      blockName: displayName,
       operation,
       trigger,
       inputs,

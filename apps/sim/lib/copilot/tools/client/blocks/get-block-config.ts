@@ -10,7 +10,7 @@ import {
   GetBlockConfigInput,
   GetBlockConfigResult,
 } from '@/lib/copilot/tools/shared/schemas'
-import { getBlock } from '@/blocks/registry'
+import { getLatestBlock } from '@/blocks/registry'
 
 interface GetBlockConfigArgs {
   blockType: string
@@ -40,8 +40,7 @@ export class GetBlockConfigClientTool extends BaseClientTool {
     },
     getDynamicText: (params, state) => {
       if (params?.blockType && typeof params.blockType === 'string') {
-        // Look up the block config to get the human-readable name
-        const blockConfig = getBlock(params.blockType)
+        const blockConfig = getLatestBlock(params.blockType)
         const blockName = (blockConfig?.name ?? params.blockType.replace(/_/g, ' ')).toLowerCase()
         const opSuffix = params.operation ? ` (${params.operation})` : ''
 
