@@ -4,8 +4,9 @@ import type { VideoBlockResponse } from '@/tools/video/types'
 
 export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
   type: 'video_generator',
-  name: 'Video Generator',
+  name: 'Video Generator (Legacy)',
   description: 'Generate videos from text using AI',
+  hideFromToolbar: true,
   authMode: AuthMode.ApiKey,
   longDescription:
     'Generate high-quality videos from text prompts using leading AI providers. Supports multiple models, aspect ratios, resolutions, and provider-specific features like world consistency, camera controls, and audio generation.',
@@ -425,5 +426,380 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
     height: { type: 'number', description: 'Video height in pixels' },
     provider: { type: 'string', description: 'Provider used' },
     model: { type: 'string', description: 'Model used' },
+  },
+}
+
+export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
+  ...VideoGeneratorBlock,
+  type: 'video_generator_v2',
+  name: 'Video Generator',
+  hideFromToolbar: false,
+  subBlocks: [
+    {
+      id: 'provider',
+      title: 'Provider',
+      type: 'dropdown',
+      options: [
+        { label: 'Runway Gen-4', id: 'runway' },
+        { label: 'Google Veo 3', id: 'veo' },
+        { label: 'Luma Dream Machine', id: 'luma' },
+        { label: 'MiniMax Hailuo', id: 'minimax' },
+        { label: 'Fal.ai (Multi-Model)', id: 'falai' },
+      ],
+      value: () => 'runway',
+      required: true,
+    },
+    {
+      id: 'model',
+      title: 'Model',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'veo' },
+      options: [
+        { label: 'Veo 3', id: 'veo-3' },
+        { label: 'Veo 3 Fast', id: 'veo-3-fast' },
+        { label: 'Veo 3.1', id: 'veo-3.1' },
+      ],
+      value: () => 'veo-3',
+      required: false,
+    },
+    {
+      id: 'model',
+      title: 'Model',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'luma' },
+      options: [{ label: 'Ray 2', id: 'ray-2' }],
+      value: () => 'ray-2',
+      required: false,
+    },
+    {
+      id: 'model',
+      title: 'Model',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'minimax' },
+      options: [{ label: 'Hailuo 2.3', id: 'hailuo-02' }],
+      value: () => 'hailuo-02',
+      required: false,
+    },
+    {
+      id: 'endpoint',
+      title: 'Quality Endpoint',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'minimax' },
+      options: [
+        { label: 'Pro', id: 'pro' },
+        { label: 'Standard', id: 'standard' },
+      ],
+      value: () => 'standard',
+      required: false,
+    },
+    {
+      id: 'model',
+      title: 'Model',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'falai' },
+      options: [
+        { label: 'Google Veo 3.1', id: 'veo-3.1' },
+        { label: 'OpenAI Sora 2', id: 'sora-2' },
+        { label: 'Kling 2.5 Turbo Pro', id: 'kling-2.5-turbo-pro' },
+        { label: 'Kling 2.1 Pro', id: 'kling-2.1-pro' },
+        { label: 'MiniMax Hailuo 2.3 Pro', id: 'minimax-hailuo-2.3-pro' },
+        { label: 'MiniMax Hailuo 2.3 Standard', id: 'minimax-hailuo-2.3-standard' },
+        { label: 'WAN 2.1', id: 'wan-2.1' },
+        { label: 'LTXV 0.9.8', id: 'ltxv-0.9.8' },
+      ],
+      value: () => 'veo-3.1',
+      required: true,
+    },
+    {
+      id: 'prompt',
+      title: 'Prompt',
+      type: 'long-input',
+      placeholder: 'Describe the video you want to generate...',
+      required: true,
+    },
+    {
+      id: 'duration',
+      title: 'Duration (seconds)',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'runway' },
+      options: [
+        { label: '5', id: '5' },
+        { label: '10', id: '10' },
+      ],
+      value: () => '5',
+      required: false,
+    },
+    {
+      id: 'duration',
+      title: 'Duration (seconds)',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'veo' },
+      options: [
+        { label: '4', id: '4' },
+        { label: '6', id: '6' },
+        { label: '8', id: '8' },
+      ],
+      value: () => '8',
+      required: false,
+    },
+    {
+      id: 'duration',
+      title: 'Duration (seconds)',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'luma' },
+      options: [
+        { label: '5', id: '5' },
+        { label: '9', id: '9' },
+      ],
+      value: () => '5',
+      required: false,
+    },
+    {
+      id: 'duration',
+      title: 'Duration (seconds)',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'minimax' },
+      options: [
+        { label: '6', id: '6' },
+        { label: '10', id: '10' },
+      ],
+      value: () => '6',
+      required: false,
+    },
+    {
+      id: 'duration',
+      title: 'Duration (seconds)',
+      type: 'dropdown',
+      condition: {
+        field: 'model',
+        value: [
+          'kling-2.5-turbo-pro',
+          'kling-2.1-pro',
+          'minimax-hailuo-2.3-pro',
+          'minimax-hailuo-2.3-standard',
+        ],
+      },
+      options: [
+        { label: '5', id: '5' },
+        { label: '8', id: '8' },
+        { label: '10', id: '10' },
+      ],
+      value: () => '5',
+      required: false,
+    },
+    {
+      id: 'aspectRatio',
+      title: 'Aspect Ratio',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'veo' },
+      options: [
+        { label: '16:9', id: '16:9' },
+        { label: '9:16', id: '9:16' },
+      ],
+      value: () => '16:9',
+      required: false,
+    },
+    {
+      id: 'aspectRatio',
+      title: 'Aspect Ratio',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'runway' },
+      options: [
+        { label: '16:9', id: '16:9' },
+        { label: '9:16', id: '9:16' },
+        { label: '1:1', id: '1:1' },
+      ],
+      value: () => '16:9',
+      required: false,
+    },
+    {
+      id: 'aspectRatio',
+      title: 'Aspect Ratio',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'luma' },
+      options: [
+        { label: '16:9', id: '16:9' },
+        { label: '9:16', id: '9:16' },
+        { label: '1:1', id: '1:1' },
+      ],
+      value: () => '16:9',
+      required: false,
+    },
+    {
+      id: 'aspectRatio',
+      title: 'Aspect Ratio',
+      type: 'dropdown',
+      condition: {
+        field: 'model',
+        value: [
+          'kling-2.5-turbo-pro',
+          'kling-2.1-pro',
+          'minimax-hailuo-2.3-pro',
+          'minimax-hailuo-2.3-standard',
+        ],
+      },
+      options: [
+        { label: '16:9', id: '16:9' },
+        { label: '9:16', id: '9:16' },
+      ],
+      value: () => '16:9',
+      required: false,
+    },
+    {
+      id: 'resolution',
+      title: 'Resolution',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'veo' },
+      options: [
+        { label: '720p', id: '720p' },
+        { label: '1080p', id: '1080p' },
+      ],
+      value: () => '1080p',
+      required: false,
+    },
+    {
+      id: 'resolution',
+      title: 'Resolution',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'luma' },
+      options: [
+        { label: '540p', id: '540p' },
+        { label: '720p', id: '720p' },
+        { label: '1080p', id: '1080p' },
+      ],
+      value: () => '1080p',
+      required: false,
+    },
+    {
+      id: 'visualReferenceUpload',
+      title: 'Reference Image',
+      type: 'file-upload',
+      canonicalParamId: 'visualReference',
+      condition: { field: 'provider', value: 'runway' },
+      placeholder: 'Upload reference image',
+      mode: 'basic',
+      multiple: false,
+      required: true,
+      acceptedTypes: '.jpg,.jpeg,.png,.webp',
+    },
+    {
+      id: 'visualReferenceInput',
+      title: 'Reference Image',
+      type: 'short-input',
+      canonicalParamId: 'visualReference',
+      condition: { field: 'provider', value: 'runway' },
+      placeholder: 'Reference image from previous blocks',
+      mode: 'advanced',
+    },
+    {
+      id: 'cameraControl',
+      title: 'Camera Controls',
+      type: 'long-input',
+      condition: { field: 'provider', value: 'luma' },
+      placeholder: 'JSON: [{ "key": "pan_right" }, { "key": "zoom_in" }]',
+      required: false,
+    },
+    {
+      id: 'promptOptimizer',
+      title: 'Prompt Optimizer',
+      type: 'switch',
+      condition: { field: 'provider', value: 'minimax' },
+    },
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      placeholder: 'Enter your provider API key',
+      password: true,
+      required: true,
+    },
+  ],
+  tools: {
+    access: ['video_runway', 'video_veo', 'video_luma', 'video_minimax', 'video_falai'],
+    config: {
+      tool: (params) => {
+        switch (params.provider) {
+          case 'runway':
+            return 'video_runway'
+          case 'veo':
+            return 'video_veo'
+          case 'luma':
+            return 'video_luma'
+          case 'minimax':
+            return 'video_minimax'
+          case 'falai':
+            return 'video_falai'
+          default:
+            return 'video_runway'
+        }
+      },
+      params: (params) => {
+        const visualRef =
+          params.visualReferenceUpload || params.visualReferenceInput || params.visualReference
+        return {
+          provider: params.provider,
+          apiKey: params.apiKey,
+          model: params.model,
+          endpoint: params.endpoint,
+          prompt: params.prompt,
+          duration: params.duration ? Number(params.duration) : undefined,
+          aspectRatio: params.aspectRatio,
+          resolution: params.resolution,
+          visualReference: visualRef,
+          consistencyMode: params.consistencyMode,
+          stylePreset: params.stylePreset,
+          promptOptimizer: params.promptOptimizer,
+          cameraControl: params.cameraControl
+            ? typeof params.cameraControl === 'string'
+              ? JSON.parse(params.cameraControl)
+              : params.cameraControl
+            : undefined,
+        }
+      },
+    },
+  },
+  inputs: {
+    provider: {
+      type: 'string',
+      description: 'Video generation provider (runway, veo, luma, minimax)',
+    },
+    apiKey: { type: 'string', description: 'Provider API key' },
+    model: {
+      type: 'string',
+      description: 'Provider-specific model',
+    },
+    endpoint: {
+      type: 'string',
+      description: 'Quality endpoint for MiniMax (pro, standard)',
+    },
+    prompt: { type: 'string', description: 'Text prompt for video generation' },
+    duration: { type: 'number', description: 'Video duration in seconds' },
+    aspectRatio: {
+      type: 'string',
+      description: 'Aspect ratio (16:9, 9:16, 1:1) - not available for MiniMax',
+    },
+    resolution: {
+      type: 'string',
+      description: 'Video resolution - not available for MiniMax (fixed per endpoint)',
+    },
+    visualReference: { type: 'json', description: 'Reference image for Runway (UserFile)' },
+    visualReferenceUpload: { type: 'json', description: 'Uploaded reference image (basic mode)' },
+    visualReferenceInput: {
+      type: 'json',
+      description: 'Reference image from previous blocks (advanced mode)',
+    },
+    consistencyMode: {
+      type: 'string',
+      description: 'Consistency mode for Runway (character, object, style, location)',
+    },
+    stylePreset: { type: 'string', description: 'Style preset for Runway' },
+    promptOptimizer: {
+      type: 'boolean',
+      description: 'Enable prompt optimization for MiniMax (default: true)',
+    },
+    cameraControl: {
+      type: 'json',
+      description: 'Camera controls for Luma (pan, zoom, tilt, truck, tracking)',
+    },
   },
 }

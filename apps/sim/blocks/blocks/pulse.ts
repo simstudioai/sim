@@ -15,34 +15,22 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
   icon: PulseIcon,
   subBlocks: [
     {
-      id: 'inputMethod',
-      title: 'Select Input Method',
-      type: 'dropdown' as SubBlockType,
-      options: [
-        { id: 'url', label: 'Document URL' },
-        { id: 'upload', label: 'Upload Document' },
-      ],
+      id: 'fileUpload',
+      title: 'Document',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'document',
+      acceptedTypes: 'application/pdf,image/*,.docx,.pptx,.xlsx',
+      placeholder: 'Upload a document',
+      mode: 'basic',
+      maxSize: 50,
     },
     {
       id: 'filePath',
-      title: 'Document URL',
+      title: 'Document',
       type: 'short-input' as SubBlockType,
-      placeholder: 'Enter full URL to a document (https://example.com/document.pdf)',
-      condition: {
-        field: 'inputMethod',
-        value: 'url',
-      },
-    },
-    {
-      id: 'fileUpload',
-      title: 'Upload Document',
-      type: 'file-upload' as SubBlockType,
-      acceptedTypes: 'application/pdf,image/*,.docx,.pptx,.xlsx',
-      condition: {
-        field: 'inputMethod',
-        value: 'upload',
-      },
-      maxSize: 50,
+      canonicalParamId: 'document',
+      placeholder: 'Document URL',
+      mode: 'advanced',
     },
     {
       id: 'pages',
@@ -84,17 +72,14 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
           apiKey: params.apiKey.trim(),
         }
 
-        const inputMethod = params.inputMethod || 'url'
-        if (inputMethod === 'url') {
-          if (!params.filePath || params.filePath.trim() === '') {
-            throw new Error('Document URL is required')
-          }
-          parameters.filePath = params.filePath.trim()
-        } else if (inputMethod === 'upload') {
-          if (!params.fileUpload) {
-            throw new Error('Please upload a document')
-          }
-          parameters.fileUpload = params.fileUpload
+        const documentInput = params.fileUpload || params.filePath || params.document
+        if (!documentInput) {
+          throw new Error('Document is required')
+        }
+        if (typeof documentInput === 'object') {
+          parameters.fileUpload = documentInput
+        } else if (typeof documentInput === 'string') {
+          parameters.filePath = documentInput.trim()
         }
 
         if (params.pages && params.pages.trim() !== '') {
@@ -117,9 +102,9 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
     },
   },
   inputs: {
-    inputMethod: { type: 'string', description: 'Input method selection' },
-    filePath: { type: 'string', description: 'Document URL' },
-    fileUpload: { type: 'json', description: 'Uploaded document file' },
+    document: { type: 'json', description: 'Document input (file upload or URL reference)' },
+    filePath: { type: 'string', description: 'Document URL (advanced mode)' },
+    fileUpload: { type: 'json', description: 'Uploaded document file (basic mode)' },
     apiKey: { type: 'string', description: 'Pulse API key' },
     pages: { type: 'string', description: 'Page range selection' },
     chunking: {

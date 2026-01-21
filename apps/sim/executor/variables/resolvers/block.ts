@@ -1,3 +1,4 @@
+import { USER_FILE_ACCESSIBLE_PROPERTIES } from '@/lib/workflows/types'
 import {
   isReference,
   normalizeName,
@@ -20,11 +21,58 @@ function isPathInOutputSchema(
     return true
   }
 
+  const isFileArrayType = (value: any): boolean =>
+    value?.type === 'file[]' || value?.type === 'files'
+
   let current: any = outputs
   for (let i = 0; i < pathParts.length; i++) {
     const part = pathParts[i]
 
+    const arrayMatch = part.match(/^([^[]+)\[(\d+)\]$/)
+    if (arrayMatch) {
+      const [, prop] = arrayMatch
+      let fieldDef: any
+
+      if (prop in current) {
+        fieldDef = current[prop]
+      } else if (current.properties && prop in current.properties) {
+        fieldDef = current.properties[prop]
+      } else if (current.type === 'array' && current.items) {
+        if (current.items.properties && prop in current.items.properties) {
+          fieldDef = current.items.properties[prop]
+        } else if (prop in current.items) {
+          fieldDef = current.items[prop]
+        }
+      }
+
+      if (!fieldDef) {
+        return false
+      }
+
+      if (isFileArrayType(fieldDef)) {
+        if (i + 1 < pathParts.length) {
+          return USER_FILE_ACCESSIBLE_PROPERTIES.includes(pathParts[i + 1] as any)
+        }
+        return true
+      }
+
+      if (fieldDef.type === 'array' && fieldDef.items) {
+        current = fieldDef.items
+        continue
+      }
+
+      current = fieldDef
+      continue
+    }
+
     if (/^\d+$/.test(part)) {
+      if (isFileArrayType(current)) {
+        if (i + 1 < pathParts.length) {
+          const nextPart = pathParts[i + 1]
+          return USER_FILE_ACCESSIBLE_PROPERTIES.includes(nextPart as any)
+        }
+        return true
+      }
       continue
     }
 
@@ -33,7 +81,15 @@ function isPathInOutputSchema(
     }
 
     if (part in current) {
-      current = current[part]
+      const nextCurrent = current[part]
+      if (nextCurrent?.type === 'file[]' && i + 1 < pathParts.length) {
+        const nextPart = pathParts[i + 1]
+        if (/^\d+$/.test(nextPart) && i + 2 < pathParts.length) {
+          const propertyPart = pathParts[i + 2]
+          return USER_FILE_ACCESSIBLE_PROPERTIES.includes(propertyPart as any)
+        }
+      }
+      current = nextCurrent
       continue
     }
 
@@ -51,6 +107,10 @@ function isPathInOutputSchema(
         current = current.items[part]
         continue
       }
+    }
+
+    if (isFileArrayType(current) && USER_FILE_ACCESSIBLE_PROPERTIES.includes(part as any)) {
+      return true
     }
 
     if ('type' in current && typeof current.type === 'string') {

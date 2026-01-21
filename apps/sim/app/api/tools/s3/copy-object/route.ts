@@ -79,11 +79,13 @@ export async function POST(request: NextRequest) {
     // Generate public URL for destination (properly encode the destination key)
     const encodedDestKey = validatedData.destinationKey.split('/').map(encodeURIComponent).join('/')
     const url = `https://${validatedData.destinationBucket}.s3.${validatedData.region}.amazonaws.com/${encodedDestKey}`
+    const uri = `s3://${validatedData.destinationBucket}/${validatedData.destinationKey}`
 
     return NextResponse.json({
       success: true,
       output: {
         url,
+        uri,
         copySourceVersionId: result.CopySourceVersionId,
         versionId: result.VersionId,
         etag: result.CopyObjectResult?.ETag,

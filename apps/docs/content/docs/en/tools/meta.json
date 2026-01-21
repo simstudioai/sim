@@ -106,6 +106,7 @@
     "supabase",
     "tavily",
     "telegram",
+    "textract",
     "tinybird",
     "translate",
     "trello",

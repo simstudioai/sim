@@ -376,6 +376,7 @@ describe('Database Helpers', () => {
         forEachItems: '',
         doWhileCondition: '',
         whileCondition: '',
+        enabled: true,
       })
 
       expect(result?.parallels['parallel-1']).toEqual({
@@ -384,6 +385,7 @@ describe('Database Helpers', () => {
         count: 5,
         distribution: ['item1', 'item2'],
         parallelType: 'count',
+        enabled: true,
       })
     })
 

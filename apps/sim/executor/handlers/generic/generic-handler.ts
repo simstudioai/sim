@@ -70,7 +70,6 @@ export class GenericBlockHandler implements BlockHandler {
           },
         },
         false,
-        false,
         ctx
       )
 

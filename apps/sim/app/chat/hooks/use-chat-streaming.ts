@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { isUserFile } from '@/lib/core/utils/display-filters'
+import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import type { ChatFile, ChatMessage } from '@/app/chat/components/message/message'
 import { CHAT_ERROR_MESSAGES } from '@/app/chat/constants'
 
@@ -17,7 +17,7 @@ function extractFilesFromData(
     return files
   }
 
-  if (isUserFile(data)) {
+  if (isUserFileWithMetadata(data)) {
     if (!seenIds.has(data.id)) {
       seenIds.add(data.id)
       files.push({
@@ -232,7 +232,7 @@ export function useChatStreaming() {
                     return null
                   }
 
-                  if (isUserFile(value)) {
+                  if (isUserFileWithMetadata(value)) {
                     return null
                   }
 
@@ -285,7 +285,7 @@ export function useChatStreaming() {
 
                     const value = getOutputValue(blockOutputs, config.path)
 
-                    if (isUserFile(value)) {
+                    if (isUserFileWithMetadata(value)) {
                       extractedFiles.push({
                         id: value.id,
                         name: value.name,

@@ -117,11 +117,13 @@ export async function POST(request: NextRequest) {
 
     const encodedKey = validatedData.objectKey.split('/').map(encodeURIComponent).join('/')
     const url = `https://${validatedData.bucketName}.s3.${validatedData.region}.amazonaws.com/${encodedKey}`
+    const uri = `s3://${validatedData.bucketName}/${validatedData.objectKey}`
 
     return NextResponse.json({
       success: true,
       output: {
         url,
+        uri,
         etag: result.ETag,
         location: url,
         key: validatedData.objectKey,

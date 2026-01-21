@@ -5,7 +5,6 @@ import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 
-/** Column configuration for logs table - shared between header and rows */
 export const LOG_COLUMNS = {
   date: { width: 'w-[8%]', minWidth: 'min-w-[70px]', label: 'Date' },
   time: { width: 'w-[12%]', minWidth: 'min-w-[90px]', label: 'Time' },
@@ -16,10 +15,8 @@ export const LOG_COLUMNS = {
   duration: { width: 'w-[20%]', minWidth: 'min-w-[100px]', label: 'Duration' },
 } as const
 
-/** Type-safe column key derived from LOG_COLUMNS */
 export type LogColumnKey = keyof typeof LOG_COLUMNS
 
-/** Ordered list of column keys for rendering table headers */
 export const LOG_COLUMN_ORDER: readonly LogColumnKey[] = [
   'date',
   'time',
@@ -30,7 +27,6 @@ export const LOG_COLUMN_ORDER: readonly LogColumnKey[] = [
   'duration',
 ] as const
 
-/** Possible execution status values for workflow logs */
 export type LogStatus = 'error' | 'pending' | 'running' | 'info' | 'cancelled'
 
 /**
@@ -53,30 +49,28 @@ export function getDisplayStatus(status: string | null | undefined): LogStatus {
   }
 }
 
-/** Configuration mapping log status to Badge variant and display label */
-const STATUS_VARIANT_MAP: Record<
+export const STATUS_CONFIG: Record<
   LogStatus,
-  { variant: React.ComponentProps<typeof Badge>['variant']; label: string }
+  { variant: React.ComponentProps<typeof Badge>['variant']; label: string; color: string }
 > = {
-  error: { variant: 'red', label: 'Error' },
-  pending: { variant: 'amber', label: 'Pending' },
-  running: { variant: 'green', label: 'Running' },
-  cancelled: { variant: 'gray', label: 'Cancelled' },
-  info: { variant: 'gray', label: 'Info' },
+  error: { variant: 'red', label: 'Error', color: 'var(--text-error)' },
+  pending: { variant: 'amber', label: 'Pending', color: '#f59e0b' },
+  running: { variant: 'green', label: 'Running', color: '#22c55e' },
+  cancelled: { variant: 'orange', label: 'Cancelled', color: '#f97316' },
+  info: { variant: 'gray', label: 'Info', color: 'var(--terminal-status-info-color)' },
 }
 
-/** Configuration mapping core trigger types to Badge color variants */
 const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['variant']> = {
   manual: 'gray-secondary',
   api: 'blue',
   schedule: 'green',
   chat: 'purple',
   webhook: 'orange',
+  mcp: 'cyan',
   a2a: 'teal',
 }
 
 interface StatusBadgeProps {
-  /** The execution status to display */
   status: LogStatus
 }
 
@@ -86,14 +80,13 @@ interface StatusBadgeProps {
  * @returns A Badge with dot indicator and status label
  */
 export const StatusBadge = React.memo(({ status }: StatusBadgeProps) => {
-  const config = STATUS_VARIANT_MAP[status]
+  const config = STATUS_CONFIG[status]
   return React.createElement(Badge, { variant: config.variant, dot: true }, config.label)
 })
 
 StatusBadge.displayName = 'StatusBadge'
 
 interface TriggerBadgeProps {
-  /** The trigger type identifier (e.g., 'manual', 'api', or integration block type) */
   trigger: string
 }
 

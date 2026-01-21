@@ -1,4 +1,4 @@
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import { SYSTEM_SUBBLOCK_IDS, TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import {
   normalizedStringify,
@@ -12,6 +12,20 @@ import {
   sanitizeVariable,
   sortEdges,
 } from './normalize'
+
+/** Block with optional diff markers added by copilot */
+type BlockWithDiffMarkers = BlockState & {
+  is_diff?: string
+  field_diffs?: Record<string, unknown>
+}
+
+/** SubBlock with optional diff marker */
+type SubBlockWithDiffMarker = {
+  id: string
+  type: string
+  value: unknown
+  is_diff?: string
+}
 
 /**
  * Compare the current workflow state with the deployed state to detect meaningful changes
@@ -63,21 +77,32 @@ export function hasWorkflowChanged(
     // - subBlocks: handled separately below
     // - layout: contains measuredWidth/measuredHeight from autolayout
     // - height: block height measurement from autolayout
+    // - outputs: derived from subBlocks (e.g., inputFormat), already compared via subBlocks
+    // - is_diff, field_diffs: diff markers from copilot edits
+    const currentBlockWithDiff = currentBlock as BlockWithDiffMarkers
+    const deployedBlockWithDiff = deployedBlock as BlockWithDiffMarkers
+
     const {
       position: _currentPos,
       subBlocks: currentSubBlocks = {},
       layout: _currentLayout,
       height: _currentHeight,
+      outputs: _currentOutputs,
+      is_diff: _currentIsDiff,
+      field_diffs: _currentFieldDiffs,
       ...currentRest
-    } = currentBlock
+    } = currentBlockWithDiff
 
     const {
       position: _deployedPos,
       subBlocks: deployedSubBlocks = {},
       layout: _deployedLayout,
       height: _deployedHeight,
+      outputs: _deployedOutputs,
+      is_diff: _deployedIsDiff,
+      field_diffs: _deployedFieldDiffs,
       ...deployedRest
-    } = deployedBlock
+    } = deployedBlockWithDiff
 
     // Also exclude width/height from data object (container dimensions from autolayout)
     const {
@@ -156,14 +181,13 @@ export function hasWorkflowChanged(
         }
       }
 
-      // Compare type and other properties
-      const currentSubBlockWithoutValue = { ...currentSubBlocks[subBlockId], value: undefined }
-      const deployedSubBlockWithoutValue = { ...deployedSubBlocks[subBlockId], value: undefined }
+      // Compare type and other properties (excluding diff markers and value)
+      const currentSubBlockWithDiff = currentSubBlocks[subBlockId] as SubBlockWithDiffMarker
+      const deployedSubBlockWithDiff = deployedSubBlocks[subBlockId] as SubBlockWithDiffMarker
+      const { value: _cv, is_diff: _cd, ...currentSubBlockRest } = currentSubBlockWithDiff
+      const { value: _dv, is_diff: _dd, ...deployedSubBlockRest } = deployedSubBlockWithDiff
 
-      if (
-        normalizedStringify(currentSubBlockWithoutValue) !==
-        normalizedStringify(deployedSubBlockWithoutValue)
-      ) {
+      if (normalizedStringify(currentSubBlockRest) !== normalizedStringify(deployedSubBlockRest)) {
         return true
       }
     }

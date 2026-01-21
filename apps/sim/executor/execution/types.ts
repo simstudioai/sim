@@ -89,6 +89,8 @@ export interface ContextExtensions {
    * When aborted, the execution should stop gracefully.
    */
   abortSignal?: AbortSignal
+  includeFileBase64?: boolean
+  base64MaxBytes?: number
   onStream?: (streamingExecution: unknown) => Promise<void>
   onBlockStart?: (
     blockId: string,

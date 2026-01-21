@@ -388,7 +388,7 @@ export const anthropicProvider: ProviderConfig = {
                   toolArgs,
                   request
                 )
-                const result = await executeTool(toolName, executionParams, true)
+                const result = await executeTool(toolName, executionParams)
                 const toolCallEndTime = Date.now()
 
                 return {

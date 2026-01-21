@@ -4,6 +4,10 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
+  containsUserFileWithMetadata,
+  hydrateUserFilesWithBase64,
+} from '@/lib/uploads/utils/user-file-base64.server'
+import {
   BlockType,
   buildResumeApiUrl,
   buildResumeUiUrl,
@@ -133,6 +137,14 @@ export class BlockExecutor {
         )
       } else {
         normalizedOutput = this.normalizeOutput(output)
+      }
+
+      if (ctx.includeFileBase64 && containsUserFileWithMetadata(normalizedOutput)) {
+        normalizedOutput = (await hydrateUserFilesWithBase64(normalizedOutput, {
+          requestId: ctx.metadata.requestId,
+          executionId: ctx.executionId,
+          maxBytes: ctx.base64MaxBytes,
+        })) as NormalizedBlockOutput
       }
 
       const duration = Date.now() - startTime

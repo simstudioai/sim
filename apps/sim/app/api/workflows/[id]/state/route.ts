@@ -33,6 +33,7 @@ const BlockDataSchema = z.object({
   doWhileCondition: z.string().optional(),
   parallelType: z.enum(['collection', 'count']).optional(),
   type: z.string().optional(),
+  canonicalModes: z.record(z.enum(['basic', 'advanced'])).optional(),
 })
 
 const SubBlockStateSchema = z.object({
