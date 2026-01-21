@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isEqual } from 'lodash'
 import { BookOpen, Check, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { Button, Tooltip } from '@/components/emcn'
 import {
   buildCanonicalIndex,
@@ -99,7 +100,8 @@ export function Editor() {
     currentWorkflow.isSnapshotView
   )
 
-  const blockSubBlockValues = useSubBlockStore(
+  const blockSubBlockValues = useStoreWithEqualityFn(
+    useSubBlockStore,
     useCallback(
       (state) => {
         if (!activeWorkflowId || !currentBlockId) return EMPTY_SUBBLOCK_VALUES

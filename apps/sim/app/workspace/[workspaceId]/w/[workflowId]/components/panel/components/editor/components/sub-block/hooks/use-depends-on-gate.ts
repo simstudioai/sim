@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo } from 'react'
 import { isEqual } from 'lodash'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
   buildCanonicalIndex,
   isNonEmptyValue,
@@ -151,7 +152,7 @@ export function useDependsOnGate(
 
   // Get values for all dependency fields (both all and any)
   // Use isEqual to prevent re-renders when dependency values haven't actually changed
-  const dependencyValuesMap = useSubBlockStore(dependencySelector, isEqual)
+  const dependencyValuesMap = useStoreWithEqualityFn(useSubBlockStore, dependencySelector, isEqual)
 
   const depsSatisfied = useMemo(() => {
     // Check all fields (AND logic) - all must be satisfied
