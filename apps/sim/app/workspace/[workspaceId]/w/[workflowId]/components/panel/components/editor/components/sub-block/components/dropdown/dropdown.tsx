@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isEqual } from 'lodash'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { Badge } from '@/components/emcn'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
 import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
@@ -100,7 +101,8 @@ export const Dropdown = memo(function Dropdown({
     [blockConfig?.subBlocks]
   )
   const canonicalModeOverrides = blockState?.data?.canonicalModes
-  const dependencyValues = useSubBlockStore(
+  const dependencyValues = useStoreWithEqualityFn(
+    useSubBlockStore,
     useCallback(
       (state) => {
         if (dependsOnFields.length === 0 || !activeWorkflowId) return []

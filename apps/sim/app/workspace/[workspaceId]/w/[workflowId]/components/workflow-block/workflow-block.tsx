@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { isEqual } from 'lodash'
 import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { Badge, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -526,7 +527,8 @@ const SubBlockRow = memo(function SubBlockRow({
    * Subscribe only to variables for this workflow to avoid re-renders from other workflows.
    * Uses isEqual for deep comparison since Object.fromEntries creates a new object each time.
    */
-  const workflowVariables = useVariablesStore(
+  const workflowVariables = useStoreWithEqualityFn(
+    useVariablesStore,
     useCallback(
       (state) => {
         if (!workflowId) return {}
@@ -729,7 +731,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const isStarterBlock = type === 'starter'
   const isWebhookTriggerBlock = type === 'webhook' || type === 'generic_webhook'
 
-  const blockSubBlockValues = useSubBlockStore(
+  const blockSubBlockValues = useStoreWithEqualityFn(
+    useSubBlockStore,
     useCallback(
       (state) => {
         if (!activeWorkflowId) return EMPTY_SUBBLOCK_VALUES

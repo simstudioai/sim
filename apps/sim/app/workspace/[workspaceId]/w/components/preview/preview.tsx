@@ -215,7 +215,10 @@ export function WorkflowPreview({
   executedBlocks,
   selectedBlockId,
 }: WorkflowPreviewProps) {
-  const nodeTypes = lightweight ? lightweightNodeTypes : fullNodeTypes
+  const nodeTypes = useMemo(
+    () => (lightweight ? lightweightNodeTypes : fullNodeTypes),
+    [lightweight]
+  )
   const isValidWorkflowState = workflowState?.blocks && workflowState.edges
 
   const blocksStructure = useMemo(() => {
