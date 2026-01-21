@@ -6,7 +6,7 @@ import { createLogger } from '@sim/logger'
 import binaryExtensionsList from 'binary-extensions'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import { secureFetchWithPinnedIP, validateUrlWithDNS } from '@/lib/core/security/input-validation'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
@@ -349,11 +349,8 @@ async function handleExternalUrl(
       }
     }
 
-    // Use the original URL after DNS validation passes.
-    // DNS pinning (connecting to IP directly) breaks TLS SNI for HTTPS.
-    // Since we've validated the IP is not private/reserved, using the original URL is safe.
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+    const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, {
+      timeout: DOWNLOAD_TIMEOUT_MS,
     })
     if (!response.ok) {
       throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`)

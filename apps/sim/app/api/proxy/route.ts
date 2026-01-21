@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { isDev } from '@/lib/core/config/feature-flags'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import { secureFetchWithPinnedIP, validateUrlWithDNS } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { executeTool } from '@/tools'
@@ -211,15 +211,15 @@ export async function GET(request: Request) {
   logger.info(`[${requestId}] Proxying ${method} request to: ${targetUrl}`)
 
   try {
-    // Use the original URL after DNS validation passes.
-    // DNS pinning breaks TLS SNI for HTTPS; validation already ensures IP is safe.
-    const response = await fetch(targetUrl, {
+    // Use secure fetch with IP pinning to prevent DNS rebinding attacks
+    // This uses the pre-resolved IP while preserving hostname for TLS SNI
+    const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP!, {
       method: method,
       headers: {
         ...getProxyHeaders(),
         ...customHeaders,
       },
-      body: body || undefined,
+      body: body,
     })
 
     const contentType = response.headers.get('content-type') || ''
@@ -232,8 +232,8 @@ export async function GET(request: Request) {
     }
 
     const errorMessage = !response.ok
-      ? data && typeof data === 'object' && data.error
-        ? `${data.error.message || JSON.stringify(data.error)}`
+      ? data && typeof data === 'object' && (data as { error?: { message?: string } }).error
+        ? `${(data as { error: { message?: string } }).error.message || JSON.stringify((data as { error: unknown }).error)}`
         : response.statusText || `HTTP error ${response.status}`
       : undefined
 
@@ -245,7 +245,7 @@ export async function GET(request: Request) {
       success: response.ok,
       status: response.status,
       statusText: response.statusText,
-      headers: Object.fromEntries(response.headers.entries()),
+      headers: response.headers.toRecord(),
       data,
       error: errorMessage,
     })

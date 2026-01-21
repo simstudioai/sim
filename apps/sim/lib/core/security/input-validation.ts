@@ -1,4 +1,6 @@
 import dns from 'dns/promises'
+import http from 'http'
+import https from 'https'
 import { createLogger } from '@sim/logger'
 
 const logger = createLogger('InputValidation')
@@ -896,6 +898,139 @@ export function createPinnedUrl(originalUrl: string, resolvedIP: string): string
   // IPv6 addresses must be wrapped in brackets for URLs
   const host = resolvedIP.includes(':') ? `[${resolvedIP}]` : resolvedIP
   return `${parsed.protocol}//${host}${port}${parsed.pathname}${parsed.search}`
+}
+
+export interface SecureFetchOptions {
+  method?: string
+  headers?: Record<string, string>
+  body?: string
+  timeout?: number
+}
+
+export class SecureFetchHeaders {
+  private headers: Map<string, string>
+
+  constructor(headers: Record<string, string>) {
+    this.headers = new Map(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]))
+  }
+
+  get(name: string): string | null {
+    return this.headers.get(name.toLowerCase()) ?? null
+  }
+
+  toRecord(): Record<string, string> {
+    const record: Record<string, string> = {}
+    for (const [key, value] of this.headers) {
+      record[key] = value
+    }
+    return record
+  }
+
+  [Symbol.iterator]() {
+    return this.headers.entries()
+  }
+}
+
+export interface SecureFetchResponse {
+  ok: boolean
+  status: number
+  statusText: string
+  headers: SecureFetchHeaders
+  text: () => Promise<string>
+  json: () => Promise<unknown>
+  arrayBuffer: () => Promise<ArrayBuffer>
+}
+
+/**
+ * Performs a fetch with IP pinning to prevent DNS rebinding attacks.
+ * Uses the pre-resolved IP address while preserving the original hostname for TLS SNI.
+ */
+export function secureFetchWithPinnedIP(
+  url: string,
+  resolvedIP: string,
+  options: SecureFetchOptions = {}
+): Promise<SecureFetchResponse> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url)
+    const isHttps = parsed.protocol === 'https:'
+    const defaultPort = isHttps ? 443 : 80
+    const port = parsed.port ? Number.parseInt(parsed.port, 10) : defaultPort
+
+    const isIPv6 = resolvedIP.includes(':')
+    const family = isIPv6 ? 6 : 4
+
+    const agentOptions = {
+      lookup: (
+        _hostname: string,
+        _options: unknown,
+        callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void
+      ) => {
+        callback(null, resolvedIP, family)
+      },
+    }
+
+    const agent = isHttps
+      ? new https.Agent(agentOptions as https.AgentOptions)
+      : new http.Agent(agentOptions as http.AgentOptions)
+
+    const requestOptions: http.RequestOptions = {
+      hostname: parsed.hostname,
+      port,
+      path: parsed.pathname + parsed.search,
+      method: options.method || 'GET',
+      headers: options.headers || {},
+      agent,
+      timeout: options.timeout || 30000,
+    }
+
+    const protocol = isHttps ? https : http
+    const req = protocol.request(requestOptions, (res) => {
+      const chunks: Buffer[] = []
+
+      res.on('data', (chunk: Buffer) => chunks.push(chunk))
+      res.on('end', () => {
+        const bodyBuffer = Buffer.concat(chunks)
+        const body = bodyBuffer.toString('utf-8')
+        const headersRecord: Record<string, string> = {}
+        for (const [key, value] of Object.entries(res.headers)) {
+          if (typeof value === 'string') {
+            headersRecord[key.toLowerCase()] = value
+          } else if (Array.isArray(value)) {
+            headersRecord[key.toLowerCase()] = value.join(', ')
+          }
+        }
+
+        resolve({
+          ok: res.statusCode !== undefined && res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode || 0,
+          statusText: res.statusMessage || '',
+          headers: new SecureFetchHeaders(headersRecord),
+          text: async () => body,
+          json: async () => JSON.parse(body),
+          arrayBuffer: async () =>
+            bodyBuffer.buffer.slice(
+              bodyBuffer.byteOffset,
+              bodyBuffer.byteOffset + bodyBuffer.byteLength
+            ),
+        })
+      })
+    })
+
+    req.on('error', (error) => {
+      reject(error)
+    })
+
+    req.on('timeout', () => {
+      req.destroy()
+      reject(new Error('Request timeout'))
+    })
+
+    if (options.body) {
+      req.write(options.body)
+    }
+
+    req.end()
+  })
 }
 
 /**

@@ -5,7 +5,7 @@ import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import Parser from 'rss-parser'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import { secureFetchWithPinnedIP, validateUrlWithDNS } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
@@ -265,14 +265,12 @@ async function fetchNewRssItems(
       throw new Error(`Invalid RSS feed URL: ${urlValidation.error}`)
     }
 
-    // Use the original URL after DNS validation passes.
-    // DNS pinning breaks TLS SNI for HTTPS; validation already ensures IP is safe.
-    const response = await fetch(config.feedUrl, {
+    const response = await secureFetchWithPinnedIP(config.feedUrl, urlValidation.resolvedIP!, {
       headers: {
         'User-Agent': 'Sim/1.0 RSS Poller',
         Accept: 'application/rss+xml, application/xml, text/xml, */*',
       },
-      signal: AbortSignal.timeout(30000),
+      timeout: 30000,
     })
 
     if (!response.ok) {
