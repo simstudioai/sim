@@ -2,13 +2,13 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 import { Button } from '@/components/ui/button'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { cn } from '@/lib/core/utils/cn'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { useVerification } from '@/app/(auth)/verify/use-verification'
+import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 
 interface VerifyContentProps {
   hasEmailService: boolean

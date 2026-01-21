@@ -7,13 +7,13 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 import { client } from '@/lib/auth/auth-client'
 import { env, isFalsy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
+import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 
 const logger = createLogger('SSOForm')
 

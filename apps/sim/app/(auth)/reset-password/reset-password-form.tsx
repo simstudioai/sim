@@ -2,12 +2,12 @@
 
 import { useState } from 'react'
 import { ArrowRight, ChevronRight, Eye, EyeOff } from 'lucide-react'
-import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
 import { inter } from '@/app/_styles/fonts/inter/inter'
+import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 
 interface RequestResetFormProps {
   email: string

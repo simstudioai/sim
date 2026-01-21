@@ -8,7 +8,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
@@ -17,6 +16,7 @@ import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
+import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 
 const logger = createLogger('SignupForm')
 
