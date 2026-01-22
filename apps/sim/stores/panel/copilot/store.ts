@@ -1481,7 +1481,10 @@ const sseHandlers: Record<string, SSEHandler> = {
       // Check if tool is auto-allowed - if so, execute even if it has an interrupt
       const { autoAllowedTools: classAutoAllowed } = get()
       const isClassAutoAllowed = name ? classAutoAllowed.includes(name) : false
-      if ((!hasInterrupt || isClassAutoAllowed) && (typeof inst?.execute === 'function' || typeof inst?.handleAccept === 'function')) {
+      if (
+        (!hasInterrupt || isClassAutoAllowed) &&
+        (typeof inst?.execute === 'function' || typeof inst?.handleAccept === 'function')
+      ) {
         if (isClassAutoAllowed && hasInterrupt) {
           logger.info('[toolCallsById] Auto-executing class tool with interrupt (auto-allowed)', {
             id,
@@ -2719,6 +2722,9 @@ export const useCopilotStore = create<CopilotStore>()(
       // Load sensitive credential IDs for masking before streaming starts
       await get().loadSensitiveCredentialIds()
 
+      // Ensure auto-allowed tools are loaded before tool calls arrive
+      await get().loadAutoAllowedTools()
+
       let newMessages: CopilotMessage[]
       if (revertState) {
         const currentMessages = get().messages
@@ -3782,10 +3788,7 @@ export const useCopilotStore = create<CopilotStore>()(
       const { id, name, params } = toolCall
 
       // Guard against double execution - skip if already executing or in terminal state
-      if (
-        toolCall.state === ClientToolCallState.executing ||
-        isTerminalState(toolCall.state)
-      ) {
+      if (toolCall.state === ClientToolCallState.executing || isTerminalState(toolCall.state)) {
         logger.info('[executeIntegrationTool] Skipping - already executing or terminal', {
           id,
           name,
