@@ -26,7 +26,6 @@ export function collectBlockData(ctx: ExecutionContext): BlockDataCollection {
       blockNameMapping[normalizeName(workflowBlock.metadata.name)] = id
     }
 
-    // Build output schema from block type and params
     const blockType = workflowBlock.metadata?.id
     if (blockType) {
       const params = workflowBlock.config?.params as Record<string, unknown> | undefined

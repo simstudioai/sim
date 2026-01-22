@@ -28,16 +28,51 @@ export class InvalidFieldError extends Error {
   }
 }
 
+const FILE_PROPERTIES = ['name', 'type', 'size', 'url', 'base64', 'mimeType'] as const
+
+function isFileType(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false
+  const typed = value as { type?: string }
+  return typed.type === 'file[]' || typed.type === 'files'
+}
+
+function isArrayType(value: unknown): value is { type: 'array'; items?: unknown } {
+  if (typeof value !== 'object' || value === null) return false
+  return (value as { type?: string }).type === 'array'
+}
+
+function getArrayItems(schema: unknown): unknown {
+  if (typeof schema !== 'object' || schema === null) return undefined
+  return (schema as { items?: unknown }).items
+}
+
+function getProperties(schema: unknown): Record<string, unknown> | undefined {
+  if (typeof schema !== 'object' || schema === null) return undefined
+  const props = (schema as { properties?: unknown }).properties
+  return typeof props === 'object' && props !== null
+    ? (props as Record<string, unknown>)
+    : undefined
+}
+
+function lookupField(schema: unknown, fieldName: string): unknown | undefined {
+  if (typeof schema !== 'object' || schema === null) return undefined
+  const typed = schema as Record<string, unknown>
+
+  if (fieldName in typed) {
+    return typed[fieldName]
+  }
+
+  const props = getProperties(schema)
+  if (props && fieldName in props) {
+    return props[fieldName]
+  }
+
+  return undefined
+}
+
 function isPathInSchema(schema: OutputSchema | undefined, pathParts: string[]): boolean {
   if (!schema || pathParts.length === 0) {
     return true
-  }
-
-  const FILE_PROPERTIES = ['name', 'type', 'size', 'url', 'base64', 'mimeType']
-  const isFileType = (value: unknown): boolean => {
-    if (typeof value !== 'object' || value === null) return false
-    const typed = value as { type?: string }
-    return typed.type === 'file[]' || typed.type === 'files'
   }
 
   let current: unknown = schema
@@ -50,8 +85,12 @@ function isPathInSchema(schema: OutputSchema | undefined, pathParts: string[]): 
     }
 
     if (/^\d+$/.test(part)) {
-      if (isFileType(current) && i + 1 < pathParts.length) {
-        return FILE_PROPERTIES.includes(pathParts[i + 1])
+      if (isFileType(current)) {
+        const nextPart = pathParts[i + 1]
+        return !nextPart || FILE_PROPERTIES.includes(nextPart as (typeof FILE_PROPERTIES)[number])
+      }
+      if (isArrayType(current)) {
+        current = getArrayItems(current)
       }
       continue
     }
@@ -59,69 +98,45 @@ function isPathInSchema(schema: OutputSchema | undefined, pathParts: string[]): 
     const arrayMatch = part.match(/^([^[]+)\[(\d+)\]$/)
     if (arrayMatch) {
       const [, prop] = arrayMatch
-      const typed = current as Record<string, unknown>
+      const fieldDef = lookupField(current, prop)
+      if (!fieldDef) return false
 
-      if (prop in typed) {
-        const fieldDef = typed[prop]
-        if (isFileType(fieldDef) && i + 1 < pathParts.length) {
-          return FILE_PROPERTIES.includes(pathParts[i + 1])
-        }
-        current = fieldDef
-        continue
+      if (isFileType(fieldDef)) {
+        const nextPart = pathParts[i + 1]
+        return !nextPart || FILE_PROPERTIES.includes(nextPart as (typeof FILE_PROPERTIES)[number])
       }
-      return false
-    }
 
-    const typed = current as Record<string, unknown>
-
-    if (part in typed) {
-      const nextValue = typed[part]
-      if (isFileType(nextValue) && i + 1 < pathParts.length) {
-        if (/^\d+$/.test(pathParts[i + 1]) && i + 2 < pathParts.length) {
-          return FILE_PROPERTIES.includes(pathParts[i + 2])
-        }
-        return FILE_PROPERTIES.includes(pathParts[i + 1])
-      }
-      current = nextValue
+      current = isArrayType(fieldDef) ? getArrayItems(fieldDef) : fieldDef
       continue
     }
 
-    if (typed.properties && typeof typed.properties === 'object') {
-      const props = typed.properties as Record<string, unknown>
-      if (part in props) {
-        current = props[part]
-        continue
-      }
-    }
-
-    if (typed.type === 'array' && typed.items && typeof typed.items === 'object') {
-      const items = typed.items as Record<string, unknown>
-      if (items.properties && typeof items.properties === 'object') {
-        const itemProps = items.properties as Record<string, unknown>
-        if (part in itemProps) {
-          current = itemProps[part]
-          continue
-        }
-      }
-      if (part in items) {
-        current = items[part]
-        continue
-      }
-    }
-
-    if (isFileType(current) && FILE_PROPERTIES.includes(part)) {
+    if (isFileType(current) && FILE_PROPERTIES.includes(part as (typeof FILE_PROPERTIES)[number])) {
       return true
     }
 
-    if (
-      typeof current === 'object' &&
-      current !== null &&
-      'type' in current &&
-      typeof (current as { type: unknown }).type === 'string'
-    ) {
-      const typedCurrent = current as { type: string; properties?: unknown; items?: unknown }
-      if (!typedCurrent.properties && !typedCurrent.items) {
-        return false
+    const fieldDef = lookupField(current, part)
+    if (fieldDef !== undefined) {
+      if (isFileType(fieldDef)) {
+        const nextPart = pathParts[i + 1]
+        if (!nextPart) return true
+        if (/^\d+$/.test(nextPart)) {
+          const afterIndex = pathParts[i + 2]
+          return (
+            !afterIndex || FILE_PROPERTIES.includes(afterIndex as (typeof FILE_PROPERTIES)[number])
+          )
+        }
+        return FILE_PROPERTIES.includes(nextPart as (typeof FILE_PROPERTIES)[number])
+      }
+      current = fieldDef
+      continue
+    }
+
+    if (isArrayType(current)) {
+      const items = getArrayItems(current)
+      const itemField = lookupField(items, part)
+      if (itemField !== undefined) {
+        current = itemField
+        continue
       }
     }
 

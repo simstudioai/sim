@@ -480,7 +480,7 @@ function resolveTagVariables(
   const undefinedLiteral = language === 'python' ? 'None' : 'undefined'
 
   const tagPattern = new RegExp(
-    `${REFERENCE.START}([a-zA-Z_][a-zA-Z0-9_${REFERENCE.PATH_DELIMITER}]*[a-zA-Z0-9_])${REFERENCE.END}`,
+    `${REFERENCE.START}([a-zA-Z_](?:[a-zA-Z0-9_${REFERENCE.PATH_DELIMITER}]*[a-zA-Z0-9_])?)${REFERENCE.END}`,
     'g'
   )
   const tagMatches = resolvedCode.match(tagPattern) || []
@@ -508,19 +508,18 @@ function resolveTagVariables(
       continue
     }
 
-    if (
-      typeof tagValue === 'string' &&
-      tagValue.length > 100 &&
-      (tagValue.startsWith('{') || tagValue.startsWith('['))
-    ) {
-      try {
-        tagValue = JSON.parse(tagValue)
-      } catch {
-        // Keep as-is
+    if (typeof tagValue === 'string') {
+      const trimmed = tagValue.trimStart()
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          tagValue = JSON.parse(tagValue)
+        } catch {
+          // Keep as string if not valid JSON
+        }
       }
     }
 
-    const safeVarName = `__tag_${tagName.replace(/[^a-zA-Z0-9_]/g, '_')}`
+    const safeVarName = `__tag_${tagName.replace(/_/g, '_1').replace(/\./g, '_0')}`
     contextVariables[safeVarName] = tagValue
     resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
   }
