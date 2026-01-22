@@ -88,45 +88,40 @@ export class BlockResolver implements Resolver {
         blockOutputSchemas,
       })!
 
-      if (result.value !== undefined) {
-        return result.value
-      }
-
-      if (output !== undefined && pathParts.length > 0) {
-        if (
-          block.metadata?.id === 'response' &&
-          pathParts[0] === 'response' &&
-          output?.response === undefined
-        ) {
-          const adjustedPathParts = pathParts.slice(1)
-          if (adjustedPathParts.length === 0) {
-            return output
-          }
-          const fallbackResult = navigatePath(output, adjustedPathParts)
-          if (fallbackResult !== undefined) {
-            return fallbackResult
-          }
-        }
-
-        const isWorkflowBlock =
-          block.metadata?.id === 'workflow' || block.metadata?.id === 'workflow_input'
-        if (
-          isWorkflowBlock &&
-          pathParts[0] === 'result' &&
-          pathParts[1] === 'response' &&
-          output?.result?.response === undefined
-        ) {
-          const adjustedPathParts = ['result', ...pathParts.slice(2)]
-          const fallbackResult = navigatePath(output, adjustedPathParts)
-          if (fallbackResult !== undefined) {
-            return fallbackResult
-          }
-        }
-      }
-
-      return undefined
+      return result.value
     } catch (error) {
       if (error instanceof InvalidFieldError) {
+        if (output !== undefined && pathParts.length > 0) {
+          if (
+            block.metadata?.id === 'response' &&
+            pathParts[0] === 'response' &&
+            output?.response === undefined
+          ) {
+            const adjustedPathParts = pathParts.slice(1)
+            if (adjustedPathParts.length === 0) {
+              return output
+            }
+            const fallbackResult = navigatePath(output, adjustedPathParts)
+            if (fallbackResult !== undefined) {
+              return fallbackResult
+            }
+          }
+
+          const isWorkflowBlock =
+            block.metadata?.id === 'workflow' || block.metadata?.id === 'workflow_input'
+          if (
+            isWorkflowBlock &&
+            pathParts[0] === 'result' &&
+            pathParts[1] === 'response' &&
+            output?.result?.response === undefined
+          ) {
+            const adjustedPathParts = ['result', ...pathParts.slice(2)]
+            const fallbackResult = navigatePath(output, adjustedPathParts)
+            if (fallbackResult !== undefined) {
+              return fallbackResult
+            }
+          }
+        }
         throw new Error(error.message)
       }
       throw error
