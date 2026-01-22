@@ -2,7 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isEqual } from 'lodash'
-import { BookOpen, Check, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
+import {
+  BookOpen,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  Loader2,
+  Pencil,
+} from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { Button, Tooltip } from '@/components/emcn'
@@ -29,8 +38,10 @@ import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/component
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockType } from '@/blocks/types'
+import { useWorkflowState } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePanelEditorStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -84,6 +95,14 @@ export function Editor() {
 
   // Get subflow display properties from configs
   const subflowConfig = isSubflow ? (currentBlock.type === 'loop' ? LoopTool : ParallelTool) : null
+
+  // Check if selected block is a workflow block
+  const isWorkflowBlock =
+    currentBlock && (currentBlock.type === 'workflow' || currentBlock.type === 'workflow_input')
+
+  // Get workspace ID from params
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
 
   // Refs for resize functionality
   const subBlocksRef = useRef<HTMLDivElement>(null)
@@ -254,11 +273,11 @@ export function Editor() {
 
   // Trigger rename mode when signaled from context menu
   useEffect(() => {
-    if (shouldFocusRename && currentBlock && !isSubflow) {
+    if (shouldFocusRename && currentBlock) {
       handleStartRename()
       setShouldFocusRename(false)
     }
-  }, [shouldFocusRename, currentBlock, isSubflow, handleStartRename, setShouldFocusRename])
+  }, [shouldFocusRename, currentBlock, handleStartRename, setShouldFocusRename])
 
   /**
    * Handles opening documentation link in a new secure tab.
@@ -269,6 +288,22 @@ export function Editor() {
       window.open(docsLink, '_blank', 'noopener,noreferrer')
     }
   }
+
+  // Get child workflow ID for workflow blocks
+  const childWorkflowId = isWorkflowBlock ? blockSubBlockValues?.workflowId : null
+
+  // Fetch child workflow state for preview (only for workflow blocks with a selected workflow)
+  const { data: childWorkflowState, isLoading: isLoadingChildWorkflow } =
+    useWorkflowState(childWorkflowId)
+
+  /**
+   * Handles opening the child workflow in a new tab.
+   */
+  const handleOpenChildWorkflow = useCallback(() => {
+    if (childWorkflowId && workspaceId) {
+      window.open(`/workspace/${workspaceId}/w/${childWorkflowId}`, '_blank', 'noopener,noreferrer')
+    }
+  }, [childWorkflowId, workspaceId])
 
   // Determine if connections are at minimum height (collapsed state)
   const isConnectionsAtMinHeight = connectionsHeight <= 35
@@ -322,7 +357,7 @@ export function Editor() {
         </div>
         <div className='flex shrink-0 items-center gap-[8px]'>
           {/* Rename button */}
-          {currentBlock && !isSubflow && (
+          {currentBlock && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button
@@ -408,7 +443,66 @@ export function Editor() {
             className='subblocks-section flex flex-1 flex-col overflow-hidden'
           >
             <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px] pt-[12px] pb-[8px] [overflow-anchor:none]'>
-              {subBlocks.length === 0 ? (
+              {/* Workflow Preview - only for workflow blocks with a selected child workflow */}
+              {isWorkflowBlock && childWorkflowId && (
+                <>
+                  <div className='subblock-content flex flex-col gap-[9.5px]'>
+                    <div className='pl-[2px] font-medium text-[13px] text-[var(--text-primary)] leading-none'>
+                      Workflow Preview
+                    </div>
+                    <div className='relative h-[160px] overflow-hidden rounded-[4px] border border-[var(--border)]'>
+                      {isLoadingChildWorkflow ? (
+                        <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
+                          <Loader2 className='h-5 w-5 animate-spin text-[var(--text-tertiary)]' />
+                        </div>
+                      ) : childWorkflowState ? (
+                        <>
+                          <div className='[&_*:active]:!cursor-grabbing [&_*]:!cursor-grab [&_.react-flow__handle]:!hidden h-full w-full'>
+                            <WorkflowPreview
+                              workflowState={childWorkflowState}
+                              height={160}
+                              width='100%'
+                              isPannable={true}
+                              defaultZoom={0.6}
+                              fitPadding={0.15}
+                              cursorStyle='grab'
+                            />
+                          </div>
+                          <Tooltip.Root>
+                            <Tooltip.Trigger asChild>
+                              <Button
+                                type='button'
+                                variant='ghost'
+                                onClick={handleOpenChildWorkflow}
+                                className='absolute right-[6px] bottom-[6px] z-10 h-[24px] w-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover:bg-[var(--surface-4)]'
+                              >
+                                <ExternalLink className='h-[12px] w-[12px]' />
+                              </Button>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content side='top'>Open workflow</Tooltip.Content>
+                          </Tooltip.Root>
+                        </>
+                      ) : (
+                        <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
+                          <span className='text-[13px] text-[var(--text-tertiary)]'>
+                            Unable to load preview
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
+                    <div
+                      className='h-[1.25px]'
+                      style={{
+                        backgroundImage:
+                          'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+              {subBlocks.length === 0 && !isWorkflowBlock ? (
                 <div className='flex h-full items-center justify-center text-center text-[#8D8D8D] text-[13px]'>
                   This block has no subblocks
                 </div>

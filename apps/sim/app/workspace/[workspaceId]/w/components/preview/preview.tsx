@@ -15,14 +15,10 @@ import 'reactflow/dist/style.css'
 import { createLogger } from '@sim/logger'
 import { cn } from '@/lib/core/utils/cn'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
-import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
-import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
-import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import { estimateBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { WorkflowPreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview/components/block'
 import { WorkflowPreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/subflow'
-import { getBlock } from '@/blocks'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowPreview')
@@ -134,8 +130,6 @@ interface WorkflowPreviewProps {
   onNodeContextMenu?: (blockId: string, mousePosition: { x: number; y: number }) => void
   /** Callback when the canvas (empty area) is clicked */
   onPaneClick?: () => void
-  /** Use lightweight blocks for better performance in template cards */
-  lightweight?: boolean
   /** Cursor style to show when hovering the canvas */
   cursorStyle?: 'default' | 'pointer' | 'grab'
   /** Map of executed block IDs to their status for highlighting the execution path */
@@ -145,19 +139,10 @@ interface WorkflowPreviewProps {
 }
 
 /**
- * Full node types with interactive WorkflowBlock for detailed previews
+ * Preview node types using minimal components without hooks or store subscriptions.
+ * This prevents interaction issues while allowing canvas panning and node clicking.
  */
-const fullNodeTypes: NodeTypes = {
-  workflowBlock: WorkflowBlock,
-  noteBlock: NoteBlock,
-  subflowNode: SubflowNodeComponent,
-}
-
-/**
- * Lightweight node types for template cards and other high-volume previews.
- * Uses minimal components without hooks or store subscriptions.
- */
-const lightweightNodeTypes: NodeTypes = {
+const previewNodeTypes: NodeTypes = {
   workflowBlock: WorkflowPreviewBlock,
   noteBlock: WorkflowPreviewBlock,
   subflowNode: WorkflowPreviewSubflow,
@@ -172,17 +157,19 @@ const edgeTypes: EdgeTypes = {
 interface FitViewOnChangeProps {
   nodeIds: string
   fitPadding: number
+  containerRef: React.RefObject<HTMLDivElement | null>
 }
 
 /**
- * Helper component that calls fitView when the set of nodes changes.
+ * Helper component that calls fitView when the set of nodes changes or when the container resizes.
  * Only triggers on actual node additions/removals, not on selection changes.
  * Must be rendered inside ReactFlowProvider.
  */
-function FitViewOnChange({ nodeIds, fitPadding }: FitViewOnChangeProps) {
+function FitViewOnChange({ nodeIds, fitPadding, containerRef }: FitViewOnChangeProps) {
   const { fitView } = useReactFlow()
   const lastNodeIdsRef = useRef<string | null>(null)
 
+  // Fit view when nodes change
   useEffect(() => {
     if (!nodeIds.length) return
     const shouldFit = lastNodeIdsRef.current !== nodeIds
@@ -194,6 +181,27 @@ function FitViewOnChange({ nodeIds, fitPadding }: FitViewOnChangeProps) {
     }, 50)
     return () => clearTimeout(timeoutId)
   }, [nodeIds, fitPadding, fitView])
+
+  // Fit view when container resizes (debounced to avoid excessive calls during drag)
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (timeoutId) clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        fitView({ padding: fitPadding, duration: 150 })
+      }, 100)
+    })
+
+    resizeObserver.observe(container)
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId)
+      resizeObserver.disconnect()
+    }
+  }, [containerRef, fitPadding, fitView])
 
   return null
 }
@@ -210,15 +218,12 @@ export function WorkflowPreview({
   onNodeClick,
   onNodeContextMenu,
   onPaneClick,
-  lightweight = false,
   cursorStyle = 'grab',
   executedBlocks,
   selectedBlockId,
 }: WorkflowPreviewProps) {
-  const nodeTypes = useMemo(
-    () => (lightweight ? lightweightNodeTypes : fullNodeTypes),
-    [lightweight]
-  )
+  const containerRef = useRef<HTMLDivElement>(null)
+  const nodeTypes = previewNodeTypes
   const isValidWorkflowState = workflowState?.blocks && workflowState.edges
 
   const blocksStructure = useMemo(() => {
@@ -288,119 +293,28 @@ export function WorkflowPreview({
 
       const absolutePosition = calculateAbsolutePosition(block, workflowState.blocks)
 
-      if (lightweight) {
-        if (block.type === 'loop' || block.type === 'parallel') {
-          const isSelected = selectedBlockId === blockId
-          const dimensions = calculateContainerDimensions(blockId, workflowState.blocks)
-          nodeArray.push({
-            id: blockId,
-            type: 'subflowNode',
-            position: absolutePosition,
-            draggable: false,
-            data: {
-              name: block.name,
-              width: dimensions.width,
-              height: dimensions.height,
-              kind: block.type as 'loop' | 'parallel',
-              isPreviewSelected: isSelected,
-            },
-          })
-          return
-        }
-
-        const isSelected = selectedBlockId === blockId
-
-        let lightweightExecutionStatus: ExecutionStatus | undefined
-        if (executedBlocks) {
-          const blockExecution = executedBlocks[blockId]
-          if (blockExecution) {
-            if (blockExecution.status === 'error') {
-              lightweightExecutionStatus = 'error'
-            } else if (blockExecution.status === 'success') {
-              lightweightExecutionStatus = 'success'
-            } else {
-              lightweightExecutionStatus = 'not-executed'
-            }
-          } else {
-            lightweightExecutionStatus = 'not-executed'
-          }
-        }
-
-        nodeArray.push({
-          id: blockId,
-          type: 'workflowBlock',
-          position: absolutePosition,
-          draggable: false,
-          // Blocks inside subflows need higher z-index to appear above the container
-          zIndex: block.data?.parentId ? 10 : undefined,
-          data: {
-            type: block.type,
-            name: block.name,
-            isTrigger: block.triggerMode === true,
-            horizontalHandles: block.horizontalHandles ?? false,
-            enabled: block.enabled ?? true,
-            isPreviewSelected: isSelected,
-            executionStatus: lightweightExecutionStatus,
-          },
-        })
-        return
-      }
-
-      if (block.type === 'loop') {
+      // Handle loop/parallel containers
+      if (block.type === 'loop' || block.type === 'parallel') {
         const isSelected = selectedBlockId === blockId
         const dimensions = calculateContainerDimensions(blockId, workflowState.blocks)
         nodeArray.push({
           id: blockId,
           type: 'subflowNode',
           position: absolutePosition,
-          parentId: block.data?.parentId,
-          extent: block.data?.extent || undefined,
           draggable: false,
           data: {
-            ...block.data,
             name: block.name,
             width: dimensions.width,
             height: dimensions.height,
-            state: 'valid',
-            isPreview: true,
+            kind: block.type as 'loop' | 'parallel',
             isPreviewSelected: isSelected,
-            kind: 'loop',
           },
         })
         return
       }
 
-      if (block.type === 'parallel') {
-        const isSelected = selectedBlockId === blockId
-        const dimensions = calculateContainerDimensions(blockId, workflowState.blocks)
-        nodeArray.push({
-          id: blockId,
-          type: 'subflowNode',
-          position: absolutePosition,
-          parentId: block.data?.parentId,
-          extent: block.data?.extent || undefined,
-          draggable: false,
-          data: {
-            ...block.data,
-            name: block.name,
-            width: dimensions.width,
-            height: dimensions.height,
-            state: 'valid',
-            isPreview: true,
-            isPreviewSelected: isSelected,
-            kind: 'parallel',
-          },
-        })
-        return
-      }
-
-      const blockConfig = getBlock(block.type)
-      if (!blockConfig) {
-        logger.error(`No configuration found for block type: ${block.type}`, { blockId })
-        return
-      }
-
-      const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
+      // Handle regular blocks
+      const isSelected = selectedBlockId === blockId
 
       let executionStatus: ExecutionStatus | undefined
       if (executedBlocks) {
@@ -418,24 +332,20 @@ export function WorkflowPreview({
         }
       }
 
-      const isSelected = selectedBlockId === blockId
-
       nodeArray.push({
         id: blockId,
-        type: nodeType,
+        type: 'workflowBlock',
         position: absolutePosition,
         draggable: false,
         // Blocks inside subflows need higher z-index to appear above the container
         zIndex: block.data?.parentId ? 10 : undefined,
         data: {
           type: block.type,
-          config: blockConfig,
           name: block.name,
-          blockState: block,
-          canEdit: false,
-          isPreview: true,
+          isTrigger: block.triggerMode === true,
+          horizontalHandles: block.horizontalHandles ?? false,
+          enabled: block.enabled ?? true,
           isPreviewSelected: isSelected,
-          subBlockValues: block.subBlocks ?? {},
           executionStatus,
         },
       })
@@ -448,7 +358,6 @@ export function WorkflowPreview({
     parallelsStructure,
     workflowState.blocks,
     isValidWorkflowState,
-    lightweight,
     executedBlocks,
     selectedBlockId,
   ])
@@ -506,6 +415,7 @@ export function WorkflowPreview({
   return (
     <ReactFlowProvider>
       <div
+        ref={containerRef}
         style={{ height, width, backgroundColor: 'var(--bg)' }}
         className={cn('preview-mode', onNodeClick && 'interactive-nodes', className)}
       >
@@ -515,6 +425,20 @@ export function WorkflowPreview({
           .preview-mode .react-flow__pane { cursor: ${cursorStyle} !important; }
           .preview-mode .react-flow__selectionpane { cursor: ${cursorStyle} !important; }
           .preview-mode .react-flow__renderer { cursor: ${cursorStyle}; }
+
+          /* Active/grabbing cursor when dragging */
+          ${
+            cursorStyle === 'grab'
+              ? `
+          .preview-mode .react-flow:active { cursor: grabbing; }
+          .preview-mode .react-flow__pane:active { cursor: grabbing !important; }
+          .preview-mode .react-flow__selectionpane:active { cursor: grabbing !important; }
+          .preview-mode .react-flow__renderer:active { cursor: grabbing; }
+          .preview-mode .react-flow__node:active { cursor: grabbing !important; }
+          .preview-mode .react-flow__node:active * { cursor: grabbing !important; }
+          `
+              : ''
+          }
 
           /* Node cursor - pointer on nodes when onNodeClick is provided */
           .preview-mode.interactive-nodes .react-flow__node { cursor: pointer !important; }
@@ -563,7 +487,11 @@ export function WorkflowPreview({
           }
           onPaneClick={onPaneClick}
         />
-        <FitViewOnChange nodeIds={blocksStructure.ids} fitPadding={fitPadding} />
+        <FitViewOnChange
+          nodeIds={blocksStructure.ids}
+          fitPadding={fitPadding}
+          containerRef={containerRef}
+        />
       </div>
     </ReactFlowProvider>
   )

@@ -15,10 +15,9 @@ interface WorkflowPreviewSubflowData {
 }
 
 /**
- * Lightweight subflow component for workflow previews.
- * Matches the styling of the actual SubflowNodeComponent but without
- * hooks, store subscriptions, or interactive features.
- * Used in template cards and other preview contexts for performance.
+ * Preview subflow component for workflow visualization.
+ * Renders loop/parallel containers without hooks, store subscriptions,
+ * or interactive features.
  */
 function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowData>) {
   const { name, width = 500, height = 300, kind, isPreviewSelected = false } = data

@@ -3,7 +3,6 @@ import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
-import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import {
   createOptimisticMutationHandlers,
@@ -26,34 +25,35 @@ export const workflowKeys = {
   deploymentVersions: () => [...workflowKeys.all, 'deploymentVersion'] as const,
   deploymentVersion: (workflowId: string | undefined, version: number | undefined) =>
     [...workflowKeys.deploymentVersions(), workflowId ?? '', version ?? 0] as const,
-  inputFields: (workflowId: string | undefined) =>
-    [...workflowKeys.all, 'inputFields', workflowId ?? ''] as const,
+  state: (workflowId: string | undefined) =>
+    [...workflowKeys.all, 'state', workflowId ?? ''] as const,
 }
 
 /**
- * Fetches workflow input fields from the workflow state.
+ * Fetches workflow state from the API.
+ * Used as the base query for both state preview and input fields extraction.
  */
-async function fetchWorkflowInputFields(workflowId: string): Promise<WorkflowInputField[]> {
+async function fetchWorkflowState(workflowId: string): Promise<WorkflowState | null> {
   const response = await fetch(`/api/workflows/${workflowId}`)
   if (!response.ok) throw new Error('Failed to fetch workflow')
   const { data } = await response.json()
-  return extractInputFieldsFromBlocks(data?.state?.blocks)
+  return data?.state ?? null
 }
 
 /**
- * Hook to fetch workflow input fields for configuration.
- * Uses React Query for caching and deduplication.
+ * Hook to fetch workflow state.
+ * Used by workflow blocks to show a preview of the child workflow
+ * and as a base query for input fields extraction.
  *
- * @param workflowId - The workflow ID to fetch input fields for
- * @returns Query result with input fields array
+ * @param workflowId - The workflow ID to fetch state for
+ * @returns Query result with workflow state
  */
-export function useWorkflowInputFields(workflowId: string | undefined) {
+export function useWorkflowState(workflowId: string | undefined) {
   return useQuery({
-    queryKey: workflowKeys.inputFields(workflowId),
-    queryFn: () => fetchWorkflowInputFields(workflowId!),
+    queryKey: workflowKeys.state(workflowId),
+    queryFn: () => fetchWorkflowState(workflowId!),
     enabled: Boolean(workflowId),
-    staleTime: 0,
-    refetchOnMount: 'always',
+    staleTime: 30 * 1000, // 30 seconds
   })
 }
 
@@ -532,24 +532,25 @@ export interface ChildDeploymentStatus {
 }
 
 /**
- * Fetches deployment status for a child workflow
+ * Fetches deployment status for a child workflow.
+ * Uses Promise.all to fetch status and deployments in parallel for better performance.
  */
 async function fetchChildDeploymentStatus(workflowId: string): Promise<ChildDeploymentStatus> {
-  const statusRes = await fetch(`/api/workflows/${workflowId}/status`, {
-    cache: 'no-store',
+  const fetchOptions = {
+    cache: 'no-store' as const,
     headers: { 'Cache-Control': 'no-cache' },
-  })
+  }
+
+  const [statusRes, deploymentsRes] = await Promise.all([
+    fetch(`/api/workflows/${workflowId}/status`, fetchOptions),
+    fetch(`/api/workflows/${workflowId}/deployments`, fetchOptions),
+  ])
 
   if (!statusRes.ok) {
     throw new Error('Failed to fetch workflow status')
   }
 
   const statusData = await statusRes.json()
-
-  const deploymentsRes = await fetch(`/api/workflows/${workflowId}/deployments`, {
-    cache: 'no-store',
-    headers: { 'Cache-Control': 'no-cache' },
-  })
 
   let activeVersion: number | null = null
   if (deploymentsRes.ok) {
@@ -580,7 +581,7 @@ export function useChildDeploymentStatus(workflowId: string | undefined) {
     queryKey: workflowKeys.deploymentStatus(workflowId),
     queryFn: () => fetchChildDeploymentStatus(workflowId!),
     enabled: Boolean(workflowId),
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 0,
     retry: false,
   })
 }

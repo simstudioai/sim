@@ -16,8 +16,8 @@ import {
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { cn } from '@/lib/core/utils/cn'
 import {
-  BlockDetailsSidebar,
   getLeftmostBlockId,
+  PreviewEditor,
   WorkflowPreview,
 } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useExecutionSnapshot } from '@/hooks/queries/logs'
@@ -248,11 +248,10 @@ export function ExecutionSnapshot({
             cursorStyle='pointer'
             executedBlocks={blockExecutions}
             selectedBlockId={pinnedBlockId}
-            lightweight
           />
         </div>
         {pinnedBlockId && workflowState.blocks[pinnedBlockId] && (
-          <BlockDetailsSidebar
+          <PreviewEditor
             block={workflowState.blocks[pinnedBlockId]}
             executionData={blockExecutions[pinnedBlockId]}
             allBlockExecutions={blockExecutions}
