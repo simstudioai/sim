@@ -75,7 +75,12 @@ describe('FunctionBlockHandler', () => {
       workflowVariables: {},
       blockData: {},
       blockNameMapping: {},
-      _context: { workflowId: mockContext.workflowId, workspaceId: mockContext.workspaceId },
+      blockOutputSchemas: {},
+      _context: {
+        workflowId: mockContext.workflowId,
+        workspaceId: mockContext.workspaceId,
+        isDeployedContext: mockContext.isDeployedContext,
+      },
     }
     const expectedOutput: any = { result: 'Success' }
 
@@ -84,8 +89,8 @@ describe('FunctionBlockHandler', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'function_execute',
       expectedToolParams,
-      false, // skipPostProcess
-      mockContext // execution context
+      false,
+      mockContext
     )
     expect(result).toEqual(expectedOutput)
   })
@@ -107,7 +112,12 @@ describe('FunctionBlockHandler', () => {
       workflowVariables: {},
       blockData: {},
       blockNameMapping: {},
-      _context: { workflowId: mockContext.workflowId, workspaceId: mockContext.workspaceId },
+      blockOutputSchemas: {},
+      _context: {
+        workflowId: mockContext.workflowId,
+        workspaceId: mockContext.workspaceId,
+        isDeployedContext: mockContext.isDeployedContext,
+      },
     }
     const expectedOutput: any = { result: 'Success' }
 
@@ -116,8 +126,8 @@ describe('FunctionBlockHandler', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'function_execute',
       expectedToolParams,
-      false, // skipPostProcess
-      mockContext // execution context
+      false,
+      mockContext
     )
     expect(result).toEqual(expectedOutput)
   })
@@ -132,7 +142,12 @@ describe('FunctionBlockHandler', () => {
       workflowVariables: {},
       blockData: {},
       blockNameMapping: {},
-      _context: { workflowId: mockContext.workflowId, workspaceId: mockContext.workspaceId },
+      blockOutputSchemas: {},
+      _context: {
+        workflowId: mockContext.workflowId,
+        workspaceId: mockContext.workspaceId,
+        isDeployedContext: mockContext.isDeployedContext,
+      },
     }
 
     await handler.execute(mockContext, mockBlock, inputs)

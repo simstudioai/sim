@@ -313,7 +313,7 @@ describe('Function Execute API Route', () => {
           'block-2': 'world',
         },
         blockNameMapping: {
-          validVar: 'block-1',
+          validvar: 'block-1',
           another_valid: 'block-2',
         },
       })
@@ -539,7 +539,7 @@ describe('Function Execute API Route', () => {
           'block-complex': complexData,
         },
         blockNameMapping: {
-          complexData: 'block-complex',
+          complexdata: 'block-complex',
         },
       })
 

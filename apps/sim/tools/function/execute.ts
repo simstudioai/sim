@@ -53,6 +53,13 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       description: 'Mapping of block names to block IDs',
       default: {},
     },
+    blockOutputSchemas: {
+      type: 'object',
+      required: false,
+      visibility: 'hidden',
+      description: 'Mapping of block IDs to their output schemas for validation',
+      default: {},
+    },
     workflowVariables: {
       type: 'object',
       required: false,
@@ -81,6 +88,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         workflowVariables: params.workflowVariables || {},
         blockData: params.blockData || {},
         blockNameMapping: params.blockNameMapping || {},
+        blockOutputSchemas: params.blockOutputSchemas || {},
         workflowId: params._context?.workflowId,
         isCustomTool: params.isCustomTool || false,
       }
