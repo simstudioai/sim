@@ -772,11 +772,49 @@ function deepClone<T>(obj: T): T {
 }
 
 /**
+ * Recursively masks credential IDs in any value (string, object, or array).
+ * Used during serialization to ensure sensitive IDs are never persisted.
+ */
+function maskCredentialIdsInValue(value: any, credentialIds: Set<string>): any {
+  if (!value || credentialIds.size === 0) return value
+
+  if (typeof value === 'string') {
+    let masked = value
+    // Sort by length descending to mask longer IDs first
+    const sortedIds = Array.from(credentialIds).sort((a, b) => b.length - a.length)
+    for (const id of sortedIds) {
+      if (id && masked.includes(id)) {
+        masked = masked.split(id).join('••••••••')
+      }
+    }
+    return masked
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => maskCredentialIdsInValue(item, credentialIds))
+  }
+
+  if (typeof value === 'object') {
+    const masked: any = {}
+    for (const key of Object.keys(value)) {
+      masked[key] = maskCredentialIdsInValue(value[key], credentialIds)
+    }
+    return masked
+  }
+
+  return value
+}
+
+/**
  * Serializes messages for database storage.
  * Deep clones all fields to ensure proper JSON serialization.
+ * Masks sensitive credential IDs before persisting.
  * This ensures they render identically when loaded back.
  */
 function serializeMessagesForDB(messages: CopilotMessage[]): any[] {
+  // Get credential IDs to mask
+  const credentialIds = useCopilotStore.getState().sensitiveCredentialIds
+
   const result = messages
     .map((msg) => {
       // Deep clone the entire message to ensure all nested data is serializable
@@ -824,7 +862,8 @@ function serializeMessagesForDB(messages: CopilotMessage[]): any[] {
         serialized.errorType = msg.errorType
       }
 
-      return serialized
+      // Mask credential IDs in the serialized message before persisting
+      return maskCredentialIdsInValue(serialized, credentialIds)
     })
     .filter((msg) => {
       // Filter out empty assistant messages
@@ -1320,7 +1359,16 @@ const sseHandlers: Record<string, SSEHandler> = {
           typeof def.hasInterrupt === 'function'
             ? !!def.hasInterrupt(args || {})
             : !!def.hasInterrupt
-        if (!hasInterrupt && typeof def.execute === 'function') {
+        // Check if tool is auto-allowed - if so, execute even if it has an interrupt
+        const { autoAllowedTools } = get()
+        const isAutoAllowed = name ? autoAllowedTools.includes(name) : false
+        if ((!hasInterrupt || isAutoAllowed) && typeof def.execute === 'function') {
+          if (isAutoAllowed && hasInterrupt) {
+            logger.info('[toolCallsById] Auto-executing tool with interrupt (auto-allowed)', {
+              id,
+              name,
+            })
+          }
           const ctx = createExecutionContext({ toolCallId: id, toolName: name || 'unknown_tool' })
           // Defer executing transition by a tick to let pending render
           setTimeout(() => {
@@ -1426,11 +1474,23 @@ const sseHandlers: Record<string, SSEHandler> = {
       logger.warn('tool_call registry auto-exec check failed', { id, name, error: e })
     }
 
-    // Class-based auto-exec for non-interrupt tools
+    // Class-based auto-exec for non-interrupt tools or auto-allowed tools
     try {
       const inst = getClientTool(id) as any
       const hasInterrupt = !!inst?.getInterruptDisplays?.()
-      if (!hasInterrupt && typeof inst?.execute === 'function') {
+      // Check if tool is auto-allowed - if so, execute even if it has an interrupt
+      const { autoAllowedTools: classAutoAllowed } = get()
+      const isClassAutoAllowed = name ? classAutoAllowed.includes(name) : false
+      if (
+        (!hasInterrupt || isClassAutoAllowed) &&
+        (typeof inst?.execute === 'function' || typeof inst?.handleAccept === 'function')
+      ) {
+        if (isClassAutoAllowed && hasInterrupt) {
+          logger.info('[toolCallsById] Auto-executing class tool with interrupt (auto-allowed)', {
+            id,
+            name,
+          })
+        }
         setTimeout(() => {
           // Guard against duplicate execution - check if already executing or terminal
           const currentState = get().toolCallsById[id]?.state
@@ -1449,7 +1509,12 @@ const sseHandlers: Record<string, SSEHandler> = {
 
           Promise.resolve()
             .then(async () => {
-              await inst.execute(args || {})
+              // Use handleAccept for tools with interrupts, execute for others
+              if (hasInterrupt && typeof inst?.handleAccept === 'function') {
+                await inst.handleAccept(args || {})
+              } else {
+                await inst.execute(args || {})
+              }
               // Success/error will be synced via registerToolStateSync
             })
             .catch(() => {
@@ -1474,20 +1539,35 @@ const sseHandlers: Record<string, SSEHandler> = {
       }
     } catch {}
 
-    // Integration tools: Stay in pending state until user confirms via buttons
+    // Integration tools: Check auto-allowed or stay in pending state until user confirms
     // This handles tools like google_calendar_*, exa_*, gmail_read, etc. that aren't in the client registry
     // Only relevant if mode is 'build' (agent)
-    const { mode, workflowId } = get()
+    const { mode, workflowId, autoAllowedTools, executeIntegrationTool } = get()
     if (mode === 'build' && workflowId) {
       // Check if tool was NOT found in client registry
       const def = name ? getTool(name) : undefined
       const inst = getClientTool(id) as any
       if (!def && !inst && name) {
-        // Integration tools stay in pending state until user confirms
-        logger.info('[build mode] Integration tool awaiting user confirmation', {
-          id,
-          name,
-        })
+        // Check if this integration tool is auto-allowed - if so, execute it immediately
+        if (autoAllowedTools.includes(name)) {
+          logger.info('[build mode] Auto-executing integration tool (auto-allowed)', { id, name })
+          // Defer to allow pending state to render briefly
+          setTimeout(() => {
+            executeIntegrationTool(id).catch((err) => {
+              logger.error('[build mode] Auto-execute integration tool failed', {
+                id,
+                name,
+                error: err,
+              })
+            })
+          }, 0)
+        } else {
+          // Integration tools stay in pending state until user confirms
+          logger.info('[build mode] Integration tool awaiting user confirmation', {
+            id,
+            name,
+          })
+        }
       }
     }
   },
@@ -1976,6 +2056,10 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
     }
 
     // Execute client tools in parallel (non-blocking) - same pattern as main tool_call handler
+    // Check if tool is auto-allowed
+    const { autoAllowedTools: subAgentAutoAllowed } = get()
+    const isSubAgentAutoAllowed = name ? subAgentAutoAllowed.includes(name) : false
+
     try {
       const def = getTool(name)
       if (def) {
@@ -1983,8 +2067,15 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
           typeof def.hasInterrupt === 'function'
             ? !!def.hasInterrupt(args || {})
             : !!def.hasInterrupt
-        if (!hasInterrupt) {
-          // Auto-execute tools without interrupts - non-blocking
+        // Auto-execute if no interrupt OR if auto-allowed
+        if (!hasInterrupt || isSubAgentAutoAllowed) {
+          if (isSubAgentAutoAllowed && hasInterrupt) {
+            logger.info('[SubAgent] Auto-executing tool with interrupt (auto-allowed)', {
+              id,
+              name,
+            })
+          }
+          // Auto-execute tools - non-blocking
           const ctx = createExecutionContext({ toolCallId: id, toolName: name })
           Promise.resolve()
             .then(() => def.execute(ctx, args || {}))
@@ -2001,9 +2092,22 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
         const instance = getClientTool(id)
         if (instance) {
           const hasInterruptDisplays = !!instance.getInterruptDisplays?.()
-          if (!hasInterruptDisplays) {
+          // Auto-execute if no interrupt OR if auto-allowed
+          if (!hasInterruptDisplays || isSubAgentAutoAllowed) {
+            if (isSubAgentAutoAllowed && hasInterruptDisplays) {
+              logger.info('[SubAgent] Auto-executing class tool with interrupt (auto-allowed)', {
+                id,
+                name,
+              })
+            }
             Promise.resolve()
-              .then(() => instance.execute(args || {}))
+              .then(() => {
+                // Use handleAccept for tools with interrupts, execute for others
+                if (hasInterruptDisplays && typeof instance.handleAccept === 'function') {
+                  return instance.handleAccept(args || {})
+                }
+                return instance.execute(args || {})
+              })
               .catch((execErr: any) => {
                 logger.error('[SubAgent] Class tool execution failed', {
                   id,
@@ -2232,6 +2336,7 @@ const initialState = {
   autoAllowedTools: [] as string[],
   messageQueue: [] as import('./types').QueuedMessage[],
   suppressAbortContinueOption: false,
+  sensitiveCredentialIds: new Set<string>(),
 }
 
 export const useCopilotStore = create<CopilotStore>()(
@@ -2613,6 +2718,12 @@ export const useCopilotStore = create<CopilotStore>()(
           messageSnapshots: { ...state.messageSnapshots, [userMessage.id]: snapshot },
         }))
       }
+
+      // Load sensitive credential IDs for masking before streaming starts
+      await get().loadSensitiveCredentialIds()
+
+      // Ensure auto-allowed tools are loaded before tool calls arrive
+      await get().loadAutoAllowedTools()
 
       let newMessages: CopilotMessage[]
       if (revertState) {
@@ -3676,6 +3787,16 @@ export const useCopilotStore = create<CopilotStore>()(
 
       const { id, name, params } = toolCall
 
+      // Guard against double execution - skip if already executing or in terminal state
+      if (toolCall.state === ClientToolCallState.executing || isTerminalState(toolCall.state)) {
+        logger.info('[executeIntegrationTool] Skipping - already executing or terminal', {
+          id,
+          name,
+          state: toolCall.state,
+        })
+        return
+      }
+
       // Set to executing state
       const executingMap = { ...get().toolCallsById }
       executingMap[id] = {
@@ -3824,6 +3945,46 @@ export const useCopilotStore = create<CopilotStore>()(
           const data = await res.json()
           set({ autoAllowedTools: data.autoAllowedTools || [] })
           logger.info('[AutoAllowedTools] Added tool', { toolId })
+
+          // Auto-execute all pending tools of the same type
+          const { toolCallsById, executeIntegrationTool } = get()
+          const pendingToolCalls = Object.values(toolCallsById).filter(
+            (tc) => tc.name === toolId && tc.state === ClientToolCallState.pending
+          )
+          if (pendingToolCalls.length > 0) {
+            const isIntegrationTool = !CLASS_TOOL_METADATA[toolId]
+            logger.info('[AutoAllowedTools] Auto-executing pending tools', {
+              toolId,
+              count: pendingToolCalls.length,
+              isIntegrationTool,
+            })
+            for (const tc of pendingToolCalls) {
+              if (isIntegrationTool) {
+                // Integration tools use executeIntegrationTool
+                executeIntegrationTool(tc.id).catch((err) => {
+                  logger.error('[AutoAllowedTools] Auto-execute pending integration tool failed', {
+                    toolCallId: tc.id,
+                    toolId,
+                    error: err,
+                  })
+                })
+              } else {
+                // Client tools with interrupts use handleAccept
+                const inst = getClientTool(tc.id) as any
+                if (inst && typeof inst.handleAccept === 'function') {
+                  Promise.resolve()
+                    .then(() => inst.handleAccept(tc.params || {}))
+                    .catch((err: any) => {
+                      logger.error('[AutoAllowedTools] Auto-execute pending client tool failed', {
+                        toolCallId: tc.id,
+                        toolId,
+                        error: err,
+                      })
+                    })
+                }
+              }
+            }
+          }
         }
       } catch (err) {
         logger.error('[AutoAllowedTools] Failed to add tool', { toolId, error: err })
@@ -3851,6 +4012,57 @@ export const useCopilotStore = create<CopilotStore>()(
     isToolAutoAllowed: (toolId: string) => {
       const { autoAllowedTools } = get()
       return autoAllowedTools.includes(toolId)
+    },
+
+    // Credential masking
+    loadSensitiveCredentialIds: async () => {
+      try {
+        const res = await fetch('/api/copilot/execute-copilot-server-tool', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ toolName: 'get_credentials', payload: {} }),
+        })
+        if (!res.ok) {
+          logger.warn('[loadSensitiveCredentialIds] Failed to fetch credentials', {
+            status: res.status,
+          })
+          return
+        }
+        const json = await res.json()
+        // Credentials are at result.oauth.connected.credentials
+        const credentials = json?.result?.oauth?.connected?.credentials || []
+        logger.info('[loadSensitiveCredentialIds] Response', {
+          hasResult: !!json?.result,
+          credentialCount: credentials.length,
+        })
+        const ids = new Set<string>()
+        for (const cred of credentials) {
+          if (cred?.id) {
+            ids.add(cred.id)
+          }
+        }
+        set({ sensitiveCredentialIds: ids })
+        logger.info('[loadSensitiveCredentialIds] Loaded credential IDs', {
+          count: ids.size,
+        })
+      } catch (err) {
+        logger.warn('[loadSensitiveCredentialIds] Error loading credentials', err)
+      }
+    },
+
+    maskCredentialValue: (value: string) => {
+      const { sensitiveCredentialIds } = get()
+      if (!value || sensitiveCredentialIds.size === 0) return value
+
+      let masked = value
+      // Sort by length descending to mask longer IDs first
+      const sortedIds = Array.from(sensitiveCredentialIds).sort((a, b) => b.length - a.length)
+      for (const id of sortedIds) {
+        if (id && masked.includes(id)) {
+          masked = masked.split(id).join('••••••••')
+        }
+      }
+      return masked
     },
 
     // Message queue actions

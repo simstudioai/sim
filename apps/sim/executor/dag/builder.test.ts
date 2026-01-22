@@ -24,6 +24,71 @@ function createBlock(id: string, metadataId: string): SerializedBlock {
   }
 }
 
+describe('DAGBuilder disabled subflow validation', () => {
+  it('skips validation for disabled loops with no blocks inside', () => {
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [
+        createBlock('start', BlockType.STARTER),
+        { ...createBlock('loop-block', BlockType.FUNCTION), enabled: false },
+      ],
+      connections: [],
+      loops: {
+        'loop-1': {
+          id: 'loop-1',
+          nodes: [], // Empty loop - would normally throw
+          iterations: 3,
+        },
+      },
+    }
+
+    const builder = new DAGBuilder()
+    // Should not throw even though loop has no blocks inside
+    expect(() => builder.build(workflow)).not.toThrow()
+  })
+
+  it('skips validation for disabled parallels with no blocks inside', () => {
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [createBlock('start', BlockType.STARTER)],
+      connections: [],
+      loops: {},
+      parallels: {
+        'parallel-1': {
+          id: 'parallel-1',
+          nodes: [], // Empty parallel - would normally throw
+        },
+      },
+    }
+
+    const builder = new DAGBuilder()
+    // Should not throw even though parallel has no blocks inside
+    expect(() => builder.build(workflow)).not.toThrow()
+  })
+
+  it('skips validation for loops where all inner blocks are disabled', () => {
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [
+        createBlock('start', BlockType.STARTER),
+        { ...createBlock('inner-block', BlockType.FUNCTION), enabled: false },
+      ],
+      connections: [],
+      loops: {
+        'loop-1': {
+          id: 'loop-1',
+          nodes: ['inner-block'], // Has node but it's disabled
+          iterations: 3,
+        },
+      },
+    }
+
+    const builder = new DAGBuilder()
+    // Should not throw - loop is effectively disabled since all inner blocks are disabled
+    expect(() => builder.build(workflow)).not.toThrow()
+  })
+})
+
 describe('DAGBuilder human-in-the-loop transformation', () => {
   it('creates trigger nodes and rewires edges for pause blocks', () => {
     const workflow: SerializedWorkflow = {

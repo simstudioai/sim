@@ -25,6 +25,8 @@ export class ExecutionEngine {
   private pausedBlocks: Map<string, PauseMetadata> = new Map()
   private allowResumeTriggers: boolean
   private cancelledFlag = false
+  private errorFlag = false
+  private executionError: Error | null = null
   private lastCancellationCheck = 0
   private readonly useRedisCancellation: boolean
   private readonly CANCELLATION_CHECK_INTERVAL_MS = 500
@@ -103,7 +105,7 @@ export class ExecutionEngine {
       this.initializeQueue(triggerBlockId)
 
       while (this.hasWork()) {
-        if (await this.checkCancellation()) {
+        if ((await this.checkCancellation()) || this.errorFlag) {
           break
         }
         await this.processQueue()
@@ -111,6 +113,11 @@ export class ExecutionEngine {
 
       if (!this.cancelledFlag) {
         await this.waitForAllExecutions()
+      }
+
+      // Rethrow the captured error so it's handled by the catch block
+      if (this.errorFlag && this.executionError) {
+        throw this.executionError
       }
 
       if (this.pausedBlocks.size > 0) {
@@ -196,11 +203,17 @@ export class ExecutionEngine {
   }
 
   private trackExecution(promise: Promise<void>): void {
-    this.executing.add(promise)
-    promise.catch(() => {})
-    promise.finally(() => {
-      this.executing.delete(promise)
-    })
+    const trackedPromise = promise
+      .catch((error) => {
+        if (!this.errorFlag) {
+          this.errorFlag = true
+          this.executionError = error instanceof Error ? error : new Error(String(error))
+        }
+      })
+      .finally(() => {
+        this.executing.delete(trackedPromise)
+      })
+    this.executing.add(trackedPromise)
   }
 
   private async waitForAnyExecution(): Promise<void> {
@@ -315,7 +328,7 @@ export class ExecutionEngine {
 
   private async processQueue(): Promise<void> {
     while (this.readyQueue.length > 0) {
-      if (await this.checkCancellation()) {
+      if ((await this.checkCancellation()) || this.errorFlag) {
         break
       }
       const nodeId = this.dequeue()
@@ -324,7 +337,7 @@ export class ExecutionEngine {
       this.trackExecution(promise)
     }
 
-    if (this.executing.size > 0 && !this.cancelledFlag) {
+    if (this.executing.size > 0 && !this.cancelledFlag && !this.errorFlag) {
       await this.waitForAnyExecution()
     }
   }

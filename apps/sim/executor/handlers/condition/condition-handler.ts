@@ -26,7 +26,7 @@ export async function evaluateConditionExpression(
     const contextSetup = `const context = ${JSON.stringify(evalContext)};`
     const code = `${contextSetup}\nreturn Boolean(${conditionExpression})`
 
-    const { blockData, blockNameMapping } = collectBlockData(ctx)
+    const { blockData, blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
 
     const result = await executeTool(
       'function_execute',
@@ -37,6 +37,7 @@ export async function evaluateConditionExpression(
         workflowVariables: ctx.workflowVariables || {},
         blockData,
         blockNameMapping,
+        blockOutputSchemas,
         _context: {
           workflowId: ctx.workflowId,
           workspaceId: ctx.workspaceId,

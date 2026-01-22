@@ -238,6 +238,25 @@ export class RouterBlockHandler implements BlockHandler {
         apiKey: finalApiKey,
         workflowId: ctx.workflowId,
         workspaceId: ctx.workspaceId,
+        responseFormat: {
+          name: 'router_response',
+          schema: {
+            type: 'object',
+            properties: {
+              route: {
+                type: 'string',
+                description: 'The selected route ID or NO_MATCH',
+              },
+              reasoning: {
+                type: 'string',
+                description: 'Brief explanation of why this route was chosen',
+              },
+            },
+            required: ['route', 'reasoning'],
+            additionalProperties: false,
+          },
+          strict: true,
+        },
       }
 
       if (providerId === 'vertex') {
@@ -277,16 +296,31 @@ export class RouterBlockHandler implements BlockHandler {
 
       const result = await response.json()
 
-      const chosenRouteId = result.content.trim()
+      let chosenRouteId: string
+      let reasoning = ''
+
+      try {
+        const parsedResponse = JSON.parse(result.content)
+        chosenRouteId = parsedResponse.route?.trim() || ''
+        reasoning = parsedResponse.reasoning || ''
+      } catch (_parseError) {
+        logger.error('Router response was not valid JSON despite responseFormat', {
+          content: result.content,
+        })
+        chosenRouteId = result.content.trim()
+      }
 
       if (chosenRouteId === 'NO_MATCH' || chosenRouteId.toUpperCase() === 'NO_MATCH') {
         logger.info('Router determined no route matches the context, routing to error path')
-        throw new Error('Router could not determine a matching route for the given context')
+        throw new Error(
+          reasoning
+            ? `Router could not determine a matching route: ${reasoning}`
+            : 'Router could not determine a matching route for the given context'
+        )
       }
 
       const chosenRoute = routes.find((r) => r.id === chosenRouteId)
 
-      // Throw error if LLM returns invalid route ID - this routes through error path
       if (!chosenRoute) {
         const availableRoutes = routes.map((r) => ({ id: r.id, title: r.title }))
         logger.error(
@@ -298,7 +332,6 @@ export class RouterBlockHandler implements BlockHandler {
         )
       }
 
-      // Find the target block connected to this route's handle
       const connection = ctx.workflow?.connections.find(
         (conn) => conn.source === block.id && conn.sourceHandle === `router-${chosenRoute.id}`
       )
@@ -334,6 +367,7 @@ export class RouterBlockHandler implements BlockHandler {
           total: cost.total,
         },
         selectedRoute: chosenRoute.id,
+        reasoning,
         selectedPath: targetBlock
           ? {
               blockId: targetBlock.id,
@@ -353,7 +387,7 @@ export class RouterBlockHandler implements BlockHandler {
   }
 
   /**
-   * Parse routes from input (can be JSON string or array).
+   * Parse routes from input (can be JSON string or array)
    */
   private parseRoutes(input: any): RouteDefinition[] {
     try {

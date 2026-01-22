@@ -11,7 +11,7 @@ import { useSidebarStore } from '@/stores/sidebar/store'
  * Avatar display configuration for responsive layout.
  */
 const AVATAR_CONFIG = {
-  MIN_COUNT: 3,
+  MIN_COUNT: 4,
   MAX_COUNT: 12,
   WIDTH_PER_AVATAR: 20,
 } as const
@@ -106,7 +106,9 @@ export function Avatars({ workflowId }: AvatarsProps) {
   }, [presenceUsers, currentWorkflowId, workflowId, currentSocketId])
 
   /**
-   * Calculate visible users and overflow count
+   * Calculate visible users and overflow count.
+   * Shows up to maxVisible avatars, with overflow indicator for any remaining.
+   * Users are reversed so new avatars appear on the left (keeping right side stable).
    */
   const { visibleUsers, overflowCount } = useMemo(() => {
     if (workflowUsers.length === 0) {
@@ -116,7 +118,8 @@ export function Avatars({ workflowId }: AvatarsProps) {
     const visible = workflowUsers.slice(0, maxVisible)
     const overflow = Math.max(0, workflowUsers.length - maxVisible)
 
-    return { visibleUsers: visible, overflowCount: overflow }
+    // Reverse so rightmost avatars stay stable as new ones are revealed on the left
+    return { visibleUsers: [...visible].reverse(), overflowCount: overflow }
   }, [workflowUsers, maxVisible])
 
   if (visibleUsers.length === 0) {
@@ -139,9 +142,8 @@ export function Avatars({ workflowId }: AvatarsProps) {
           </Tooltip.Content>
         </Tooltip.Root>
       )}
-
       {visibleUsers.map((user, index) => (
-        <UserAvatar key={user.socketId} user={user} index={overflowCount > 0 ? index + 1 : index} />
+        <UserAvatar key={user.socketId} user={user} index={index} />
       ))}
     </div>
   )
