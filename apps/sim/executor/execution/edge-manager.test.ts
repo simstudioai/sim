@@ -1133,6 +1133,48 @@ describe('EdgeManager', () => {
       expect(readyAfterCondition).toContain(sentinelEndId)
     })
 
+    it('should handle condition directly connecting to sentinel_end with dead-end selected', () => {
+      // Bugbot scenario: condition → (if) → sentinel_end directly, dead-end selected
+      // sentinel_end should become ready even without intermediate nodes
+
+      const sentinelStartId = 'sentinel-start'
+      const sentinelEndId = 'sentinel-end'
+      const conditionId = 'condition'
+      const afterLoopId = 'after-loop'
+
+      const sentinelStartNode = createMockNode(sentinelStartId, [{ target: conditionId }])
+      const conditionNode = createMockNode(
+        conditionId,
+        [{ target: sentinelEndId, sourceHandle: 'condition-if' }],
+        [sentinelStartId]
+      )
+      const sentinelEndNode = createMockNode(
+        sentinelEndId,
+        [
+          { target: sentinelStartId, sourceHandle: 'loop_continue' },
+          { target: afterLoopId, sourceHandle: 'loop_exit' },
+        ],
+        [conditionId]
+      )
+      const afterLoopNode = createMockNode(afterLoopId, [], [sentinelEndId])
+
+      const nodes = new Map<string, DAGNode>([
+        [sentinelStartId, sentinelStartNode],
+        [conditionId, conditionNode],
+        [sentinelEndId, sentinelEndNode],
+        [afterLoopId, afterLoopNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      // Dead-end: no edge matches, sentinel_end should still become ready
+      const ready = edgeManager.processOutgoingEdges(conditionNode, {
+        selectedOption: null,
+      })
+      expect(ready).toContain(sentinelEndId)
+    })
+
     it('should handle multiple conditions in sequence inside loop', () => {
       const sentinelStartId = 'sentinel-start'
       const sentinelEndId = 'sentinel-end'

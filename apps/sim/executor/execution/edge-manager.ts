@@ -40,6 +40,14 @@ export class EdgeManager {
       this.deactivateEdgeAndDescendants(node.id, target, handle, cascadeTargets)
     }
 
+    if (activatedTargets.length === 0) {
+      for (const { target } of edgesToDeactivate) {
+        if (this.isTerminalControlNode(target)) {
+          cascadeTargets.add(target)
+        }
+      }
+    }
+
     for (const targetId of activatedTargets) {
       const targetNode = this.dag.nodes.get(targetId)
       if (!targetNode) {
@@ -126,6 +134,18 @@ export class EdgeManager {
 
   private isBackwardsEdge(sourceHandle?: string): boolean {
     return sourceHandle === EDGE.LOOP_CONTINUE || sourceHandle === EDGE.LOOP_CONTINUE_ALT
+  }
+
+  private isTerminalControlNode(nodeId: string): boolean {
+    const node = this.dag.nodes.get(nodeId)
+    if (!node || node.outgoingEdges.size === 0) return false
+
+    for (const [, edge] of node.outgoingEdges) {
+      if (!this.isControlEdge(edge.sourceHandle)) {
+        return false
+      }
+    }
+    return true
   }
 
   private shouldActivateEdge(edge: DAGEdge, output: NormalizedBlockOutput): boolean {
