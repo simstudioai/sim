@@ -64,6 +64,8 @@ import { SSO_TRUSTED_PROVIDERS } from './sso/constants'
 
 const logger = createLogger('Auth')
 
+import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
+
 const validStripeKey = env.STRIPE_SECRET_KEY
 
 let stripeClient = null
@@ -187,6 +189,10 @@ export const auth = betterAuth({
               }
             }
 
+            const refreshTokenExpiresAt = isMicrosoftProvider(account.providerId)
+              ? getMicrosoftRefreshTokenExpiry()
+              : account.refreshTokenExpiresAt
+
             await db
               .update(schema.account)
               .set({
@@ -195,7 +201,7 @@ export const auth = betterAuth({
                 refreshToken: account.refreshToken,
                 idToken: account.idToken,
                 accessTokenExpiresAt: account.accessTokenExpiresAt,
-                refreshTokenExpiresAt: account.refreshTokenExpiresAt,
+                refreshTokenExpiresAt,
                 scope: scopeToStore,
                 updatedAt: new Date(),
               })
@@ -290,6 +296,13 @@ export const auth = betterAuth({
             if (Object.keys(updates).length > 0) {
               await db.update(schema.account).set(updates).where(eq(schema.account.id, account.id))
             }
+          }
+
+          if (isMicrosoftProvider(account.providerId)) {
+            await db
+              .update(schema.account)
+              .set({ refreshTokenExpiresAt: getMicrosoftRefreshTokenExpiry() })
+              .where(eq(schema.account.id, account.id))
           }
 
           // Sync webhooks for credential sets after connecting a new credential
@@ -387,7 +400,6 @@ export const auth = betterAuth({
       enabled: true,
       allowDifferentEmails: true,
       trustedProviders: [
-        // Standard OAuth providers
         'google',
         'github',
         'email-password',
@@ -403,8 +415,32 @@ export const auth = betterAuth({
         'hubspot',
         'linkedin',
         'spotify',
-
-        // Common SSO provider patterns
+        'google-email',
+        'google-calendar',
+        'google-drive',
+        'google-docs',
+        'google-sheets',
+        'google-forms',
+        'google-vault',
+        'google-groups',
+        'vertex-ai',
+        'github-repo',
+        'microsoft-teams',
+        'microsoft-excel',
+        'microsoft-planner',
+        'outlook',
+        'onedrive',
+        'sharepoint',
+        'jira',
+        'airtable',
+        'dropbox',
+        'salesforce',
+        'wealthbox',
+        'zoom',
+        'wordpress',
+        'linear',
+        'shopify',
+        'trello',
         ...SSO_TRUSTED_PROVIDERS,
       ],
     },

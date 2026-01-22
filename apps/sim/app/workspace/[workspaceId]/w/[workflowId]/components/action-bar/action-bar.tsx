@@ -4,10 +4,10 @@ import { Button, Copy, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { validateTriggerPaste } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useNotificationStore } from '@/stores/notifications'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { getUniqueBlockName, prepareDuplicateBlockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const DEFAULT_DUPLICATE_OFFSET = { x: 50, y: 50 }
@@ -48,29 +48,38 @@ export const ActionBar = memo(
       collaborativeBatchToggleBlockEnabled,
       collaborativeBatchToggleBlockHandles,
     } = useCollaborativeWorkflow()
-    const { activeWorkflowId, setPendingSelection } = useWorkflowRegistry()
+    const { setPendingSelection } = useWorkflowRegistry()
+
+    const addNotification = useNotificationStore((s) => s.addNotification)
 
     const handleDuplicateBlock = useCallback(() => {
-      const blocks = useWorkflowStore.getState().blocks
-      const sourceBlock = blocks[blockId]
-      if (!sourceBlock) return
+      const { copyBlocks, preparePasteData, activeWorkflowId } = useWorkflowRegistry.getState()
+      const existingBlocks = useWorkflowStore.getState().blocks
+      copyBlocks([blockId])
 
-      const newId = crypto.randomUUID()
-      const newName = getUniqueBlockName(sourceBlock.name, blocks)
-      const subBlockValues =
-        useSubBlockStore.getState().workflowValues[activeWorkflowId || '']?.[blockId] || {}
+      const pasteData = preparePasteData(DEFAULT_DUPLICATE_OFFSET)
+      if (!pasteData) return
 
-      const { block, subBlockValues: filteredValues } = prepareDuplicateBlockState({
-        sourceBlock,
-        newId,
-        newName,
-        positionOffset: DEFAULT_DUPLICATE_OFFSET,
-        subBlockValues,
-      })
+      const blocks = Object.values(pasteData.blocks)
+      const validation = validateTriggerPaste(blocks, existingBlocks, 'duplicate')
+      if (!validation.isValid) {
+        addNotification({
+          level: 'error',
+          message: validation.message!,
+          workflowId: activeWorkflowId || undefined,
+        })
+        return
+      }
 
-      setPendingSelection([newId])
-      collaborativeBatchAddBlocks([block], [], {}, {}, { [newId]: filteredValues })
-    }, [blockId, activeWorkflowId, collaborativeBatchAddBlocks, setPendingSelection])
+      setPendingSelection(blocks.map((b) => b.id))
+      collaborativeBatchAddBlocks(
+        blocks,
+        pasteData.edges,
+        pasteData.loops,
+        pasteData.parallels,
+        pasteData.subBlockValues
+      )
+    }, [blockId, addNotification, collaborativeBatchAddBlocks, setPendingSelection])
 
     const { isEnabled, horizontalHandles, parentId, parentType } = useWorkflowStore(
       useCallback(

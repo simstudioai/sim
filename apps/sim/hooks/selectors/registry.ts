@@ -6,6 +6,7 @@ import type {
   SelectorOption,
   SelectorQueryArgs,
 } from '@/hooks/selectors/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const SELECTOR_STALE = 60 * 1000
 
@@ -851,6 +852,36 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         id: item.id,
         label: item.name,
       }))
+    },
+  },
+  'sim.workflows': {
+    key: 'sim.workflows',
+    staleTime: 0, // Always fetch fresh from store
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'sim.workflows',
+      context.excludeWorkflowId ?? 'none',
+    ],
+    enabled: () => true,
+    fetchList: async ({ context }: SelectorQueryArgs): Promise<SelectorOption[]> => {
+      const { workflows } = useWorkflowRegistry.getState()
+      return Object.entries(workflows)
+        .filter(([id]) => id !== context.excludeWorkflowId)
+        .map(([id, workflow]) => ({
+          id,
+          label: workflow.name || `Workflow ${id.slice(0, 8)}`,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label))
+    },
+    fetchById: async ({ detailId }: SelectorQueryArgs): Promise<SelectorOption | null> => {
+      if (!detailId) return null
+      const { workflows } = useWorkflowRegistry.getState()
+      const workflow = workflows[detailId]
+      if (!workflow) return null
+      return {
+        id: detailId,
+        label: workflow.name || `Workflow ${detailId.slice(0, 8)}`,
+      }
     },
   },
 }

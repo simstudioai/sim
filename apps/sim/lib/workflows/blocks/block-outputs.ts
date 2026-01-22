@@ -1,4 +1,8 @@
 import { createLogger } from '@sim/logger'
+import {
+  extractFieldsFromSchema,
+  parseResponseFormatSafely,
+} from '@/lib/core/utils/response-format'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import {
   classifyStartBlockType,
@@ -303,6 +307,26 @@ export function getBlockOutputs(
 
   if (startPath === StartBlockPath.LEGACY_STARTER) {
     return getLegacyStarterOutputs(subBlocks)
+  }
+
+  if (blockType === 'agent') {
+    const responseFormatValue = subBlocks?.responseFormat?.value
+    if (responseFormatValue) {
+      const parsed = parseResponseFormatSafely(responseFormatValue, 'agent')
+      if (parsed) {
+        const fields = extractFieldsFromSchema(parsed)
+        if (fields.length > 0) {
+          const outputs: OutputDefinition = {}
+          for (const field of fields) {
+            outputs[field.name] = {
+              type: (field.type || 'any') as any,
+              description: field.description || `Field from Agent: ${field.name}`,
+            }
+          }
+          return outputs
+        }
+      }
+    }
   }
 
   const baseOutputs = { ...(blockConfig.outputs || {}) }

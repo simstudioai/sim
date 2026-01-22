@@ -33,21 +33,19 @@ export interface LoggerConfig {
   enabled?: boolean
 }
 
-/**
- * Get environment variable value
- * Works in any JavaScript runtime (Node.js, Bun, etc.)
- */
-const getEnvVar = (key: string): string | undefined => {
+const getNodeEnv = (): string => {
   if (typeof process !== 'undefined' && process.env) {
-    return process.env[key]
+    return process.env.NODE_ENV || 'development'
+  }
+  return 'development'
+}
+
+const getLogLevel = (): string | undefined => {
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env.LOG_LEVEL
   }
   return undefined
 }
-
-/**
- * Get the current environment (development, production, test)
- */
-const getNodeEnv = (): string => getEnvVar('NODE_ENV') || 'development'
 
 /**
  * Get the minimum log level from environment variable or use defaults
@@ -56,7 +54,7 @@ const getNodeEnv = (): string => getEnvVar('NODE_ENV') || 'development'
  * - Test: ERROR (only show errors in tests)
  */
 const getMinLogLevel = (): LogLevel => {
-  const logLevelEnv = getEnvVar('LOG_LEVEL')
+  const logLevelEnv = getLogLevel()
   if (logLevelEnv && Object.values(LogLevel).includes(logLevelEnv as LogLevel)) {
     return logLevelEnv as LogLevel
   }
@@ -120,7 +118,6 @@ const formatObject = (obj: unknown, isDev: boolean): string => {
         stack: isDev ? obj.stack : undefined,
         name: obj.name,
       }
-      // Copy any additional enumerable properties from the error
       for (const key of Object.keys(obj)) {
         if (!(key in errorObj)) {
           errorObj[key] = (obj as unknown as Record<string, unknown>)[key]
@@ -181,7 +178,6 @@ export class Logger {
   private shouldLog(level: LogLevel): boolean {
     if (!this.config.enabled) return false
 
-    // In production, only log on server-side (where window is undefined)
     if (getNodeEnv() === 'production' && typeof window !== 'undefined') {
       return false
     }

@@ -40,6 +40,7 @@ import {
   TimeInput,
   ToolInput,
   VariablesInput,
+  WorkflowSelectorInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -90,7 +91,6 @@ const isFieldRequired = (config: SubBlockConfig, subBlockValues?: Record<string,
   if (!config.required) return false
   if (typeof config.required === 'boolean') return config.required
 
-  // Helper function to evaluate a condition
   const evalCond = (
     cond: {
       field: string
@@ -132,7 +132,6 @@ const isFieldRequired = (config: SubBlockConfig, subBlockValues?: Record<string,
     return match
   }
 
-  // If required is a condition object or function, evaluate it
   const condition = typeof config.required === 'function' ? config.required() : config.required
   return evalCond(condition, subBlockValues || {})
 }
@@ -378,7 +377,6 @@ function SubBlockComponent({
     setIsValidJson(isValid)
   }
 
-  // Check if wand is enabled for this sub-block
   const isWandEnabled = config.wandConfig?.enabled ?? false
 
   /**
@@ -438,8 +436,6 @@ function SubBlockComponent({
     | null
     | undefined
 
-  // Use dependsOn gating to compute final disabled state
-  // Only pass previewContextValues when in preview mode to avoid format mismatches
   const { finalDisabled: gatedDisabled } = useDependsOnGate(blockId, config, {
     disabled,
     isPreview,
@@ -866,6 +862,17 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
+          />
+        )
+
+      case 'workflow-selector':
+        return (
+          <WorkflowSelectorInput
+            blockId={blockId}
+            subBlock={config}
+            disabled={isDisabled}
+            isPreview={isPreview}
+            previewValue={previewValue as string | null}
           />
         )
 

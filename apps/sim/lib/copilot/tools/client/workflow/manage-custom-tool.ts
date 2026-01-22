@@ -6,7 +6,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { useCustomToolsStore } from '@/stores/custom-tools'
+import { getCustomTool } from '@/hooks/queries/custom-tools'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -83,17 +83,15 @@ export class ManageCustomToolClientTool extends BaseClientTool {
     getDynamicText: (params, state) => {
       const operation = params?.operation as 'add' | 'edit' | 'delete' | 'list' | undefined
 
-      // Return undefined if no operation yet - use static defaults
       if (!operation) return undefined
 
-      // Get tool name from schema, or look it up from the store by toolId
       let toolName = params?.schema?.function?.name
       if (!toolName && params?.toolId) {
         try {
-          const tool = useCustomToolsStore.getState().getTool(params.toolId)
+          const tool = getCustomTool(params.toolId)
           toolName = tool?.schema?.function?.name
         } catch {
-          // Ignore errors accessing store
+          // Ignore errors accessing cache
         }
       }
 
@@ -168,7 +166,6 @@ export class ManageCustomToolClientTool extends BaseClientTool {
    * Add operations execute directly without confirmation.
    */
   getInterruptDisplays(): BaseClientToolMetadata['interrupt'] | undefined {
-    // Try currentArgs first, then fall back to store (for when called before execute())
     const args = this.currentArgs || this.getArgsFromStore()
     const operation = args?.operation
     if (operation === 'edit' || operation === 'delete') {
@@ -199,12 +196,9 @@ export class ManageCustomToolClientTool extends BaseClientTool {
 
   async execute(args?: ManageCustomToolArgs): Promise<void> {
     this.currentArgs = args
-    // For add and list operations, execute directly without confirmation
-    // For edit/delete, the copilot store will check hasInterrupt() and wait for confirmation
     if (args?.operation === 'add' || args?.operation === 'list') {
       await this.handleAccept(args)
     }
-    // edit/delete will wait for user confirmation via handleAccept
   }
 
   /**
@@ -222,7 +216,6 @@ export class ManageCustomToolClientTool extends BaseClientTool {
 
     const { operation, toolId, schema, code } = args
 
-    // Get workspace ID from the workflow registry
     const { hydration } = useWorkflowRegistry.getState()
     const workspaceId = hydration.workspaceId
     if (!workspaceId) {
@@ -247,7 +240,6 @@ export class ManageCustomToolClientTool extends BaseClientTool {
         await this.deleteCustomTool({ toolId, workspaceId }, logger)
         break
       case 'list':
-        // List operation is read-only, just mark as complete
         await this.markToolComplete(200, 'Listed custom tools')
         break
       default:
@@ -326,13 +318,10 @@ export class ManageCustomToolClientTool extends BaseClientTool {
       throw new Error('Tool ID is required for editing a custom tool')
     }
 
-    // At least one of schema or code must be provided
     if (!schema && !code) {
       throw new Error('At least one of schema or code must be provided for editing')
     }
 
-    // We need to send the full tool data to the API for updates
-    // First, fetch the existing tool to merge with updates
     const existingResponse = await fetch(`${API_ENDPOINT}?workspaceId=${workspaceId}`)
     const existingData = await existingResponse.json()
 
@@ -345,7 +334,6 @@ export class ManageCustomToolClientTool extends BaseClientTool {
       throw new Error(`Tool with ID ${toolId} not found`)
     }
 
-    // Merge updates with existing tool - use function name as title
     const mergedSchema = schema ?? existingTool.schema
     const updatedTool = {
       id: toolId,
