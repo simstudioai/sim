@@ -1,3 +1,4 @@
+import { USER_FILE_ACCESSIBLE_PROPERTIES } from '@/lib/workflows/types'
 import { normalizeName } from '@/executor/constants'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
 
@@ -27,8 +28,6 @@ export class InvalidFieldError extends Error {
     this.name = 'InvalidFieldError'
   }
 }
-
-const FILE_PROPERTIES = ['name', 'type', 'size', 'url', 'base64', 'mimeType'] as const
 
 function isFileType(value: unknown): boolean {
   if (typeof value !== 'object' || value === null) return false
@@ -87,7 +86,12 @@ function isPathInSchema(schema: OutputSchema | undefined, pathParts: string[]): 
     if (/^\d+$/.test(part)) {
       if (isFileType(current)) {
         const nextPart = pathParts[i + 1]
-        return !nextPart || FILE_PROPERTIES.includes(nextPart as (typeof FILE_PROPERTIES)[number])
+        return (
+          !nextPart ||
+          USER_FILE_ACCESSIBLE_PROPERTIES.includes(
+            nextPart as (typeof USER_FILE_ACCESSIBLE_PROPERTIES)[number]
+          )
+        )
       }
       if (isArrayType(current)) {
         current = getArrayItems(current)
@@ -103,14 +107,24 @@ function isPathInSchema(schema: OutputSchema | undefined, pathParts: string[]): 
 
       if (isFileType(fieldDef)) {
         const nextPart = pathParts[i + 1]
-        return !nextPart || FILE_PROPERTIES.includes(nextPart as (typeof FILE_PROPERTIES)[number])
+        return (
+          !nextPart ||
+          USER_FILE_ACCESSIBLE_PROPERTIES.includes(
+            nextPart as (typeof USER_FILE_ACCESSIBLE_PROPERTIES)[number]
+          )
+        )
       }
 
       current = isArrayType(fieldDef) ? getArrayItems(fieldDef) : fieldDef
       continue
     }
 
-    if (isFileType(current) && FILE_PROPERTIES.includes(part as (typeof FILE_PROPERTIES)[number])) {
+    if (
+      isFileType(current) &&
+      USER_FILE_ACCESSIBLE_PROPERTIES.includes(
+        part as (typeof USER_FILE_ACCESSIBLE_PROPERTIES)[number]
+      )
+    ) {
       return true
     }
 
@@ -122,10 +136,15 @@ function isPathInSchema(schema: OutputSchema | undefined, pathParts: string[]): 
         if (/^\d+$/.test(nextPart)) {
           const afterIndex = pathParts[i + 2]
           return (
-            !afterIndex || FILE_PROPERTIES.includes(afterIndex as (typeof FILE_PROPERTIES)[number])
+            !afterIndex ||
+            USER_FILE_ACCESSIBLE_PROPERTIES.includes(
+              afterIndex as (typeof USER_FILE_ACCESSIBLE_PROPERTIES)[number]
+            )
           )
         }
-        return FILE_PROPERTIES.includes(nextPart as (typeof FILE_PROPERTIES)[number])
+        return USER_FILE_ACCESSIBLE_PROPERTIES.includes(
+          nextPart as (typeof USER_FILE_ACCESSIBLE_PROPERTIES)[number]
+        )
       }
       current = fieldDef
       continue
