@@ -643,13 +643,22 @@ async function executeToolRequest(
       })
 
       const responseHeaders = new Headers(secureResponse.headers.toRecord())
-      const bodyBuffer = await secureResponse.arrayBuffer()
+      const nullBodyStatuses = new Set([101, 204, 205, 304])
 
-      response = new Response(bodyBuffer, {
-        status: secureResponse.status,
-        statusText: secureResponse.statusText,
-        headers: responseHeaders,
-      })
+      if (nullBodyStatuses.has(secureResponse.status)) {
+        response = new Response(null, {
+          status: secureResponse.status,
+          statusText: secureResponse.statusText,
+          headers: responseHeaders,
+        })
+      } else {
+        const bodyBuffer = await secureResponse.arrayBuffer()
+        response = new Response(bodyBuffer, {
+          status: secureResponse.status,
+          statusText: secureResponse.statusText,
+          headers: responseHeaders,
+        })
+      }
     }
 
     // For non-OK responses, attempt JSON first; if parsing fails, fall back to text
@@ -693,11 +702,9 @@ async function executeToolRequest(
       throw errorToTransform
     }
 
-    // Parse response data once with guard for empty 202 bodies
     let responseData
     const status = response.status
-    if (status === 202) {
-      // Many APIs (e.g., Microsoft Graph) return 202 with empty body
+    if (status === 202 || status === 204) {
       responseData = { status }
     } else {
       if (tool.transformResponse) {
