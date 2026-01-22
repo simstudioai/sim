@@ -27,23 +27,28 @@ export function navigatePath(obj: any, path: string[]): any {
       return undefined
     }
 
-    // Handle array indexing like "items[0]" or just numeric indices
-    const arrayMatch = part.match(/^([^[]+)\[(\d+)\](.*)$/)
+    const arrayMatch = part.match(/^([^[]+)(\[.+)$/)
     if (arrayMatch) {
-      // Handle complex array access like "items[0]"
-      const [, prop, index] = arrayMatch
+      const [, prop, bracketsPart] = arrayMatch
       current = current[prop]
       if (current === undefined || current === null) {
         return undefined
       }
-      const idx = Number.parseInt(index, 10)
-      current = Array.isArray(current) ? current[idx] : undefined
+
+      const indices = bracketsPart.match(/\[(\d+)\]/g)
+      if (indices) {
+        for (const indexMatch of indices) {
+          if (current === null || current === undefined) {
+            return undefined
+          }
+          const idx = Number.parseInt(indexMatch.slice(1, -1), 10)
+          current = Array.isArray(current) ? current[idx] : undefined
+        }
+      }
     } else if (/^\d+$/.test(part)) {
-      // Handle plain numeric index
       const index = Number.parseInt(part, 10)
       current = Array.isArray(current) ? current[index] : undefined
     } else {
-      // Handle regular property access
       current = current[part]
     }
   }
