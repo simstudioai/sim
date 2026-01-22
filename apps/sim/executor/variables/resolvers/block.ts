@@ -88,44 +88,64 @@ export class BlockResolver implements Resolver {
         blockOutputSchemas,
       })!
 
-      return result.value
+      if (result.value !== undefined) {
+        return result.value
+      }
+
+      return this.handleBackwardsCompat(block, output, pathParts)
     } catch (error) {
       if (error instanceof InvalidFieldError) {
-        if (output !== undefined && pathParts.length > 0) {
-          if (
-            block.metadata?.id === 'response' &&
-            pathParts[0] === 'response' &&
-            output?.response === undefined
-          ) {
-            const adjustedPathParts = pathParts.slice(1)
-            if (adjustedPathParts.length === 0) {
-              return output
-            }
-            const fallbackResult = navigatePath(output, adjustedPathParts)
-            if (fallbackResult !== undefined) {
-              return fallbackResult
-            }
-          }
-
-          const isWorkflowBlock =
-            block.metadata?.id === 'workflow' || block.metadata?.id === 'workflow_input'
-          if (
-            isWorkflowBlock &&
-            pathParts[0] === 'result' &&
-            pathParts[1] === 'response' &&
-            output?.result?.response === undefined
-          ) {
-            const adjustedPathParts = ['result', ...pathParts.slice(2)]
-            const fallbackResult = navigatePath(output, adjustedPathParts)
-            if (fallbackResult !== undefined) {
-              return fallbackResult
-            }
-          }
+        const fallback = this.handleBackwardsCompat(block, output, pathParts)
+        if (fallback !== undefined) {
+          return fallback
         }
         throw new Error(error.message)
       }
       throw error
     }
+  }
+
+  private handleBackwardsCompat(
+    block: SerializedBlock,
+    output: unknown,
+    pathParts: string[]
+  ): unknown {
+    if (output === undefined || pathParts.length === 0) {
+      return undefined
+    }
+
+    if (
+      block.metadata?.id === 'response' &&
+      pathParts[0] === 'response' &&
+      (output as Record<string, unknown>)?.response === undefined
+    ) {
+      const adjustedPathParts = pathParts.slice(1)
+      if (adjustedPathParts.length === 0) {
+        return output
+      }
+      const fallbackResult = navigatePath(output, adjustedPathParts)
+      if (fallbackResult !== undefined) {
+        return fallbackResult
+      }
+    }
+
+    const isWorkflowBlock =
+      block.metadata?.id === 'workflow' || block.metadata?.id === 'workflow_input'
+    const outputRecord = output as Record<string, Record<string, unknown> | undefined>
+    if (
+      isWorkflowBlock &&
+      pathParts[0] === 'result' &&
+      pathParts[1] === 'response' &&
+      outputRecord?.result?.response === undefined
+    ) {
+      const adjustedPathParts = ['result', ...pathParts.slice(2)]
+      const fallbackResult = navigatePath(output, adjustedPathParts)
+      if (fallbackResult !== undefined) {
+        return fallbackResult
+      }
+    }
+
+    return undefined
   }
 
   private getBlockOutput(blockId: string, context: ResolutionContext): any {
