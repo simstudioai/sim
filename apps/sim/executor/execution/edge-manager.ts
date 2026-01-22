@@ -203,12 +203,12 @@ export class EdgeManager {
 
     this.deactivatedEdges.add(edgeKey)
 
-    if (isCascade) {
-      cascadeTargets?.add(targetId)
-    }
-
     const targetNode = this.dag.nodes.get(targetId)
     if (!targetNode) return
+
+    if (isCascade && this.isTerminalControlNode(targetId)) {
+      cascadeTargets?.add(targetId)
+    }
 
     if (this.hasActiveIncomingEdges(targetNode, edgeKey)) {
       return

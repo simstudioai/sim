@@ -1648,6 +1648,65 @@ describe('EdgeManager', () => {
       // sentinel_end should be ready because all paths to it are deactivated
       expect(ready2).toContain(sentinelEndId)
     })
+
+    it('should NOT execute intermediate nodes in long cascade chains (2+ hops)', () => {
+      // Regression test: When condition hits dead-end with 2+ intermediate nodes,
+      // only sentinel_end should be ready, NOT the intermediate nodes.
+      //
+      // Structure: sentinel_start → condition → funcA → funcB → sentinel_end
+      // When condition hits dead-end, funcA and funcB should NOT execute.
+
+      const sentinelStartId = 'sentinel-start'
+      const sentinelEndId = 'sentinel-end'
+      const conditionId = 'condition'
+      const funcAId = 'funcA'
+      const funcBId = 'funcB'
+
+      const sentinelStartNode = createMockNode(sentinelStartId, [{ target: conditionId }])
+      const conditionNode = createMockNode(
+        conditionId,
+        [{ target: funcAId, sourceHandle: 'condition-if' }],
+        [sentinelStartId]
+      )
+      const funcANode = createMockNode(funcAId, [{ target: funcBId }], [conditionId])
+      const funcBNode = createMockNode(funcBId, [{ target: sentinelEndId }], [funcAId])
+      const sentinelEndNode = createMockNode(
+        sentinelEndId,
+        [
+          { target: sentinelStartId, sourceHandle: 'loop_continue' },
+          { target: 'after-loop', sourceHandle: 'loop_exit' },
+        ],
+        [funcBId]
+      )
+      const afterLoopNode = createMockNode('after-loop', [], [sentinelEndId])
+
+      const nodes = new Map<string, DAGNode>([
+        [sentinelStartId, sentinelStartNode],
+        [conditionId, conditionNode],
+        [funcAId, funcANode],
+        [funcBId, funcBNode],
+        [sentinelEndId, sentinelEndNode],
+        ['after-loop', afterLoopNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      // Simulate execution up to condition
+      conditionNode.incomingEdges.clear()
+
+      // Condition hits dead-end (else branch with no edge)
+      const ready = edgeManager.processOutgoingEdges(conditionNode, {
+        selectedOption: null,
+      })
+
+      // Only sentinel_end should be ready
+      expect(ready).toContain(sentinelEndId)
+
+      // Intermediate nodes should NOT be in readyNodes
+      expect(ready).not.toContain(funcAId)
+      expect(ready).not.toContain(funcBId)
+    })
   })
 
   describe('Condition inside parallel - parallel control edges should not be cascade-deactivated', () => {
