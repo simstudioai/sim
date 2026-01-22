@@ -2,12 +2,13 @@ import { useMemo, useRef, useState } from 'react'
 import { Badge, Input } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
+import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import { useWorkflowInputFields } from '@/hooks/queries/workflows'
+import { useWorkflowState } from '@/hooks/queries/workflows'
 
 /**
  * Props for the InputMappingField component
@@ -70,7 +71,11 @@ export function InputMapping({
   const overlayRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   const workflowId = typeof selectedWorkflowId === 'string' ? selectedWorkflowId : undefined
-  const { data: childInputFields = [], isLoading } = useWorkflowInputFields(workflowId)
+  const { data: workflowState, isLoading } = useWorkflowState(workflowId)
+  const childInputFields = useMemo(
+    () => (workflowState?.blocks ? extractInputFieldsFromBlocks(workflowState.blocks) : []),
+    [workflowState?.blocks]
+  )
   const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
 
   const valueObj: Record<string, string> = useMemo(() => {

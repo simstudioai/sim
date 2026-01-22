@@ -21,11 +21,9 @@ interface WorkflowPreviewBlockData {
 }
 
 /**
- * Lightweight block component for workflow previews.
- * Renders block header, dummy subblocks skeleton, and handles.
- * Respects horizontalHandles and enabled state from workflow.
- * No heavy hooks, store subscriptions, or interactive features.
- * Used in template cards and other preview contexts for performance.
+ * Preview block component for workflow visualization.
+ * Renders block header, subblocks skeleton, and handles without
+ * hooks, store subscriptions, or interactive features.
  */
 function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>) {
   const {

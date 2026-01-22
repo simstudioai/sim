@@ -18,8 +18,8 @@ import {
 import { Skeleton } from '@/components/ui'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import {
-  BlockDetailsSidebar,
   getLeftmostBlockId,
+  PreviewEditor,
   WorkflowPreview,
 } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
@@ -337,7 +337,7 @@ export function GeneralDeploy({
                   />
                 </div>
                 {expandedSelectedBlockId && workflowToShow.blocks?.[expandedSelectedBlockId] && (
-                  <BlockDetailsSidebar
+                  <PreviewEditor
                     block={workflowToShow.blocks[expandedSelectedBlockId]}
                     workflowVariables={workflowToShow.variables}
                     loops={workflowToShow.loops}

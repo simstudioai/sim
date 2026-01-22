@@ -685,7 +685,7 @@ interface WorkflowVariable {
   value: unknown
 }
 
-interface BlockDetailsSidebarProps {
+interface PreviewEditorProps {
   block: BlockState
   executionData?: ExecutionData
   /** All block execution data for resolving variable references */
@@ -722,7 +722,7 @@ const DEFAULT_CONNECTIONS_HEIGHT = 150
 /**
  * Readonly sidebar panel showing block configuration using SubBlock components.
  */
-function BlockDetailsSidebarContent({
+function PreviewEditorContent({
   block,
   executionData,
   allBlockExecutions,
@@ -732,7 +732,7 @@ function BlockDetailsSidebarContent({
   parallels,
   isExecutionMode = false,
   onClose,
-}: BlockDetailsSidebarProps) {
+}: PreviewEditorProps) {
   // Convert Record<string, Variable> to Array<Variable> for iteration
   const normalizedWorkflowVariables = useMemo(() => {
     if (!workflowVariables) return []
@@ -998,6 +998,22 @@ function BlockDetailsSidebarContent({
     })
   }, [extractedRefs.envVars])
 
+  const rawValues = useMemo(() => {
+    return Object.entries(subBlockValues).reduce<Record<string, unknown>>((acc, [key, entry]) => {
+      if (entry && typeof entry === 'object' && 'value' in entry) {
+        acc[key] = (entry as { value: unknown }).value
+      } else {
+        acc[key] = entry
+      }
+      return acc
+    }, {})
+  }, [subBlockValues])
+
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks]
+  )
+
   // Check if this is a subflow block (loop or parallel)
   const isSubflow = block.type === 'loop' || block.type === 'parallel'
   const loopConfig = block.type === 'loop' ? loops?.[block.id] : undefined
@@ -1079,21 +1095,6 @@ function BlockDetailsSidebarContent({
     )
   }
 
-  const rawValues = useMemo(() => {
-    return Object.entries(subBlockValues).reduce<Record<string, unknown>>((acc, [key, entry]) => {
-      if (entry && typeof entry === 'object' && 'value' in entry) {
-        acc[key] = (entry as { value: unknown }).value
-      } else {
-        acc[key] = entry
-      }
-      return acc
-    }, {})
-  }, [subBlockValues])
-
-  const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig.subBlocks),
-    [blockConfig.subBlocks]
-  )
   const canonicalModeOverrides = block.data?.canonicalModes
   const effectiveAdvanced =
     (block.advancedMode ?? false) ||
@@ -1371,12 +1372,12 @@ function BlockDetailsSidebarContent({
 }
 
 /**
- * Block details sidebar wrapped in ReactFlowProvider for hook compatibility.
+ * Preview editor wrapped in ReactFlowProvider for hook compatibility.
  */
-export function BlockDetailsSidebar(props: BlockDetailsSidebarProps) {
+export function PreviewEditor(props: PreviewEditorProps) {
   return (
     <ReactFlowProvider>
-      <BlockDetailsSidebarContent {...props} />
+      <PreviewEditorContent {...props} />
     </ReactFlowProvider>
   )
 }
