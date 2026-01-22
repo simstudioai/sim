@@ -182,6 +182,13 @@ export default function LoginPage({
     e.preventDefault()
     setIsLoading(true)
 
+    const redirectToVerify = (emailToVerify: string) => {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('verificationEmail', emailToVerify)
+      }
+      router.push('/verify')
+    }
+
     const formData = new FormData(e.currentTarget)
     const emailRaw = formData.get('email') as string
     const email = emailRaw.trim().toLowerCase()
@@ -215,10 +222,7 @@ export default function LoginPage({
 
             if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {
               errorHandled = true
-              if (typeof window !== 'undefined') {
-                sessionStorage.setItem('verificationEmail', email)
-              }
-              router.push('/verify')
+              redirectToVerify(email)
               return
             }
 
@@ -286,10 +290,7 @@ export default function LoginPage({
       router.push(safeCallbackUrl)
     } catch (err: any) {
       if (err.message?.includes('not verified') || err.code?.includes('EMAIL_NOT_VERIFIED')) {
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('verificationEmail', email)
-        }
-        router.push('/verify')
+        redirectToVerify(email)
         return
       }
 
