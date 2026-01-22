@@ -213,9 +213,12 @@ export default function LoginPage({
           onError: (ctx) => {
             logger.error('Login error:', ctx.error)
 
-            // EMAIL_NOT_VERIFIED is handled by the catch block which redirects to /verify
             if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {
               errorHandled = true
+              if (typeof window !== 'undefined') {
+                sessionStorage.setItem('verificationEmail', email)
+              }
+              router.push('/verify')
               return
             }
 
