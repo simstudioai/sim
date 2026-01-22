@@ -704,7 +704,7 @@ async function executeToolRequest(
 
     let responseData
     const status = response.status
-    if (status === 202 || status === 204) {
+    if (status === 202 || status === 204 || status === 205) {
       responseData = { status }
     } else {
       if (tool.transformResponse) {
