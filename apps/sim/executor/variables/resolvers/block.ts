@@ -127,10 +127,7 @@ export class BlockResolver implements Resolver {
       return undefined
     } catch (error) {
       if (error instanceof InvalidFieldError) {
-        throw new Error(
-          `"${error.fieldPath}" doesn't exist on block "${error.blockName}". ` +
-            `Available fields: ${error.availableFields.join(', ')}`
-        )
+        throw new Error(error.message)
       }
       throw error
     }
