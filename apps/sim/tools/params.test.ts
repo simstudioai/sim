@@ -89,7 +89,7 @@ describe('Tool Parameters Utils', () => {
         channel: '#general',
       }
 
-      const schema = await createLLMToolSchema(mockToolConfig, userProvidedParams)
+      const { schema } = await createLLMToolSchema(mockToolConfig, userProvidedParams)
 
       expect(schema.properties).not.toHaveProperty('apiKey') // user-only, excluded
       expect(schema.properties).not.toHaveProperty('channel') // user-provided, excluded
@@ -100,7 +100,7 @@ describe('Tool Parameters Utils', () => {
     })
 
     it.concurrent('should include all parameters when none are user-provided', async () => {
-      const schema = await createLLMToolSchema(mockToolConfig, {})
+      const { schema } = await createLLMToolSchema(mockToolConfig, {})
 
       expect(schema.properties).not.toHaveProperty('apiKey') // user-only, never shown to LLM
       expect(schema.properties).toHaveProperty('message') // user-or-llm, shown to LLM
@@ -332,7 +332,10 @@ describe('Tool Parameters Utils', () => {
             inputMapping: '{}',
           }
 
-          const schema = await createLLMToolSchema(mockWorkflowExecutorConfig, userProvidedParams)
+          const { schema } = await createLLMToolSchema(
+            mockWorkflowExecutorConfig,
+            userProvidedParams
+          )
 
           expect(schema.properties).toHaveProperty('inputMapping')
           expect(schema.properties.inputMapping.type).toBe('object')
@@ -347,7 +350,10 @@ describe('Tool Parameters Utils', () => {
             inputMapping: '{"query": "", "limit": ""}',
           }
 
-          const schema = await createLLMToolSchema(mockWorkflowExecutorConfig, userProvidedParams)
+          const { schema } = await createLLMToolSchema(
+            mockWorkflowExecutorConfig,
+            userProvidedParams
+          )
 
           expect(schema.properties).toHaveProperty('inputMapping')
         }
@@ -360,7 +366,10 @@ describe('Tool Parameters Utils', () => {
             workflowId: 'workflow-123',
           }
 
-          const schema = await createLLMToolSchema(mockWorkflowExecutorConfig, userProvidedParams)
+          const { schema } = await createLLMToolSchema(
+            mockWorkflowExecutorConfig,
+            userProvidedParams
+          )
 
           expect(schema.properties).toHaveProperty('inputMapping')
         }
@@ -371,7 +380,7 @@ describe('Tool Parameters Utils', () => {
           workflowId: 'workflow-123',
         }
 
-        const schema = await createLLMToolSchema(mockWorkflowExecutorConfig, userProvidedParams)
+        const { schema } = await createLLMToolSchema(mockWorkflowExecutorConfig, userProvidedParams)
 
         expect(schema.properties).not.toHaveProperty('workflowId')
         expect(schema.properties).toHaveProperty('inputMapping')
@@ -545,7 +554,7 @@ describe('Tool Parameters Utils', () => {
 
   describe('Type Interface Validation', () => {
     it.concurrent('should have properly typed ToolSchema', async () => {
-      const schema: ToolSchema = await createLLMToolSchema(mockToolConfig, {})
+      const { schema } = await createLLMToolSchema(mockToolConfig, {})
 
       expect(schema.type).toBe('object')
       expect(typeof schema.properties).toBe('object')

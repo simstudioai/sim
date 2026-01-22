@@ -3,6 +3,7 @@ import { isEqual } from 'lodash'
 import { AlertTriangle, ArrowLeftRight, ArrowUp } from 'lucide-react'
 import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'
+import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
 import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
 import {
   CheckboxList,
@@ -16,6 +17,7 @@ import {
   EvalInput,
   FileSelectorInput,
   FileUpload,
+  FilterBuilder,
   FolderSelectorInput,
   GroupedCheckboxList,
   InputFormat,
@@ -34,8 +36,10 @@ import {
   ShortInput,
   SlackSelectorInput,
   SliderInput,
+  SortBuilder,
   Switch,
   Table,
+  TableSelector,
   Text,
   TimeInput,
   ToolInput,
@@ -511,6 +515,19 @@ function SubBlockComponent({
           </div>
         )
 
+      case 'table-selector':
+        return (
+          <div onMouseDown={handleMouseDown}>
+            <TableSelector
+              blockId={blockId}
+              subBlock={config}
+              disabled={isDisabled}
+              isPreview={isPreview}
+              previewValue={previewValue as string | null}
+            />
+          </div>
+        )
+
       case 'combobox':
         return (
           <div onMouseDown={handleMouseDown}>
@@ -849,6 +866,28 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue}
             config={config}
+            disabled={isDisabled}
+          />
+        )
+
+      case 'filter-builder':
+        return (
+          <FilterBuilder
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue as FilterRule[] | null | undefined}
+            disabled={isDisabled}
+          />
+        )
+
+      case 'sort-builder':
+        return (
+          <SortBuilder
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue as SortRule[] | null | undefined}
             disabled={isDisabled}
           />
         )

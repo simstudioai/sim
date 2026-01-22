@@ -44,6 +44,7 @@ import {
   SlackSelectorInput,
   SliderInput,
   Table,
+  TableSelector,
   TimeInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
 import { DocumentSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/document-selector/document-selector'
@@ -504,6 +505,40 @@ function TableSyncWrapper({
         subBlockId={paramId}
         columns={uiComponent.columns || ['Key', 'Value']}
         disabled={disabled}
+      />
+    </GenericSyncWrapper>
+  )
+}
+
+function TableSelectorSyncWrapper({
+  blockId,
+  paramId,
+  value,
+  onChange,
+  uiComponent,
+  disabled,
+  isPreview,
+}: {
+  blockId: string
+  paramId: string
+  value: string
+  onChange: (value: string) => void
+  uiComponent: any
+  disabled: boolean
+  isPreview: boolean
+}) {
+  return (
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <TableSelector
+        blockId={blockId}
+        subBlock={{
+          id: paramId,
+          type: 'table-selector',
+          placeholder: uiComponent.placeholder || 'Select a table',
+        }}
+        disabled={disabled}
+        isPreview={isPreview}
+        previewValue={value || null}
       />
     </GenericSyncWrapper>
   )
@@ -970,6 +1005,7 @@ const BUILT_IN_TOOL_TYPES = new Set([
   'tts',
   'stt',
   'memory',
+  'table',
   'webhook_request',
   'workflow',
 ])
@@ -1147,7 +1183,8 @@ export const ToolInput = memo(function ToolInput({
           block.type === 'workflow' ||
           block.type === 'workflow_input' ||
           block.type === 'knowledge' ||
-          block.type === 'function') &&
+          block.type === 'function' ||
+          block.type === 'table') &&
         block.type !== 'evaluator' &&
         block.type !== 'mcp' &&
         block.type !== 'file'
@@ -2142,6 +2179,19 @@ export const ToolInput = memo(function ToolInput({
             onChange={onChange}
             uiComponent={uiComponent}
             disabled={disabled}
+          />
+        )
+
+      case 'table-selector':
+        return (
+          <TableSelectorSyncWrapper
+            blockId={blockId}
+            paramId={param.id}
+            value={value}
+            onChange={onChange}
+            uiComponent={uiComponent}
+            disabled={disabled}
+            isPreview={isPreview}
           />
         )
 
