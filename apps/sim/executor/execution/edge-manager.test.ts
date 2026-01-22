@@ -1389,7 +1389,7 @@ describe('EdgeManager', () => {
       const nodeBNode = createMockNode(nodeBId, [{ target: sentinelEndId }], [conditionId])
       const sentinelEndNode = createMockNode(
         sentinelEndId,
-        [{ target: sentinelStartId, sourceHandle: 'loop-continue' }], // Alternative handle
+        [{ target: sentinelStartId, sourceHandle: 'loop-continue-source' }],
         [nodeAId, nodeBId]
       )
 
@@ -1408,7 +1408,7 @@ describe('EdgeManager', () => {
       edgeManager.processOutgoingEdges(nodeBNode, {})
 
       const ready = edgeManager.processOutgoingEdges(sentinelEndNode, {
-        selectedRoute: 'loop-continue',
+        selectedRoute: 'loop_continue',
       })
       expect(ready).toContain(sentinelStartId)
     })
