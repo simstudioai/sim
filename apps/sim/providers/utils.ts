@@ -3,6 +3,7 @@ import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
+import { enrichTableToolForLLM } from '@/lib/table/llm'
 import { isCustomTool } from '@/executor/constants'
 import {
   getComputerUseModels,
@@ -432,9 +433,20 @@ export async function transformBlockTool(
     getAllBlocks: () => any[]
     getTool: (toolId: string) => any
     getToolAsync?: (toolId: string) => Promise<any>
+    workspaceId?: string
+    workflowId?: string
+    executeTool?: (toolId: string, params: Record<string, any>) => Promise<any>
   }
 ): Promise<ProviderToolConfig | null> {
-  const { selectedOperation, getAllBlocks, getTool, getToolAsync } = options
+  const {
+    selectedOperation,
+    getAllBlocks,
+    getTool,
+    getToolAsync,
+    workspaceId,
+    workflowId,
+    executeTool,
+  } = options
 
   const blockDef = getAllBlocks().find((b: any) => b.type === block.type)
   if (!blockDef) {
@@ -511,12 +523,34 @@ export async function transformBlockTool(
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.knowledgeBaseId}`
   }
 
+  // Apply table tool enrichment if applicable
+  let finalDescription = toolDescription
+  let finalSchema = llmSchema
+
+  if (toolId.startsWith('table_') && workspaceId && workflowId && executeTool) {
+    const result = await enrichTableToolForLLM(
+      toolId,
+      toolDescription,
+      llmSchema,
+      userProvidedParams,
+      {
+        workspaceId,
+        workflowId,
+        executeTool,
+      }
+    )
+    if (result) {
+      finalDescription = result.description
+      finalSchema = { ...llmSchema, ...result.parameters }
+    }
+  }
+
   return {
     id: uniqueToolId,
     name: toolName,
-    description: toolDescription,
+    description: finalDescription,
     params: userProvidedParams,
-    parameters: llmSchema,
+    parameters: finalSchema,
   }
 }
 
