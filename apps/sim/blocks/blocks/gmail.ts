@@ -242,15 +242,9 @@ Return ONLY the email body - no explanations, no extra text.`,
       id: 'messageId',
       title: 'Message ID',
       type: 'short-input',
-      placeholder: 'Enter message ID to read (optional)',
-      condition: {
-        field: 'operation',
-        value: 'read_gmail',
-        and: {
-          field: 'folder',
-          value: '',
-        },
-      },
+      placeholder: 'Read specific email by ID (overrides label/folder)',
+      condition: { field: 'operation', value: 'read_gmail' },
+      mode: 'advanced',
     },
     // Search Fields
     {
