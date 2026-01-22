@@ -224,6 +224,10 @@ app:
     timeoutSeconds: 5
     failureThreshold: 3
 
+  # Additional volumes for app deployment (e.g., branding assets, custom configs)
+  extraVolumes: []
+  extraVolumeMounts: []
+
 # Realtime socket server configuration
 realtime:
   # Enable/disable the realtime service
@@ -300,6 +304,10 @@ realtime:
     periodSeconds: 90
     timeoutSeconds: 5
     failureThreshold: 3
+
+  # Additional volumes for realtime deployment
+  extraVolumes: []
+  extraVolumeMounts: []
 
 # Database migrations job configuration
 migrations:
@@ -538,6 +546,10 @@ ollama:
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 3
+
+  # Additional volumes for ollama deployment
+  extraVolumes: []
+  extraVolumeMounts: []
 
 # Ingress configuration
 ingress:
