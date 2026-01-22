@@ -772,11 +772,49 @@ function deepClone<T>(obj: T): T {
 }
 
 /**
+ * Recursively masks credential IDs in any value (string, object, or array).
+ * Used during serialization to ensure sensitive IDs are never persisted.
+ */
+function maskCredentialIdsInValue(value: any, credentialIds: Set<string>): any {
+  if (!value || credentialIds.size === 0) return value
+
+  if (typeof value === 'string') {
+    let masked = value
+    // Sort by length descending to mask longer IDs first
+    const sortedIds = Array.from(credentialIds).sort((a, b) => b.length - a.length)
+    for (const id of sortedIds) {
+      if (id && masked.includes(id)) {
+        masked = masked.split(id).join('••••••••')
+      }
+    }
+    return masked
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => maskCredentialIdsInValue(item, credentialIds))
+  }
+
+  if (typeof value === 'object') {
+    const masked: any = {}
+    for (const key of Object.keys(value)) {
+      masked[key] = maskCredentialIdsInValue(value[key], credentialIds)
+    }
+    return masked
+  }
+
+  return value
+}
+
+/**
  * Serializes messages for database storage.
  * Deep clones all fields to ensure proper JSON serialization.
+ * Masks sensitive credential IDs before persisting.
  * This ensures they render identically when loaded back.
  */
 function serializeMessagesForDB(messages: CopilotMessage[]): any[] {
+  // Get credential IDs to mask
+  const credentialIds = useCopilotStore.getState().sensitiveCredentialIds
+
   const result = messages
     .map((msg) => {
       // Deep clone the entire message to ensure all nested data is serializable
@@ -824,7 +862,8 @@ function serializeMessagesForDB(messages: CopilotMessage[]): any[] {
         serialized.errorType = msg.errorType
       }
 
-      return serialized
+      // Mask credential IDs in the serialized message before persisting
+      return maskCredentialIdsInValue(serialized, credentialIds)
     })
     .filter((msg) => {
       // Filter out empty assistant messages
@@ -2294,6 +2333,7 @@ const initialState = {
   autoAllowedTools: [] as string[],
   messageQueue: [] as import('./types').QueuedMessage[],
   suppressAbortContinueOption: false,
+  sensitiveCredentialIds: new Set<string>(),
 }
 
 export const useCopilotStore = create<CopilotStore>()(
@@ -2675,6 +2715,9 @@ export const useCopilotStore = create<CopilotStore>()(
           messageSnapshots: { ...state.messageSnapshots, [userMessage.id]: snapshot },
         }))
       }
+
+      // Load sensitive credential IDs for masking before streaming starts
+      await get().loadSensitiveCredentialIds()
 
       let newMessages: CopilotMessage[]
       if (revertState) {
@@ -3966,6 +4009,57 @@ export const useCopilotStore = create<CopilotStore>()(
     isToolAutoAllowed: (toolId: string) => {
       const { autoAllowedTools } = get()
       return autoAllowedTools.includes(toolId)
+    },
+
+    // Credential masking
+    loadSensitiveCredentialIds: async () => {
+      try {
+        const res = await fetch('/api/copilot/execute-copilot-server-tool', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ toolName: 'get_credentials', payload: {} }),
+        })
+        if (!res.ok) {
+          logger.warn('[loadSensitiveCredentialIds] Failed to fetch credentials', {
+            status: res.status,
+          })
+          return
+        }
+        const json = await res.json()
+        // Credentials are at result.oauth.connected.credentials
+        const credentials = json?.result?.oauth?.connected?.credentials || []
+        logger.info('[loadSensitiveCredentialIds] Response', {
+          hasResult: !!json?.result,
+          credentialCount: credentials.length,
+        })
+        const ids = new Set<string>()
+        for (const cred of credentials) {
+          if (cred?.id) {
+            ids.add(cred.id)
+          }
+        }
+        set({ sensitiveCredentialIds: ids })
+        logger.info('[loadSensitiveCredentialIds] Loaded credential IDs', {
+          count: ids.size,
+        })
+      } catch (err) {
+        logger.warn('[loadSensitiveCredentialIds] Error loading credentials', err)
+      }
+    },
+
+    maskCredentialValue: (value: string) => {
+      const { sensitiveCredentialIds } = get()
+      if (!value || sensitiveCredentialIds.size === 0) return value
+
+      let masked = value
+      // Sort by length descending to mask longer IDs first
+      const sortedIds = Array.from(sensitiveCredentialIds).sort((a, b) => b.length - a.length)
+      for (const id of sortedIds) {
+        if (id && masked.includes(id)) {
+          masked = masked.split(id).join('••••••••')
+        }
+      }
+      return masked
     },
 
     // Message queue actions

@@ -782,6 +782,7 @@ const SubagentContentRenderer = memo(function SubagentContentRenderer({
   const [isExpanded, setIsExpanded] = useState(true)
   const [duration, setDuration] = useState(0)
   const startTimeRef = useRef<number>(Date.now())
+  const maskCredentialValue = useCopilotStore((s) => s.maskCredentialValue)
   const wasStreamingRef = useRef(false)
 
   // Only show streaming animations for current message
@@ -816,14 +817,16 @@ const SubagentContentRenderer = memo(function SubagentContentRenderer({
       currentText += parsed.cleanContent
     } else if (block.type === 'subagent_tool_call' && block.toolCall) {
       if (currentText.trim()) {
-        segments.push({ type: 'text', content: currentText })
+        // Mask any credential IDs in the accumulated text before displaying
+        segments.push({ type: 'text', content: maskCredentialValue(currentText) })
         currentText = ''
       }
       segments.push({ type: 'tool', block })
     }
   }
   if (currentText.trim()) {
-    segments.push({ type: 'text', content: currentText })
+    // Mask any credential IDs in the accumulated text before displaying
+    segments.push({ type: 'text', content: maskCredentialValue(currentText) })
   }
 
   const allParsed = parseSpecialTags(allRawText)
@@ -952,6 +955,7 @@ const WorkflowEditSummary = memo(function WorkflowEditSummary({
   toolCall: CopilotToolCall
 }) {
   const blocks = useWorkflowStore((s) => s.blocks)
+  const maskCredentialValue = useCopilotStore((s) => s.maskCredentialValue)
 
   const cachedBlockInfoRef = useRef<Record<string, { name: string; type: string }>>({})
 
@@ -983,6 +987,7 @@ const WorkflowEditSummary = memo(function WorkflowEditSummary({
     title: string
     value: any
     isPassword?: boolean
+    isCredential?: boolean
   }
 
   interface BlockChange {
@@ -1091,6 +1096,7 @@ const WorkflowEditSummary = memo(function WorkflowEditSummary({
               title: subBlockConfig.title ?? subBlockConfig.id,
               value,
               isPassword: subBlockConfig.password === true,
+              isCredential: subBlockConfig.type === 'oauth-input',
             })
           }
         }
@@ -1172,8 +1178,15 @@ const WorkflowEditSummary = memo(function WorkflowEditSummary({
         {subBlocksToShow && subBlocksToShow.length > 0 && (
           <div className='border-[var(--border-1)] border-t px-2.5 py-1.5'>
             {subBlocksToShow.map((sb) => {
-              // Mask password fields like the canvas does
-              const displayValue = sb.isPassword ? '•••' : getDisplayValue(sb.value)
+              // Mask password fields and credential IDs
+              let displayValue: string
+              if (sb.isPassword) {
+                displayValue = '•••'
+              } else {
+                // Get display value first, then mask any credential IDs that might be in it
+                const rawValue = getDisplayValue(sb.value)
+                displayValue = maskCredentialValue(rawValue)
+              }
               return (
                 <div key={sb.id} className='flex items-start gap-1.5 py-0.5 text-[11px]'>
                   <span

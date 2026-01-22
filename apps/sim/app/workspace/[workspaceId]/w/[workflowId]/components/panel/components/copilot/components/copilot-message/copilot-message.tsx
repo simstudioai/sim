@@ -78,6 +78,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       mode,
       setMode,
       isAborting,
+      maskCredentialValue,
     } = useCopilotStore()
 
     const messageCheckpoints = isUser ? allMessageCheckpoints[message.id] || [] : []
@@ -210,7 +211,10 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           const isLastTextBlock =
             index === message.contentBlocks!.length - 1 && block.type === 'text'
           const parsed = parseSpecialTags(block.content)
-          const cleanBlockContent = parsed.cleanContent.replace(/\n{3,}/g, '\n\n')
+          // Mask credential IDs in the displayed content
+          const cleanBlockContent = maskCredentialValue(
+            parsed.cleanContent.replace(/\n{3,}/g, '\n\n')
+          )
 
           if (!cleanBlockContent.trim()) return null
 
@@ -238,7 +242,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           return (
             <div key={blockKey} className='w-full'>
               <ThinkingBlock
-                content={block.content}
+                content={maskCredentialValue(block.content)}
                 isStreaming={isActivelyStreaming}
                 hasFollowingContent={hasFollowingContent}
                 hasSpecialTags={hasSpecialTags}
@@ -261,7 +265,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         }
         return null
       })
-    }, [message.contentBlocks, isActivelyStreaming, parsedTags, isLastMessage])
+    }, [message.contentBlocks, isActivelyStreaming, parsedTags, isLastMessage, maskCredentialValue])
 
     if (isUser) {
       return (
