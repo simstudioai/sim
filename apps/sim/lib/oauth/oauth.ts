@@ -835,6 +835,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'confluence': {
@@ -883,6 +884,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'microsoft':
@@ -910,6 +912,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'dropbox': {
