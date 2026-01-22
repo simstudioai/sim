@@ -1,13 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowRight, ChevronRight, Eye, EyeOff } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Eye, EyeOff } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
 import { inter } from '@/app/_styles/fonts/inter/inter'
-import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
+import { BrandedButton } from '@/app/(auth)/components/branded-button'
 
 interface RequestResetFormProps {
   email: string
@@ -28,9 +27,6 @@ export function RequestResetForm({
   statusMessage,
   className,
 }: RequestResetFormProps) {
-  const buttonClass = useBrandedButtonClass()
-  const [isButtonHovered, setIsButtonHovered] = useState(false)
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     onSubmit(email)
@@ -68,24 +64,14 @@ export function RequestResetForm({
         )}
       </div>
 
-      <Button
+      <BrandedButton
         type='submit'
         disabled={isSubmitting}
-        onMouseEnter={() => setIsButtonHovered(true)}
-        onMouseLeave={() => setIsButtonHovered(false)}
-        className='group inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] py-[6px] pr-[10px] pl-[12px] text-[15px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all'
+        loading={isSubmitting}
+        loadingText='Sending'
       >
-        <span className='flex items-center gap-1'>
-          {isSubmitting ? 'Sending...' : 'Send Reset Link'}
-          <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
-            {isButtonHovered ? (
-              <ArrowRight className='h-4 w-4' aria-hidden='true' />
-            ) : (
-              <ChevronRight className='h-4 w-4' aria-hidden='true' />
-            )}
-          </span>
-        </span>
-      </Button>
+        Send Reset Link
+      </BrandedButton>
     </form>
   )
 }
@@ -112,8 +98,6 @@ export function SetNewPasswordForm({
   const [validationMessage, setValidationMessage] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const buttonClass = useBrandedButtonClass()
-  const [isButtonHovered, setIsButtonHovered] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -243,24 +227,14 @@ export function SetNewPasswordForm({
         )}
       </div>
 
-      <Button
-        disabled={isSubmitting || !token}
+      <BrandedButton
         type='submit'
-        onMouseEnter={() => setIsButtonHovered(true)}
-        onMouseLeave={() => setIsButtonHovered(false)}
-        className='group inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] py-[6px] pr-[10px] pl-[12px] text-[15px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all'
+        disabled={isSubmitting || !token}
+        loading={isSubmitting}
+        loadingText='Resetting'
       >
-        <span className='flex items-center gap-1'>
-          {isSubmitting ? 'Resetting...' : 'Reset Password'}
-          <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
-            {isButtonHovered ? (
-              <ArrowRight className='h-4 w-4' aria-hidden='true' />
-            ) : (
-              <ChevronRight className='h-4 w-4' aria-hidden='true' />
-            )}
-          </span>
-        </span>
-      </Button>
+        Reset Password
+      </BrandedButton>
     </form>
   )
 }
