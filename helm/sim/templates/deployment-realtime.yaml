@@ -84,12 +84,22 @@ spec:
           {{- end }}
           {{- include "sim.resources" .Values.realtime | nindent 10 }}
           {{- include "sim.securityContext" .Values.realtime | nindent 10 }}
-          {{- with .Values.extraVolumeMounts }}
+          {{- if or .Values.extraVolumeMounts .Values.realtime.extraVolumeMounts }}
           volumeMounts:
+            {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.realtime.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
-      {{- with .Values.extraVolumes }}
+      {{- if or .Values.extraVolumes .Values.realtime.extraVolumes }}
       volumes:
+        {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.realtime.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
 {{- end }}
