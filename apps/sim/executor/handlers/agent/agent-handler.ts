@@ -305,7 +305,7 @@ export class AgentBlockHandler implements BlockHandler {
       base.executeFunction = async (callParams: Record<string, any>) => {
         const mergedParams = mergeToolParameters(userProvidedParams, callParams)
 
-        const { blockData, blockNameMapping } = collectBlockData(ctx)
+        const { blockData, blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
 
         const result = await executeTool(
           'function_execute',
@@ -317,6 +317,7 @@ export class AgentBlockHandler implements BlockHandler {
             workflowVariables: ctx.workflowVariables || {},
             blockData,
             blockNameMapping,
+            blockOutputSchemas,
             isCustomTool: true,
             _context: {
               workflowId: ctx.workflowId,

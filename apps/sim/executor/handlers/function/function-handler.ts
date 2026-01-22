@@ -23,7 +23,7 @@ export class FunctionBlockHandler implements BlockHandler {
       ? inputs.code.map((c: { content: string }) => c.content).join('\n')
       : inputs.code
 
-    const { blockData, blockNameMapping } = collectBlockData(ctx)
+    const { blockData, blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
 
     const result = await executeTool(
       'function_execute',
@@ -35,6 +35,7 @@ export class FunctionBlockHandler implements BlockHandler {
         workflowVariables: ctx.workflowVariables || {},
         blockData,
         blockNameMapping,
+        blockOutputSchemas,
         _context: {
           workflowId: ctx.workflowId,
           workspaceId: ctx.workspaceId,
