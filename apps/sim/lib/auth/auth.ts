@@ -64,24 +64,7 @@ import { SSO_TRUSTED_PROVIDERS } from './sso/constants'
 
 const logger = createLogger('Auth')
 
-const MICROSOFT_REFRESH_TOKEN_LIFETIME_DAYS = 90
-
-const MICROSOFT_PROVIDERS = new Set([
-  'microsoft-excel',
-  'microsoft-planner',
-  'microsoft-teams',
-  'outlook',
-  'onedrive',
-  'sharepoint',
-])
-
-function isMicrosoftProvider(providerId: string): boolean {
-  return MICROSOFT_PROVIDERS.has(providerId)
-}
-
-function getMicrosoftRefreshTokenExpiry(): Date {
-  return new Date(Date.now() + MICROSOFT_REFRESH_TOKEN_LIFETIME_DAYS * 24 * 60 * 60 * 1000)
-}
+import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
 
 const validStripeKey = env.STRIPE_SECRET_KEY
 

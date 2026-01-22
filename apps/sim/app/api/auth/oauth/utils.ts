@@ -4,28 +4,13 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { refreshOAuthToken } from '@/lib/oauth'
+import {
+  getMicrosoftRefreshTokenExpiry,
+  isMicrosoftProvider,
+  PROACTIVE_REFRESH_THRESHOLD_DAYS,
+} from '@/lib/oauth/microsoft'
 
 const logger = createLogger('OAuthUtilsAPI')
-
-const MICROSOFT_REFRESH_TOKEN_LIFETIME_DAYS = 90
-const PROACTIVE_REFRESH_THRESHOLD_DAYS = 7
-
-const MICROSOFT_PROVIDERS = new Set([
-  'microsoft-excel',
-  'microsoft-planner',
-  'microsoft-teams',
-  'outlook',
-  'onedrive',
-  'sharepoint',
-])
-
-function isMicrosoftProvider(providerId: string): boolean {
-  return MICROSOFT_PROVIDERS.has(providerId)
-}
-
-function getMicrosoftRefreshTokenExpiry(): Date {
-  return new Date(Date.now() + MICROSOFT_REFRESH_TOKEN_LIFETIME_DAYS * 24 * 60 * 60 * 1000)
-}
 
 interface AccountInsertData {
   id: string
@@ -264,6 +249,10 @@ export async function refreshAccessTokenIfNeeded(
           userId: credential.userId,
           hasRefreshToken: !!credential.refreshToken,
         })
+        if (!accessTokenNeedsRefresh && accessToken) {
+          logger.info(`[${requestId}] Proactive refresh failed but access token still valid`)
+          return accessToken
+        }
         return null
       }
 
@@ -297,6 +286,10 @@ export async function refreshAccessTokenIfNeeded(
         credentialId,
         userId: credential.userId,
       })
+      if (!accessTokenNeedsRefresh && accessToken) {
+        logger.info(`[${requestId}] Proactive refresh failed but access token still valid`)
+        return accessToken
+      }
       return null
     }
   } else if (!accessToken) {
@@ -351,6 +344,10 @@ export async function refreshTokenIfNeeded(
 
     if (!refreshResult) {
       logger.error(`[${requestId}] Failed to refresh token for credential`)
+      if (!accessTokenNeedsRefresh && credential.accessToken) {
+        logger.info(`[${requestId}] Proactive refresh failed but access token still valid`)
+        return { accessToken: credential.accessToken, refreshed: false }
+      }
       throw new Error('Failed to refresh token')
     }
 
@@ -391,6 +388,11 @@ export async function refreshTokenIfNeeded(
         logger.info(`[${requestId}] Found valid token from concurrent refresh, using it`)
         return { accessToken: freshCredential.accessToken, refreshed: true }
       }
+    }
+
+    if (!accessTokenNeedsRefresh && credential.accessToken) {
+      logger.info(`[${requestId}] Proactive refresh failed but access token still valid`)
+      return { accessToken: credential.accessToken, refreshed: false }
     }
 
     logger.error(`[${requestId}] Refresh failed and no valid token found in DB`, error)
