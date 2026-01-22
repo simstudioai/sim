@@ -144,6 +144,11 @@ export class WorkflowBlockHandler implements BlockHandler {
       const workflowMetadata = workflows[workflowId]
       const childWorkflowName = workflowMetadata?.name || workflowId
 
+      const originalError = error.message || 'Unknown error'
+      const wrappedError = new Error(
+        `Error in child workflow "${childWorkflowName}": ${originalError}`
+      )
+
       if (error.executionResult?.logs) {
         const executionResult = error.executionResult as ExecutionResult
 
@@ -159,28 +164,12 @@ export class WorkflowBlockHandler implements BlockHandler {
         )
 
         logger.info(`Captured ${childTraceSpans.length} child trace spans from failed execution`)
-
-        return {
-          success: false,
-          childWorkflowName,
-          result: {},
-          error: error.message || 'Child workflow execution failed',
-          childTraceSpans: childTraceSpans,
-        } as Record<string, any>
+        ;(wrappedError as any).childTraceSpans = childTraceSpans
+      } else if (error.childTraceSpans && Array.isArray(error.childTraceSpans)) {
+        ;(wrappedError as any).childTraceSpans = error.childTraceSpans
       }
 
-      if (error.childTraceSpans && Array.isArray(error.childTraceSpans)) {
-        return {
-          success: false,
-          childWorkflowName,
-          result: {},
-          error: error.message || 'Child workflow execution failed',
-          childTraceSpans: error.childTraceSpans,
-        } as Record<string, any>
-      }
-
-      const originalError = error.message || 'Unknown error'
-      throw new Error(`Error in child workflow "${childWorkflowName}": ${originalError}`)
+      throw wrappedError
     }
   }
 
@@ -452,17 +441,13 @@ export class WorkflowBlockHandler implements BlockHandler {
 
     if (!success) {
       logger.warn(`Child workflow ${childWorkflowName} failed`)
-      // Return failure with child trace spans so they can be displayed
-      return {
-        success: false,
-        childWorkflowName,
-        result,
-        error: childResult.error || 'Child workflow execution failed',
-        childTraceSpans: childTraceSpans || [],
-      } as Record<string, any>
+      const error = new Error(
+        `Error in child workflow "${childWorkflowName}": ${childResult.error || 'Child workflow execution failed'}`
+      )
+      ;(error as any).childTraceSpans = childTraceSpans || []
+      throw error
     }
 
-    // Success case
     return {
       success: true,
       childWorkflowName,
