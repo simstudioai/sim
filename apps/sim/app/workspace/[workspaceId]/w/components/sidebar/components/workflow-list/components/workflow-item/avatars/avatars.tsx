@@ -132,7 +132,7 @@ export function Avatars({ workflowId }: AvatarsProps) {
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Avatar size='xs' style={{ zIndex: 0 } as CSSProperties}>
-              <AvatarFallback className='border-0 bg-[var(--text-tertiary)] font-semibold text-[7px] text-white'>
+              <AvatarFallback className='border-0 bg-[#404040] font-semibold text-[7px] text-white'>
                 +{overflowCount}
               </AvatarFallback>
             </Avatar>
