@@ -347,7 +347,7 @@ export function WorkflowItem({
             ) : (
               <div
                 className={clsx(
-                  'min-w-0 flex-1 truncate font-medium',
+                  'min-w-0 truncate font-medium',
                   active
                     ? 'text-[var(--text-primary)]'
                     : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
