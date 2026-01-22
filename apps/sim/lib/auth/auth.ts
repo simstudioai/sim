@@ -64,6 +64,25 @@ import { SSO_TRUSTED_PROVIDERS } from './sso/constants'
 
 const logger = createLogger('Auth')
 
+const MICROSOFT_REFRESH_TOKEN_LIFETIME_DAYS = 90
+
+const MICROSOFT_PROVIDERS = new Set([
+  'microsoft-excel',
+  'microsoft-planner',
+  'microsoft-teams',
+  'outlook',
+  'onedrive',
+  'sharepoint',
+])
+
+function isMicrosoftProvider(providerId: string): boolean {
+  return MICROSOFT_PROVIDERS.has(providerId)
+}
+
+function getMicrosoftRefreshTokenExpiry(): Date {
+  return new Date(Date.now() + MICROSOFT_REFRESH_TOKEN_LIFETIME_DAYS * 24 * 60 * 60 * 1000)
+}
+
 const validStripeKey = env.STRIPE_SECRET_KEY
 
 let stripeClient = null
@@ -187,6 +206,10 @@ export const auth = betterAuth({
               }
             }
 
+            const refreshTokenExpiresAt = isMicrosoftProvider(account.providerId)
+              ? getMicrosoftRefreshTokenExpiry()
+              : account.refreshTokenExpiresAt
+
             await db
               .update(schema.account)
               .set({
@@ -195,7 +218,7 @@ export const auth = betterAuth({
                 refreshToken: account.refreshToken,
                 idToken: account.idToken,
                 accessTokenExpiresAt: account.accessTokenExpiresAt,
-                refreshTokenExpiresAt: account.refreshTokenExpiresAt,
+                refreshTokenExpiresAt,
                 scope: scopeToStore,
                 updatedAt: new Date(),
               })
@@ -290,6 +313,13 @@ export const auth = betterAuth({
             if (Object.keys(updates).length > 0) {
               await db.update(schema.account).set(updates).where(eq(schema.account.id, account.id))
             }
+          }
+
+          if (isMicrosoftProvider(account.providerId)) {
+            await db
+              .update(schema.account)
+              .set({ refreshTokenExpiresAt: getMicrosoftRefreshTokenExpiry() })
+              .where(eq(schema.account.id, account.id))
           }
 
           // Sync webhooks for credential sets after connecting a new credential
