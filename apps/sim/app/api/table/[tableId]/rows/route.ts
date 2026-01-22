@@ -469,9 +469,27 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
       }
     }
 
-    // Check unique constraints using optimized database query
     const uniqueColumns = getUniqueColumns(table.schema as TableSchema)
     if (uniqueColumns.length > 0) {
+      // If updating multiple rows, check that updateData doesn't set any unique column
+      // (would cause all rows to have the same value, violating uniqueness)
+      if (matchingRows.length > 1) {
+        const uniqueColumnsInUpdate = uniqueColumns.filter((col) => col.name in updateData)
+        if (uniqueColumnsInUpdate.length > 0) {
+          return NextResponse.json(
+            {
+              error: 'Cannot set unique column values when updating multiple rows',
+              details: [
+                `Columns with unique constraint: ${uniqueColumnsInUpdate.map((c) => c.name).join(', ')}. ` +
+                  `Updating ${matchingRows.length} rows with the same value would violate uniqueness.`,
+              ],
+            },
+            { status: 400 }
+          )
+        }
+      }
+
+      // Check unique constraints against database for each row
       for (const row of matchingRows) {
         const existingData = row.data as RowData
         const mergedData = { ...existingData, ...updateData }

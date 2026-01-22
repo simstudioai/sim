@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
         and(
           eq(userTableRows.tableId, tableId),
           eq(userTableRows.workspaceId, validated.workspaceId),
-          ...validUniqueFilters
+          or(...validUniqueFilters)
         )
       )
       .limit(1)
