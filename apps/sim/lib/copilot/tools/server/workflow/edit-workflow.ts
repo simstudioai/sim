@@ -2468,16 +2468,17 @@ async function validateWorkflowSelectorIds(
     const result = await validateSelectorIds(selector.selectorType, selector.value, context)
 
     if (result.invalid.length > 0) {
+      // Include warning info (like available credentials) in the error message for better LLM feedback
+      const warningInfo = result.warning ? `. ${result.warning}` : ''
       errors.push({
         blockId: selector.blockId,
         blockType: selector.blockType,
         field: selector.fieldName,
         value: selector.value,
-        error: `Invalid ${selector.selectorType} ID(s): ${result.invalid.join(', ')} - ID(s) do not exist`,
+        error: `Invalid ${selector.selectorType} ID(s): ${result.invalid.join(', ')} - ID(s) do not exist or user doesn't have access${warningInfo}`,
       })
-    }
-
-    if (result.warning) {
+    } else if (result.warning) {
+      // Log warnings that don't have errors (shouldn't happen for credentials but may for other selectors)
       logger.warn(result.warning, {
         blockId: selector.blockId,
         fieldName: selector.fieldName,

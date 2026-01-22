@@ -105,10 +105,10 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
     isSendingMessage,
   ])
 
-  /** Load auto-allowed tools once on mount */
+  /** Load auto-allowed tools once on mount - runs immediately, independent of workflow */
   const hasLoadedAutoAllowedToolsRef = useRef(false)
   useEffect(() => {
-    if (hasMountedRef.current && !hasLoadedAutoAllowedToolsRef.current) {
+    if (!hasLoadedAutoAllowedToolsRef.current) {
       hasLoadedAutoAllowedToolsRef.current = true
       loadAutoAllowedTools().catch((err) => {
         logger.warn('[Copilot] Failed to load auto-allowed tools', err)

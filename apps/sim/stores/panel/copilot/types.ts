@@ -156,6 +156,9 @@ export interface CopilotState {
 
   // Message queue for messages sent while another is in progress
   messageQueue: QueuedMessage[]
+
+  // Credential IDs to mask in UI (for sensitive data protection)
+  sensitiveCredentialIds: Set<string>
 }
 
 export interface CopilotActions {
@@ -234,6 +237,10 @@ export interface CopilotActions {
   addAutoAllowedTool: (toolId: string) => Promise<void>
   removeAutoAllowedTool: (toolId: string) => Promise<void>
   isToolAutoAllowed: (toolId: string) => boolean
+
+  // Credential masking
+  loadSensitiveCredentialIds: () => Promise<void>
+  maskCredentialValue: (value: string) => string
 
   // Message queue actions
   addToQueue: (
