@@ -1,4 +1,5 @@
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { ToolConfig } from '@/tools/types'
 import type { TableBulkOperationResponse, TableDeleteByFilterParams } from './types'
 
@@ -11,6 +12,12 @@ export const tableDeleteRowsByFilterTool: ToolConfig<
   description:
     'Delete multiple rows that match filter criteria. Use with caution - supports optional limit for safety.',
   version: '1.0.0',
+
+  toolEnrichment: {
+    dependsOn: 'tableId',
+    enrichTool: (tableId, schema, desc) =>
+      enrichTableToolSchema(tableId, 'table_delete_rows_by_filter', schema, desc),
+  },
 
   params: {
     tableId: {

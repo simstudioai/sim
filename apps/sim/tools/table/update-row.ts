@@ -1,3 +1,4 @@
+import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { ToolConfig } from '@/tools/types'
 import type { TableRowResponse, TableRowUpdateParams } from './types'
 
@@ -7,6 +8,12 @@ export const tableUpdateRowTool: ToolConfig<TableRowUpdateParams, TableRowRespon
   description:
     'Update an existing row in a table. Supports partial updates - only include the fields you want to change. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the fields to update.',
   version: '1.0.0',
+
+  toolEnrichment: {
+    dependsOn: 'tableId',
+    enrichTool: (tableId, schema, desc) =>
+      enrichTableToolSchema(tableId, 'table_update_row', schema, desc),
+  },
 
   params: {
     tableId: {

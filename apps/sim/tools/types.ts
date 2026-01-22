@@ -127,6 +127,12 @@ export interface ToolConfig<P = any, R = any> {
    * Maps param IDs to their enrichment configuration.
    */
   schemaEnrichment?: Record<string, SchemaEnrichmentConfig>
+
+  /**
+   * Optional tool-level enrichment that modifies description and all parameters.
+   * Use when multiple params depend on a single runtime value.
+   */
+  toolEnrichment?: ToolEnrichmentConfig
 }
 
 export interface TableRow {
@@ -168,5 +174,31 @@ export interface SchemaEnrichmentConfig {
     properties?: Record<string, { type: string; description?: string }>
     description?: string
     required?: string[]
+  } | null>
+}
+
+/**
+ * Configuration for enriching an entire tool (description + all parameters) at runtime.
+ * Used when multiple parameters and the description depend on a single runtime value (e.g., tableId).
+ */
+export interface ToolEnrichmentConfig {
+  /** The param ID that this enrichment depends on (e.g., 'tableId') */
+  dependsOn: string
+  /** Function to enrich the tool's description and parameter schema */
+  enrichTool: (
+    dependencyValue: string,
+    originalSchema: {
+      type: 'object'
+      properties: Record<string, unknown>
+      required: string[]
+    },
+    originalDescription: string
+  ) => Promise<{
+    description: string
+    parameters: {
+      type: 'object'
+      properties: Record<string, unknown>
+      required: string[]
+    }
   } | null>
 }

@@ -1,4 +1,5 @@
 import type { TableRow } from '@/lib/table/types'
+import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 import type { TableRowInsertParams } from './types'
 
@@ -16,6 +17,12 @@ export const tableUpsertRowTool: ToolConfig<TableRowInsertParams, TableUpsertRes
   description:
     'Insert or update a row based on unique column constraints. If a row with matching unique field exists, update it; otherwise insert a new row. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.',
   version: '1.0.0',
+
+  toolEnrichment: {
+    dependsOn: 'tableId',
+    enrichTool: (tableId, schema, desc) =>
+      enrichTableToolSchema(tableId, 'table_upsert_row', schema, desc),
+  },
 
   params: {
     tableId: {

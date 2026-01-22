@@ -3,7 +3,6 @@ import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { enrichTableToolForLLM } from '@/lib/table/llm'
 import { isCustomTool } from '@/executor/constants'
 import {
   getComputerUseModels,
@@ -433,20 +432,9 @@ export async function transformBlockTool(
     getAllBlocks: () => any[]
     getTool: (toolId: string) => any
     getToolAsync?: (toolId: string) => Promise<any>
-    workspaceId?: string
-    workflowId?: string
-    executeTool?: (toolId: string, params: Record<string, any>) => Promise<any>
   }
 ): Promise<ProviderToolConfig | null> {
-  const {
-    selectedOperation,
-    getAllBlocks,
-    getTool,
-    getToolAsync,
-    workspaceId,
-    workflowId,
-    executeTool,
-  } = options
+  const { selectedOperation, getAllBlocks, getTool, getToolAsync } = options
 
   const blockDef = getAllBlocks().find((b: any) => b.type === block.type)
   if (!blockDef) {
@@ -500,11 +488,14 @@ export async function transformBlockTool(
 
   const userProvidedParams = block.params || {}
 
-  const llmSchema = await createLLMToolSchema(toolConfig, userProvidedParams)
+  const { schema: llmSchema, enrichedDescription } = await createLLMToolSchema(
+    toolConfig,
+    userProvidedParams
+  )
 
   let uniqueToolId = toolConfig.id
   let toolName = toolConfig.name
-  let toolDescription = toolConfig.description
+  let toolDescription = enrichedDescription || toolConfig.description
 
   if (toolId === 'workflow_executor' && userProvidedParams.workflowId) {
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.workflowId}`
@@ -521,36 +512,16 @@ export async function transformBlockTool(
     }
   } else if (toolId.startsWith('knowledge_') && userProvidedParams.knowledgeBaseId) {
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.knowledgeBaseId}`
-  }
-
-  // Apply table tool enrichment if applicable
-  let finalDescription = toolDescription
-  let finalSchema = llmSchema
-
-  if (toolId.startsWith('table_') && workspaceId && workflowId && executeTool) {
-    const result = await enrichTableToolForLLM(
-      toolId,
-      toolDescription,
-      llmSchema,
-      userProvidedParams,
-      {
-        workspaceId,
-        workflowId,
-        executeTool,
-      }
-    )
-    if (result) {
-      finalDescription = result.description
-      finalSchema = { ...llmSchema, ...result.parameters }
-    }
+  } else if (toolId.startsWith('table_') && userProvidedParams.tableId) {
+    uniqueToolId = `${toolConfig.id}_${userProvidedParams.tableId}`
   }
 
   return {
     id: uniqueToolId,
     name: toolName,
-    description: finalDescription,
+    description: toolDescription,
     params: userProvidedParams,
-    parameters: finalSchema,
+    parameters: llmSchema,
   }
 }
 

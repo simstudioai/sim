@@ -1,4 +1,5 @@
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { ToolConfig } from '@/tools/types'
 import type { TableQueryResponse, TableRowQueryParams } from './types'
 
@@ -7,6 +8,12 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
   name: 'Query Rows',
   description: 'Query rows from a table with filtering, sorting, and pagination',
   version: '1.0.0',
+
+  toolEnrichment: {
+    dependsOn: 'tableId',
+    enrichTool: (tableId, schema, desc) =>
+      enrichTableToolSchema(tableId, 'table_query_rows', schema, desc),
+  },
 
   params: {
     tableId: {

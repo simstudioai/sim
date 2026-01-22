@@ -5,154 +5,7 @@
  * with table-specific information so LLMs can construct proper queries.
  */
 
-import { createLogger } from '@sim/logger'
 import type { TableSummary } from '../types'
-
-const logger = createLogger('TableLLMEnrichment')
-
-/**
- * Cache for in-flight and recently fetched table schemas.
- * Key: tableId, Value: { promise, timestamp }
- * This deduplicates concurrent requests for the same table schema.
- */
-const schemaCache = new Map<
-  string,
-  {
-    promise: Promise<TableSummary | null>
-    timestamp: number
-  }
->()
-
-/** Schema cache TTL in milliseconds (5 seconds) */
-const SCHEMA_CACHE_TTL_MS = 5000
-
-/**
- * Clears expired entries from the schema cache.
- */
-function cleanupSchemaCache(): void {
-  const now = Date.now()
-  for (const [key, entry] of schemaCache.entries()) {
-    if (now - entry.timestamp > SCHEMA_CACHE_TTL_MS) {
-      schemaCache.delete(key)
-    }
-  }
-}
-
-/**
- * Fetches table schema with caching and request deduplication.
- * If a request for the same table is already in flight, returns the same promise.
- */
-async function fetchTableSchemaWithCache(
-  tableId: string,
-  context: TableEnrichmentContext
-): Promise<TableSummary | null> {
-  // Clean up old entries periodically
-  if (schemaCache.size > 50) {
-    cleanupSchemaCache()
-  }
-
-  const cacheKey = `${context.workspaceId}:${tableId}`
-  const cached = schemaCache.get(cacheKey)
-
-  // If we have a cached entry that's still valid, return it
-  if (cached && Date.now() - cached.timestamp < SCHEMA_CACHE_TTL_MS) {
-    return cached.promise
-  }
-
-  // Create a new fetch promise
-  const fetchPromise = (async (): Promise<TableSummary | null> => {
-    const schemaResult = await context.executeTool('table_get_schema', {
-      tableId,
-      _context: {
-        workspaceId: context.workspaceId,
-        workflowId: context.workflowId,
-      },
-    })
-
-    if (!schemaResult.success || !schemaResult.output) {
-      logger.warn(`Failed to fetch table schema: ${schemaResult.error}`)
-      return null
-    }
-
-    return {
-      name: schemaResult.output.name,
-      columns: schemaResult.output.columns || [],
-    }
-  })()
-
-  // Cache the promise immediately to deduplicate concurrent requests
-  schemaCache.set(cacheKey, {
-    promise: fetchPromise,
-    timestamp: Date.now(),
-  })
-
-  return fetchPromise
-}
-
-export interface TableEnrichmentContext {
-  workspaceId: string
-  workflowId: string
-  executeTool: (toolId: string, params: Record<string, any>) => Promise<any>
-}
-
-export interface TableEnrichmentResult {
-  description: string
-  parameters: {
-    properties: Record<string, any>
-    required: string[]
-  }
-}
-
-/**
- * Enriches a table tool for LLM consumption by fetching its schema
- * and injecting column information into the description and parameters.
- *
- * @param toolId - The table tool ID (e.g., 'table_query_rows')
- * @param originalDescription - The tool's original description
- * @param llmSchema - The original LLM schema
- * @param userProvidedParams - Parameters provided by the user (must include tableId)
- * @param context - Execution context with workspaceId, workflowId, and executeTool
- * @returns Enriched description and parameters, or null if enrichment not applicable
- */
-export async function enrichTableToolForLLM(
-  toolId: string,
-  originalDescription: string,
-  llmSchema: { properties?: Record<string, any>; required?: string[] },
-  userProvidedParams: Record<string, any>,
-  context: TableEnrichmentContext
-): Promise<TableEnrichmentResult | null> {
-  const { tableId } = userProvidedParams
-
-  // Need a tableId to fetch schema
-  if (!tableId) {
-    return null
-  }
-
-  try {
-    // Use cached schema fetch to deduplicate concurrent requests for the same table
-    const tableSchema = await fetchTableSchemaWithCache(tableId, context)
-
-    if (!tableSchema) {
-      return null
-    }
-
-    // Apply enrichment using the existing utility functions
-    const enrichedDescription = enrichTableToolDescription(originalDescription, tableSchema, toolId)
-    const enrichedParams = enrichTableToolParameters(llmSchema, tableSchema, toolId)
-
-    return {
-      description: enrichedDescription,
-      parameters: {
-        properties: enrichedParams.properties,
-        required:
-          enrichedParams.required.length > 0 ? enrichedParams.required : llmSchema.required || [],
-      },
-    }
-  } catch (error) {
-    logger.warn('Error fetching table schema:', error)
-    return null
-  }
-}
 
 /**
  * Operations that use filters and need filter-specific enrichment.
@@ -175,11 +28,6 @@ export const DATA_OPERATIONS = new Set([
 
 /**
  * Enriches a table tool description with table information based on the operation type.
- *
- * @param originalDescription - The original tool description
- * @param table - The table summary with name and columns
- * @param toolId - The tool identifier to determine operation type
- * @returns Enriched description with table-specific instructions
  */
 export function enrichTableToolDescription(
   originalDescription: string,
@@ -192,7 +40,6 @@ export function enrichTableToolDescription(
 
   const columnList = table.columns.map((col) => `  - ${col.name} (${col.type})`).join('\n')
 
-  // Filter-based operations: emphasize filter usage
   if (FILTER_OPERATIONS.has(toolId)) {
     const stringCols = table.columns.filter((c) => c.type === 'string')
     const numberCols = table.columns.filter((c) => c.type === 'number')
@@ -208,14 +55,12 @@ Example filter: {"${stringCols[0].name}": {"$eq": "value"}, "${numberCols[0].nam
 Example filter: {"${stringCols[0].name}": {"$eq": "value"}}`
     }
 
-    // Add sort example for query operations with numeric columns
     let sortExample = ''
     if (toolId === 'table_query_rows' && numberCols.length > 0) {
       sortExample = `
 Example sort: {"${numberCols[0].name}": "desc"} for highest first, {"${numberCols[0].name}": "asc"} for lowest first`
     }
 
-    // Query-specific instructions with sort/limit guidance
     const queryInstructions =
       toolId === 'table_query_rows'
         ? `
@@ -242,7 +87,6 @@ ${columnList}
 ${filterExample}${sortExample}`
   }
 
-  // Data operations: show columns for data construction
   if (DATA_OPERATIONS.has(toolId)) {
     const exampleCols = table.columns.slice(0, 3)
     const dataExample = exampleCols.reduce(
@@ -253,7 +97,6 @@ ${filterExample}${sortExample}`
       {} as Record<string, unknown>
     )
 
-    // Update operations support partial updates
     if (toolId === 'table_update_row') {
       return `${originalDescription}
 
@@ -271,7 +114,6 @@ ${columnList}
 Pass the "data" parameter with an object like: ${JSON.stringify(dataExample)}`
   }
 
-  // Default: just show columns
   return `${originalDescription}
 
 Table "${table.name}" columns:
@@ -280,11 +122,6 @@ ${columnList}`
 
 /**
  * Enriches LLM tool parameters with table-specific information.
- *
- * @param llmSchema - The original LLM schema with properties and required fields
- * @param table - The table summary with name and columns
- * @param toolId - The tool identifier to determine operation type
- * @returns Enriched schema with updated property descriptions and required fields
  */
 export function enrichTableToolParameters(
   llmSchema: { properties?: Record<string, any>; required?: string[] },
@@ -302,7 +139,6 @@ export function enrichTableToolParameters(
   const enrichedProperties = { ...llmSchema.properties }
   const enrichedRequired = llmSchema.required ? [...llmSchema.required] : []
 
-  // Enrich filter parameter for filter-based operations
   if (enrichedProperties.filter && FILTER_OPERATIONS.has(toolId)) {
     enrichedProperties.filter = {
       ...enrichedProperties.filter,
@@ -310,12 +146,10 @@ export function enrichTableToolParameters(
     }
   }
 
-  // Mark filter as required in schema for query operations
   if (FILTER_OPERATIONS.has(toolId) && !enrichedRequired.includes('filter')) {
     enrichedRequired.push('filter')
   }
 
-  // Enrich sort parameter for query operations
   if (enrichedProperties.sort && toolId === 'table_query_rows') {
     enrichedProperties.sort = {
       ...enrichedProperties.sort,
@@ -323,7 +157,6 @@ export function enrichTableToolParameters(
     }
   }
 
-  // Enrich limit parameter for query operations
   if (enrichedProperties.limit && toolId === 'table_query_rows') {
     enrichedProperties.limit = {
       ...enrichedProperties.limit,
@@ -331,7 +164,6 @@ export function enrichTableToolParameters(
     }
   }
 
-  // Enrich data parameter for insert/update operations
   if (enrichedProperties.data && DATA_OPERATIONS.has(toolId)) {
     const exampleCols = table.columns.slice(0, 2)
     const exampleData = exampleCols.reduce(
@@ -342,7 +174,6 @@ export function enrichTableToolParameters(
       {} as Record<string, unknown>
     )
 
-    // Update operations support partial updates - only include fields to change
     if (toolId === 'table_update_row') {
       enrichedProperties.data = {
         ...enrichedProperties.data,
@@ -356,7 +187,6 @@ export function enrichTableToolParameters(
     }
   }
 
-  // Enrich rows parameter for batch insert
   if (enrichedProperties.rows && toolId === 'table_batch_insert_rows') {
     enrichedProperties.rows = {
       ...enrichedProperties.rows,

@@ -1,3 +1,4 @@
+import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { ToolConfig } from '@/tools/types'
 import type { TableRowInsertParams, TableRowResponse } from './types'
 
@@ -7,6 +8,12 @@ export const tableInsertRowTool: ToolConfig<TableRowInsertParams, TableRowRespon
   description:
     'Insert a new row into a table. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.',
   version: '1.0.0',
+
+  toolEnrichment: {
+    dependsOn: 'tableId',
+    enrichTool: (tableId, schema, desc) =>
+      enrichTableToolSchema(tableId, 'table_insert_row', schema, desc),
+  },
 
   params: {
     tableId: {

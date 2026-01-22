@@ -1,4 +1,5 @@
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { ToolConfig } from '@/tools/types'
 import type { TableBatchInsertParams, TableBatchInsertResponse } from './types'
 
@@ -10,6 +11,12 @@ export const tableBatchInsertRowsTool: ToolConfig<
   name: 'Batch Insert Rows',
   description: `Insert multiple rows into a table at once (up to ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} rows)`,
   version: '1.0.0',
+
+  toolEnrichment: {
+    dependsOn: 'tableId',
+    enrichTool: (tableId, schema, desc) =>
+      enrichTableToolSchema(tableId, 'table_batch_insert_rows', schema, desc),
+  },
 
   params: {
     tableId: {
