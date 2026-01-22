@@ -129,12 +129,9 @@ ROUTING RULES:
 3. If the context is even partially related to a route's description, select that route
 4. ONLY output NO_MATCH if the context is completely unrelated to ALL route descriptions
 
-OUTPUT FORMAT:
-- Output EXACTLY one route ID (copied exactly as shown above) OR "NO_MATCH"
-- No explanation, no punctuation, no additional text
-- Just the route ID or NO_MATCH
-
-Your response:`
+Respond with a JSON object containing:
+- route: EXACTLY one route ID (copied exactly as shown above) OR "NO_MATCH"
+- reasoning: A brief explanation (1-2 sentences) of why you chose this route`
 }
 
 /**
@@ -272,6 +269,7 @@ interface RouterV2Response extends ToolResponse {
       total: number
     }
     selectedRoute: string
+    reasoning: string
     selectedPath: {
       blockId: string
       blockType: string
@@ -355,6 +353,7 @@ export const RouterV2Block: BlockConfig<RouterV2Response> = {
     tokens: { type: 'json', description: 'Token usage' },
     cost: { type: 'json', description: 'Cost information' },
     selectedRoute: { type: 'string', description: 'Selected route ID' },
+    reasoning: { type: 'string', description: 'Explanation of why this route was chosen' },
     selectedPath: { type: 'json', description: 'Selected routing path' },
   },
 }
