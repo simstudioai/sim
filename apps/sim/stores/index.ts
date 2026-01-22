@@ -2,7 +2,6 @@
 
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
-import { useCustomToolsStore } from '@/stores/custom-tools'
 import { useExecutionStore } from '@/stores/execution'
 import { useCopilotStore, useVariablesStore } from '@/stores/panel'
 import { useEnvironmentStore } from '@/stores/settings/environment'
@@ -195,7 +194,6 @@ export {
   useExecutionStore,
   useTerminalConsoleStore,
   useCopilotStore,
-  useCustomToolsStore,
   useVariablesStore,
   useSubBlockStore,
 }
@@ -222,7 +220,7 @@ export const resetAllStores = () => {
   useExecutionStore.getState().reset()
   useTerminalConsoleStore.setState({ entries: [], isOpen: false })
   useCopilotStore.setState({ messages: [], isSendingMessage: false, error: null })
-  useCustomToolsStore.getState().reset()
+  // Custom tools are managed by React Query cache, not a Zustand store
   // Variables store has no tracking to reset; registry hydrates
 }
 
@@ -235,7 +233,6 @@ export const logAllStores = () => {
     execution: useExecutionStore.getState(),
     console: useTerminalConsoleStore.getState(),
     copilot: useCopilotStore.getState(),
-    customTools: useCustomToolsStore.getState(),
     subBlock: useSubBlockStore.getState(),
     variables: useVariablesStore.getState(),
   }

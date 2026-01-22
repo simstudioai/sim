@@ -14,6 +14,54 @@ import {
   type MockFetchResponse,
 } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Mock custom tools query - must be hoisted before imports
+vi.mock('@/hooks/queries/custom-tools', () => ({
+  getCustomTool: (toolId: string) => {
+    if (toolId === 'custom-tool-123') {
+      return {
+        id: 'custom-tool-123',
+        title: 'Custom Weather Tool',
+        code: 'return { result: "Weather data" }',
+        schema: {
+          function: {
+            description: 'Get weather information',
+            parameters: {
+              type: 'object',
+              properties: {
+                location: { type: 'string', description: 'City name' },
+                unit: { type: 'string', description: 'Unit (metric/imperial)' },
+              },
+              required: ['location'],
+            },
+          },
+        },
+      }
+    }
+    return undefined
+  },
+  getCustomTools: () => [
+    {
+      id: 'custom-tool-123',
+      title: 'Custom Weather Tool',
+      code: 'return { result: "Weather data" }',
+      schema: {
+        function: {
+          description: 'Get weather information',
+          parameters: {
+            type: 'object',
+            properties: {
+              location: { type: 'string', description: 'City name' },
+              unit: { type: 'string', description: 'Unit (metric/imperial)' },
+            },
+            required: ['location'],
+          },
+        },
+      },
+    },
+  ],
+}))
+
 import { executeTool } from '@/tools/index'
 import { tools } from '@/tools/registry'
 import { getTool } from '@/tools/utils'
@@ -94,73 +142,6 @@ describe('Tools Registry', () => {
 })
 
 describe('Custom Tools', () => {
-  beforeEach(() => {
-    vi.mock('@/stores/custom-tools', () => ({
-      useCustomToolsStore: {
-        getState: () => ({
-          getTool: (id: string) => {
-            if (id === 'custom-tool-123') {
-              return {
-                id: 'custom-tool-123',
-                title: 'Custom Weather Tool',
-                code: 'return { result: "Weather data" }',
-                schema: {
-                  function: {
-                    description: 'Get weather information',
-                    parameters: {
-                      type: 'object',
-                      properties: {
-                        location: { type: 'string', description: 'City name' },
-                        unit: { type: 'string', description: 'Unit (metric/imperial)' },
-                      },
-                      required: ['location'],
-                    },
-                  },
-                },
-              }
-            }
-            return undefined
-          },
-          getAllTools: () => [
-            {
-              id: 'custom-tool-123',
-              title: 'Custom Weather Tool',
-              code: 'return { result: "Weather data" }',
-              schema: {
-                function: {
-                  description: 'Get weather information',
-                  parameters: {
-                    type: 'object',
-                    properties: {
-                      location: { type: 'string', description: 'City name' },
-                      unit: { type: 'string', description: 'Unit (metric/imperial)' },
-                    },
-                    required: ['location'],
-                  },
-                },
-              },
-            },
-          ],
-        }),
-      },
-    }))
-
-    vi.mock('@/stores/settings/environment', () => ({
-      useEnvironmentStore: {
-        getState: () => ({
-          getAllVariables: () => ({
-            API_KEY: { value: 'test-api-key' },
-            BASE_URL: { value: 'https://test-base-url.com' },
-          }),
-        }),
-      },
-    }))
-  })
-
-  afterEach(() => {
-    vi.resetAllMocks()
-  })
-
   it('should get custom tool by ID', () => {
     const customTool = getTool('custom_custom-tool-123')
     expect(customTool).toBeDefined()

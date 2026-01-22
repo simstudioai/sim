@@ -11,7 +11,6 @@ import {
   getAllProviderIds,
   getApiKey,
   getBaseModelProviders,
-  getCustomTools,
   getHostedModels,
   getMaxTemperature,
   getProvider,
@@ -30,7 +29,6 @@ import {
   shouldBillModelUsage,
   supportsTemperature,
   supportsToolUsageControl,
-  transformCustomTool,
   updateOllamaProviderModels,
 } from '@/providers/utils'
 
@@ -837,51 +835,6 @@ describe('JSON and Structured Output', () => {
 })
 
 describe('Tool Management', () => {
-  describe('transformCustomTool', () => {
-    it.concurrent('should transform valid custom tool schema', () => {
-      const customTool = {
-        id: 'test-tool',
-        schema: {
-          function: {
-            name: 'testFunction',
-            description: 'A test function',
-            parameters: {
-              type: 'object',
-              properties: {
-                input: { type: 'string', description: 'Input parameter' },
-              },
-              required: ['input'],
-            },
-          },
-        },
-      }
-
-      const result = transformCustomTool(customTool)
-
-      expect(result.id).toBe('custom_test-tool')
-      expect(result.name).toBe('testFunction')
-      expect(result.description).toBe('A test function')
-      expect(result.parameters.type).toBe('object')
-      expect(result.parameters.properties).toBeDefined()
-      expect(result.parameters.required).toEqual(['input'])
-    })
-
-    it.concurrent('should throw error for invalid schema', () => {
-      const invalidTool = { id: 'test', schema: null }
-      expect(() => transformCustomTool(invalidTool)).toThrow('Invalid custom tool schema')
-
-      const noFunction = { id: 'test', schema: {} }
-      expect(() => transformCustomTool(noFunction)).toThrow('Invalid custom tool schema')
-    })
-  })
-
-  describe('getCustomTools', () => {
-    it.concurrent('should return array of transformed custom tools', () => {
-      const result = getCustomTools()
-      expect(Array.isArray(result)).toBe(true)
-    })
-  })
-
   describe('prepareToolsWithUsageControl', () => {
     const mockLogger = {
       info: vi.fn(),

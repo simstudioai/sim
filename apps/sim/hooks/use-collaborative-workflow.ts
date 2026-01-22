@@ -113,9 +113,6 @@ export function useCollaborativeWorkflow() {
   const {
     isConnected,
     currentWorkflowId,
-    presenceUsers,
-    joinWorkflow,
-    leaveWorkflow,
     emitWorkflowOperation,
     emitSubblockUpdate,
     emitVariableUpdate,
@@ -143,13 +140,7 @@ export function useCollaborativeWorkflow() {
   // Track if we're applying remote changes to avoid infinite loops
   const isApplyingRemoteChange = useRef(false)
 
-  // Track last applied position timestamps to prevent out-of-order updates
-  const lastPositionTimestamps = useRef<Map<string, number>>(new Map())
-
-  // Operation queue
   const {
-    queue,
-    hasOperationError,
     addToQueue,
     confirmOperation,
     failOperation,
@@ -160,22 +151,6 @@ export function useCollaborativeWorkflow() {
   const isInActiveRoom = useCallback(() => {
     return !!currentWorkflowId && activeWorkflowId === currentWorkflowId
   }, [currentWorkflowId, activeWorkflowId])
-
-  // Clear position timestamps when switching workflows
-  // Note: Workflow joining is now handled automatically by socket connect event based on URL
-  useEffect(() => {
-    if (activeWorkflowId && currentWorkflowId !== activeWorkflowId) {
-      logger.info(`Active workflow changed to: ${activeWorkflowId}`, {
-        isConnected,
-        currentWorkflowId,
-        activeWorkflowId,
-        presenceUsers: presenceUsers.length,
-      })
-
-      // Clear position timestamps when switching workflows
-      lastPositionTimestamps.current.clear()
-    }
-  }, [activeWorkflowId, isConnected, currentWorkflowId])
 
   // Register emit functions with operation queue store
   useEffect(() => {
@@ -1621,15 +1596,8 @@ export function useCollaborativeWorkflow() {
   )
 
   return {
-    // Connection status
     isConnected,
     currentWorkflowId,
-    presenceUsers,
-    hasOperationError,
-
-    // Workflow management
-    joinWorkflow,
-    leaveWorkflow,
 
     // Collaborative operations
     collaborativeBatchUpdatePositions,
