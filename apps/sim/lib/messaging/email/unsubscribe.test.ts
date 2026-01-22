@@ -114,17 +114,15 @@ describe('unsubscribe utilities', () => {
     })
 
     it.concurrent('should handle legacy tokens (2 parts) and default to marketing', () => {
-      // Generate a real legacy token using the actual hashing logic to ensure backward compatibility
       const salt = 'abc123'
       const secret = 'test-secret-key'
       const { createHash } = require('crypto')
       const hash = createHash('sha256').update(`${testEmail}:${salt}:${secret}`).digest('hex')
       const legacyToken = `${salt}:${hash}`
 
-      // This should return valid since we're using the actual legacy format properly
       const result = verifyUnsubscribeToken(testEmail, legacyToken)
       expect(result.valid).toBe(true)
-      expect(result.emailType).toBe('marketing') // Should default to marketing for legacy tokens
+      expect(result.emailType).toBe('marketing')
     })
 
     it.concurrent('should reject malformed tokens', () => {
@@ -226,7 +224,6 @@ describe('unsubscribe utilities', () => {
     it('should update email preferences for existing user', async () => {
       const userId = 'user-123'
 
-      // Mock finding the user
       mockDb.select.mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -235,7 +232,6 @@ describe('unsubscribe utilities', () => {
         }),
       })
 
-      // Mock getting existing settings
       mockDb.select.mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -244,7 +240,6 @@ describe('unsubscribe utilities', () => {
         }),
       })
 
-      // Mock insert with upsert
       mockDb.insert.mockReturnValue({
         values: vi.fn().mockReturnValue({
           onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
@@ -300,7 +295,6 @@ describe('unsubscribe utilities', () => {
 
       await updateEmailPreferences(testEmail, { unsubscribeMarketing: true })
 
-      // Verify that the merged preferences are passed
       expect(mockInsertValues).toHaveBeenCalledWith(
         expect.objectContaining({
           emailPreferences: {

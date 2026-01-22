@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { memo, useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { Scan } from 'lucide-react'
@@ -22,27 +22,29 @@ import {
 import { useSession } from '@/lib/auth/auth-client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
-import { useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
+import { useShowActionBar, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
-import { useGeneralStore } from '@/stores/settings/general'
 import { useTerminalStore } from '@/stores/terminal'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('WorkflowControls')
 
-export function WorkflowControls() {
+/**
+ * Floating controls for canvas mode, undo/redo, and fit-to-view.
+ */
+export const WorkflowControls = memo(function WorkflowControls() {
   const reactFlowInstance = useReactFlow()
   const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
   const { mode, setMode } = useCanvasModeStore()
   const { undo, redo } = useCollaborativeWorkflow()
-  const showWorkflowControls = useGeneralStore((s) => s.showActionBar)
+  const showWorkflowControls = useShowActionBar()
   const updateSetting = useUpdateGeneralSetting()
   const isTerminalResizing = useTerminalStore((state) => state.isResizing)
 
-  const { activeWorkflowId } = useWorkflowRegistry()
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const { data: session } = useSession()
   const userId = session?.user?.id || 'unknown'
   const stacks = useUndoRedoStore((s) => s.stacks)
@@ -222,4 +224,4 @@ export function WorkflowControls() {
       </Popover>
     </>
   )
-}
+})

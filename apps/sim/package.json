@@ -108,6 +108,7 @@
     "imapflow": "1.2.4",
     "input-otp": "^1.4.2",
     "ioredis": "^5.6.0",
+    "ipaddr.js": "2.3.0",
     "isolated-vm": "6.0.2",
     "jose": "6.0.11",
     "js-tiktoken": "1.0.21",

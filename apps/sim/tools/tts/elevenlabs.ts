@@ -60,7 +60,7 @@ export const elevenLabsTtsUnifiedTool: ToolConfig<ElevenLabsTtsUnifiedParams, Tt
   },
 
   request: {
-    url: '/api/proxy/tts/unified',
+    url: '/api/tools/tts/unified',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

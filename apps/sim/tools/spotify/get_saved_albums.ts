@@ -45,18 +45,21 @@ export const spotifyGetSavedAlbumsTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       default: 20,
       description: 'Number of albums to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       default: 0,
       description: 'Index of first album to return',
     },
     market: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'ISO country code for market',
     },
   },

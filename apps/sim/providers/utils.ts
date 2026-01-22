@@ -3,7 +3,6 @@ import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { enrichTableToolForLLM } from '@/lib/table/llm'
 import { isCustomTool } from '@/executor/constants'
 import {
   getComputerUseModels,
@@ -29,11 +28,55 @@ import {
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useProvidersStore } from '@/stores/providers/store'
-import { deepMergeInputMapping } from '@/tools/params'
+import { mergeToolParameters } from '@/tools/params'
 
 const logger = createLogger('ProviderUtils')
+
+/**
+ * Checks if a workflow description is a default/placeholder description
+ */
+function isDefaultWorkflowDescription(
+  description: string | null | undefined,
+  name?: string
+): boolean {
+  if (!description) return true
+  const normalizedDesc = description.toLowerCase().trim()
+  return (
+    description === name ||
+    normalizedDesc === 'new workflow' ||
+    normalizedDesc === 'your first workflow - start building here!'
+  )
+}
+
+/**
+ * Fetches workflow metadata (name and description) from the API
+ */
+async function fetchWorkflowMetadata(
+  workflowId: string
+): Promise<{ name: string; description: string | null } | null> {
+  try {
+    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+
+    const headers = await buildAuthHeaders()
+    const url = buildAPIUrl(`/api/workflows/${workflowId}`)
+
+    const response = await fetch(url.toString(), { headers })
+    if (!response.ok) {
+      logger.warn(`Failed to fetch workflow metadata for ${workflowId}`)
+      return null
+    }
+
+    const { data } = await response.json()
+    return {
+      name: data?.name || 'Workflow',
+      description: data?.description || null,
+    }
+  } catch (error) {
+    logger.error('Error fetching workflow metadata:', error)
+    return null
+  }
+}
 
 /**
  * Client-safe provider metadata.
@@ -376,38 +419,6 @@ export function extractAndParseJSON(content: string): any {
 }
 
 /**
- * Transforms a custom tool schema into a provider tool config
- */
-export function transformCustomTool(customTool: any): ProviderToolConfig {
-  const schema = customTool.schema
-
-  if (!schema || !schema.function) {
-    throw new Error('Invalid custom tool schema')
-  }
-
-  return {
-    id: `custom_${customTool.id}`,
-    name: schema.function.name,
-    description: schema.function.description || '',
-    params: {},
-    parameters: {
-      type: schema.function.parameters.type,
-      properties: schema.function.parameters.properties,
-      required: schema.function.parameters.required || [],
-    },
-  }
-}
-
-/**
- * Gets all available custom tools as provider tool configs
- */
-export function getCustomTools(): ProviderToolConfig[] {
-  const customTools = useCustomToolsStore.getState().getAllTools()
-
-  return customTools.map(transformCustomTool)
-}
-
-/**
  * Transforms a block tool into a provider tool config with operation selection
  *
  * @param block The block to transform
@@ -421,20 +432,9 @@ export async function transformBlockTool(
     getAllBlocks: () => any[]
     getTool: (toolId: string) => any
     getToolAsync?: (toolId: string) => Promise<any>
-    workspaceId?: string
-    workflowId?: string
-    executeTool?: (toolId: string, params: Record<string, any>) => Promise<any>
   }
 ): Promise<ProviderToolConfig | null> {
-  const {
-    selectedOperation,
-    getAllBlocks,
-    getTool,
-    getToolAsync,
-    workspaceId,
-    workflowId,
-    executeTool,
-  } = options
+  const { selectedOperation, getAllBlocks, getTool, getToolAsync } = options
 
   const blockDef = getAllBlocks().find((b: any) => b.type === block.type)
   if (!blockDef) {
@@ -491,40 +491,32 @@ export async function transformBlockTool(
   const llmSchema = await createLLMToolSchema(toolConfig, userProvidedParams)
 
   let uniqueToolId = toolConfig.id
+  let toolName = toolConfig.name
+  let toolDescription = toolConfig.description
+
   if (toolId === 'workflow_executor' && userProvidedParams.workflowId) {
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.workflowId}`
+
+    const workflowMetadata = await fetchWorkflowMetadata(userProvidedParams.workflowId)
+    if (workflowMetadata) {
+      toolName = workflowMetadata.name || toolConfig.name
+      if (
+        workflowMetadata.description &&
+        !isDefaultWorkflowDescription(workflowMetadata.description, workflowMetadata.name)
+      ) {
+        toolDescription = workflowMetadata.description
+      }
+    }
   } else if (toolId.startsWith('knowledge_') && userProvidedParams.knowledgeBaseId) {
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.knowledgeBaseId}`
   }
 
-  // Apply table tool enrichment if applicable
-  let finalDescription = toolConfig.description
-  let finalSchema = llmSchema
-
-  if (toolId.startsWith('table_') && workspaceId && workflowId && executeTool) {
-    const result = await enrichTableToolForLLM(
-      toolId,
-      toolConfig.description,
-      llmSchema,
-      userProvidedParams,
-      {
-        workspaceId,
-        workflowId,
-        executeTool,
-      }
-    )
-    if (result) {
-      finalDescription = result.description
-      finalSchema = { ...llmSchema, ...result.parameters }
-    }
-  }
-
   return {
     id: uniqueToolId,
-    name: toolConfig.name,
-    description: finalDescription,
+    name: toolName,
+    description: toolDescription,
     params: userProvidedParams,
-    parameters: finalSchema,
+    parameters: llmSchema,
   }
 }
 
@@ -1015,39 +1007,14 @@ export function prepareToolExecution(
     workflowVariables?: Record<string, any>
     blockData?: Record<string, any>
     blockNameMapping?: Record<string, string>
+    isDeployedContext?: boolean
   }
 ): {
   toolParams: Record<string, any>
   executionParams: Record<string, any>
 } {
-  const filteredUserParams: Record<string, any> = {}
-  if (tool.params) {
-    for (const [key, value] of Object.entries(tool.params)) {
-      if (value !== undefined && value !== null && value !== '') {
-        filteredUserParams[key] = value
-      }
-    }
-  }
-
-  // Start with LLM params as base
-  const toolParams: Record<string, any> = { ...llmArgs }
-
-  // Apply user params with special handling for inputMapping
-  for (const [key, userValue] of Object.entries(filteredUserParams)) {
-    if (key === 'inputMapping') {
-      // Deep merge inputMapping so LLM values fill in empty user fields
-      const llmInputMapping = llmArgs.inputMapping as Record<string, any> | undefined
-      toolParams.inputMapping = deepMergeInputMapping(llmInputMapping, userValue)
-    } else {
-      // Normal override for other params
-      toolParams[key] = userValue
-    }
-  }
-
-  // If LLM provided inputMapping but user didn't, ensure it's included
-  if (llmArgs.inputMapping && !filteredUserParams.inputMapping) {
-    toolParams.inputMapping = llmArgs.inputMapping
-  }
+  // Use centralized merge logic from tools/params
+  const toolParams = mergeToolParameters(tool.params || {}, llmArgs) as Record<string, any>
 
   const executionParams = {
     ...toolParams,
@@ -1058,6 +1025,9 @@ export function prepareToolExecution(
             ...(request.workspaceId ? { workspaceId: request.workspaceId } : {}),
             ...(request.chatId ? { chatId: request.chatId } : {}),
             ...(request.userId ? { userId: request.userId } : {}),
+            ...(request.isDeployedContext !== undefined
+              ? { isDeployedContext: request.isDeployedContext }
+              : {}),
           },
         }
       : {}),

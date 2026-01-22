@@ -1,5 +1,6 @@
-import type { StructuredFilter } from '@/lib/knowledge/types'
 import type { KnowledgeSearchResponse } from '@/tools/knowledge/types'
+import { enrichKBTagFiltersSchema } from '@/tools/schema-enrichers'
+import { parseTagFilters } from '@/tools/shared/tags'
 import type { ToolConfig } from '@/tools/types'
 
 export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
@@ -42,6 +43,13 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
     },
   },
 
+  schemaEnrichment: {
+    tagFilters: {
+      dependsOn: 'knowledgeBaseId',
+      enrichSchema: enrichKBTagFiltersSchema,
+    },
+  },
+
   request: {
     url: () => '/api/knowledge/search',
     method: 'POST',
@@ -54,40 +62,8 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       // Use single knowledge base ID
       const knowledgeBaseIds = [params.knowledgeBaseId]
 
-      // Parse dynamic tag filters
-      let structuredFilters: StructuredFilter[] = []
-      if (params.tagFilters) {
-        let tagFilters = params.tagFilters
-
-        // Handle both string (JSON) and array formats
-        if (typeof tagFilters === 'string') {
-          try {
-            tagFilters = JSON.parse(tagFilters)
-          } catch {
-            tagFilters = []
-          }
-        }
-
-        if (Array.isArray(tagFilters)) {
-          // Send full filter objects with operator support
-          structuredFilters = tagFilters
-            .filter((filter: Record<string, unknown>) => {
-              // For boolean, any value is valid; for others, check for non-empty string
-              if (filter.fieldType === 'boolean') {
-                return filter.tagName && filter.tagValue !== undefined
-              }
-              return filter.tagName && filter.tagValue && String(filter.tagValue).trim().length > 0
-            })
-            .map((filter: Record<string, unknown>) => ({
-              tagName: filter.tagName as string,
-              tagSlot: (filter.tagSlot as string) || '', // Will be resolved by API from tagName
-              fieldType: (filter.fieldType as string) || 'text',
-              operator: (filter.operator as string) || 'eq',
-              value: filter.tagValue as string | number | boolean,
-              valueTo: filter.valueTo as string | number | undefined,
-            }))
-        }
-      }
+      // Parse tag filters from various formats (array, JSON string)
+      const structuredFilters = parseTagFilters(params.tagFilters)
 
       const requestBody = {
         knowledgeBaseIds,

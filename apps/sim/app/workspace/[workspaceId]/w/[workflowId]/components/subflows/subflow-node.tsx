@@ -1,6 +1,7 @@
 import { memo, useMemo, useRef } from 'react'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, type NodeProps, Position, useReactFlow } from 'reactflow'
+import { Badge } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
@@ -78,6 +79,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
       ? currentBlock.is_diff
       : undefined
 
+  const isEnabled = currentBlock?.enabled ?? true
   const isPreview = data?.isPreview || false
 
   // Focus state
@@ -184,14 +186,21 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
             <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
               <div
                 className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
-                style={{ backgroundColor: blockIconBg }}
+                style={{ backgroundColor: isEnabled ? blockIconBg : 'gray' }}
               >
                 <BlockIcon className='h-[16px] w-[16px] text-white' />
               </div>
-              <span className='font-medium text-[16px]' title={blockName}>
+              <span
+                className={cn(
+                  'truncate font-medium text-[16px]',
+                  !isEnabled && 'text-[var(--text-muted)]'
+                )}
+                title={blockName}
+              >
                 {blockName}
               </span>
             </div>
+            {!isEnabled && <Badge variant='gray-secondary'>disabled</Badge>}
           </div>
 
           {!isPreview && (

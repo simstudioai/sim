@@ -42,10 +42,12 @@ export const workflowExecutorTool: ToolConfig<
           inputData = {}
         }
       }
+      // Use draft state for manual runs (not deployed), deployed state for deployed runs
+      const isDeployedContext = params._context?.isDeployedContext
       return {
         input: inputData,
         triggerType: 'api',
-        useDraftState: false,
+        useDraftState: !isDeployedContext,
       }
     },
   },

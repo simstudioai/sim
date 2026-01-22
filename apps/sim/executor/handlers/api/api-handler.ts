@@ -78,9 +78,9 @@ export class ApiBlockHandler implements BlockHandler {
             workflowId: ctx.workflowId,
             workspaceId: ctx.workspaceId,
             executionId: ctx.executionId,
+            isDeployedContext: ctx.isDeployedContext,
           },
         },
-        false,
         false,
         ctx
       )

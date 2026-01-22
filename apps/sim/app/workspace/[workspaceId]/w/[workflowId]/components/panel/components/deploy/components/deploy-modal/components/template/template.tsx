@@ -375,8 +375,11 @@ export function TemplateDeploy({
           <ModalHeader>Delete Template</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete this template?{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {existingTemplate?.name || formData.name || 'this template'}
+              </span>
+              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>

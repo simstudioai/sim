@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 import {
   Button,
@@ -11,9 +11,115 @@ import {
   PopoverDivider,
   PopoverFolder,
   PopoverItem,
+  usePopoverContext,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { WORKFLOW_COLORS } from '@/lib/workflows/colors'
+
+const GRID_COLUMNS = 6
+
+/**
+ * Color grid with keyboard navigation support.
+ * Uses roving tabindex pattern for accessibility.
+ */
+function ColorGrid({
+  hexInput,
+  setHexInput,
+  onColorChange,
+}: {
+  hexInput: string
+  setHexInput: (color: string) => void
+  onColorChange?: (color: string) => void
+}) {
+  const { isInFolder } = usePopoverContext()
+  const [focusedIndex, setFocusedIndex] = useState(-1)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  useEffect(() => {
+    if (isInFolder && gridRef.current) {
+      const selectedIndex = WORKFLOW_COLORS.findIndex(
+        ({ color }) => color.toLowerCase() === hexInput.toLowerCase()
+      )
+      const initialIndex = selectedIndex >= 0 ? selectedIndex : 0
+      setFocusedIndex(initialIndex)
+      setTimeout(() => {
+        buttonRefs.current[initialIndex]?.focus()
+      }, 50)
+    }
+  }, [isInFolder, hexInput])
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent, index: number) => {
+      const totalItems = WORKFLOW_COLORS.length
+      let newIndex = index
+
+      switch (e.key) {
+        case 'ArrowRight':
+          e.preventDefault()
+          newIndex = index + 1 < totalItems ? index + 1 : index
+          break
+        case 'ArrowLeft':
+          e.preventDefault()
+          newIndex = index - 1 >= 0 ? index - 1 : index
+          break
+        case 'ArrowDown':
+          e.preventDefault()
+          newIndex = index + GRID_COLUMNS < totalItems ? index + GRID_COLUMNS : index
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          newIndex = index - GRID_COLUMNS >= 0 ? index - GRID_COLUMNS : index
+          break
+        case 'Enter':
+        case ' ':
+          e.preventDefault()
+          e.stopPropagation()
+          setHexInput(WORKFLOW_COLORS[index].color)
+          onColorChange?.(WORKFLOW_COLORS[index].color)
+          return
+        default:
+          return
+      }
+
+      if (newIndex !== index) {
+        setFocusedIndex(newIndex)
+        buttonRefs.current[newIndex]?.focus()
+      }
+    },
+    [setHexInput, onColorChange]
+  )
+
+  return (
+    <div ref={gridRef} className='grid grid-cols-6 gap-[4px]' role='grid'>
+      {WORKFLOW_COLORS.map(({ color, name }, index) => (
+        <button
+          key={color}
+          ref={(el) => {
+            buttonRefs.current[index] = el
+          }}
+          type='button'
+          role='gridcell'
+          title={name}
+          tabIndex={focusedIndex === index ? 0 : -1}
+          onClick={(e) => {
+            e.stopPropagation()
+            setHexInput(color)
+          }}
+          onKeyDown={(e) => handleKeyDown(e, index)}
+          onFocus={() => setFocusedIndex(index)}
+          className={cn(
+            'h-[20px] w-[20px] rounded-[4px] outline-none ring-white ring-offset-0',
+            (focusedIndex === index ||
+              (focusedIndex === -1 && hexInput.toLowerCase() === color.toLowerCase())) &&
+              'ring-[1.5px]'
+          )}
+          style={{ backgroundColor: color }}
+        />
+      ))}
+    </div>
+  )
+}
 
 /**
  * Validates a hex color string.
@@ -349,25 +455,12 @@ export function ContextMenu({
             className={disableColorChange ? 'pointer-events-none opacity-50' : ''}
           >
             <div className='flex w-[140px] flex-col gap-[8px] p-[2px]'>
-              {/* Preset colors */}
-              <div className='grid grid-cols-6 gap-[4px]'>
-                {WORKFLOW_COLORS.map(({ color, name }) => (
-                  <button
-                    key={color}
-                    type='button'
-                    title={name}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setHexInput(color)
-                    }}
-                    className={cn(
-                      'h-[20px] w-[20px] rounded-[4px]',
-                      hexInput.toLowerCase() === color.toLowerCase() && 'ring-1 ring-white'
-                    )}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
+              {/* Preset colors with keyboard navigation */}
+              <ColorGrid
+                hexInput={hexInput}
+                setHexInput={setHexInput}
+                onColorChange={onColorChange}
+              />
 
               {/* Hex input */}
               <div className='flex items-center gap-[4px]'>

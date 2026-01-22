@@ -43,6 +43,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { A2aDeploy } from './components/a2a/a2a'
 import { ApiDeploy } from './components/api/api'
 import { ChatDeploy, type ExistingChat } from './components/chat/chat'
+import { ApiInfoModal } from './components/general/components/api-info-modal'
 import { GeneralDeploy } from './components/general/general'
 import { McpDeploy } from './components/mcp/mcp'
 import { TemplateDeploy } from './components/template/template'
@@ -110,6 +111,7 @@ export function DeployModal({
   const [chatSuccess, setChatSuccess] = useState(false)
 
   const [isCreateKeyModalOpen, setIsCreateKeyModalOpen] = useState(false)
+  const [isApiInfoModalOpen, setIsApiInfoModalOpen] = useState(false)
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig } = usePermissionConfig()
@@ -389,11 +391,6 @@ export function DeployModal({
     form?.requestSubmit()
   }, [])
 
-  const handleA2aFormSubmit = useCallback(() => {
-    const form = document.getElementById('a2a-deploy-form') as HTMLFormElement
-    form?.requestSubmit()
-  }, [])
-
   const handleA2aPublish = useCallback(() => {
     const form = document.getElementById('a2a-deploy-form')
     const publishTrigger = form?.querySelector('[data-a2a-publish-trigger]') as HTMLButtonElement
@@ -596,6 +593,9 @@ export function DeployModal({
             <ModalFooter className='items-center justify-between'>
               <div />
               <div className='flex items-center gap-2'>
+                <Button variant='default' onClick={() => setIsApiInfoModalOpen(true)}>
+                  Edit API Info
+                </Button>
                 <Button
                   variant='tertiary'
                   onClick={() => setIsCreateKeyModalOpen(true)}
@@ -846,7 +846,11 @@ export function DeployModal({
           <ModalHeader>Delete A2A Agent</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete this agent?{' '}
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {existingA2aAgent?.name || 'this agent'}
+              </span>
+              ?{' '}
               <span className='text-[var(--text-error)]'>
                 This will permanently remove the agent configuration.
               </span>
@@ -876,6 +880,14 @@ export function DeployModal({
         canManageWorkspaceKeys={canManageWorkspaceKeys}
         defaultKeyType={defaultKeyType}
       />
+
+      {workflowId && (
+        <ApiInfoModal
+          open={isApiInfoModalOpen}
+          onOpenChange={setIsApiInfoModalOpen}
+          workflowId={workflowId}
+        />
+      )}
     </>
   )
 }

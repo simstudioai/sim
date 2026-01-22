@@ -121,6 +121,12 @@ export interface ToolConfig<P = any, R = any> {
    * If provided, this will be called instead of making an HTTP request.
    */
   directExecution?: (params: P) => Promise<ToolResponse>
+
+  /**
+   * Optional dynamic schema enrichment for specific params.
+   * Maps param IDs to their enrichment configuration.
+   */
+  schemaEnrichment?: Record<string, SchemaEnrichmentConfig>
 }
 
 export interface TableRow {
@@ -147,4 +153,20 @@ export interface ToolFileData {
   data?: Buffer | string // Buffer or base64 string
   url?: string // URL to download file from
   size?: number
+}
+
+/**
+ * Configuration for dynamically enriching a parameter's schema at runtime.
+ * Used when a parameter's schema depends on runtime values (e.g., KB tags, workflow inputs).
+ */
+export interface SchemaEnrichmentConfig {
+  /** The param ID that this enrichment depends on (e.g., 'knowledgeBaseId', 'workflowId') */
+  dependsOn: string
+  /** Function to fetch and build dynamic schema based on the dependency value */
+  enrichSchema: (dependencyValue: string) => Promise<{
+    type: string
+    properties?: Record<string, { type: string; description?: string }>
+    description?: string
+    required?: string[]
+  } | null>
 }

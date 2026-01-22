@@ -14,21 +14,25 @@ export const gitlabCreatePipelineTool: ToolConfig<
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'GitLab Personal Access Token',
     },
     projectId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Project ID or URL-encoded path',
     },
     ref: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Branch or tag to run the pipeline on',
     },
     variables: {
       type: 'array',
       required: false,
+      visibility: 'user-or-llm',
       description:
         'Array of variables for the pipeline (each with key, value, and optional variable_type)',
     },

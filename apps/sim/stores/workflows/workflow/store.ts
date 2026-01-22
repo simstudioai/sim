@@ -7,14 +7,10 @@ import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
+import { normalizeName } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import {
-  filterNewEdges,
-  getUniqueBlockName,
-  mergeSubblockState,
-  normalizeName,
-} from '@/stores/workflows/utils'
+import { filterNewEdges, getUniqueBlockName, mergeSubblockState } from '@/stores/workflows/utils'
 import type {
   Position,
   SubBlockState,

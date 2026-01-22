@@ -200,7 +200,7 @@ const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
       )}
       {...props}
     >
-      <DialogPrimitive.Title className='min-w-0 truncate font-medium text-[16px] text-[var(--text-primary)]'>
+      <DialogPrimitive.Title className='min-w-0 font-medium text-[16px] text-[var(--text-primary)] leading-snug'>
         {children}
       </DialogPrimitive.Title>
       <DialogPrimitive.Close asChild>

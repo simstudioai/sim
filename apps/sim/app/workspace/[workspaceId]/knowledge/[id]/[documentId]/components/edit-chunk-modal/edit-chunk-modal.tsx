@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import {
   Button,
@@ -19,7 +18,7 @@ import {
 import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
 import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { knowledgeKeys } from '@/hooks/queries/knowledge'
+import { useUpdateChunk } from '@/hooks/queries/knowledge'
 
 const logger = createLogger('EditChunkModal')
 
@@ -50,16 +49,21 @@ export function EditChunkModal({
   onNavigateToPage,
   maxChunkSize,
 }: EditChunkModalProps) {
-  const queryClient = useQueryClient()
   const userPermissions = useUserPermissionsContext()
+  const {
+    mutate: updateChunk,
+    isPending: isSaving,
+    error: mutationError,
+    reset: resetMutation,
+  } = useUpdateChunk()
   const [editedContent, setEditedContent] = useState(chunk?.content || '')
-  const [isSaving, setIsSaving] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
   const [tokenizerOn, setTokenizerOn] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const error = mutationError?.message ?? null
 
   const hasUnsavedChanges = editedContent !== (chunk?.content || '')
 
@@ -102,44 +106,15 @@ export function EditChunkModal({
   const canNavigatePrev = currentChunkIndex > 0 || currentPage > 1
   const canNavigateNext = currentChunkIndex < allChunks.length - 1 || currentPage < totalPages
 
-  const handleSaveContent = async () => {
+  const handleSaveContent = () => {
     if (!chunk || !document) return
 
-    try {
-      setIsSaving(true)
-      setError(null)
-
-      const response = await fetch(
-        `/api/knowledge/${knowledgeBaseId}/documents/${document.id}/chunks/${chunk.id}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            content: editedContent,
-          }),
-        }
-      )
-
-      if (!response.ok) {
-        const result = await response.json()
-        throw new Error(result.error || 'Failed to update chunk')
-      }
-
-      const result = await response.json()
-
-      if (result.success) {
-        await queryClient.invalidateQueries({
-          queryKey: knowledgeKeys.detail(knowledgeBaseId),
-        })
-      }
-    } catch (err) {
-      logger.error('Error updating chunk:', err)
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    } finally {
-      setIsSaving(false)
-    }
+    updateChunk({
+      knowledgeBaseId,
+      documentId: document.id,
+      chunkId: chunk.id,
+      content: editedContent,
+    })
   }
 
   const navigateToChunk = async (direction: 'prev' | 'next') => {
@@ -165,7 +140,6 @@ export function EditChunkModal({
       }
     } catch (err) {
       logger.error(`Error navigating ${direction}:`, err)
-      setError(`Failed to navigate to ${direction === 'prev' ? 'previous' : 'next'} chunk`)
     } finally {
       setIsNavigating(false)
     }
@@ -185,6 +159,7 @@ export function EditChunkModal({
       setPendingNavigation(null)
       setShowUnsavedChangesAlert(true)
     } else {
+      resetMutation()
       onClose()
     }
   }
@@ -195,6 +170,7 @@ export function EditChunkModal({
       void pendingNavigation()
       setPendingNavigation(null)
     } else {
+      resetMutation()
       onClose()
     }
   }

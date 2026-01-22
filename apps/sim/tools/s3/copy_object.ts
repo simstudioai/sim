@@ -95,6 +95,7 @@ export const s3CopyObjectTool: ToolConfig = {
       success: true,
       output: {
         url: data.output.url,
+        uri: data.output.uri,
         metadata: {
           copySourceVersionId: data.output.copySourceVersionId,
           versionId: data.output.versionId,
@@ -108,6 +109,10 @@ export const s3CopyObjectTool: ToolConfig = {
     url: {
       type: 'string',
       description: 'URL of the copied S3 object',
+    },
+    uri: {
+      type: 'string',
+      description: 'S3 URI of the copied object (s3://bucket/key)',
     },
     metadata: {
       type: 'object',

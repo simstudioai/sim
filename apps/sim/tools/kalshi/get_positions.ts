@@ -46,26 +46,31 @@ export const kalshiGetPositionsTool: ToolConfig<
     ticker: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Filter by market ticker',
     },
     eventTicker: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Filter by event ticker (max 10 comma-separated)',
     },
     settlementStatus: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Filter by settlement status (all, unsettled, settled). Default: unsettled',
     },
     limit: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Number of results (1-1000, default: 100)',
     },
     cursor: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Pagination cursor for next page',
     },
   },

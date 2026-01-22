@@ -110,6 +110,8 @@ function resolveFileSelector(
       return { key: 'google.drive', context, allowSearch: true }
     case 'google-slides':
       return { key: 'google.drive', context, allowSearch: true }
+    case 'google-forms':
+      return { key: 'google.drive', context, allowSearch: true }
     case 'onedrive': {
       const key: SelectorKey = subBlock.mimeType === 'file' ? 'onedrive.files' : 'onedrive.folders'
       return { key, context, allowSearch: true }
@@ -201,10 +203,11 @@ function resolveProjectSelector(
 ): SelectorResolution {
   const serviceId = subBlock.serviceId
   const context = buildBaseContext(args)
+  const selectorId = subBlock.canonicalParamId ?? subBlock.id
 
   switch (serviceId) {
     case 'linear': {
-      const key: SelectorKey = subBlock.id === 'teamId' ? 'linear.teams' : 'linear.projects'
+      const key: SelectorKey = selectorId === 'teamId' ? 'linear.teams' : 'linear.projects'
       return { key, context, allowSearch: true }
     }
     case 'jira':

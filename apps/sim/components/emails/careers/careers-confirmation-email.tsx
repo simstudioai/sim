@@ -20,7 +20,10 @@ export function CareersConfirmationEmail({
   const baseUrl = getBaseUrl()
 
   return (
-    <EmailLayout preview={`Your application to ${brand.name} has been received`}>
+    <EmailLayout
+      preview={`Your application to ${brand.name} has been received`}
+      showUnsubscribe={false}
+    >
       <Text style={baseStyles.paragraph}>Hello {name},</Text>
       <Text style={baseStyles.paragraph}>
         We've received your application for <strong>{position}</strong>. Our team reviews every

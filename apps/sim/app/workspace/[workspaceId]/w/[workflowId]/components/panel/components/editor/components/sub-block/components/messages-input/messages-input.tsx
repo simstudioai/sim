@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { isEqual } from 'lodash'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { Button, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
@@ -225,14 +234,18 @@ export function MessagesInput({
     [wandHook]
   )
 
-  /**
-   * Initialize local state from stored or preview value
-   */
+  const localMessagesRef = useRef(localMessages)
+  localMessagesRef.current = localMessages
+
   useEffect(() => {
     if (isPreview && previewValue && Array.isArray(previewValue)) {
-      setLocalMessages(previewValue)
+      if (!isEqual(localMessagesRef.current, previewValue)) {
+        setLocalMessages(previewValue)
+      }
     } else if (messages && Array.isArray(messages) && messages.length > 0) {
-      setLocalMessages(messages)
+      if (!isEqual(localMessagesRef.current, messages)) {
+        setLocalMessages(messages)
+      }
     }
   }, [isPreview, previewValue, messages])
 
@@ -377,92 +390,137 @@ export function MessagesInput({
     textareaRefs.current[fieldId]?.focus()
   }, [])
 
-  const autoResizeTextarea = useCallback((fieldId: string) => {
+  const syncOverlay = useCallback((fieldId: string) => {
     const textarea = textareaRefs.current[fieldId]
-    if (!textarea) return
     const overlay = overlayRefs.current[fieldId]
+    if (!textarea || !overlay) return
 
-    // If user has manually resized, respect their chosen height and only sync overlay.
-    if (userResizedRef.current[fieldId]) {
-      const currentHeight =
-        textarea.offsetHeight || Number.parseFloat(textarea.style.height) || MIN_TEXTAREA_HEIGHT_PX
-      const clampedHeight = Math.max(MIN_TEXTAREA_HEIGHT_PX, currentHeight)
-      textarea.style.height = `${clampedHeight}px`
-      if (overlay) {
-        overlay.style.height = `${clampedHeight}px`
-      }
-      return
-    }
-
-    textarea.style.height = 'auto'
-    const naturalHeight = textarea.scrollHeight || MIN_TEXTAREA_HEIGHT_PX
-    const nextHeight = Math.min(
-      MAX_TEXTAREA_HEIGHT_PX,
-      Math.max(MIN_TEXTAREA_HEIGHT_PX, naturalHeight)
-    )
-    textarea.style.height = `${nextHeight}px`
-
-    if (overlay) {
-      overlay.style.height = `${nextHeight}px`
-    }
+    overlay.style.width = `${textarea.clientWidth}px`
+    overlay.scrollTop = textarea.scrollTop
+    overlay.scrollLeft = textarea.scrollLeft
   }, [])
 
-  const handleResizeStart = useCallback((fieldId: string, e: React.MouseEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const autoResizeTextarea = useCallback(
+    (fieldId: string) => {
+      const textarea = textareaRefs.current[fieldId]
+      const overlay = overlayRefs.current[fieldId]
+      if (!textarea) return
 
-    const textarea = textareaRefs.current[fieldId]
-    if (!textarea) return
-
-    const startHeight = textarea.offsetHeight || textarea.scrollHeight || MIN_TEXTAREA_HEIGHT_PX
-
-    isResizingRef.current = true
-    resizeStateRef.current = {
-      fieldId,
-      startY: e.clientY,
-      startHeight,
-    }
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!isResizingRef.current || !resizeStateRef.current) return
-
-      const { fieldId: activeFieldId, startY, startHeight } = resizeStateRef.current
-      const deltaY = moveEvent.clientY - startY
-      const nextHeight = Math.max(MIN_TEXTAREA_HEIGHT_PX, startHeight + deltaY)
-
-      const activeTextarea = textareaRefs.current[activeFieldId]
-      if (activeTextarea) {
-        activeTextarea.style.height = `${nextHeight}px`
+      if (!textarea.value.trim()) {
+        userResizedRef.current[fieldId] = false
       }
 
-      const overlay = overlayRefs.current[activeFieldId]
+      if (userResizedRef.current[fieldId]) {
+        if (overlay) {
+          overlay.style.height = `${textarea.offsetHeight}px`
+        }
+        syncOverlay(fieldId)
+        return
+      }
+
+      textarea.style.height = 'auto'
+      const scrollHeight = textarea.scrollHeight
+      const height = Math.min(
+        MAX_TEXTAREA_HEIGHT_PX,
+        Math.max(MIN_TEXTAREA_HEIGHT_PX, scrollHeight)
+      )
+
+      textarea.style.height = `${height}px`
       if (overlay) {
-        overlay.style.height = `${nextHeight}px`
-      }
-    }
-
-    const handleMouseUp = () => {
-      if (resizeStateRef.current) {
-        const { fieldId: activeFieldId } = resizeStateRef.current
-        userResizedRef.current[activeFieldId] = true
+        overlay.style.height = `${height}px`
       }
 
-      isResizingRef.current = false
-      resizeStateRef.current = null
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
+      syncOverlay(fieldId)
+    },
+    [syncOverlay]
+  )
 
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-  }, [])
+  const handleResizeStart = useCallback(
+    (fieldId: string, e: React.MouseEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
 
-  useEffect(() => {
+      const textarea = textareaRefs.current[fieldId]
+      if (!textarea) return
+
+      const startHeight = textarea.offsetHeight || textarea.scrollHeight || MIN_TEXTAREA_HEIGHT_PX
+
+      isResizingRef.current = true
+      resizeStateRef.current = {
+        fieldId,
+        startY: e.clientY,
+        startHeight,
+      }
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        if (!isResizingRef.current || !resizeStateRef.current) return
+
+        const { fieldId: activeFieldId, startY, startHeight } = resizeStateRef.current
+        const deltaY = moveEvent.clientY - startY
+        const nextHeight = Math.max(MIN_TEXTAREA_HEIGHT_PX, startHeight + deltaY)
+
+        const activeTextarea = textareaRefs.current[activeFieldId]
+        const overlay = overlayRefs.current[activeFieldId]
+
+        if (activeTextarea) {
+          activeTextarea.style.height = `${nextHeight}px`
+        }
+
+        if (overlay) {
+          overlay.style.height = `${nextHeight}px`
+          if (activeTextarea) {
+            overlay.scrollTop = activeTextarea.scrollTop
+            overlay.scrollLeft = activeTextarea.scrollLeft
+          }
+        }
+      }
+
+      const handleMouseUp = () => {
+        if (resizeStateRef.current) {
+          const { fieldId: activeFieldId } = resizeStateRef.current
+          userResizedRef.current[activeFieldId] = true
+          syncOverlay(activeFieldId)
+        }
+
+        isResizingRef.current = false
+        resizeStateRef.current = null
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+    },
+    [syncOverlay]
+  )
+
+  useLayoutEffect(() => {
     currentMessages.forEach((_, index) => {
-      const fieldId = `message-${index}`
-      autoResizeTextarea(fieldId)
+      autoResizeTextarea(`message-${index}`)
     })
   }, [currentMessages, autoResizeTextarea])
+
+  useEffect(() => {
+    const observers: ResizeObserver[] = []
+
+    for (let i = 0; i < currentMessages.length; i++) {
+      const fieldId = `message-${i}`
+      const textarea = textareaRefs.current[fieldId]
+      const overlay = overlayRefs.current[fieldId]
+
+      if (textarea && overlay) {
+        const observer = new ResizeObserver(() => {
+          overlay.style.width = `${textarea.clientWidth}px`
+        })
+        observer.observe(textarea)
+        observers.push(observer)
+      }
+    }
+
+    return () => {
+      observers.forEach((observer) => observer.disconnect())
+    }
+  }, [currentMessages.length])
 
   return (
     <div className='flex w-full flex-col gap-[10px]'>
@@ -616,19 +674,15 @@ export function MessagesInput({
                 </div>
 
                 {/* Content Input with overlay for variable highlighting */}
-                <div className='relative w-full'>
+                <div className='relative w-full overflow-hidden'>
                   <textarea
                     ref={(el) => {
                       textareaRefs.current[fieldId] = el
                     }}
-                    className='allow-scroll box-border min-h-[80px] w-full resize-none whitespace-pre-wrap break-words border-none bg-transparent px-[8px] pt-[8px] font-[inherit] font-medium text-sm text-transparent leading-[inherit] caret-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed'
-                    rows={3}
+                    className='relative z-[2] m-0 box-border h-auto min-h-[80px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent px-[8px] py-[8px] font-medium font-sans text-sm text-transparent leading-[1.5] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed [&::-webkit-scrollbar]:hidden'
                     placeholder='Enter message content...'
                     value={message.content}
-                    onChange={(e) => {
-                      fieldHandlers.onChange(e)
-                      autoResizeTextarea(fieldId)
-                    }}
+                    onChange={fieldHandlers.onChange}
                     onKeyDown={(e) => {
                       if (e.key === 'Tab' && !isPreview && !disabled) {
                         e.preventDefault()
@@ -665,12 +719,13 @@ export function MessagesInput({
                     ref={(el) => {
                       overlayRefs.current[fieldId] = el
                     }}
-                    className='scrollbar-none pointer-events-none absolute top-0 left-0 box-border w-full overflow-auto whitespace-pre-wrap break-words border-none bg-transparent px-[8px] pt-[8px] font-[inherit] font-medium text-[var(--text-primary)] text-sm leading-[inherit]'
+                    className='pointer-events-none absolute top-0 left-0 z-[1] m-0 box-border w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent px-[8px] py-[8px] font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.5] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
                   >
                     {formatDisplayText(message.content, {
                       accessiblePrefixes,
                       highlightAll: !accessiblePrefixes,
                     })}
+                    {message.content.endsWith('\n') && '\u200B'}
                   </div>
 
                   {/* Env var dropdown for this message */}
@@ -700,7 +755,7 @@ export function MessagesInput({
 
                   {!isPreview && !disabled && (
                     <div
-                      className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+                      className='absolute right-1 bottom-1 z-[3] flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
                       onMouseDown={(e) => handleResizeStart(fieldId, e)}
                       onDragStart={(e) => {
                         e.preventDefault()

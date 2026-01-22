@@ -54,6 +54,17 @@ export interface SimplifiedImapEmail {
 }
 
 export interface ImapWebhookPayload {
+  messageId: string
+  subject: string
+  from: string
+  to: string
+  cc: string
+  date: string | null
+  bodyText: string
+  bodyHtml: string
+  mailbox: string
+  hasAttachments: boolean
+  attachments: ImapAttachment[]
   email: SimplifiedImapEmail
   timestamp: string
 }
@@ -613,6 +624,17 @@ async function processEmails(
             }
 
             const payload: ImapWebhookPayload = {
+              messageId: simplifiedEmail.messageId,
+              subject: simplifiedEmail.subject,
+              from: simplifiedEmail.from,
+              to: simplifiedEmail.to,
+              cc: simplifiedEmail.cc,
+              date: simplifiedEmail.date,
+              bodyText: simplifiedEmail.bodyText,
+              bodyHtml: simplifiedEmail.bodyHtml,
+              mailbox: simplifiedEmail.mailbox,
+              hasAttachments: simplifiedEmail.hasAttachments,
+              attachments: simplifiedEmail.attachments,
               email: simplifiedEmail,
               timestamp: new Date().toISOString(),
             }

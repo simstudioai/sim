@@ -1,0 +1,62 @@
+---
+paths:
+  - "apps/sim/**/*.ts"
+  - "apps/sim/**/*.tsx"
+---
+
+# Import Patterns
+
+## Absolute Imports
+
+**Always use absolute imports.** Never use relative imports.
+
+```typescript
+// ✓ Good
+import { useWorkflowStore } from '@/stores/workflows/store'
+import { Button } from '@/components/ui/button'
+
+// ✗ Bad
+import { useWorkflowStore } from '../../../stores/workflows/store'
+```
+
+## Barrel Exports
+
+Use barrel exports (`index.ts`) when a folder has 3+ exports. Import from barrel, not individual files.
+
+```typescript
+// ✓ Good
+import { Dashboard, Sidebar } from '@/app/workspace/[workspaceId]/logs/components'
+
+// ✗ Bad
+import { Dashboard } from '@/app/workspace/[workspaceId]/logs/components/dashboard/dashboard'
+```
+
+## No Re-exports
+
+Do not re-export from non-barrel files. Import directly from the source.
+
+```typescript
+// ✓ Good - import from where it's declared
+import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
+
+// ✗ Bad - re-exporting in utils.ts then importing from there
+import { CORE_TRIGGER_TYPES } from '@/app/workspace/.../utils'
+```
+
+## Import Order
+
+1. React/core libraries
+2. External libraries
+3. UI components (`@/components/emcn`, `@/components/ui`)
+4. Utilities (`@/lib/...`)
+5. Stores (`@/stores/...`)
+6. Feature imports
+7. CSS imports
+
+## Type Imports
+
+Use `type` keyword for type-only imports:
+
+```typescript
+import type { WorkflowLog } from '@/stores/logs/types'
+```

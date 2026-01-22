@@ -222,7 +222,7 @@ export function BYOK() {
             )}
           </ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               This key will be used for all {PROVIDERS.find((p) => p.id === editingProvider)?.name}{' '}
               requests in this workspace. Your key is encrypted and stored securely.
             </p>
@@ -294,10 +294,9 @@ export function BYOK() {
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='tertiary'
               onClick={handleSave}
               disabled={!apiKeyInput.trim() || upsertKey.isPending}
-              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
             >
               {upsertKey.isPending ? 'Saving...' : 'Save'}
             </Button>
@@ -309,7 +308,7 @@ export function BYOK() {
         <ModalContent size='sm'>
           <ModalHeader>Delete API Key</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete the{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {PROVIDERS.find((p) => p.id === deleteConfirmProvider)?.name}
@@ -321,12 +320,7 @@ export function BYOK() {
             <Button variant='default' onClick={() => setDeleteConfirmProvider(null)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleDelete}
-              disabled={deleteKey.isPending}
-              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-            >
+            <Button variant='destructive' onClick={handleDelete} disabled={deleteKey.isPending}>
               {deleteKey.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>

@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isEqual } from 'lodash'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { Badge } from '@/components/emcn'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
 import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
@@ -68,7 +70,7 @@ interface DropdownProps {
  * - Special handling for dataMode subblock to convert between JSON and structured formats
  * - Integrates with the workflow state management system
  */
-export function Dropdown({
+export const Dropdown = memo(function Dropdown({
   options,
   defaultValue,
   blockId,
@@ -99,7 +101,8 @@ export function Dropdown({
     [blockConfig?.subBlocks]
   )
   const canonicalModeOverrides = blockState?.data?.canonicalModes
-  const dependencyValues = useSubBlockStore(
+  const dependencyValues = useStoreWithEqualityFn(
+    useSubBlockStore,
     useCallback(
       (state) => {
         if (dependsOnFields.length === 0 || !activeWorkflowId) return []
@@ -110,7 +113,8 @@ export function Dropdown({
         )
       },
       [dependsOnFields, activeWorkflowId, blockId, canonicalIndex, canonicalModeOverrides]
-    )
+    ),
+    isEqual
   )
 
   const [storeInitialized, setStoreInitialized] = useState(false)
@@ -160,6 +164,18 @@ export function Dropdown({
       setIsLoadingOptions(false)
     }
   }, [fetchOptions, blockId, subBlockId, isPreview, disabled])
+
+  /**
+   * Handles combobox open state changes to trigger option fetching
+   */
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        void fetchOptionsIfNeeded()
+      }
+    },
+    [fetchOptionsIfNeeded]
+  )
 
   const evaluatedOptions = useMemo(() => {
     return typeof options === 'function' ? options() : options
@@ -471,11 +487,7 @@ export function Dropdown({
       placeholder={placeholder}
       disabled={disabled}
       editable={false}
-      onOpenChange={(open) => {
-        if (open) {
-          void fetchOptionsIfNeeded()
-        }
-      }}
+      onOpenChange={handleOpenChange}
       overlayContent={multiSelectOverlay}
       multiSelect={multiSelect}
       isLoading={isLoadingOptions}
@@ -484,4 +496,4 @@ export function Dropdown({
       searchPlaceholder='Search...'
     />
   )
-}
+})

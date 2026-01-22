@@ -1,10 +1,11 @@
 import { db } from '@sim/db'
-import { templateCreators, user } from '@sim/db/schema'
+import { templateCreators } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
 
 const logger = createLogger('CreatorVerificationAPI')
 
@@ -23,9 +24,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Check if user is a super user
-    const currentUser = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1)
-
-    if (!currentUser[0]?.isSuperUser) {
+    const { effectiveSuperUser } = await verifyEffectiveSuperUser(session.user.id)
+    if (!effectiveSuperUser) {
       logger.warn(`[${requestId}] Non-super user attempted to verify creator: ${id}`)
       return NextResponse.json({ error: 'Only super users can verify creators' }, { status: 403 })
     }
@@ -76,9 +76,8 @@ export async function DELETE(
     }
 
     // Check if user is a super user
-    const currentUser = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1)
-
-    if (!currentUser[0]?.isSuperUser) {
+    const { effectiveSuperUser } = await verifyEffectiveSuperUser(session.user.id)
+    if (!effectiveSuperUser) {
       logger.warn(`[${requestId}] Non-super user attempted to unverify creator: ${id}`)
       return NextResponse.json({ error: 'Only super users can unverify creators' }, { status: 403 })
     }

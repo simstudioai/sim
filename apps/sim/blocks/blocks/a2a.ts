@@ -107,13 +107,25 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
       condition: { field: 'operation', value: 'a2a_send_message' },
     },
     {
-      id: 'files',
+      id: 'fileUpload',
       title: 'Files',
       type: 'file-upload',
+      canonicalParamId: 'files',
       placeholder: 'Upload files to send',
       description: 'Files to include with the message (FilePart)',
       condition: { field: 'operation', value: 'a2a_send_message' },
+      mode: 'basic',
       multiple: true,
+    },
+    {
+      id: 'fileReference',
+      title: 'Files',
+      type: 'short-input',
+      canonicalParamId: 'files',
+      placeholder: 'Reference files from previous blocks',
+      description: 'Files to include with the message (FilePart)',
+      condition: { field: 'operation', value: 'a2a_send_message' },
+      mode: 'advanced',
     },
     {
       id: 'taskId',
@@ -202,6 +214,15 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
     ],
     config: {
       tool: (params) => params.operation as string,
+      params: (params) => {
+        const { fileUpload, fileReference, ...rest } = params
+        const hasFileUpload = Array.isArray(fileUpload) ? fileUpload.length > 0 : !!fileUpload
+        const files = hasFileUpload ? fileUpload : fileReference
+        return {
+          ...rest,
+          ...(files ? { files } : {}),
+        }
+      },
     },
   },
   inputs: {
@@ -232,6 +253,14 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
     files: {
       type: 'array',
       description: 'Files to include with the message',
+    },
+    fileUpload: {
+      type: 'array',
+      description: 'Uploaded files (basic mode)',
+    },
+    fileReference: {
+      type: 'json',
+      description: 'File reference from previous blocks (advanced mode)',
     },
     historyLength: {
       type: 'number',

@@ -46,26 +46,31 @@ export const replaceAllTextTool: ToolConfig<ReplaceAllTextParams, ReplaceAllText
     presentationId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the presentation',
     },
     findText: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The text to find (e.g., {{placeholder}})',
     },
     replaceText: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The text to replace with',
     },
     matchCase: {
       type: 'boolean',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Whether the search should be case-sensitive (default: true)',
     },
     pageObjectIds: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description:
         'Comma-separated list of slide object IDs to limit replacements to specific slides (leave empty for all slides)',
     },
@@ -159,6 +164,24 @@ export const replaceAllTextTool: ToolConfig<ReplaceAllTextParams, ReplaceAllText
     metadata: {
       type: 'json',
       description: 'Operation metadata including presentation ID and URL',
+      properties: {
+        presentationId: {
+          type: 'string',
+          description: 'The presentation ID',
+        },
+        findText: {
+          type: 'string',
+          description: 'The text that was searched for',
+        },
+        replaceText: {
+          type: 'string',
+          description: 'The text that replaced the matches',
+        },
+        url: {
+          type: 'string',
+          description: 'URL to open the presentation',
+        },
+      },
     },
   },
 }

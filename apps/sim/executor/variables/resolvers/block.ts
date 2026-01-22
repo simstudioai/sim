@@ -1,3 +1,5 @@
+import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { USER_FILE_ACCESSIBLE_PROPERTIES } from '@/lib/workflows/types'
 import {
   isReference,
   normalizeName,
@@ -9,14 +11,135 @@ import {
   type ResolutionContext,
   type Resolver,
 } from '@/executor/variables/resolvers/reference'
-import type { SerializedWorkflow } from '@/serializer/types'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import { getTool } from '@/tools/utils'
+
+function isPathInOutputSchema(
+  outputs: Record<string, any> | undefined,
+  pathParts: string[]
+): boolean {
+  if (!outputs || pathParts.length === 0) {
+    return true
+  }
+
+  const isFileArrayType = (value: any): boolean =>
+    value?.type === 'file[]' || value?.type === 'files'
+
+  let current: any = outputs
+  for (let i = 0; i < pathParts.length; i++) {
+    const part = pathParts[i]
+
+    const arrayMatch = part.match(/^([^[]+)\[(\d+)\]$/)
+    if (arrayMatch) {
+      const [, prop] = arrayMatch
+      let fieldDef: any
+
+      if (prop in current) {
+        fieldDef = current[prop]
+      } else if (current.properties && prop in current.properties) {
+        fieldDef = current.properties[prop]
+      } else if (current.type === 'array' && current.items) {
+        if (current.items.properties && prop in current.items.properties) {
+          fieldDef = current.items.properties[prop]
+        } else if (prop in current.items) {
+          fieldDef = current.items[prop]
+        }
+      }
+
+      if (!fieldDef) {
+        return false
+      }
+
+      if (isFileArrayType(fieldDef)) {
+        if (i + 1 < pathParts.length) {
+          return USER_FILE_ACCESSIBLE_PROPERTIES.includes(pathParts[i + 1] as any)
+        }
+        return true
+      }
+
+      if (fieldDef.type === 'array' && fieldDef.items) {
+        current = fieldDef.items
+        continue
+      }
+
+      current = fieldDef
+      continue
+    }
+
+    if (/^\d+$/.test(part)) {
+      if (isFileArrayType(current)) {
+        if (i + 1 < pathParts.length) {
+          const nextPart = pathParts[i + 1]
+          return USER_FILE_ACCESSIBLE_PROPERTIES.includes(nextPart as any)
+        }
+        return true
+      }
+      continue
+    }
+
+    if (current === null || current === undefined) {
+      return false
+    }
+
+    if (part in current) {
+      const nextCurrent = current[part]
+      if (nextCurrent?.type === 'file[]' && i + 1 < pathParts.length) {
+        const nextPart = pathParts[i + 1]
+        if (/^\d+$/.test(nextPart) && i + 2 < pathParts.length) {
+          const propertyPart = pathParts[i + 2]
+          return USER_FILE_ACCESSIBLE_PROPERTIES.includes(propertyPart as any)
+        }
+      }
+      current = nextCurrent
+      continue
+    }
+
+    if (current.properties && part in current.properties) {
+      current = current.properties[part]
+      continue
+    }
+
+    if (current.type === 'array' && current.items) {
+      if (current.items.properties && part in current.items.properties) {
+        current = current.items.properties[part]
+        continue
+      }
+      if (part in current.items) {
+        current = current.items[part]
+        continue
+      }
+    }
+
+    if (isFileArrayType(current) && USER_FILE_ACCESSIBLE_PROPERTIES.includes(part as any)) {
+      return true
+    }
+
+    if ('type' in current && typeof current.type === 'string') {
+      if (!current.properties && !current.items) {
+        return false
+      }
+    }
+
+    return false
+  }
+
+  return true
+}
+
+function getSchemaFieldNames(outputs: Record<string, any> | undefined): string[] {
+  if (!outputs) return []
+  return Object.keys(outputs)
+}
 
 export class BlockResolver implements Resolver {
   private nameToBlockId: Map<string, string>
+  private blockById: Map<string, SerializedBlock>
 
   constructor(private workflow: SerializedWorkflow) {
     this.nameToBlockId = new Map()
+    this.blockById = new Map()
     for (const block of workflow.blocks) {
+      this.blockById.set(block.id, block)
       if (block.metadata?.name) {
         this.nameToBlockId.set(normalizeName(block.metadata.name), block.id)
       }
@@ -47,7 +170,9 @@ export class BlockResolver implements Resolver {
       return undefined
     }
 
+    const block = this.blockById.get(blockId)
     const output = this.getBlockOutput(blockId, context)
+
     if (output === undefined) {
       return undefined
     }
@@ -62,9 +187,6 @@ export class BlockResolver implements Resolver {
     if (result !== undefined) {
       return result
     }
-
-    // If failed, check if we should try backwards compatibility fallback
-    const block = this.workflow.blocks.find((b) => b.id === blockId)
 
     // Response block backwards compatibility:
     // Old: <responseBlock.response.data> -> New: <responseBlock.data>
@@ -106,6 +228,23 @@ export class BlockResolver implements Resolver {
       if (result !== undefined) {
         return result
       }
+    }
+
+    const blockType = block?.metadata?.id
+    const params = block?.config?.params as Record<string, unknown> | undefined
+    const subBlocks = params
+      ? Object.fromEntries(Object.entries(params).map(([k, v]) => [k, { value: v }]))
+      : undefined
+    const toolId = block?.config?.tool
+    const toolConfig = toolId ? getTool(toolId) : undefined
+    const outputSchema =
+      toolConfig?.outputs ?? (blockType ? getBlockOutputs(blockType, subBlocks) : block?.outputs)
+    const schemaFields = getSchemaFieldNames(outputSchema)
+    if (schemaFields.length > 0 && !isPathInOutputSchema(outputSchema, pathParts)) {
+      throw new Error(
+        `"${pathParts.join('.')}" doesn't exist on block "${blockName}". ` +
+          `Available fields: ${schemaFields.join(', ')}`
+      )
     }
 
     return undefined
@@ -203,22 +342,5 @@ export class BlockResolver implements Resolver {
       return 'null'
     }
     return String(value)
-  }
-
-  tryParseJSON(value: any): any {
-    if (typeof value !== 'string') {
-      return value
-    }
-
-    const trimmed = value.trim()
-    if (trimmed.length > 0 && (trimmed.startsWith('{') || trimmed.startsWith('['))) {
-      try {
-        return JSON.parse(trimmed)
-      } catch {
-        return value
-      }
-    }
-
-    return value
   }
 }

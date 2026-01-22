@@ -40,9 +40,9 @@ export async function evaluateConditionExpression(
         _context: {
           workflowId: ctx.workflowId,
           workspaceId: ctx.workspaceId,
+          isDeployedContext: ctx.isDeployedContext,
         },
       },
-      false,
       false,
       ctx
     )

@@ -5,7 +5,11 @@
  *
  * Tests for the table SQL query builder utilities including filter and sort clause generation.
  */
-import { describe, expect, it } from 'vitest'
+import { drizzleOrmMock } from '@sim/testing'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('drizzle-orm', () => drizzleOrmMock)
+
 import { buildFilterClause, buildSortClause } from '../sql'
 import type { Filter } from '../types'
 

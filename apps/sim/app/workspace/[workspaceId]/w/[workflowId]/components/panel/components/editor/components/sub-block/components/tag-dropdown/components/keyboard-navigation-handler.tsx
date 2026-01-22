@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { usePopoverContext } from '@/components/emcn'
-import type { BlockTagGroup, NestedBlockTagGroup } from '../types'
+import { useNestedNavigation } from '../tag-dropdown'
+import type { BlockTagGroup, NestedBlockTagGroup, NestedTag } from '../types'
 
 /**
  * Keyboard navigation handler component that uses popover context
@@ -15,6 +16,90 @@ interface KeyboardNavigationHandlerProps {
   handleTagSelect: (tag: string, group?: BlockTagGroup) => void
 }
 
+/**
+ * Recursively finds a folder in nested tags by its ID
+ */
+const findFolderInNested = (
+  nestedTags: NestedTag[],
+  blockId: string,
+  targetFolderId: string
+): NestedTag | null => {
+  for (const nestedTag of nestedTags) {
+    const folderId = `${blockId}-${nestedTag.key}`
+    if (folderId === targetFolderId) {
+      return nestedTag
+    }
+    if (nestedTag.nestedChildren) {
+      const found = findFolderInNested(nestedTag.nestedChildren, blockId, targetFolderId)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+/**
+ * Recursively finds folder info for a tag that can be expanded.
+ * Returns both the folder metadata and the NestedTag object for navigation.
+ */
+const findFolderInfoForTag = (
+  nestedTags: NestedTag[],
+  targetTag: string,
+  group: NestedBlockTagGroup
+): {
+  id: string
+  title: string
+  parentTag: string
+  group: NestedBlockTagGroup
+  nestedTag: NestedTag
+} | null => {
+  for (const nestedTag of nestedTags) {
+    if (
+      nestedTag.parentTag === targetTag &&
+      (nestedTag.children?.length || nestedTag.nestedChildren?.length)
+    ) {
+      return {
+        id: `${group.blockId}-${nestedTag.key}`,
+        title: nestedTag.display,
+        parentTag: nestedTag.parentTag,
+        group,
+        nestedTag,
+      }
+    }
+    if (nestedTag.nestedChildren) {
+      const found = findFolderInfoForTag(nestedTag.nestedChildren, targetTag, group)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+/**
+ * Recursively checks if a tag is a child of any folder.
+ * This includes both leaf children and nested folder parent tags.
+ */
+const isChildOfAnyFolder = (nestedTags: NestedTag[], tag: string): boolean => {
+  for (const nestedTag of nestedTags) {
+    if (nestedTag.children) {
+      for (const child of nestedTag.children) {
+        if (child.fullTag === tag) {
+          return true
+        }
+      }
+    }
+    if (nestedTag.nestedChildren) {
+      for (const nestedChild of nestedTag.nestedChildren) {
+        if (nestedChild.parentTag === tag) {
+          return true
+        }
+      }
+      if (isChildOfAnyFolder(nestedTag.nestedChildren, tag)) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
 export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps> = ({
   visible,
   selectedIndex,
@@ -23,55 +108,66 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
   nestedBlockTagGroups,
   handleTagSelect,
 }) => {
-  const { openFolder, closeFolder, isInFolder, currentFolder } = usePopoverContext()
+  const { openFolder, closeFolder, isInFolder, currentFolder, setKeyboardNav } = usePopoverContext()
+  const nestedNav = useNestedNavigation()
 
   const visibleIndices = useMemo(() => {
     const indices: number[] = []
+    const nestedPath = nestedNav?.nestedPath ?? []
 
     if (isInFolder && currentFolder) {
-      for (const group of nestedBlockTagGroups) {
-        for (const nestedTag of group.nestedTags) {
-          const folderId = `${group.blockId}-${nestedTag.key}`
-          if (folderId === currentFolder && nestedTag.children) {
-            // First, add the parent tag itself (so it's navigable as the first item)
-            if (nestedTag.parentTag) {
-              const parentIdx = flatTagList.findIndex((item) => item.tag === nestedTag.parentTag)
-              if (parentIdx >= 0) {
-                indices.push(parentIdx)
-              }
-            }
-            // Then add all children
-            for (const child of nestedTag.children) {
-              const idx = flatTagList.findIndex((item) => item.tag === child.fullTag)
-              if (idx >= 0) {
-                indices.push(idx)
-              }
-            }
+      let currentNestedTag: NestedTag | null = null
+
+      if (nestedPath.length > 0) {
+        currentNestedTag = nestedPath[nestedPath.length - 1]
+      } else {
+        for (const group of nestedBlockTagGroups) {
+          const folder = findFolderInNested(group.nestedTags, group.blockId, currentFolder)
+          if (folder) {
+            currentNestedTag = folder
             break
           }
         }
       }
+
+      if (currentNestedTag) {
+        if (currentNestedTag.parentTag) {
+          const parentIdx = flatTagList.findIndex(
+            (item) => item.tag === currentNestedTag!.parentTag
+          )
+          if (parentIdx >= 0) {
+            indices.push(parentIdx)
+          }
+        }
+        if (currentNestedTag.children) {
+          for (const child of currentNestedTag.children) {
+            const idx = flatTagList.findIndex((item) => item.tag === child.fullTag)
+            if (idx >= 0) {
+              indices.push(idx)
+            }
+          }
+        }
+        if (currentNestedTag.nestedChildren) {
+          for (const nestedChild of currentNestedTag.nestedChildren) {
+            if (nestedChild.parentTag) {
+              const idx = flatTagList.findIndex((item) => item.tag === nestedChild.parentTag)
+              if (idx >= 0) {
+                indices.push(idx)
+              }
+            }
+          }
+        }
+      }
     } else {
-      // We're at root level, show all non-child items
-      // (variables and parent tags, but not their children)
       for (let i = 0; i < flatTagList.length; i++) {
         const tag = flatTagList[i].tag
 
-        // Check if this is a child of a parent folder
         let isChild = false
         for (const group of nestedBlockTagGroups) {
-          for (const nestedTag of group.nestedTags) {
-            if (nestedTag.children) {
-              for (const child of nestedTag.children) {
-                if (child.fullTag === tag) {
-                  isChild = true
-                  break
-                }
-              }
-            }
-            if (isChild) break
+          if (isChildOfAnyFolder(group.nestedTags, tag)) {
+            isChild = true
+            break
           }
-          if (isChild) break
         }
 
         if (!isChild) {
@@ -81,16 +177,16 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
     }
 
     return indices
-  }, [isInFolder, currentFolder, flatTagList, nestedBlockTagGroups])
+  }, [isInFolder, currentFolder, flatTagList, nestedBlockTagGroups, nestedNav])
 
-  // Auto-select first visible item when entering/exiting folders
+  const nestedPathLength = nestedNav?.nestedPath.length ?? 0
+
   useEffect(() => {
     if (!visible || visibleIndices.length === 0) return
 
-    if (!visibleIndices.includes(selectedIndex)) {
-      setSelectedIndex(visibleIndices[0])
-    }
-  }, [visible, isInFolder, currentFolder, visibleIndices, selectedIndex, setSelectedIndex])
+    setSelectedIndex(visibleIndices[0])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, isInFolder, currentFolder, nestedPathLength])
 
   useEffect(() => {
     if (!visible || !flatTagList.length) return
@@ -117,89 +213,98 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
         id: string
         title: string
         parentTag: string
-        group: BlockTagGroup
+        group: NestedBlockTagGroup
+        nestedTag: NestedTag
       } | null = null
 
       if (selected) {
         for (const group of nestedBlockTagGroups) {
-          for (const nestedTag of group.nestedTags) {
-            if (
-              nestedTag.parentTag === selected.tag &&
-              nestedTag.children &&
-              nestedTag.children.length > 0
-            ) {
-              currentFolderInfo = {
-                id: `${selected.group?.blockId}-${nestedTag.key}`,
-                title: nestedTag.display,
-                parentTag: nestedTag.parentTag,
-                group,
-              }
-              break
-            }
+          const folderInfo = findFolderInfoForTag(group.nestedTags, selected.tag, group)
+          if (folderInfo) {
+            currentFolderInfo = folderInfo
+            break
           }
-          if (currentFolderInfo) break
         }
+      }
+
+      const scrollIntoView = () => {
+        setTimeout(() => {
+          const selectedItem = document.querySelector<HTMLElement>(
+            '[data-radix-popper-content-wrapper] [aria-selected="true"]'
+          )
+          if (selectedItem) {
+            selectedItem.scrollIntoView({ behavior: 'auto', block: 'nearest' })
+          }
+        }, 0)
       }
 
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
           e.stopPropagation()
+          setKeyboardNav(true)
           if (visibleIndices.length > 0) {
             const currentVisibleIndex = visibleIndices.indexOf(selectedIndex)
+            let newIndex: number
             if (currentVisibleIndex === -1) {
-              setSelectedIndex(visibleIndices[0])
+              newIndex = visibleIndices[0]
             } else if (currentVisibleIndex < visibleIndices.length - 1) {
-              setSelectedIndex(visibleIndices[currentVisibleIndex + 1])
+              newIndex = visibleIndices[currentVisibleIndex + 1]
+            } else {
+              newIndex = visibleIndices[0]
             }
+            setSelectedIndex(newIndex)
+            scrollIntoView()
           }
           break
         case 'ArrowUp':
           e.preventDefault()
           e.stopPropagation()
+          setKeyboardNav(true)
           if (visibleIndices.length > 0) {
             const currentVisibleIndex = visibleIndices.indexOf(selectedIndex)
+            let newIndex: number
             if (currentVisibleIndex === -1) {
-              setSelectedIndex(visibleIndices[0])
+              newIndex = visibleIndices[visibleIndices.length - 1]
             } else if (currentVisibleIndex > 0) {
-              setSelectedIndex(visibleIndices[currentVisibleIndex - 1])
+              newIndex = visibleIndices[currentVisibleIndex - 1]
+            } else {
+              newIndex = visibleIndices[visibleIndices.length - 1]
             }
+            setSelectedIndex(newIndex)
+            scrollIntoView()
           }
           break
         case 'Enter':
           e.preventDefault()
           e.stopPropagation()
           if (selected && selectedIndex >= 0 && selectedIndex < flatTagList.length) {
-            if (currentFolderInfo && !isInFolder) {
-              // It's a folder, open it
+            handleTagSelect(selected.tag, selected.group)
+          }
+          break
+        case 'ArrowRight':
+          if (currentFolderInfo) {
+            e.preventDefault()
+            e.stopPropagation()
+            if (isInFolder && nestedNav) {
+              nestedNav.navigateIn(currentFolderInfo.nestedTag, currentFolderInfo.group)
+            } else {
               openFolderWithSelection(
                 currentFolderInfo.id,
                 currentFolderInfo.title,
                 currentFolderInfo.parentTag,
                 currentFolderInfo.group
               )
-            } else {
-              // Not a folder, select it
-              handleTagSelect(selected.tag, selected.group)
             }
-          }
-          break
-        case 'ArrowRight':
-          if (currentFolderInfo && !isInFolder) {
-            e.preventDefault()
-            e.stopPropagation()
-            openFolderWithSelection(
-              currentFolderInfo.id,
-              currentFolderInfo.title,
-              currentFolderInfo.parentTag,
-              currentFolderInfo.group
-            )
           }
           break
         case 'ArrowLeft':
           if (isInFolder) {
             e.preventDefault()
             e.stopPropagation()
+            if (nestedNav?.navigateBack()) {
+              return
+            }
             closeFolder()
             let firstRootIndex = 0
             for (let i = 0; i < flatTagList.length; i++) {
@@ -239,6 +344,8 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
     isInFolder,
     setSelectedIndex,
     handleTagSelect,
+    nestedNav,
+    setKeyboardNav,
   ])
 
   return null

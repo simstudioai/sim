@@ -5,7 +5,7 @@ import {
   GetBlockOptionsResult,
   type GetBlockOptionsResultType,
 } from '@/lib/copilot/tools/shared/schemas'
-import { registry as blockRegistry } from '@/blocks/registry'
+import { registry as blockRegistry, getLatestBlock } from '@/blocks/registry'
 import { getUserPermissionConfig } from '@/executor/utils/permission-check'
 import { tools as toolsRegistry } from '@/tools/registry'
 
@@ -113,9 +113,12 @@ export const getBlockOptionsServerTool: BaseServerTool<
       }
     }
 
+    const latestBlock = getLatestBlock(blockId)
+    const displayName = latestBlock?.name ?? blockConfig.name
+
     const result = {
       blockId,
-      blockName: blockConfig.name,
+      blockName: displayName,
       operations,
     }
 

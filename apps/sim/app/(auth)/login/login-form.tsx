@@ -24,6 +24,7 @@ import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
+import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 
 const logger = createLogger('LoginForm')
 
@@ -105,7 +106,7 @@ export default function LoginPage({
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
-  const [buttonClass, setButtonClass] = useState('branded-button-gradient')
+  const buttonClass = useBrandedButtonClass()
   const [isButtonHovered, setIsButtonHovered] = useState(false)
 
   const [callbackUrl, setCallbackUrl] = useState('/workspace')
@@ -123,6 +124,7 @@ export default function LoginPage({
   const [email, setEmail] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
+  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -139,31 +141,11 @@ export default function LoginPage({
 
       const inviteFlow = searchParams.get('invite_flow') === 'true'
       setIsInviteFlow(inviteFlow)
-    }
 
-    const checkCustomBrand = () => {
-      const computedStyle = getComputedStyle(document.documentElement)
-      const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
-
-      if (brandAccent && brandAccent !== '#6f3dfa') {
-        setButtonClass('branded-button-custom')
-      } else {
-        setButtonClass('branded-button-gradient')
+      const resetSuccess = searchParams.get('resetSuccess') === 'true'
+      if (resetSuccess) {
+        setResetSuccessMessage('Password reset successful. Please sign in with your new password.')
       }
-    }
-
-    checkCustomBrand()
-
-    window.addEventListener('resize', checkCustomBrand)
-    const observer = new MutationObserver(checkCustomBrand)
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['style', 'class'],
-    })
-
-    return () => {
-      window.removeEventListener('resize', checkCustomBrand)
-      observer.disconnect()
     }
   }, [searchParams])
 
@@ -221,6 +203,7 @@ export default function LoginPage({
 
     try {
       const safeCallbackUrl = validateCallbackUrl(callbackUrl) ? callbackUrl : '/workspace'
+      let errorHandled = false
 
       const result = await client.signIn.email(
         {
@@ -231,11 +214,16 @@ export default function LoginPage({
         {
           onError: (ctx) => {
             logger.error('Login error:', ctx.error)
-            const errorMessage: string[] = ['Invalid email or password']
 
+            // EMAIL_NOT_VERIFIED is handled by the catch block which redirects to /verify
             if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {
+              errorHandled = true
               return
             }
+
+            errorHandled = true
+            const errorMessage: string[] = ['Invalid email or password']
+
             if (
               ctx.error.code?.includes('BAD_REQUEST') ||
               ctx.error.message?.includes('Email and password sign in is not enabled')
@@ -271,6 +259,7 @@ export default function LoginPage({
               errorMessage.push('Too many requests. Please wait a moment before trying again.')
             }
 
+            setResetSuccessMessage(null)
             setPasswordErrors(errorMessage)
             setShowValidationError(true)
           },
@@ -278,9 +267,22 @@ export default function LoginPage({
       )
 
       if (!result || result.error) {
+        // Show error if not already handled by onError callback
+        if (!errorHandled) {
+          setResetSuccessMessage(null)
+          const errorMessage = result?.error?.message || 'Login failed. Please try again.'
+          setPasswordErrors([errorMessage])
+          setShowValidationError(true)
+        }
         setIsLoading(false)
         return
       }
+
+      // Clear reset success message on successful login
+      setResetSuccessMessage(null)
+
+      // Explicit redirect fallback if better-auth doesn't redirect
+      router.push(safeCallbackUrl)
     } catch (err: any) {
       if (err.message?.includes('not verified') || err.code?.includes('EMAIL_NOT_VERIFIED')) {
         if (typeof window !== 'undefined') {
@@ -397,6 +399,13 @@ export default function LoginPage({
             variant='primary'
             primaryClassName={buttonClass}
           />
+        </div>
+      )}
+
+      {/* Password reset success message */}
+      {resetSuccessMessage && (
+        <div className={`${inter.className} mt-1 space-y-1 text-[#4CAF50] text-xs`}>
+          <p>{resetSuccessMessage}</p>
         </div>
       )}
 

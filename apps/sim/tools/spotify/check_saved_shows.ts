@@ -28,6 +28,7 @@ export const spotifyCheckSavedShowsTool: ToolConfig<
     showIds: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Comma-separated show IDs (max 50)',
     },
   },

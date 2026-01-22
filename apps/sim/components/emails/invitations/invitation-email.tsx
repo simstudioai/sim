@@ -36,7 +36,10 @@ export function InvitationEmail({
   }
 
   return (
-    <EmailLayout preview={`You've been invited to join ${organizationName} on ${brand.name}`}>
+    <EmailLayout
+      preview={`You've been invited to join ${organizationName} on ${brand.name}`}
+      showUnsubscribe={false}
+    >
       <Text style={baseStyles.paragraph}>Hello,</Text>
       <Text style={baseStyles.paragraph}>
         <strong>{inviterName}</strong> invited you to join <strong>{organizationName}</strong> on{' '}

@@ -6,7 +6,6 @@ interface UseTodoManagementProps {
   isSendingMessage: boolean
   showPlanTodos: boolean
   planTodos: Array<{ id: string; content: string; completed?: boolean }>
-  setPlanTodos: (todos: any[]) => void
 }
 
 /**
@@ -16,14 +15,12 @@ interface UseTodoManagementProps {
  * @returns Todo management utilities
  */
 export function useTodoManagement(props: UseTodoManagementProps) {
-  const { isSendingMessage, showPlanTodos, planTodos, setPlanTodos } = props
+  const { isSendingMessage, showPlanTodos, planTodos } = props
 
   const [todosCollapsed, setTodosCollapsed] = useState(false)
   const wasSendingRef = useRef(false)
 
-  /**
-   * Auto-collapse todos when stream completes. Do not prune items.
-   */
+  /** Auto-collapse todos when stream completes */
   useEffect(() => {
     if (wasSendingRef.current && !isSendingMessage && showPlanTodos) {
       setTodosCollapsed(true)
@@ -31,9 +28,7 @@ export function useTodoManagement(props: UseTodoManagementProps) {
     wasSendingRef.current = isSendingMessage
   }, [isSendingMessage, showPlanTodos])
 
-  /**
-   * Reset collapsed state when todos first appear
-   */
+  /** Reset collapsed state when todos first appear */
   useEffect(() => {
     if (showPlanTodos && planTodos.length > 0) {
       if (isSendingMessage) {

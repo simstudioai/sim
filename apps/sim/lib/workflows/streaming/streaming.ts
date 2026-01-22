@@ -7,6 +7,10 @@ import {
 import { encodeSSE } from '@/lib/core/utils/sse'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
+import {
+  cleanupExecutionBase64Cache,
+  hydrateUserFilesWithBase64,
+} from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 
@@ -26,6 +30,8 @@ export interface StreamingConfig {
   selectedOutputs?: string[]
   isSecureMode?: boolean
   workflowTriggerType?: 'api' | 'chat'
+  includeFileBase64?: boolean
+  base64MaxBytes?: number
 }
 
 export interface StreamingResponseOptions {
@@ -57,12 +63,14 @@ function isDangerousKey(key: string): boolean {
   return DANGEROUS_KEYS.includes(key)
 }
 
-function buildMinimalResult(
+async function buildMinimalResult(
   result: ExecutionResult,
   selectedOutputs: string[] | undefined,
   streamedContent: Map<string, string>,
-  requestId: string
-): { success: boolean; error?: string; output: Record<string, unknown> } {
+  requestId: string,
+  includeFileBase64: boolean,
+  base64MaxBytes: number | undefined
+): Promise<{ success: boolean; error?: string; output: Record<string, unknown> }> {
   const minimalResult = {
     success: result.success,
     error: result.error,
@@ -223,6 +231,9 @@ export async function createStreamingResponse(
         }
       }
 
+      const includeFileBase64 = streamConfig.includeFileBase64 ?? true
+      const base64MaxBytes = streamConfig.base64MaxBytes
+
       const onBlockCompleteCallback = async (blockId: string, output: unknown) => {
         if (!streamConfig.selectedOutputs?.length) {
           return
@@ -241,8 +252,17 @@ export async function createStreamingResponse(
           const outputValue = extractOutputValue(output, path)
 
           if (outputValue !== undefined) {
+            const hydratedOutput = includeFileBase64
+              ? await hydrateUserFilesWithBase64(outputValue, {
+                  requestId,
+                  executionId,
+                  maxBytes: base64MaxBytes,
+                })
+              : outputValue
             const formattedOutput =
-              typeof outputValue === 'string' ? outputValue : JSON.stringify(outputValue, null, 2)
+              typeof hydratedOutput === 'string'
+                ? hydratedOutput
+                : JSON.stringify(hydratedOutput, null, 2)
             sendChunk(blockId, formattedOutput)
           }
         }
@@ -262,6 +282,8 @@ export async function createStreamingResponse(
             onStream: onStreamCallback,
             onBlockComplete: onBlockCompleteCallback,
             skipLoggingComplete: true,
+            includeFileBase64: streamConfig.includeFileBase64,
+            base64MaxBytes: streamConfig.base64MaxBytes,
           },
           executionId
         )
@@ -273,21 +295,33 @@ export async function createStreamingResponse(
 
         await completeLoggingSession(result)
 
-        const minimalResult = buildMinimalResult(
+        const minimalResult = await buildMinimalResult(
           result,
           streamConfig.selectedOutputs,
           state.streamedContent,
-          requestId
+          requestId,
+          streamConfig.includeFileBase64 ?? true,
+          streamConfig.base64MaxBytes
         )
 
         controller.enqueue(encodeSSE({ event: 'final', data: minimalResult }))
         controller.enqueue(encodeSSE('[DONE]'))
+
+        if (executionId) {
+          await cleanupExecutionBase64Cache(executionId)
+        }
+
         controller.close()
       } catch (error: any) {
         logger.error(`[${requestId}] Stream error:`, error)
         controller.enqueue(
           encodeSSE({ event: 'error', error: error.message || 'Stream processing error' })
         )
+
+        if (executionId) {
+          await cleanupExecutionBase64Cache(executionId)
+        }
+
         controller.close()
       }
     },

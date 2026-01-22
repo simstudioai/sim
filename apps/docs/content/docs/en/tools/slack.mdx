@@ -84,9 +84,10 @@ Send messages to Slack channels or direct messages. Supports Slack mrkdwn format
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `destinationType` | string | No | Destination type: channel or dm |
 | `botToken` | string | No | Bot token for Custom Bot |
 | `channel` | string | No | Target Slack channel \(e.g., #general\) |
-| `userId` | string | No | Target Slack user ID for direct messages \(e.g., U1234567890\) |
+| `dmUserId` | string | No | Target Slack user for direct messages |
 | `text` | string | Yes | Message text to send \(supports Slack mrkdwn formatting\) |
 | `thread_ts` | string | No | Thread timestamp to reply to \(creates thread reply\) |
 | `files` | file[] | No | Files to attach to the message |
@@ -132,9 +133,10 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `destinationType` | string | No | Destination type: channel or dm |
 | `botToken` | string | No | Bot token for Custom Bot |
 | `channel` | string | No | Slack channel to read messages from \(e.g., #general\) |
-| `userId` | string | No | User ID for DM conversation \(e.g., U1234567890\) |
+| `dmUserId` | string | No | Target Slack user for DM conversation |
 | `limit` | number | No | Number of messages to retrieve \(default: 10, max: 15\) |
 | `oldest` | string | No | Start of time range \(timestamp\) |
 | `latest` | string | No | End of time range \(timestamp\) |

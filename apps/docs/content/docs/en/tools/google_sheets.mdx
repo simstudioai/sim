@@ -28,7 +28,7 @@ In Sim, the Google Sheets integration empowers your agents to automate reading f
 
 ## Usage Instructions
 
-Integrate Google Sheets into the workflow with explicit sheet selection. Can read, write, append, and update data in specific sheets.
+Integrate Google Sheets into the workflow with explicit sheet selection. Can read, write, append, update, clear data, create spreadsheets, get spreadsheet info, and copy sheets.
 
 
 
@@ -42,9 +42,8 @@ Read data from a specific sheet in a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Yes | The ID of the spreadsheet |
-| `sheetName` | string | Yes | The name of the sheet/tab to read from |
-| `cellRange` | string | No | The cell range to read \(e.g. "A1:D10"\). Defaults to "A1:Z1000" if not specified. |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet \(found in the URL: docs.google.com/spreadsheets/d/\{SPREADSHEET_ID\}/edit\). |
+| `range` | string | No | The A1 notation range to read \(e.g. "Sheet1!A1:D10", "A1:B5"\). Defaults to first sheet A1:Z1000 if not specified. |
 
 #### Output
 
@@ -66,8 +65,7 @@ Write data to a specific sheet in a Google Sheets spreadsheet
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet |
-| `sheetName` | string | Yes | The name of the sheet/tab to write to |
-| `cellRange` | string | No | The cell range to write to \(e.g. "A1:D10", "A1"\). Defaults to "A1" if not specified. |
+| `range` | string | No | The A1 notation range to write to \(e.g. "Sheet1!A1:D10", "A1:B5"\) |
 | `values` | array | Yes | The data to write as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
 | `valueInputOption` | string | No | The format of the data to write |
 | `includeValuesInResponse` | boolean | No | Whether to include the written values in the response |
@@ -93,8 +91,7 @@ Update data in a specific sheet in a Google Sheets spreadsheet
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet to update |
-| `sheetName` | string | Yes | The name of the sheet/tab to update |
-| `cellRange` | string | No | The cell range to update \(e.g. "A1:D10", "A1"\). Defaults to "A1" if not specified. |
+| `range` | string | No | The A1 notation range to update \(e.g. "Sheet1!A1:D10", "A1:B5"\) |
 | `values` | array | Yes | The data to update as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\]\]\) or array of objects. |
 | `valueInputOption` | string | No | The format of the data to update |
 | `includeValuesInResponse` | boolean | No | Whether to include the updated values in the response |
@@ -120,7 +117,7 @@ Append data to the end of a specific sheet in a Google Sheets spreadsheet
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet to append to |
-| `sheetName` | string | Yes | The name of the sheet/tab to append to |
+| `range` | string | No | The A1 notation range to append after \(e.g. "Sheet1", "Sheet1!A:D"\) |
 | `values` | array | Yes | The data to append as a 2D array \(e.g. \[\["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
 | `valueInputOption` | string | No | The format of the data to append |
 | `insertDataOption` | string | No | How to insert the data \(OVERWRITE or INSERT_ROWS\) |
@@ -138,5 +135,181 @@ Append data to the end of a specific sheet in a Google Sheets spreadsheet
 | `metadata` | json | Spreadsheet metadata including ID and URL |
 | ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 | ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+### `google_sheets_clear`
+
+Clear values from a specific range in a Google Sheets spreadsheet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet |
+| `sheetName` | string | Yes | The name of the sheet/tab to clear |
+| `cellRange` | string | No | The cell range to clear \(e.g. "A1:D10"\). Clears entire sheet if not specified. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `clearedRange` | string | The range that was cleared |
+| `sheetName` | string | Name of the sheet that was cleared |
+| `metadata` | json | Spreadsheet metadata including ID and URL |
+| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+### `google_sheets_get_spreadsheet`
+
+Get metadata about a Google Sheets spreadsheet including title and sheet list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet |
+| `includeGridData` | boolean | No | Whether to include grid data \(cell values\). Defaults to false. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | The spreadsheet ID |
+| `title` | string | The title of the spreadsheet |
+| `locale` | string | The locale of the spreadsheet |
+| `timeZone` | string | The time zone of the spreadsheet |
+| `spreadsheetUrl` | string | URL to the spreadsheet |
+| `sheets` | array | List of sheets in the spreadsheet |
+|   ↳ `sheetId` | number | The sheet ID |
+|   ↳ `title` | string | The sheet title/name |
+|   ↳ `index` | number | The sheet index \(position\) |
+|   ↳ `rowCount` | number | Number of rows in the sheet |
+|   ↳ `columnCount` | number | Number of columns in the sheet |
+|   ↳ `hidden` | boolean | Whether the sheet is hidden |
+
+### `google_sheets_create_spreadsheet`
+
+Create a new Google Sheets spreadsheet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | The title of the new spreadsheet |
+| `sheetTitles` | json | No | Array of sheet names to create \(e.g., \["Sheet1", "Data", "Summary"\]\). Defaults to a single "Sheet1". |
+| `locale` | string | No | The locale of the spreadsheet \(e.g., "en_US"\) |
+| `timeZone` | string | No | The time zone of the spreadsheet \(e.g., "America/New_York"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | The ID of the created spreadsheet |
+| `title` | string | The title of the created spreadsheet |
+| `spreadsheetUrl` | string | URL to the created spreadsheet |
+| `sheets` | array | List of sheets created in the spreadsheet |
+|   ↳ `sheetId` | number | The sheet ID |
+|   ↳ `title` | string | The sheet title/name |
+|   ↳ `index` | number | The sheet index \(position\) |
+
+### `google_sheets_batch_get`
+
+Read multiple ranges from a Google Sheets spreadsheet in a single request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet |
+| `ranges` | json | Yes | Array of ranges to read \(e.g., \["Sheet1!A1:D10", "Sheet2!A1:B5"\]\). Each range should include sheet name. |
+| `majorDimension` | string | No | The major dimension of values: "ROWS" \(default\) or "COLUMNS" |
+| `valueRenderOption` | string | No | How values should be rendered: "FORMATTED_VALUE" \(default\), "UNFORMATTED_VALUE", or "FORMULA" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | The spreadsheet ID |
+| `valueRanges` | array | Array of value ranges read from the spreadsheet |
+|   ↳ `range` | string | The range that was read |
+|   ↳ `majorDimension` | string | Major dimension \(ROWS or COLUMNS\) |
+|   ↳ `values` | array | The cell values as a 2D array |
+| `metadata` | json | Spreadsheet metadata including ID and URL |
+| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+### `google_sheets_batch_update`
+
+Update multiple ranges in a Google Sheets spreadsheet in a single request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet |
+| `data` | json | Yes | Array of value ranges to update. Each item should have "range" \(e.g., "Sheet1!A1:D10"\) and "values" \(2D array\). |
+| `valueInputOption` | string | No | How input data should be interpreted: "RAW" or "USER_ENTERED" \(default\). USER_ENTERED parses formulas. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | The spreadsheet ID |
+| `totalUpdatedRows` | number | Total number of rows updated |
+| `totalUpdatedColumns` | number | Total number of columns updated |
+| `totalUpdatedCells` | number | Total number of cells updated |
+| `totalUpdatedSheets` | number | Total number of sheets updated |
+| `responses` | array | Array of update responses for each range |
+|   ↳ `spreadsheetId` | string | The spreadsheet ID |
+|   ↳ `updatedRange` | string | The range that was updated |
+|   ↳ `updatedRows` | number | Number of rows updated in this range |
+|   ↳ `updatedColumns` | number | Number of columns updated in this range |
+|   ↳ `updatedCells` | number | Number of cells updated in this range |
+| `metadata` | json | Spreadsheet metadata including ID and URL |
+| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+### `google_sheets_batch_clear`
+
+Clear multiple ranges in a Google Sheets spreadsheet in a single request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet |
+| `ranges` | json | Yes | Array of ranges to clear \(e.g., \["Sheet1!A1:D10", "Sheet2!A1:B5"\]\). Each range should include sheet name. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | The spreadsheet ID |
+| `clearedRanges` | array | Array of ranges that were cleared |
+| `metadata` | json | Spreadsheet metadata including ID and URL |
+| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+### `google_sheets_copy_sheet`
+
+Copy a sheet from one spreadsheet to another
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sourceSpreadsheetId` | string | Yes | The ID of the source spreadsheet |
+| `sheetId` | number | Yes | The ID of the sheet to copy \(numeric ID, not the sheet name\). Use Get Spreadsheet to find sheet IDs. |
+| `destinationSpreadsheetId` | string | Yes | The ID of the destination spreadsheet where the sheet will be copied |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sheetId` | number | The ID of the newly created sheet in the destination |
+| `title` | string | The title of the copied sheet |
+| `index` | number | The index \(position\) of the copied sheet |
+| `sheetType` | string | The type of the sheet \(GRID, CHART, etc.\) |
+| `destinationSpreadsheetId` | string | The ID of the destination spreadsheet |
+| `destinationSpreadsheetUrl` | string | URL to the destination spreadsheet |
 
 

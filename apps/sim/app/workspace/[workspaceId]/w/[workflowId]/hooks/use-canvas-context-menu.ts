@@ -8,13 +8,14 @@ type MenuType = 'block' | 'pane' | null
 interface UseCanvasContextMenuProps {
   blocks: Record<string, BlockState>
   getNodes: () => Node[]
+  setNodes: (updater: (nodes: Node[]) => Node[]) => void
 }
 
 /**
  * Hook for managing workflow canvas context menus.
  * Handles right-click events, menu state, click-outside detection, and block info extraction.
  */
-export function useCanvasContextMenu({ blocks, getNodes }: UseCanvasContextMenuProps) {
+export function useCanvasContextMenu({ blocks, getNodes, setNodes }: UseCanvasContextMenuProps) {
   const [activeMenu, setActiveMenu] = useState<MenuType>(null)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [selectedBlocks, setSelectedBlocks] = useState<BlockInfo[]>([])
@@ -44,14 +45,26 @@ export function useCanvasContextMenu({ blocks, getNodes }: UseCanvasContextMenuP
       event.preventDefault()
       event.stopPropagation()
 
+      const isMultiSelect = event.shiftKey || event.metaKey || event.ctrlKey
+      setNodes((nodes) =>
+        nodes.map((n) => ({
+          ...n,
+          selected: isMultiSelect ? (n.id === node.id ? true : n.selected) : n.id === node.id,
+        }))
+      )
+
       const selectedNodes = getNodes().filter((n) => n.selected)
-      const nodesToUse = selectedNodes.some((n) => n.id === node.id) ? selectedNodes : [node]
+      const nodesToUse = isMultiSelect
+        ? selectedNodes.some((n) => n.id === node.id)
+          ? selectedNodes
+          : [...selectedNodes, node]
+        : [node]
 
       setPosition({ x: event.clientX, y: event.clientY })
       setSelectedBlocks(nodesToBlockInfos(nodesToUse))
       setActiveMenu('block')
     },
-    [getNodes, nodesToBlockInfos]
+    [getNodes, nodesToBlockInfos, setNodes]
   )
 
   const handlePaneContextMenu = useCallback((event: React.MouseEvent) => {

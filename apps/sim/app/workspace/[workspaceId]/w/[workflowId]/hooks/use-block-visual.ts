@@ -50,8 +50,18 @@ export function useBlockVisual({
   } = useBlockState(blockId, currentWorkflow, data)
 
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
-  const activeTab = usePanelStore((state) => state.activeTab)
-  const isEditorOpen = !isPreview && currentBlockId === blockId && activeTab === 'editor'
+
+  const isThisBlockInEditor = currentBlockId === blockId
+  const activeTabIsEditor = usePanelStore(
+    useCallback(
+      (state) => {
+        if (isPreview || !isThisBlockInEditor) return false
+        return state.activeTab === 'editor'
+      },
+      [isPreview, isThisBlockInEditor]
+    )
+  )
+  const isEditorOpen = !isPreview && isThisBlockInEditor && activeTabIsEditor
 
   const lastRunPath = useExecutionStore((state) => state.lastRunPath)
   const runPathStatus = isPreview ? undefined : lastRunPath.get(blockId)

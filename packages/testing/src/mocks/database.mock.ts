@@ -5,11 +5,29 @@ import { vi } from 'vitest'
  * Mimics drizzle-orm's sql tagged template.
  */
 export function createMockSql() {
-  return (strings: TemplateStringsArray, ...values: any[]) => ({
+  const sqlFn = (strings: TemplateStringsArray, ...values: any[]) => ({
     strings,
     values,
     toSQL: () => ({ sql: strings.join('?'), params: values }),
   })
+
+  // Add sql.raw method used by some queries
+  sqlFn.raw = (rawSql: string) => ({
+    rawSql,
+    toSQL: () => ({ sql: rawSql, params: [] }),
+  })
+
+  // Add sql.join method used to combine multiple SQL fragments
+  sqlFn.join = (fragments: any[], separator: any) => ({
+    fragments,
+    separator,
+    toSQL: () => ({
+      sql: fragments.map((f) => f?.toSQL?.()?.sql || String(f)).join(separator?.rawSql || ', '),
+      params: fragments.flatMap((f) => f?.toSQL?.()?.params || []),
+    }),
+  })
+
+  return sqlFn
 }
 
 /**

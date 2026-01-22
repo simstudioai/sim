@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { usePanelEditorStore } from '@/stores/panel'
 
 /**
@@ -27,7 +28,12 @@ interface UseConnectionsResizeProps {
  * @returns Object containing resize handler
  */
 export function useConnectionsResize({ subBlocksRef }: UseConnectionsResizeProps) {
-  const { connectionsHeight, setConnectionsHeight } = usePanelEditorStore()
+  const { connectionsHeight, setConnectionsHeight } = usePanelEditorStore(
+    useShallow((state) => ({
+      connectionsHeight: state.connectionsHeight,
+      setConnectionsHeight: state.setConnectionsHeight,
+    }))
+  )
 
   const [isResizing, setIsResizing] = useState(false)
   const startYRef = useRef<number>(0)

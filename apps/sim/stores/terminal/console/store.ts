@@ -2,10 +2,11 @@ import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { createJSONStorage, devtools, persist } from 'zustand/middleware'
 import { redactApiKeys } from '@/lib/core/security/redaction'
+import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import type { NormalizedBlockOutput } from '@/executor/types'
+import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/general-settings'
 import { useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
-import { useGeneralStore } from '@/stores/settings/general'
 import { indexedDBStorage } from '@/stores/terminal/console/storage'
 import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from '@/stores/terminal/console/types'
 
@@ -153,18 +154,22 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           const newEntry = get().entries[0]
 
           if (newEntry?.error) {
-            const { isErrorNotificationsEnabled } = useGeneralStore.getState()
+            const settings = getQueryClient().getQueryData<GeneralSettings>(
+              generalSettingsKeys.settings()
+            )
+            const isErrorNotificationsEnabled = settings?.errorNotificationsEnabled ?? true
 
             if (isErrorNotificationsEnabled) {
               try {
                 const errorMessage = String(newEntry.error)
                 const blockName = newEntry.blockName || 'Unknown Block'
+                const displayMessage = `${blockName}: ${errorMessage}`
 
                 const copilotMessage = `${errorMessage}\n\nError in ${blockName}.\n\nPlease fix this.`
 
                 useNotificationStore.getState().addNotification({
                   level: 'error',
-                  message: errorMessage,
+                  message: displayMessage,
                   workflowId: entry.workflowId,
                   action: {
                     type: 'copilot',

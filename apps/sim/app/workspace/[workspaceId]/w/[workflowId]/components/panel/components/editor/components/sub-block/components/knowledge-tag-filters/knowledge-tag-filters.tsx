@@ -40,6 +40,7 @@ interface KnowledgeTagFiltersProps {
   disabled?: boolean
   isPreview?: boolean
   previewValue?: string | null
+  previewContextValues?: Record<string, unknown>
 }
 
 /**
@@ -60,14 +61,19 @@ export function KnowledgeTagFilters({
   disabled = false,
   isPreview = false,
   previewValue,
+  previewContextValues,
 }: KnowledgeTagFiltersProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
   const emitTagSelection = useTagSelection(blockId, subBlock.id)
   const valueInputRefs = useRef<Record<string, HTMLInputElement>>({})
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
 
-  const [knowledgeBaseIdValue] = useSubBlockValue(blockId, 'knowledgeBaseId')
-  const knowledgeBaseId = knowledgeBaseIdValue || null
+  const [knowledgeBaseIdFromStore] = useSubBlockValue(blockId, 'knowledgeBaseId')
+  const knowledgeBaseIdValue = previewContextValues?.knowledgeBaseId ?? knowledgeBaseIdFromStore
+  const knowledgeBaseId =
+    typeof knowledgeBaseIdValue === 'string' && knowledgeBaseIdValue.trim().length > 0
+      ? knowledgeBaseIdValue
+      : null
 
   const { tagDefinitions, isLoading } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
@@ -123,11 +129,16 @@ export function KnowledgeTagFilters({
   }
 
   /**
-   * Removes a filter by ID (prevents removing the last filter)
+   * Removes a filter by ID, or resets it if it's the last one
    */
   const removeFilter = (id: string) => {
-    if (isReadOnly || filters.length === 1) return
-    updateFilters(filters.filter((f) => f.id !== id))
+    if (isReadOnly) return
+    if (filters.length === 1) {
+      // Reset the last filter instead of removing it
+      updateFilters([createDefaultFilter()])
+    } else {
+      updateFilters(filters.filter((f) => f.id !== id))
+    }
   }
 
   /**
@@ -215,6 +226,7 @@ export function KnowledgeTagFilters({
 
   /**
    * Renders the filter header with name, badge, and action buttons
+   * Shows tag name only when collapsed (as summary), generic label when expanded
    */
   const renderFilterHeader = (filter: TagFilter, index: number) => (
     <div
@@ -223,9 +235,11 @@ export function KnowledgeTagFilters({
     >
       <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
         <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
-          {filter.tagName || `Filter ${index + 1}`}
+          {filter.collapsed ? filter.tagName || `Filter ${index + 1}` : `Filter ${index + 1}`}
         </span>
-        {filter.tagName && <Badge size='sm'>{FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}</Badge>}
+        {filter.collapsed && filter.tagName && (
+          <Badge size='sm'>{FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}</Badge>
+        )}
       </div>
       <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
         <Button variant='ghost' onClick={addFilter} disabled={isReadOnly} className='h-auto p-0'>
@@ -235,7 +249,7 @@ export function KnowledgeTagFilters({
         <Button
           variant='ghost'
           onClick={() => removeFilter(filter.id)}
-          disabled={isReadOnly || filters.length === 1}
+          disabled={isReadOnly}
           className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
         >
           <Trash className='h-[14px] w-[14px]' />
@@ -324,7 +338,7 @@ export function KnowledgeTagFilters({
   const renderFilterContent = (filter: TagFilter) => {
     const tagOptions: ComboboxOption[] = tagDefinitions.map((tag) => ({
       value: tag.displayName,
-      label: `${tag.displayName} (${FIELD_TYPE_LABELS[tag.fieldType] || 'Text'})`,
+      label: tag.displayName,
     }))
 
     const operators = getOperatorsForFieldType(filter.fieldType)

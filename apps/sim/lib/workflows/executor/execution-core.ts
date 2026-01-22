@@ -37,12 +37,10 @@ export interface ExecuteWorkflowCoreOptions {
   snapshot: ExecutionSnapshot
   callbacks: ExecutionCallbacks
   loggingSession: LoggingSession
-  skipLogCreation?: boolean // For resume executions - reuse existing log entry
-  /**
-   * AbortSignal for cancellation support.
-   * When aborted (e.g., client disconnects from SSE), execution stops gracefully.
-   */
+  skipLogCreation?: boolean
   abortSignal?: AbortSignal
+  includeFileBase64?: boolean
+  base64MaxBytes?: number
 }
 
 function parseVariableValueByType(value: unknown, type: string): unknown {
@@ -109,7 +107,15 @@ function parseVariableValueByType(value: unknown, type: string): unknown {
 export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
-  const { snapshot, callbacks, loggingSession, skipLogCreation, abortSignal } = options
+  const {
+    snapshot,
+    callbacks,
+    loggingSession,
+    skipLogCreation,
+    abortSignal,
+    includeFileBase64,
+    base64MaxBytes,
+  } = options
   const { metadata, workflow, input, workflowVariables, selectedOutputs } = snapshot
   const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
     metadata
@@ -318,7 +324,7 @@ export async function executeWorkflowCore(
       executionId,
       workspaceId: providedWorkspaceId,
       userId,
-      isDeployedContext: triggerType !== 'manual',
+      isDeployedContext: !metadata.isClientSession,
       onBlockStart,
       onBlockComplete: wrappedOnBlockComplete,
       onStream,
@@ -334,6 +340,8 @@ export async function executeWorkflowCore(
       snapshotState: snapshot.state,
       metadata,
       abortSignal,
+      includeFileBase64,
+      base64MaxBytes,
     }
 
     const executorInstance = new Executor({

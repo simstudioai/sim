@@ -26,6 +26,7 @@ export const polymarketGetTickSizeTool: ToolConfig<
       type: 'string',
       required: true,
       description: 'The CLOB token ID (from market clobTokenIds)',
+      visibility: 'user-or-llm',
     },
   },
 

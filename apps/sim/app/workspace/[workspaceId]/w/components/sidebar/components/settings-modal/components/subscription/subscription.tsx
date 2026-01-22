@@ -32,11 +32,13 @@ import {
   UsageLimit,
   type UsageLimitRef,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/usage-limit'
-import { useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
+import {
+  useBillingUsageNotifications,
+  useUpdateGeneralSetting,
+} from '@/hooks/queries/general-settings'
 import { useOrganizationBilling, useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData, useUsageLimitData } from '@/hooks/queries/subscription'
 import { useUpdateWorkspaceSettings, useWorkspaceSettings } from '@/hooks/queries/workspace'
-import { useGeneralStore } from '@/stores/settings/general'
 
 const CONSTANTS = {
   UPGRADE_ERROR_TIMEOUT: 3000, // 3 seconds
@@ -627,7 +629,7 @@ export function Subscription() {
 }
 
 function BillingUsageNotificationsToggle() {
-  const enabled = useGeneralStore((s) => s.isBillingUsageNotificationsEnabled)
+  const enabled = useBillingUsageNotifications()
   const updateSetting = useUpdateGeneralSetting()
   const isLoading = updateSetting.isPending
 

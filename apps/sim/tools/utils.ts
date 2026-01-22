@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { AGENT, isCustomTool } from '@/executor/constants'
-import { useCustomToolsStore } from '@/stores/custom-tools'
+import { getCustomTool } from '@/hooks/queries/custom-tools'
 import { useEnvironmentStore } from '@/stores/settings/environment'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import { tools } from '@/tools/registry'
-import type { TableRow, ToolConfig, ToolResponse } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 const logger = createLogger('ToolsUtils')
 
@@ -68,30 +68,6 @@ export function resolveToolId(toolName: string): string {
   }
 
   return toolName
-}
-
-/**
- * Transforms a table from the store format to a key-value object
- * @param table Array of table rows from the store
- * @returns Record of key-value pairs
- */
-export const transformTable = (table: TableRow[] | null): Record<string, any> => {
-  if (!table) return {}
-
-  return table.reduce(
-    (acc, row) => {
-      if (row.cells?.Key && row.cells?.Value !== undefined) {
-        // Extract the Value cell as is - it should already be properly resolved
-        // by the InputResolver based on variable type (number, string, boolean etc.)
-        const value = row.cells.Value
-
-        // Store the correctly typed value in the result object
-        acc[row.cells.Key] = value
-      }
-      return acc
-    },
-    {} as Record<string, any>
-  )
 }
 
 interface RequestParams {
@@ -359,17 +335,10 @@ export function getTool(toolId: string): ToolConfig | undefined {
   // Check if it's a custom tool
   if (isCustomTool(toolId) && typeof window !== 'undefined') {
     // Only try to use the sync version on the client
-    const customToolsStore = useCustomToolsStore.getState()
     const identifier = toolId.slice(AGENT.CUSTOM_TOOL_PREFIX.length)
 
-    // Try to find the tool directly by ID first
-    let customTool = customToolsStore.getTool(identifier)
-
-    // If not found by ID, try to find by title (for backward compatibility)
-    if (!customTool) {
-      const allTools = customToolsStore.getAllTools()
-      customTool = allTools.find((tool) => tool.title === identifier)
-    }
+    // Try to find the tool from query cache (extracts workspaceId from URL)
+    const customTool = getCustomTool(identifier)
 
     if (customTool) {
       return createToolConfig(customTool, toolId)
@@ -391,7 +360,7 @@ export async function getToolAsync(
 
   // Check if it's a custom tool
   if (isCustomTool(toolId)) {
-    return getCustomTool(toolId, workflowId)
+    return fetchCustomToolFromAPI(toolId, workflowId)
   }
 
   return undefined
@@ -435,8 +404,8 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
   }
 }
 
-// Create a tool config from a custom tool definition
-async function getCustomTool(
+// Create a tool config from a custom tool definition by fetching from API
+async function fetchCustomToolFromAPI(
   customToolId: string,
   workflowId?: string
 ): Promise<ToolConfig | undefined> {

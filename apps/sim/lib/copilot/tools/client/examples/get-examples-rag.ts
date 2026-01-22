@@ -26,21 +26,20 @@ export class GetExamplesRagClientTool extends BaseClientTool {
     getDynamicText: (params, state) => {
       if (params?.query && typeof params.query === 'string') {
         const query = params.query
-        const truncated = query.length > 40 ? `${query.slice(0, 40)}...` : query
 
         switch (state) {
           case ClientToolCallState.success:
-            return `Found examples for ${truncated}`
+            return `Found examples for ${query}`
           case ClientToolCallState.executing:
           case ClientToolCallState.generating:
           case ClientToolCallState.pending:
-            return `Searching examples for ${truncated}`
+            return `Searching examples for ${query}`
           case ClientToolCallState.error:
-            return `Failed to find examples for ${truncated}`
+            return `Failed to find examples for ${query}`
           case ClientToolCallState.aborted:
-            return `Aborted searching examples for ${truncated}`
+            return `Aborted searching examples for ${query}`
           case ClientToolCallState.rejected:
-            return `Skipped searching examples for ${truncated}`
+            return `Skipped searching examples for ${query}`
         }
       }
       return undefined

@@ -130,6 +130,7 @@ export interface Loop {
   forEachItems?: any[] | Record<string, any> | string // Items or expression
   whileCondition?: string // JS expression that evaluates to boolean (for while loops)
   doWhileCondition?: string // JS expression that evaluates to boolean (for do-while loops)
+  enabled: boolean
 }
 
 export interface Parallel {
@@ -138,6 +139,7 @@ export interface Parallel {
   distribution?: any[] | Record<string, any> | string // Items or expression
   count?: number // Number of parallel executions for count-based parallel
   parallelType?: 'count' | 'collection' // Explicit parallel type to avoid inference bugs
+  enabled: boolean
 }
 
 export interface Variable {
