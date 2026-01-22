@@ -118,7 +118,7 @@ export function getCustomTool(
   workspaceId?: string
 ): CustomToolDefinition | undefined {
   const tools = getCustomTools(workspaceId)
-  return tools.find((tool) => tool.id === toolId) || tools.find((tool) => tool.title === toolId)
+  return tools.find((tool) => tool.id === toolId)
 }
 
 /**
