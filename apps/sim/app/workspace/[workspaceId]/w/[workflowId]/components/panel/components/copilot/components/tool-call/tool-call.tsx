@@ -1412,10 +1412,13 @@ function RunSkipButtons({
     setIsProcessing(true)
     setButtonsHidden(true)
     try {
-      // Add to auto-allowed list first
+      // Add to auto-allowed list - this also executes all pending integration tools of this type
       await addAutoAllowedTool(toolCall.name)
-      // Then execute
-      await handleRun(toolCall, setToolCallState, onStateChange, editedParams)
+      // For client tools with interrupts (not integration tools), we still need to call handleRun
+      // since executeIntegrationTool only works for server-side tools
+      if (!isIntegrationTool(toolCall.name)) {
+        await handleRun(toolCall, setToolCallState, onStateChange, editedParams)
+      }
     } finally {
       setIsProcessing(false)
       actionInProgressRef.current = false
@@ -1438,10 +1441,10 @@ function RunSkipButtons({
 
   if (buttonsHidden) return null
 
-  // Hide "Always Allow" for integration tools (only show for client tools with interrupts)
-  const showAlwaysAllow = !isIntegrationTool(toolCall.name)
+  // Show "Always Allow" for all tools that require confirmation
+  const showAlwaysAllow = true
 
-  // Standardized buttons for all interrupt tools: Allow, (Always Allow for client tools only), Skip
+  // Standardized buttons for all interrupt tools: Allow, Always Allow, Skip
   return (
     <div className='mt-[10px] flex gap-[6px]'>
       <Button onClick={onRun} disabled={isProcessing} variant='tertiary'>
