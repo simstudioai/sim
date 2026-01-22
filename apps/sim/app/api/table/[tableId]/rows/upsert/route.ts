@@ -104,6 +104,13 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
 
     const now = new Date()
 
+    if (!existingRow && table.rowCount >= table.maxRows) {
+      return NextResponse.json(
+        { error: `Table row limit reached (${table.maxRows} rows max)` },
+        { status: 400 }
+      )
+    }
+
     const upsertResult = await db.transaction(async (trx) => {
       if (existingRow) {
         const [updatedRow] = await trx
