@@ -1425,12 +1425,7 @@ function RunSkipButtons({
     setIsProcessing(true)
     setButtonsHidden(true)
     try {
-      // Add to auto-allowed list - this also executes all pending integration tools of this type
-      console.log('[RunSkipButtons] Always Allow clicked for tool:', toolCall.name)
       await addAutoAllowedTool(toolCall.name)
-      console.log('[RunSkipButtons] addAutoAllowedTool completed for:', toolCall.name)
-      // For client tools with interrupts (not integration tools), we still need to call handleRun
-      // since executeIntegrationTool only works for server-side tools
       if (!isIntegrationTool(toolCall.name)) {
         await handleRun(toolCall, setToolCallState, onStateChange, editedParams)
       }
