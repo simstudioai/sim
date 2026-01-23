@@ -2116,6 +2116,24 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
                 })
               })
           }
+        } else {
+          // Check if this is an integration tool (server-side) that should be auto-executed
+          const isIntegrationTool = !CLASS_TOOL_METADATA[name]
+          if (isIntegrationTool && isSubAgentAutoAllowed) {
+            logger.info('[SubAgent] Auto-executing integration tool (auto-allowed)', {
+              id,
+              name,
+            })
+            // Execute integration tool via the store method
+            const { executeIntegrationTool } = get()
+            executeIntegrationTool(id).catch((err) => {
+              logger.error('[SubAgent] Integration tool auto-execution failed', {
+                id,
+                name,
+                error: err?.message || err,
+              })
+            })
+          }
         }
       }
     } catch (e: any) {
@@ -3923,11 +3941,16 @@ export const useCopilotStore = create<CopilotStore>()(
 
     loadAutoAllowedTools: async () => {
       try {
+        logger.info('[AutoAllowedTools] Loading from API...')
         const res = await fetch('/api/copilot/auto-allowed-tools')
+        logger.info('[AutoAllowedTools] Load response', { status: res.status, ok: res.ok })
         if (res.ok) {
           const data = await res.json()
-          set({ autoAllowedTools: data.autoAllowedTools || [] })
-          logger.info('[AutoAllowedTools] Loaded', { tools: data.autoAllowedTools })
+          const tools = data.autoAllowedTools || []
+          set({ autoAllowedTools: tools })
+          logger.info('[AutoAllowedTools] Loaded successfully', { count: tools.length, tools })
+        } else {
+          logger.warn('[AutoAllowedTools] Load failed with status', { status: res.status })
         }
       } catch (err) {
         logger.error('[AutoAllowedTools] Failed to load', { error: err })
@@ -3936,15 +3959,18 @@ export const useCopilotStore = create<CopilotStore>()(
 
     addAutoAllowedTool: async (toolId: string) => {
       try {
+        logger.info('[AutoAllowedTools] Adding tool...', { toolId })
         const res = await fetch('/api/copilot/auto-allowed-tools', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ toolId }),
         })
+        logger.info('[AutoAllowedTools] API response', { toolId, status: res.status, ok: res.ok })
         if (res.ok) {
           const data = await res.json()
+          logger.info('[AutoAllowedTools] API returned', { toolId, tools: data.autoAllowedTools })
           set({ autoAllowedTools: data.autoAllowedTools || [] })
-          logger.info('[AutoAllowedTools] Added tool', { toolId })
+          logger.info('[AutoAllowedTools] Added tool to store', { toolId })
 
           // Auto-execute all pending tools of the same type
           const { toolCallsById, executeIntegrationTool } = get()
