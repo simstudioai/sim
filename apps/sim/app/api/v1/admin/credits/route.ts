@@ -26,10 +26,12 @@
 import { db } from '@sim/db'
 import { organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { getPlanPricing } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { addCredits } from '@/lib/billing/credits/balance'
+import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
+import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -85,15 +87,20 @@ export const POST = withAdminAuth(async (request) => {
 
     const userSubscription = await getHighestPrioritySubscription(resolvedUserId)
 
+    if (!userSubscription || !['pro', 'team', 'enterprise'].includes(userSubscription.plan)) {
+      return badRequestResponse(
+        'User must have an active Pro, Team, or Enterprise subscription to receive credits'
+      )
+    }
+
     let entityType: 'user' | 'organization'
     let entityId: string
-    let plan: string
+    const plan = userSubscription.plan
     let seats: number | null = null
 
-    if (userSubscription?.plan === 'team' || userSubscription?.plan === 'enterprise') {
+    if (plan === 'team' || plan === 'enterprise') {
       entityType = 'organization'
       entityId = userSubscription.referenceId
-      plan = userSubscription.plan
 
       const [orgExists] = await db
         .select({ id: organization.id })
@@ -106,106 +113,67 @@ export const POST = withAdminAuth(async (request) => {
       }
 
       const [subData] = await db
-        .select({ seats: subscription.seats })
+        .select()
         .from(subscription)
         .where(and(eq(subscription.referenceId, entityId), eq(subscription.status, 'active')))
         .limit(1)
 
-      seats = subData?.seats ?? null
-    } else if (userSubscription?.plan === 'pro') {
+      seats = getEffectiveSeats(subData)
+    } else {
       entityType = 'user'
       entityId = resolvedUserId
-      plan = 'pro'
-    } else {
-      return badRequestResponse(
-        'User must have an active Pro or Team subscription to receive credits'
-      )
+
+      const [existingStats] = await db
+        .select({ id: userStats.id })
+        .from(userStats)
+        .where(eq(userStats.userId, entityId))
+        .limit(1)
+
+      if (!existingStats) {
+        await db.insert(userStats).values({
+          id: nanoid(),
+          userId: entityId,
+        })
+      }
     }
 
-    const { basePrice } = getPlanPricing(plan)
+    await addCredits(entityType, entityId, amount)
 
-    const result = await db.transaction(async (tx) => {
-      let newCreditBalance: number
-      let newUsageLimit: number
+    let newCreditBalance: number
+    if (entityType === 'organization') {
+      const [orgData] = await db
+        .select({ creditBalance: organization.creditBalance })
+        .from(organization)
+        .where(eq(organization.id, entityId))
+        .limit(1)
+      newCreditBalance = Number.parseFloat(orgData?.creditBalance || '0')
+    } else {
+      const [stats] = await db
+        .select({ creditBalance: userStats.creditBalance })
+        .from(userStats)
+        .where(eq(userStats.userId, entityId))
+        .limit(1)
+      newCreditBalance = Number.parseFloat(stats?.creditBalance || '0')
+    }
 
-      if (entityType === 'organization') {
-        await tx
-          .update(organization)
-          .set({ creditBalance: sql`${organization.creditBalance} + ${amount}` })
-          .where(eq(organization.id, entityId))
+    await setUsageLimitForCredits(entityType, entityId, plan, seats, newCreditBalance)
 
-        const [orgData] = await tx
-          .select({
-            creditBalance: organization.creditBalance,
-            orgUsageLimit: organization.orgUsageLimit,
-          })
-          .from(organization)
-          .where(eq(organization.id, entityId))
-          .limit(1)
-
-        newCreditBalance = Number.parseFloat(orgData?.creditBalance || '0')
-        const currentLimit = Number.parseFloat(orgData?.orgUsageLimit || '0')
-        const planBase = Number(basePrice) * (seats || 1)
-        const calculatedLimit = planBase + newCreditBalance
-
-        if (calculatedLimit > currentLimit) {
-          await tx
-            .update(organization)
-            .set({ orgUsageLimit: calculatedLimit.toString() })
-            .where(eq(organization.id, entityId))
-          newUsageLimit = calculatedLimit
-        } else {
-          newUsageLimit = currentLimit
-        }
-      } else {
-        const [existingStats] = await tx
-          .select({ id: userStats.id })
-          .from(userStats)
-          .where(eq(userStats.userId, entityId))
-          .limit(1)
-
-        if (!existingStats) {
-          await tx.insert(userStats).values({
-            id: nanoid(),
-            userId: entityId,
-            creditBalance: amount.toString(),
-          })
-        } else {
-          await tx
-            .update(userStats)
-            .set({ creditBalance: sql`${userStats.creditBalance} + ${amount}` })
-            .where(eq(userStats.userId, entityId))
-        }
-
-        const [stats] = await tx
-          .select({
-            creditBalance: userStats.creditBalance,
-            currentUsageLimit: userStats.currentUsageLimit,
-          })
-          .from(userStats)
-          .where(eq(userStats.userId, entityId))
-          .limit(1)
-
-        newCreditBalance = Number.parseFloat(stats?.creditBalance || '0')
-        const currentLimit = Number.parseFloat(stats?.currentUsageLimit || '0')
-        const planBase = Number(basePrice)
-        const calculatedLimit = planBase + newCreditBalance
-
-        if (calculatedLimit > currentLimit) {
-          await tx
-            .update(userStats)
-            .set({ currentUsageLimit: calculatedLimit.toString() })
-            .where(eq(userStats.userId, entityId))
-          newUsageLimit = calculatedLimit
-        } else {
-          newUsageLimit = currentLimit
-        }
-      }
-
-      return { newCreditBalance, newUsageLimit }
-    })
-
-    const { newCreditBalance, newUsageLimit } = result
+    let newUsageLimit: number
+    if (entityType === 'organization') {
+      const [orgData] = await db
+        .select({ orgUsageLimit: organization.orgUsageLimit })
+        .from(organization)
+        .where(eq(organization.id, entityId))
+        .limit(1)
+      newUsageLimit = Number.parseFloat(orgData?.orgUsageLimit || '0')
+    } else {
+      const [stats] = await db
+        .select({ currentUsageLimit: userStats.currentUsageLimit })
+        .from(userStats)
+        .where(eq(userStats.userId, entityId))
+        .limit(1)
+      newUsageLimit = Number.parseFloat(stats?.currentUsageLimit || '0')
+    }
 
     logger.info('Admin API: Issued credits', {
       resolvedUserId,
