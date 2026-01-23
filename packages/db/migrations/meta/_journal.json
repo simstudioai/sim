@@ -1023,6 +1023,13 @@
       "when": 1768867605608,
       "tag": "0146_cultured_ikaris",
       "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1769134350805,
+      "tag": "0147_rare_firebrand",
+      "breakpoints": true
     }
   ]
 }

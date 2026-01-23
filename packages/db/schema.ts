@@ -1656,20 +1656,13 @@ export const workflowDeploymentVersion = pgTable(
 export const idempotencyKey = pgTable(
   'idempotency_key',
   {
-    key: text('key').notNull(),
-    namespace: text('namespace').notNull().default('default'),
+    key: text('key').primaryKey(),
     result: json('result').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    // Primary key is combination of key and namespace
-    keyNamespacePk: uniqueIndex('idempotency_key_namespace_unique').on(table.key, table.namespace),
-
     // Index for cleanup operations by creation time
     createdAtIdx: index('idempotency_key_created_at_idx').on(table.createdAt),
-
-    // Index for namespace-based queries
-    namespaceIdx: index('idempotency_key_namespace_idx').on(table.namespace),
   })
 )
 
