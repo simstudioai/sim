@@ -38,6 +38,7 @@ import type { GenerationType } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
+import { createShouldHighlightEnvVar, useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 
 const logger = createLogger('Code')
 
@@ -88,21 +89,28 @@ interface CodePlaceholder {
 /**
  * Creates a syntax highlighter function with custom reference and environment variable highlighting.
  * @param effectiveLanguage - The language to use for syntax highlighting
- * @param shouldHighlightReference - Function to determine if a reference should be highlighted
+ * @param shouldHighlightReference - Function to determine if a block reference should be highlighted
+ * @param shouldHighlightEnvVar - Function to determine if an env var should be highlighted
  * @returns A function that highlights code with syntax and custom highlights
  */
 const createHighlightFunction = (
   effectiveLanguage: 'javascript' | 'python' | 'json',
-  shouldHighlightReference: (part: string) => boolean
+  shouldHighlightReference: (part: string) => boolean,
+  shouldHighlightEnvVar: (varName: string) => boolean
 ) => {
   return (codeToHighlight: string): string => {
     const placeholders: CodePlaceholder[] = []
     let processedCode = codeToHighlight
 
     processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
-      const placeholder = `__ENV_VAR_${placeholders.length}__`
-      placeholders.push({ placeholder, original: match, type: 'env' })
-      return placeholder
+      // Extract var name from {{VAR_NAME}}
+      const varName = match.slice(2, -2).trim()
+      if (shouldHighlightEnvVar(varName)) {
+        const placeholder = `__ENV_VAR_${placeholders.length}__`
+        placeholders.push({ placeholder, original: match, type: 'env' })
+        return placeholder
+      }
+      return match
     })
 
     processedCode = processedCode.replace(createReferencePattern(), (match) => {
@@ -212,6 +220,7 @@ export const Code = memo(function Code({
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const emitTagSelection = useTagSelection(blockId, subBlockId)
   const [languageValue] = useSubBlockValue<string>(blockId, 'language')
+  const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
 
   const effectiveLanguage = (languageValue as 'javascript' | 'python' | 'json') || language
 
@@ -603,9 +612,15 @@ export const Code = memo(function Code({
     [generateCodeStream, isPromptVisible, isAiStreaming]
   )
 
+  const shouldHighlightEnvVar = useMemo(
+    () => createShouldHighlightEnvVar(availableEnvVars),
+    [availableEnvVars]
+  )
+
   const highlightCode = useMemo(
-    () => createHighlightFunction(effectiveLanguage, shouldHighlightReference),
-    [effectiveLanguage, shouldHighlightReference]
+    () =>
+      createHighlightFunction(effectiveLanguage, shouldHighlightReference, shouldHighlightEnvVar),
+    [effectiveLanguage, shouldHighlightReference, shouldHighlightEnvVar]
   )
 
   const handleValueChange = useCallback(
