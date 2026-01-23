@@ -46,22 +46,3 @@ export function createMcpToolId(serverId: string, toolName: string): string {
   const normalizedServerId = isMcpTool(serverId) ? serverId : `${MCP.TOOL_PREFIX}${serverId}`
   return `${normalizedServerId}-${toolName}`
 }
-
-/**
- * Parse an MCP tool ID back into server ID and tool name
- */
-export function parseMcpToolId(toolId: string): { serverId: string; toolName: string } {
-  // Remove the MCP tool prefix if present to get the base ID
-  const baseId = toolId.startsWith(MCP.TOOL_PREFIX) ? toolId.slice(MCP.TOOL_PREFIX.length) : toolId
-
-  // Find the last hyphen to split server ID and tool name
-  const lastHyphenIndex = baseId.lastIndexOf('-')
-  if (lastHyphenIndex === -1) {
-    return { serverId: baseId, toolName: '' }
-  }
-
-  const serverId = baseId.slice(0, lastHyphenIndex)
-  const toolName = baseId.slice(lastHyphenIndex + 1)
-
-  return { serverId, toolName }
-}
