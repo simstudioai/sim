@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -125,7 +125,10 @@ export function ConditionInput({
   const emitTagSelection = useTagSelection(blockId, subBlockId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
-  const shouldHighlightEnvVar = createShouldHighlightEnvVar(availableEnvVars)
+  const shouldHighlightEnvVar = useMemo(
+    () => createShouldHighlightEnvVar(availableEnvVars),
+    [availableEnvVars]
+  )
 
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map())

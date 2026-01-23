@@ -242,6 +242,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         historyId: existingConfig.historyId,
         lastCheckedTimestamp: existingConfig.lastCheckedTimestamp,
         setupCompleted: existingConfig.setupCompleted,
+        externalId: existingConfig.externalId,
       }
       for (const [key, value] of Object.entries(nextProviderConfig)) {
         if (!(key in originalProviderConfig)) {
