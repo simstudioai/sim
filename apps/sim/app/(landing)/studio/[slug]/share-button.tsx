@@ -14,12 +14,16 @@ export function ShareButton({ url, title }: ShareButtonProps) {
   const [copied, setCopied] = useState(false)
 
   const handleCopyLink = async () => {
-    await navigator.clipboard.writeText(url)
-    setCopied(true)
-    setTimeout(() => {
-      setCopied(false)
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => {
+        setCopied(false)
+        setOpen(false)
+      }, 1000)
+    } catch {
       setOpen(false)
-    }, 1000)
+    }
   }
 
   const handleShareTwitter = () => {

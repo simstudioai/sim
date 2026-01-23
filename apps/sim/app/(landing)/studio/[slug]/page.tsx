@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/emcn'
 import { FAQ } from '@/lib/blog/faq'
 import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/blog/registry'
 import { buildArticleJsonLd, buildBreadcrumbJsonLd, buildPostMetadata } from '@/lib/blog/seo'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { BackLink } from '@/app/(landing)/studio/[slug]/back-link'
 import { ShareButton } from '@/app/(landing)/studio/[slug]/share-button'
@@ -99,7 +100,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                   </div>
                 ))}
               </div>
-              <ShareButton url={`https://sim.ai/studio/${slug}`} title={post.title} />
+              <ShareButton url={`${getBaseUrl()}/studio/${slug}`} title={post.title} />
             </div>
           </div>
         </div>

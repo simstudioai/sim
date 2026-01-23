@@ -2,10 +2,8 @@ import clsx from 'clsx'
 import Image from 'next/image'
 import type { MDXRemoteProps } from 'next-mdx-remote/rsc'
 import { CodeBlock } from '@/lib/blog/code'
-import { DiffControlsDemo } from '@/content/blog/v0-5/components/diff-controls-demo'
 
 export const mdxComponents: MDXRemoteProps['components'] = {
-  DiffControlsDemo,
   img: (props: any) => (
     <Image
       src={props.src}
