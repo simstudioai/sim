@@ -2815,9 +2815,14 @@ export const useCopilotStore = create<CopilotStore>()(
           mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
 
         // Extract slash commands from contexts (lowercase) and filter them out from contexts
+        // Map UI command IDs to API command IDs (e.g., "actions" -> "superagent")
+        const uiToApiCommandMap: Record<string, string> = { actions: 'superagent' }
         const commands = contexts
           ?.filter((c) => c.kind === 'slash_command' && 'command' in c)
-          .map((c) => (c as any).command.toLowerCase()) as string[] | undefined
+          .map((c) => {
+            const uiCommand = (c as any).command.toLowerCase()
+            return uiToApiCommandMap[uiCommand] || uiCommand
+          }) as string[] | undefined
         const filteredContexts = contexts?.filter((c) => c.kind !== 'slash_command')
 
         const result = await sendStreamingMessage({

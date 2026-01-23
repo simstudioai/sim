@@ -209,8 +209,19 @@ export interface SlashCommand {
 export const TOP_LEVEL_COMMANDS: readonly SlashCommand[] = [
   { id: 'fast', label: 'Fast' },
   { id: 'research', label: 'Research' },
-  { id: 'superagent', label: 'Actions' },
+  { id: 'actions', label: 'Actions' },
 ] as const
+
+/**
+ * Maps UI command IDs to API command IDs.
+ * Some commands have different IDs for display vs API (e.g., "actions" -> "superagent")
+ */
+export function getApiCommandId(uiCommandId: string): string {
+  const commandMapping: Record<string, string> = {
+    actions: 'superagent',
+  }
+  return commandMapping[uiCommandId] || uiCommandId
+}
 
 export const WEB_COMMANDS: readonly SlashCommand[] = [
   { id: 'search', label: 'Search' },
