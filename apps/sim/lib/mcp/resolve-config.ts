@@ -35,6 +35,14 @@ export async function resolveMcpConfigEnvVars(
   const { strict = true } = options
   const allMissingVars: string[] = []
 
+  let envVars: Record<string, string> = {}
+  try {
+    envVars = await getEffectiveDecryptedEnv(userId, workspaceId)
+  } catch (error) {
+    logger.error('Failed to fetch environment variables for MCP config:', error)
+    return { config, missingVars: [] }
+  }
+
   const resolveValue = (value: string): string => {
     const missingVars: string[] = []
     const resolved = resolveEnvVarReferences(value, envVars, {
@@ -42,14 +50,6 @@ export async function resolveMcpConfigEnvVars(
     }) as string
     allMissingVars.push(...missingVars)
     return resolved
-  }
-
-  let envVars: Record<string, string> = {}
-  try {
-    envVars = await getEffectiveDecryptedEnv(userId, workspaceId)
-  } catch (error) {
-    logger.error('Failed to fetch environment variables for MCP config:', error)
-    return { config, missingVars: [] }
   }
 
   const resolvedConfig = { ...config }
