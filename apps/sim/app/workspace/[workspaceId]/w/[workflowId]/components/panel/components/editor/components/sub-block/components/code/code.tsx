@@ -103,7 +103,6 @@ const createHighlightFunction = (
     let processedCode = codeToHighlight
 
     processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
-      // Extract var name from {{VAR_NAME}}
       const varName = match.slice(2, -2).trim()
       if (shouldHighlightEnvVar(varName)) {
         const placeholder = `__ENV_VAR_${placeholders.length}__`
