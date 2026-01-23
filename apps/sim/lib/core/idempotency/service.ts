@@ -223,7 +223,7 @@ export class IdempotencyService {
         createdAt: new Date(),
       })
       .onConflictDoNothing({
-        target: idempotencyKey.key,
+        target: [idempotencyKey.key],
       })
       .returning({ key: idempotencyKey.key })
 
@@ -329,7 +329,7 @@ export class IdempotencyService {
         createdAt: new Date(),
       })
       .onConflictDoUpdate({
-        target: idempotencyKey.key,
+        target: [idempotencyKey.key],
         set: {
           result: result,
           createdAt: new Date(),
