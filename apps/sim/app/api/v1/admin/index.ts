@@ -63,6 +63,9 @@
  *   GET    /api/v1/admin/subscriptions/:id                  - Get subscription details
  *   DELETE /api/v1/admin/subscriptions/:id                  - Cancel subscription (?atPeriodEnd=true for scheduled)
  *
+ *   Credits:
+ *   POST   /api/v1/admin/credits                            - Issue credits to user (by userId or email)
+ *
  *   Access Control (Permission Groups):
  *   GET    /api/v1/admin/access-control                     - List permission groups (?organizationId=X)
  *   DELETE /api/v1/admin/access-control                     - Delete permission groups for org (?organizationId=X)
