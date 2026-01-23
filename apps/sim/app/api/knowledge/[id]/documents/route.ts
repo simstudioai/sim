@@ -346,8 +346,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             enabledFilter,
             requestId
           )
+        } else if (documentIds && documentIds.length > 0) {
+          result = await bulkDocumentOperation(knowledgeBaseId, operation, documentIds, requestId)
         } else {
-          result = await bulkDocumentOperation(knowledgeBaseId, operation, documentIds!, requestId)
+          return NextResponse.json({ error: 'No documents specified' }, { status: 400 })
         }
 
         return NextResponse.json({
