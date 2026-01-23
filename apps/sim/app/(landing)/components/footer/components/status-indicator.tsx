@@ -59,7 +59,7 @@ export default function StatusIndicator() {
       href={statusUrl}
       target='_blank'
       rel='noopener noreferrer'
-      className={`flex items-center gap-[6px] whitespace-nowrap text-[12px] transition-colors ${STATUS_COLORS[status]}`}
+      className={`flex min-w-[165px] items-center gap-[6px] whitespace-nowrap text-[12px] transition-colors ${STATUS_COLORS[status]}`}
       aria-label={`System status: ${message}`}
     >
       <StatusDotIcon status={status} className='h-[6px] w-[6px]' aria-hidden='true' />

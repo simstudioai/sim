@@ -14,7 +14,7 @@ about: ['Enterprise Software', 'Security', 'Compliance', 'Self-Hosting']
 timeRequired: PT7M
 canonical: https://sim.ai/studio/enterprise
 featured: false
-draft: false
+draft: true
 ---
 
 We've been working with security teams at larger organizations to bring Sim into environments with strict compliance and data handling requirements. This post covers the enterprise capabilities we've built: granular access control, bring-your-own-keys, self-hosted deployments, on-prem Copilot, SSO & SAML, whitelabeling, and compliance.
@@ -27,15 +27,21 @@ Permission groups let administrators control what features and integrations are 
 
 ### Model Provider Restrictions
 
+![Model Provider Restrictions](/studio/enterprise/model-providers.png)
+
 Allowlist specific providers while blocking others. Users in a restricted group see only approved providers in the model selector. A workflow that tries to use an unapproved provider won't execute.
 
 This is useful when you've approved certain providers for production use, negotiated enterprise agreements with specific vendors, or need to comply with data residency requirements that only certain providers meet.
 
 ### Integration Controls
 
+![Integration Controls](/studio/enterprise/integration-controls.png)
+
 Restrict which workflow blocks appear in the editor. Disable the HTTP block to prevent arbitrary external API calls. Block access to integrations that haven't completed your security review.
 
 ### Platform Feature Toggles
+
+![Platform Feature Toggles](/studio/enterprise/platform-controls.png)
 
 Control access to platform capabilities per permission group:
 
@@ -79,8 +85,6 @@ Enterprise features like access control, SSO, and organization management are en
 ---
 
 ## On-Prem Copilot
-
-![On-Prem Copilot](/studio/enterprise/copilot.png)
 
 Copilot—our context-aware AI assistant for building and debugging workflows—can run entirely within your self-hosted deployment using your own LLM keys.
 
@@ -140,4 +144,6 @@ We provide penetration test reports, architecture documentation, and completed s
 
 Enterprise features are available now. Check out our [self-hosting](https://docs.sim.ai/self-hosting) and [enterprise](https://docs.sim.ai/enterprise) docs to get started.
 
-*Questions about enterprise deployments? [help@sim.ai](mailto:help@sim.ai)*
+*Questions about enterprise deployments?*
+
+<ContactButton href="https://form.typeform.com/to/jqCO12pF">Contact Us</ContactButton>
