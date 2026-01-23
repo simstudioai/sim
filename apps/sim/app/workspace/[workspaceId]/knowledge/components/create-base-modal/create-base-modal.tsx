@@ -344,53 +344,51 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                   <Textarea
                     id='description'
                     placeholder='Describe this knowledge base (optional)'
-                    rows={3}
+                    rows={4}
                     {...register('description')}
                     className={cn(errors.description && 'border-[var(--text-error)]')}
                   />
                 </div>
 
-                <div className='space-y-[12px] rounded-[6px] bg-[var(--surface-5)] px-[12px] py-[14px]'>
-                  <div className='grid grid-cols-2 gap-[12px]'>
-                    <div className='flex flex-col gap-[8px]'>
-                      <Label htmlFor='minChunkSize'>Min Chunk Size (characters)</Label>
-                      <Input
-                        id='minChunkSize'
-                        placeholder='100'
-                        {...register('minChunkSize', { valueAsNumber: true })}
-                        className={cn(errors.minChunkSize && 'border-[var(--text-error)]')}
-                        autoComplete='off'
-                        data-form-type='other'
-                        name='min-chunk-size'
-                      />
-                    </div>
-
-                    <div className='flex flex-col gap-[8px]'>
-                      <Label htmlFor='maxChunkSize'>Max Chunk Size (tokens)</Label>
-                      <Input
-                        id='maxChunkSize'
-                        placeholder='1024'
-                        {...register('maxChunkSize', { valueAsNumber: true })}
-                        className={cn(errors.maxChunkSize && 'border-[var(--text-error)]')}
-                        autoComplete='off'
-                        data-form-type='other'
-                        name='max-chunk-size'
-                      />
-                    </div>
+                <div className='grid grid-cols-2 gap-[12px]'>
+                  <div className='flex flex-col gap-[8px]'>
+                    <Label htmlFor='minChunkSize'>Min Chunk Size (characters)</Label>
+                    <Input
+                      id='minChunkSize'
+                      placeholder='100'
+                      {...register('minChunkSize', { valueAsNumber: true })}
+                      className={cn(errors.minChunkSize && 'border-[var(--text-error)]')}
+                      autoComplete='off'
+                      data-form-type='other'
+                      name='min-chunk-size'
+                    />
                   </div>
 
                   <div className='flex flex-col gap-[8px]'>
-                    <Label htmlFor='overlapSize'>Overlap (tokens)</Label>
+                    <Label htmlFor='maxChunkSize'>Max Chunk Size (tokens)</Label>
                     <Input
-                      id='overlapSize'
-                      placeholder='200'
-                      {...register('overlapSize', { valueAsNumber: true })}
-                      className={cn(errors.overlapSize && 'border-[var(--text-error)]')}
+                      id='maxChunkSize'
+                      placeholder='1024'
+                      {...register('maxChunkSize', { valueAsNumber: true })}
+                      className={cn(errors.maxChunkSize && 'border-[var(--text-error)]')}
                       autoComplete='off'
                       data-form-type='other'
-                      name='overlap-size'
+                      name='max-chunk-size'
                     />
                   </div>
+                </div>
+
+                <div className='flex flex-col gap-[8px]'>
+                  <Label htmlFor='overlapSize'>Overlap (tokens)</Label>
+                  <Input
+                    id='overlapSize'
+                    placeholder='200'
+                    {...register('overlapSize', { valueAsNumber: true })}
+                    className={cn(errors.overlapSize && 'border-[var(--text-error)]')}
+                    autoComplete='off'
+                    data-form-type='other'
+                    name='overlap-size'
+                  />
                   <p className='text-[11px] text-[var(--text-muted)]'>
                     1 token ≈ 4 characters. Max chunk size and overlap are in tokens.
                   </p>

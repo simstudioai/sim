@@ -1,10 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import {
-  type KnowledgeBaseArgs,
-  KnowledgeBaseArgsSchema,
-  type KnowledgeBaseResult,
-} from '@/lib/copilot/tools/shared/schemas'
+import type { KnowledgeBaseArgs, KnowledgeBaseResult } from '@/lib/copilot/tools/shared/schemas'
 import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 import {
   createKnowledgeBase,
@@ -14,11 +10,6 @@ import {
 import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/search/utils'
 
 const logger = createLogger('KnowledgeBaseServerTool')
-
-// Re-export for backwards compatibility
-export const KnowledgeBaseInput = KnowledgeBaseArgsSchema
-export type KnowledgeBaseInputType = KnowledgeBaseArgs
-export type KnowledgeBaseResultType = KnowledgeBaseResult
 
 /**
  * Knowledge base tool for copilot to create, list, and get knowledge bases
@@ -163,7 +154,6 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          // Verify knowledge base exists
           const kb = await getKnowledgeBaseById(args.knowledgeBaseId)
           if (!kb) {
             return {
@@ -181,10 +171,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           )
           const queryVector = JSON.stringify(queryEmbedding)
 
-          // Get search strategy
           const strategy = getQueryStrategy(1, topK)
 
-          // Perform vector search
           const results = await handleVectorOnlySearch({
             knowledgeBaseIds: [args.knowledgeBaseId],
             topK,

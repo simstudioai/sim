@@ -2,11 +2,8 @@
  * Autolayout Constants
  *
  * Layout algorithm specific constants for spacing, padding, and overlap detection.
- * Block dimensions are imported from the shared source: @/lib/workflows/blocks/block-dimensions
+ * Block dimensions are in @/lib/workflows/blocks/block-dimensions
  */
-
-// Re-export block dimensions for autolayout consumers
-export { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 
 /**
  * Horizontal spacing between layers (columns)

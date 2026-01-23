@@ -6,6 +6,7 @@ export type DocumentSortField =
   | 'chunkCount'
   | 'uploadedAt'
   | 'processingStatus'
+  | 'enabled'
 export type SortOrder = 'asc' | 'desc'
 
 export interface DocumentSortOptions {

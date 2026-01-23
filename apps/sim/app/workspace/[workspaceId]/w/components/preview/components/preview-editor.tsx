@@ -13,6 +13,7 @@ import {
 import { ReactFlowProvider } from 'reactflow'
 import { Badge, Button, ChevronDown, Code, Combobox, Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { formatDuration } from '@/lib/core/utils/formatting'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndex,
@@ -704,14 +705,6 @@ interface PreviewEditorProps {
   onClose?: () => void
 }
 
-/**
- * Format duration for display
- */
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(2)}s`
-}
-
 /** Minimum height for the connections section (header only) */
 const MIN_CONNECTIONS_HEIGHT = 30
 /** Maximum height for the connections section */
@@ -1180,7 +1173,7 @@ function PreviewEditorContent({
                     )}
                     {executionData.durationMs !== undefined && (
                       <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                        {formatDuration(executionData.durationMs)}
+                        {formatDuration(executionData.durationMs, { precision: 2 })}
                       </span>
                     )}
                   </div>
