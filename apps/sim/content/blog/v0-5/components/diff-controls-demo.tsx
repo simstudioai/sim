@@ -1,23 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 export function DiffControlsDemo() {
-  const [mounted, setMounted] = useState(false)
   const [rejectHover, setRejectHover] = useState(false)
   const [acceptHover, setAcceptHover] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  if (!mounted) {
-    return (
-      <div
-        style={{ display: 'flex', justifyContent: 'center', margin: '24px 0', height: '30px' }}
-      />
-    )
-  }
 
   return (
     <div style={{ display: 'flex', justifyContent: 'center', margin: '24px 0' }}>
@@ -41,23 +28,23 @@ export function DiffControlsDemo() {
             position: 'relative',
             display: 'flex',
             height: '100%',
-            cursor: 'pointer',
             alignItems: 'center',
-            border: rejectHover ? '1px solid #3d3d3d' : '1px solid #2c2c2c',
-            backgroundColor: rejectHover ? '#363636' : '#292929',
+            border: '1px solid #e0e0e0',
+            backgroundColor: rejectHover ? '#f0f0f0' : '#f5f5f5',
             paddingRight: '20px',
             paddingLeft: '12px',
             fontWeight: 500,
             fontSize: '13px',
-            color: rejectHover ? '#e6e6e6' : '#cccccc',
+            color: rejectHover ? '#2d2d2d' : '#404040',
             clipPath: 'polygon(0 0, calc(100% + 10px) 0, 100% 100%, 0 100%)',
             borderRadius: '4px 0 0 4px',
-            transition: 'background-color 0.15s, border-color 0.15s, color 0.15s',
+            cursor: 'default',
+            transition: 'color 150ms, background-color 150ms, border-color 150ms',
           }}
         >
           Reject
         </button>
-        {/* Slanted divider */}
+        {/* Slanted divider - split gray/green */}
         <div
           style={{
             pointerEvents: 'none',
@@ -67,7 +54,7 @@ export function DiffControlsDemo() {
             left: '66px',
             width: '2px',
             transform: 'skewX(-18.4deg)',
-            background: 'linear-gradient(to right, #2c2c2c 50%, #238559 50%)',
+            background: 'linear-gradient(to right, #e0e0e0 50%, #238458 50%)',
             zIndex: 10,
           }}
         />
@@ -81,20 +68,20 @@ export function DiffControlsDemo() {
             position: 'relative',
             display: 'flex',
             height: '100%',
-            cursor: 'pointer',
             alignItems: 'center',
-            border: '1px solid rgba(0,0,0,0.15)',
+            border: '1px solid rgba(0, 0, 0, 0.15)',
             backgroundColor: '#32bd7e',
             paddingRight: '12px',
             paddingLeft: '20px',
             fontWeight: 500,
             fontSize: '13px',
-            color: '#1b1b1b',
+            color: '#ffffff',
             clipPath: 'polygon(10px 0, 100% 0, 100% 100%, 0 100%)',
             borderRadius: '0 4px 4px 0',
             marginLeft: '-10px',
-            filter: acceptHover ? 'brightness(1.1)' : 'brightness(1)',
-            transition: 'filter 0.15s',
+            cursor: 'default',
+            filter: acceptHover ? 'brightness(1.1)' : undefined,
+            transition: 'background-color 150ms, border-color 150ms',
           }}
         >
           Accept
@@ -104,11 +91,15 @@ export function DiffControlsDemo() {
               borderRadius: '4px',
               border: '1px solid rgba(255, 255, 255, 0.2)',
               backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              padding: '2px 6px',
+              paddingLeft: '6px',
+              paddingRight: '6px',
+              paddingTop: '2px',
+              paddingBottom: '2px',
               fontWeight: 500,
-              fontFamily: 'sans-serif',
+              fontFamily:
+                'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"',
               fontSize: '10px',
-              color: '#1b1b1b',
+              color: '#ffffff',
             }}
           >
             ⇧⌘<span style={{ display: 'inline-block', transform: 'translateY(-1px)' }}>⏎</span>
