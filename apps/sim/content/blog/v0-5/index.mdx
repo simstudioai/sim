@@ -34,7 +34,7 @@ Copilot supports slash commands that trigger specialized capabilities:
 - `/test` — runs your current workflow with sample inputs and reports results inline
 - `/build` — generates a complete workflow from a natural language description, wiring up blocks and configuring integrations
 
-Use `@` commands to pull specific context into your conversation. `@block` references a specific block's configuration and recent outputs. `@workflow` includes the full workflow structure. `@logs` pulls in recent execution traces. This lets you ask targeted questions like "why is @Slack1 returning an error?" and Copilot has the exact context it needs to diagnose the issue.
+Use `@` commands to pull specific context into your conversation. `@block` references a specific block's configuration and recent outputs. `@workflow` includes the full workflow structure. `@logs` pulls in recent execution traces. This lets you ask targeted questions like "why is `@Slack1` returning an error?" and Copilot has the exact context it needs to diagnose the issue.
 
 For complex tasks, Copilot uses subagents—breaking requests into discrete operations and executing them sequentially. Ask it to "add error handling to this workflow" and it will analyze your blocks, determine where failures could occur, add appropriate condition blocks, and wire up notification paths. Each change surfaces as a diff for your review before applying.
 
