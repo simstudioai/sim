@@ -2,8 +2,10 @@ import clsx from 'clsx'
 import Image from 'next/image'
 import type { MDXRemoteProps } from 'next-mdx-remote/rsc'
 import { CodeBlock } from '@/lib/blog/code'
+import { DiffControlsDemo } from '@/content/blog/v0-5/components/diff-controls-demo'
 
 export const mdxComponents: MDXRemoteProps['components'] = {
+  DiffControlsDemo,
   img: (props: any) => (
     <Image
       src={props.src}
@@ -61,7 +63,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
       )}
     />
   ),
-  li: (props: any) => <li {...props} className={clsx('mb-2', props.className)} />,
+  li: (props: any) => <li {...props} className={clsx('mb-1', props.className)} />,
   strong: (props: any) => <strong {...props} className={clsx('font-semibold', props.className)} />,
   em: (props: any) => <em {...props} className={clsx('italic', props.className)} />,
   a: (props: any) => {
