@@ -228,7 +228,9 @@ export class IdempotencyService {
         result: inProgressResult,
         createdAt: new Date(),
       })
-      .onConflictDoNothing()
+      .onConflictDoNothing({
+        target: [idempotencyKey.key, idempotencyKey.namespace],
+      })
       .returning({ key: idempotencyKey.key })
 
     if (insertResult.length > 0) {
