@@ -6,6 +6,8 @@ import { FAQ } from '@/lib/blog/faq'
 import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/blog/registry'
 import { buildArticleJsonLd, buildBreadcrumbJsonLd, buildPostMetadata } from '@/lib/blog/seo'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
+import { BackLink } from '@/app/(landing)/studio/[slug]/back-link'
+import { ShareButton } from '@/app/(landing)/studio/[slug]/share-button'
 
 export async function generateStaticParams() {
   const posts = await getAllPostMeta()
@@ -48,9 +50,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       />
       <header className='mx-auto max-w-[1450px] px-6 pt-8 sm:px-8 sm:pt-12 md:px-12 md:pt-16'>
         <div className='mb-6'>
-          <Link href='/studio' className='text-gray-600 text-sm hover:text-gray-900'>
-            ← Back to Sim Studio
-          </Link>
+          <BackLink />
         </div>
         <div className='flex flex-col gap-8 md:flex-row md:gap-12'>
           <div className='w-full flex-shrink-0 md:w-[450px]'>
@@ -75,28 +75,31 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             >
               {post.title}
             </h1>
-            <div className='mt-4 flex items-center gap-3'>
-              {(post.authors || [post.author]).map((a, idx) => (
-                <div key={idx} className='flex items-center gap-2'>
-                  {a?.avatarUrl ? (
-                    <Avatar className='size-6'>
-                      <AvatarImage src={a.avatarUrl} alt={a.name} />
-                      <AvatarFallback>{a.name.slice(0, 2)}</AvatarFallback>
-                    </Avatar>
-                  ) : null}
-                  <Link
-                    href={a?.url || '#'}
-                    target='_blank'
-                    rel='noopener noreferrer author'
-                    className='text-[14px] text-gray-600 leading-[1.5] hover:text-gray-900 sm:text-[16px]'
-                    itemProp='author'
-                    itemScope
-                    itemType='https://schema.org/Person'
-                  >
-                    <span itemProp='name'>{a?.name}</span>
-                  </Link>
-                </div>
-              ))}
+            <div className='mt-4 flex items-center justify-between'>
+              <div className='flex items-center gap-3'>
+                {(post.authors || [post.author]).map((a, idx) => (
+                  <div key={idx} className='flex items-center gap-2'>
+                    {a?.avatarUrl ? (
+                      <Avatar className='size-6'>
+                        <AvatarImage src={a.avatarUrl} alt={a.name} />
+                        <AvatarFallback>{a.name.slice(0, 2)}</AvatarFallback>
+                      </Avatar>
+                    ) : null}
+                    <Link
+                      href={a?.url || '#'}
+                      target='_blank'
+                      rel='noopener noreferrer author'
+                      className='text-[14px] text-gray-600 leading-[1.5] hover:text-gray-900 sm:text-[16px]'
+                      itemProp='author'
+                      itemScope
+                      itemType='https://schema.org/Person'
+                    >
+                      <span itemProp='name'>{a?.name}</span>
+                    </Link>
+                  </div>
+                ))}
+              </div>
+              <ShareButton url={`https://sim.ai/studio/${slug}`} title={post.title} />
             </div>
           </div>
         </div>
