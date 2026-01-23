@@ -148,7 +148,12 @@ export class IdempotencyService {
 
       await db
         .delete(idempotencyKey)
-        .where(eq(idempotencyKey.key, normalizedKey))
+        .where(
+          and(
+            eq(idempotencyKey.key, normalizedKey),
+            eq(idempotencyKey.namespace, this.config.namespace)
+          )
+        )
         .catch((err) => logger.warn(`Failed to clean up expired key ${normalizedKey}:`, err))
     }
 
