@@ -51,7 +51,7 @@ export const POST = withAdminAuth(async (request) => {
       return badRequestResponse('Either userId or email is required')
     }
 
-    if (typeof amount !== 'number' || amount <= 0) {
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
       return badRequestResponse('amount must be a positive number')
     }
 
