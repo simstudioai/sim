@@ -61,7 +61,10 @@ export function getUsage(subscriptionData: SubscriptionData | null | undefined):
     isExceeded: Boolean(usage.isExceeded),
     billingPeriodStart: usage.billingPeriodStart ?? null,
     billingPeriodEnd: usage.billingPeriodEnd ?? null,
-    lastPeriodCost: typeof usage.lastPeriodCost === 'number' ? usage.lastPeriodCost : 0,
+    lastPeriodCost:
+      typeof usage.lastPeriodCost === 'number' && Number.isFinite(usage.lastPeriodCost)
+        ? usage.lastPeriodCost
+        : 0,
   }
 }
 
