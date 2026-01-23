@@ -4,8 +4,6 @@ import { task } from '@trigger.dev/sdk'
 import { Cron } from 'croner'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import type { ZodRecord, ZodString } from 'zod'
-import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -122,7 +120,6 @@ async function runWorkflowExecution({
   loggingSession,
   requestId,
   executionId,
-  EnvVarsSchema,
 }: {
   payload: ScheduleExecutionPayload
   workflowRecord: WorkflowRecord
@@ -130,7 +127,6 @@ async function runWorkflowExecution({
   loggingSession: LoggingSession
   requestId: string
   executionId: string
-  EnvVarsSchema: ZodRecord<ZodString, ZodString>
 }): Promise<RunWorkflowResult> {
   try {
     logger.debug(`[${requestId}] Loading deployed workflow ${payload.workflowId}`)
@@ -156,30 +152,11 @@ async function runWorkflowExecution({
       throw new Error(`Workflow ${payload.workflowId} has no associated workspace`)
     }
 
-    const personalEnvUserId = workflowRecord.userId
-
-    const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
-      personalEnvUserId,
-      workspaceId
-    )
-
-    const variables = EnvVarsSchema.parse({
-      ...personalEncrypted,
-      ...workspaceEncrypted,
-    })
-
     const input = {
       _context: {
         workflowId: payload.workflowId,
       },
     }
-
-    await loggingSession.safeStart({
-      userId: actorUserId,
-      workspaceId,
-      variables: variables || {},
-      deploymentVersionId,
-    })
 
     const metadata: ExecutionMetadata = {
       requestId,
@@ -279,7 +256,6 @@ export type ScheduleExecutionPayload = {
   failedCount?: number
   now: string
   scheduledFor?: string
-  preflighted?: boolean
 }
 
 function calculateNextRunTime(
@@ -319,9 +295,6 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
     executionId,
   })
 
-  const zod = await import('zod')
-  const EnvVarsSchema = zod.z.record(zod.z.string())
-
   try {
     const loggingSession = new LoggingSession(
       payload.workflowId,
@@ -339,7 +312,6 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
       checkRateLimit: true,
       checkDeployment: true,
       loggingSession,
-      preflightEnvVars: !payload.preflighted,
     })
 
     if (!preprocessResult.success) {
@@ -482,7 +454,6 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
         loggingSession,
         requestId,
         executionId,
-        EnvVarsSchema,
       })
 
       if (executionResult.status === 'skip') {

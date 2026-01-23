@@ -1,5 +1,5 @@
 import { McpIcon } from '@/components/icons'
-import { createMcpToolId } from '@/lib/mcp/utils'
+import { createMcpToolId } from '@/lib/mcp/shared'
 import type { BlockConfig } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 

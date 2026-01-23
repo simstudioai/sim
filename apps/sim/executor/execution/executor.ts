@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
-import type { BlockOutput } from '@/blocks/types'
 import { DAGBuilder } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { EdgeManager } from '@/executor/execution/edge-manager'
@@ -24,7 +23,6 @@ const logger = createLogger('DAGExecutor')
 
 export interface DAGExecutorOptions {
   workflow: SerializedWorkflow
-  currentBlockStates?: Record<string, BlockOutput>
   envVarValues?: Record<string, string>
   workflowInput?: WorkflowInput
   workflowVariables?: Record<string, unknown>

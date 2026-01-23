@@ -6,7 +6,6 @@
 import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
-import { parseResponseFormatSafely } from '@/lib/core/utils/response-format'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -25,7 +24,6 @@ import type {
   IterationContext,
 } from '@/executor/execution/types'
 import type { ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
-import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
@@ -202,50 +200,6 @@ export async function executeWorkflowCore(
       deploymentVersionId,
     })
 
-    // Process block states with env var substitution using pre-decrypted values
-    const currentBlockStates = Object.entries(mergedStates).reduce(
-      (acc, [id, block]) => {
-        acc[id] = Object.entries(block.subBlocks).reduce(
-          (subAcc, [key, subBlock]) => {
-            let value = subBlock.value
-
-            if (typeof value === 'string') {
-              value = resolveEnvVarReferences(value, decryptedEnvVars, {
-                resolveExactMatch: false,
-                trimKeys: false,
-                onMissing: 'keep',
-                deep: false,
-              }) as string
-            }
-
-            subAcc[key] = value
-            return subAcc
-          },
-          {} as Record<string, any>
-        )
-        return acc
-      },
-      {} as Record<string, Record<string, any>>
-    )
-
-    // Process response format
-    const processedBlockStates = Object.entries(currentBlockStates).reduce(
-      (acc, [blockId, blockState]) => {
-        const responseFormatValue = blockState.responseFormat
-        if (responseFormatValue === undefined || responseFormatValue === null) {
-          acc[blockId] = blockState
-          return acc
-        }
-
-        const responseFormat = parseResponseFormatSafely(responseFormatValue, blockId, {
-          allowReferences: true,
-        })
-        acc[blockId] = { ...blockState, responseFormat: responseFormat ?? undefined }
-        return acc
-      },
-      {} as Record<string, Record<string, any>>
-    )
-
     // Use edges directly - trigger-to-trigger edges are prevented at creation time
     const filteredEdges = edges
 
@@ -346,7 +300,6 @@ export async function executeWorkflowCore(
 
     const executorInstance = new Executor({
       workflow: serializedWorkflow,
-      currentBlockStates: processedBlockStates,
       envVarValues: decryptedEnvVars,
       workflowInput: processedInput,
       workflowVariables,

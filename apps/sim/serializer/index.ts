@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
-import { parseResponseFormatSafely } from '@/lib/core/utils/response-format'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import {
   buildCanonicalIndex,
@@ -275,15 +274,6 @@ export class Serializer {
       inputs,
       outputs: {
         ...block.outputs,
-        // Include response format fields if available
-        ...(params.responseFormat
-          ? {
-              responseFormat:
-                parseResponseFormatSafely(params.responseFormat, block.id, {
-                  allowReferences: true,
-                }) ?? undefined,
-            }
-          : {}),
       },
       metadata: {
         id: block.type,

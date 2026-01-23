@@ -7,6 +7,7 @@ import { getSession } from '@/lib/auth'
 import { validateInteger } from '@/lib/core/security/input-validation'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import {
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
@@ -112,9 +113,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
+    // Keep original config with {{ENV_VAR}} patterns for saving to DB
+    const originalProviderConfig = providerConfig
+
+    // Resolve for processing (subscription checks) but don't save resolved values
     let resolvedProviderConfig = providerConfig
     if (providerConfig) {
-      const { resolveEnvVarsInObject } = await import('@/lib/webhooks/env-resolver')
       const webhookDataForResolve = await db
         .select({
           workspaceId: workflow.workspaceId,
@@ -230,18 +234,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       hasFailedCountUpdate: failedCount !== undefined,
     })
 
-    // Merge providerConfig to preserve credential-related fields
+    // Merge providerConfig to preserve credential-related fields and system-managed fields
+    // Use original config (preserves {{ENV_VAR}} patterns) + system fields from existing/updated
     let finalProviderConfig = webhooks[0].webhook.providerConfig
-    if (providerConfig !== undefined) {
+    if (providerConfig !== undefined && originalProviderConfig) {
       const existingConfig = existingProviderConfig
       finalProviderConfig = {
-        ...nextProviderConfig,
+        // Start with original config (preserves {{ENV_VAR}} patterns)
+        ...originalProviderConfig,
+        // Preserve credential-related and system-managed fields from existing
         credentialId: existingConfig.credentialId,
         credentialSetId: existingConfig.credentialSetId,
         userId: existingConfig.userId,
         historyId: existingConfig.historyId,
         lastCheckedTimestamp: existingConfig.lastCheckedTimestamp,
         setupCompleted: existingConfig.setupCompleted,
+        // Use updated externalId from subscription recreation, or existing
         externalId: nextProviderConfig.externalId ?? existingConfig.externalId,
       }
     }
