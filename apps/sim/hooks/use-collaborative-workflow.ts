@@ -5,7 +5,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
-import { normalizeName } from '@/executor/constants'
+import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import {
   BLOCK_OPERATIONS,
@@ -738,6 +738,16 @@ export function useCollaborativeWorkflow() {
           workflowId: activeWorkflowId || undefined,
         })
         return { success: false, error: 'Block name cannot be empty' }
+      }
+
+      if ((RESERVED_BLOCK_NAMES as readonly string[]).includes(normalizedNewName)) {
+        logger.error(`Cannot rename block to reserved name: "${trimmedName}"`)
+        useNotificationStore.getState().addNotification({
+          level: 'error',
+          message: `"${trimmedName}" is a reserved name and cannot be used`,
+          workflowId: activeWorkflowId || undefined,
+        })
+        return { success: false, error: `"${trimmedName}" is a reserved name` }
       }
 
       const currentBlocks = useWorkflowStore.getState().blocks

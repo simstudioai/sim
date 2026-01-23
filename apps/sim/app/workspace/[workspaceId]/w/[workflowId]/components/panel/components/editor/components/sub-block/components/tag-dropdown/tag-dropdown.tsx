@@ -1312,15 +1312,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     if (currentLoop && isLoopBlock) {
       containingLoopBlockId = blockId
       const loopType = currentLoop.loopType || 'for'
-      const contextualTags: string[] = ['index']
-      if (loopType === 'forEach') {
-        contextualTags.push('currentItem')
-        contextualTags.push('items')
-      }
 
       const loopBlock = blocks[blockId]
       if (loopBlock) {
         const loopBlockName = loopBlock.name || loopBlock.type
+        const normalizedLoopName = normalizeName(loopBlockName)
+        const contextualTags: string[] = [`${normalizedLoopName}.index`]
+        if (loopType === 'forEach') {
+          contextualTags.push(`${normalizedLoopName}.currentItem`)
+          contextualTags.push(`${normalizedLoopName}.items`)
+        }
 
         loopBlockGroup = {
           blockName: loopBlockName,
@@ -1328,21 +1329,23 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockType: 'loop',
           tags: contextualTags,
           distance: 0,
+          isContextual: true,
         }
       }
     } else if (containingLoop) {
       const [loopId, loop] = containingLoop
       containingLoopBlockId = loopId
       const loopType = loop.loopType || 'for'
-      const contextualTags: string[] = ['index']
-      if (loopType === 'forEach') {
-        contextualTags.push('currentItem')
-        contextualTags.push('items')
-      }
 
       const containingLoopBlock = blocks[loopId]
       if (containingLoopBlock) {
         const loopBlockName = containingLoopBlock.name || containingLoopBlock.type
+        const normalizedLoopName = normalizeName(loopBlockName)
+        const contextualTags: string[] = [`${normalizedLoopName}.index`]
+        if (loopType === 'forEach') {
+          contextualTags.push(`${normalizedLoopName}.currentItem`)
+          contextualTags.push(`${normalizedLoopName}.items`)
+        }
 
         loopBlockGroup = {
           blockName: loopBlockName,
@@ -1350,6 +1353,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockType: 'loop',
           tags: contextualTags,
           distance: 0,
+          isContextual: true,
         }
       }
     }
@@ -1363,15 +1367,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const [parallelId, parallel] = containingParallel
       containingParallelBlockId = parallelId
       const parallelType = parallel.parallelType || 'count'
-      const contextualTags: string[] = ['index']
-      if (parallelType === 'collection') {
-        contextualTags.push('currentItem')
-        contextualTags.push('items')
-      }
 
       const containingParallelBlock = blocks[parallelId]
       if (containingParallelBlock) {
         const parallelBlockName = containingParallelBlock.name || containingParallelBlock.type
+        const normalizedParallelName = normalizeName(parallelBlockName)
+        const contextualTags: string[] = [`${normalizedParallelName}.index`]
+        if (parallelType === 'collection') {
+          contextualTags.push(`${normalizedParallelName}.currentItem`)
+          contextualTags.push(`${normalizedParallelName}.items`)
+        }
 
         parallelBlockGroup = {
           blockName: parallelBlockName,
@@ -1379,6 +1384,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockType: 'parallel',
           tags: contextualTags,
           distance: 0,
+          isContextual: true,
         }
       }
     }
@@ -1645,38 +1651,29 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   const nestedBlockTagGroups: NestedBlockTagGroup[] = useMemo(() => {
     return filteredBlockTagGroups.map((group: BlockTagGroup) => {
       const normalizedBlockName = normalizeName(group.blockName)
-
-      // Handle loop/parallel contextual tags (index, currentItem, items)
       const directTags: NestedTag[] = []
       const tagsForTree: string[] = []
 
       group.tags.forEach((tag: string) => {
         const tagParts = tag.split('.')
 
-        // Loop/parallel contextual tags without block prefix
-        if (
-          (group.blockType === 'loop' || group.blockType === 'parallel') &&
-          tagParts.length === 1
-        ) {
+        if (tagParts.length === 1) {
           directTags.push({
             key: tag,
             display: tag,
             fullTag: tag,
           })
         } else if (tagParts.length === 2) {
-          // Direct property like blockname.property
           directTags.push({
             key: tagParts[1],
             display: tagParts[1],
             fullTag: tag,
           })
         } else {
-          // Nested property - add to tree builder
           tagsForTree.push(tag)
         }
       })
 
-      // Build recursive tree from nested tags
       const nestedTags = [...directTags, ...buildNestedTagTree(tagsForTree, normalizedBlockName)]
 
       return {
@@ -1800,13 +1797,19 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           processedTag = tag
         }
       } else if (
-        blockGroup &&
+        blockGroup?.isContextual &&
         (blockGroup.blockType === 'loop' || blockGroup.blockType === 'parallel')
       ) {
-        if (!tag.includes('.') && ['index', 'currentItem', 'items'].includes(tag)) {
-          processedTag = `${blockGroup.blockType}.${tag}`
+        const tagParts = tag.split('.')
+        if (tagParts.length === 1) {
+          processedTag = blockGroup.blockType
         } else {
-          processedTag = tag
+          const lastPart = tagParts[tagParts.length - 1]
+          if (['index', 'currentItem', 'items'].includes(lastPart)) {
+            processedTag = `${blockGroup.blockType}.${lastPart}`
+          } else {
+            processedTag = tag
+          }
         }
       }
 

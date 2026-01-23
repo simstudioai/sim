@@ -7,6 +7,8 @@ export interface BlockTagGroup {
   blockType: string
   tags: string[]
   distance: number
+  /** True if this is a contextual group (loop/parallel iteration context available inside the subflow) */
+  isContextual?: boolean
 }
 
 /**
