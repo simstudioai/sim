@@ -133,7 +133,7 @@
     "papaparse": "5.5.3",
     "pdf-lib": "1.17.1",
     "postgres": "^3.4.5",
-    "posthog-js": "1.268.9",
+    "posthog-js": "1.334.1",
     "posthog-node": "5.9.2",
     "prismjs": "^1.30.0",
     "react": "19.2.1",
