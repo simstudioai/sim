@@ -144,11 +144,17 @@ export function useLogsList(
   })
 }
 
-export function useLogDetail(logId: string | undefined) {
+interface UseLogDetailOptions {
+  enabled?: boolean
+  refetchInterval?: number | false
+}
+
+export function useLogDetail(logId: string | undefined, options?: UseLogDetailOptions) {
   return useQuery({
     queryKey: logKeys.detail(logId),
     queryFn: () => fetchLogDetail(logId as string),
-    enabled: Boolean(logId),
+    enabled: Boolean(logId) && (options?.enabled ?? true),
+    refetchInterval: options?.refetchInterval ?? false,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
   })
