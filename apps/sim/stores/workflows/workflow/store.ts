@@ -7,7 +7,7 @@ import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
-import { normalizeName } from '@/executor/constants'
+import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { filterNewEdges, getUniqueBlockName, mergeSubblockState } from '@/stores/workflows/utils'
@@ -723,6 +723,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
           logger.error(
             `Cannot rename block to "${name}" - conflicts with "${conflictingBlock[1].name}"`
           )
+          return { success: false, changedSubblocks: [] }
+        }
+
+        if ((RESERVED_BLOCK_NAMES as readonly string[]).includes(normalizedNewName)) {
+          logger.error(`Cannot rename block to reserved name: "${name}"`)
           return { success: false, changedSubblocks: [] }
         }
 

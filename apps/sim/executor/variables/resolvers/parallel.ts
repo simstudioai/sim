@@ -73,8 +73,10 @@ export class ParallelResolver implements Resolver {
 
     const [_, property, ...pathParts] = parts
     if (!ParallelResolver.KNOWN_PROPERTIES.includes(property)) {
-      const isCollection = parallelConfig.parallelType === 'collection'
-      const availableFields = isCollection ? ['index', 'currentItem', 'items'] : ['index']
+      const hasDistributionItems =
+        distributionItems !== undefined &&
+        (Array.isArray(distributionItems) ? distributionItems.length > 0 : true)
+      const availableFields = hasDistributionItems ? ['index', 'currentItem', 'items'] : ['index']
       throw new InvalidFieldError('parallel', property, availableFields)
     }
 
