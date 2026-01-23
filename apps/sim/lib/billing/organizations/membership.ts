@@ -16,6 +16,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
+import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 
@@ -556,6 +557,8 @@ export async function removeUserFromOrganization(
           const restoreResult = await restoreUserProSubscription(userId)
           billingActions.proRestored = restoreResult.restored
           billingActions.usageRestored = restoreResult.usageRestored
+
+          await syncUsageLimitsFromSubscription(userId)
         }
       } catch (postRemoveError) {
         logger.error('Post-removal personal Pro restore check failed', {
