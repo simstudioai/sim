@@ -1425,10 +1425,7 @@ function RunSkipButtons({
     setIsProcessing(true)
     setButtonsHidden(true)
     try {
-      // Add to auto-allowed list - this also executes all pending integration tools of this type
       await addAutoAllowedTool(toolCall.name)
-      // For client tools with interrupts (not integration tools), we still need to call handleRun
-      // since executeIntegrationTool only works for server-side tools
       if (!isIntegrationTool(toolCall.name)) {
         await handleRun(toolCall, setToolCallState, onStateChange, editedParams)
       }
@@ -1526,7 +1523,11 @@ export function ToolCall({
     toolCall.name === 'user_memory' ||
     toolCall.name === 'edit_respond' ||
     toolCall.name === 'debug_respond' ||
-    toolCall.name === 'plan_respond'
+    toolCall.name === 'plan_respond' ||
+    toolCall.name === 'research_respond' ||
+    toolCall.name === 'info_respond' ||
+    toolCall.name === 'deploy_respond' ||
+    toolCall.name === 'superagent_respond'
   )
     return null
 
