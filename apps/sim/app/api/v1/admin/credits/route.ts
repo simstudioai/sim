@@ -51,6 +51,14 @@ export const POST = withAdminAuth(async (request) => {
       return badRequestResponse('Either userId or email is required')
     }
 
+    if (userId && typeof userId !== 'string') {
+      return badRequestResponse('userId must be a string')
+    }
+
+    if (email && typeof email !== 'string') {
+      return badRequestResponse('email must be a string')
+    }
+
     if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
       return badRequestResponse('amount must be a positive number')
     }
