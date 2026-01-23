@@ -162,6 +162,7 @@ export async function getPostBySlug(slug: string): Promise<BlogPost> {
 export function invalidateBlogCaches() {
   cachedMeta = null
   cachedAuthors = null
+  Object.keys(postComponentsRegistry).forEach((key) => delete postComponentsRegistry[key])
 }
 
 export async function getRelatedPosts(slug: string, limit = 3): Promise<BlogMeta[]> {
