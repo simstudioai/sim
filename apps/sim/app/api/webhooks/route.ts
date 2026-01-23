@@ -299,14 +299,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let savedWebhook: any = null // Variable to hold the result of save/update
-
-    // Keep original config with {{ENV_VAR}} patterns - these should be saved to DB
-    // and resolved at runtime, so users can update env vars without recreating webhooks
+    let savedWebhook: any = null
     const originalProviderConfig = providerConfig || {}
-
-    // Resolve env vars for processing (credential detection, external subscriptions)
-    // but don't save resolved values - save original patterns instead
     let resolvedProviderConfig = await resolveEnvVarsInObject(
       originalProviderConfig,
       userId,
@@ -472,7 +466,6 @@ export async function POST(request: NextRequest) {
       providerConfig: providerConfigOverride,
     })
 
-    // Config to save to DB - starts with original (preserves {{ENV_VAR}} patterns)
     const configToSave = { ...originalProviderConfig }
 
     try {
@@ -483,16 +476,13 @@ export async function POST(request: NextRequest) {
         userId,
         requestId
       )
-      // Merge any new fields (like externalId) from external subscription into original config
-      // This preserves {{ENV_VAR}} patterns while adding system-managed fields
       const updatedConfig = result.updatedProviderConfig as Record<string, unknown>
       for (const [key, value] of Object.entries(updatedConfig)) {
         if (!(key in originalProviderConfig)) {
-          // New field added by external subscription (e.g., externalId, subscriptionId)
           configToSave[key] = value
         }
       }
-      resolvedProviderConfig = updatedConfig // Keep for logging/credential checks
+      resolvedProviderConfig = updatedConfig
       externalSubscriptionCreated = result.externalSubscriptionCreated
     } catch (err) {
       logger.error(`[${requestId}] Error creating external webhook subscription`, err)
@@ -505,8 +495,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Now save to database (only if subscription succeeded or provider doesn't need external subscription)
-    // Save configToSave which preserves {{ENV_VAR}} patterns + system-managed fields
     try {
       if (targetWebhookId) {
         logger.info(`[${requestId}] Updating existing webhook for path: ${finalPath}`, {
