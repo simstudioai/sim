@@ -13,6 +13,7 @@ import {
   ModalHeader,
 } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
+import { formatDate } from '@/lib/core/utils/formatting'
 import {
   type CopilotKey,
   useCopilotKeys,
@@ -115,13 +116,9 @@ export function Copilot() {
     }
   }
 
-  const formatDate = (dateString?: string | null) => {
+  const formatLastUsed = (dateString?: string | null) => {
     if (!dateString) return 'Never'
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
+    return formatDate(new Date(dateString))
   }
 
   const hasKeys = keys.length > 0
@@ -180,7 +177,7 @@ export function Copilot() {
                         {key.name || 'Unnamed Key'}
                       </span>
                       <span className='text-[13px] text-[var(--text-secondary)]'>
-                        (last used: {formatDate(key.lastUsed).toLowerCase()})
+                        (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                       </span>
                     </div>
                     <p className='truncate text-[13px] text-[var(--text-muted)]'>

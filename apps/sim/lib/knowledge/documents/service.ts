@@ -127,7 +127,6 @@ export async function processDocumentTags(
   tagData: DocumentTagData[],
   requestId: string
 ): Promise<ProcessedDocumentTags> {
-  // Helper to set a tag value with proper typing
   const setTagValue = (
     tags: ProcessedDocumentTags,
     slot: string,
@@ -672,21 +671,16 @@ export async function createDocumentRecords(
     tag7?: string
   }>,
   knowledgeBaseId: string,
-  requestId: string,
-  userId?: string
+  requestId: string
 ): Promise<DocumentData[]> {
-  if (userId) {
-    const totalSize = documents.reduce((sum, doc) => sum + doc.fileSize, 0)
+  const kb = await db
+    .select({ userId: knowledgeBase.userId })
+    .from(knowledgeBase)
+    .where(eq(knowledgeBase.id, knowledgeBaseId))
+    .limit(1)
 
-    const kb = await db
-      .select({ userId: knowledgeBase.userId })
-      .from(knowledgeBase)
-      .where(eq(knowledgeBase.id, knowledgeBaseId))
-      .limit(1)
-
-    if (kb.length === 0) {
-      throw new Error('Knowledge base not found')
-    }
+  if (kb.length === 0) {
+    throw new Error('Knowledge base not found')
   }
 
   return await db.transaction(async (tx) => {
@@ -770,16 +764,6 @@ export async function createDocumentRecords(
         .update(knowledgeBase)
         .set({ updatedAt: now })
         .where(eq(knowledgeBase.id, knowledgeBaseId))
-
-      if (userId) {
-        const totalSize = documents.reduce((sum, doc) => sum + doc.fileSize, 0)
-
-        const kb = await db
-          .select({ userId: knowledgeBase.userId })
-          .from(knowledgeBase)
-          .where(eq(knowledgeBase.id, knowledgeBaseId))
-          .limit(1)
-      }
     }
 
     return returnData
@@ -792,7 +776,7 @@ export async function createDocumentRecords(
 export async function getDocuments(
   knowledgeBaseId: string,
   options: {
-    includeDisabled?: boolean
+    enabledFilter?: 'all' | 'enabled' | 'disabled'
     search?: string
     limit?: number
     offset?: number
@@ -846,7 +830,7 @@ export async function getDocuments(
   }
 }> {
   const {
-    includeDisabled = false,
+    enabledFilter = 'all',
     search,
     limit = 50,
     offset = 0,
@@ -854,26 +838,21 @@ export async function getDocuments(
     sortOrder = 'asc',
   } = options
 
-  // Build where conditions
   const whereConditions = [
     eq(document.knowledgeBaseId, knowledgeBaseId),
     isNull(document.deletedAt),
   ]
 
-  // Filter out disabled documents unless specifically requested
-  if (!includeDisabled) {
+  if (enabledFilter === 'enabled') {
     whereConditions.push(eq(document.enabled, true))
+  } else if (enabledFilter === 'disabled') {
+    whereConditions.push(eq(document.enabled, false))
   }
 
-  // Add search condition if provided
   if (search) {
-    whereConditions.push(
-      // Search in filename
-      sql`LOWER(${document.filename}) LIKE LOWER(${`%${search}%`})`
-    )
+    whereConditions.push(sql`LOWER(${document.filename}) LIKE LOWER(${`%${search}%`})`)
   }
 
-  // Get total count for pagination
   const totalResult = await db
     .select({ count: sql<number>`COUNT(*)` })
     .from(document)
@@ -882,7 +861,6 @@ export async function getDocuments(
   const total = totalResult[0]?.count || 0
   const hasMore = offset + limit < total
 
-  // Create dynamic order by clause
   const getOrderByColumn = () => {
     switch (sortBy) {
       case 'filename':
@@ -897,12 +875,13 @@ export async function getDocuments(
         return document.uploadedAt
       case 'processingStatus':
         return document.processingStatus
+      case 'enabled':
+        return document.enabled
       default:
         return document.uploadedAt
     }
   }
 
-  // Use stable secondary sort to prevent shifting when primary values are identical
   const primaryOrderBy = sortOrder === 'asc' ? asc(getOrderByColumn()) : desc(getOrderByColumn())
   const secondaryOrderBy =
     sortBy === 'filename' ? desc(document.uploadedAt) : asc(document.filename)
@@ -1021,8 +1000,7 @@ export async function createSingleDocument(
     tag7?: string
   },
   knowledgeBaseId: string,
-  requestId: string,
-  userId?: string
+  requestId: string
 ): Promise<{
   id: string
   knowledgeBaseId: string
@@ -1043,24 +1021,19 @@ export async function createSingleDocument(
   tag6: string | null
   tag7: string | null
 }> {
-  // Check storage limits before creating document
-  if (userId) {
-    // Get knowledge base owner
-    const kb = await db
-      .select({ userId: knowledgeBase.userId })
-      .from(knowledgeBase)
-      .where(eq(knowledgeBase.id, knowledgeBaseId))
-      .limit(1)
+  const kb = await db
+    .select({ userId: knowledgeBase.userId })
+    .from(knowledgeBase)
+    .where(eq(knowledgeBase.id, knowledgeBaseId))
+    .limit(1)
 
-    if (kb.length === 0) {
-      throw new Error('Knowledge base not found')
-    }
+  if (kb.length === 0) {
+    throw new Error('Knowledge base not found')
   }
 
   const documentId = randomUUID()
   const now = new Date()
 
-  // Process structured tag data if provided
   let processedTags: ProcessedDocumentTags = {
     // Text tags (7 slots)
     tag1: documentData.tag1 ?? null,
@@ -1089,11 +1062,9 @@ export async function createSingleDocument(
     try {
       const tagData = JSON.parse(documentData.documentTagsData)
       if (Array.isArray(tagData)) {
-        // Process structured tag data and create tag definitions
         processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
       }
     } catch (error) {
-      // Re-throw validation errors, only catch JSON parse errors
       if (error instanceof SyntaxError) {
         logger.warn(`[${requestId}] Failed to parse documentTagsData:`, error)
       } else {
@@ -1126,15 +1097,6 @@ export async function createSingleDocument(
 
   logger.info(`[${requestId}] Document created: ${documentId} in knowledge base ${knowledgeBaseId}`)
 
-  if (userId) {
-    // Get knowledge base owner
-    const kb = await db
-      .select({ userId: knowledgeBase.userId })
-      .from(knowledgeBase)
-      .where(eq(knowledgeBase.id, knowledgeBaseId))
-      .limit(1)
-  }
-
   return newDocument as {
     id: string
     knowledgeBaseId: string
@@ -1164,8 +1126,7 @@ export async function bulkDocumentOperation(
   knowledgeBaseId: string,
   operation: 'enable' | 'disable' | 'delete',
   documentIds: string[],
-  requestId: string,
-  userId?: string
+  requestId: string
 ): Promise<{
   success: boolean
   successCount: number
@@ -1180,7 +1141,6 @@ export async function bulkDocumentOperation(
     `[${requestId}] Starting bulk ${operation} operation on ${documentIds.length} documents in knowledge base ${knowledgeBaseId}`
   )
 
-  // Verify all documents belong to this knowledge base
   const documentsToUpdate = await db
     .select({
       id: document.id,
@@ -1213,24 +1173,6 @@ export async function bulkDocumentOperation(
   }>
 
   if (operation === 'delete') {
-    // Get file sizes before deletion for storage tracking
-    let totalSize = 0
-    if (userId) {
-      const documentsToDelete = await db
-        .select({ fileSize: document.fileSize })
-        .from(document)
-        .where(
-          and(
-            eq(document.knowledgeBaseId, knowledgeBaseId),
-            inArray(document.id, documentIds),
-            isNull(document.deletedAt)
-          )
-        )
-
-      totalSize = documentsToDelete.reduce((sum, doc) => sum + doc.fileSize, 0)
-    }
-
-    // Handle bulk soft delete
     updateResult = await db
       .update(document)
       .set({
@@ -1245,7 +1187,6 @@ export async function bulkDocumentOperation(
       )
       .returning({ id: document.id, deletedAt: document.deletedAt })
   } else {
-    // Handle bulk enable/disable
     const enabled = operation === 'enable'
 
     updateResult = await db
@@ -1267,6 +1208,77 @@ export async function bulkDocumentOperation(
 
   logger.info(
     `[${requestId}] Bulk ${operation} operation completed: ${successCount} documents updated in knowledge base ${knowledgeBaseId}`
+  )
+
+  return {
+    success: true,
+    successCount,
+    updatedDocuments: updateResult,
+  }
+}
+
+/**
+ * Perform bulk operations on all documents matching a filter
+ */
+export async function bulkDocumentOperationByFilter(
+  knowledgeBaseId: string,
+  operation: 'enable' | 'disable' | 'delete',
+  enabledFilter: 'all' | 'enabled' | 'disabled' | undefined,
+  requestId: string
+): Promise<{
+  success: boolean
+  successCount: number
+  updatedDocuments: Array<{
+    id: string
+    enabled?: boolean
+    deletedAt?: Date | null
+  }>
+}> {
+  logger.info(
+    `[${requestId}] Starting bulk ${operation} operation on all documents (filter: ${enabledFilter || 'all'}) in knowledge base ${knowledgeBaseId}`
+  )
+
+  const whereConditions = [
+    eq(document.knowledgeBaseId, knowledgeBaseId),
+    isNull(document.deletedAt),
+  ]
+
+  if (enabledFilter === 'enabled') {
+    whereConditions.push(eq(document.enabled, true))
+  } else if (enabledFilter === 'disabled') {
+    whereConditions.push(eq(document.enabled, false))
+  }
+
+  let updateResult: Array<{
+    id: string
+    enabled?: boolean
+    deletedAt?: Date | null
+  }>
+
+  if (operation === 'delete') {
+    updateResult = await db
+      .update(document)
+      .set({
+        deletedAt: new Date(),
+      })
+      .where(and(...whereConditions))
+      .returning({ id: document.id, deletedAt: document.deletedAt })
+  } else {
+    const enabled = operation === 'enable'
+
+    updateResult = await db
+      .update(document)
+      .set({
+        enabled,
+      })
+      .where(and(...whereConditions))
+      .returning({ id: document.id, enabled: document.enabled })
+  }
+
+  const successCount = updateResult.length
+
+  logger.info(
+    `[${requestId}] Bulk ${operation} by filter completed: ${successCount} documents updated in knowledge base ${knowledgeBaseId}`
   )
 
   return {
@@ -1325,7 +1337,6 @@ export async function retryDocumentProcessing(
   },
   requestId: string
 ): Promise<{ success: boolean; status: string; message: string }> {
-  // Fetch KB's chunkingConfig for retry processing
   const kb = await db
     .select({
       chunkingConfig: knowledgeBase.chunkingConfig,
@@ -1336,7 +1347,6 @@ export async function retryDocumentProcessing(
 
   const kbConfig = kb[0].chunkingConfig as { maxSize: number; minSize: number; overlap: number }
 
-  // Clear existing embeddings and reset document state
   await db.transaction(async (tx) => {
     await tx.delete(embedding).where(eq(embedding.documentId, documentId))
 
@@ -1362,7 +1372,6 @@ export async function retryDocumentProcessing(
     chunkOverlap: kbConfig.overlap,
   }
 
-  // Start processing in the background
   processDocumentAsync(knowledgeBaseId, documentId, docData, processingOptions).catch(
     (error: unknown) => {
       logger.error(`[${requestId}] Background retry processing error:`, error)
@@ -1511,7 +1520,6 @@ export async function updateDocument(
   if (updateData.processingError !== undefined)
     dbUpdateData.processingError = updateData.processingError
 
-  // Helper to convert string values to proper types for the database
   const convertTagValue = (
     slot: string,
     value: string | undefined

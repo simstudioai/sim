@@ -18,6 +18,7 @@ import {
 } from '@/components/emcn'
 import { WorkflowIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { formatDuration } from '@/lib/core/utils/formatting'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getBlock, getBlockByToolName } from '@/blocks'
@@ -141,14 +142,6 @@ function normalizeAndSortSpans(spans: TraceSpan[]): TraceSpan[] {
 }
 
 const DEFAULT_BLOCK_COLOR = '#6b7280'
-
-/**
- * Formats duration in ms
- */
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(2)}s`
-}
 
 /**
  * Gets icon and color for a span type using block config
@@ -314,7 +307,7 @@ function ExpandableRowHeader({
         </span>
       </div>
       <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-        {formatDuration(duration)}
+        {formatDuration(duration, { precision: 2 })}
       </span>
     </div>
   )
