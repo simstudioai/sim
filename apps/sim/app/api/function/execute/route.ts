@@ -503,6 +503,7 @@ function injectBlockVariables(
     }
     // Skip if already defined by another resolution step
     if (normalizedName in contextVariables) {
+      logger.warn(`Block variable '${normalizedName}' already exists in context, skipping injection for blockId: ${blockId}`)
       continue
     }
     const blockOutput = blockData[blockId]
