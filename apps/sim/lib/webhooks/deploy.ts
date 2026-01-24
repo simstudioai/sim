@@ -371,6 +371,43 @@ export async function saveTriggerWebhooksForDeploy({
     }
   }
 
+  const restorePreviousSubscriptions = async () => {
+    if (!previousVersionId) return
+
+    const previousWebhooks = await db
+      .select()
+      .from(webhook)
+      .where(eq(webhook.deploymentVersionId, previousVersionId))
+
+    if (previousWebhooks.length === 0) return
+
+    logger.info(
+      `[${requestId}] Attempting to restore ${previousWebhooks.length} external subscription(s) for previous version`
+    )
+    for (const wh of previousWebhooks) {
+      try {
+        await createExternalWebhookSubscription(
+          request,
+          {
+            id: wh.id,
+            path: wh.path,
+            provider: wh.provider,
+            providerConfig: (wh.providerConfig as Record<string, unknown>) || {},
+          },
+          workflow,
+          userId,
+          requestId
+        )
+        logger.info(`[${requestId}] Restored external subscription for webhook ${wh.id}`)
+      } catch (restoreError) {
+        logger.error(
+          `[${requestId}] Failed to restore external subscription for webhook ${wh.id}`,
+          restoreError
+        )
+      }
+    }
+  }
+
   const webhooksByBlockId = new Map<string, typeof existingWebhooks>()
   for (const wh of existingWebhooks) {
     if (!wh.blockId) continue
@@ -403,6 +440,7 @@ export async function saveTriggerWebhooksForDeploy({
     )
 
     if (missingFields.length > 0) {
+      await restorePreviousSubscriptions()
       return {
         success: false,
         error: {
@@ -504,10 +542,12 @@ export async function saveTriggerWebhooksForDeploy({
       })
 
       if (credentialSetError) {
+        await restorePreviousSubscriptions()
         return { success: false, error: credentialSetError }
       }
     } catch (error: any) {
       logger.error(`[${requestId}] Failed to create webhook for ${block.id}`, error)
+      await restorePreviousSubscriptions()
       return {
         success: false,
         error: {
@@ -585,6 +625,7 @@ export async function saveTriggerWebhooksForDeploy({
       for (const block of triggerBlocks) {
         ;(block as any)._webhookConfig = undefined
       }
+      await restorePreviousSubscriptions()
       return {
         success: false,
         error: {
@@ -630,6 +671,7 @@ export async function saveTriggerWebhooksForDeploy({
         for (const block of triggerBlocks) {
           ;(block as any)._webhookConfig = undefined
         }
+        await restorePreviousSubscriptions()
         return { success: false, error: pollingError }
       }
     }
@@ -659,6 +701,7 @@ export async function saveTriggerWebhooksForDeploy({
     for (const block of triggerBlocks) {
       ;(block as any)._webhookConfig = undefined
     }
+    await restorePreviousSubscriptions()
     return {
       success: false,
       error: {
