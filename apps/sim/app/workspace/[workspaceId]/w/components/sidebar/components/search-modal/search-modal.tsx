@@ -448,7 +448,7 @@ export const SearchModal = memo(function SearchModal({
   }, [workspaces, workflows, pages, blocks, triggers, tools, toolOperations, docs])
 
   const sectionOrder = useMemo<SearchItem['type'][]>(
-    () => ['block', 'tool', 'tool-operation', 'trigger', 'workflow', 'workspace', 'page', 'doc'],
+    () => ['block', 'tool', 'trigger', 'doc', 'tool-operation', 'workflow', 'workspace', 'page'],
     []
   )
 

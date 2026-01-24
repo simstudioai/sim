@@ -19,6 +19,9 @@ interface TextProps {
  * - Automatically detects and renders HTML content safely
  * - Applies prose styling for HTML content (links, code, lists, etc.)
  * - Falls back to plain text rendering for non-HTML content
+ *
+ * Note: This component renders trusted, internally-defined content only
+ * (e.g., trigger setup instructions). It is NOT used for user-generated content.
  */
 export function Text({ blockId, subBlockId, content, className }: TextProps) {
   const containsHtml = /<[^>]+>/.test(content)

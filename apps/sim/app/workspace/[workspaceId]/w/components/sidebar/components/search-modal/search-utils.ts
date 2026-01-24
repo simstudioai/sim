@@ -103,6 +103,47 @@ function calculateAliasScore(
 }
 
 /**
+ * Calculate multi-word match score
+ * Each word in the query must appear somewhere in the field
+ * Returns a score based on how well the words match
+ */
+function calculateMultiWordScore(
+  queryWords: string[],
+  field: string
+): { score: number; matchType: 'word-boundary' | 'substring' | null } {
+  const normalizedField = field.toLowerCase().trim()
+  const fieldWords = normalizedField.split(/[\s\-_/:]+/)
+
+  let allWordsMatch = true
+  let totalScore = 0
+  let hasWordBoundary = false
+
+  for (const queryWord of queryWords) {
+    const wordBoundaryMatch = fieldWords.some((fw) => fw.startsWith(queryWord))
+    const substringMatch = normalizedField.includes(queryWord)
+
+    if (wordBoundaryMatch) {
+      totalScore += SCORE_WORD_BOUNDARY
+      hasWordBoundary = true
+    } else if (substringMatch) {
+      totalScore += SCORE_SUBSTRING_MATCH
+    } else {
+      allWordsMatch = false
+      break
+    }
+  }
+
+  if (!allWordsMatch) {
+    return { score: 0, matchType: null }
+  }
+
+  return {
+    score: totalScore / queryWords.length,
+    matchType: hasWordBoundary ? 'word-boundary' : 'substring',
+  }
+}
+
+/**
  * Search items using tiered matching algorithm
  * Returns items sorted by relevance (highest score first)
  */
@@ -117,6 +158,8 @@ export function searchItems<T extends SearchableItem>(
   }
 
   const results: SearchResult<T>[] = []
+  const queryWords = normalizedQuery.toLowerCase().split(/\s+/).filter(Boolean)
+  const isMultiWord = queryWords.length > 1
 
   for (const item of items) {
     const nameMatch = calculateFieldScore(normalizedQuery, item.name)
@@ -127,16 +170,35 @@ export function searchItems<T extends SearchableItem>(
 
     const aliasMatch = calculateAliasScore(normalizedQuery, item.aliases)
 
-    const nameScore = nameMatch.score
-    const descScore = descMatch.score * DESCRIPTION_WEIGHT
+    let nameScore = nameMatch.score
+    let descScore = descMatch.score * DESCRIPTION_WEIGHT
     const aliasScore = aliasMatch.score
+
+    let bestMatchType = nameMatch.matchType
+
+    // For multi-word queries, also try matching each word independently and take the better score
+    if (isMultiWord) {
+      const multiWordNameMatch = calculateMultiWordScore(queryWords, item.name)
+      if (multiWordNameMatch.score > nameScore) {
+        nameScore = multiWordNameMatch.score
+        bestMatchType = multiWordNameMatch.matchType
+      }
+
+      if (item.description) {
+        const multiWordDescMatch = calculateMultiWordScore(queryWords, item.description)
+        const multiWordDescScore = multiWordDescMatch.score * DESCRIPTION_WEIGHT
+        if (multiWordDescScore > descScore) {
+          descScore = multiWordDescScore
+        }
+      }
+    }
 
     const bestScore = Math.max(nameScore, descScore, aliasScore)
 
     if (bestScore > 0) {
       let matchType: SearchResult<T>['matchType'] = 'substring'
       if (nameScore >= descScore && nameScore >= aliasScore) {
-        matchType = nameMatch.matchType || 'substring'
+        matchType = bestMatchType || 'substring'
       } else if (aliasScore >= descScore) {
         matchType = 'alias'
       } else {
