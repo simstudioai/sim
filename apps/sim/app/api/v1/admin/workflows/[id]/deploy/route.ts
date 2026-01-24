@@ -2,6 +2,7 @@ import { db, workflow, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { removeMcpToolsForWorkflow, syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import {
   cleanupWebhooksForWorkflow,
   restorePreviousVersionWebhooks,
@@ -163,10 +164,14 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       `[${requestId}] Admin API: Deployed workflow ${workflowId} as v${deployResult.version}`
     )
 
+    // Sync MCP tools with the latest parameter schema
+    await syncMcpToolsForWorkflow({ workflowId, requestId, context: 'deploy' })
+
     const response: AdminDeployResult = {
       isDeployed: true,
       version: deployResult.version!,
       deployedAt: deployResult.deployedAt!.toISOString(),
+      warnings: triggerSaveResult.warnings,
     }
 
     return singleResponse(response)
@@ -201,6 +206,8 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) 
     if (!result.success) {
       return internalErrorResponse(result.error || 'Failed to undeploy workflow')
     }
+
+    await removeMcpToolsForWorkflow(workflowId, requestId)
 
     logger.info(`Admin API: Undeployed workflow ${workflowId}`)
 

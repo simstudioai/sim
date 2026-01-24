@@ -273,6 +273,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             nextRunAt: scheduleInfo.nextRunAt,
           }
         : undefined,
+      warnings: triggerSaveResult.warnings,
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Error deploying workflow: ${id}`, {

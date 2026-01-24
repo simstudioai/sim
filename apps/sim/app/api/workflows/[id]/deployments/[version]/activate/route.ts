@@ -178,7 +178,11 @@ export async function POST(
       context: 'activate',
     })
 
-    return createSuccessResponse({ success: true, deployedAt: result.deployedAt })
+    return createSuccessResponse({
+      success: true,
+      deployedAt: result.deployedAt,
+      warnings: triggerSaveResult.warnings,
+    })
   } catch (error: any) {
     logger.error(`[${requestId}] Error activating deployment for workflow: ${id}`, error)
     return createErrorResponse(error.message || 'Failed to activate deployment', 500)

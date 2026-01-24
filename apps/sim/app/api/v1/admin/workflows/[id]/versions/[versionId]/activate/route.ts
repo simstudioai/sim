@@ -192,6 +192,7 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       success: true,
       version: versionNum,
       deployedAt: result.deployedAt!.toISOString(),
+      warnings: triggerSaveResult.warnings,
     })
   } catch (error) {
     logger.error(

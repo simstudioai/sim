@@ -1393,21 +1393,6 @@ export function verifyProviderWebhook(
     case 'stripe':
       break
     case 'gmail':
-      if (providerConfig.secret) {
-        const secretHeader = request.headers.get('X-Webhook-Secret')
-        if (!secretHeader || secretHeader.length !== providerConfig.secret.length) {
-          logger.warn(`[${requestId}] Invalid Gmail webhook secret`)
-          return new NextResponse('Unauthorized', { status: 401 })
-        }
-        let result = 0
-        for (let i = 0; i < secretHeader.length; i++) {
-          result |= secretHeader.charCodeAt(i) ^ providerConfig.secret.charCodeAt(i)
-        }
-        if (result !== 0) {
-          logger.warn(`[${requestId}] Invalid Gmail webhook secret`)
-          return new NextResponse('Unauthorized', { status: 401 })
-        }
-      }
       break
     case 'telegram': {
       // Check User-Agent to ensure it's not blocked by middleware
@@ -1951,6 +1936,10 @@ export interface CredentialSetWebhookSyncResult {
   created: number
   updated: number
   deleted: number
+  failed: Array<{
+    credentialId: string
+    error: string
+  }>
 }
 
 /**
@@ -2013,7 +2002,7 @@ export async function syncWebhooksForCredentialSet(params: {
     syncLogger.warn(
       `[${requestId}] No credentials found in credential set ${credentialSetId} for provider ${oauthProviderId}`
     )
-    return { webhooks: [], created: 0, updated: 0, deleted: 0 }
+    return { webhooks: [], created: 0, updated: 0, deleted: 0, failed: [] }
   }
 
   syncLogger.info(
@@ -2035,10 +2024,9 @@ export async function syncWebhooksForCredentialSet(params: {
     )
 
   // Filter to only webhooks belonging to this credential set
-  const credentialSetWebhooks = existingWebhooks.filter((wh) => {
-    const config = wh.providerConfig as Record<string, any>
-    return config?.credentialSetId === credentialSetId
-  })
+  const credentialSetWebhooks = existingWebhooks.filter(
+    (wh) => wh.credentialSetId === credentialSetId
+  )
 
   syncLogger.info(
     `[${requestId}] Found ${credentialSetWebhooks.length} existing webhooks for credential set`
@@ -2060,103 +2048,128 @@ export async function syncWebhooksForCredentialSet(params: {
     created: 0,
     updated: 0,
     deleted: 0,
+    failed: [],
   }
 
   // Process each credential in the set
   for (const cred of credentials) {
-    const existingWebhook = existingByCredentialId.get(cred.credentialId)
+    try {
+      const existingWebhook = existingByCredentialId.get(cred.credentialId)
 
-    if (existingWebhook) {
-      // Update existing webhook - preserve state fields
-      const existingConfig = existingWebhook.providerConfig as Record<string, any>
+      if (existingWebhook) {
+        // Update existing webhook - preserve state fields
+        const existingConfig = existingWebhook.providerConfig as Record<string, any>
 
-      const updatedConfig = {
-        ...providerConfig,
-        basePath, // Store basePath for reliable reconstruction during membership sync
-        credentialId: cred.credentialId,
-        credentialSetId: credentialSetId,
-        // Preserve state fields from existing config
-        historyId: existingConfig.historyId,
-        lastCheckedTimestamp: existingConfig.lastCheckedTimestamp,
-        setupCompleted: existingConfig.setupCompleted,
-        externalId: existingConfig.externalId,
-        userId: cred.userId,
-      }
+        const updatedConfig = {
+          ...providerConfig,
+          basePath, // Store basePath for reliable reconstruction during membership sync
+          credentialId: cred.credentialId,
+          credentialSetId: credentialSetId,
+          // Preserve state fields from existing config
+          historyId: existingConfig?.historyId,
+          lastCheckedTimestamp: existingConfig?.lastCheckedTimestamp,
+          setupCompleted: existingConfig?.setupCompleted,
+          externalId: existingConfig?.externalId,
+          userId: cred.userId,
+        }
 
-      await dbCtx
-        .update(webhook)
-        .set({
-          ...(deploymentVersionId ? { deploymentVersionId } : {}),
-          providerConfig: updatedConfig,
+        await dbCtx
+          .update(webhook)
+          .set({
+            ...(deploymentVersionId ? { deploymentVersionId } : {}),
+            providerConfig: updatedConfig,
+            isActive: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(webhook.id, existingWebhook.id))
+
+        result.webhooks.push({
+          id: existingWebhook.id,
+          credentialId: cred.credentialId,
+          isNew: false,
+        })
+        result.updated++
+
+        syncLogger.debug(
+          `[${requestId}] Updated webhook ${existingWebhook.id} for credential ${cred.credentialId}`
+        )
+      } else {
+        // Create new webhook for this credential
+        const webhookId = nanoid()
+        const webhookPath = useUniquePaths
+          ? `${basePath}-${cred.credentialId.slice(0, 8)}`
+          : basePath
+
+        const newConfig = {
+          ...providerConfig,
+          basePath, // Store basePath for reliable reconstruction during membership sync
+          credentialId: cred.credentialId,
+          credentialSetId: credentialSetId,
+          userId: cred.userId,
+        }
+
+        await dbCtx.insert(webhook).values({
+          id: webhookId,
+          workflowId,
+          blockId,
+          path: webhookPath,
+          provider,
+          providerConfig: newConfig,
+          credentialSetId, // Indexed column for efficient credential set queries
           isActive: true,
+          ...(deploymentVersionId ? { deploymentVersionId } : {}),
+          createdAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(webhook.id, existingWebhook.id))
 
-      result.webhooks.push({
-        id: existingWebhook.id,
-        credentialId: cred.credentialId,
-        isNew: false,
-      })
-      result.updated++
+        result.webhooks.push({
+          id: webhookId,
+          credentialId: cred.credentialId,
+          isNew: true,
+        })
+        result.created++
 
-      syncLogger.debug(
-        `[${requestId}] Updated webhook ${existingWebhook.id} for credential ${cred.credentialId}`
-      )
-    } else {
-      // Create new webhook for this credential
-      const webhookId = nanoid()
-      const webhookPath = useUniquePaths ? `${basePath}-${cred.credentialId.slice(0, 8)}` : basePath
-
-      const newConfig = {
-        ...providerConfig,
-        basePath, // Store basePath for reliable reconstruction during membership sync
-        credentialId: cred.credentialId,
-        credentialSetId: credentialSetId,
-        userId: cred.userId,
+        syncLogger.debug(
+          `[${requestId}] Created webhook ${webhookId} for credential ${cred.credentialId}`
+        )
       }
-
-      await dbCtx.insert(webhook).values({
-        id: webhookId,
-        workflowId,
-        blockId,
-        path: webhookPath,
-        provider,
-        providerConfig: newConfig,
-        credentialSetId, // Indexed column for efficient credential set queries
-        isActive: true,
-        ...(deploymentVersionId ? { deploymentVersionId } : {}),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-
-      result.webhooks.push({
-        id: webhookId,
-        credentialId: cred.credentialId,
-        isNew: true,
-      })
-      result.created++
-
-      syncLogger.debug(
-        `[${requestId}] Created webhook ${webhookId} for credential ${cred.credentialId}`
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      syncLogger.error(
+        `[${requestId}] Failed to sync webhook for credential ${cred.credentialId}: ${errorMessage}`
       )
+      result.failed.push({
+        credentialId: cred.credentialId,
+        error: errorMessage,
+      })
     }
   }
 
   // Delete webhooks for credentials no longer in the set
   for (const [credentialId, existingWebhook] of existingByCredentialId) {
     if (!credentialIdsInSet.has(credentialId)) {
-      await dbCtx.delete(webhook).where(eq(webhook.id, existingWebhook.id))
-      result.deleted++
+      try {
+        await dbCtx.delete(webhook).where(eq(webhook.id, existingWebhook.id))
+        result.deleted++
 
-      syncLogger.debug(
-        `[${requestId}] Deleted webhook ${existingWebhook.id} for removed credential ${credentialId}`
-      )
+        syncLogger.debug(
+          `[${requestId}] Deleted webhook ${existingWebhook.id} for removed credential ${credentialId}`
+        )
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        syncLogger.error(
+          `[${requestId}] Failed to delete webhook ${existingWebhook.id} for credential ${credentialId}: ${errorMessage}`
+        )
+        result.failed.push({
+          credentialId,
+          error: `Failed to delete: ${errorMessage}`,
+        })
+      }
     }
   }
 
   syncLogger.info(
-    `[${requestId}] Credential set webhook sync complete: ${result.created} created, ${result.updated} updated, ${result.deleted} deleted`
+    `[${requestId}] Credential set webhook sync complete: ${result.created} created, ${result.updated} updated, ${result.deleted} deleted, ${result.failed.length} failed`
   )
 
   return result

@@ -241,9 +241,8 @@ export async function DELETE(
     }
 
     const foundWebhook = webhookData.webhook
-    const providerConfig = foundWebhook.providerConfig as Record<string, unknown> | null
-    const credentialSetId = providerConfig?.credentialSetId as string | undefined
-    const blockId = providerConfig?.blockId as string | undefined
+    const credentialSetId = foundWebhook.credentialSetId as string | undefined
+    const blockId = foundWebhook.blockId as string | undefined
 
     if (credentialSetId && blockId) {
       const allCredentialSetWebhooks = await db
@@ -251,10 +250,9 @@ export async function DELETE(
         .from(webhook)
         .where(and(eq(webhook.workflowId, webhookData.workflow.id), eq(webhook.blockId, blockId)))
 
-      const webhooksToDelete = allCredentialSetWebhooks.filter((w) => {
-        const config = w.providerConfig as Record<string, unknown> | null
-        return config?.credentialSetId === credentialSetId
-      })
+      const webhooksToDelete = allCredentialSetWebhooks.filter(
+        (w) => w.credentialSetId === credentialSetId
+      )
 
       for (const w of webhooksToDelete) {
         await cleanupExternalWebhook(w, webhookData.workflow, requestId)

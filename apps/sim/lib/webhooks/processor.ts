@@ -963,7 +963,8 @@ export async function queueWebhookExecution(
     // Note: Each webhook now has its own credentialId (credential sets are fanned out at save time)
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
     const credentialId = providerConfig.credentialId as string | undefined
-    const credentialSetId = providerConfig.credentialSetId as string | undefined
+    // credentialSetId is a direct field on webhook table, not in providerConfig
+    const credentialSetId = foundWebhook.credentialSetId as string | undefined
 
     // Verify billing for credential sets
     if (credentialSetId) {

@@ -32,6 +32,12 @@ interface TriggerSaveError {
 interface TriggerSaveResult {
   success: boolean
   error?: TriggerSaveError
+  warnings?: string[]
+}
+
+interface CredentialSetSyncResult {
+  error: TriggerSaveError | null
+  warnings: string[]
 }
 
 interface SaveTriggerWebhooksInput {
@@ -258,7 +264,7 @@ async function syncCredentialSetWebhooks(params: {
   providerConfig: Record<string, unknown>
   requestId: string
   deploymentVersionId?: string
-}): Promise<TriggerSaveError | null> {
+}): Promise<CredentialSetSyncResult> {
   const {
     workflowId,
     blockId,
@@ -271,7 +277,7 @@ async function syncCredentialSetWebhooks(params: {
 
   const credentialSetId = providerConfig.credentialSetId as string | undefined
   if (!credentialSetId) {
-    return null
+    return { error: null, warnings: [] }
   }
 
   const oauthProviderId = getProviderIdFromServiceId(provider)
@@ -290,10 +296,23 @@ async function syncCredentialSetWebhooks(params: {
     deploymentVersionId,
   })
 
+  const warnings: string[] = []
+
+  if (syncResult.failed.length > 0) {
+    const failedCount = syncResult.failed.length
+    const totalCount = syncResult.webhooks.length + failedCount
+    warnings.push(
+      `${failedCount} of ${totalCount} credentials in the set failed to sync for ${provider}. Some team members may not receive triggers.`
+    )
+  }
+
   if (syncResult.webhooks.length === 0) {
     return {
-      message: `No valid credentials found in credential set for ${provider}. Please connect accounts and try again.`,
-      status: 400,
+      error: {
+        message: `No valid credentials found in credential set for ${provider}. Please connect accounts and try again.`,
+        status: 400,
+      },
+      warnings,
     }
   }
 
@@ -307,8 +326,11 @@ async function syncCredentialSetWebhooks(params: {
           if (!success) {
             await db.delete(webhook).where(eq(webhook.id, wh.id))
             return {
-              message: `Failed to configure ${provider} polling. Please check account permissions.`,
-              status: 500,
+              error: {
+                message: `Failed to configure ${provider} polling. Please check account permissions.`,
+                status: 500,
+              },
+              warnings,
             }
           }
         }
@@ -316,7 +338,7 @@ async function syncCredentialSetWebhooks(params: {
     }
   }
 
-  return null
+  return { error: null, warnings }
 }
 
 /**
@@ -503,6 +525,8 @@ export async function saveTriggerWebhooksForDeploy({
     await db.delete(webhook).where(inArray(webhook.id, idsToDelete))
   }
 
+  const collectedWarnings: string[] = []
+
   for (const block of blocksNeedingCredentialSetSync) {
     const config = webhookConfigs.get(block.id)
     if (!config) continue
@@ -510,7 +534,7 @@ export async function saveTriggerWebhooksForDeploy({
     const { provider, providerConfig, triggerPath } = config
 
     try {
-      const credentialSetError = await syncCredentialSetWebhooks({
+      const syncResult = await syncCredentialSetWebhooks({
         workflowId,
         blockId: block.id,
         provider,
@@ -520,9 +544,13 @@ export async function saveTriggerWebhooksForDeploy({
         deploymentVersionId,
       })
 
-      if (credentialSetError) {
+      if (syncResult.warnings.length > 0) {
+        collectedWarnings.push(...syncResult.warnings)
+      }
+
+      if (syncResult.error) {
         await restorePreviousSubscriptions()
-        return { success: false, error: credentialSetError }
+        return { success: false, error: syncResult.error, warnings: collectedWarnings }
       }
     } catch (error: any) {
       logger.error(`[${requestId}] Failed to create webhook for ${block.id}`, error)
@@ -533,6 +561,7 @@ export async function saveTriggerWebhooksForDeploy({
           message: error?.message || 'Failed to save trigger configuration',
           status: 500,
         },
+        warnings: collectedWarnings,
       }
     }
   }
@@ -708,7 +737,7 @@ export async function saveTriggerWebhooksForDeploy({
     }
   }
 
-  return { success: true }
+  return { success: true, warnings: collectedWarnings.length > 0 ? collectedWarnings : undefined }
 }
 
 /**
