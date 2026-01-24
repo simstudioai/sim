@@ -22,7 +22,7 @@ export default async function StudioIndex({
       ? filtered.sort((a, b) => {
           if (a.featured && !b.featured) return -1
           if (!a.featured && b.featured) return 1
-          return 0
+          return new Date(b.date).getTime() - new Date(a.date).getTime()
         })
       : filtered
 
