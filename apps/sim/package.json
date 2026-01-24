@@ -138,7 +138,6 @@
     "posthog-node": "5.9.2",
     "prismjs": "^1.30.0",
     "react": "19.2.1",
-    "react-colorful": "5.6.1",
     "react-dom": "19.2.1",
     "react-hook-form": "^7.54.2",
     "react-markdown": "^10.1.0",
