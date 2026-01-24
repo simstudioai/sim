@@ -7,6 +7,7 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
   type: 'spotify',
   name: 'Spotify',
   description: 'Search music, manage playlists, control playback, and access your library',
+  hideFromToolbar: true,
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Spotify into your workflow. Search for tracks, albums, artists, and playlists. Manage playlists, access your library, control playback, browse podcasts and audiobooks.',
