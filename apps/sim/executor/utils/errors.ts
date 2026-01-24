@@ -11,14 +11,20 @@ export interface ErrorWithExecutionResult extends Error {
 
 /**
  * Type guard to check if an error carries an ExecutionResult.
+ * Validates that executionResult has required fields (success, output).
  */
 export function hasExecutionResult(error: unknown): error is ErrorWithExecutionResult {
-  return (
-    error instanceof Error &&
-    'executionResult' in error &&
-    error.executionResult != null &&
-    typeof error.executionResult === 'object'
-  )
+  if (
+    !(error instanceof Error) ||
+    !('executionResult' in error) ||
+    error.executionResult == null ||
+    typeof error.executionResult !== 'object'
+  ) {
+    return false
+  }
+
+  const result = error.executionResult as Record<string, unknown>
+  return typeof result.success === 'boolean' && result.output != null
 }
 
 /**
