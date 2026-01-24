@@ -9,6 +9,7 @@ import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import { createExternalWebhookSubscription } from '@/lib/webhooks/provider-subscriptions'
+import { mergeNonUserFields } from '@/lib/webhooks/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WebhooksAPI')
@@ -466,7 +467,8 @@ export async function POST(request: NextRequest) {
       providerConfig: providerConfigOverride,
     })
 
-    const configToSave = { ...originalProviderConfig }
+    const userProvided = originalProviderConfig as Record<string, unknown>
+    const configToSave: Record<string, unknown> = { ...userProvided }
 
     try {
       const result = await createExternalWebhookSubscription(
@@ -477,11 +479,7 @@ export async function POST(request: NextRequest) {
         requestId
       )
       const updatedConfig = result.updatedProviderConfig as Record<string, unknown>
-      for (const [key, value] of Object.entries(updatedConfig)) {
-        if (!(key in originalProviderConfig)) {
-          configToSave[key] = value
-        }
-      }
+      mergeNonUserFields(configToSave, updatedConfig, userProvided)
       resolvedProviderConfig = updatedConfig
       externalSubscriptionCreated = result.externalSubscriptionCreated
     } catch (err) {

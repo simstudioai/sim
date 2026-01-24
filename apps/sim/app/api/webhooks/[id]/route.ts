@@ -13,6 +13,7 @@ import {
   createExternalWebhookSubscription,
   shouldRecreateExternalWebhookSubscription,
 } from '@/lib/webhooks/provider-subscriptions'
+import { mergeNonUserFields } from '@/lib/webhooks/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WebhookAPI')
@@ -185,13 +186,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const existingProviderConfig =
       (webhookData.webhook.providerConfig as Record<string, unknown>) || {}
+    const nextProvider = (provider ?? webhookData.webhook.provider) as string
+
     let nextProviderConfig =
       providerConfig !== undefined &&
       resolvedProviderConfig &&
       typeof resolvedProviderConfig === 'object'
         ? (resolvedProviderConfig as Record<string, unknown>)
         : existingProviderConfig
-    const nextProvider = (provider ?? webhookData.webhook.provider) as string
 
     if (
       providerConfig !== undefined &&
@@ -199,7 +201,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         previousProvider: webhookData.webhook.provider as string,
         nextProvider,
         previousConfig: existingProviderConfig,
-        nextConfig: nextProviderConfig,
+        nextConfig: originalProviderConfig as Record<string, unknown>,
       })
     ) {
       await cleanupExternalWebhook(
@@ -231,24 +233,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       hasFailedCountUpdate: failedCount !== undefined,
     })
 
-    let finalProviderConfig = webhooks[0].webhook.providerConfig
+    let finalProviderConfig: Record<string, unknown> =
+      (webhooks[0].webhook.providerConfig as Record<string, unknown>) || {}
     if (providerConfig !== undefined && originalProviderConfig) {
-      const existingConfig = existingProviderConfig
-      finalProviderConfig = {
-        ...originalProviderConfig,
-        credentialId: existingConfig.credentialId,
-        credentialSetId: existingConfig.credentialSetId,
-        userId: existingConfig.userId,
-        historyId: existingConfig.historyId,
-        lastCheckedTimestamp: existingConfig.lastCheckedTimestamp,
-        setupCompleted: existingConfig.setupCompleted,
-        externalId: existingConfig.externalId,
-      }
-      for (const [key, value] of Object.entries(nextProviderConfig)) {
-        if (!(key in originalProviderConfig)) {
-          ;(finalProviderConfig as Record<string, unknown>)[key] = value
-        }
-      }
+      const userProvided = originalProviderConfig as Record<string, unknown>
+      finalProviderConfig = { ...userProvided }
+      mergeNonUserFields(finalProviderConfig, existingProviderConfig, userProvided)
+      mergeNonUserFields(finalProviderConfig, nextProviderConfig, userProvided)
     }
 
     const updatedWebhook = await db
