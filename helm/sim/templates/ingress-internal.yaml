@@ -79,6 +79,17 @@ spec:
                 port:
                   number: {{ $.Values.realtime.service.port }}
           {{- end }}
+          {{- if and .Values.copilot.enabled .Values.ingressInternal.copilot (eq .Values.ingressInternal.copilot.host .Values.ingressInternal.realtime.host) (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.app.host) }}
+          {{- range .Values.ingressInternal.copilot.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "sim.fullname" $ }}-copilot
+                port:
+                  number: {{ $.Values.copilot.server.service.port }}
+          {{- end }}
+          {{- end }}
     {{- end }}
 
     # Copilot service
