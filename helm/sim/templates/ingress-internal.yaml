@@ -1,0 +1,105 @@
+{{- if .Values.ingressInternal.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "sim.fullname" . }}-ingress-internal
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+  {{- with .Values.ingressInternal.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingressInternal.className }}
+  ingressClassName: {{ .Values.ingressInternal.className }}
+  {{- end }}
+  {{- if .Values.ingressInternal.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingressInternal.app.host | quote }}
+        {{- if and .Values.realtime.enabled (ne .Values.ingressInternal.realtime.host .Values.ingressInternal.app.host) }}
+        - {{ .Values.ingressInternal.realtime.host | quote }}
+        {{- end }}
+        {{- if and .Values.copilot.enabled .Values.ingressInternal.copilot }}
+          {{- if and (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.app.host) (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.realtime.host) }}
+        - {{ .Values.ingressInternal.copilot.host | quote }}
+          {{- end }}
+        {{- end }}
+      secretName: {{ .Values.ingressInternal.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingressInternal.app.host | quote }}
+      http:
+        paths:
+          {{- if and .Values.realtime.enabled (eq .Values.ingressInternal.realtime.host .Values.ingressInternal.app.host) }}
+          {{- range .Values.ingressInternal.realtime.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "sim.fullname" $ }}-realtime
+                port:
+                  number: {{ $.Values.realtime.service.port }}
+          {{- end }}
+          {{- end }}
+          {{- if and .Values.copilot.enabled .Values.ingressInternal.copilot (eq .Values.ingressInternal.copilot.host .Values.ingressInternal.app.host) }}
+          {{- range .Values.ingressInternal.copilot.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "sim.fullname" $ }}-copilot
+                port:
+                  number: {{ $.Values.copilot.server.service.port }}
+          {{- end }}
+          {{- end }}
+          {{- range .Values.ingressInternal.app.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "sim.fullname" $ }}-app
+                port:
+                  number: {{ $.Values.app.service.port }}
+          {{- end }}
+    {{- if and .Values.realtime.enabled (ne .Values.ingressInternal.realtime.host .Values.ingressInternal.app.host) }}
+    - host: {{ .Values.ingressInternal.realtime.host | quote }}
+      http:
+        paths:
+          {{- range .Values.ingressInternal.realtime.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "sim.fullname" $ }}-realtime
+                port:
+                  number: {{ $.Values.realtime.service.port }}
+          {{- end }}
+          {{- if and .Values.copilot.enabled .Values.ingressInternal.copilot (eq .Values.ingressInternal.copilot.host .Values.ingressInternal.realtime.host) }}
+          {{- range .Values.ingressInternal.copilot.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "sim.fullname" $ }}-copilot
+                port:
+                  number: {{ $.Values.copilot.server.service.port }}
+          {{- end }}
+          {{- end }}
+    {{- end }}
+    {{- if and .Values.copilot.enabled .Values.ingressInternal.copilot (and (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.app.host) (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.realtime.host)) }}
+    - host: {{ .Values.ingressInternal.copilot.host | quote }}
+      http:
+        paths:
+          {{- range .Values.ingressInternal.copilot.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "sim.fullname" $ }}-copilot
+                port:
+                  number: {{ $.Values.copilot.server.service.port }}
+          {{- end }}
+    {{- end }}
+{{- end }}
