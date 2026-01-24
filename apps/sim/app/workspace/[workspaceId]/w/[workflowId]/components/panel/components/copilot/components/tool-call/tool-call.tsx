@@ -1260,7 +1260,6 @@ async function handleRun(
   const instance = getClientTool(toolCall.id)
 
   if (!instance && isIntegrationTool(toolCall.name)) {
-    setToolCallState(toolCall, 'executing')
     onStateChange?.('executing')
     try {
       await useCopilotStore.getState().executeIntegrationTool(toolCall.id)
