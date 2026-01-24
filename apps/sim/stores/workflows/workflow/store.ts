@@ -1119,7 +1119,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         const newState = {
           blocks: deployedState.blocks,
-          edges: filterValidEdges(deployedState.edges, deployedState.blocks),
+          edges: filterValidEdges(deployedState.edges ?? [], deployedState.blocks),
           loops: deployedState.loops || {},
           parallels: deployedState.parallels || {},
           needsRedeployment: false,
