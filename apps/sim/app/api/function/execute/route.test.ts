@@ -85,10 +85,10 @@ vi.mock('@/lib/execution/isolated-vm', () => ({
 vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/auth/hybrid', () => ({
-  checkHybridAuth: vi.fn().mockResolvedValue({
+  checkInternalAuth: vi.fn().mockResolvedValue({
     success: true,
     userId: 'user-123',
-    authType: 'session',
+    authType: 'internal_jwt',
   }),
 }))
 
@@ -119,8 +119,8 @@ describe('Function Execute API Route', () => {
 
   describe('Security Tests', () => {
     it('should reject unauthorized requests', async () => {
-      const { checkHybridAuth } = await import('@/lib/auth/hybrid')
-      vi.mocked(checkHybridAuth).mockResolvedValueOnce({
+      const { checkInternalAuth } = await import('@/lib/auth/hybrid')
+      vi.mocked(checkInternalAuth).mockResolvedValueOnce({
         success: false,
         error: 'Unauthorized',
       })
