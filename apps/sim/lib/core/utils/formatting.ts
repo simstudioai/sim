@@ -161,3 +161,46 @@ export function formatDuration(durationMs: number): string {
   const remainingMinutes = minutes % 60
   return `${hours}h ${remainingMinutes}m`
 }
+
+/**
+ * Safely converts a value to a string for React rendering.
+ * Prevents React error #31 by handling objects, arrays, and other non-primitive types.
+ *
+ * @param value - The value to convert to a string
+ * @returns A string representation safe for React rendering
+ *
+ * @example
+ * safelyRenderValue("hello") // "hello"
+ * safelyRenderValue(123) // "123"
+ * safelyRenderValue({ text: "hello", type: "text" }) // '{"text":"hello","type":"text"}'
+ * safelyRenderValue([1, 2, 3]) // "[1,2,3]"
+ * safelyRenderValue(null) // ""
+ * safelyRenderValue(undefined) // ""
+ */
+export function safelyRenderValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return ''
+  }
+
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+
+  if (typeof value === 'object') {
+    if ('text' in value && typeof (value as Record<string, unknown>).text === 'string') {
+      return (value as Record<string, unknown>).text as string
+    }
+
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return '[Object]'
+    }
+  }
+
+  return String(value)
+}

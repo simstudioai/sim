@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { X } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
+import { safelyRenderValue } from '@/lib/core/utils/formatting'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
@@ -147,7 +148,7 @@ export const Notifications = memo(function Notifications() {
                   {notification.level === 'error' && (
                     <span className='mr-[6px] mb-[2.75px] inline-block h-[6px] w-[6px] rounded-[2px] bg-[var(--text-error)] align-middle' />
                   )}
-                  {notification.message}
+                  {safelyRenderValue(notification.message)}
                 </div>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>

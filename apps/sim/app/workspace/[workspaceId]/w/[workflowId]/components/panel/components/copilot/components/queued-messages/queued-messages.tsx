@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { ArrowUp, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
+import { safelyRenderValue } from '@/lib/core/utils/formatting'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 
 /**
@@ -66,7 +67,9 @@ export function QueuedMessages() {
 
               {/* Message content */}
               <div className='min-w-0 flex-1'>
-                <p className='truncate text-[13px] text-[var(--text-primary)]'>{msg.content}</p>
+                <p className='truncate text-[13px] text-[var(--text-primary)]'>
+                  {safelyRenderValue(msg.content)}
+                </p>
               </div>
 
               {/* Actions - always visible */}
