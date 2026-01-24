@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateImageUrl } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const imageUrl = url.searchParams.get('url')
   const requestId = generateRequestId()
 
-  const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+  const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!authResult.success) {
     logger.error(`[${requestId}] Authentication failed for image proxy:`, authResult.error)
     return new NextResponse('Unauthorized', { status: 401 })
