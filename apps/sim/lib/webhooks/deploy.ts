@@ -354,12 +354,12 @@ export async function saveTriggerWebhooksForDeploy({
 
   if (previousVersionId) {
     const webhooksToCleanup = allWorkflowWebhooks.filter(
-      (wh) => wh.deploymentVersionId === previousVersionId || wh.deploymentVersionId === null
+      (wh) => wh.deploymentVersionId === previousVersionId
     )
 
     if (webhooksToCleanup.length > 0) {
       logger.info(
-        `[${requestId}] Cleaning up ${webhooksToCleanup.length} external subscription(s) from previous version and drafts`
+        `[${requestId}] Cleaning up ${webhooksToCleanup.length} external subscription(s) from previous version`
       )
       for (const wh of webhooksToCleanup) {
         try {
@@ -373,39 +373,13 @@ export async function saveTriggerWebhooksForDeploy({
 
   const restorePreviousSubscriptions = async () => {
     if (!previousVersionId) return
-
-    const previousWebhooks = await db
-      .select()
-      .from(webhook)
-      .where(eq(webhook.deploymentVersionId, previousVersionId))
-
-    if (previousWebhooks.length === 0) return
-
-    logger.info(
-      `[${requestId}] Attempting to restore ${previousWebhooks.length} external subscription(s) for previous version`
-    )
-    for (const wh of previousWebhooks) {
-      try {
-        await createExternalWebhookSubscription(
-          request,
-          {
-            id: wh.id,
-            path: wh.path,
-            provider: wh.provider,
-            providerConfig: (wh.providerConfig as Record<string, unknown>) || {},
-          },
-          workflow,
-          userId,
-          requestId
-        )
-        logger.info(`[${requestId}] Restored external subscription for webhook ${wh.id}`)
-      } catch (restoreError) {
-        logger.error(
-          `[${requestId}] Failed to restore external subscription for webhook ${wh.id}`,
-          restoreError
-        )
-      }
-    }
+    await restorePreviousVersionWebhooks({
+      request,
+      workflow,
+      userId,
+      previousVersionId,
+      requestId,
+    })
   }
 
   const webhooksByBlockId = new Map<string, typeof existingWebhooks>()
