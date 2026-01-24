@@ -191,7 +191,6 @@ export function safelyRenderValue(value: unknown): string {
   }
 
   if (typeof value === 'object') {
-    // Handle common structured output pattern {text: string, type?: string}
     if ('text' in value && typeof (value as Record<string, unknown>).text === 'string') {
       return (value as Record<string, unknown>).text as string
     }
